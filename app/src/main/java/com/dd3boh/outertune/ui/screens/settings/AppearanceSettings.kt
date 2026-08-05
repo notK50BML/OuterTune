@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.HighResArtworkKey
 import com.dd3boh.outertune.constants.SlimNavBarKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
@@ -58,6 +60,8 @@ fun AppearanceSettings(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val (slimNav, onSlimNavChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
+    val (highResArtworkPref, onHighResArtworkChange) =
+        rememberPreference(HighResArtworkKey, defaultValue = true)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -98,6 +102,13 @@ fun AppearanceSettings(
                 icon = { Icon(Icons.Rounded.MoreHoriz, null) },
                 checked = slimNav,
                 onCheckedChange = onSlimNavChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.high_res_artwork_title)) },
+                description = stringResource(R.string.high_res_artwork_description),
+                icon = { Icon(Icons.Rounded.HighQuality, null) },
+                checked = highResArtworkPref,
+                onCheckedChange = onHighResArtworkChange
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

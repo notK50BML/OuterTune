@@ -109,6 +109,14 @@ val DownloadOnWifiOnlyKey = booleanPreferencesKey("downloadOnWifiOnly")
 val MaxImageCacheSizeKey = intPreferencesKey("maxImageCacheSize")
 val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
 
+/**
+ * When true, remote artwork URLs are rewritten to request an image at least as large as the
+ * view that will display it. YouTube hands out small thumbnails (often 60-226px) in browse and
+ * library responses; using them verbatim leaves album covers visibly soft on a full-width
+ * player. When false, URLs are used exactly as returned, which is what OuterTune did before.
+ */
+val HighResArtworkKey = booleanPreferencesKey("highResArtwork")
+
 
 /**
  * Privacy

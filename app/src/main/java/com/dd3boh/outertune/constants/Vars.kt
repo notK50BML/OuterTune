@@ -77,7 +77,20 @@ const val SCANNER_OWNER_DL = 32
 const val SCANNER_OWNER_LM = 1
 const val SCANNER_OWNER_M3U = 2
 
+@Deprecated(
+    "Milliseconds value that was compared against a delta measured in seconds. " +
+        "Use SYNC_COOLDOWN instead.",
+    ReplaceWith("SYNC_COOLDOWN")
+)
 const val SYNC_CD = 60000 * 30
+
+/**
+ * Minimum time between syncs of the same category, in SECONDS.
+ *
+ * Must stay in the same unit as [java.time.LocalDateTime.toEpochSecond], which is what the
+ * Last*SyncKey preferences store.
+ */
+const val SYNC_COOLDOWN = 30 * 60L
 
 const val MAX_PLAYER_CONSECUTIVE_ERR = 3
 

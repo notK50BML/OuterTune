@@ -3,6 +3,7 @@ package com.dd3boh.outertune.lyrics
 import android.content.Context
 import android.util.Log
 import android.util.LruCache
+import com.dd3boh.betterlyrics.TTMLParser
 import com.dd3boh.outertune.constants.LyricSourcePrefKey
 import com.dd3boh.outertune.constants.LyricTrimKey
 import com.dd3boh.outertune.constants.MultilineLrcKey
@@ -84,7 +85,7 @@ class LyricsHelper @Inject constructor(
         val dbLyrics = database.lyrics(mediaMetadata.id).let { it.first()?.lyrics }
         val hasPositive = dbLyrics != null && dbLyrics != LYRICS_NOT_FOUND
         if (hasPositive && !prefLocal) {
-            return LrcUtils.parseLyrics(dbLyrics, null, parserOptions, null)
+            return parseResilient(dbLyrics, parserOptions)
         }
 
         val localLyrics: SemanticLyrics? = getLocalLyrics(mediaMetadata, parserOptions)
@@ -95,7 +96,7 @@ class LyricsHelper @Inject constructor(
                 return localLyrics
             }
             if (hasPositive) {
-                return LrcUtils.parseLyrics(dbLyrics, null, parserOptions, null)
+                return parseResilient(dbLyrics, parserOptions)
             }
         }
 
@@ -106,7 +107,7 @@ class LyricsHelper @Inject constructor(
             fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.MANUAL)
             val fetched = database.lyrics(mediaMetadata.id).let { it.first()?.lyrics }
             if (fetched != null && fetched != LYRICS_NOT_FOUND) {
-                return LrcUtils.parseLyrics(fetched, null, parserOptions, null)
+                return parseResilient(fetched, parserOptions)
             }
         }
         return if (!prefLocal) localLyrics else null
@@ -184,6 +185,43 @@ class LyricsHelper @Inject constructor(
                 throw e
             }
         }
+    }
+
+    /**
+     * Parse [raw] into [SemanticLyrics], with a fallback for TTML the strict parser rejects.
+     *
+     * OuterTune's own TTML reader is a strict TTML2 implementation: among other things it requires a
+     * `<head>` element immediately after `<tt>`. A good number of BetterLyrics responses do not have
+     * one, so the strict parser throws and — because the shared parser options carry an errorText —
+     * the failure was being turned into an "Unable to parse lyrics" placeholder and, on the fetch
+     * path, into an UNPARSEABLE classification that discarded the result entirely. That is why
+     * BetterLyrics appeared not to work at all.
+     *
+     * So: try the strict parsers first with errorText suppressed, keeping word-level karaoke timing
+     * whenever they can read the document; otherwise re-read the TTML leniently and hand the strict
+     * parser plain line-by-line LRC instead.
+     */
+    private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
+        val strictOptions = parserOptions.copy(errorText = null)
+
+        runCatching { LrcUtils.parseLyrics(raw, null, strictOptions, null) }
+            .getOrNull()
+            ?.let { return it }
+
+        if (TTMLParser.looksLikeTtml(raw)) {
+            TTMLParser.ttmlToLrc(raw)?.let { lrc ->
+                runCatching {
+                    LrcUtils.parseLyrics(lrc, null, strictOptions, LrcUtils.LyricFormat.LRC)
+                }.getOrNull()?.let {
+                    Log.d(TAG, "recovered TTML via lenient parser (${lrc.count { c -> c == '\n' } + 1} lines)")
+                    return it
+                }
+            }
+        }
+
+        // Nothing could read it. Fall back to the original call so callers that asked for an error
+        // placeholder still get one.
+        return runCatching { LrcUtils.parseLyrics(raw, null, parserOptions, null) }.getOrNull()
     }
 
     /**
@@ -299,7 +337,7 @@ class LyricsHelper @Inject constructor(
             // as null or an exception rather than a synthesized UnsyncedLyrics.
             val classifyFound: (String) -> FoundKind = { raw ->
                 val parsed = try {
-                    LrcUtils.parseLyrics(raw, null, verifyOptions, null)
+                    parseResilient(raw, verifyOptions)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {

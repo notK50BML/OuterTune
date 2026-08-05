@@ -11,7 +11,7 @@ object BetterLyricsProvider : LyricsProvider {
     override val name = "BetterLyrics"
 
     override fun isEnabled(context: Context): Boolean =
-        context.dataStore[EnableBetterLyricsKey] ?: false
+        context.dataStore[EnableBetterLyricsKey] ?: true
 
     override suspend fun getLyrics(id: String, title: String, artist: String, duration: Int): LyricsFetchResult =
         BetterLyrics.getLyrics(title, artist, duration).toFetchResult()

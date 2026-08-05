@@ -115,6 +115,7 @@ import com.dd3boh.outertune.utils.LocalArtworkPath
 import com.dd3boh.outertune.utils.getDownloadState
 import com.dd3boh.outertune.utils.joinByBullet
 import com.dd3boh.outertune.utils.rememberPreference
+import com.dd3boh.outertune.utils.remoteArtwork
 import com.dd3boh.outertune.viewmodels.AlbumViewModel
 import kotlin.math.roundToInt
 
@@ -197,7 +198,7 @@ fun AlbumScreen(
                                     thumbnailUrl,
                                     px,
                                     px
-                                ) else thumbnailUrl,
+                                ) else remoteArtwork(thumbnailUrl, px, px),
                                 contentDescription = null,
                                 modifier = Modifier
                                     .size(AlbumThumbnailSize)

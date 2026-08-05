@@ -3,9 +3,11 @@ package com.dd3boh.betterlyrics
 import com.dd3boh.betterlyrics.models.TTMLResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
+import io.ktor.client.request.headers
 import io.ktor.client.request.parameter
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -30,8 +32,21 @@ object BetterLyrics {
                 )
             }
 
+            // Without a timeout a stalled connection blocks the whole lyric fetch chain, so the
+            // song ends up with no lyrics from any provider.
+            install(HttpTimeout) {
+                requestTimeoutMillis = 15000
+                connectTimeoutMillis = 10000
+                socketTimeoutMillis = 15000
+            }
+
             defaultRequest {
                 url("https://lyrics-api.boidu.dev")
+                // The API rejects requests without a browser-shaped User-Agent.
+                headers {
+                    append("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
+                    append("Accept", "application/json")
+                }
             }
 
             expectSuccess = false

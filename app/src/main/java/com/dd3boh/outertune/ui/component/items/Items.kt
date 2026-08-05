@@ -55,6 +55,7 @@ import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -65,6 +66,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -97,6 +99,7 @@ import com.dd3boh.outertune.utils.LocalArtworkPath
 import com.dd3boh.outertune.utils.getDownloadState
 import com.dd3boh.outertune.utils.joinByBullet
 import com.dd3boh.outertune.utils.makeTimeString
+import com.dd3boh.outertune.utils.remoteArtwork
 import com.dd3boh.outertune.utils.reportException
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.AlbumItem
@@ -669,12 +672,24 @@ fun ItemThumbnail(
         contentAlignment = Alignment.Center,
         modifier = modifier
     ) {
+        // Request artwork at the size this box will actually draw it, rather than letting Coil
+        // upscale whatever small thumbnail the API happened to return.
+        val density = LocalDensity.current
+        val targetPx = remember(maxWidth, maxHeight, preferredSize, density) {
+            if (preferredSize > 0) {
+                preferredSize
+            } else {
+                with(density) { maxOf(maxWidth, maxHeight).roundToPx() }
+                    .takeIf { it > 0 } ?: -1
+            }
+        }
+
         AsyncImage(
             imageLoader = context.imageLoader,
             model = if (thumbnailUrl?.startsWith("/storage") == true) {
-                LocalArtworkPath(thumbnailUrl, preferredSize, preferredSize)
+                LocalArtworkPath(thumbnailUrl, targetPx, targetPx)
             } else {
-                thumbnailUrl
+                thumbnailUrl?.let { remoteArtwork(it, targetPx, targetPx) }
             },
 //            placeholder = rememberVectorPainter(placeholderIcon),
             contentDescription = null,

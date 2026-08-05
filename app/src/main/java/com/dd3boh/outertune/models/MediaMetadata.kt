@@ -5,6 +5,7 @@ import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongEntity
 import com.dd3boh.outertune.ui.utils.resize
 import com.dd3boh.outertune.utils.LocalArtworkPath
+import com.dd3boh.outertune.utils.remoteArtwork
 import com.zionhuang.innertube.models.SongItem
 import java.io.Serializable
 import java.time.LocalDateTime
@@ -103,7 +104,7 @@ data class MediaMetadata(
         return if (isLocal) {
             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
         } else {
-            thumbnailUrl
+            thumbnailUrl?.let { remoteArtwork(it, sizeX, sizeY) }
         }
     }
 }

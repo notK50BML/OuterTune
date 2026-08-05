@@ -16,6 +16,7 @@ import com.dd3boh.outertune.constants.MAX_LM_SCANNER_JOBS
 import com.dd3boh.outertune.constants.MAX_YTM_CONTENT_JOBS
 import com.dd3boh.outertune.constants.MAX_YTM_SYNC_JOBS
 import com.dd3boh.outertune.playback.DownloadUtil
+import com.dd3boh.outertune.ui.utils.resize
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.newFixedThreadPoolContext
@@ -85,10 +86,34 @@ fun getDownloadState(localDateTimes: List<LocalDateTime?>): Int {
     }
 }
 
+/**
+ * Mirrors [com.dd3boh.outertune.constants.HighResArtworkKey] so the non-composable artwork
+ * helpers below can consult it without a Context. Kept in sync by a DataStore collector in
+ * [com.dd3boh.outertune.App].
+ */
+@Volatile
+var highResArtwork: Boolean = true
+
+/**
+ * Ask the CDN for artwork at the size it will actually be drawn at.
+ *
+ * YouTube returns whatever thumbnail size suited the response it came from — library and browse
+ * responses routinely hand back 60-226px art, which the previous code passed to Coil verbatim.
+ * Coil then upscaled it to fill the view, which is why album covers looked soft. Rewriting the
+ * `=wW-hH` (or `*default.jpg`) portion of the URL costs nothing and gets a sharp image.
+ *
+ * A non-positive [sizeX] means "size unknown", in which case the URL is left alone.
+ */
+fun remoteArtwork(thumbnailUrl: String, sizeX: Int = -1, sizeY: Int = -1): String {
+    if (!highResArtwork || sizeX <= 0) return thumbnailUrl
+    return runCatching { thumbnailUrl.resize(sizeX, if (sizeY > 0) sizeY else sizeX) }
+        .getOrDefault(thumbnailUrl)
+}
+
 fun getThumbnailModel(thumbnailUrl: String, sizeX: Int = -1, sizeY: Int = -1): Any? {
     return if (thumbnailUrl.startsWith("/storage/")) {
         LocalArtworkPath(thumbnailUrl, sizeX, sizeY)
     } else {
-        thumbnailUrl
+        remoteArtwork(thumbnailUrl, sizeX, sizeY)
     }
 }

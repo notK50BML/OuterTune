@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import coil3.compose.AsyncImage
@@ -93,8 +94,15 @@ fun Thumbnail(
                     modifier = Modifier
                         .weight(1f, false)
                 ) {
+                    // The player cover is the largest artwork in the app; ask the CDN for it at
+                    // the real drawn size instead of upscaling a small library thumbnail.
+                    val density = LocalDensity.current
+                    val coverPx = remember(maxWidth, maxHeight, density) {
+                        with(density) { maxOf(maxWidth, maxHeight).roundToPx() }
+                    }
+
                     AsyncImage(
-                        model = mediaMetadata?.getThumbnailModel(),
+                        model = mediaMetadata?.getThumbnailModel(coverPx, coverPx),
                         contentDescription = null,
                         modifier = Modifier
                             .aspectRatio(1f)

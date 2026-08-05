@@ -6,6 +6,7 @@ import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.dd3boh.outertune.utils.LocalArtworkPath
+import com.dd3boh.outertune.utils.remoteArtwork
 import com.dd3boh.outertune.utils.syncCoroutine
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.CoroutineScope
@@ -106,7 +107,7 @@ data class SongEntity(
         return if (isLocal) {
             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
         } else {
-            thumbnailUrl
+            thumbnailUrl?.let { remoteArtwork(it, sizeX, sizeY) }
         }
     }
 
