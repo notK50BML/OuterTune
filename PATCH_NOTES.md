@@ -58,6 +58,8 @@ changing.
 | `Last*SyncKey` written in `finally` even when the sync bailed or failed | A failed sync suppressed retries for a full cooldown window. Now written only on success |
 | `syncPlaylist` cleared the local playlist before writing | An empty remote page wiped a local playlist. Now skipped |
 | Playlists synced via `runBlocking { forEach { launch { … } } }` | Hammered the API and interleaved writes. Now sequential with pacing |
+| `songMapsToPlaylist(playlistId)` silently bound to the `songMapsToPlaylist(songId: String)` overload | The list was always empty, so the `isNotEmpty()` guard was dead and non-editable playlists with local songs were skipped. Now uses the `(playlistId, from)` overload |
+| `withRetry { YouTube.likeVideo(...) }` produced a `Result<Result<Unit>>` | The inner API failure was never observed or retried. `getOrThrow()` moved inside the retry block |
 
 ## 3. Album covers are no longer soft — with a toggle
 

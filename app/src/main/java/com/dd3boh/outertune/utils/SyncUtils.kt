@@ -423,7 +423,9 @@ class SyncUtils @Inject constructor(
 
     private suspend fun executeLikeSong(s: SongEntity) = withContext(Dispatchers.IO) {
         if (!context.isUserLoggedIn()) return@withContext
-        withRetry { YouTube.likeVideo(s.id, s.liked) }
+        // getOrThrow inside the block, otherwise withRetry wraps a Result in a Result and the
+        // API failure is never seen (nor retried).
+        withRetry { YouTube.likeVideo(s.id, s.liked).getOrThrow() }
             .onFailure { Log.e(TAG, "Failed to like song upstream: ${s.id}", it) }
         Unit
     }
@@ -755,7 +757,10 @@ class SyncUtils @Inject constructor(
 
                     val updatedPlaylist = database.playlistByBrowseId(remotePlaylist.id).firstOrNull()
                     updatedPlaylist?.let {
-                        val playlistSongMaps = database.songMapsToPlaylist(it.id)
+                        // The single-argument overload queries by songId, so passing a playlist id
+                        // to it always returned an empty list and the isNotEmpty() check below was
+                        // dead. Use the (playlistId, from) overload.
+                        val playlistSongMaps = database.songMapsToPlaylist(it.id, 0)
                         if (it.playlist.isEditable || playlistSongMaps.isNotEmpty()) {
                             executeSyncPlaylist(remotePlaylist.id, it.id)
                         }
