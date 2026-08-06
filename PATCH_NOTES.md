@@ -127,11 +127,15 @@ git apply /path/to/outertune-sync-artwork-lyrics.patch    # or: git am
 ./gradlew assembleDebug
 ```
 
-If you are using the zip instead: `media/` is included, **except**
-`media/libraries/test_data/src/`, which is 468 MB of Media3's own test fixtures and is not
-needed to build the app. The `test_data` module still configures fine without it because
-nothing the app depends on assembles it. The zip has no `.git`, so use the patch route if
-you want history.
+**Use the patch route to build.** The accompanying `OuterTune-patched-src.zip` is the full
+patched source *minus three things too large to attach*: the `media/` submodule (247 MB),
+`prebuilt/ffMetadataEx-release.aar` (40 MB, a required native dependency) and
+`assets/gallery/` (screenshots). It is there for reading the changes in context, not for
+building. To build from it instead of applying the patch, clone the repo as above and copy
+the zip's `app/`, `betterlyrics/` and `PATCH_NOTES.md` over the clone.
+
+The `media` submodule is pinned at `3f52f92e3532b9915ae6fec3dd72ebff9bde0e0a`
+(`github.com/nift4/media`) if you ever need to check it out by hand.
 
 No CI changes were made — the repo's existing `.github/workflows/build.yml` should produce
 an APK on push.
