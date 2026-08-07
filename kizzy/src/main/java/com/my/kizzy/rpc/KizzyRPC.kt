@@ -40,6 +40,26 @@ open class KizzyRPC(token: String) {
         return discordWebSocket.isWebSocketConnected()
     }
 
+    /** Last thing that happened to the gateway, in words, for display in settings. */
+    fun lastStatus(): String = discordWebSocket.lastStatus
+
+    /**
+     * Opens the gateway and waits for it to finish identifying. Returns the outcome as text so a
+     * caller can show it, rather than failing silently the way the rest of this class does.
+     */
+    suspend fun testConnection(timeoutMs: Long = 20_000L): String {
+        return try {
+            if (!isRpcRunning()) discordWebSocket.connect()
+            if (discordWebSocket.awaitConnected(timeoutMs)) {
+                "Connected to Discord as expected"
+            } else {
+                discordWebSocket.lastStatus
+            }
+        } catch (e: Exception) {
+            "Failed: ${e.message ?: e::class.simpleName}"
+        }
+    }
+
     suspend fun stopActivity() {
         if (!isRpcRunning()) {
             discordWebSocket.connect()

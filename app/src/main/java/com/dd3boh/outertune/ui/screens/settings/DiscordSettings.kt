@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Logout
+import androidx.compose.material.icons.rounded.NetworkCheck
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -55,6 +57,7 @@ import com.dd3boh.outertune.ui.dialog.TextFieldDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
 import com.my.kizzy.rpc.KizzyRPC
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,6 +72,9 @@ fun DiscordSettings(
 
     val isLoggedIn = remember(discordToken) { discordToken.isNotEmpty() }
     var showTokenDialog by remember { mutableStateOf(false) }
+    var connectionStatus by remember { mutableStateOf<String?>(null) }
+    var testing by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     // Discord will not always hand its token to an embedded browser: a captcha it refuses to
     // render, or an unlucky moment, and the login screen just sits there. Pasting the token
@@ -138,6 +144,26 @@ fun DiscordSettings(
                 description = stringResource(R.string.discord_login_token_description),
                 icon = { Icon(Icons.Rounded.Key, null) },
                 onClick = { showTokenDialog = true },
+            )
+            // Everything downstream of this screen fails quietly - the gateway logs through
+            // java.util.logging, which nobody can read on a release build. This opens a
+            // connection on demand and reports what actually happened.
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.discord_test_connection)) },
+                description = connectionStatus
+                    ?: stringResource(R.string.discord_test_connection_description),
+                icon = { Icon(Icons.Rounded.NetworkCheck, null) },
+                isEnabled = isLoggedIn && !testing,
+                onClick = {
+                    testing = true
+                    connectionStatus = "Testing…"
+                    scope.launch {
+                        val rpc = KizzyRPC(discordToken)
+                        connectionStatus = rpc.testConnection()
+                        rpc.closeRPC()
+                        testing = false
+                    }
+                },
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

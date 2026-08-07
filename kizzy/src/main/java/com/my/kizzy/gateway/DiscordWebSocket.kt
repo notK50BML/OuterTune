@@ -58,6 +58,15 @@ open class DiscordWebSocket(
     private var resumeGatewayUrl: String? = null
     private var heartbeatJob: Job? = null
     private var connected = false
+
+    /**
+     * Last thing that happened to this socket, in words. Kizzy reports everything through
+     * java.util.logging, which is invisible on a release build with no logcat attached - so a
+     * failure to connect was indistinguishable from a presence that simply never got sent.
+     */
+    @Volatile
+    var lastStatus: String = "Not connected"
+        private set
     private var client: HttpClient = HttpClient {
         install(WebSockets)
     }
@@ -75,6 +84,7 @@ open class DiscordWebSocket(
         launch {
             try {
                 Logger.getLogger("Kizzy").log(INFO, "Gateway: Connect called")
+                lastStatus = "Connecting…"
                 val url = resumeGatewayUrl ?: gatewayUrl
                 websocket = client.webSocketSession(url)
                 // start receiving messages
@@ -91,6 +101,7 @@ open class DiscordWebSocket(
                 handleClose()
             } catch (e: Exception) {
                 Logger.getLogger("Kizzy").log(INFO, "Gateway: ${e.message}")
+                lastStatus = "Connection error: ${e.message ?: e::class.simpleName}"
                 close()
             }
         }
@@ -100,6 +111,12 @@ open class DiscordWebSocket(
         connected = false
         val close = websocket?.closeReason?.await()
         Logger.getLogger("Kizzy").log(INFO, "Gateway: Closed with code: ${close?.code}, reason: ${close?.message},  can_reconnect: ${close?.code?.toInt() == 4000}")
+        // 4004 is the one worth calling out by name: Discord rejected the token.
+        lastStatus = when (close?.code?.toInt()) {
+            null -> "Disconnected"
+            4004 -> "Discord rejected the token (4004). Paste a fresh one."
+            else -> "Disconnected (code ${close.code}${close.message.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""})"
+        }
         if (close?.code?.toInt() == 4000) {
             delay(200.milliseconds)
             connect()
@@ -130,6 +147,7 @@ open class DiscordWebSocket(
                 Logger.getLogger("Kizzy").log(INFO, "Gateway: resume_gateway_url updated to $resumeGatewayUrl")
                 Logger.getLogger("Kizzy").log(INFO, "Gateway: session_id updated to $sessionId")
                 connected = true
+                lastStatus = "Connected"
                 return
             }
             "RESUMED" -> {
@@ -196,6 +214,17 @@ open class DiscordWebSocket(
             }
         }
     }
+    /** Waits up to [timeoutMs] for the gateway to finish identifying. */
+    suspend fun awaitConnected(timeoutMs: Long): Boolean {
+        var waited = 0L
+        while (waited < timeoutMs) {
+            if (isSocketConnectedToAccount()) return true
+            delay(POLL_MS.milliseconds)
+            waited += POLL_MS
+        }
+        return isSocketConnectedToAccount()
+    }
+
     private fun isSocketConnectedToAccount(): Boolean {
         return connected && websocket?.isActive == true
     }
@@ -214,6 +243,11 @@ open class DiscordWebSocket(
             websocket?.send(Frame.Text(payload))
         }
     }
+    companion object {
+        private const val CONNECT_TIMEOUT_MS = 15_000L
+        private const val POLL_MS = 50L
+    }
+
     fun close() {
         heartbeatJob?.cancel()
         heartbeatJob = null
@@ -230,9 +264,15 @@ open class DiscordWebSocket(
         }
     }
     suspend fun sendActivity(presence: Presence) {
-        // TODO : Figure out a better way to wait for socket to be connected to account
-        while (!isSocketConnectedToAccount()) {
-            delay(10.milliseconds)
+        // Bounded. This used to loop forever waiting for the socket to identify, so a connection
+        // that never succeeded left the caller suspended for the life of the process with nothing
+        // logged and nothing shown.
+        if (!awaitConnected(CONNECT_TIMEOUT_MS)) {
+            Logger.getLogger("Kizzy").log(INFO, "Gateway: gave up waiting to connect")
+            if (lastStatus == "Connecting…" || lastStatus == "Not connected") {
+                lastStatus = "Timed out connecting to Discord"
+            }
+            return
         }
         Logger.getLogger("Kizzy").log(INFO, "Gateway: Sending $PRESENCE_UPDATE")
         send(
