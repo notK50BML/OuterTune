@@ -148,7 +148,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="discord_login_token">Log in with token</string>
     <string name="discord_login_token_description">Use this if the login page will not finish</string>
     <string name="discord_login_token_hint">Paste your Discord token</string>
-    <string name="discord_login_failed">Couldn't read the token from this page. Go back and use \"Log in with token\" instead.</string>
+    <string name="discord_login_failed">Could not read the token from this page. Go back and use \"Log in with token\" instead.</string>
     <string name="slider_style_title">Slider style</string>
     <string name="slider_style_squiggly">Squiggly</string>
     <string name="slider_style_default">Default</string>
