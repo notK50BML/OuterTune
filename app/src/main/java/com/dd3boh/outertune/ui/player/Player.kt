@@ -730,7 +730,6 @@ fun ControlsContent(
         defaultValue = SeekIncrement.OFF
     )
 
-    val showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
 
     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val isSystemInDarkTheme = isSystemInDarkTheme()
@@ -987,7 +986,9 @@ fun ControlsContent(
 
                 Box(
                     modifier = Modifier
-                        .size(if (maxW >= 320.dp) if (showLyrics) 56.dp else 72.dp else 42.dp)
+                        // Same size whether or not lyrics are showing: the controls should not
+                        // change shape just because the artwork was swapped for lyrics.
+                        .size(if (maxW >= 320.dp) 72.dp else 42.dp)
                         .animateContentSize()
                         .clip(RoundedCornerShape(playPauseRoundness))
                         .background(MaterialTheme.colorScheme.primary)
