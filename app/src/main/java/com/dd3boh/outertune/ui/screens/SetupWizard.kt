@@ -812,14 +812,14 @@ fun SetupWizard(
                                 IconLabelButton(
                                     text = "GitHub",
                                     icon = Icons.Rounded.Code,
-                                    onClick = { uriHandler.openUri("https://github.com/OuterTune/OuterTune") },
+                                    onClick = { uriHandler.openUri("https://github.com/notK50BML/OuterTune") },
                                     modifier = Modifier.padding(horizontal = 8.dp)
                                 )
 
                                 IconLabelButton(
                                     text = "Wiki",
                                     icon = Icons.Outlined.Info,
-                                    onClick = { uriHandler.openUri("https://github.com/OuterTune/OuterTune/wiki") },
+                                    onClick = { uriHandler.openUri("https://github.com/notK50BML/OuterTune/wiki") },
                                     modifier = Modifier.padding(horizontal = 8.dp)
                                 )
                             }

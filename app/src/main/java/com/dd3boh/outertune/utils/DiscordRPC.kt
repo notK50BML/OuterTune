@@ -67,7 +67,7 @@ class DiscordRPC(
                 context.getString(R.string.rpc_listen_ytm) to
                         "https://music.youtube.com/watch?v=${song.song.id}",
                 context.getString(R.string.rpc_visit, context.getString(R.string.app_name)) to
-                        "https://github.com/OuterTune/OuterTune"
+                        "https://github.com/notK50BML/OuterTune"
             ),
             type = Type.LISTENING,
             statusDisplayType = StatusDisplayType.STATE,

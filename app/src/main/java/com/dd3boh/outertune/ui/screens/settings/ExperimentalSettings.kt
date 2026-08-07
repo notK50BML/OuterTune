@@ -205,7 +205,7 @@ fun ExperimentalSettings(
             PreferenceEntry(
                 title = { Text("Important: About audio offload compatibility and issues") },
                 onClick = {
-                    uriHandler.openUri("https://github.com/OuterTune/OuterTune/wiki/Audio-offload")
+                    uriHandler.openUri("https://github.com/notK50BML/OuterTune/wiki/Audio-offload")
                 }
             )
 

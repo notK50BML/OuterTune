@@ -674,7 +674,7 @@ class Migration12To13 : AutoMigrationSpec {
  * A: It wasn't. But that didn't stop Room from randomly adding an id column for *some* users only...
  *
  * Q: That sounds like complete nonsense.
- * A: Yep. https://github.com/OuterTune/OuterTune/discussions/359#discussioncomment-12366232
+ * A: Yep. https://github.com/notK50BML/OuterTune/discussions/359#discussioncomment-12366232
  */
 @DeleteColumn.Entries(
     DeleteColumn(tableName = "playCount", columnName = "id"),

@@ -85,7 +85,7 @@ fun AttributionScreen(
                 contributor = ContributorInfo (
                     name = stringResource(R.string.all_contributors),
                     type = listOf(CUSTOM),
-                    url = "https://github.com/OuterTune/OuterTune/graphs/contributors"
+                    url = "https://github.com/notK50BML/OuterTune/graphs/contributors"
                 )
             )
         }
