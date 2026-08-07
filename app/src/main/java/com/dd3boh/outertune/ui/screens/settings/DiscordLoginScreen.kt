@@ -20,12 +20,17 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -35,8 +40,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavController
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
@@ -68,6 +75,7 @@ fun DiscordLoginScreen(navController: NavController) {
     // recomposition, which silently disabled the back handler and the poll below.
     var webView by remember { mutableStateOf<WebView?>(null) }
     var captured by remember { mutableStateOf(false) }
+    var gaveUp by remember { mutableStateOf(false) }
 
     // Poll rather than checking once. onPageFinished fires when the document finishes loading,
     // but Discord is a single-page app that writes its token some unpredictable moment later,
@@ -84,6 +92,7 @@ fun DiscordLoginScreen(navController: NavController) {
             }
         }
         Log.w(TAG, "Gave up waiting for a Discord token after ${POLL_ATTEMPTS * POLL_INTERVAL_MS / 1000}s")
+        gaveUp = true
     }
 
     AndroidView(
@@ -169,6 +178,31 @@ fun DiscordLoginScreen(navController: NavController) {
             }
         }
     )
+
+    // Discord does not always keep its token anywhere a script in the page can read. When that
+    // happens there is nothing to wait for, so say so and point at the way that always works,
+    // rather than leaving a fully loaded Discord sitting there looking busy.
+    if (gaveUp && !captured) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .windowInsetsPadding(LocalPlayerAwareWindowInsets.current),
+            contentAlignment = Alignment.BottomCenter,
+        ) {
+            Surface(
+                color = MaterialTheme.colorScheme.errorContainer,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.padding(16.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.discord_login_failed),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    modifier = Modifier.padding(16.dp),
+                )
+            }
+        }
+    }
 
     TopAppBar(
         title = { Text(stringResource(R.string.action_login)) },
