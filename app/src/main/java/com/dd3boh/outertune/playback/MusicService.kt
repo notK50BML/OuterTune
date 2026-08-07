@@ -327,9 +327,12 @@ class MusicService : MediaLibraryService(),
         currentSong.debounce(1000).collect(scope) { song ->
             if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
                 discordRpc?.updateSong(song, player.currentPosition)
-            } else {
-                discordRpc?.closeRPC()
             }
+            // Deliberately no else. currentSong is database.song(id), so skipping to a track whose
+            // row has not been written yet emits a transient null - and tearing down the gateway
+            // on that meant every skip closed the socket and had to reconnect, leaving the
+            // presence stale until it came back. Pausing and stopping are handled in onEvents,
+            // which is the right place for them.
         }
 
         setMediaNotificationProvider(
