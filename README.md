@@ -13,9 +13,8 @@ A Material 3 YouTube Music client & local music player for Android
 > [!NOTE]
 > This is a fork based on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune).
 >
-> - No distribution channel is available at this time, but one may be provided in the future.
+> Occasionally, release APKs would be uploaded, but to test the latest release, please use compile the APK yourself, the instructions are below.
 >
-> If you would like to use it, you can build the app yourself. For most people, we recommend the `core` build:
 >
 > ```bash
 > # core debug build
@@ -35,6 +34,8 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Improved YouTube Music thumbnail resolution
 - Fixed a crash that could occur when opening playlists or albums while their data was being updated
 - Fixed m3u playlist import crashes and improved YouTube song matching
+- Fixed incorrect Liked Music song sequence
+- Fixed blurry cover art on some songs
 
 ### Lyrics
 
@@ -82,17 +83,17 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/InnerTune). This app is both a local media player, and a YouTube Music client.
 
 - YouTube Music client features
-  * Song downloading (offline playback)
+  * Song downloading (offline playback) at 130kbps bitrate
   * Seamless playback: no ads & background playback
   * Account synchronization
     + Full playlist sync from the app to the remote account is temporarily unavailable
 - Local audio file playback (ex. MP3, OGG, FLAC, etc.)
   * Play local and YouTube Music songs at the same time
   * Uses a custom tag extractor instead of MediaStore's broken metadata extractor! (e.g tags delimited with \ now show up properly)
-- Sleek Material3 design
-- Multiple queues
-- Synchronized lyrics, and support for word by word/Karaoke lyrics formats (e.g LRC, TTML)
-- Audio normalization, tempo/pitch adjustment, and various other audio effects
+- Sleek Material3 design with dynamic accenting
+- Up to 30 self-saving queues which auto-update
+- Synchronized lyrics, and support for word by word/Karaoke lyrics formats (e.g LRC, TTML) using a variety of providers
+- Audio normalization, tempo/pitch adjustment, skip silence, inbuilt parametric equaliser and various other audio effects
 - Android Auto support
 - Support for Android 8 (Oreo) and higher
 
@@ -126,11 +127,13 @@ Thank you very much for helping to make OuterTune accessible to many people worl
 
 ## Help & Support
 
-- For bugs **specific to this fork**, please open an [Issue in this repository](https://github.com/yuuichi-s/OuterTune/issues).
+- For bugs **specific to this fork**, please open an [Issue in this repository](https://github.com/notK50BML/OuterTune/issues).
 
 ## Attribution
 
 Thanks to all our contributors! Check them out [here](https://github.com/OuterTune/OuterTune/graphs/contributors)
+
+[Outertune](github.com/OuterTune/OuterTune) and (https://github.com/yuuichi-s/OuterTune) for almost all the main code, this is just a casual project to fix some small errors, but almost ALL credit goes to them.
 
 [z-huang/InnerTune](https://github.com/z-huang/InnerTune) for providing an awesome base for this fork, none of this
 would have been possible without it.
@@ -139,6 +142,8 @@ would have been possible without it.
 experience done right.
 
 [Gramophone](https://github.com/FoedusProgramme/Gramophone) for emotional support, and a legendary lyrics parser
+
+
 
 ## Disclaimer
 
