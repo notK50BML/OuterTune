@@ -1,6 +1,6 @@
 /*
  * Copyright (C) 2024 z-huang/InnerTune
- * Copyright (C) 2025 O﻿ute﻿rTu﻿ne Project
+ * Copyright (C) 2026 O﻿ute﻿rTu﻿ne Project
  *
  * SPDX-License-Identifier: GPL-3.0
  *
@@ -158,7 +158,7 @@ fun AboutScreen(
             IconLabelButton(
                 text = "GitHub",
                 painter = painterResource(R.drawable.github),
-                onClick = { uriHandler.openUri("https://github.com/OuterTune/OuterTune") },
+                onClick = { uriHandler.openUri("https://github.com/notK50BML/OuterTune/") },
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
 
@@ -213,7 +213,7 @@ fun AboutScreen(
                     onClick = {
                         val clipData = ClipData.newPlainText(
                             resources.getString(R.string.app_name),
-                            AnnotatedString("outertune@protonmail.com")
+                            AnnotatedString("k50bml@gmail.com")
                         )
                         clipboardManager.nativeClipboard.setPrimaryClip(clipData)
                     }
