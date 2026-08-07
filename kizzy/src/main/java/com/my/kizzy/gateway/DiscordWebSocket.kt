@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.isActive
@@ -64,8 +65,12 @@ open class DiscordWebSocket(
         ignoreUnknownKeys = true
         encodeDefaults = true
     }
-    override val coroutineContext: CoroutineContext
-        get() = SupervisorJob() + Dispatchers.Default
+    // Built once. This used to be a get(), which handed out a brand new SupervisorJob on every
+    // access - so the job that close() cancelled was never the job the connection was launched
+    // under, and cancelling it reached nothing. Connections and their heartbeats leaked, and a
+    // stale socket could keep answering isRpcRunning() after a logout.
+    private val socketJob = SupervisorJob()
+    override val coroutineContext: CoroutineContext = socketJob + Dispatchers.Default
     suspend fun connect() {
         launch {
             try {
@@ -212,7 +217,10 @@ open class DiscordWebSocket(
     fun close() {
         heartbeatJob?.cancel()
         heartbeatJob = null
-        this.cancel()
+        // cancelChildren, not cancel: cancelling the scope's own job would leave it permanently
+        // dead, and a later connect() would launch into a cancelled scope and never run - so
+        // sendActivity would then spin forever waiting for a connection that cannot happen.
+        socketJob.cancelChildren()
         resumeGatewayUrl = null
         sessionId = null
         connected = false

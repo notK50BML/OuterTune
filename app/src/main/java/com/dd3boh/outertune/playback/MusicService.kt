@@ -28,6 +28,7 @@ import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.Player.EVENT_MEDIA_ITEM_TRANSITION
 import androidx.media3.common.Player.EVENT_POSITION_DISCONTINUITY
 import androidx.media3.common.Player.EVENT_TIMELINE_CHANGED
 import androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
@@ -1137,6 +1138,21 @@ class MusicService : MediaLibraryService(),
         }
         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
             currentMediaMetadata.value = player.currentMetadata
+        }
+
+        // Discord presence has to follow play/pause as well as track changes. currentSong only
+        // emits when the song itself changes, so without this, pressing play on an already
+        // loaded track - or signing in while something was already playing - never pushed a
+        // presence at all. Resuming also re-anchors the progress bar to the real position.
+        if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED)) {
+            if (player.isPlaying) {
+                currentSong.value?.let { song ->
+                    scope.launch { discordRpc?.updateSong(song, player.currentPosition) }
+                }
+            } else if (!events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_MEDIA_ITEM_TRANSITION)) {
+                // A pause that is not just the gap between tracks: clear the activity.
+                scope.launch { discordRpc?.stopActivity() }
+            }
         }
     }
 
