@@ -4,12 +4,35 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.db.entities.Song
 import com.my.kizzy.rpc.KizzyRPC
 import com.my.kizzy.rpc.RpcImage
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class DiscordRPC(
     val context: Context,
     token: String,
 ) : KizzyRPC(token) {
+    /**
+     * Presence writes are serialised and superseded ones are dropped.
+     *
+     * setActivity resolves both artwork URLs over the network before sending, so two updates can
+     * easily overlap - the track-change collector and the play/pause hook both call this. Without
+     * a guard the older one can land last and leave the card describing the previous song.
+     */
+    private val updateMutex = Mutex()
+
+    @Volatile
+    private var latestUpdate = 0L
+
     suspend fun updateSong(song: Song, currentPlaybackTimeMillis: Long = 0L) = runCatching {
+        val thisUpdate = ++latestUpdate
+        updateMutex.withLock {
+            // Something newer started while this one waited for the lock; that one wins.
+            if (thisUpdate != latestUpdate) return@runCatching
+            sendPresence(song, currentPlaybackTimeMillis)
+        }
+    }
+
+    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {
         val currentTime = System.currentTimeMillis()
         val calculatedStartTime = currentTime - currentPlaybackTimeMillis
 
@@ -54,6 +77,7 @@ class DiscordRPC(
             applicationId = APPLICATION_ID
         )
     }
+
     companion object {
         private const val APPLICATION_ID = "1411019391843172514"
     }

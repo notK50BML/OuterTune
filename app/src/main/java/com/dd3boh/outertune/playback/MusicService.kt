@@ -324,9 +324,15 @@ class MusicService : MediaLibraryService(),
 
         // Discord presence follows the current song. Debounced so skipping through a queue
         // doesn't fire a gateway write per track.
-        currentSong.debounce(1000).collect(scope) { song ->
+        // collectLatest, not collect: setActivity resolves both artwork URLs through Discord's
+        // external-assets API before it sends anything, which can take seconds. With plain
+        // collect, a skip during that window queued a second update behind the first, and the
+        // one that eventually landed carried timestamps computed before the skip - an elapsed
+        // time from the previous track against the new track's duration. collectLatest cancels
+        // the superseded update instead.
+        currentSong.debounce(1000).collectLatest(scope) { song ->
             if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
-                discordRpc?.updateSong(song, player.currentPosition)
+                discordRpc?.updateSong(song, discordPositionFor(song.id))
             }
             // Deliberately no else. currentSong is database.song(id), so skipping to a track whose
             // row has not been written yet emits a transient null - and tearing down the gateway
@@ -382,7 +388,7 @@ class MusicService : MediaLibraryService(),
                     if (!token.isNullOrEmpty() && enabled) {
                         discordRpc = DiscordRPC(this@MusicService, token)
                         if (player.playbackState == Player.STATE_READY && player.playWhenReady) {
-                            currentSong.value?.let { discordRpc?.updateSong(it, player.currentPosition) }
+                            currentSong.value?.let { discordRpc?.updateSong(it, discordPositionFor(it.id)) }
                         }
                     }
                 }
@@ -1126,6 +1132,19 @@ class MusicService : MediaLibraryService(),
         }
     }
 
+
+    /**
+     * Playback position to report to Discord for [songId].
+     *
+     * player.currentPosition can still refer to the outgoing item while a transition is settling,
+     * so publishing it blindly produced a presence whose elapsed time came from the *previous*
+     * track - an already-elapsed 2:22 against the new track's much shorter length, which Discord
+     * draws as a broken bar. Rewinding to the start fixed it only because that happens to reset
+     * the position to zero. Trust the position only when the player agrees on which song it is.
+     */
+    private fun discordPositionFor(songId: String): Long =
+        if (player.currentMediaItem?.mediaId == songId) player.currentPosition else 0L
+
     override fun onEvents(player: Player, events: Player.Events) {
         if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
             val isBufferingOrReady =
@@ -1150,7 +1169,7 @@ class MusicService : MediaLibraryService(),
         if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED)) {
             if (player.isPlaying) {
                 currentSong.value?.let { song ->
-                    scope.launch { discordRpc?.updateSong(song, player.currentPosition) }
+                    scope.launch { discordRpc?.updateSong(song, discordPositionFor(song.id)) }
                 }
             } else if (!events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_MEDIA_ITEM_TRANSITION)) {
                 // A pause that is not just the gap between tracks: clear the activity.
