@@ -145,6 +145,9 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="discord_logout">Log out</string>
     <string name="discord_account">Discord account</string>
     <string name="discord_login_summary">Log in to show what you are listening to</string>
+    <string name="discord_login_token">Log in with token</string>
+    <string name="discord_login_token_description">Use this if the login page will not finish</string>
+    <string name="discord_login_token_hint">Paste your Discord token</string>
     <string name="slider_style_title">Slider style</string>
     <string name="slider_style_squiggly">Squiggly</string>
     <string name="slider_style_default">Default</string>

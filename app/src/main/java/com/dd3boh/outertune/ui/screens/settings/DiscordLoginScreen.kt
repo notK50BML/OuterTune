@@ -29,7 +29,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -44,6 +47,8 @@ import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 /**
@@ -59,7 +64,27 @@ import kotlinx.coroutines.launch
 fun DiscordLoginScreen(navController: NavController) {
     val scope = rememberCoroutineScope()
     var discordToken by rememberPreference(DiscordTokenKey, "")
-    var webView: WebView? = null
+    // Held in state rather than a plain local: a plain local resets to null on every
+    // recomposition, which silently disabled the back handler and the poll below.
+    var webView by remember { mutableStateOf<WebView?>(null) }
+    var captured by remember { mutableStateOf(false) }
+
+    // Poll rather than checking once. onPageFinished fires when the document finishes loading,
+    // but Discord is a single-page app that writes its token some unpredictable moment later,
+    // and no further page loads happen after that. A single check therefore races the app and,
+    // when it loses, never retries - which looks exactly like the screen hanging.
+    LaunchedEffect(webView, captured) {
+        val view = webView ?: return@LaunchedEffect
+        if (captured) return@LaunchedEffect
+        repeat(POLL_ATTEMPTS) {
+            delay(POLL_INTERVAL_MS)
+            if (captured) return@LaunchedEffect
+            withContext(Dispatchers.Main) {
+                view.evaluateJavascript(TOKEN_EXTRACTION_JS, null)
+            }
+        }
+        Log.w(TAG, "Gave up waiting for a Discord token after ${POLL_ATTEMPTS * POLL_INTERVAL_MS / 1000}s")
+    }
 
     AndroidView(
         modifier = Modifier
@@ -88,7 +113,8 @@ fun DiscordLoginScreen(navController: NavController) {
                 addJavascriptInterface(object {
                     @JavascriptInterface
                     fun onRetrieveToken(token: String) {
-                        if (token != "null" && token != "error") {
+                        if (token != "null" && token != "error" && token.isNotBlank()) {
+                            captured = true
                             discordToken = token
                             scope.launch(Dispatchers.Main) {
                                 webView?.loadUrl("about:blank")
@@ -125,7 +151,8 @@ fun DiscordLoginScreen(navController: NavController) {
                         message: String,
                         result: JsResult
                     ): Boolean {
-                        if (message != "null" && message != "error") {
+                        if (message != "null" && message != "error" && message.isNotBlank()) {
+                            captured = true
                             discordToken = message
                             scope.launch(Dispatchers.Main) {
                                 view.loadUrl("about:blank")
@@ -165,6 +192,10 @@ fun DiscordLoginScreen(navController: NavController) {
 }
 
 private const val TAG = "DiscordLogin"
+
+/** ~30 seconds of polling before giving up. */
+private const val POLL_ATTEMPTS = 60
+private const val POLL_INTERVAL_MS = 500L
 
 private val TOKEN_EXTRACTION_JS = """
     (function() {

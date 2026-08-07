@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AccountCircle
+import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -29,11 +30,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -48,6 +51,7 @@ import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
+import com.dd3boh.outertune.ui.dialog.TextFieldDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
 import com.my.kizzy.rpc.KizzyRPC
@@ -64,6 +68,23 @@ fun DiscordSettings(
     val (discordRPC, onDiscordRPCChange) = rememberPreference(EnableDiscordRPCKey, defaultValue = true)
 
     val isLoggedIn = remember(discordToken) { discordToken.isNotEmpty() }
+    var showTokenDialog by remember { mutableStateOf(false) }
+
+    // Discord will not always hand its token to an embedded browser: a captcha it refuses to
+    // render, or an unlucky moment, and the login screen just sits there. Pasting the token
+    // directly always works, so it stays available as a way out rather than a dead end.
+    if (showTokenDialog) {
+        TextFieldDialog(
+            icon = { Icon(painterResource(R.drawable.discord), null) },
+            title = { Text(stringResource(R.string.discord_login_token)) },
+            initialTextFieldValue = TextFieldValue(discordToken),
+            placeholder = { Text(stringResource(R.string.discord_login_token_hint)) },
+            singleLine = false,
+            isInputValid = { it.isNotBlank() },
+            onDone = { discordToken = it.trim() },
+            onDismiss = { showTokenDialog = false },
+        )
+    }
 
     // Resolve the account name once a token appears, so the screen can show who is signed in
     // rather than an opaque "logged in".
@@ -112,6 +133,12 @@ fun DiscordSettings(
                     onClick = { navController.navigate("settings/discord/login") },
                 )
             }
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.discord_login_token)) },
+                description = stringResource(R.string.discord_login_token_description),
+                icon = { Icon(Icons.Rounded.Key, null) },
+                onClick = { showTokenDialog = true },
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
 
