@@ -1,0 +1,147 @@
+name: Build patched APKs
+
+# Applies outertune-sync-artwork-lyrics.patch on top of the checked-out source and builds
+# the variant you choose. Nothing needs to be cloned locally: the runner does the checkout,
+# including the media3 submodule that settings.gradle.kts requires.
+#
+# Setup: upload outertune-sync-artwork-lyrics.patch to the repository root, then run this
+# workflow from the Actions tab.
+#
+# SIGNING
+# -------
+# The release and userdebug build types use the project's "ot_release" signing config, which
+# is empty unless a keystore.properties exists. An unsigned APK will not install, so this
+# workflow always supplies a key:
+#
+#   * If repository secrets KEYSTORE (base64 of a .jks) and KEYSTORE_PROPERTIES are set,
+#     those are used. The signature stays stable across builds, so each new build installs
+#     over the previous one and keeps its data.
+#
+#   * Otherwise a throwaway keystore is generated for that run. The APK installs fine, but
+#     every build gets a DIFFERENT signature, so you must uninstall the previous build before
+#     installing a new one — which wipes that app's library and settings. Back up first via
+#     Settings -> Backup and restore.
+#
+# Debug builds ignore all of this: they are signed with the standard Android debug key and
+# carry a .debug applicationId suffix, so they install alongside anything else.
+
+on:
+  workflow_dispatch:
+    inputs:
+      variant:
+        description: "Which variant to build"
+        required: true
+        default: "fullUserdebug"
+        type: choice
+        options:
+          - fullDebug
+          - coreDebug
+          - fullUserdebug
+          - coreUserdebug
+          - fullRelease
+          - coreRelease
+      patch_file:
+        description: "Patch file in the repo root to apply"
+        required: true
+        default: "outertune-sync-artwork-lyrics.patch"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out source (with media3 submodule)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
+
+      - name: Apply patch
+        run: |
+          set -e
+          if [ ! -f "${{ inputs.patch_file }}" ]; then
+            echo "::error::${{ inputs.patch_file }} not found in the repository root."
+            echo "Upload the patch file to the root of this repo, then re-run."
+            exit 1
+          fi
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          if ! git am --3way "${{ inputs.patch_file }}"; then
+            echo "::error::Patch did not apply cleanly. Conflicting hunks:"
+            git am --show-current-patch=diff || true
+            git am --abort || true
+            exit 1
+          fi
+          echo "Applied commits:"
+          git log --oneline -6
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: 21
+          distribution: temurin
+          cache: gradle
+
+      - name: Accept Android SDK licenses
+        run: yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
+
+      - name: Set up signing key
+        if: ${{ !contains(inputs.variant, 'Debug') }}
+        env:
+          KEYSTORE: ${{ secrets.KEYSTORE }}
+          KEYSTORE_PROPERTIES: ${{ secrets.KEYSTORE_PROPERTIES }}
+        run: |
+          set -e
+          if [ -n "$KEYSTORE" ] && [ -n "$KEYSTORE_PROPERTIES" ]; then
+            echo "Using the keystore from repository secrets (stable signature)."
+            echo "$KEYSTORE" | base64 --decode > release.jks
+            echo "$KEYSTORE_PROPERTIES" > keystore.properties
+          else
+            echo "::warning::No KEYSTORE secret found. Generating a throwaway key for this run."
+            echo "::warning::This build's signature differs from every other build, so you must"
+            echo "::warning::uninstall the previous APK before installing this one (that erases"
+            echo "::warning::its library and settings — back up first)."
+            PASS="$(openssl rand -hex 24)"
+            keytool -genkeypair -v \
+              -keystore release.jks \
+              -alias outertune \
+              -keyalg RSA -keysize 4096 -validity 10000 \
+              -storepass "$PASS" -keypass "$PASS" \
+              -dname "CN=OuterTune, O=OuterTune, C=US" \
+              -noprompt
+            {
+              echo "storeFile=../release.jks"
+              echo "keyAlias=outertune"
+              echo "storePassword=$PASS"
+              echo "keyPassword=$PASS"
+            } > keystore.properties
+          fi
+          # keystore.properties resolves storeFile relative to the app module, so anchor it
+          # at the repo root regardless of which branch of the above ran.
+          sed -i "s|^storeFile=.*|storeFile=$GITHUB_WORKSPACE/release.jks|" keystore.properties
+
+      # Lint and unit tests are deliberately skipped: a lint warning should not stop an APK
+      # from being produced.
+      - name: Build ${{ inputs.variant }}
+        run: ./gradlew assemble${{ inputs.variant }} --stacktrace -DskipFormatKtlint
+
+      - name: Remove signing material
+        if: always()
+        run: rm -f release.jks keystore.properties
+
+      - name: Upload APKs
+        uses: actions/upload-artifact@v4
+        with:
+          name: outertune-${{ inputs.variant }}
+          path: app/build/outputs/apk/**/*.apk
+          if-no-files-found: error
+
+      - name: Upload build reports on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-reports
+          path: |
+            app/build/reports/**
+            app/build/outputs/logs/**
+          if-no-files-found: ignore
