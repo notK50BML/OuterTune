@@ -1,7 +1,7 @@
 From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/11] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/13] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 0000000..81d7f34
 From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/11] Add patch notes
+Subject: [PATCH 02/13] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 0000000..28c797a
 From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/11] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/13] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a8..27f97bf 100644
 From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/11] Clarify build route in patch notes
+Subject: [PATCH 04/13] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f96..a43e5d3 100644
 From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/11] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/13] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b93..7d50084 100644
 From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/11] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/13] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac..a848cde 100644
 From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/11] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/13] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf..580a4a9 100644
 From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/11] Add Discord rich presence
+Subject: [PATCH 08/13] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b85159..575e5de 100755
 From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/11] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/13] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d..b01f716 100644
 From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/11] Add a Liquid player background
+Subject: [PATCH 10/13] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2..9ce0f19 100644
 From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/11] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/13] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5067,6 +5067,232 @@ index 9ce0f19..0afd944 100644
      <string name="slider_style_title">Slider style</string>
      <string name="slider_style_squiggly">Squiggly</string>
      <string name="slider_style_default">Default</string>
+-- 
+2.43.0
+
+
+From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 08:43:48 +0000
+Subject: [PATCH 12/13] Tell the user when the Discord login cannot read a
+ token
+
+The poll now gives up visibly. Discord does not reliably keep its token
+anywhere a script running in the page can reach, and when it does not there
+is nothing to wait for - the screen just sat on a fully loaded Discord
+looking like it was still working. After 30 seconds it now says so and
+points at "Log in with token", which does not depend on the page
+cooperating.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../ui/screens/settings/DiscordLoginScreen.kt | 34 +++++++++++++++++++
+ app/src/main/res/values/strings-ot.xml        |  1 +
+ 2 files changed, 35 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
+index 148f0c5..a798375 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
+@@ -20,12 +20,17 @@ import android.webkit.WebStorage
+ import android.webkit.WebView
+ import android.webkit.WebViewClient
+ import androidx.activity.compose.BackHandler
++import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.windowInsetsPadding
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.runtime.Composable
+@@ -35,8 +40,10 @@ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.viewinterop.AndroidView
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
+@@ -68,6 +75,7 @@ fun DiscordLoginScreen(navController: NavController) {
+     // recomposition, which silently disabled the back handler and the poll below.
+     var webView by remember { mutableStateOf<WebView?>(null) }
+     var captured by remember { mutableStateOf(false) }
++    var gaveUp by remember { mutableStateOf(false) }
+ 
+     // Poll rather than checking once. onPageFinished fires when the document finishes loading,
+     // but Discord is a single-page app that writes its token some unpredictable moment later,
+@@ -84,6 +92,7 @@ fun DiscordLoginScreen(navController: NavController) {
+             }
+         }
+         Log.w(TAG, "Gave up waiting for a Discord token after ${POLL_ATTEMPTS * POLL_INTERVAL_MS / 1000}s")
++        gaveUp = true
+     }
+ 
+     AndroidView(
+@@ -170,6 +179,31 @@ fun DiscordLoginScreen(navController: NavController) {
+         }
+     )
+ 
++    // Discord does not always keep its token anywhere a script in the page can read. When that
++    // happens there is nothing to wait for, so say so and point at the way that always works,
++    // rather than leaving a fully loaded Discord sitting there looking busy.
++    if (gaveUp && !captured) {
++        Box(
++            modifier = Modifier
++                .fillMaxSize()
++                .windowInsetsPadding(LocalPlayerAwareWindowInsets.current),
++            contentAlignment = Alignment.BottomCenter,
++        ) {
++            Surface(
++                color = MaterialTheme.colorScheme.errorContainer,
++                shape = RoundedCornerShape(12.dp),
++                modifier = Modifier.padding(16.dp),
++            ) {
++                Text(
++                    text = stringResource(R.string.discord_login_failed),
++                    style = MaterialTheme.typography.bodyMedium,
++                    color = MaterialTheme.colorScheme.onErrorContainer,
++                    modifier = Modifier.padding(16.dp),
++                )
++            }
++        }
++    }
++
+     TopAppBar(
+         title = { Text(stringResource(R.string.action_login)) },
+         navigationIcon = {
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 0afd944..8388e17 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -148,6 +148,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="discord_login_token">Log in with token</string>
+     <string name="discord_login_token_description">Use this if the login page will not finish</string>
+     <string name="discord_login_token_hint">Paste your Discord token</string>
++    <string name="discord_login_failed">Couldn't read the token from this page. Go back and use \"Log in with token\" instead.</string>
+     <string name="slider_style_title">Slider style</string>
+     <string name="slider_style_squiggly">Squiggly</string>
+     <string name="slider_style_default">Default</string>
+-- 
+2.43.0
+
+
+From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 10:15:48 +0000
+Subject: [PATCH 13/13] Fix Discord presence never appearing
+
+Two problems, and the first is why nothing showed at all.
+
+I never ported the play/pause hook from the donor fork. Presence was only
+pushed when currentSong emitted, which happens on track change - so signing
+in while music was already playing, or pressing play on an already loaded
+track, pushed nothing, and pausing never cleared it. onEvents now handles
+EVENT_IS_PLAYING_CHANGED: push on resume, which also re-anchors the
+progress bar to the real position, and stop the activity on a pause that
+isn't just the gap between tracks.
+
+Second, in Kizzy, coroutineContext was declared with a get(), handing out a
+fresh SupervisorJob on every access. The job close() cancelled was
+therefore never the job the connection ran under, so cancelling it reached
+nothing: sockets and heartbeats leaked, and a stale connection could keep
+answering isRpcRunning() after logout. It is now built once. close() uses
+cancelChildren rather than cancel, since cancelling the scope's own job
+would leave it permanently dead and a later connect() would launch into a
+cancelled scope - leaving sendActivity spinning forever on a connection
+that could never come.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../dd3boh/outertune/playback/MusicService.kt    | 16 ++++++++++++++++
+ .../com/my/kizzy/gateway/DiscordWebSocket.kt     | 14 +++++++++++---
+ 2 files changed, 27 insertions(+), 3 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 36f30a8..c456243 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -28,6 +28,7 @@ import androidx.media3.common.Format
+ import androidx.media3.common.MediaItem
+ import androidx.media3.common.PlaybackException
+ import androidx.media3.common.Player
++import androidx.media3.common.Player.EVENT_MEDIA_ITEM_TRANSITION
+ import androidx.media3.common.Player.EVENT_POSITION_DISCONTINUITY
+ import androidx.media3.common.Player.EVENT_TIMELINE_CHANGED
+ import androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
+@@ -1138,6 +1139,21 @@ class MusicService : MediaLibraryService(),
+         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
+             currentMediaMetadata.value = player.currentMetadata
+         }
++
++        // Discord presence has to follow play/pause as well as track changes. currentSong only
++        // emits when the song itself changes, so without this, pressing play on an already
++        // loaded track - or signing in while something was already playing - never pushed a
++        // presence at all. Resuming also re-anchors the progress bar to the real position.
++        if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED)) {
++            if (player.isPlaying) {
++                currentSong.value?.let { song ->
++                    scope.launch { discordRpc?.updateSong(song, player.currentPosition) }
++                }
++            } else if (!events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_MEDIA_ITEM_TRANSITION)) {
++                // A pause that is not just the gap between tracks: clear the activity.
++                scope.launch { discordRpc?.stopActivity() }
++            }
++        }
+     }
+ 
+     override fun onPlaybackStatsReady(eventTime: AnalyticsListener.EventTime, playbackStats: PlaybackStats) {
+diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+index 6e9d8fc..d9eaf36 100644
+--- a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
++++ b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+@@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.SupervisorJob
+ import kotlinx.coroutines.cancel
++import kotlinx.coroutines.cancelChildren
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.receiveAsFlow
+ import kotlinx.coroutines.isActive
+@@ -64,8 +65,12 @@ open class DiscordWebSocket(
+         ignoreUnknownKeys = true
+         encodeDefaults = true
+     }
+-    override val coroutineContext: CoroutineContext
+-        get() = SupervisorJob() + Dispatchers.Default
++    // Built once. This used to be a get(), which handed out a brand new SupervisorJob on every
++    // access - so the job that close() cancelled was never the job the connection was launched
++    // under, and cancelling it reached nothing. Connections and their heartbeats leaked, and a
++    // stale socket could keep answering isRpcRunning() after a logout.
++    private val socketJob = SupervisorJob()
++    override val coroutineContext: CoroutineContext = socketJob + Dispatchers.Default
+     suspend fun connect() {
+         launch {
+             try {
+@@ -212,7 +217,10 @@ open class DiscordWebSocket(
+     fun close() {
+         heartbeatJob?.cancel()
+         heartbeatJob = null
+-        this.cancel()
++        // cancelChildren, not cancel: cancelling the scope's own job would leave it permanently
++        // dead, and a later connect() would launch into a cancelled scope and never run - so
++        // sendActivity would then spin forever waiting for a connection that cannot happen.
++        socketJob.cancelChildren()
+         resumeGatewayUrl = null
+         sessionId = null
+         connected = false
 -- 
 2.43.0
 
