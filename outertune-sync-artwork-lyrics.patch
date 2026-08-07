@@ -1,7 +1,7 @@
 From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/14] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/15] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 0000000..81d7f34
 From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/14] Add patch notes
+Subject: [PATCH 02/15] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 0000000..28c797a
 From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/14] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/15] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a8..27f97bf 100644
 From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/14] Clarify build route in patch notes
+Subject: [PATCH 04/15] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f96..a43e5d3 100644
 From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/14] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/15] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b93..7d50084 100644
 From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/14] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/15] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac..a848cde 100644
 From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/14] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/15] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf..580a4a9 100644
 From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/14] Add Discord rich presence
+Subject: [PATCH 08/15] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b85159..575e5de 100755
 From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/14] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/15] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d..b01f716 100644
 From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/14] Add a Liquid player background
+Subject: [PATCH 10/15] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2..9ce0f19 100644
 From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/14] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/15] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f19..0afd944 100644
 From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/14] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/15] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd944..8388e17 100644
 From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/14] Fix Discord presence never appearing
+Subject: [PATCH 13/15] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fc..d9eaf36 100644
 From 507a0bc3e25d1a10d886280ffcd87e20d5e76348 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/14] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/15] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5327,6 +5327,256 @@ index 8388e17..25f56c2 100644
      <string name="slider_style_title">Slider style</string>
      <string name="slider_style_squiggly">Squiggly</string>
      <string name="slider_style_default">Default</string>
+-- 
+2.43.0
+
+
+From e1e4bcf1005f1970fe7ba90cf2650076058bee4c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 10:41:42 +0000
+Subject: [PATCH 15/15] Make Discord connection failures visible, and stop the
+ infinite wait
+
+Every failure in Kizzy went to java.util.logging, which is unreadable on a
+release build, so a gateway that never connected looked exactly like a
+presence that was never sent. Three changes:
+
+The socket now records what happened to it in words - connecting,
+connected, the close code, or the exception - and calls out 4004
+specifically, since that means Discord rejected the token.
+
+sendActivity no longer loops forever waiting to identify. It waits 15
+seconds and gives up, so a connection that cannot succeed surfaces instead
+of leaving the caller suspended for the life of the process.
+
+Settings gains a "Test connection" row that opens a gateway connection on
+demand and reports the outcome, so the failure can be identified without a
+logcat.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../ui/screens/settings/DiscordSettings.kt    | 26 +++++++++++
+ app/src/main/res/values/strings-ot.xml        |  2 +
+ .../com/my/kizzy/gateway/DiscordWebSocket.kt  | 46 +++++++++++++++++--
+ .../main/java/com/my/kizzy/rpc/KizzyRPC.kt    | 20 ++++++++
+ 4 files changed, 91 insertions(+), 3 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
+index 874c2bf..9244411 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
+@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.AccountCircle
+ import androidx.compose.material.icons.rounded.Key
+ import androidx.compose.material.icons.rounded.Logout
++import androidx.compose.material.icons.rounded.NetworkCheck
+ import androidx.compose.material3.ElevatedCard
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+@@ -55,6 +57,7 @@ import com.dd3boh.outertune.ui.dialog.TextFieldDialog
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.utils.rememberPreference
+ import com.my.kizzy.rpc.KizzyRPC
++import kotlinx.coroutines.launch
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+@@ -69,6 +72,9 @@ fun DiscordSettings(
+ 
+     val isLoggedIn = remember(discordToken) { discordToken.isNotEmpty() }
+     var showTokenDialog by remember { mutableStateOf(false) }
++    var connectionStatus by remember { mutableStateOf<String?>(null) }
++    var testing by remember { mutableStateOf(false) }
++    val scope = rememberCoroutineScope()
+ 
+     // Discord will not always hand its token to an embedded browser: a captcha it refuses to
+     // render, or an unlucky moment, and the login screen just sits there. Pasting the token
+@@ -139,6 +145,26 @@ fun DiscordSettings(
+                 icon = { Icon(Icons.Rounded.Key, null) },
+                 onClick = { showTokenDialog = true },
+             )
++            // Everything downstream of this screen fails quietly - the gateway logs through
++            // java.util.logging, which nobody can read on a release build. This opens a
++            // connection on demand and reports what actually happened.
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.discord_test_connection)) },
++                description = connectionStatus
++                    ?: stringResource(R.string.discord_test_connection_description),
++                icon = { Icon(Icons.Rounded.NetworkCheck, null) },
++                isEnabled = isLoggedIn && !testing,
++                onClick = {
++                    testing = true
++                    connectionStatus = "Testing…"
++                    scope.launch {
++                        val rpc = KizzyRPC(discordToken)
++                        connectionStatus = rpc.testConnection()
++                        rpc.closeRPC()
++                        testing = false
++                    }
++                },
++            )
+         }
+         Spacer(modifier = Modifier.height(16.dp))
+ 
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 25f56c2..035206e 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -148,6 +148,8 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="discord_login_token">Log in with token</string>
+     <string name="discord_login_token_description">Use this if the login page will not finish</string>
+     <string name="discord_login_token_hint">Paste your Discord token</string>
++    <string name="discord_test_connection">Test connection</string>
++    <string name="discord_test_connection_description">Open a connection to Discord and report what happens</string>
+     <string name="discord_login_failed">Could not read the token from this page. Go back and use \"Log in with token\" instead.</string>
+     <string name="slider_style_title">Slider style</string>
+     <string name="slider_style_squiggly">Squiggly</string>
+diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+index d9eaf36..7c9db8d 100644
+--- a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
++++ b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+@@ -58,6 +58,15 @@ open class DiscordWebSocket(
+     private var resumeGatewayUrl: String? = null
+     private var heartbeatJob: Job? = null
+     private var connected = false
++
++    /**
++     * Last thing that happened to this socket, in words. Kizzy reports everything through
++     * java.util.logging, which is invisible on a release build with no logcat attached - so a
++     * failure to connect was indistinguishable from a presence that simply never got sent.
++     */
++    @Volatile
++    var lastStatus: String = "Not connected"
++        private set
+     private var client: HttpClient = HttpClient {
+         install(WebSockets)
+     }
+@@ -75,6 +84,7 @@ open class DiscordWebSocket(
+         launch {
+             try {
+                 Logger.getLogger("Kizzy").log(INFO, "Gateway: Connect called")
++                lastStatus = "Connecting…"
+                 val url = resumeGatewayUrl ?: gatewayUrl
+                 websocket = client.webSocketSession(url)
+                 // start receiving messages
+@@ -91,6 +101,7 @@ open class DiscordWebSocket(
+                 handleClose()
+             } catch (e: Exception) {
+                 Logger.getLogger("Kizzy").log(INFO, "Gateway: ${e.message}")
++                lastStatus = "Connection error: ${e.message ?: e::class.simpleName}"
+                 close()
+             }
+         }
+@@ -100,6 +111,12 @@ open class DiscordWebSocket(
+         connected = false
+         val close = websocket?.closeReason?.await()
+         Logger.getLogger("Kizzy").log(INFO, "Gateway: Closed with code: ${close?.code}, reason: ${close?.message},  can_reconnect: ${close?.code?.toInt() == 4000}")
++        // 4004 is the one worth calling out by name: Discord rejected the token.
++        lastStatus = when (close?.code?.toInt()) {
++            null -> "Disconnected"
++            4004 -> "Discord rejected the token (4004). Paste a fresh one."
++            else -> "Disconnected (code ${close.code}${close.message.takeIf { it.isNotBlank() }?.let { ": $it" } ?: ""})"
++        }
+         if (close?.code?.toInt() == 4000) {
+             delay(200.milliseconds)
+             connect()
+@@ -130,6 +147,7 @@ open class DiscordWebSocket(
+                 Logger.getLogger("Kizzy").log(INFO, "Gateway: resume_gateway_url updated to $resumeGatewayUrl")
+                 Logger.getLogger("Kizzy").log(INFO, "Gateway: session_id updated to $sessionId")
+                 connected = true
++                lastStatus = "Connected"
+                 return
+             }
+             "RESUMED" -> {
+@@ -196,6 +214,17 @@ open class DiscordWebSocket(
+             }
+         }
+     }
++    /** Waits up to [timeoutMs] for the gateway to finish identifying. */
++    suspend fun awaitConnected(timeoutMs: Long): Boolean {
++        var waited = 0L
++        while (waited < timeoutMs) {
++            if (isSocketConnectedToAccount()) return true
++            delay(POLL_MS.milliseconds)
++            waited += POLL_MS
++        }
++        return isSocketConnectedToAccount()
++    }
++
+     private fun isSocketConnectedToAccount(): Boolean {
+         return connected && websocket?.isActive == true
+     }
+@@ -214,6 +243,11 @@ open class DiscordWebSocket(
+             websocket?.send(Frame.Text(payload))
+         }
+     }
++    companion object {
++        private const val CONNECT_TIMEOUT_MS = 15_000L
++        private const val POLL_MS = 50L
++    }
++
+     fun close() {
+         heartbeatJob?.cancel()
+         heartbeatJob = null
+@@ -230,9 +264,15 @@ open class DiscordWebSocket(
+         }
+     }
+     suspend fun sendActivity(presence: Presence) {
+-        // TODO : Figure out a better way to wait for socket to be connected to account
+-        while (!isSocketConnectedToAccount()) {
+-            delay(10.milliseconds)
++        // Bounded. This used to loop forever waiting for the socket to identify, so a connection
++        // that never succeeded left the caller suspended for the life of the process with nothing
++        // logged and nothing shown.
++        if (!awaitConnected(CONNECT_TIMEOUT_MS)) {
++            Logger.getLogger("Kizzy").log(INFO, "Gateway: gave up waiting to connect")
++            if (lastStatus == "Connecting…" || lastStatus == "Not connected") {
++                lastStatus = "Timed out connecting to Discord"
++            }
++            return
+         }
+         Logger.getLogger("Kizzy").log(INFO, "Gateway: Sending $PRESENCE_UPDATE")
+         send(
+diff --git a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
+index 2d7f99f..90bac79 100644
+--- a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
++++ b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
+@@ -40,6 +40,26 @@ open class KizzyRPC(token: String) {
+         return discordWebSocket.isWebSocketConnected()
+     }
+ 
++    /** Last thing that happened to the gateway, in words, for display in settings. */
++    fun lastStatus(): String = discordWebSocket.lastStatus
++
++    /**
++     * Opens the gateway and waits for it to finish identifying. Returns the outcome as text so a
++     * caller can show it, rather than failing silently the way the rest of this class does.
++     */
++    suspend fun testConnection(timeoutMs: Long = 20_000L): String {
++        return try {
++            if (!isRpcRunning()) discordWebSocket.connect()
++            if (discordWebSocket.awaitConnected(timeoutMs)) {
++                "Connected to Discord as expected"
++            } else {
++                discordWebSocket.lastStatus
++            }
++        } catch (e: Exception) {
++            "Failed: ${e.message ?: e::class.simpleName}"
++        }
++    }
++
+     suspend fun stopActivity() {
+         if (!isRpcRunning()) {
+             discordWebSocket.connect()
 -- 
 2.43.0
 
