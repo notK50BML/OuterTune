@@ -44,7 +44,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
-import com.dd3boh.outertune.BuildConfig
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalDownloadUtil
 import com.dd3boh.outertune.LocalMenuState
@@ -108,7 +107,8 @@ fun SongListItem(
         ListItem(
             title = song.song.title,
             subtitle = joinByBullet(
-                (if (BuildConfig.DEBUG) song.song.id else ""),
+                // The raw video id used to be prepended here on debug builds, which pushed the
+                // artist name off the end of the row.
                 song.artists.joinToString { it.name },
                 makeTimeString(song.song.duration * 1000L)
             ),
