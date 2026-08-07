@@ -328,6 +328,13 @@ fun AutoPlaylistScreen(
                 onRefresh = {
                     coroutineScope.launch {
                         syncUtils.syncRemoteLikedSongs(true)
+                        // Report the outcome. A liked-songs sync can decline to run or fail
+                        // against YouTube without anything visible changing on screen, which
+                        // makes "refreshing did nothing" impossible to tell apart from
+                        // "refreshing worked and the order is still wrong".
+                        syncUtils.syncState.value.lastLikedSongsResult
+                            .takeIf { it.isNotEmpty() }
+                            ?.let { snackbarHostState.showSnackbar(it, withDismissAction = true) }
                     }
                 }
             ),

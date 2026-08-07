@@ -108,6 +108,11 @@ data class SyncState(
     val playlists: SyncStatus = SyncStatus.Idle,
     val recentActivity: SyncStatus = SyncStatus.Idle,
     val currentOperation: String = "",
+    /**
+     * Human-readable outcome of the most recent liked-songs sync. Surfaced in the UI after a
+     * manual refresh so a silent failure is visible without a logcat.
+     */
+    val lastLikedSongsResult: String = "",
 )
 
 /**
@@ -312,6 +317,23 @@ class SyncUtils @Inject constructor(
         return true
     }
 
+    /**
+     * Same checks as [canSync], but returns why the sync was refused instead of just a boolean,
+     * so the UI can say something more useful than nothing at all. Null means "go ahead".
+     */
+    private fun syncRefusalReason(
+        category: SyncContent,
+        lastSyncKey: Preferences.Key<Long>,
+        bypass: Boolean,
+    ): String? = when {
+        !context.isUserLoggedIn() -> "Not signed in to YouTube Music"
+        !context.isInternetConnected() -> "No internet connection"
+        !checkEnabled(category) -> "$category is turned off in sync settings"
+        !bypass && !context.isAutoSyncEnabled() -> "Auto sync is off"
+        !bypass && !cooldownElapsed(lastSyncKey) -> "Synced recently, skipping"
+        else -> null
+    }
+
     private suspend fun <T> withRetry(
         maxRetries: Int = MAX_RETRIES,
         initialDelay: Long = INITIAL_RETRY_DELAY_MS,
@@ -444,7 +466,11 @@ class SyncUtils @Inject constructor(
      * of step with YouTube.
      */
     private suspend fun executeSyncRemoteLikedSongs(bypass: Boolean = false) = withContext(Dispatchers.IO) {
-        if (!canSync(SyncContent.LIKED_SONGS, LastLikeSongSyncKey, bypass)) return@withContext
+        val refusal = syncRefusalReason(SyncContent.LIKED_SONGS, LastLikeSongSyncKey, bypass)
+        if (refusal != null) {
+            updateState { copy(lastLikedSongsResult = refusal) }
+            return@withContext
+        }
         updateState { copy(likedSongs = SyncStatus.Syncing, currentOperation = "Syncing liked songs") }
 
         try {
@@ -453,7 +479,12 @@ class SyncUtils @Inject constructor(
             val page = withRetry { YouTube.playlist("LM").completed().getOrThrow() }
                 .onFailure {
                     Log.e(TAG, "Failed to fetch liked songs", it)
-                    updateState { copy(likedSongs = SyncStatus.Error(it.message ?: "Fetch failed")) }
+                    updateState {
+                        copy(
+                            likedSongs = SyncStatus.Error(it.message ?: "Fetch failed"),
+                            lastLikedSongsResult = "Could not reach YouTube: ${it.message ?: "unknown error"}",
+                        )
+                    }
                 }
                 .getOrNull() ?: return@withContext
 
@@ -499,13 +530,23 @@ class SyncUtils @Inject constructor(
             }
 
             markSynced(LastLikeSongSyncKey)
-            updateState { copy(likedSongs = SyncStatus.Completed) }
+            updateState {
+                copy(
+                    likedSongs = SyncStatus.Completed,
+                    lastLikedSongsResult = "Synced ${remoteSongs.size} liked songs",
+                )
+            }
             if (SYNC_DEBUG) Log.d(TAG, "Synced ${remoteSongs.size} liked songs")
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Error processing liked songs", e)
-            updateState { copy(likedSongs = SyncStatus.Error(e.message ?: "Unknown error")) }
+            updateState {
+                copy(
+                    likedSongs = SyncStatus.Error(e.message ?: "Unknown error"),
+                    lastLikedSongsResult = "Sync failed: ${e.message ?: "unknown error"}",
+                )
+            }
         } finally {
             if (SYNC_DEBUG) Log.i(TAG, "Liked songs synchronization ended")
         }
