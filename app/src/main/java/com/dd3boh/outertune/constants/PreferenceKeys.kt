@@ -117,6 +117,15 @@ val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
  */
 val HighResArtworkKey = booleanPreferencesKey("highResArtwork")
 
+/**
+ * Discord Integration
+ */
+val DiscordTokenKey = stringPreferencesKey("discordToken")
+val DiscordInfoDismissedKey = booleanPreferencesKey("discordInfoDismissed_v2")
+val DiscordUsernameKey = stringPreferencesKey("discordUsername")
+val DiscordNameKey = stringPreferencesKey("discordName")
+val EnableDiscordRPCKey = booleanPreferencesKey("discordRPCEnable")
+
 
 /**
  * Privacy

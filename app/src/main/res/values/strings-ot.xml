@@ -135,6 +135,15 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="slim_navbar_description">Remove text labels to reduce navbar height</string>
     <string name="high_res_artwork_title">High resolution artwork</string>
     <string name="high_res_artwork_description">Request album art at the size it is displayed instead of using the small thumbnail YouTube returns. Turn off to save data.</string>
+
+<!-- Discord integration -->
+    <string name="settings_discord_description">Show your listening activity as your Discord status</string>
+    <string name="rpc_listen_ytm">Listen on YouTube Music</string>
+    <string name="rpc_visit">Visit %s</string>
+    <string name="rpc_preview_title">Listening to %s</string>
+    <string name="discord_logout">Log out</string>
+    <string name="discord_account">Discord account</string>
+    <string name="discord_login_summary">Log in to show what you are listening to</string>
     <string name="slider_style_title">Slider style</string>
     <string name="slider_style_squiggly">Squiggly</string>
     <string name="slider_style_default">Default</string>

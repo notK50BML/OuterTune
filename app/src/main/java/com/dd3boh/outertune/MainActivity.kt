@@ -172,6 +172,8 @@ import com.dd3boh.outertune.ui.screens.settings.AccountSyncSettings
 import com.dd3boh.outertune.ui.screens.settings.AppearanceSettings
 import com.dd3boh.outertune.ui.screens.settings.AttributionScreen
 import com.dd3boh.outertune.ui.screens.settings.BackupAndRestore
+import com.dd3boh.outertune.ui.screens.settings.DiscordLoginScreen
+import com.dd3boh.outertune.ui.screens.settings.DiscordSettings
 import com.dd3boh.outertune.ui.screens.settings.ExperimentalSettings
 import com.dd3boh.outertune.ui.screens.settings.LibrariesScreen
 import com.dd3boh.outertune.ui.screens.settings.LibrarySettings
@@ -733,6 +735,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("settings/experimental") {
                                         ExperimentalSettings(navController, scrollBehavior)
+                                    }
+                                    composable("settings/discord") {
+                                        DiscordSettings(navController, scrollBehavior)
+                                    }
+                                    composable("settings/discord/login") {
+                                        DiscordLoginScreen(navController)
                                     }
                                     composable("settings/about") {
                                         AboutScreen(navController, scrollBehavior)

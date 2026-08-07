@@ -50,6 +50,7 @@ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -94,6 +95,12 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.grp_account_sync)) },
                 icon = { AccountAvatar { Icon(Icons.Rounded.AccountCircle, null) } },
                 onClick = { navController.navigate("settings/account_sync") }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.discord_integration)) },
+                description = stringResource(R.string.settings_discord_description),
+                icon = { Icon(painterResource(R.drawable.discord), null) },
+                onClick = { navController.navigate("settings/discord") }
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

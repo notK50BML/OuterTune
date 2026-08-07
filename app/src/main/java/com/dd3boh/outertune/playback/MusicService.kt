@@ -73,6 +73,8 @@ import com.dd3boh.outertune.constants.AudioOffloadKey
 import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
+import com.dd3boh.outertune.constants.DiscordTokenKey
+import com.dd3boh.outertune.constants.EnableDiscordRPCKey
 import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
 import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
 import com.dd3boh.outertune.constants.EnableLyricsPrefetchKey
@@ -119,6 +121,7 @@ import com.dd3boh.outertune.playback.queues.ListQueue
 import com.dd3boh.outertune.playback.queues.Queue
 import com.dd3boh.outertune.playback.queues.YouTubeQueue
 import com.dd3boh.outertune.utils.CoilBitmapLoader
+import com.dd3boh.outertune.utils.DiscordRPC
 import com.dd3boh.outertune.utils.NetworkConnectivityObserver
 import com.dd3boh.outertune.utils.SyncUtils
 import com.dd3boh.outertune.utils.YTPlayerUtils
@@ -216,6 +219,8 @@ class MusicService : MediaLibraryService(),
     // Player components
     @Inject
     lateinit var syncUtils: SyncUtils
+
+    private var discordRpc: DiscordRPC? = null
 
     lateinit var connectivityObserver: NetworkConnectivityObserver
     val waitingForNetworkConnection = MutableStateFlow(false)
@@ -316,6 +321,16 @@ class MusicService : MediaLibraryService(),
             updateNotification()
         }
 
+        // Discord presence follows the current song. Debounced so skipping through a queue
+        // doesn't fire a gateway write per track.
+        currentSong.debounce(1000).collect(scope) { song ->
+            if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
+                discordRpc?.updateSong(song, player.currentPosition)
+            } else {
+                discordRpc?.closeRPC()
+            }
+        }
+
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(
                 this@MusicService,
@@ -348,6 +363,25 @@ class MusicService : MediaLibraryService(),
                     settings[PlayerVolumeKey] = volume
                 }
             }
+
+            // Rebuild the RPC client whenever the token or the enable switch changes, and push the
+            // current song immediately so the presence isn't blank until the next track.
+            dataStore.data
+                .map { it[DiscordTokenKey] to (it[EnableDiscordRPCKey] != false) }
+                .debounce(300)
+                .distinctUntilChanged()
+                .collect(scope) { (token, enabled) ->
+                    if (discordRpc?.isRpcRunning() == true) {
+                        discordRpc?.closeRPC()
+                    }
+                    discordRpc = null
+                    if (!token.isNullOrEmpty() && enabled) {
+                        discordRpc = DiscordRPC(this@MusicService, token)
+                        if (player.playbackState == Player.STATE_READY && player.playWhenReady) {
+                            currentSong.value?.let { discordRpc?.updateSong(it, player.currentPosition) }
+                        }
+                    }
+                }
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }
@@ -1206,6 +1240,11 @@ class MusicService : MediaLibraryService(),
         }
         // deInitQueue reads player.currentPosition, so it must run before the player is released.
         deInitQueue()
+
+        if (discordRpc?.isRpcRunning() == true) {
+            discordRpc?.closeRPC()
+        }
+        discordRpc = null
 
         mediaSession.player.stop()
         mediaSession.release()

@@ -16,6 +16,7 @@ include(":kugou")
 include(":lrclib")
 include(":betterlyrics")
 include(":simpmusic")
+include(":kizzy")
 
 // Use a local copy of NewPipe Extractor by uncommenting the lines below.
 // We assume, that OuterTune and NewPipe Extractor have the same parent directory.
