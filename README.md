@@ -15,11 +15,7 @@ A Material 3 YouTube Music client & local music player for Android
 >
 > Occasionally, release APKs would be uploaded, but to test the latest release, please use compile the APK yourself, the instructions are below.
 >
->
-> ```bash
-> # core debug build
-> ./gradlew assembleCoreDebug
-> ```
+> Go to the Actions tab, click on Build Patched APKs, click on build and then run all jobs. Hopefully, in good time I will get to releasing more often, I probably will.
 >
 > For step-by-step instructions, see [CONTRIBUTING.md](https://github.com/yuuichi-s/OuterTune/blob/dev/CONTRIBUTING.md).
 
