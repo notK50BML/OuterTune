@@ -10,6 +10,8 @@
 
 A Material 3 YouTube Music client & local music player for Android
 
+Currently, we are working on movable UI elements and a visualiser. These are both very WIP projects and we will continue to update the app but these features may not be released soon.
+
 > [!NOTE]
 > This is a fork based on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune).
 >
