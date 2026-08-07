@@ -1,11 +1,20 @@
 package com.dd3boh.outertune.ui.utils
 
+/**
+ * Compiled once rather than on every call. [resize] is now invoked from list item composables,
+ * so it runs on every artwork bind while scrolling; rebuilding these patterns each time was
+ * enough overhead to show up as jank in long lists.
+ */
+private val GOOGLE_USERCONTENT_SIZED =
+    Regex("""https://[a-z0-9]+\.googleusercontent\.com/.*=w(\d+)-h(\d+).*""")
+private val YT3_GGPHT_SIZED = Regex("""https://yt3\.ggpht\.com/.*=s(\d+)""")
+
 fun String.resize(
     width: Int? = null,
     height: Int? = null,
 ): String {
     if (width == null && height == null) return this
-    "https://[a-z0-9]+\\.googleusercontent\\.com/.*=w(\\d+)-h(\\d+).*".toRegex().matchEntire(this)?.groupValues?.let { group ->
+    GOOGLE_USERCONTENT_SIZED.matchEntire(this)?.groupValues?.let { group ->
         val (W, H) = group.drop(1).map { it.toInt() }
         var w = width
         var h = height
@@ -13,7 +22,7 @@ fun String.resize(
         if (w == null && h != null) w = (h / H) * W
         return "${split("=w")[0]}=w$w-h$h-p-l90-rj"
     }
-    if (this matches "https://yt3\\.ggpht\\.com/.*=s(\\d+)".toRegex()) {
+    if (this matches YT3_GGPHT_SIZED) {
         return "$this-s${width ?: height}"
     }
     if (this.contains("i.ytimg.com")) {

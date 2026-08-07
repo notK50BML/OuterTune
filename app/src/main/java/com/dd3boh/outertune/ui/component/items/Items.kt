@@ -684,13 +684,19 @@ fun ItemThumbnail(
             }
         }
 
+        // Remembered per (url, size): remoteArtwork runs regexes over the URL, and a list item
+        // recomposes often while scrolling. Recomputing it every frame is enough to be felt.
+        val artworkModel = remember(thumbnailUrl, targetPx) {
+            when {
+                thumbnailUrl == null -> null
+                thumbnailUrl.startsWith("/storage") -> LocalArtworkPath(thumbnailUrl, targetPx, targetPx)
+                else -> remoteArtwork(thumbnailUrl, targetPx, targetPx)
+            }
+        }
+
         AsyncImage(
             imageLoader = context.imageLoader,
-            model = if (thumbnailUrl?.startsWith("/storage") == true) {
-                LocalArtworkPath(thumbnailUrl, targetPx, targetPx)
-            } else {
-                thumbnailUrl?.let { remoteArtwork(it, targetPx, targetPx) }
-            },
+            model = artworkModel,
 //            placeholder = rememberVectorPainter(placeholderIcon),
             contentDescription = null,
             modifier = Modifier
