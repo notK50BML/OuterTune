@@ -1,7 +1,7 @@
 From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/15] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/19] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 0000000..81d7f34
 From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/15] Add patch notes
+Subject: [PATCH 02/19] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 0000000..28c797a
 From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/15] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/19] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a8..27f97bf 100644
 From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/15] Clarify build route in patch notes
+Subject: [PATCH 04/19] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f96..a43e5d3 100644
 From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/15] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/19] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b93..7d50084 100644
 From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/15] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/19] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac..a848cde 100644
 From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/15] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/19] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf..580a4a9 100644
 From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/15] Add Discord rich presence
+Subject: [PATCH 08/19] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b85159..575e5de 100755
 From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/15] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/19] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d..b01f716 100644
 From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/15] Add a Liquid player background
+Subject: [PATCH 10/19] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2..9ce0f19 100644
 From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/15] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/19] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f19..0afd944 100644
 From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/15] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/19] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd944..8388e17 100644
 From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/15] Fix Discord presence never appearing
+Subject: [PATCH 13/19] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fc..d9eaf36 100644
 From 507a0bc3e25d1a10d886280ffcd87e20d5e76348 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/15] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/19] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17..25f56c2 100644
 From e1e4bcf1005f1970fe7ba90cf2650076058bee4c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/15] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/19] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5577,6 +5577,429 @@ index 2d7f99f..90bac79 100644
      suspend fun stopActivity() {
          if (!isRpcRunning()) {
              discordWebSocket.connect()
+-- 
+2.43.0
+
+
+From 9e85fd9df9a1031c7bf38bb94d1754aa2cdd91f8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 11:08:56 +0000
+Subject: [PATCH 16/19] Fix the presence progress bar sticking at zero, and
+ link the artist
+
+Two causes for the stuck bar.
+
+currentSong is database.song(id), so skipping to a track whose row has not
+been written yet emits a transient null. The collector treated that as
+"stop" and called closeRPC, tearing down the whole gateway on every skip -
+so the presence went stale while the socket reconnected. Nulls are now
+ignored; pause and stop are handled in onEvents, which is where they
+belong.
+
+SongEntity.duration is in seconds and defaults to -1 when unknown, which is
+common for a freshly inserted track. That produced an end timestamp earlier
+than the start, and Discord renders that as a bar pinned at zero. When the
+duration is not known the end timestamp is now omitted entirely, so Discord
+shows elapsed time counting up instead.
+
+Also: the artist line is now clickable, opening the artist on YouTube
+Music. Discord exposes exactly two url slots, details_url and state_url;
+the title already used the first, so the artist takes the second. Local
+artists have a generated id that resolves to nothing and stay plain text.
+The album cannot be linked - it lives in largeText, which is hover text
+with no url slot.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../dd3boh/outertune/playback/MusicService.kt |  7 +++++--
+ .../com/dd3boh/outertune/utils/DiscordRPC.kt  | 20 ++++++++++++++++++-
+ 2 files changed, 24 insertions(+), 3 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index c456243..2ad9c0a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -327,9 +327,12 @@ class MusicService : MediaLibraryService(),
+         currentSong.debounce(1000).collect(scope) { song ->
+             if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
+                 discordRpc?.updateSong(song, player.currentPosition)
+-            } else {
+-                discordRpc?.closeRPC()
+             }
++            // Deliberately no else. currentSong is database.song(id), so skipping to a track whose
++            // row has not been written yet emits a transient null - and tearing down the gateway
++            // on that meant every skip closed the socket and had to reconnect, leaving the
++            // presence stale until it came back. Pausing and stopping are handled in onEvents,
++            // which is the right place for them.
+         }
+ 
+         setMediaNotificationProvider(
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+index 8652b7c..9277053 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+@@ -13,13 +13,31 @@ class DiscordRPC(
+         val currentTime = System.currentTimeMillis()
+         val calculatedStartTime = currentTime - currentPlaybackTimeMillis
+ 
++        // SongEntity.duration is seconds and defaults to -1 when it is not known yet, which is
++        // common for a track that has only just been inserted. Left alone that produced an end
++        // timestamp earlier than the start, and Discord draws that as a bar stuck at zero.
++        // Sending no end at all is better: Discord then shows elapsed time counting up.
++        val durationMs = song.song.duration.takeIf { it > 0 }?.times(1000L)
++        val calculatedEndTime = durationMs?.let { currentTime + (it - currentPlaybackTimeMillis) }
++
++        // Discord makes details and state clickable when a matching *_url is supplied, and there
++        // are only those two slots. The title already uses details_url; give the artist line
++        // state_url so it opens the artist on YouTube Music. Local artists have a generated "LA"
++        // id that resolves to nothing, so they stay plain text.
++        val artistUrl = song.artists.firstOrNull()
++            ?.takeIf { !it.isLocal }
++            ?.let { "https://music.youtube.com/channel/${it.id}" }
++
+         setActivity(
+             name = context.getString(R.string.app_name).removeSuffix(" Debug"),
+             details = song.song.title,
+             detailsUrl = "https://music.youtube.com/watch?v=${song.song.id}",
+             state = song.artists.joinToString { it.name },
++            stateUrl = artistUrl,
+             largeImage = song.song.thumbnailUrl?.let { RpcImage.ExternalImage(it) },
+             smallImage = song.artists.firstOrNull()?.thumbnailUrl?.let { RpcImage.ExternalImage(it) },
++            // Hover text only. Discord has no url slot for the large image, so the album
++            // cannot be made clickable the way the title and artist can.
+             largeText = song.album?.title,
+             smallText = song.artists.firstOrNull()?.name,
+             buttons = listOf(
+@@ -32,7 +50,7 @@ class DiscordRPC(
+             statusDisplayType = StatusDisplayType.STATE,
+             since = currentTime,
+             startTime = calculatedStartTime,
+-            endTime = currentTime + (song.song.duration * 1000L - currentPlaybackTimeMillis),
++            endTime = calculatedEndTime,
+             applicationId = APPLICATION_ID
+         )
+     }
+-- 
+2.43.0
+
+
+From 8b263bbad0e6aa560b0dfe72e833e883279eb985 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 11:10:54 +0000
+Subject: [PATCH 17/19] Stop reporting the previous track's position to Discord
+
+player.currentPosition can still refer to the outgoing item while a track
+transition settles, so the presence was published with an elapsed time
+taken from the previous song - 2:22 already gone against the new track's
+shorter length, which Discord renders as a broken bar. Pressing previous
+appeared to fix it only because rewinding resets the position to zero,
+which is also why changing songs never did.
+
+The position is now only trusted when player.currentMediaItem agrees on
+which song it is; otherwise the track is treated as starting from zero,
+which is what a fresh transition means anyway. Applied at all three places
+that publish a presence.
+
+Presence writes are also serialised now, with superseded ones dropped.
+setActivity resolves both artwork URLs over the network before sending, so
+the track-change collector and the play/pause hook can overlap, and the
+older write could land last and leave the card describing the previous
+song. The collector uses collectLatest for the same reason.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 27 ++++++++++++++++---
+ .../com/dd3boh/outertune/utils/DiscordRPC.kt  | 24 +++++++++++++++++
+ 2 files changed, 47 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 2ad9c0a..0ac7b82 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -324,9 +324,15 @@ class MusicService : MediaLibraryService(),
+ 
+         // Discord presence follows the current song. Debounced so skipping through a queue
+         // doesn't fire a gateway write per track.
+-        currentSong.debounce(1000).collect(scope) { song ->
++        // collectLatest, not collect: setActivity resolves both artwork URLs through Discord's
++        // external-assets API before it sends anything, which can take seconds. With plain
++        // collect, a skip during that window queued a second update behind the first, and the
++        // one that eventually landed carried timestamps computed before the skip - an elapsed
++        // time from the previous track against the new track's duration. collectLatest cancels
++        // the superseded update instead.
++        currentSong.debounce(1000).collectLatest(scope) { song ->
+             if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
+-                discordRpc?.updateSong(song, player.currentPosition)
++                discordRpc?.updateSong(song, discordPositionFor(song.id))
+             }
+             // Deliberately no else. currentSong is database.song(id), so skipping to a track whose
+             // row has not been written yet emits a transient null - and tearing down the gateway
+@@ -382,7 +388,7 @@ class MusicService : MediaLibraryService(),
+                     if (!token.isNullOrEmpty() && enabled) {
+                         discordRpc = DiscordRPC(this@MusicService, token)
+                         if (player.playbackState == Player.STATE_READY && player.playWhenReady) {
+-                            currentSong.value?.let { discordRpc?.updateSong(it, player.currentPosition) }
++                            currentSong.value?.let { discordRpc?.updateSong(it, discordPositionFor(it.id)) }
+                         }
+                     }
+                 }
+@@ -1126,6 +1132,19 @@ class MusicService : MediaLibraryService(),
+         }
+     }
+ 
++
++    /**
++     * Playback position to report to Discord for [songId].
++     *
++     * player.currentPosition can still refer to the outgoing item while a transition is settling,
++     * so publishing it blindly produced a presence whose elapsed time came from the *previous*
++     * track - an already-elapsed 2:22 against the new track's much shorter length, which Discord
++     * draws as a broken bar. Rewinding to the start fixed it only because that happens to reset
++     * the position to zero. Trust the position only when the player agrees on which song it is.
++     */
++    private fun discordPositionFor(songId: String): Long =
++        if (player.currentMediaItem?.mediaId == songId) player.currentPosition else 0L
++
+     override fun onEvents(player: Player, events: Player.Events) {
+         if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
+             val isBufferingOrReady =
+@@ -1150,7 +1169,7 @@ class MusicService : MediaLibraryService(),
+         if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED)) {
+             if (player.isPlaying) {
+                 currentSong.value?.let { song ->
+-                    scope.launch { discordRpc?.updateSong(song, player.currentPosition) }
++                    scope.launch { discordRpc?.updateSong(song, discordPositionFor(song.id)) }
+                 }
+             } else if (!events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_MEDIA_ITEM_TRANSITION)) {
+                 // A pause that is not just the gap between tracks: clear the activity.
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+index 9277053..1fd386f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+@@ -4,12 +4,35 @@ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.db.entities.Song
+ import com.my.kizzy.rpc.KizzyRPC
+ import com.my.kizzy.rpc.RpcImage
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
+ 
+ class DiscordRPC(
+     val context: Context,
+     token: String,
+ ) : KizzyRPC(token) {
++    /**
++     * Presence writes are serialised and superseded ones are dropped.
++     *
++     * setActivity resolves both artwork URLs over the network before sending, so two updates can
++     * easily overlap - the track-change collector and the play/pause hook both call this. Without
++     * a guard the older one can land last and leave the card describing the previous song.
++     */
++    private val updateMutex = Mutex()
++
++    @Volatile
++    private var latestUpdate = 0L
++
+     suspend fun updateSong(song: Song, currentPlaybackTimeMillis: Long = 0L) = runCatching {
++        val thisUpdate = ++latestUpdate
++        updateMutex.withLock {
++            // Something newer started while this one waited for the lock; that one wins.
++            if (thisUpdate != latestUpdate) return@runCatching
++            sendPresence(song, currentPlaybackTimeMillis)
++        }
++    }
++
++    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {
+         val currentTime = System.currentTimeMillis()
+         val calculatedStartTime = currentTime - currentPlaybackTimeMillis
+ 
+@@ -54,6 +77,7 @@ class DiscordRPC(
+             applicationId = APPLICATION_ID
+         )
+     }
++
+     companion object {
+         private const val APPLICATION_ID = "1411019391843172514"
+     }
+-- 
+2.43.0
+
+
+From 88b2f886e021b2aff01004049ea99a846b2360e6 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 11:15:27 +0000
+Subject: [PATCH 18/19] Point in-app links at this fork
+
+Every link that pointed at OuterTune/OuterTune now points at
+notK50BML/OuterTune, so the About screen, setup wizard, attribution
+screen, database error path, experimental settings warning and the
+Discord presence button all lead here rather than upstream.
+
+OuterTune/ffMetadataEx is left alone: it is a separate upstream project
+that this fork does not host.
+---
+ .../main/java/com/dd3boh/outertune/db/MusicDatabase.kt    | 2 +-
+ .../java/com/dd3boh/outertune/ui/screens/SetupWizard.kt   | 4 ++--
+ .../dd3boh/outertune/ui/screens/settings/AboutScreen.kt   | 8 ++++----
+ .../outertune/ui/screens/settings/AttributionScreen.kt    | 2 +-
+ .../outertune/ui/screens/settings/ExperimentalSettings.kt | 2 +-
+ .../main/java/com/dd3boh/outertune/utils/DiscordRPC.kt    | 2 +-
+ 6 files changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+index edaf515..879a039 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+@@ -674,7 +674,7 @@ class Migration12To13 : AutoMigrationSpec {
+  * A: It wasn't. But that didn't stop Room from randomly adding an id column for *some* users only...
+  *
+  * Q: That sounds like complete nonsense.
+- * A: Yep. https://github.com/OuterTune/OuterTune/discussions/359#discussioncomment-12366232
++ * A: Yep. https://github.com/notK50BML/OuterTune/discussions/359#discussioncomment-12366232
+  */
+ @DeleteColumn.Entries(
+     DeleteColumn(tableName = "playCount", columnName = "id"),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt
+index 1ce6b70..b1faa3f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt
+@@ -812,14 +812,14 @@ fun SetupWizard(
+                                 IconLabelButton(
+                                     text = "GitHub",
+                                     icon = Icons.Rounded.Code,
+-                                    onClick = { uriHandler.openUri("https://github.com/OuterTune/OuterTune") },
++                                    onClick = { uriHandler.openUri("https://github.com/notK50BML/OuterTune") },
+                                     modifier = Modifier.padding(horizontal = 8.dp)
+                                 )
+ 
+                                 IconLabelButton(
+                                     text = "Wiki",
+                                     icon = Icons.Outlined.Info,
+-                                    onClick = { uriHandler.openUri("https://github.com/OuterTune/OuterTune/wiki") },
++                                    onClick = { uriHandler.openUri("https://github.com/notK50BML/OuterTune/wiki") },
+                                     modifier = Modifier.padding(horizontal = 8.dp)
+                                 )
+                             }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
+index 2f6c0da..abd781c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
+@@ -158,14 +158,14 @@ fun AboutScreen(
+             IconLabelButton(
+                 text = "GitHub",
+                 painter = painterResource(R.drawable.github),
+-                onClick = { uriHandler.openUri("https://github.com/OuterTune/OuterTune") },
++                onClick = { uriHandler.openUri("https://github.com/notK50BML/OuterTune") },
+                 modifier = Modifier.padding(horizontal = 8.dp)
+             )
+ 
+             IconLabelButton(
+                 text = stringResource(R.string.wiki),
+                 icon = Icons.Outlined.Info,
+-                onClick = { uriHandler.openUri("https://github.com/OuterTune/OuterTune/wiki") },
++                onClick = { uriHandler.openUri("https://github.com/notK50BML/OuterTune/wiki") },
+                 modifier = Modifier.padding(horizontal = 8.dp)
+             )
+         }
+@@ -199,13 +199,13 @@ fun AboutScreen(
+                 PreferenceEntry(
+                     title = { Text(stringResource(R.string.help_bug_report_action)) },
+                     onClick = {
+-                        uriHandler.openUri("https://github.com/OuterTune/OuterTune/issues")
++                        uriHandler.openUri("https://github.com/notK50BML/OuterTune/issues")
+                     }
+                 )
+                 PreferenceEntry(
+                     title = { Text(stringResource(R.string.help_support_forum)) },
+                     onClick = {
+-                        uriHandler.openUri("https://github.com/OuterTune/OuterTune/discussions")
++                        uriHandler.openUri("https://github.com/notK50BML/OuterTune/discussions")
+                     }
+                 )
+                 PreferenceEntry(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt
+index abb914e..70c0680 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt
+@@ -85,7 +85,7 @@ fun AttributionScreen(
+                 contributor = ContributorInfo (
+                     name = stringResource(R.string.all_contributors),
+                     type = listOf(CUSTOM),
+-                    url = "https://github.com/OuterTune/OuterTune/graphs/contributors"
++                    url = "https://github.com/notK50BML/OuterTune/graphs/contributors"
+                 )
+             )
+         }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+index 151d36e..e5fce1b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+@@ -205,7 +205,7 @@ fun ExperimentalSettings(
+             PreferenceEntry(
+                 title = { Text("Important: About audio offload compatibility and issues") },
+                 onClick = {
+-                    uriHandler.openUri("https://github.com/OuterTune/OuterTune/wiki/Audio-offload")
++                    uriHandler.openUri("https://github.com/notK50BML/OuterTune/wiki/Audio-offload")
+                 }
+             )
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+index 1fd386f..227e962 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+@@ -67,7 +67,7 @@ class DiscordRPC(
+                 context.getString(R.string.rpc_listen_ytm) to
+                         "https://music.youtube.com/watch?v=${song.song.id}",
+                 context.getString(R.string.rpc_visit, context.getString(R.string.app_name)) to
+-                        "https://github.com/OuterTune/OuterTune"
++                        "https://github.com/notK50BML/OuterTune"
+             ),
+             type = Type.LISTENING,
+             statusDisplayType = StatusDisplayType.STATE,
+-- 
+2.43.0
+
+
+From e32309051637dd34f3fc81ced2ae9d7988b9481c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 11:15:27 +0000
+Subject: [PATCH 19/19] Bump to 0.10.18 and document the versioning rule
+
+The last component of versionName now moves by 0.00.01 for each new
+feature and stays put for fixes, with versionCode following so Android
+accepts the upgrade. The comment records which feature each number
+covers, so future bumps have something to count from.
+---
+ app/build.gradle.kts | 15 +++++++++++++--
+ 1 file changed, 13 insertions(+), 2 deletions(-)
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index c4a617e..d7da63a 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -29,8 +29,19 @@ android {
+         applicationId = "com.dd3boh.outertune"
+         minSdk = 24
+         targetSdk = 36
+-        versionCode = 83
+-        versionName = "0.10.13"
++        // Versioning rule for this fork: the last component of versionName goes up by 1
++        // (0.00.01) for every NEW FEATURE, and stays put for bug fixes, refactors and
++        // wording changes. versionCode goes up by 1 alongside it so Android will accept
++        // the upgrade.
++        //
++        // Forked from upstream 0.10.13 / 83. Features added since:
++        //   0.10.14 / 84  BetterLyrics line-by-line lyrics (with TTML support)
++        //   0.10.15 / 85  High-resolution artwork toggle
++        //   0.10.16 / 86  Liked-songs sync result reporting
++        //   0.10.17 / 87  Discord rich presence
++        //   0.10.18 / 88  Liquid player background
++        versionCode = 88
++        versionName = "0.10.18"
+         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+ 
+         // expose the TagLib library version (from the version catalog) for the About screen
 -- 
 2.43.0
 
