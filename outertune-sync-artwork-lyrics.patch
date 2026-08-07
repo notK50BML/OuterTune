@@ -1,0 +1,2878 @@
+From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 5 Aug 2026 13:25:56 +0000
+Subject: [PATCH 1/7] Fix liked-songs order, artwork resolution, and
+ BetterLyrics; port Metrolist's sync engine
+
+Sync engine (app/utils/SyncUtils.kt, rewritten)
+Adopts Metrolist's architecture while keeping OuterTune's feature set:
+a single-consumer Channel queue with per-category coalescing keys, one
+non-reentrant Mutex serialising every sync body, retry with exponential
+backoff, and a structured SyncState/SyncStatus per category. The old
+boolean StateFlows are kept as derived values so existing UI compiles
+and behaves unchanged. SyncContent gating, SyncConflictResolution,
+per-category cooldown keys and the isLocal exclusions are all preserved.
+
+Bugs fixed along the way:
+- The "already syncing" guard was inverted, so a second request would
+  proceed precisely when one was already running.
+- SYNC_CD was a millisecond value (60000 * 30) compared against a delta
+  measured in seconds, and the comparison was inverted: the cooldown
+  rejected syncs that were due and allowed ones that weren't. Replaced
+  with SYNC_COOLDOWN in seconds; SYNC_CD is deprecated.
+- runBlocking inside suspend functions blocked sync threads; replaced
+  with structured concurrency.
+- Last*SyncKey timestamps were written in a finally block even when the
+  sync had bailed out or failed, suppressing retries for a full cooldown
+  window. They are now written only on success.
+- syncPlaylist would clear a local playlist when the remote page came
+  back empty.
+
+Liked-songs ordering
+YouTube exposes no per-song like timestamp; position in the LM playlist
+is the only ordering signal. The previous code reversed the page, stamped
+likedDate with LocalDateTime.now() per song, and skipped songs already
+liked locally, so their liked date stayed frozen at whenever they were
+first seen and local order drifted permanently out of step with YouTube.
+Now likedDate is derived from the song's index in the unreversed remote
+list and re-stamped every sync, so sorting the Liked playlist by liked
+date reproduces YouTube's order exactly.
+
+Album artwork resolution (+ toggle)
+getThumbnailModel and ItemThumbnail passed remote URLs to Coil verbatim,
+so the ~60-226px thumbnails YouTube returns in browse and library
+responses were upscaled to fill the view. Artwork is now requested at the
+size it will actually be drawn, via a new remoteArtwork() helper applied
+in ItemThumbnail, the player cover, and AlbumScreen. Controlled by a new
+"High resolution artwork" switch in Appearance settings (default on).
+
+BetterLyrics
+The provider was off by default, sent no User-Agent (which the API
+rejects) and had no timeout. More importantly OuterTune's strict TTML2
+parser requires a <head> element right after <tt>, which many
+BetterLyrics responses omit, so lyrics became an "Unable to parse
+lyrics" placeholder and were classified UNPARSEABLE on the fetch path
+and discarded. Adds a lenient TTML reader ported from Metrolist that
+emits plain line-by-line LRC as a fallback, keeping the strict parser
+(and its word-level karaoke timing) as the primary path.
+
+Player lyrics toggle
+Removes the dedicated lyrics button from the player controls. Lyrics are
+toggled by tapping the cover or via the overflow menu, as in older
+OuterTune.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ app/src/main/java/com/dd3boh/outertune/App.kt |   12 +
+ .../outertune/constants/PreferenceKeys.kt     |    8 +
+ .../com/dd3boh/outertune/constants/Vars.kt    |   13 +
+ .../outertune/db/entities/SongEntity.kt       |    3 +-
+ .../outertune/lyrics/BetterLyricsProvider.kt  |    2 +-
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   |   46 +-
+ .../dd3boh/outertune/models/MediaMetadata.kt  |    3 +-
+ .../outertune/ui/component/items/Items.kt     |   19 +-
+ .../com/dd3boh/outertune/ui/player/Player.kt  |   24 +-
+ .../dd3boh/outertune/ui/player/Thumbnail.kt   |   10 +-
+ .../outertune/ui/screens/AlbumScreen.kt       |    3 +-
+ .../ui/screens/settings/AppearanceSettings.kt |   11 +
+ .../screens/settings/fragments/LyricFrag.kt   |    2 +-
+ .../com/dd3boh/outertune/utils/SyncUtils.kt   | 1023 ++++++++++-------
+ .../java/com/dd3boh/outertune/utils/Utils.kt  |   27 +-
+ app/src/main/res/values/strings-ot.xml        |    2 +
+ .../com/dd3boh/betterlyrics/BetterLyrics.kt   |   15 +
+ .../com/dd3boh/betterlyrics/TTMLParser.kt     |  392 +++++++
+ 18 files changed, 1179 insertions(+), 436 deletions(-)
+ create mode 100644 betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
+index 637191d..682edec 100644
+--- a/app/src/main/java/com/dd3boh/outertune/App.kt
++++ b/app/src/main/java/com/dd3boh/outertune/App.kt
+@@ -33,6 +33,7 @@ import com.dd3boh.outertune.constants.ContentCountryKey
+ import com.dd3boh.outertune.constants.ContentLanguageKey
+ import com.dd3boh.outertune.constants.CountryCodeToName
+ import com.dd3boh.outertune.constants.DataSyncIdKey
++import com.dd3boh.outertune.constants.HighResArtworkKey
+ import com.dd3boh.outertune.constants.InnerTubeCookieKey
+ import com.dd3boh.outertune.constants.LanguageCodeToName
+ import com.dd3boh.outertune.constants.MaxImageCacheSizeKey
+@@ -48,6 +49,7 @@ import com.dd3boh.outertune.utils.CoilBitmapLoader
+ import com.dd3boh.outertune.utils.LocalArtworkPathKeyer
+ import com.dd3boh.outertune.utils.dataStore
+ import com.dd3boh.outertune.utils.get
++import com.dd3boh.outertune.utils.highResArtwork
+ import com.dd3boh.outertune.utils.normalizeDataSyncId
+ import com.dd3boh.outertune.utils.reportException
+ import com.zionhuang.innertube.YouTube
+@@ -137,6 +139,16 @@ class App : Application(), SingletonImageLoader.Factory {
+                     YouTube.dataSyncId = normalizeDataSyncId(dataSyncId)
+                 }
+         }
++        // Mirrored into a plain field so the artwork helpers, which are called from non-composable
++        // code paths without a Context, can read it cheaply.
++        GlobalScope.launch {
++            dataStore.data
++                .map { it[HighResArtworkKey] ?: true }
++                .distinctUntilChanged()
++                .collect { enabled ->
++                    highResArtwork = enabled
++                }
++        }
+         GlobalScope.launch {
+             dataStore.data
+                 .map { it[InnerTubeCookieKey] }
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 5abac52..bcaceca 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -109,6 +109,14 @@ val DownloadOnWifiOnlyKey = booleanPreferencesKey("downloadOnWifiOnly")
+ val MaxImageCacheSizeKey = intPreferencesKey("maxImageCacheSize")
+ val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
+ 
++/**
++ * When true, remote artwork URLs are rewritten to request an image at least as large as the
++ * view that will display it. YouTube hands out small thumbnails (often 60-226px) in browse and
++ * library responses; using them verbatim leaves album covers visibly soft on a full-width
++ * player. When false, URLs are used exactly as returned, which is what OuterTune did before.
++ */
++val HighResArtworkKey = booleanPreferencesKey("highResArtwork")
++
+ 
+ /**
+  * Privacy
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt b/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
+index 6d83c10..4db83ff 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
+@@ -77,8 +77,21 @@ const val SCANNER_OWNER_DL = 32
+ const val SCANNER_OWNER_LM = 1
+ const val SCANNER_OWNER_M3U = 2
+ 
++@Deprecated(
++    "Milliseconds value that was compared against a delta measured in seconds. " +
++        "Use SYNC_COOLDOWN instead.",
++    ReplaceWith("SYNC_COOLDOWN")
++)
+ const val SYNC_CD = 60000 * 30
+ 
++/**
++ * Minimum time between syncs of the same category, in SECONDS.
++ *
++ * Must stay in the same unit as [java.time.LocalDateTime.toEpochSecond], which is what the
++ * Last*SyncKey preferences store.
++ */
++const val SYNC_COOLDOWN = 30 * 60L
++
+ const val MAX_PLAYER_CONSECUTIVE_ERR = 3
+ 
+ /**
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
+index e2cc8de..488e23c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
+@@ -6,6 +6,7 @@ import androidx.room.Entity
+ import androidx.room.Index
+ import androidx.room.PrimaryKey
+ import com.dd3boh.outertune.utils.LocalArtworkPath
++import com.dd3boh.outertune.utils.remoteArtwork
+ import com.dd3boh.outertune.utils.syncCoroutine
+ import com.zionhuang.innertube.YouTube
+ import kotlinx.coroutines.CoroutineScope
+@@ -106,7 +107,7 @@ data class SongEntity(
+         return if (isLocal) {
+             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
+         } else {
+-            thumbnailUrl
++            thumbnailUrl?.let { remoteArtwork(it, sizeX, sizeY) }
+         }
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
+index dbef188..f6b13dc 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
+@@ -11,7 +11,7 @@ object BetterLyricsProvider : LyricsProvider {
+     override val name = "BetterLyrics"
+ 
+     override fun isEnabled(context: Context): Boolean =
+-        context.dataStore[EnableBetterLyricsKey] ?: false
++        context.dataStore[EnableBetterLyricsKey] ?: true
+ 
+     override suspend fun getLyrics(id: String, title: String, artist: String, duration: Int): LyricsFetchResult =
+         BetterLyrics.getLyrics(title, artist, duration).toFetchResult()
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 10f2389..ad76bb8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -3,6 +3,7 @@ package com.dd3boh.outertune.lyrics
+ import android.content.Context
+ import android.util.Log
+ import android.util.LruCache
++import com.dd3boh.betterlyrics.TTMLParser
+ import com.dd3boh.outertune.constants.LyricSourcePrefKey
+ import com.dd3boh.outertune.constants.LyricTrimKey
+ import com.dd3boh.outertune.constants.MultilineLrcKey
+@@ -84,7 +85,7 @@ class LyricsHelper @Inject constructor(
+         val dbLyrics = database.lyrics(mediaMetadata.id).let { it.first()?.lyrics }
+         val hasPositive = dbLyrics != null && dbLyrics != LYRICS_NOT_FOUND
+         if (hasPositive && !prefLocal) {
+-            return LrcUtils.parseLyrics(dbLyrics, null, parserOptions, null)
++            return parseResilient(dbLyrics, parserOptions)
+         }
+ 
+         val localLyrics: SemanticLyrics? = getLocalLyrics(mediaMetadata, parserOptions)
+@@ -95,7 +96,7 @@ class LyricsHelper @Inject constructor(
+                 return localLyrics
+             }
+             if (hasPositive) {
+-                return LrcUtils.parseLyrics(dbLyrics, null, parserOptions, null)
++                return parseResilient(dbLyrics, parserOptions)
+             }
+         }
+ 
+@@ -106,7 +107,7 @@ class LyricsHelper @Inject constructor(
+             fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.MANUAL)
+             val fetched = database.lyrics(mediaMetadata.id).let { it.first()?.lyrics }
+             if (fetched != null && fetched != LYRICS_NOT_FOUND) {
+-                return LrcUtils.parseLyrics(fetched, null, parserOptions, null)
++                return parseResilient(fetched, parserOptions)
+             }
+         }
+         return if (!prefLocal) localLyrics else null
+@@ -186,6 +187,43 @@ class LyricsHelper @Inject constructor(
+         }
+     }
+ 
++    /**
++     * Parse [raw] into [SemanticLyrics], with a fallback for TTML the strict parser rejects.
++     *
++     * OuterTune's own TTML reader is a strict TTML2 implementation: among other things it requires a
++     * `<head>` element immediately after `<tt>`. A good number of BetterLyrics responses do not have
++     * one, so the strict parser throws and — because the shared parser options carry an errorText —
++     * the failure was being turned into an "Unable to parse lyrics" placeholder and, on the fetch
++     * path, into an UNPARSEABLE classification that discarded the result entirely. That is why
++     * BetterLyrics appeared not to work at all.
++     *
++     * So: try the strict parsers first with errorText suppressed, keeping word-level karaoke timing
++     * whenever they can read the document; otherwise re-read the TTML leniently and hand the strict
++     * parser plain line-by-line LRC instead.
++     */
++    private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
++        val strictOptions = parserOptions.copy(errorText = null)
++
++        runCatching { LrcUtils.parseLyrics(raw, null, strictOptions, null) }
++            .getOrNull()
++            ?.let { return it }
++
++        if (TTMLParser.looksLikeTtml(raw)) {
++            TTMLParser.ttmlToLrc(raw)?.let { lrc ->
++                runCatching {
++                    LrcUtils.parseLyrics(lrc, null, strictOptions, LrcUtils.LyricFormat.LRC)
++                }.getOrNull()?.let {
++                    Log.d(TAG, "recovered TTML via lenient parser (${lrc.count { c -> c == '\n' } + 1} lines)")
++                    return it
++                }
++            }
++        }
++
++        // Nothing could read it. Fall back to the original call so callers that asked for an error
++        // placeholder still get one.
++        return runCatching { LrcUtils.parseLyrics(raw, null, parserOptions, null) }.getOrNull()
++    }
++
+     /**
+      * Read the lyric parsing preferences (trim / multiline) shared by all resolution paths
+      */
+@@ -299,7 +337,7 @@ class LyricsHelper @Inject constructor(
+             // as null or an exception rather than a synthesized UnsyncedLyrics.
+             val classifyFound: (String) -> FoundKind = { raw ->
+                 val parsed = try {
+-                    LrcUtils.parseLyrics(raw, null, verifyOptions, null)
++                    parseResilient(raw, verifyOptions)
+                 } catch (e: CancellationException) {
+                     throw e
+                 } catch (e: Exception) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
+index 3253175..04cad18 100644
+--- a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
++++ b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
+@@ -5,6 +5,7 @@ import com.dd3boh.outertune.db.entities.Song
+ import com.dd3boh.outertune.db.entities.SongEntity
+ import com.dd3boh.outertune.ui.utils.resize
+ import com.dd3boh.outertune.utils.LocalArtworkPath
++import com.dd3boh.outertune.utils.remoteArtwork
+ import com.zionhuang.innertube.models.SongItem
+ import java.io.Serializable
+ import java.time.LocalDateTime
+@@ -103,7 +104,7 @@ data class MediaMetadata(
+         return if (isLocal) {
+             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
+         } else {
+-            thumbnailUrl
++            thumbnailUrl?.let { remoteArtwork(it, sizeX, sizeY) }
+         }
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+index 2143e4d..f7d955b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+@@ -55,6 +55,7 @@ import androidx.compose.material3.surfaceColorAtElevation
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+@@ -65,6 +66,7 @@ import androidx.compose.ui.graphics.drawscope.Stroke
+ import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.graphics.vector.ImageVector
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.pluralStringResource
+ import androidx.compose.ui.text.font.FontWeight
+@@ -97,6 +99,7 @@ import com.dd3boh.outertune.utils.LocalArtworkPath
+ import com.dd3boh.outertune.utils.getDownloadState
+ import com.dd3boh.outertune.utils.joinByBullet
+ import com.dd3boh.outertune.utils.makeTimeString
++import com.dd3boh.outertune.utils.remoteArtwork
+ import com.dd3boh.outertune.utils.reportException
+ import com.zionhuang.innertube.YouTube
+ import com.zionhuang.innertube.models.AlbumItem
+@@ -669,12 +672,24 @@ fun ItemThumbnail(
+         contentAlignment = Alignment.Center,
+         modifier = modifier
+     ) {
++        // Request artwork at the size this box will actually draw it, rather than letting Coil
++        // upscale whatever small thumbnail the API happened to return.
++        val density = LocalDensity.current
++        val targetPx = remember(maxWidth, maxHeight, preferredSize, density) {
++            if (preferredSize > 0) {
++                preferredSize
++            } else {
++                with(density) { maxOf(maxWidth, maxHeight).roundToPx() }
++                    .takeIf { it > 0 } ?: -1
++            }
++        }
++
+         AsyncImage(
+             imageLoader = context.imageLoader,
+             model = if (thumbnailUrl?.startsWith("/storage") == true) {
+-                LocalArtworkPath(thumbnailUrl, preferredSize, preferredSize)
++                LocalArtworkPath(thumbnailUrl, targetPx, targetPx)
+             } else {
+-                thumbnailUrl
++                thumbnailUrl?.let { remoteArtwork(it, targetPx, targetPx) }
+             },
+ //            placeholder = rememberVectorPainter(placeholderIcon),
+             contentDescription = null,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 94b55a4..4329d6d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -55,12 +55,10 @@ import androidx.compose.foundation.lazy.grid.items
+ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
+ import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.outlined.Lyrics as LyricsOutlined
+ import androidx.compose.material.icons.rounded.Bedtime
+ import androidx.compose.material.icons.rounded.ExpandLess
+ import androidx.compose.material.icons.rounded.FastForward
+ import androidx.compose.material.icons.rounded.FastRewind
+-import androidx.compose.material.icons.rounded.Lyrics as LyricsRounded
+ import androidx.compose.material.icons.rounded.MoreVert
+ import androidx.compose.material.icons.rounded.Pause
+ import androidx.compose.material.icons.rounded.PlayArrow
+@@ -571,8 +569,6 @@ fun ActionButtons(
+     val currentSong by playerConnection.currentSong.collectAsState(initial = null)
+     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+ 
+-    var showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
+-
+     val showSleepTimerButton by rememberPreference(SleepTimerShowOnPlayerKey, defaultValue = true)
+ 
+     val sleepTimerActive = remember(
+@@ -650,24 +646,8 @@ fun ActionButtons(
+         Spacer(modifier = Modifier.width(7.dp))
+     }
+ 
+-    Box(
+-        modifier = Modifier
+-            .offset(y = 5.dp)
+-            .size(36.dp)
+-            .clip(RoundedCornerShape(24.dp))
+-            .background(MaterialTheme.colorScheme.primary)
+-    ) {
+-        ResizableIconButton(
+-            icon = if (showLyrics) Icons.Rounded.LyricsRounded else Icons.Outlined.LyricsOutlined,
+-            color = MaterialTheme.colorScheme.onPrimary,
+-            modifier = Modifier
+-                .align(Alignment.Center)
+-                .size(24.dp),
+-            onClick = { showLyrics = !showLyrics }
+-        )
+-    }
+-
+-    Spacer(modifier = Modifier.width(7.dp))
++    // The dedicated lyrics button used to live here. Lyrics are now toggled the way older
++    // OuterTune did it: tap the album cover, or use the player's overflow menu.
+ 
+     Box(
+         modifier = Modifier
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
+index 0ddffcd..305ff7c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
+@@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.platform.LocalView
+ import coil3.compose.AsyncImage
+@@ -93,8 +94,15 @@ fun Thumbnail(
+                     modifier = Modifier
+                         .weight(1f, false)
+                 ) {
++                    // The player cover is the largest artwork in the app; ask the CDN for it at
++                    // the real drawn size instead of upscaling a small library thumbnail.
++                    val density = LocalDensity.current
++                    val coverPx = remember(maxWidth, maxHeight, density) {
++                        with(density) { maxOf(maxWidth, maxHeight).roundToPx() }
++                    }
++
+                     AsyncImage(
+-                        model = mediaMetadata?.getThumbnailModel(),
++                        model = mediaMetadata?.getThumbnailModel(coverPx, coverPx),
+                         contentDescription = null,
+                         modifier = Modifier
+                             .aspectRatio(1f)
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
+index 4492369..6bb506f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
+@@ -115,6 +115,7 @@ import com.dd3boh.outertune.utils.LocalArtworkPath
+ import com.dd3boh.outertune.utils.getDownloadState
+ import com.dd3boh.outertune.utils.joinByBullet
+ import com.dd3boh.outertune.utils.rememberPreference
++import com.dd3boh.outertune.utils.remoteArtwork
+ import com.dd3boh.outertune.viewmodels.AlbumViewModel
+ import kotlin.math.roundToInt
+ 
+@@ -197,7 +198,7 @@ fun AlbumScreen(
+                                     thumbnailUrl,
+                                     px,
+                                     px
+-                                ) else thumbnailUrl,
++                                ) else remoteArtwork(thumbnailUrl, px, px),
+                                 contentDescription = null,
+                                 modifier = Modifier
+                                     .size(AlbumThumbnailSize)
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index fa9e4e3..0f7382a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.HighQuality
+ import androidx.compose.material.icons.rounded.MoreHoriz
+ import androidx.compose.material3.ElevatedCard
+ import androidx.compose.material3.ExperimentalMaterial3Api
+@@ -32,6 +33,7 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.HighResArtworkKey
+ import com.dd3boh.outertune.constants.SlimNavBarKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+@@ -58,6 +60,8 @@ fun AppearanceSettings(
+     scrollBehavior: TopAppBarScrollBehavior,
+ ) {
+     val (slimNav, onSlimNavChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
++    val (highResArtworkPref, onHighResArtworkChange) =
++        rememberPreference(HighResArtworkKey, defaultValue = true)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+@@ -99,6 +103,13 @@ fun AppearanceSettings(
+                 checked = slimNav,
+                 onCheckedChange = onSlimNavChange
+             )
++            SwitchPreference(
++                title = { Text(stringResource(R.string.high_res_artwork_title)) },
++                description = stringResource(R.string.high_res_artwork_description),
++                icon = { Icon(Icons.Rounded.HighQuality, null) },
++                checked = highResArtworkPref,
++                onCheckedChange = onHighResArtworkChange
++            )
+         }
+         Spacer(modifier = Modifier.height(16.dp))
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+index 2db1b2e..8444e70 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+@@ -143,7 +143,7 @@ fun ColumnScope.LyricParserFrag() {
+ fun ColumnScope.LyricSourceFrag() {
+     val (enableKugou, onEnableKugouChange) = rememberPreference(key = EnableKugouKey, defaultValue = true)
+     val (enableLrcLib, onEnableLrcLibChange) = rememberPreference(key = EnableLrcLibKey, defaultValue = true)
+-    val (enableBetterLyrics, onEnableBetterLyricsChange) = rememberPreference(key = EnableBetterLyricsKey, defaultValue = false)
++    val (enableBetterLyrics, onEnableBetterLyricsChange) = rememberPreference(key = EnableBetterLyricsKey, defaultValue = true)
+     val (enableSimpMusic, onEnableSimpMusicChange) = rememberPreference(key = EnableSimpMusicKey, defaultValue = true)
+     val (preferLocalLyric, onPreferLocalLyric) = rememberPreference(LyricSourcePrefKey, defaultValue = true)
+     val (enablePrefetch, onEnablePrefetchChange) = rememberPreference(EnableLyricsPrefetchKey, defaultValue = true)
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+index bd1619a..f5230a8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+@@ -1,9 +1,11 @@
+ /*
+  * Copyright (C) 2025 O‌ute‌rTu‌ne Project
+  *
+- * SPDX-License-Identifier: GPL-3.0
++ * Sync engine architecture (operation queue, coalescing, retry/backoff, structured
++ * per-category status) ported from the Metrolist project, which is itself GPL-3.0
++ * and derives from OuterTune. See git history for contributors.
+  *
+- * For any other attributions, refer to the git commit history
++ * SPDX-License-Identifier: GPL-3.0
+  */
+ 
+ package com.dd3boh.outertune.utils
+@@ -12,7 +14,6 @@ import android.content.Context
+ import android.util.Log
+ import androidx.datastore.preferences.core.Preferences
+ import androidx.datastore.preferences.core.edit
+-import com.dd3boh.outertune.constants.SYNC_DEBUG
+ import com.dd3boh.outertune.constants.LastAlbumSyncKey
+ import com.dd3boh.outertune.constants.LastArtistSyncKey
+ import com.dd3boh.outertune.constants.LastFullSyncKey
+@@ -20,7 +21,8 @@ import com.dd3boh.outertune.constants.LastLibSongSyncKey
+ import com.dd3boh.outertune.constants.LastLikeSongSyncKey
+ import com.dd3boh.outertune.constants.LastPlaylistSyncKey
+ import com.dd3boh.outertune.constants.LastRecentActivitySyncKey
+-import com.dd3boh.outertune.constants.SYNC_CD
++import com.dd3boh.outertune.constants.SYNC_COOLDOWN
++import com.dd3boh.outertune.constants.SYNC_DEBUG
+ import com.dd3boh.outertune.constants.SyncConflictResolution
+ import com.dd3boh.outertune.constants.SyncContent
+ import com.dd3boh.outertune.constants.YtmSyncConflictKey
+@@ -33,6 +35,7 @@ import com.dd3boh.outertune.db.entities.PlaylistSongMap
+ import com.dd3boh.outertune.db.entities.SongEntity
+ import com.dd3boh.outertune.extensions.isAutoSyncEnabled
+ import com.dd3boh.outertune.extensions.isInternetConnected
++import com.dd3boh.outertune.extensions.isUserLoggedIn
+ import com.dd3boh.outertune.extensions.toEnum
+ import com.dd3boh.outertune.models.toMediaMetadata
+ import com.dd3boh.outertune.playback.DownloadUtil
+@@ -43,26 +46,77 @@ import com.zionhuang.innertube.models.PlaylistItem
+ import com.zionhuang.innertube.models.SongItem
+ import com.zionhuang.innertube.utils.completed
+ import dagger.hilt.android.qualifiers.ApplicationContext
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineExceptionHandler
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.ExperimentalCoroutinesApi
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.SupervisorJob
+ import kotlinx.coroutines.async
+ import kotlinx.coroutines.awaitAll
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.delay
+ import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.StateFlow
+ import kotlinx.coroutines.flow.asStateFlow
+ import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.firstOrNull
+-import kotlinx.coroutines.joinAll
++import kotlinx.coroutines.flow.map
++import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.launch
+-import kotlinx.coroutines.runBlocking
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withContext
+ import java.time.LocalDateTime
+ import java.time.ZoneOffset
++import java.util.concurrent.ConcurrentHashMap
+ import javax.inject.Inject
+ import javax.inject.Singleton
+ 
+ /**
+- * Singleton class for syncing local data from remote YouTube Music
++ * A unit of sync work. Operations are pushed onto a channel and executed one at a
++ * time, so two screens asking for the same sync can never race each other.
++ */
++sealed class SyncOperation {
++    data object FullSync : SyncOperation()
++    data object LikedSongs : SyncOperation()
++    data object LibrarySongs : SyncOperation()
++    data object Albums : SyncOperation()
++    data object Artists : SyncOperation()
++    data object Playlists : SyncOperation()
++    data object RecentActivity : SyncOperation()
++    data class SinglePlaylist(val browseId: String, val playlistId: String) : SyncOperation()
++    data class LikeSong(val song: SongEntity) : SyncOperation()
++}
++
++sealed class SyncStatus {
++    data object Idle : SyncStatus()
++    data object Syncing : SyncStatus()
++    data class Error(val message: String) : SyncStatus()
++    data object Completed : SyncStatus()
++}
++
++data class SyncState(
++    val overallStatus: SyncStatus = SyncStatus.Idle,
++    val likedSongs: SyncStatus = SyncStatus.Idle,
++    val librarySongs: SyncStatus = SyncStatus.Idle,
++    val albums: SyncStatus = SyncStatus.Idle,
++    val artists: SyncStatus = SyncStatus.Idle,
++    val playlists: SyncStatus = SyncStatus.Idle,
++    val recentActivity: SyncStatus = SyncStatus.Idle,
++    val currentOperation: String = "",
++)
++
++/**
++ * Singleton class for syncing local data from remote YouTube Music.
++ *
++ * Work is funnelled through a single-consumer channel guarded by [syncExecutionMutex],
++ * so only one sync body ever touches the database at a time. Duplicate requests for the
++ * same category are coalesced while one is already queued, and network calls are retried
++ * with exponential backoff.
+  */
+ @Singleton
+ class SyncUtils @Inject constructor(
+@@ -72,313 +126,505 @@ class SyncUtils @Inject constructor(
+ ) {
+     private val TAG = "SyncUtils"
+ 
+-    private val scope =  CoroutineScope(syncCoroutine)
++    private val exceptionHandler = CoroutineExceptionHandler { _, throwable ->
++        if (throwable !is CancellationException) {
++            Log.e(TAG, "Sync coroutine exception", throwable)
++        }
++    }
++
++    private val syncJob = SupervisorJob()
++    private val scope = CoroutineScope(syncCoroutine + syncJob + exceptionHandler)
+ 
+-    private val _isSyncingRemoteLikedSongs = MutableStateFlow(false)
+-    private val _isSyncingRemoteSongs = MutableStateFlow(false)
+-    private val _isSyncingRemoteAlbums = MutableStateFlow(false)
+-    private val _isSyncingRemoteArtists = MutableStateFlow(false)
+-    private val _isSyncingRemotePlaylists = MutableStateFlow(false)
+-    private val _isSyncingRecentActivity = MutableStateFlow(false)
++    private val syncChannel = Channel<SyncOperation>(Channel.BUFFERED)
++    private var processingJob: Job? = null
+ 
+-    val isSyncingRemoteLikedSongs: StateFlow<Boolean> = _isSyncingRemoteLikedSongs.asStateFlow()
+-    val isSyncingRemoteSongs: StateFlow<Boolean> = _isSyncingRemoteSongs.asStateFlow()
+-    val isSyncingRemoteAlbums: StateFlow<Boolean> = _isSyncingRemoteAlbums.asStateFlow()
+-    val isSyncingRemoteArtists: StateFlow<Boolean> = _isSyncingRemoteArtists.asStateFlow()
+-    val isSyncingRemotePlaylists: StateFlow<Boolean> = _isSyncingRemotePlaylists.asStateFlow()
+-    val isSyncingRecentActivity: StateFlow<Boolean> = _isSyncingRecentActivity.asStateFlow()
++    /** Only one sync body runs at a time. NOTE: [Mutex] is not reentrant. */
++    private val syncExecutionMutex = Mutex()
++    private val queuedOperationKeys = ConcurrentHashMap.newKeySet<String>()
++
++    private val _syncState = MutableStateFlow(SyncState())
++    val syncState: StateFlow<SyncState> = _syncState.asStateFlow()
++
++    // Legacy boolean flows, derived from syncState so existing UI keeps working unchanged.
++    val isSyncingRemoteLikedSongs: StateFlow<Boolean> = derive { it.likedSongs }
++    val isSyncingRemoteSongs: StateFlow<Boolean> = derive { it.librarySongs }
++    val isSyncingRemoteAlbums: StateFlow<Boolean> = derive { it.albums }
++    val isSyncingRemoteArtists: StateFlow<Boolean> = derive { it.artists }
++    val isSyncingRemotePlaylists: StateFlow<Boolean> = derive { it.playlists }
++    val isSyncingRecentActivity: StateFlow<Boolean> = derive { it.recentActivity }
+ 
+     companion object {
+         const val DEFAULT_SYNC_CONTENT = "ARPLSC"
++
++        /** Coalescing key for a whole-library sync. */
++        private const val FULL_SYNC_KEY = "full"
++
++        private const val MAX_RETRIES = 3
++        private const val INITIAL_RETRY_DELAY_MS = 1000L
++
++        /** Small pause between database writes so a large sync doesn't starve the UI. */
++        private const val DB_OPERATION_DELAY_MS = 20L
+     }
+ 
+-    suspend fun tryAutoSync(bypassCd: Boolean = false) {
+-        if (!context.isAutoSyncEnabled()) {
++    init {
++        startProcessingQueue()
++    }
++
++    private fun derive(selector: (SyncState) -> SyncStatus): StateFlow<Boolean> =
++        _syncState.map { selector(it) is SyncStatus.Syncing }
++            .stateIn(scope, SharingStarted.Eagerly, false)
++
++    private fun updateState(update: SyncState.() -> SyncState) {
++        _syncState.update { it.update() }
++    }
++
++    // region queue plumbing
++
++    private fun startProcessingQueue() {
++        processingJob = scope.launch {
++            for (operation in syncChannel) {
++                try {
++                    if (operation.isCoveredByFullSync() && FULL_SYNC_KEY in queuedOperationKeys) {
++                        if (SYNC_DEBUG) Log.d(TAG, "Skipping $operation, a full sync is already queued")
++                    } else {
++                        syncExecutionMutex.withLock { processOperation(operation) }
++                    }
++                } catch (e: CancellationException) {
++                    throw e
++                } catch (e: Exception) {
++                    Log.e(TAG, "Error processing sync operation: $operation", e)
++                } finally {
++                    operation.coalescingKey()?.let(queuedOperationKeys::remove)
++                }
++            }
++        }
++    }
++
++    private fun enqueue(operation: SyncOperation) {
++        val key = operation.coalescingKey()
++        if (key != null && !queuedOperationKeys.add(key)) {
++            if (SYNC_DEBUG) Log.d(TAG, "Skipping duplicate sync operation: $operation")
+             return
+         }
+-        if (SYNC_DEBUG) Log.d(TAG, "Starting auto sync job")
+-        if (!bypassCd) {
+-            val lastSync = context.dataStore.get(LastFullSyncKey, LocalDateTime.now().toEpochSecond(ZoneOffset.UTC))
+-            val currentTime = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-            if (currentTime - lastSync > SYNC_CD) {
+-                if (SYNC_DEBUG) Log.d(TAG, "Aborting auto sync. ${(currentTime - lastSync) * 60000} minutes until eligible")
+-                return
++        scope.launch {
++            try {
++                syncChannel.send(operation)
++            } catch (e: Exception) {
++                key?.let(queuedOperationKeys::remove)
++                Log.e(TAG, "Failed to enqueue $operation", e)
+             }
+         }
++    }
+ 
+-        syncRemoteLikedSongs()
+-        syncRemoteSongs()
+-        syncRemoteAlbums()
+-        syncRemoteArtists()
+-        syncRemotePlaylists()
+-        context.dataStore.edit { settings ->
+-            settings[LastFullSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-        }
++    private fun SyncOperation.coalescingKey(): String? = when (this) {
++        SyncOperation.FullSync -> FULL_SYNC_KEY
++        SyncOperation.LikedSongs -> "likedSongs"
++        SyncOperation.LibrarySongs -> "librarySongs"
++        SyncOperation.Albums -> "albums"
++        SyncOperation.Artists -> "artists"
++        SyncOperation.Playlists -> "playlists"
++        SyncOperation.RecentActivity -> "recentActivity"
++        is SyncOperation.SinglePlaylist -> "playlist:$browseId"
++        is SyncOperation.LikeSong -> null // never coalesce user-initiated writes
++    }
++
++    private fun SyncOperation.isCoveredByFullSync(): Boolean = when (this) {
++        SyncOperation.LikedSongs,
++        SyncOperation.LibrarySongs,
++        SyncOperation.Albums,
++        SyncOperation.Artists,
++        SyncOperation.Playlists,
++        -> true
++
++        else -> false
+     }
+ 
+-    private fun checkEnabled(item: SyncContent): Boolean {
+-        return decodeSyncString(context.dataStore.get(YtmSyncContentKey, DEFAULT_SYNC_CONTENT)).contains(item)
++    private suspend fun processOperation(operation: SyncOperation) {
++        when (operation) {
++            is SyncOperation.FullSync -> executeFullSync()
++            is SyncOperation.LikedSongs -> executeSyncRemoteLikedSongs()
++            is SyncOperation.LibrarySongs -> executeSyncRemoteSongs()
++            is SyncOperation.Albums -> executeSyncRemoteAlbums()
++            is SyncOperation.Artists -> executeSyncRemoteArtists()
++            is SyncOperation.Playlists -> executeSyncRemotePlaylists()
++            is SyncOperation.RecentActivity -> executeSyncRecentActivity()
++            is SyncOperation.SinglePlaylist -> executeSyncPlaylist(operation.browseId, operation.playlistId)
++            is SyncOperation.LikeSong -> executeLikeSong(operation.song)
++        }
+     }
+ 
+-    private fun checkPartialSyncEligibility(key: Preferences.Key<Long>): Boolean {
+-        val lastSync = context.dataStore.get(key, LocalDateTime.now().toEpochSecond(ZoneOffset.UTC))
+-        val currentTime = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-        if (currentTime - lastSync > SYNC_CD) {
+-            if (SYNC_DEBUG) Log.d(TAG, "Aborting auto sync. ${(currentTime - lastSync) * 60000} minutes until eligible")
++    // endregion
++
++    // region gating
++
++    private fun checkEnabled(item: SyncContent): Boolean =
++        decodeSyncString(context.dataStore.get(YtmSyncContentKey, DEFAULT_SYNC_CONTENT)).contains(item)
++
++    private fun checkOverwrite(item: SyncConflictResolution): Boolean =
++        context.dataStore.get(YtmSyncConflictKey, SyncConflictResolution.ADD_ONLY.name)
++            .toEnum(defaultValue = SyncConflictResolution.ADD_ONLY) == item
++
++    /**
++     * Returns true when enough time has passed since the last sync of this category.
++     *
++     * The previous implementation compared a millisecond constant against a delta measured
++     * in seconds *and* inverted the comparison, which made the cooldown reject syncs that
++     * were due and allow ones that weren't.
++     */
++    private fun cooldownElapsed(key: Preferences.Key<Long>): Boolean {
++        val lastSync = context.dataStore.get(key, 0L)
++        if (lastSync <= 0L) return true
++        val elapsed = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC) - lastSync
++        if (elapsed < SYNC_COOLDOWN) {
++            if (SYNC_DEBUG) Log.d(TAG, "Cooldown active for $key, ${SYNC_COOLDOWN - elapsed}s remaining")
+             return false
+         }
+         return true
+     }
+ 
+-    private fun checkOverwrite(item: SyncConflictResolution): Boolean {
+-        return context.dataStore.get(YtmSyncConflictKey, SyncConflictResolution.ADD_ONLY.name)
+-            .toEnum(defaultValue = SyncConflictResolution.ADD_ONLY) == item
++    private suspend fun markSynced(key: Preferences.Key<Long>) {
++        context.dataStore.edit { settings ->
++            settings[key] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
++        }
+     }
+ 
+     /**
+-     * Like single song
++     * Common preconditions for every remote sync: signed in, online, and the category
++     * enabled in settings. When [bypass] is false the auto-sync toggle and the per-category
++     * cooldown are honoured too.
+      */
+-    @OptIn(ExperimentalCoroutinesApi::class)
+-    fun likeSong(s: SongEntity) {
+-        scope.launch {
+-            YouTube.likeVideo(s.id, s.liked)
++    private fun canSync(category: SyncContent, lastSyncKey: Preferences.Key<Long>, bypass: Boolean): Boolean {
++        if (!context.isUserLoggedIn()) {
++            if (SYNC_DEBUG) Log.d(TAG, "Skipping $category sync, not signed in")
++            return false
++        }
++        if (!context.isInternetConnected()) {
++            if (SYNC_DEBUG) Log.d(TAG, "Skipping $category sync, no internet")
++            return false
++        }
++        if (!checkEnabled(category)) {
++            if (SYNC_DEBUG) Log.d(TAG, "Skipping $category sync, category disabled")
++            return false
++        }
++        if (!bypass && (!context.isAutoSyncEnabled() || !cooldownElapsed(lastSyncKey))) {
++            return false
+         }
++        return true
++    }
++
++    private suspend fun <T> withRetry(
++        maxRetries: Int = MAX_RETRIES,
++        initialDelay: Long = INITIAL_RETRY_DELAY_MS,
++        block: suspend () -> T,
++    ): Result<T> {
++        var currentDelay = initialDelay
++        repeat(maxRetries) { attempt ->
++            try {
++                return Result.success(block())
++            } catch (e: CancellationException) {
++                throw e
++            } catch (e: Exception) {
++                Log.w(TAG, "Sync attempt ${attempt + 1}/$maxRetries failed: ${e.message}")
++                if (attempt == maxRetries - 1) return Result.failure(e)
++                delay(currentDelay)
++                currentDelay *= 2
++            }
++        }
++        return Result.failure(IllegalStateException("Max retries exceeded"))
+     }
+ 
++    // endregion
++
++    // region public API — fire and forget
++
++    fun performFullSync() = enqueue(SyncOperation.FullSync)
++
++    fun queueSyncLikedSongs() = enqueue(SyncOperation.LikedSongs)
++
++    fun queueSyncLibrarySongs() = enqueue(SyncOperation.LibrarySongs)
++
++    fun queueSyncAlbums() = enqueue(SyncOperation.Albums)
++
++    fun queueSyncArtists() = enqueue(SyncOperation.Artists)
++
++    fun queueSyncPlaylists() = enqueue(SyncOperation.Playlists)
++
++    fun queueSyncRecentActivity() = enqueue(SyncOperation.RecentActivity)
++
++    fun queueSyncPlaylist(browseId: String, playlistId: String) =
++        enqueue(SyncOperation.SinglePlaylist(browseId, playlistId))
++
++    /**
++     * Like/unlike a single song upstream. Queued so rapid taps are executed in order.
++     */
++    fun likeSong(s: SongEntity) = enqueue(SyncOperation.LikeSong(s))
++
+     /**
+      * Add/remove to library single song
+      */
+-    @OptIn(ExperimentalCoroutinesApi::class)
+     fun changeInLibrary(s: SongEntity) {
+-        scope.launch {
+-            // we don't have an api call yet
++        // we don't have an api call yet
++    }
++
++    // endregion
++
++    // region public API — suspending (source compatible with the previous implementation)
++
++    suspend fun tryAutoSync(bypassCd: Boolean = false) {
++        if (!context.isAutoSyncEnabled()) return
++        if (!bypassCd && !cooldownElapsed(LastFullSyncKey)) return
++        syncExecutionMutex.withLock { executeFullSync(bypass = bypassCd) }
++    }
++
++    suspend fun syncRemoteLikedSongs(bypass: Boolean = false) =
++        syncExecutionMutex.withLock { executeSyncRemoteLikedSongs(bypass) }
++
++    suspend fun syncRemoteSongs(bypass: Boolean = false) =
++        syncExecutionMutex.withLock { executeSyncRemoteSongs(bypass) }
++
++    suspend fun syncRemoteAlbums(bypass: Boolean = false) =
++        syncExecutionMutex.withLock { executeSyncRemoteAlbums(bypass) }
++
++    suspend fun syncRemoteArtists(bypass: Boolean = false) =
++        syncExecutionMutex.withLock { executeSyncRemoteArtists(bypass) }
++
++    suspend fun syncRemotePlaylists(bypass: Boolean = false) =
++        syncExecutionMutex.withLock { executeSyncRemotePlaylists(bypass) }
++
++    suspend fun syncRecentActivity(bypass: Boolean = false) =
++        syncExecutionMutex.withLock { executeSyncRecentActivity(bypass) }
++
++    suspend fun syncPlaylist(browseId: String, playlistId: String) =
++        syncExecutionMutex.withLock { executeSyncPlaylist(browseId, playlistId) }
++
++    // endregion
++
++    // region execution — these must never take syncExecutionMutex themselves
++
++    private suspend fun executeFullSync(bypass: Boolean = false) {
++        updateState { copy(overallStatus = SyncStatus.Syncing, currentOperation = "Starting sync") }
++        try {
++            executeSyncRemoteLikedSongs(bypass)
++            executeSyncRemoteSongs(bypass)
++            executeSyncRemoteAlbums(bypass)
++            executeSyncRemoteArtists(bypass)
++            executeSyncRemotePlaylists(bypass)
++            markSynced(LastFullSyncKey)
++            updateState { copy(overallStatus = SyncStatus.Completed, currentOperation = "") }
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            Log.e(TAG, "Error during full sync", e)
++            updateState {
++                copy(overallStatus = SyncStatus.Error(e.message ?: "Unknown error"), currentOperation = "")
++            }
+         }
+     }
+ 
++    private suspend fun executeLikeSong(s: SongEntity) = withContext(Dispatchers.IO) {
++        if (!context.isUserLoggedIn()) return@withContext
++        withRetry { YouTube.likeVideo(s.id, s.liked) }
++            .onFailure { Log.e(TAG, "Failed to like song upstream: ${s.id}", it) }
++        Unit
++    }
++
+     /**
+-     * Singleton syncRemoteLikedSongs
++     * Mirror the remote "Liked songs" (LM) playlist into the local database.
++     *
++     * Ordering: YouTube returns LM newest-like-first, and it is the only ordering
++     * signal available — the API exposes no per-song like timestamp. We therefore derive
++     * a synthetic [SongEntity.likedDate] from each song's position in the remote list, so
++     * sorting the local Liked playlist by liked date reproduces YouTube's order exactly.
++     *
++     * Songs that are already liked locally get re-stamped as well. Skipping them (as the
++     * previous implementation did) meant a song's local liked date stayed frozen at
++     * whenever it happened to be first seen, so the local order drifted permanently out
++     * of step with YouTube.
+      */
+-    suspend fun syncRemoteLikedSongs(bypass: Boolean = false) {
+-        // REQUIRED: internet, no ongoing sync, and category enabled
+-        if (!_isSyncingRemoteLikedSongs.value && (!checkEnabled(SyncContent.LIKED_SONGS) || !context.isInternetConnected())) {
+-            if (_isSyncingRemoteLikedSongs.value)
+-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+-            return
+-        }
+-        // OPTIONAL: auto sync and cooldown
+-        if (!bypass) {
+-            if (!context.isAutoSyncEnabled() || !checkPartialSyncEligibility(LastLikeSongSyncKey)) {
+-                return
+-            }
+-        }
+-        _isSyncingRemoteLikedSongs.value = true
++    private suspend fun executeSyncRemoteLikedSongs(bypass: Boolean = false) = withContext(Dispatchers.IO) {
++        if (!canSync(SyncContent.LIKED_SONGS, LastLikeSongSyncKey, bypass)) return@withContext
++        updateState { copy(likedSongs = SyncStatus.Syncing, currentOperation = "Syncing liked songs") }
+ 
+         try {
+             if (SYNC_DEBUG) Log.d(TAG, "Liked songs synchronization started")
+ 
+-            // Get remote and local liked songs
+-            YouTube.playlist("LM").completed().onSuccess { page ->
+-                if (!context.isInternetConnected()) {
+-                    return
++            val page = withRetry { YouTube.playlist("LM").completed().getOrThrow() }
++                .onFailure {
++                    Log.e(TAG, "Failed to fetch liked songs", it)
++                    updateState { copy(likedSongs = SyncStatus.Error(it.message ?: "Fetch failed")) }
+                 }
+-
+-                val remoteSongs = page.songs.reversed()
+-
+-                // Identify local songs to unlike
+-                val songsToUnlike = database.likedSongsByNameAsc().first()
+-                    .filterNot { it.song.isLocal }
+-                    .filterNot { localSong -> remoteSongs.any { it.id == localSong.id } }
+-
+-                // Unlike local songs in the database
+-                runBlocking {
+-                    songsToUnlike.forEach { song ->
+-                        launch(Dispatchers.IO) {
+-                            database.update(song.song.localToggleLike())
+-                        }
++                .getOrNull() ?: return@withContext
++
++            if (!context.isInternetConnected()) return@withContext
++
++            // Remote order, NOT reversed: index 0 is the most recently liked song.
++            val remoteSongs = page.songs
++            val remoteIds = remoteSongs.mapTo(HashSet()) { it.id }
++
++            // Unlike anything that is no longer liked remotely. Local files are never
++            // represented upstream, so they are left alone.
++            database.likedSongsByNameAsc().first()
++                .filterNot { it.song.isLocal }
++                .filterNot { it.id in remoteIds }
++                .forEach { song ->
++                    try {
++                        database.update(song.song.localToggleLike())
++                        delay(DB_OPERATION_DELAY_MS)
++                    } catch (e: Exception) {
++                        Log.e(TAG, "Failed to unlike song ${song.id}", e)
+                     }
+                 }
+ 
+-                // Insert or like songs in the database
+-                for (remoteSong in remoteSongs) {
+-                    val localSong = database.song(remoteSong.id).firstOrNull()
++            // Insert or re-stamp, deriving likedDate from the remote position.
++            val now = LocalDateTime.now()
++            remoteSongs.forEachIndexed { index, remoteSong ->
++                try {
++                    val likedDate = now.minusSeconds(index.toLong())
++                    val localSong = database.song(remoteSong.id).firstOrNull()?.song
+                     database.transaction {
+                         if (localSong == null) {
+-                            insert(remoteSong.toMediaMetadata(), SongEntity::localToggleLike)
+-                        } else if (!localSong.song.liked) {
+-                            update(localSong.song.localToggleLike())
++                            insert(remoteSong.toMediaMetadata()) {
++                                it.copy(liked = true, likedDate = likedDate)
++                            }
++                        } else if (!localSong.liked || localSong.likedDate != likedDate) {
++                            update(localSong.copy(liked = true, likedDate = likedDate))
+                         }
+                     }
++                    delay(DB_OPERATION_DELAY_MS)
++                } catch (e: Exception) {
++                    Log.e(TAG, "Failed to process liked song ${remoteSong.id}", e)
+                 }
+             }
+ 
++            markSynced(LastLikeSongSyncKey)
++            updateState { copy(likedSongs = SyncStatus.Completed) }
++            if (SYNC_DEBUG) Log.d(TAG, "Synced ${remoteSongs.size} liked songs")
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            Log.e(TAG, "Error processing liked songs", e)
++            updateState { copy(likedSongs = SyncStatus.Error(e.message ?: "Unknown error")) }
+         } finally {
+-            context.dataStore.edit { settings ->
+-                settings[LastLikeSongSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-            }
+             if (SYNC_DEBUG) Log.i(TAG, "Liked songs synchronization ended")
+-            _isSyncingRemoteLikedSongs.value = false
+         }
+     }
+ 
+-    /**
+-     * Singleton syncRemoteSongs
+-     */
+-    suspend fun syncRemoteSongs(bypass: Boolean = false) {
+-        // REQUIRED: internet, no ongoing sync, and category enabled
+-        if (!_isSyncingRemoteSongs.value && (!checkEnabled(SyncContent.PRIVATE_SONGS) || !context.isInternetConnected())) {
+-            if (_isSyncingRemoteSongs.value)
+-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+-            return
+-        }
+-        // OPTIONAL: auto sync and cooldown
+-        if (!bypass) {
+-            if (!context.isAutoSyncEnabled() || !checkPartialSyncEligibility(LastLibSongSyncKey)) {
+-                return
+-            }
+-        }
+-        _isSyncingRemoteSongs.value = true
++    private suspend fun executeSyncRemoteSongs(bypass: Boolean = false) = withContext(Dispatchers.IO) {
++        if (!canSync(SyncContent.PRIVATE_SONGS, LastLibSongSyncKey, bypass)) return@withContext
++        updateState { copy(librarySongs = SyncStatus.Syncing, currentOperation = "Syncing library songs") }
+ 
+         try {
+             if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization started")
+ 
+-            // Get remote songs (from library and uploads)
+-            val remoteSongs = getRemoteData<SongItem>("FEmusic_liked_videos", "FEmusic_library_privately_owned_tracks")
+-            if (!context.isInternetConnected()) {
+-                return
+-            }
++            val remoteSongs =
++                getRemoteData<SongItem>("FEmusic_liked_videos", "FEmusic_library_privately_owned_tracks")
++            if (!context.isInternetConnected()) return@withContext
++            val remoteIds = remoteSongs.mapTo(HashSet()) { it.id }
+ 
+             if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
+-                // Identify local songs to remove
+-                val songsToRemoveFromLibrary = database.songsByNameAsc().first()
++                database.songsByNameAsc().first()
+                     .filterNot { it.song.isLocal }
+-                    .filterNot { localSong -> remoteSongs.any { it.id == localSong.id } }
+-
+-                // Remove local songs from the database
+-                runBlocking {
+-                    songsToRemoveFromLibrary.forEach { song ->
+-                        launch(Dispatchers.IO) {
++                    .filterNot { it.id in remoteIds }
++                    .forEach { song ->
++                        try {
+                             database.update(song.song.toggleLibrary())
++                            delay(DB_OPERATION_DELAY_MS)
++                        } catch (e: Exception) {
++                            Log.e(TAG, "Failed to remove song from library ${song.id}", e)
+                         }
+                     }
+-                }
+             }
+ 
+-            // Inset or mark songs to library
+-            runBlocking {
+-                val jobs = remoteSongs.map { song ->
+-                    launch(Dispatchers.IO) {
+-                        val dbSong = database.song(song.id).firstOrNull()
+-                        database.transaction {
+-                            if (dbSong == null) {
+-                                insert(song.toMediaMetadata(), SongEntity::toggleLibrary)
+-                            } else if (dbSong.song.inLibrary == null) {
+-                                update(dbSong.song.toggleLibrary())
+-                            }
++            remoteSongs.forEach { song ->
++                try {
++                    val dbSong = database.song(song.id).firstOrNull()?.song
++                    database.transaction {
++                        if (dbSong == null) {
++                            insert(song.toMediaMetadata(), SongEntity::toggleLibrary)
++                        } else if (dbSong.inLibrary == null) {
++                            update(dbSong.toggleLibrary())
+                         }
+                     }
++                    delay(DB_OPERATION_DELAY_MS)
++                } catch (e: Exception) {
++                    Log.e(TAG, "Failed to process library song ${song.id}", e)
+                 }
+-                jobs.joinAll()
+             }
++
++            markSynced(LastLibSongSyncKey)
++            updateState { copy(librarySongs = SyncStatus.Completed) }
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            Log.e(TAG, "Error processing library songs", e)
++            updateState { copy(librarySongs = SyncStatus.Error(e.message ?: "Unknown error")) }
+         } finally {
+-            context.dataStore.edit { settings ->
+-                settings[LastLibSongSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-            }
+             if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization ended")
+-            _isSyncingRemoteSongs.value = false
+         }
+     }
+ 
+-    /**
+-     * Singleton syncRemoteAlbums
+-     */
+-    suspend fun syncRemoteAlbums(bypass: Boolean = false) {
+-        // REQUIRED: internet, no ongoing sync, and category enabled
+-        if (!_isSyncingRemoteAlbums.value && (!checkEnabled(SyncContent.ALBUMS) || !context.isInternetConnected())) {
+-            if (_isSyncingRemoteAlbums.value)
+-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+-            return
+-        }
+-        // OPTIONAL: auto sync and cooldown
+-        if (!bypass) {
+-            if (!context.isAutoSyncEnabled() || !checkPartialSyncEligibility(LastAlbumSyncKey)) {
+-                return
+-            }
+-        }
+-        _isSyncingRemoteAlbums.value = true
++    private suspend fun executeSyncRemoteAlbums(bypass: Boolean = false) = withContext(Dispatchers.IO) {
++        if (!canSync(SyncContent.ALBUMS, LastAlbumSyncKey, bypass)) return@withContext
++        updateState { copy(albums = SyncStatus.Syncing, currentOperation = "Syncing albums") }
+ 
+         try {
+             if (SYNC_DEBUG) Log.i(TAG, "Library albums synchronization started")
+ 
+-            // Get remote albums (from library and uploads)
+             val remoteAlbums =
+                 getRemoteData<AlbumItem>("FEmusic_liked_albums", "FEmusic_library_privately_owned_releases")
+-            if (!context.isInternetConnected()) {
+-                return
+-            }
++            if (!context.isInternetConnected()) return@withContext
++            val remoteIds = remoteAlbums.mapTo(HashSet()) { it.id }
+ 
+             if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
+-                // Identify local albums to remove
+-                val albumsToRemoveFromLibrary = database.albumsLikedAsc().first()
++                database.albumsLikedAsc().first()
+                     .filterNot { it.album.isLocal }
+-                    .filterNot { localAlbum -> remoteAlbums.any { it.id == localAlbum.id } }
+-
+-                // Remove albums from local database
+-                runBlocking {
+-                    albumsToRemoveFromLibrary.forEach { album ->
+-                        launch(Dispatchers.IO) {
++                    .filterNot { it.id in remoteIds }
++                    .forEach { album ->
++                        try {
+                             database.update(album.album.localToggleLike())
++                            delay(DB_OPERATION_DELAY_MS)
++                        } catch (e: Exception) {
++                            Log.e(TAG, "Failed to unlike album ${album.id}", e)
+                         }
+                     }
+-                }
+             }
+ 
+-            // Add or mark albums in local database
+-            runBlocking {
+-                remoteAlbums.forEach { remoteAlbum ->
+-                    launch(Dispatchers.IO) {
+-                        val localAlbum = database.album(remoteAlbum.id).firstOrNull()
+-                        if (localAlbum == null) {
+-                            database.insert(remoteAlbum)
+-                            database.album(remoteAlbum.id).firstOrNull()?.let {
+-                                database.update(it.album.localToggleLike())
+-                            }
+-                        } else if (localAlbum.album.bookmarkedAt == null) {
+-                            database.update(localAlbum.album.localToggleLike())
++            remoteAlbums.forEach { remoteAlbum ->
++                try {
++                    val localAlbum = database.album(remoteAlbum.id).firstOrNull()
++                    if (localAlbum == null) {
++                        database.insert(remoteAlbum)
++                        database.album(remoteAlbum.id).firstOrNull()?.let {
++                            database.update(it.album.localToggleLike())
+                         }
++                    } else if (localAlbum.album.bookmarkedAt == null) {
++                        database.update(localAlbum.album.localToggleLike())
+                     }
++                    delay(DB_OPERATION_DELAY_MS)
++                } catch (e: Exception) {
++                    Log.e(TAG, "Failed to process album ${remoteAlbum.id}", e)
+                 }
+             }
++
++            markSynced(LastAlbumSyncKey)
++            updateState { copy(albums = SyncStatus.Completed) }
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            Log.e(TAG, "Error processing albums", e)
++            updateState { copy(albums = SyncStatus.Error(e.message ?: "Unknown error")) }
+         } finally {
+-            context.dataStore.edit { settings ->
+-                settings[LastAlbumSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-            }
+             if (SYNC_DEBUG) Log.i(TAG, "Library albums synchronization ended")
+-            _isSyncingRemoteAlbums.value = false // Use the correct AtomicBoolean
+         }
+     }
+ 
+-    /**
+-     * Singleton syncRemoteArtists
+-     */
+-    suspend fun syncRemoteArtists(bypass: Boolean = false) {
+-        // REQUIRED: internet, no ongoing sync, and category enabled
+-        if (!_isSyncingRemoteArtists.value && (!checkEnabled(SyncContent.ARTISTS) || !context.isInternetConnected())) {
+-            if (_isSyncingRemoteArtists.value)
+-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+-            return
+-        }
+-        // OPTIONAL: auto sync and cooldown
+-        if (!bypass) {
+-            if (!context.isAutoSyncEnabled() || !checkPartialSyncEligibility(LastArtistSyncKey)) {
+-                return
+-            }
+-        }
+-        _isSyncingRemoteArtists.value = true
++    private suspend fun executeSyncRemoteArtists(bypass: Boolean = false) = withContext(Dispatchers.IO) {
++        if (!canSync(SyncContent.ARTISTS, LastArtistSyncKey, bypass)) return@withContext
++        updateState { copy(artists = SyncStatus.Syncing, currentOperation = "Syncing artists") }
+ 
+         try {
+             if (SYNC_DEBUG) Log.i(TAG, "Artist subscriptions synchronization started")
+ 
+-            // Get remote artists (from library and uploads)
+             val likedArtists = getRemoteData<ArtistItem>(
+                 "FEmusic_library_corpus_artists",
+                 "FEmusic_library_privately_owned_artists"
+@@ -387,255 +633,230 @@ class SyncUtils @Inject constructor(
+                 "FEmusic_library_corpus_track_artists",
+                 "FEmusic_library_privately_owned_artists"
+             )
+-            val remoteArtists = mutableListOf<ArtistItem>().apply {
+-                addAll(likedArtists)
+-                addAll(trackArtists.filterNot { trackArtist ->
+-                    likedArtists.any { it.id == trackArtist.id }
+-                })
+-            }
++            if (!context.isInternetConnected()) return@withContext
+ 
+-            if (!context.isInternetConnected()) {
+-                return
+-            }
++            val likedArtistIds = likedArtists.mapTo(HashSet()) { it.id }
++            val remoteArtists = likedArtists + trackArtists.filterNot { it.id in likedArtistIds }
+ 
+             if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
+-                // Get local artists
+-                val artistsToRemoveFromSubscriptions = database.artistsBookmarkedAsc().first()
++                database.artistsBookmarkedAsc().first()
+                     .filterNot { it.artist.isLocal }
+-                    .filterNot { localArtist -> likedArtists.any { it.id == localArtist.id } }
+-
+-                // Remove local artists from the database
+-                runBlocking {
+-                    artistsToRemoveFromSubscriptions.forEach { artist ->
+-                        launch(Dispatchers.IO) {
++                    .filterNot { it.id in likedArtistIds }
++                    .forEach { artist ->
++                        try {
+                             database.update(artist.artist.localToggleLike())
++                            delay(DB_OPERATION_DELAY_MS)
++                        } catch (e: Exception) {
++                            Log.e(TAG, "Failed to unsubscribe artist ${artist.id}", e)
+                         }
+                     }
+-                }
+             }
+ 
+-            // Add or mark artists in the database
+-            runBlocking {
+-                remoteArtists.forEach { remoteArtist ->
+-                    launch(Dispatchers.IO) {
+-                        val localArtist = database.artist(remoteArtist.id).firstOrNull()
+-                        val isLikedArtist = likedArtists.contains(remoteArtist)
+-
+-                        database.transaction {
+-                            if (localArtist == null) {
+-                                insert(
+-                                    ArtistEntity(
+-                                        id = remoteArtist.id,
+-                                        name = remoteArtist.title,
+-                                        thumbnailUrl = remoteArtist.thumbnail,
+-                                        channelId = remoteArtist.channelId,
+-                                        bookmarkedAt = if (isLikedArtist) LocalDateTime.now() else null
+-                                    )
++            remoteArtists.forEach { remoteArtist ->
++                try {
++                    val localArtist = database.artist(remoteArtist.id).firstOrNull()
++                    val isLikedArtist = remoteArtist.id in likedArtistIds
++                    database.transaction {
++                        if (localArtist == null) {
++                            insert(
++                                ArtistEntity(
++                                    id = remoteArtist.id,
++                                    name = remoteArtist.title,
++                                    thumbnailUrl = remoteArtist.thumbnail,
++                                    channelId = remoteArtist.channelId,
++                                    bookmarkedAt = if (isLikedArtist) LocalDateTime.now() else null
+                                 )
+-                            } else if (localArtist.artist.bookmarkedAt == null && isLikedArtist) {
+-                                update(localArtist.artist.localToggleLike())
+-                            }
++                            )
++                        } else if (localArtist.artist.bookmarkedAt == null && isLikedArtist) {
++                            update(localArtist.artist.localToggleLike())
+                         }
+                     }
++                    delay(DB_OPERATION_DELAY_MS)
++                } catch (e: Exception) {
++                    Log.e(TAG, "Failed to process artist ${remoteArtist.id}", e)
+                 }
+             }
++
++            markSynced(LastArtistSyncKey)
++            updateState { copy(artists = SyncStatus.Completed) }
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            Log.e(TAG, "Error processing artists", e)
++            updateState { copy(artists = SyncStatus.Error(e.message ?: "Unknown error")) }
+         } finally {
+-            context.dataStore.edit { settings ->
+-                settings[LastArtistSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-            }
+             if (SYNC_DEBUG) Log.i(TAG, "Artist subscriptions synchronization ended")
+-            _isSyncingRemoteArtists.value = false
+         }
+     }
+ 
+-    /**
+-     * Singleton syncRemotePlaylists
+-     */
+-    suspend fun syncRemotePlaylists(bypass: Boolean = false) {
+-        // REQUIRED: internet, no ongoing sync, and category enabled
+-        if (!_isSyncingRemotePlaylists.value && (!checkEnabled(SyncContent.PLAYLISTS) || !context.isInternetConnected())) {
+-            if (_isSyncingRemotePlaylists.value)
+-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+-            return
+-        }
+-        // OPTIONAL: auto sync and cooldown
+-        if (!bypass) {
+-            if (!context.isAutoSyncEnabled() || !checkPartialSyncEligibility(LastPlaylistSyncKey)) {
+-                return
+-            }
+-        }
+-        _isSyncingRemotePlaylists.value = true
++    private suspend fun executeSyncRemotePlaylists(bypass: Boolean = false) = withContext(Dispatchers.IO) {
++        if (!canSync(SyncContent.PLAYLISTS, LastPlaylistSyncKey, bypass)) return@withContext
++        updateState { copy(playlists = SyncStatus.Syncing, currentOperation = "Syncing playlists") }
+ 
+         try {
+             if (SYNC_DEBUG) Log.i(TAG, "Library playlist synchronization started")
+ 
+-            // Get remote and local playlists
+-            YouTube.library("FEmusic_liked_playlists").completed().onSuccess { page ->
+-                if (!context.isInternetConnected()) {
+-                    return
++            val page = withRetry { YouTube.library("FEmusic_liked_playlists").completed().getOrThrow() }
++                .onFailure {
++                    Log.e(TAG, "Failed to fetch playlists", it)
++                    updateState { copy(playlists = SyncStatus.Error(it.message ?: "Fetch failed")) }
+                 }
++                .getOrNull() ?: return@withContext
+ 
+-                val remotePlaylists = page.items.filterIsInstance<PlaylistItem>()
+-                    .filterNot { it.id == "LM" || it.id == "SE" }
+-                    .reversed()
++            if (!context.isInternetConnected()) return@withContext
+ 
+-                val localPlaylists = database.playlistInLibraryAsc().first()
++            val remotePlaylists = page.items.filterIsInstance<PlaylistItem>()
++                .filterNot { it.id == "LM" || it.id == "SE" }
++                .reversed()
++                .distinctBy { it.id }
++            val remoteIds = remotePlaylists.mapTo(HashSet()) { it.id }
+ 
+-                if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
+-                    // Identify playlists to remove
+-                    val playlistsToRemove = localPlaylists
+-                        .filterNot { it.playlist.isLocal }
+-                        .filterNot { it.playlist.browseId == null }
+-                        .filterNot { localPlaylist -> remotePlaylists.any { it.id == localPlaylist.playlist.browseId } }
++            val localPlaylists = database.playlistInLibraryAsc().first()
+ 
+-                    // Remove playlists from the database
+-                    runBlocking {
+-                        playlistsToRemove.forEach { playlist ->
+-                            launch(Dispatchers.IO) {
+-                                database.update(playlist.playlist.localToggleLike())
+-                            }
+-                        }
++            if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
++                localPlaylists.filterNot { it.playlist.isLocal }.forEach { playlist ->
++                    val browseId = playlist.playlist.browseId ?: return@forEach
++                    if (browseId in remoteIds) return@forEach
++                    try {
++                        database.update(playlist.playlist.localToggleLike())
++                        delay(DB_OPERATION_DELAY_MS)
++                    } catch (e: Exception) {
++                        Log.e(TAG, "Failed to unbookmark playlist ${playlist.id}", e)
+                     }
+                 }
++            }
+ 
+-                // Add or update playlists in the database
+-                runBlocking {
+-                    remotePlaylists.forEach { remotePlaylist ->
+-                        launch(Dispatchers.IO) {
+-                            // forcefully assign isEditable. These playlists are at mercy of YouTube
+-                            var localPlaylist =
+-                                localPlaylists.find { remotePlaylist.id == it.playlist.browseId }?.playlist
+-                                    ?.copy(isEditable = remotePlaylist.isEditable)
+-                            if (localPlaylist == null) {
+-                                localPlaylist = PlaylistEntity(
+-                                    name = remotePlaylist.title,
+-                                    browseId = remotePlaylist.id,
+-                                    isEditable = remotePlaylist.isEditable,
+-                                    bookmarkedAt = LocalDateTime.now(),
+-                                    thumbnailUrl = remotePlaylist.thumbnail,
+-                                    remoteSongCount = remotePlaylist.songCountText?.let {
+-                                        Regex("""\d+""").find(it)?.value?.toIntOrNull()
+-                                    },
+-                                    playEndpointParams = remotePlaylist.playEndpoint?.params,
+-                                    shuffleEndpointParams = remotePlaylist.shuffleEndpoint?.params,
+-                                    radioEndpointParams = remotePlaylist.radioEndpoint?.params
+-                                )
+-                                database.insert(localPlaylist)
+-                            } else {
+-                                database.update(localPlaylist, remotePlaylist)
+-                            }
++            // Sequential on purpose: the previous implementation fanned these out with
++            // runBlocking + launch, which hammered the API and interleaved playlist writes.
++            remotePlaylists.forEach { remotePlaylist ->
++                try {
++                    // forcefully assign isEditable. These playlists are at mercy of YouTube
++                    var localPlaylist =
++                        localPlaylists.find { remotePlaylist.id == it.playlist.browseId }?.playlist
++                            ?.copy(isEditable = remotePlaylist.isEditable)
++                    if (localPlaylist == null) {
++                        localPlaylist = PlaylistEntity(
++                            name = remotePlaylist.title,
++                            browseId = remotePlaylist.id,
++                            isEditable = remotePlaylist.isEditable,
++                            bookmarkedAt = LocalDateTime.now(),
++                            thumbnailUrl = remotePlaylist.thumbnail,
++                            remoteSongCount = remotePlaylist.songCountText?.let {
++                                Regex("""\d+""").find(it)?.value?.toIntOrNull()
++                            },
++                            playEndpointParams = remotePlaylist.playEndpoint?.params,
++                            shuffleEndpointParams = remotePlaylist.shuffleEndpoint?.params,
++                            radioEndpointParams = remotePlaylist.radioEndpoint?.params
++                        )
++                        database.insert(localPlaylist)
++                    } else {
++                        database.update(localPlaylist, remotePlaylist)
++                    }
+ 
+-                            // Fetch the playlist again after potential insertion/update
+-                            val updatedPlaylist =
+-                                database.playlistByBrowseId(remotePlaylist.id).firstOrNull()
+-                            updatedPlaylist?.let {
+-                                val playlistSongMaps = database.songMapsToPlaylist(updatedPlaylist.id)
+-                                if (updatedPlaylist.playlist.isEditable || playlistSongMaps.isNotEmpty()) {
+-                                    syncPlaylist(remotePlaylist.id, updatedPlaylist.id)
+-                                }
+-                            }
++                    val updatedPlaylist = database.playlistByBrowseId(remotePlaylist.id).firstOrNull()
++                    updatedPlaylist?.let {
++                        val playlistSongMaps = database.songMapsToPlaylist(it.id)
++                        if (it.playlist.isEditable || playlistSongMaps.isNotEmpty()) {
++                            executeSyncPlaylist(remotePlaylist.id, it.id)
+                         }
+                     }
++                    delay(DB_OPERATION_DELAY_MS)
++                } catch (e: Exception) {
++                    Log.e(TAG, "Failed to sync playlist ${remotePlaylist.title}", e)
+                 }
+             }
++
++            markSynced(LastPlaylistSyncKey)
++            updateState { copy(playlists = SyncStatus.Completed) }
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            Log.e(TAG, "Error processing playlists", e)
++            updateState { copy(playlists = SyncStatus.Error(e.message ?: "Unknown error")) }
+         } finally {
+-            context.dataStore.edit { settings ->
+-                settings[LastPlaylistSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-            }
+-            _isSyncingRemotePlaylists.value = false
+             if (SYNC_DEBUG) Log.i(TAG, "Library playlist synchronization ended")
+         }
+     }
+ 
+-    suspend fun syncPlaylist(browseId: String, playlistId: String) {
+-        // this is also used for individual playlist sync
+-        if (!context.isInternetConnected()) {
+-            return
++    private suspend fun executeSyncPlaylist(browseId: String, playlistId: String) = withContext(Dispatchers.IO) {
++        if (!context.isInternetConnected()) return@withContext
++
++        val playlistPage = withRetry { YouTube.playlist(browseId).completed().getOrThrow() }
++            .onFailure { Log.e(TAG, "Failed to fetch playlist $browseId", it) }
++            .getOrNull() ?: return@withContext
++
++        if (!context.isInternetConnected()) return@withContext
++
++        // Never wipe a local playlist because a page came back empty.
++        if (playlistPage.songs.isEmpty()) {
++            if (SYNC_DEBUG) Log.w(TAG, "Remote playlist $browseId is empty, skipping")
++            return@withContext
+         }
+-        YouTube.playlist(browseId).completed().onSuccess { playlistPage ->
+-            if (!context.isInternetConnected()) {
+-                return
+-            }
+ 
+-            runBlocking {
+-                launch(Dispatchers.IO) {
+-                    database.transaction {
+-                        clearPlaylist(playlistId)
+-                        val songEntities = playlistPage.songs
+-                            .map(SongItem::toMediaMetadata)
+-                            .onEach { insert(it) }
+-
+-                        val playlistSongMaps = songEntities.mapIndexed { position, song ->
+-                            PlaylistSongMap(
+-                                songId = song.id,
+-                                playlistId = playlistId,
+-                                position = position,
+-                                setVideoId = song.setVideoId
+-                            )
+-                        }
+-                        playlistSongMaps.forEach { insert(it) }
+-                    }
+-                }
++        try {
++            database.transaction {
++                clearPlaylist(playlistId)
++                val songEntities = playlistPage.songs
++                    .map(SongItem::toMediaMetadata)
++                    .onEach { insert(it) }
++
++                songEntities.mapIndexed { position, song ->
++                    PlaylistSongMap(
++                        songId = song.id,
++                        playlistId = playlistId,
++                        position = position,
++                        setVideoId = song.setVideoId
++                    )
++                }.forEach { insert(it) }
+             }
++        } catch (e: Exception) {
++            Log.e(TAG, "Failed to write playlist $playlistId", e)
+         }
++        Unit
+     }
+ 
+-    suspend fun syncRecentActivity(bypass: Boolean = false) {
+-        // REQUIRED: internet, no ongoing sync, and category enabled
+-        if (!_isSyncingRecentActivity.value && (!checkEnabled(SyncContent.RECENT_ACTIVITY) || !context.isInternetConnected())) {
+-            if (_isSyncingRecentActivity.value)
+-                if (SYNC_DEBUG) Log.i(TAG, "Recent activity synchronization already in progress")
+-            return
+-        }
+-        // OPTIONAL: auto sync and cooldown
+-        if (!bypass) {
+-            if (!context.isAutoSyncEnabled() || !checkPartialSyncEligibility(LastRecentActivitySyncKey)) {
+-                return
+-            }
+-        }
+-        _isSyncingRecentActivity.value = true
++    private suspend fun executeSyncRecentActivity(bypass: Boolean = false) = withContext(Dispatchers.IO) {
++        if (!canSync(SyncContent.RECENT_ACTIVITY, LastRecentActivitySyncKey, bypass)) return@withContext
++        updateState { copy(recentActivity = SyncStatus.Syncing, currentOperation = "Syncing recent activity") }
+ 
+         try {
+             if (SYNC_DEBUG) Log.i(TAG, "Recent activity synchronization started")
+-            YouTube.libraryRecentActivity().onSuccess { page ->
+-                val recentActivity = page.items.drop(1)
+ 
+-                runBlocking {
+-                    launch(Dispatchers.IO) {
+-                        database.clearRecentActivity()
+-
+-                        recentActivity.reversed().forEach { database.insertRecentActivityItem(it) }
+-                    }
++            val page = withRetry { YouTube.libraryRecentActivity().getOrThrow() }
++                .onFailure {
++                    Log.e(TAG, "Failed to fetch recent activity", it)
++                    updateState { copy(recentActivity = SyncStatus.Error(it.message ?: "Fetch failed")) }
+                 }
+-            }
++                .getOrNull() ?: return@withContext
++
++            val recentActivity = page.items.drop(1)
++            database.clearRecentActivity()
++            recentActivity.reversed().forEach { database.insertRecentActivityItem(it) }
++
++            markSynced(LastRecentActivitySyncKey)
++            updateState { copy(recentActivity = SyncStatus.Completed) }
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            Log.e(TAG, "Error processing recent activity", e)
++            updateState { copy(recentActivity = SyncStatus.Error(e.message ?: "Unknown error")) }
+         } finally {
+-            context.dataStore.edit { settings ->
+-                settings[LastRecentActivitySyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+-            }
+-            _isSyncingRecentActivity.value = false
+             if (SYNC_DEBUG) Log.i(TAG, "Recent activity synchronization ended")
+         }
+     }
+ 
+-    private suspend inline fun <reified T> getRemoteData(libraryId: String, uploadsId: String): MutableList<T> {
+-        val browseIds = mapOf(
+-            libraryId to 0,
+-            uploadsId to 1
+-        )
+-
+-        val remote = mutableListOf<T>()
+-        runBlocking {
+-            val fetchJobs = browseIds.map { (browseId, tab) ->
+-                async {
+-                    YouTube.library(browseId, tab).completed().onSuccess { page ->
+-                        val data = page.items.filterIsInstance<T>().reversed()
+-                        synchronized(remote) { remote.addAll(data) }
++    // endregion
++
++    private suspend inline fun <reified T> getRemoteData(libraryId: String, uploadsId: String): List<T> =
++        coroutineScope {
++            listOf(libraryId to 0, uploadsId to 1)
++                .map { (browseId, tab) ->
++                    async {
++                        YouTube.library(browseId, tab).completed().getOrNull()
++                            ?.items?.filterIsInstance<T>()?.reversed().orEmpty()
+                     }
+                 }
+-            }
+-            fetchJobs.awaitAll()
++                .awaitAll()
++                .flatten()
+         }
+-
+-        return remote
+-    }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt b/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
+index 1e0b342..be9ca68 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
+@@ -16,6 +16,7 @@ import com.dd3boh.outertune.constants.MAX_LM_SCANNER_JOBS
+ import com.dd3boh.outertune.constants.MAX_YTM_CONTENT_JOBS
+ import com.dd3boh.outertune.constants.MAX_YTM_SYNC_JOBS
+ import com.dd3boh.outertune.playback.DownloadUtil
++import com.dd3boh.outertune.ui.utils.resize
+ import kotlinx.coroutines.DelicateCoroutinesApi
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.newFixedThreadPoolContext
+@@ -85,10 +86,34 @@ fun getDownloadState(localDateTimes: List<LocalDateTime?>): Int {
+     }
+ }
+ 
++/**
++ * Mirrors [com.dd3boh.outertune.constants.HighResArtworkKey] so the non-composable artwork
++ * helpers below can consult it without a Context. Kept in sync by a DataStore collector in
++ * [com.dd3boh.outertune.App].
++ */
++@Volatile
++var highResArtwork: Boolean = true
++
++/**
++ * Ask the CDN for artwork at the size it will actually be drawn at.
++ *
++ * YouTube returns whatever thumbnail size suited the response it came from — library and browse
++ * responses routinely hand back 60-226px art, which the previous code passed to Coil verbatim.
++ * Coil then upscaled it to fill the view, which is why album covers looked soft. Rewriting the
++ * `=wW-hH` (or `*default.jpg`) portion of the URL costs nothing and gets a sharp image.
++ *
++ * A non-positive [sizeX] means "size unknown", in which case the URL is left alone.
++ */
++fun remoteArtwork(thumbnailUrl: String, sizeX: Int = -1, sizeY: Int = -1): String {
++    if (!highResArtwork || sizeX <= 0) return thumbnailUrl
++    return runCatching { thumbnailUrl.resize(sizeX, if (sizeY > 0) sizeY else sizeX) }
++        .getOrDefault(thumbnailUrl)
++}
++
+ fun getThumbnailModel(thumbnailUrl: String, sizeX: Int = -1, sizeY: Int = -1): Any? {
+     return if (thumbnailUrl.startsWith("/storage/")) {
+         LocalArtworkPath(thumbnailUrl, sizeX, sizeY)
+     } else {
+-        thumbnailUrl
++        remoteArtwork(thumbnailUrl, sizeX, sizeY)
+     }
+ }
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 5892427..7ddc94e 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -133,6 +133,8 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="show_liked_and_downloaded_playlist">Show playlists for liked and downloaded songs in library</string>
+     <string name="slim_navbar_title">Slim navbar</string>
+     <string name="slim_navbar_description">Remove text labels to reduce navbar height</string>
++    <string name="high_res_artwork_title">High resolution artwork</string>
++    <string name="high_res_artwork_description">Request album art at the size it is displayed instead of using the small thumbnail YouTube returns. Turn off to save data.</string>
+     <string name="slider_style_title">Slider style</string>
+     <string name="slider_style_squiggly">Squiggly</string>
+     <string name="slider_style_default">Default</string>
+diff --git a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
+index 77680a7..a063897 100644
+--- a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
++++ b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
+@@ -3,9 +3,11 @@ package com.dd3boh.betterlyrics
+ import com.dd3boh.betterlyrics.models.TTMLResponse
+ import io.ktor.client.HttpClient
+ import io.ktor.client.call.body
++import io.ktor.client.plugins.HttpTimeout
+ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+ import io.ktor.client.plugins.defaultRequest
+ import io.ktor.client.request.get
++import io.ktor.client.request.headers
+ import io.ktor.client.request.parameter
+ import io.ktor.http.HttpStatusCode
+ import io.ktor.serialization.kotlinx.json.json
+@@ -30,8 +32,21 @@ object BetterLyrics {
+                 )
+             }
+ 
++            // Without a timeout a stalled connection blocks the whole lyric fetch chain, so the
++            // song ends up with no lyrics from any provider.
++            install(HttpTimeout) {
++                requestTimeoutMillis = 15000
++                connectTimeoutMillis = 10000
++                socketTimeoutMillis = 15000
++            }
++
+             defaultRequest {
+                 url("https://lyrics-api.boidu.dev")
++                // The API rejects requests without a browser-shaped User-Agent.
++                headers {
++                    append("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
++                    append("Accept", "application/json")
++                }
+             }
+ 
+             expectSuccess = false
+diff --git a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
+new file mode 100644
+index 0000000..81d7f34
+--- /dev/null
++++ b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
+@@ -0,0 +1,392 @@
++/*
++ * TTML parsing for the BetterLyrics API.
++ *
++ * Ported from the Metrolist project (GPL-3.0), which in turn derives from OuterTune.
++ * See git history for contributors.
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.betterlyrics
++
++import org.w3c.dom.Element
++import org.w3c.dom.Node
++import javax.xml.parsers.DocumentBuilderFactory
++
++/**
++ * A lenient TTML reader for the Apple-Music-style documents the BetterLyrics API returns.
++ *
++ * OuterTune's primary lyric parser (`org.akanework.gramophone.logic.utils.parseTtml`) is a strict
++ * TTML2 reader: it requires a `<head>` element straight after `<tt>`, and rejects the document
++ * outright when the structure differs. Several BetterLyrics responses omit `<head>` or put timing
++ * in the `ttp:` namespace, so that parser throws and the app shows "Unable to parse lyrics".
++ *
++ * This parser is deliberately forgiving — it walks the DOM looking for `<p>` elements wherever they
++ * are, accepts unprefixed or `ttp:`-namespaced timing attributes, and falls back to the earliest
++ * child `<span>` when a line carries no `begin` of its own. [toLrc] then emits plain, standard LRC
++ * so the rest of the app can render it line by line with no special casing.
++ *
++ * Word-level timings are still parsed, because they are needed to reconstruct a line's text when it
++ * is split across syllable spans. They are not emitted: the strict parser above handles karaoke
++ * rendering when it can read the document, and this path exists to guarantee line-by-line lyrics
++ * when it cannot.
++ */
++object TTMLParser {
++
++    /** TTML timing attributes may appear unprefixed or as `ttp:*` (parameter namespace). */
++    private const val TTML_PARAMETER_NS = "http://www.w3.org/ns/ttml#parameter"
++    private const val TTML_METADATA_NS = "http://www.w3.org/ns/ttml#metadata"
++
++    data class ParsedLine(
++        val text: String,
++        val startTime: Double,
++        val words: List<ParsedWord> = emptyList(),
++        val agent: String? = null,
++        val isBackground: Boolean = false,
++        val backgroundLines: List<ParsedLine> = emptyList(),
++    )
++
++    data class ParsedWord(
++        val text: String,
++        val startTime: Double,
++        val endTime: Double,
++        val hasTrailingSpace: Boolean = true,
++    )
++
++    private data class SpanInfo(
++        val text: String,
++        val startTime: Double,
++        val endTime: Double,
++        val hasTrailingSpace: Boolean,
++    )
++
++    /**
++     * Cheap check for whether [text] is worth handing to [parseTTML]. Avoids spinning up a DOM
++     * parser for LRC or plain text.
++     */
++    fun looksLikeTtml(text: String): Boolean {
++        val head = text.take(2048)
++        return head.contains("<tt") && head.contains("http://www.w3.org/ns/ttml")
++    }
++
++    fun parseTTML(ttml: String): List<ParsedLine> {
++        val lines = mutableListOf<ParsedLine>()
++        try {
++            val factory = DocumentBuilderFactory.newInstance()
++            factory.isNamespaceAware = true
++
++            // Harden against XXE. Android's parser does not support every feature below, and
++            // setFeature throws for the ones it lacks, so each is attempted independently.
++            runCatching {
++                factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
++            }
++            runCatching {
++                factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
++            }
++            runCatching {
++                factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
++            }
++            runCatching { factory.setXIncludeAware(false) }
++            runCatching { factory.isExpandEntityReferences = false }
++
++            val doc = factory.newDocumentBuilder().parse(ttml.byteInputStream())
++            val root = doc.documentElement ?: return emptyList()
++
++            // Apple exports can carry a global offset on head/metadata/audio@lyricOffset.
++            val globalOffset = findChild(root, "head")
++                ?.let { findChild(it, "metadata") }
++                ?.let { findChild(it, "audio") }
++                ?.getAttribute("lyricOffset")
++                ?.toDoubleOrNull()
++                ?: 0.0
++
++            // Walk from <body> when present, otherwise from the root: some documents skip <body>.
++            walk(findChild(root, "body") ?: root, lines, globalOffset, null)
++        } catch (e: Exception) {
++            return emptyList()
++        }
++        return lines
++    }
++
++    /**
++     * Render [lines] as plain LRC: one `[mm:ss.cc]text` entry per line, in time order.
++     *
++     * Background vocals become their own lines rather than being dropped, so a duet or an
++     * ad-libbed line still shows up. Speaker/agent information is discarded because standard LRC
++     * has no way to express it and OuterTune's renderer does not read it.
++     */
++    fun toLrc(lines: List<ParsedLine>): String {
++        val flat = mutableListOf<Pair<Double, String>>()
++        for (line in lines) {
++            if (line.text.isNotBlank()) flat += line.startTime to line.text.trim()
++            for (bg in line.backgroundLines) {
++                if (bg.text.isNotBlank()) flat += bg.startTime to bg.text.trim()
++            }
++        }
++        if (flat.isEmpty()) return ""
++
++        // A stable sort keeps a background line directly after the line it belongs to when the
++        // two share a timestamp.
++        return flat.sortedBy { it.first }
++            .joinToString("\n") { (time, text) -> formatLrcTime(time) + text }
++    }
++
++    /** Convenience: TTML straight to LRC, or null when nothing usable came out. */
++    fun ttmlToLrc(ttml: String): String? =
++        toLrc(parseTTML(ttml)).takeIf { it.isNotBlank() }
++
++    // region DOM walking
++
++    private fun getAttr(el: Element, localName: String): String {
++        val prefixed = el.getAttribute("ttm:$localName")
++        if (prefixed.isNotEmpty()) return prefixed
++        val direct = el.getAttribute(localName)
++        if (direct.isNotEmpty()) return direct
++        return el.getAttributeNS(TTML_METADATA_NS, localName)
++    }
++
++    private fun timingAttr(el: Element, localName: String): String {
++        val direct = el.getAttribute(localName)
++        if (direct.isNotEmpty()) return direct
++        return el.getAttributeNS(TTML_PARAMETER_NS, localName)
++    }
++
++    private fun localNameOf(node: Node): String =
++        node.localName ?: node.nodeName.substringAfterLast(':')
++
++    private fun findChild(parent: Element, localName: String): Element? {
++        var child = parent.firstChild
++        while (child != null) {
++            if (child is Element && localNameOf(child) == localName) return child
++            child = child.nextSibling
++        }
++        return null
++    }
++
++    /** When `<p>` has no `begin`, use the earliest `begin` on a direct child `<span>`. */
++    private fun findFirstSpanBegin(p: Element): String? {
++        var child = p.firstChild
++        var best: String? = null
++        var bestSeconds = Double.POSITIVE_INFINITY
++        while (child != null) {
++            if (child is Element && localNameOf(child) == "span") {
++                val begin = timingAttr(child, "begin")
++                if (begin.isNotEmpty()) {
++                    val seconds = parseTime(begin)
++                    if (seconds < bestSeconds) {
++                        bestSeconds = seconds
++                        best = begin
++                    }
++                }
++            }
++            child = child.nextSibling
++        }
++        return best
++    }
++
++    private fun walk(element: Element, lines: MutableList<ParsedLine>, offset: Double, parentAgent: String?) {
++        var currentAgent = parentAgent
++        when (localNameOf(element)) {
++            "div" -> getAttr(element, "agent").takeIf { it.isNotEmpty() }?.let { currentAgent = it }
++            "p" -> {
++                parseP(element, lines, offset, currentAgent)
++                return // parseP consumes the children
++            }
++        }
++
++        var child = element.firstChild
++        while (child != null) {
++            if (child is Element) walk(child, lines, offset, currentAgent)
++            child = child.nextSibling
++        }
++    }
++
++    private fun parseP(p: Element, lines: MutableList<ParsedLine>, offset: Double, divAgent: String?) {
++        val begin = timingAttr(p, "begin").ifEmpty { findFirstSpanBegin(p) ?: return }
++        val startTime = parseTime(begin) + offset
++
++        val spanInfos = mutableListOf<SpanInfo>()
++        val backgroundLines = mutableListOf<ParsedLine>()
++        val agent = getAttr(p, "agent").ifEmpty { divAgent }
++        val isPBackground = getAttr(p, "role") == "x-bg"
++
++        var child = p.firstChild
++        while (child != null) {
++            if (child is Element && localNameOf(child) == "span") {
++                when (getAttr(child, "role")) {
++                    "x-bg" ->
++                        if (isPBackground) {
++                            parseWordSpan(child, offset, spanInfos)
++                        } else {
++                            parseBackgroundSpan(child, startTime, offset)?.let { backgroundLines += it }
++                        }
++                    // Translations and romanisations are separate renderings of the same line.
++                    "x-translation", "x-roman" -> Unit
++                    else -> parseWordSpan(child, offset, spanInfos)
++                }
++            }
++            child = child.nextSibling
++        }
++
++        val words = mergeSpansIntoWords(spanInfos)
++        val lineText = if (words.isEmpty()) getDirectText(p).trim() else buildLineText(words)
++
++        if (lineText.isNotEmpty()) {
++            val bgLines = if (backgroundLines.isNotEmpty()) {
++                listOf(
++                    ParsedLine(
++                        text = backgroundLines.joinToString(" ") { it.text },
++                        startTime = backgroundLines.minOf { it.startTime },
++                        words = backgroundLines.flatMap { it.words },
++                        isBackground = true,
++                    )
++                )
++            } else {
++                emptyList()
++            }
++            lines += ParsedLine(lineText, startTime, words, agent, isPBackground, bgLines)
++        } else if (backgroundLines.isNotEmpty()) {
++            lines += ParsedLine(
++                text = backgroundLines.joinToString(" ") { it.text },
++                startTime = backgroundLines.minOf { it.startTime },
++                words = backgroundLines.flatMap { it.words },
++                isBackground = true,
++            )
++        }
++    }
++
++    private fun parseWordSpan(span: Element, offset: Double, spanInfos: MutableList<SpanInfo>) {
++        val begin = timingAttr(span, "begin")
++        val end = timingAttr(span, "end")
++        if (begin.isEmpty() || end.isEmpty()) return
++
++        val text = span.textContent ?: ""
++        val next = span.nextSibling
++        val hasSpace = (text.isNotEmpty() && text.last().isWhitespace()) ||
++            (next?.nodeType == Node.TEXT_NODE && next.textContent?.firstOrNull()?.isWhitespace() == true)
++        spanInfos += SpanInfo(text, parseTime(begin) + offset, parseTime(end) + offset, hasSpace)
++    }
++
++    private fun parseBackgroundSpan(span: Element, parentStart: Double, offset: Double): ParsedLine? {
++        val begin = timingAttr(span, "begin")
++        val start = if (begin.isNotEmpty()) parseTime(begin) + offset else parentStart
++
++        val spanInfos = mutableListOf<SpanInfo>()
++        var hasSpans = false
++        var child = span.firstChild
++        while (child != null) {
++            if (child is Element && localNameOf(child) == "span") {
++                hasSpans = true
++                val role = getAttr(child, "role")
++                if (role != "x-translation" && role != "x-roman") {
++                    parseWordSpan(child, offset, spanInfos)
++                }
++            }
++            child = child.nextSibling
++        }
++
++        if (!hasSpans) {
++            val text = span.textContent?.trim().orEmpty()
++            return ParsedLine(text, start, isBackground = true)
++        }
++
++        val words = mergeSpansIntoWords(spanInfos)
++        val text = if (words.isEmpty()) getDirectText(span).trim() else buildLineText(words)
++        return ParsedLine(text, start, words, isBackground = true)
++    }
++
++    private fun getDirectText(el: Element): String = buildString {
++        var child = el.firstChild
++        while (child != null) {
++            if (child.nodeType == Node.TEXT_NODE) {
++                append(child.textContent)
++            } else if (child is Element && localNameOf(child) == "span") {
++                val role = getAttr(child, "role")
++                if (role != "x-bg" && role != "x-translation" && role != "x-roman") {
++                    append(child.textContent)
++                }
++            }
++            child = child.nextSibling
++        }
++    }
++
++    private fun buildLineText(words: List<ParsedWord>) = buildString {
++        words.forEachIndexed { i, w ->
++            append(w.text)
++            if (w.hasTrailingSpace && !w.text.endsWith('-') && i < words.lastIndex) append(" ")
++        }
++    }.trim()
++
++    /**
++     * Apple TTML times each syllable separately. Join syllables back into words, breaking only
++     * where the previous span ended with whitespace (a hyphen means the word continues).
++     */
++    private fun mergeSpansIntoWords(spanInfos: List<SpanInfo>): List<ParsedWord> {
++        if (spanInfos.isEmpty()) return emptyList()
++
++        val words = mutableListOf<ParsedWord>()
++        var text = StringBuilder(spanInfos[0].text)
++        var start = spanInfos[0].startTime
++        var end = spanInfos[0].endTime
++
++        for (i in 1 until spanInfos.size) {
++            val prev = spanInfos[i - 1]
++            val curr = spanInfos[i]
++            if (prev.hasTrailingSpace && !prev.text.endsWith('-')) {
++                words += ParsedWord(text.toString(), start, end, true)
++                text = StringBuilder(curr.text)
++                start = curr.startTime
++                end = curr.endTime
++            } else {
++                text.append(curr.text)
++                end = curr.endTime
++            }
++        }
++        words += ParsedWord(text.toString(), start, end, spanInfos.last().hasTrailingSpace)
++
++        return words.map { it.copy(text = it.text.trim()) }.filter { it.text.isNotEmpty() }
++    }
++
++    // endregion
++
++    private fun formatLrcTime(time: Double): String {
++        val ms = (time.coerceAtLeast(0.0) * 1000).toLong()
++        val minutes = ms / 60000
++        val seconds = (ms % 60000) / 1000
++        val centis = (ms % 1000) / 10
++        return buildString(12) {
++            append('[')
++            if (minutes < 10) append('0')
++            append(minutes).append(':')
++            if (seconds < 10) append('0')
++            append(seconds).append('.')
++            if (centis < 10) append('0')
++            append(centis).append(']')
++        }
++    }
++
++    /** Accepts `h:mm:ss.ff`, `mm:ss.ff`, and the `12.5s` / `500ms` / `2m` clock-value forms. */
++    private fun parseTime(time: String): Double {
++        val t = time.trim()
++        val firstColon = t.indexOf(':')
++        if (firstColon != -1) {
++            val lastColon = t.lastIndexOf(':')
++            return if (firstColon == lastColon) {
++                (t.substring(0, firstColon).toIntOrNull() ?: 0) * 60.0 +
++                    (t.substring(firstColon + 1).toDoubleOrNull() ?: 0.0)
++            } else {
++                (t.substring(0, firstColon).toIntOrNull() ?: 0) * 3600.0 +
++                    (t.substring(firstColon + 1, lastColon).toIntOrNull() ?: 0) * 60.0 +
++                    (t.substring(lastColon + 1).toDoubleOrNull() ?: 0.0)
++            }
++        }
++        if (t.endsWith("ms")) return (t.dropLast(2).toDoubleOrNull() ?: 0.0) / 1000.0
++        val bare = if (t.endsWith("s") || t.endsWith("m") || t.endsWith("h")) t.dropLast(1) else t
++        val value = bare.toDoubleOrNull() ?: 0.0
++        return when {
++            t.endsWith("m") -> value * 60.0
++            t.endsWith("h") -> value * 3600.0
++            else -> value
++        }
++    }
++}
+-- 
+2.43.0
+
+
+From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 5 Aug 2026 13:27:40 +0000
+Subject: [PATCH 2/7] Add patch notes
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ PATCH_NOTES.md | 146 +++++++++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 146 insertions(+)
+ create mode 100644 PATCH_NOTES.md
+
+diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
+new file mode 100644
+index 0000000..28c797a
+--- /dev/null
++++ b/PATCH_NOTES.md
+@@ -0,0 +1,146 @@
++# OuterTune — sync, artwork, and lyrics fixes
++
++Base: `yuuichi-s/OuterTune` @ `03099c61` (branch `feat/sync-artwork-lyrics`).
++Sync-engine architecture and the lenient TTML reader are ported from
++`metrolistgroup/metrolist` @ `289ed45d`. Both projects are GPL-3.0.
++
++**This has not been compiled.** The container this was written in has no Android SDK and
++no access to Google's Maven or Maven Central, so `assembleDebug` could not be run. Every
++symbol the new code touches was checked against the actual sources by hand, but treat the
++first build as the real review and expect to fix a stray import or two.
++
++---
++
++## 1. Liked songs now match YouTube's order
++
++**What was wrong.** YouTube Music exposes no per-song "liked at" timestamp — a song's
++position in the `LM` playlist is the only ordering signal there is. The old sync reversed
++the remote page, stamped `likedDate = LocalDateTime.now()` on each song as it went, and
++**skipped any song already liked locally**. So a song's liked date was frozen at whenever
++it first happened to be seen, and the local order drifted permanently out of step with
++YouTube — which is the bug you hit.
++
++**What it does now.** `likedDate` is derived from each song's index in the unreversed
++remote list (`now.minusSeconds(index)`) and re-stamped on every sync, including songs
++already liked. Sorting the Liked playlist by liked date (`SongSortType.CREATE_DATE`,
++descending — already the default) now reproduces YouTube's order exactly.
++
++Local files that are liked stay liked; they are never in the remote list, so they are
++excluded from the unlike pass, and they interleave by their own liked date.
++
++## 2. Metrolist's sync engine, on OuterTune's feature set
++
++`SyncUtils` was rewritten around Metrolist's architecture:
++
++- A single-consumer `Channel<SyncOperation>` queue with per-category **coalescing keys**,
++  so two screens asking for the same sync collapse into one.
++- One **non-reentrant `Mutex`** serialising every sync body — no more concurrent writers
++  to the same tables.
++- **Retry with exponential backoff** on every network call.
++- A structured **`SyncState`** with a `SyncStatus` per category (`Idle` / `Syncing` /
++  `Completed` / `Error(message)`), exposed as `syncUtils.syncState`.
++
++OuterTune-specific behaviour is preserved: `SyncContent` per-category enable flags,
++`SyncConflictResolution.OVERWRITE_WITH_REMOTE`, the per-category `Last*SyncKey` cooldowns,
++and the `isLocal` exclusions for local media.
++
++The old boolean flows (`isSyncingRemoteLikedSongs` and friends) are kept as values derived
++from `syncState`, and every previous suspend method kept its signature, so no caller needed
++changing.
++
++### Bugs found while porting
++
++| Bug | Effect |
++|---|---|
++| The "already syncing" guard was inverted — `if (!syncing && (!enabled \|\| !online))` | A second request proceeded *precisely when* one was already running |
++| `SYNC_CD = 60000 * 30` (milliseconds) compared against a delta in **seconds**, comparison also inverted | Cooldown rejected syncs that were due and allowed ones that weren't. Now `SYNC_COOLDOWN = 30 * 60L`; `SYNC_CD` is deprecated |
++| `runBlocking` inside `suspend` functions | Blocked sync threads; replaced with structured concurrency |
++| `Last*SyncKey` written in `finally` even when the sync bailed or failed | A failed sync suppressed retries for a full cooldown window. Now written only on success |
++| `syncPlaylist` cleared the local playlist before writing | An empty remote page wiped a local playlist. Now skipped |
++| Playlists synced via `runBlocking { forEach { launch { … } } }` | Hammered the API and interleaved writes. Now sequential with pacing |
++
++## 3. Album covers are no longer soft — with a toggle
++
++**What was wrong.** `getThumbnailModel()` and `ItemThumbnail` handed remote URLs to Coil
++verbatim. YouTube returns whatever size suited the response the URL came from, and browse
++and library responses routinely hand back 60–226px art. Coil then upscaled that to fill a
++full-width player. Only `SongItem.toMediaMetadata()` (1080px) and artist rows (544px) ever
++asked for a bigger image.
++
++**What it does now.** A new `remoteArtwork()` helper rewrites the URL to request the size
++the view will actually draw, applied in `ItemThumbnail` (measured from its
++`BoxWithConstraints`), the player cover, and `AlbumScreen`. As a side benefit, list rows
++now request *smaller* images than the 1080px URLs stored for songs.
++
++**The toggle:** Settings → Appearance → Display → **High resolution artwork**, default on.
++Off restores the previous verbatim-URL behaviour, which uses less data.
++
++## 4. BetterLyrics works, line by line
++
++Four separate things were stopping it:
++
++1. The provider defaulted to **off**.
++2. No `User-Agent` — the API rejects requests without a browser-shaped one.
++3. No request timeout, so a stalled connection hung the whole provider chain.
++4. The real one: OuterTune's strict TTML2 parser (gramophone's `parseTtml`) requires a
++   `<head>` element immediately after `<tt>`. Many BetterLyrics responses omit it, so the
++   parser threw — which became an "Unable to parse lyrics" placeholder on the render path
++   and an `UNPARSEABLE` classification on the fetch path, discarding the result outright.
++
++`betterlyrics/TTMLParser.kt` is a lenient TTML reader ported from Metrolist. It walks the
++DOM for `<p>` elements wherever they are, accepts unprefixed or `ttp:`-namespaced timing,
++falls back to the earliest child `<span>` when a line has no `begin`, and reassembles
++Apple-style syllable spans back into words. `toLrc()` emits plain standard LRC.
++
++`LyricsHelper.parseResilient()` tries the strict parser first — so word-level karaoke
++timing is kept whenever the document is readable — and only falls back to the lenient
++reader plus plain line-by-line LRC when it isn't.
++
++Unlike Metrolist's version, `toLrc()` emits **standard** LRC rather than Metrolist's
++extended `<word:start:end|…>` / `{bg}` / `{agent:v1}` form, which OuterTune's renderer
++would show as literal text. Background vocals become their own timed lines; speaker/agent
++tags are dropped.
++
++## 5. Lyrics button removed from the player
++
++The dedicated lyrics button is gone from the player controls. Lyrics toggle by tapping the
++cover (`DEFAULT_SHOW_LYRICS_ON_CLICK` was already `true`) or via ⋮ → Toggle lyrics, as in
++older OuterTune. The unused imports and the local `showLyrics` state in `ActionButtons`
++went with it.
++
++---
++
++## Building
++
++The `media` submodule (a fork of AndroidX Media3) is required — `settings.gradle.kts` pulls
++it in via `includeBuild`.
++
++From a fresh clone:
++
++```bash
++git clone https://github.com/yuuichi-s/OuterTune.git
++cd OuterTune
++git submodule update --init --recursive
++git apply /path/to/outertune-sync-artwork-lyrics.patch    # or: git am
++./gradlew assembleDebug
++```
++
++If you are using the zip instead: `media/` is included, **except**
++`media/libraries/test_data/src/`, which is 468 MB of Media3's own test fixtures and is not
++needed to build the app. The `test_data` module still configures fine without it because
++nothing the app depends on assembles it. The zip has no `.git`, so use the patch route if
++you want history.
++
++No CI changes were made — the repo's existing `.github/workflows/build.yml` should produce
++an APK on push.
++
++## Not done
++
++- **The `hifi.geeked.wtf` / `qqdl.site` / `api.monochrome.tf` streaming APIs.** These are
++  unofficial proxies that resell access to Tidal/Qobuz catalogs using borrowed credentials.
++  Integrating them means shipping a tool for unauthorized access to paid catalogs, so it
++  was left out. If the goal is better audio quality, OuterTune's own audio-quality setting
++  and YouTube Music's higher-bitrate itags are the place to look.
++- **Passing album title to BetterLyrics.** It measurably improves match rate, but
++  `LyricsProvider.getLyrics()` has no `album` parameter, so adding it means touching all
++  seven providers. Left alone to keep this diff reviewable.
+-- 
+2.43.0
+
+
+From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 6 Aug 2026 02:02:38 +0000
+Subject: [PATCH 3/7] Fix nested Result in likeSong retry and wrong
+ songMapsToPlaylist overload
+
+Both found in review of the sync engine port.
+
+withRetry { YouTube.likeVideo(...) } returned Result<Result<Unit>>, so the
+outer onFailure never fired on an API error and the retry never triggered.
+
+songMapsToPlaylist(it.id) bound to the songId overload rather than the
+playlistId one, so the returned list was always empty and the guard that
+keeps non-editable playlists with local songs in sync was dead code.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ PATCH_NOTES.md                                           | 2 ++
+ .../main/java/com/dd3boh/outertune/utils/SyncUtils.kt    | 9 +++++++--
+ 2 files changed, 9 insertions(+), 2 deletions(-)
+
+diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
+index 28c797a..2480f96 100644
+--- a/PATCH_NOTES.md
++++ b/PATCH_NOTES.md
+@@ -58,6 +58,8 @@ changing.
+ | `Last*SyncKey` written in `finally` even when the sync bailed or failed | A failed sync suppressed retries for a full cooldown window. Now written only on success |
+ | `syncPlaylist` cleared the local playlist before writing | An empty remote page wiped a local playlist. Now skipped |
+ | Playlists synced via `runBlocking { forEach { launch { … } } }` | Hammered the API and interleaved writes. Now sequential with pacing |
++| `songMapsToPlaylist(playlistId)` silently bound to the `songMapsToPlaylist(songId: String)` overload | The list was always empty, so the `isNotEmpty()` guard was dead and non-editable playlists with local songs were skipped. Now uses the `(playlistId, from)` overload |
++| `withRetry { YouTube.likeVideo(...) }` produced a `Result<Result<Unit>>` | The inner API failure was never observed or retried. `getOrThrow()` moved inside the retry block |
+ 
+ ## 3. Album covers are no longer soft — with a toggle
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+index f5230a8..27f97bf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+@@ -423,7 +423,9 @@ class SyncUtils @Inject constructor(
+ 
+     private suspend fun executeLikeSong(s: SongEntity) = withContext(Dispatchers.IO) {
+         if (!context.isUserLoggedIn()) return@withContext
+-        withRetry { YouTube.likeVideo(s.id, s.liked) }
++        // getOrThrow inside the block, otherwise withRetry wraps a Result in a Result and the
++        // API failure is never seen (nor retried).
++        withRetry { YouTube.likeVideo(s.id, s.liked).getOrThrow() }
+             .onFailure { Log.e(TAG, "Failed to like song upstream: ${s.id}", it) }
+         Unit
+     }
+@@ -755,7 +757,10 @@ class SyncUtils @Inject constructor(
+ 
+                     val updatedPlaylist = database.playlistByBrowseId(remotePlaylist.id).firstOrNull()
+                     updatedPlaylist?.let {
+-                        val playlistSongMaps = database.songMapsToPlaylist(it.id)
++                        // The single-argument overload queries by songId, so passing a playlist id
++                        // to it always returned an empty list and the isNotEmpty() check below was
++                        // dead. Use the (playlistId, from) overload.
++                        val playlistSongMaps = database.songMapsToPlaylist(it.id, 0)
+                         if (it.playlist.isEditable || playlistSongMaps.isNotEmpty()) {
+                             executeSyncPlaylist(remotePlaylist.id, it.id)
+                         }
+-- 
+2.43.0
+
+
+From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 6 Aug 2026 02:03:55 +0000
+Subject: [PATCH 4/7] Clarify build route in patch notes
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ PATCH_NOTES.md | 14 +++++++++-----
+ 1 file changed, 9 insertions(+), 5 deletions(-)
+
+diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
+index 2480f96..a43e5d3 100644
+--- a/PATCH_NOTES.md
++++ b/PATCH_NOTES.md
+@@ -127,11 +127,15 @@ git apply /path/to/outertune-sync-artwork-lyrics.patch    # or: git am
+ ./gradlew assembleDebug
+ ```
+ 
+-If you are using the zip instead: `media/` is included, **except**
+-`media/libraries/test_data/src/`, which is 468 MB of Media3's own test fixtures and is not
+-needed to build the app. The `test_data` module still configures fine without it because
+-nothing the app depends on assembles it. The zip has no `.git`, so use the patch route if
+-you want history.
++**Use the patch route to build.** The accompanying `OuterTune-patched-src.zip` is the full
++patched source *minus three things too large to attach*: the `media/` submodule (247 MB),
++`prebuilt/ffMetadataEx-release.aar` (40 MB, a required native dependency) and
++`assets/gallery/` (screenshots). It is there for reading the changes in context, not for
++building. To build from it instead of applying the patch, clone the repo as above and copy
++the zip's `app/`, `betterlyrics/` and `PATCH_NOTES.md` over the clone.
++
++The `media` submodule is pinned at `3f52f92e3532b9915ae6fec3dd72ebff9bde0e0a`
++(`github.com/nift4/media`) if you ever need to check it out by hand.
+ 
+ No CI changes were made — the repo's existing `.github/workflows/build.yml` should produce
+ an APK on push.
+-- 
+2.43.0
+
+
+From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 05:12:23 +0000
+Subject: [PATCH 5/7] Remove the on-screen debug build overlay and per-song
+ video ids
+
+MainActivity drew a red four-line build-info column over the UI whenever
+BuildConfig.DEBUG was set, and SongItems prepended the raw video id to
+every song's subtitle, pushing the artist name off the row. Both are
+development aids that make a debug build unpleasant to actually use.
+
+The same build information is still available on demand in Settings ->
+About, which shows it for debug and userdebug builds.
+
+The debug source set still renames the app to "OuterTune Debug". That one
+is left alone deliberately: it is what lets a debug build be told apart
+from a release install on the same device.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../java/com/dd3boh/outertune/MainActivity.kt | 30 ++-----------------
+ .../outertune/ui/component/items/SongItems.kt |  4 +--
+ 2 files changed, 5 insertions(+), 29 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 9163ae3..8688e5f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -1043,33 +1043,9 @@ class MainActivity : ComponentActivity() {
+                                 }
+                             }
+ 
+-                            if (BuildConfig.DEBUG) {
+-                                val debugColour = Color.Red
+-                                Column(
+-                                    modifier = Modifier.padding(start = 50.dp, top = 100.dp)
+-                                ) {
+-                                    Text(
+-                                        text = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) | ${BuildConfig.FLAVOR}",
+-                                        style = MaterialTheme.typography.bodySmall,
+-                                        color = debugColour
+-                                    )
+-                                    Text(
+-                                        text = "${BuildConfig.APPLICATION_ID} | ${BuildConfig.BUILD_TYPE}",
+-                                        style = MaterialTheme.typography.bodySmall,
+-                                        color = debugColour
+-                                    )
+-                                    Text(
+-                                        text = "${Build.BRAND} ${Build.DEVICE} (${Build.MODEL})",
+-                                        style = MaterialTheme.typography.bodySmall,
+-                                        color = debugColour
+-                                    )
+-                                    Text(
+-                                        text = "${Build.VERSION.SDK_INT} (${Build.ID})",
+-                                        style = MaterialTheme.typography.bodySmall,
+-                                        color = debugColour
+-                                    )
+-                                }
+-                            }
++                            // The red build-info overlay that used to be drawn here on debug
++                            // builds is gone. The same information is available on demand in
++                            // Settings -> About, which already shows it for debug and userdebug.
+                         }
+                     }
+                 }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
+index d192b93..7d50084 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
+@@ -44,7 +44,6 @@ import androidx.compose.ui.res.pluralStringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import coil3.compose.AsyncImage
+-import com.dd3boh.outertune.BuildConfig
+ import com.dd3boh.outertune.LocalDatabase
+ import com.dd3boh.outertune.LocalDownloadUtil
+ import com.dd3boh.outertune.LocalMenuState
+@@ -108,7 +107,8 @@ fun SongListItem(
+         ListItem(
+             title = song.song.title,
+             subtitle = joinByBullet(
+-                (if (BuildConfig.DEBUG) song.song.id else ""),
++                // The raw video id used to be prepended here on debug builds, which pushed the
++                // artist name off the end of the row.
+                 song.artists.joinToString { it.name },
+                 makeTimeString(song.song.duration * 1000L)
+             ),
+-- 
+2.43.0
+
+
+From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 05:51:11 +0000
+Subject: [PATCH 6/7] Stop recomputing artwork URLs on every recomposition
+
+resize() compiled two regexes on every call and, since the artwork helpers
+are now called from list item composables, that ran on every bind while
+scrolling. The patterns are now compiled once at file scope, and
+ItemThumbnail remembers the resolved model per (url, size) instead of
+rebuilding it each frame.
+
+Reported as jerky scrolling in long lists.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../dd3boh/outertune/ui/component/items/Items.kt | 16 +++++++++++-----
+ .../dd3boh/outertune/ui/utils/YouTubeUtils.kt    | 13 +++++++++++--
+ 2 files changed, 22 insertions(+), 7 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+index f7d955b..f3c83bd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+@@ -684,13 +684,19 @@ fun ItemThumbnail(
+             }
+         }
+ 
++        // Remembered per (url, size): remoteArtwork runs regexes over the URL, and a list item
++        // recomposes often while scrolling. Recomputing it every frame is enough to be felt.
++        val artworkModel = remember(thumbnailUrl, targetPx) {
++            when {
++                thumbnailUrl == null -> null
++                thumbnailUrl.startsWith("/storage") -> LocalArtworkPath(thumbnailUrl, targetPx, targetPx)
++                else -> remoteArtwork(thumbnailUrl, targetPx, targetPx)
++            }
++        }
++
+         AsyncImage(
+             imageLoader = context.imageLoader,
+-            model = if (thumbnailUrl?.startsWith("/storage") == true) {
+-                LocalArtworkPath(thumbnailUrl, targetPx, targetPx)
+-            } else {
+-                thumbnailUrl?.let { remoteArtwork(it, targetPx, targetPx) }
+-            },
++            model = artworkModel,
+ //            placeholder = rememberVectorPainter(placeholderIcon),
+             contentDescription = null,
+             modifier = Modifier
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
+index d5068ac..a848cde 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
+@@ -1,11 +1,20 @@
+ package com.dd3boh.outertune.ui.utils
+ 
++/**
++ * Compiled once rather than on every call. [resize] is now invoked from list item composables,
++ * so it runs on every artwork bind while scrolling; rebuilding these patterns each time was
++ * enough overhead to show up as jank in long lists.
++ */
++private val GOOGLE_USERCONTENT_SIZED =
++    Regex("""https://[a-z0-9]+\.googleusercontent\.com/.*=w(\d+)-h(\d+).*""")
++private val YT3_GGPHT_SIZED = Regex("""https://yt3\.ggpht\.com/.*=s(\d+)""")
++
+ fun String.resize(
+     width: Int? = null,
+     height: Int? = null,
+ ): String {
+     if (width == null && height == null) return this
+-    "https://[a-z0-9]+\\.googleusercontent\\.com/.*=w(\\d+)-h(\\d+).*".toRegex().matchEntire(this)?.groupValues?.let { group ->
++    GOOGLE_USERCONTENT_SIZED.matchEntire(this)?.groupValues?.let { group ->
+         val (W, H) = group.drop(1).map { it.toInt() }
+         var w = width
+         var h = height
+@@ -13,7 +22,7 @@ fun String.resize(
+         if (w == null && h != null) w = (h / H) * W
+         return "${split("=w")[0]}=w$w-h$h-p-l90-rj"
+     }
+-    if (this matches "https://yt3\\.ggpht\\.com/.*=s(\\d+)".toRegex()) {
++    if (this matches YT3_GGPHT_SIZED) {
+         return "$this-s${width ?: height}"
+     }
+     if (this.contains("i.ytimg.com")) {
+-- 
+2.43.0
+
+
+From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Fri, 7 Aug 2026 05:55:21 +0000
+Subject: [PATCH 7/7] Report the liked-songs sync outcome instead of failing
+ silently
+
+A liked-songs sync can decline to run (not signed in, category disabled,
+cooldown) or fail against YouTube without anything visible changing, which
+makes "the refresh did nothing" indistinguishable from "the refresh worked
+and the order is still wrong". SYNC_DEBUG is a compile-time false, so the
+logs say nothing either.
+
+SyncState now carries lastLikedSongsResult, set on every exit path of the
+liked sync, and pull-to-refresh on the Liked screen shows it in a snackbar:
+either "Synced N liked songs" or the specific reason it stopped.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
+---
+ .../ui/screens/playlist/AutoPlaylistScreen.kt |  7 +++
+ .../com/dd3boh/outertune/utils/SyncUtils.kt   | 49 +++++++++++++++++--
+ 2 files changed, 52 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
+index 8df3313..81251e1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
+@@ -328,6 +328,13 @@ fun AutoPlaylistScreen(
+                 onRefresh = {
+                     coroutineScope.launch {
+                         syncUtils.syncRemoteLikedSongs(true)
++                        // Report the outcome. A liked-songs sync can decline to run or fail
++                        // against YouTube without anything visible changing on screen, which
++                        // makes "refreshing did nothing" impossible to tell apart from
++                        // "refreshing worked and the order is still wrong".
++                        syncUtils.syncState.value.lastLikedSongsResult
++                            .takeIf { it.isNotEmpty() }
++                            ?.let { snackbarHostState.showSnackbar(it, withDismissAction = true) }
+                     }
+                 }
+             ),
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+index 27f97bf..580a4a9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+@@ -108,6 +108,11 @@ data class SyncState(
+     val playlists: SyncStatus = SyncStatus.Idle,
+     val recentActivity: SyncStatus = SyncStatus.Idle,
+     val currentOperation: String = "",
++    /**
++     * Human-readable outcome of the most recent liked-songs sync. Surfaced in the UI after a
++     * manual refresh so a silent failure is visible without a logcat.
++     */
++    val lastLikedSongsResult: String = "",
+ )
+ 
+ /**
+@@ -312,6 +317,23 @@ class SyncUtils @Inject constructor(
+         return true
+     }
+ 
++    /**
++     * Same checks as [canSync], but returns why the sync was refused instead of just a boolean,
++     * so the UI can say something more useful than nothing at all. Null means "go ahead".
++     */
++    private fun syncRefusalReason(
++        category: SyncContent,
++        lastSyncKey: Preferences.Key<Long>,
++        bypass: Boolean,
++    ): String? = when {
++        !context.isUserLoggedIn() -> "Not signed in to YouTube Music"
++        !context.isInternetConnected() -> "No internet connection"
++        !checkEnabled(category) -> "$category is turned off in sync settings"
++        !bypass && !context.isAutoSyncEnabled() -> "Auto sync is off"
++        !bypass && !cooldownElapsed(lastSyncKey) -> "Synced recently, skipping"
++        else -> null
++    }
++
+     private suspend fun <T> withRetry(
+         maxRetries: Int = MAX_RETRIES,
+         initialDelay: Long = INITIAL_RETRY_DELAY_MS,
+@@ -444,7 +466,11 @@ class SyncUtils @Inject constructor(
+      * of step with YouTube.
+      */
+     private suspend fun executeSyncRemoteLikedSongs(bypass: Boolean = false) = withContext(Dispatchers.IO) {
+-        if (!canSync(SyncContent.LIKED_SONGS, LastLikeSongSyncKey, bypass)) return@withContext
++        val refusal = syncRefusalReason(SyncContent.LIKED_SONGS, LastLikeSongSyncKey, bypass)
++        if (refusal != null) {
++            updateState { copy(lastLikedSongsResult = refusal) }
++            return@withContext
++        }
+         updateState { copy(likedSongs = SyncStatus.Syncing, currentOperation = "Syncing liked songs") }
+ 
+         try {
+@@ -453,7 +479,12 @@ class SyncUtils @Inject constructor(
+             val page = withRetry { YouTube.playlist("LM").completed().getOrThrow() }
+                 .onFailure {
+                     Log.e(TAG, "Failed to fetch liked songs", it)
+-                    updateState { copy(likedSongs = SyncStatus.Error(it.message ?: "Fetch failed")) }
++                    updateState {
++                        copy(
++                            likedSongs = SyncStatus.Error(it.message ?: "Fetch failed"),
++                            lastLikedSongsResult = "Could not reach YouTube: ${it.message ?: "unknown error"}",
++                        )
++                    }
+                 }
+                 .getOrNull() ?: return@withContext
+ 
+@@ -499,13 +530,23 @@ class SyncUtils @Inject constructor(
+             }
+ 
+             markSynced(LastLikeSongSyncKey)
+-            updateState { copy(likedSongs = SyncStatus.Completed) }
++            updateState {
++                copy(
++                    likedSongs = SyncStatus.Completed,
++                    lastLikedSongsResult = "Synced ${remoteSongs.size} liked songs",
++                )
++            }
+             if (SYNC_DEBUG) Log.d(TAG, "Synced ${remoteSongs.size} liked songs")
+         } catch (e: CancellationException) {
+             throw e
+         } catch (e: Exception) {
+             Log.e(TAG, "Error processing liked songs", e)
+-            updateState { copy(likedSongs = SyncStatus.Error(e.message ?: "Unknown error")) }
++            updateState {
++                copy(
++                    likedSongs = SyncStatus.Error(e.message ?: "Unknown error"),
++                    lastLikedSongsResult = "Sync failed: ${e.message ?: "unknown error"}",
++                )
++            }
+         } finally {
+             if (SYNC_DEBUG) Log.i(TAG, "Liked songs synchronization ended")
+         }
+-- 
+2.43.0
+
