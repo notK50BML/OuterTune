@@ -1133,7 +1133,9 @@ fun PlayerBackground(
 
         // gradient colours
         LaunchedEffect(mediaMetadata, playerBackground) {
-            if (playerBackground != PlayerBackgroundStyle.GRADIENT || context.isPowerSaver()) return@LaunchedEffect
+            val needsPalette = playerBackground == PlayerBackgroundStyle.GRADIENT ||
+                    playerBackground == PlayerBackgroundStyle.LIQUID
+            if (!needsPalette || context.isPowerSaver()) return@LaunchedEffect
 
             withContext(coilCoroutine) {
                 val result = context.imageLoader.execute(
@@ -1185,6 +1187,18 @@ fun PlayerBackground(
                         .background(Brush.verticalGradient(colors), alpha = 0.4f)
                 )
             }
+        }
+
+        if (playerBackground == PlayerBackgroundStyle.LIQUID) {
+            if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2d")
+            val isPlaying by playerConnection.isPlaying.collectAsState()
+            LiquidBackground(
+                colors = gradientColors,
+                // Stop the animation clock whenever it cannot be appreciated: paused playback or
+                // battery saver. The player sheet being collapsed already removes this from the
+                // composition entirely.
+                isActive = isPlaying && !context.isPowerSaver(),
+            )
         }
 
         if (playerBackground != PlayerBackgroundStyle.FOLLOW_THEME && showLyrics) {

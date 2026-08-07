@@ -164,6 +164,7 @@ fun NowPlayingFrag() {
         onValueSelected = onPlayerBackgroundChange,
         valueText = {
             when (it) {
+                PlayerBackgroundStyle.LIQUID -> stringResource(R.string.player_background_liquid)
                 PlayerBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.player_background_default)
                 PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
                 PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
