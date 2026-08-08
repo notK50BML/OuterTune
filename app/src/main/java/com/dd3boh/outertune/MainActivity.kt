@@ -150,6 +150,7 @@ import com.dd3boh.outertune.ui.screens.Screens
 import com.dd3boh.outertune.ui.screens.SetupWizard
 import com.dd3boh.outertune.ui.screens.StatsScreen
 import com.dd3boh.outertune.ui.screens.YouTubeBrowseScreen
+import com.dd3boh.outertune.ui.screens.RecognitionScreen
 import com.dd3boh.outertune.ui.screens.artist.ArtistAlbumsScreen
 import com.dd3boh.outertune.ui.screens.artist.ArtistItemsScreen
 import com.dd3boh.outertune.ui.screens.artist.ArtistScreen
@@ -704,6 +705,9 @@ class MainActivity : ComponentActivity() {
                                         )
                                     ) {
                                         YouTubeBrowseScreen(navController, scrollBehavior)
+                                    }
+                                    composable("recognition") {
+                                        RecognitionScreen(navController)
                                     }
                                     composable("settings") {
                                         SettingsScreen(navController, scrollBehavior)

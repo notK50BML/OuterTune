@@ -262,6 +262,7 @@ dependencies {
     implementation(project(":betterlyrics"))
     implementation(project(":simpmusic"))
     implementation(project(":kizzy"))
+    implementation(project(":shazamkit"))
 
     // misc
     implementation(libs.aboutlibraries.compose.m3)

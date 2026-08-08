@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Search
@@ -365,6 +366,7 @@ fun SearchBarContainer(
             scrollBehavior = scrollBehavior,
             windowInsets = iconRowInset,
             showLogo = showTopBarLogo,
+            onRecognizeClick = { navController.navigate("recognition") },
             onStatsClick = { navController.navigate("stats") },
             onSettingsClick = { navController.navigate("settings") },
             onAccountClick = { navController.navigate("settings/account_sync") },
@@ -379,6 +381,7 @@ private fun TopIconBar(
     scrollBehavior: TopAppBarScrollBehavior,
     windowInsets: WindowInsets,
     showLogo: Boolean,
+    onRecognizeClick: () -> Unit,
     onStatsClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onAccountClick: () -> Unit,
@@ -449,6 +452,12 @@ private fun TopIconBar(
         }
         Spacer(Modifier.width(4.dp))
 
+        IconButton(onClick = onRecognizeClick) {
+            Icon(
+                imageVector = Icons.Rounded.Mic,
+                contentDescription = stringResource(R.string.recognition)
+            )
+        }
         IconButton(onClick = onStatsClick) {
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.TrendingUp,
