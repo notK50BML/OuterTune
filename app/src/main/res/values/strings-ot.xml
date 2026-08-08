@@ -402,4 +402,20 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="speed_medium">Medium</string>
     <string name="speed_fast">Fast</string>
     <string name="speed_very_fast">Very fast</string>
+    <!-- App icon -->
+    <string name="app_icon">App icon</string>
+    <string name="app_icon_default">Default</string>
+    <string name="app_icon_midnight">Midnight</string>
+    <string name="app_icon_mono_light">Mono light</string>
+    <string name="app_icon_mono_dark">Mono dark</string>
+    <string name="app_icon_crimson">Crimson</string>
+    <string name="app_icon_ocean">Ocean</string>
+    <string name="app_icon_changed">Icon changed. Your launcher may take a moment to catch up.</string>
+    <string name="app_icon_note">Switching the icon briefly replaces the app\'s launcher entry. Home screen shortcuts pointing at the old one may need to be added again, and some launchers only refresh after a restart.</string>
+    <string name="app_icon_custom">Your own image</string>
+    <string name="app_icon_custom_title">Create a shortcut with my own image</string>
+    <string name="app_icon_custom_description">Pick any picture and add it to your home screen</string>
+    <string name="app_icon_custom_name">Name for the shortcut</string>
+    <string name="app_icon_custom_done">Shortcut sent to your launcher.</string>
+    <string name="app_icon_custom_note">Android only lets an app use icons compiled into it, so a picture from your gallery cannot replace the launcher icon itself. A pinned shortcut is the way round it: it opens the app exactly as the normal icon does, but the original stays in your app drawer alongside it.</string>
 </resources>

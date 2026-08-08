@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Alternative launcher icon. Selected at runtime by enabling the matching <activity-alias> in
+  AndroidManifest.xml; see AppIcon.kt.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background_midnight" />
+    <foreground android:drawable="@drawable/launcher_foreground" />
+    <monochrome android:drawable="@drawable/launcher_monochrome" />
+</adaptive-icon>

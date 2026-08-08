@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.AppShortcut
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.ElevatedCard
@@ -37,6 +38,7 @@ import com.dd3boh.outertune.constants.HighResArtworkKey
 import com.dd3boh.outertune.constants.SlimNavBarKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
@@ -109,6 +111,11 @@ fun AppearanceSettings(
                 icon = { Icon(Icons.Rounded.HighQuality, null) },
                 checked = highResArtworkPref,
                 onCheckedChange = onHighResArtworkChange
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.app_icon)) },
+                icon = { Icon(Icons.Rounded.AppShortcut, null) },
+                onClick = { navController.navigate("settings/appearance/icon") }
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

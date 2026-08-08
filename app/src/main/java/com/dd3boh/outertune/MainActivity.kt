@@ -169,6 +169,7 @@ import com.dd3boh.outertune.ui.screens.search.OnlineSearchResult
 import com.dd3boh.outertune.ui.screens.search.SearchBarContainer
 import com.dd3boh.outertune.ui.screens.settings.AboutScreen
 import com.dd3boh.outertune.ui.screens.settings.AccountSyncSettings
+import com.dd3boh.outertune.ui.screens.settings.AppIconSettings
 import com.dd3boh.outertune.ui.screens.settings.AppearanceSettings
 import com.dd3boh.outertune.ui.screens.settings.AttributionScreen
 import com.dd3boh.outertune.ui.screens.settings.BackupAndRestore
@@ -708,6 +709,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("settings/appearance") {
                                         AppearanceSettings(navController, scrollBehavior)
+                                    }
+                                    composable("settings/appearance/icon") {
+                                        AppIconSettings(navController, scrollBehavior)
                                     }
                                     composable("settings/library") {
                                         LibrarySettings(navController, scrollBehavior)

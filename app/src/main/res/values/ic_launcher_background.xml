@@ -1,4 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#FFFFFF</color>
+
+    <!--
+      Backgrounds for the alternative launcher icons. An adaptive icon's background is drawn
+      edge to edge and then masked by the launcher, so these are flat colours rather than
+      anything with detail near the corners.
+    -->
+    <color name="ic_launcher_background_midnight">#14141B</color>
+    <color name="ic_launcher_background_mono_light">#F2F2F7</color>
+    <color name="ic_launcher_background_mono_dark">#1B1B1F</color>
+    <color name="ic_launcher_background_crimson">#ED5564</color>
+    <color name="ic_launcher_background_ocean">#215E7C</color>
 </resources>
