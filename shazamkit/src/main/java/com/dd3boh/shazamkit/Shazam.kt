@@ -6,6 +6,7 @@ import com.dd3boh.shazamkit.models.ShazamResponseJson
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.header
 import io.ktor.client.request.parameter
@@ -78,9 +79,14 @@ object Shazam {
                 )
             }
             expectSuccess = false
-            
-            engine {
-                requestTimeout = 30000
+
+            // requestTimeout is a CIO engine setting and does not exist on OkHttp's engine config,
+            // so configuring the timeout here is what failed to compile. HttpTimeout is the
+            // engine-independent plugin, and is what the other ktor clients in this project use.
+            install(HttpTimeout) {
+                requestTimeoutMillis = 30000
+                connectTimeoutMillis = 10000
+                socketTimeoutMillis = 30000
             }
         }
     }
