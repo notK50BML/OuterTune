@@ -42,10 +42,18 @@ data class PlayerLayout(
         /** Size multiplier as a percentage. */
         val scalePercent: Int = 100,
         val align: Align = Align.START,
-        /** Free placement, as percentages of the player area. Unused in [Mode.STACK]. */
-        val xPercent: Float = 0f,
+        /**
+         * Free placement, as percentages of the player area. Unused in [Mode.STACK].
+         *
+         * From schema 3 these are the block's *centre*, not its top-left corner: sliding a block
+         * across the screen should not depend on how wide it happens to be, and a centred block
+         * should stay centred when it is resized.
+         */
+        val xPercent: Float = 50f,
         val yPercent: Float = 0f,
         val widthPercent: Float = 100f,
+        /** Degrees clockwise. Only meaningful for the blocks the editor offers it on. */
+        val rotationDegrees: Float = 0f,
     )
 
     enum class BlockId(val key: String) {
@@ -67,7 +75,7 @@ data class PlayerLayout(
 
     companion object {
         /** Bumped alongside the editor. A file claiming a newer version is refused, not guessed at. */
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
 
         const val DEFAULT_SPACING_DP = 16
         const val DEFAULT_SIDE_PADDING_DP = 24
@@ -105,9 +113,10 @@ data class PlayerLayout(
                     radiusDp = obj.optInt("radius", 12).coerceIn(0, 400),
                     scalePercent = obj.optInt("scale", 100).coerceIn(50, 200),
                     align = if (obj.optString("align") == "center") Align.CENTER else Align.START,
-                    xPercent = obj.optDouble("x", 0.0).toFloat().coerceIn(0f, 100f),
+                    xPercent = obj.optDouble("x", 50.0).toFloat().coerceIn(0f, 100f),
                     yPercent = obj.optDouble("y", 0.0).toFloat().coerceIn(0f, 100f),
                     widthPercent = obj.optDouble("w", 100.0).toFloat().coerceIn(5f, 100f),
+                    rotationDegrees = obj.optDouble("rot", 0.0).toFloat().coerceIn(-90f, 90f),
                 )
             }
             require(parsed.isNotEmpty()) { "None of the blocks in that file were recognised." }
