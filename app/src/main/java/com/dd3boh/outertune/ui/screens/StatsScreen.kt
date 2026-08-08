@@ -40,6 +40,7 @@ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.ListThumbnailSize
+import com.dd3boh.outertune.constants.StatMetric
 import com.dd3boh.outertune.constants.StatPeriod
 import com.dd3boh.outertune.constants.SwipeToQueueKey
 import com.dd3boh.outertune.constants.TopBarInsets
@@ -82,6 +83,7 @@ fun StatsScreen(
     val extendedLimit by viewModel.extendedLimit.collectAsState()
     val extendedSongs by viewModel.extendedSongs.collectAsState()
     val extendedArtists by viewModel.extendedArtists.collectAsState()
+    val statMetric by viewModel.statMetric.collectAsState()
 
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
@@ -106,6 +108,18 @@ fun StatsScreen(
                 ),
                 currentValue = statPeriod,
                 onValueUpdate = { viewModel.statPeriod.value = it }
+            )
+        }
+
+        item(key = "statMetric") {
+            ChipsRow(
+                chips = listOf(
+                    StatMetric.TIME_LISTENED to stringResource(R.string.stats_by_time),
+                    StatMetric.TIMES_PLAYED to stringResource(R.string.stats_by_count),
+                ),
+                currentValue = statMetric,
+                onValueUpdate = { viewModel.statMetric.value = it },
+                modifier = Modifier.animateItem()
             )
         }
 

@@ -2,6 +2,7 @@ package com.dd3boh.outertune.viewmodels
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dd3boh.outertune.constants.StatMetric
 import com.dd3boh.outertune.constants.StatPeriod
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.utils.reportException
@@ -28,18 +29,29 @@ class StatsViewModel @Inject constructor(
 ) : ViewModel() {
     val statPeriod = MutableStateFlow(StatPeriod.`1_WEEK`)
 
+    /**
+     * Time listened or number of plays. They rank differently and both are reasonable: a long
+     * track you play twice beats a short one you play ten times by time, and loses by count.
+     */
+    val statMetric = MutableStateFlow(StatMetric.TIME_LISTENED)
+
     /** Whether the longer charts below the overview are open. */
     val showExtended = MutableStateFlow(false)
 
     /** How far the longer charts go. */
     val extendedLimit = MutableStateFlow(EXTENDED_LIMITS.first())
 
-    val mostPlayedSongs = statPeriod.flatMapLatest { period ->
-        database.mostPlayedSongs(period.toTimeMillis())
+    private val overviewRequest = combine(statPeriod, statMetric) { period, metric -> period to metric }
+
+    val mostPlayedSongs = overviewRequest.flatMapLatest { (period, metric) ->
+        database.mostPlayedSongs(period.toTimeMillis(), byPlayTime = metric == StatMetric.TIME_LISTENED)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val mostPlayedArtists = statPeriod.flatMapLatest { period ->
-        database.mostPlayedArtists(period.toTimeMillis()).map { artists ->
+    val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric) ->
+        database.mostPlayedArtists(
+            period.toTimeMillis(),
+            byPlayTime = metric == StatMetric.TIME_LISTENED,
+        ).map { artists ->
             artists.filter { it.artist.isYouTubeArtist }
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -56,19 +68,37 @@ class StatsViewModel @Inject constructor(
      * same joins as the overview but with the row cap lifted, and running them on every period
      * change for a section nobody has opened is work for nothing.
      */
-    private val extendedRequest = combine(statPeriod, extendedLimit, showExtended) { period, limit, show ->
-        Triple(period, limit, show)
-    }
+    private data class ExtendedRequest(
+        val period: StatPeriod,
+        val limit: Int,
+        val show: Boolean,
+        val metric: StatMetric,
+    )
 
-    val extendedSongs = extendedRequest.flatMapLatest { (period, limit, show) ->
-        if (!show) flowOf(emptyList()) else database.mostPlayedSongs(period.toTimeMillis(), limit)
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    private val extendedRequest =
+        combine(statPeriod, extendedLimit, showExtended, statMetric, ::ExtendedRequest)
 
-    val extendedArtists = extendedRequest.flatMapLatest { (period, limit, show) ->
-        if (!show) {
+    val extendedSongs = extendedRequest.flatMapLatest { r ->
+        if (!r.show) {
             flowOf(emptyList())
         } else {
-            database.mostPlayedArtists(period.toTimeMillis(), limit).map { artists ->
+            database.mostPlayedSongs(
+                r.period.toTimeMillis(),
+                limit = r.limit,
+                byPlayTime = r.metric == StatMetric.TIME_LISTENED,
+            )
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val extendedArtists = extendedRequest.flatMapLatest { r ->
+        if (!r.show) {
+            flowOf(emptyList())
+        } else {
+            database.mostPlayedArtists(
+                r.period.toTimeMillis(),
+                limit = r.limit,
+                byPlayTime = r.metric == StatMetric.TIME_LISTENED,
+            ).map { artists ->
                 artists.filter { it.artist.isYouTubeArtist }
             }
         }

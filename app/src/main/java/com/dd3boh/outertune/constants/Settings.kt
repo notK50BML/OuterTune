@@ -12,6 +12,9 @@ enum class DarkMode {
     ON, OFF, AUTO
 }
 
+/** What the stats charts rank by. */
+enum class StatMetric { TIME_LISTENED, TIMES_PLAYED }
+
 enum class PlayerBackgroundStyle {
     FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED
 }

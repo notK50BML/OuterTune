@@ -61,16 +61,23 @@ interface SongsDao {
     @Query("""
         SELECT song.*
         FROM song
-                 JOIN (SELECT songId, SUM(playTime) AS totalPlayTime
+                 JOIN (SELECT songId,
+                              SUM(playTime) AS totalPlayTime,
+                              COUNT(*)      AS totalPlays
                        FROM event
                        WHERE timestamp > :fromTimeStamp
                        GROUP BY songId) AS ranked
                       ON ranked.songId = song.id
-        ORDER BY ranked.totalPlayTime DESC
+        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC
         LIMIT :limit
         OFFSET :offset
     """)
-    fun mostPlayedSongs(fromTimeStamp: Long, limit: Int = 6, offset: Int = 0): Flow<List<Song>>
+    fun mostPlayedSongs(
+        fromTimeStamp: Long,
+        limit: Int = 6,
+        offset: Int = 0,
+        byPlayTime: Boolean = true,
+    ): Flow<List<Song>>
 
     @Query("SELECT sum(count) from playCount WHERE song = :songId")
     fun getLifetimePlayCount(songId: String?): Int

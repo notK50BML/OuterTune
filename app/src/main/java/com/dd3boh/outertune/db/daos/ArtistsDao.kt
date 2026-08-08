@@ -50,7 +50,9 @@ interface ArtistsDao {
             COUNT(DISTINCT sam.songId) AS songCount,
             SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
-            JOIN (SELECT sam.artistId AS rankedArtistId, SUM(event.playTime) AS totalPlayTime
+            JOIN (SELECT sam.artistId AS rankedArtistId,
+                         SUM(event.playTime) AS totalPlayTime,
+                         COUNT(*)            AS totalPlays
                   FROM event
                       JOIN song_artist_map sam ON sam.songId = event.songId
                   WHERE event.timestamp > :fromTimeStamp
@@ -59,10 +61,14 @@ interface ArtistsDao {
             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
             LEFT JOIN song ON sam.songId = song.id
         GROUP BY artist.id
-        ORDER BY ranked.totalPlayTime DESC
+        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC
         LIMIT :limit
     """)
-    fun mostPlayedArtists(fromTimeStamp: Long, limit: Int = 6): Flow<List<Artist>>
+    fun mostPlayedArtists(
+        fromTimeStamp: Long,
+        limit: Int = 6,
+        byPlayTime: Boolean = true,
+    ): Flow<List<Artist>>
 
     @RawQuery(observedEntities = [ArtistEntity::class])
     fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>

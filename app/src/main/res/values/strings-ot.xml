@@ -405,6 +405,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="speed_medium">Medium</string>
     <string name="speed_fast">Fast</string>
     <string name="speed_very_fast">Very fast</string>
+    <string name="stats_by_time">Time listened</string>
+    <string name="stats_by_count">Times played</string>
     <string name="stats_extended_title">Extended charts</string>
     <string name="stats_extended_songs">Top songs</string>
     <string name="stats_extended_artists">Top artists</string>
