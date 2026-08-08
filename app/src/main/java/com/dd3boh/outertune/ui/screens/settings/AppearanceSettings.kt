@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AppShortcut
 import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.HighResArtworkKey
+import com.dd3boh.outertune.constants.ShowTopBarLogoKey
 import com.dd3boh.outertune.constants.SlimNavBarKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
@@ -62,6 +64,8 @@ fun AppearanceSettings(
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
     val (slimNav, onSlimNavChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
+    val (showTopBarLogo, onShowTopBarLogoChange) =
+        rememberPreference(ShowTopBarLogoKey, defaultValue = true)
     val (highResArtworkPref, onHighResArtworkChange) =
         rememberPreference(HighResArtworkKey, defaultValue = true)
 
@@ -111,6 +115,13 @@ fun AppearanceSettings(
                 icon = { Icon(Icons.Rounded.HighQuality, null) },
                 checked = highResArtworkPref,
                 onCheckedChange = onHighResArtworkChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.show_top_bar_logo_title)) },
+                description = stringResource(R.string.show_top_bar_logo_description),
+                icon = { Icon(Icons.Rounded.Image, null) },
+                checked = showTopBarLogo,
+                onCheckedChange = onShowTopBarLogoChange
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.app_icon)) },

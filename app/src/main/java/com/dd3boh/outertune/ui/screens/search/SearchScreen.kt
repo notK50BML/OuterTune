@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -30,16 +32,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -54,6 +56,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -75,7 +78,7 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AppBarHeight
 import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
 import com.dd3boh.outertune.constants.EnabledTabsKey
-import com.dd3boh.outertune.constants.LocalLibraryEnableKey
+import com.dd3boh.outertune.constants.ShowTopBarLogoKey
 import com.dd3boh.outertune.constants.PauseSearchHistoryKey
 import com.dd3boh.outertune.constants.SearchSource
 import com.dd3boh.outertune.constants.SearchSourceKey
@@ -115,7 +118,7 @@ fun SearchBarContainer(
     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
-    val localLibEnable by rememberPreference(LocalLibraryEnableKey, defaultValue = true)
+    val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = true)
 
     val navigationItems = remember { Screens.getScreens(enabledTabs) }
     val searchBarFocusRequester = remember { FocusRequester() }
@@ -361,10 +364,8 @@ fun SearchBarContainer(
         TopIconBar(
             scrollBehavior = scrollBehavior,
             windowInsets = iconRowInset,
-            localLibEnable = localLibEnable,
-            onHistoryClick = { navController.navigate("history") },
+            showLogo = showTopBarLogo,
             onStatsClick = { navController.navigate("stats") },
-            onScannerClick = { navController.navigate("settings/local") },
             onSettingsClick = { navController.navigate("settings") },
             onAccountClick = { navController.navigate("settings/account_sync") },
             onSearchClick = { onSearchActiveChange(true) },
@@ -377,10 +378,8 @@ fun SearchBarContainer(
 private fun TopIconBar(
     scrollBehavior: TopAppBarScrollBehavior,
     windowInsets: WindowInsets,
-    localLibEnable: Boolean,
-    onHistoryClick: () -> Unit,
+    showLogo: Boolean,
     onStatsClick: () -> Unit,
-    onScannerClick: () -> Unit,
     onSettingsClick: () -> Unit,
     onAccountClick: () -> Unit,
     onSearchClick: () -> Unit,
@@ -405,37 +404,56 @@ private fun TopIconBar(
             .padding(horizontal = SearchBarHorizontalPadding, vertical = SearchBarVerticalPadding)
             .height(InputFieldHeight)
     ) {
-        Image(
-            painter = painterResource(R.drawable.app_logo),
-            contentDescription = null,
-            modifier = Modifier.size(36.dp)
-        )
-        Spacer(Modifier.weight(1f))
-        IconButton(onClick = onSearchClick) {
-            Icon(
-                imageVector = Icons.Rounded.Search,
-                contentDescription = stringResource(R.string.search)
+        if (showLogo) {
+            Image(
+                painter = painterResource(R.drawable.app_logo),
+                contentDescription = null,
+                modifier = Modifier
+                    .padding(start = 4.dp)
+                    .size(36.dp)
             )
+            Spacer(Modifier.width(8.dp))
         }
-        IconButton(onClick = onHistoryClick) {
-            Icon(
-                imageVector = Icons.Rounded.History,
-                contentDescription = stringResource(R.string.history)
-            )
+
+        // A field rather than a magnifying glass. It does not accept typing here - tapping it
+        // opens the real search bar, which is the same component the rest of the app uses - but
+        // it reads as somewhere to type, which a 24dp icon in a row of five identical icons did
+        // not. With the logo hidden it runs to the left edge and the row becomes the search.
+        Surface(
+            shape = CircleShape,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .clip(CircleShape)
+                .clickable(onClick = onSearchClick)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.padding(horizontal = 14.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Search,
+                    contentDescription = stringResource(R.string.search),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    text = stringResource(R.string.search),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
+        Spacer(Modifier.width(4.dp))
+
         IconButton(onClick = onStatsClick) {
             Icon(
                 imageVector = Icons.AutoMirrored.Rounded.TrendingUp,
                 contentDescription = stringResource(R.string.stats)
             )
-        }
-        if (localLibEnable) {
-            IconButton(onClick = onScannerClick) {
-                Icon(
-                    imageVector = Icons.Rounded.SdCard,
-                    contentDescription = stringResource(R.string.scanner_local_title)
-                )
-            }
         }
         IconButton(onClick = onSettingsClick) {
             Icon(

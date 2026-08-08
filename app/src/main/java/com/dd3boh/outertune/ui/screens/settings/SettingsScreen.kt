@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -128,6 +129,11 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.grp_library_and_content)) },
                 icon = { Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null) },
                 onClick = { navController.navigate("settings/library") }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.history)) },
+                icon = { Icon(Icons.Rounded.History, null) },
+                onClick = { navController.navigate("history") }
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.local_player_settings_title)) },

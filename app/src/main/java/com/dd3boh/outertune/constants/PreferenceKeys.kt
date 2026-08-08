@@ -20,6 +20,9 @@ val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
  * measure otherwise.
  */
 val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
+
+/** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
+val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
 val ShowQueueTitleKey = booleanPreferencesKey("showQueueTitle")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val PureBlackKey = booleanPreferencesKey("pureBlack")
