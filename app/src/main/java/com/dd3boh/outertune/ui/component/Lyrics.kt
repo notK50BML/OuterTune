@@ -11,9 +11,6 @@ package com.dd3boh.outertune.ui.component
 
 import android.annotation.SuppressLint
 import android.content.res.Configuration
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -50,14 +47,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.drawscope.clipRect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
@@ -67,15 +61,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.Velocity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.util.fastAny
 import com.dd3boh.outertune.LocalMenuState
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
@@ -128,7 +118,17 @@ fun Lyrics(
     val lyricsClickable by rememberPreference(LyricClickable, true)
     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
-    var lyricRefreshRate = lyricsUpdateSpeed.toLrcRefreshMillis()
+
+    // Asking the power manager costs a binder call, so it is asked once rather than once per lyric
+    // line per recomposition.
+    val powerSaver = remember { context.isPowerSaver() }
+    val karaokeEnabled = lyricsFancy && !powerSaver
+
+    // How often the *current line* is recomputed, which is what drives highlighting and scrolling.
+    // The word sweep does not go through here: it redraws itself every frame.
+    val lyricRefreshRate = remember(lyricsUpdateSpeed, karaokeEnabled) {
+        if (karaokeEnabled) lyricsUpdateSpeed.toLrcRefreshMillis() else Speed.SLOW.toLrcRefreshMillis()
+    }
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
@@ -150,14 +150,7 @@ fun Lyrics(
         lines.clear()
         lyricsModel?.let { model ->
             if (isSynced) {
-                val lyrics = lyricsModel as SemanticLyrics.SyncedLyrics
-                lines.addAll(lyrics.text)
-
-                if (lyricsFancy && lyrics.text.fastAny { it.words != null }) {
-                    lyricRefreshRate = lyricsUpdateSpeed.toLrcRefreshMillis()
-                } else {
-                    lyricRefreshRate = Speed.SLOW.toLrcRefreshMillis()
-                }
+                lines.addAll((model as SemanticLyrics.SyncedLyrics).text)
             } else {
                 lines.add(
                     LyricLine(
@@ -165,7 +158,6 @@ fun Lyrics(
                         null, null, false
                     )
                 )
-                lyricRefreshRate = Speed.SLOW.toLrcRefreshMillis()
             }
         }
     }
@@ -188,7 +180,13 @@ fun Lyrics(
     var isSeeking by remember {
         mutableStateOf(false)
     }
-    var currentPos by remember { mutableLongStateOf(0L) }
+
+    /**
+     * Playback position for the word sweep. Held apart from [currentLineIndex] because it is only
+     * ever read from a draw lambda, so writing it every frame costs a redraw of the two or three
+     * lines around the playhead and no recomposition at all.
+     */
+    val karaokePosition = remember { mutableLongStateOf(0L) }
 
     LaunchedEffect(lyricsModel) {
         if (lyricsModel == null || !isSynced || (lyricsModel as SemanticLyrics.SyncedLyrics).text.isEmpty()) {
@@ -198,11 +196,50 @@ fun Lyrics(
         while (isActive) {
             // TODO: likely can improve power usage by disabling lyric refresh
             delay(lyricRefreshRate)
-            if (!playerConnection.isPlaying.value) continue
             val sliderPosition = sliderPositionProvider()
             isSeeking = sliderPosition != null
+            // Scrubbing has to move the highlight even while paused, which is why this no longer
+            // skips the whole tick when the player is stopped.
+            if (!playerConnection.isPlaying.value && !isSeeking) continue
             currentLineIndex = findCurrentLineIndex(lines, sliderPosition ?: playerConnection.player.currentPosition)
-            currentPos = sliderPosition ?: playerConnection.player.currentPosition
+        }
+    }
+
+    /**
+     * Advance [karaokePosition] once per frame while the sweep is visible.
+     *
+     * ExoPlayer only moves `currentPosition` every few hundred milliseconds, so between its updates
+     * the wall clock carries the sweep: the last position the player actually reported is latched
+     * together with the time it was reported, and the difference is added on. A seek changes
+     * `currentPosition`, which re-latches on the very next frame, so the estimate never drifts
+     * further than one player tick and lands exactly right after a seek.
+     */
+    LaunchedEffect(lyricsModel, karaokeEnabled, isSynced) {
+        if (!karaokeEnabled || !isSynced || lyricsModel == null) return@LaunchedEffect
+        var latchedPosition = Long.MIN_VALUE
+        var latchedAt = 0L
+        while (isActive) {
+            val scrubbed = sliderPositionProvider()
+            if (scrubbed != null) {
+                karaokePosition.longValue = scrubbed
+                latchedPosition = Long.MIN_VALUE // re-latch against the player once the scrub ends
+            } else {
+                val now = System.currentTimeMillis()
+                val reported = playerConnection.player.currentPosition
+                if (reported != latchedPosition) {
+                    latchedPosition = reported
+                    latchedAt = now
+                }
+                karaokePosition.longValue =
+                    latchedPosition + if (playerConnection.player.isPlaying) now - latchedAt else 0L
+            }
+            // Frame-synced while something is moving, idle polling otherwise, so a paused player
+            // with the lyrics open does not hold the choreographer awake.
+            if (scrubbed != null || playerConnection.player.isPlaying) {
+                withFrameMillis { }
+            } else {
+                delay(IDLE_KARAOKE_REFRESH_MS)
+            }
         }
     }
 
@@ -305,7 +342,6 @@ fun Lyrics(
                     }
                 }
             } else if (lyricsModel != uninitializedLyric) {
-                val maxW = maxWidth - 48.dp
                 itemsIndexed(
                     items = lines
                 ) { index, item ->
@@ -335,70 +371,53 @@ fun Lyrics(
                             .clickable(enabled = isSynced && lyricsClickable) {
                                 playerConnection.player.seekTo(item.start.toLong())
                                 currentLineIndex = index
-                                currentPos = item.start.toLong()
+                                karaokePosition.longValue = item.start.toLong()
                                 lastPreviewTime = 0L
                                 haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                             }
                     ) {
-                        if (currentPos.toULong() in item.start..item.end + 100.toULong() && lyricsFancy
-                            && item.words != null && !context.isPowerSaver()
-                        ) { // word by word
-                            // now do eye bleach to make lyric line babies
-                            val style = LocalTextStyle.current.copy(
-                                fontSize = lyricsFontSize.sp,
-                                color = textColor,
-                                fontWeight = FontWeight.Bold
+                        val textAlign = when (lyricsTextPosition) {
+                            LyricsPosition.LEFT -> TextAlign.Left
+                            LyricsPosition.CENTER -> TextAlign.Center
+                            LyricsPosition.RIGHT -> TextAlign.Right
+                        }
+                        val isHighlighted =
+                            index == displayedCurrentLineIndex ||
+                                (index == displayedCurrentLineIndex + 1 && item.isTranslated)
+                        // Which lines are behind the playhead is decided by index rather than by
+                        // comparing the playback position, so the position does not have to be read
+                        // during composition and the whole list does not recompose as it advances.
+                        val isConsumed = displayedCurrentLineIndex >= 0 && index < displayedCurrentLineIndex
+
+                        val words = item.words
+                        // The line being sung and the one after it, and nothing else. Taking the
+                        // next line too means a line is already being drawn this way before it
+                        // starts, so there is no swap at the moment it does - and an unswept line
+                        // is drawn exactly as the plain path draws an upcoming one, so the two are
+                        // indistinguishable. Every other line is cheaper as a plain Text.
+                        val karaoke = karaokeEnabled && isSynced && !words.isNullOrEmpty() &&
+                            displayedCurrentLineIndex >= 0 &&
+                            (index == displayedCurrentLineIndex || index == displayedCurrentLineIndex + 1)
+
+                        if (karaoke) {
+                            KaraokeLyricLine(
+                                text = item.text,
+                                words = words.orEmpty(),
+                                style = LocalTextStyle.current.copy(
+                                    fontSize = lyricFontSizeAdjusted.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = textAlign,
+                                ),
+                                sungColor = textColor,
+                                unsungColor = textColor.copy(alpha = UNSUNG_ALPHA),
+                                positionProvider = { karaokePosition.longValue },
                             )
-                            val rawSplitLines = splitTextToLines(item.text, style, maxW)
-                            val lyricLines = ArrayList<LyricLine>()
-                            if (rawSplitLines.size > 1) {
-                                var from = 0
-                                for (i in rawSplitLines) {
-                                    val to = from + i.split(' ').size
-                                    val words = item.words.subList(from, to.coerceIn(from, item.words.size))
-                                    lyricLines.add(
-                                        item.copy(
-                                            text = i,
-                                            start = words.first().timeRange.start,
-                                            end = words.last().timeRange.endInclusive,
-                                            words = words
-                                        )
-                                    )
-                                    from = to
-                                }
-                            } else {
-                                lyricLines.add(item)
-                            }
-
-
-                            lyricLines.forEach {
-                                HorizontalReveal(
-                                    progress = calculateLineProgress(it, currentPos),
-                                    modifier = Modifier
-                                ) {
-                                    Text(
-                                        text = it.text,
-                                        fontSize = lyricFontSizeAdjusted.sp,
-                                        color = textColor,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                }
-                            }
-
-
-                        } else { // regular
-                            val isConsumed = currentPos.toULong() > (item.end + 100.toULong())
-                            val isHighlighted =
-                                ((index == displayedCurrentLineIndex || (index == displayedCurrentLineIndex + 1 && item.isTranslated)))
+                        } else {
                             Text(
                                 text = item.text,
                                 fontSize = lyricFontSizeAdjusted.sp,
                                 color = if (isConsumed && !isHighlighted) prevTextColor else textColor,
-                                textAlign = when (lyricsTextPosition) {
-                                    LyricsPosition.LEFT -> TextAlign.Left
-                                    LyricsPosition.CENTER -> TextAlign.Center
-                                    LyricsPosition.RIGHT -> TextAlign.Right
-                                },
+                                textAlign = textAlign,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.alpha(
                                     if (!isSynced || isHighlighted) {
@@ -484,80 +503,6 @@ fun Lyrics(
     }
 }
 
-@Composable
-fun HorizontalReveal(
-    progress: Float,
-    modifier: Modifier = Modifier,
-    backgroundAlpha: Float = 0.5f,
-    rtl: Boolean = false,
-    content: @Composable () -> Unit
-) {
-    val animatedProgress by animateFloatAsState(
-        targetValue = progress.coerceIn(0f, 1f),
-        animationSpec = tween(durationMillis = 100, easing = LinearEasing)
-    )
-
-    Box(modifier = modifier.padding(start = 1.dp)) {
-        Box(modifier = Modifier.alpha(backgroundAlpha)) {
-            content()
-        }
-
-        Box(
-            modifier = Modifier
-                .graphicsLayer {
-                    clip = true
-                    shape = RectangleShape
-                }
-                .drawWithContent {
-                    val clipWidth = size.width * animatedProgress
-                    val left = if (!rtl) 0f else size.width - clipWidth
-                    val right = if (!rtl) clipWidth else size.width
-                    clipRect(left, 0f, right, size.height) {
-                        this@drawWithContent.drawContent()
-                    }
-                }
-        ) {
-            content()
-        }
-    }
-}
-
-@Composable
-fun splitTextToLines(
-    text: String,
-    style: TextStyle,
-    maxWidth: Dp
-): List<String> {
-    val textMeasurer = rememberTextMeasurer()
-    val density = LocalDensity.current
-
-    val words = text.split(" ")
-    val lines = mutableListOf<String>()
-    var currentLine = ""
-
-    for (word in words) {
-        val tentativeLine = if (currentLine.isEmpty()) word else "$currentLine $word"
-        val tentativeWidth = with(density) {
-            textMeasurer.measure(
-                tentativeLine, style,
-            ).size.width.toDp()
-        }
-
-        if (tentativeWidth < maxWidth) {
-            currentLine = tentativeLine
-        } else {
-            lines.add(currentLine)
-            currentLine = word
-        }
-    }
-
-    if (currentLine.isNotEmpty()) {
-        lines.add(currentLine)
-    }
-
-    return lines
-}
-
 /**
  * Get current position in lyric line list
  */
@@ -570,55 +515,14 @@ fun findCurrentLineIndex(lines: List<LyricLine>, position: Long): Int {
     return if (lines[lines.lastIndex].isTranslated) lines.lastIndex - 1 else lines.lastIndex
 }
 
-/**
- * Get current position in lyric line. Used for word by word lyrics
- */
-fun calculateLineProgress(line: LyricLine, currentPositionMs: Long): Float {
-    val words = line.words
-    val startMs = line.start.toLong()
-    val endMs = line.end.toLong()
-
-    // by line if no words are available
-    if (words.isNullOrEmpty()) {
-        return when {
-            currentPositionMs < startMs -> 0f
-            currentPositionMs > endMs -> 1f // add buffer so lyric line animation completes
-            else -> (currentPositionMs - startMs).toFloat() / (endMs - startMs).toFloat()
-        }
-    }
-
-    // progress based on words
-    val currentMs = currentPositionMs.toULong()
-    var completedWords = 0
-    var partialProgress = 0f
-
-    return when {
-        currentPositionMs < startMs -> 0f
-        currentPositionMs > endMs -> 1f // add buffer so lyric line animation completes
-        else -> {
-            for (i in words.indices) {
-                val word = words[i]
-                val start = word.timeRange.first
-                val end = word.timeRange.last
-
-                if (currentMs < start) {
-                    break // we're before this word
-                } else if (currentMs in word.timeRange) {
-                    val wordDuration = (end - start).coerceAtLeast(1u).toFloat()
-                    partialProgress = (currentMs - start).toFloat() / wordDuration
-                    completedWords = i
-                    break
-                } else {
-                    completedWords++
-                }
-            }
-
-            val totalWords = words.size.toFloat()
-            var progress = (completedWords + partialProgress) / totalWords
-            progress.coerceIn(0f, 1f)
-        }
-    }
-}
-
 const val animateScrollDuration = 300L
 val LyricsPreviewTime = 7.seconds
+
+/** How dim the not-yet-sung part of a karaoke line is, relative to the sung part. */
+private const val UNSUNG_ALPHA = 0.5f
+
+/**
+ * How often the karaoke position is refreshed when nothing is moving. Only exists so that a seek
+ * made while paused still lands on screen; the sweep is frame-synced whenever it is actually moving.
+ */
+private const val IDLE_KARAOKE_REFRESH_MS = 250L
