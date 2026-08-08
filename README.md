@@ -12,6 +12,8 @@ A Material 3 YouTube Music client & local music player for Android
 
 Currently, we are working on movable UI elements and a visualiser. These are both very WIP projects and we will continue to update the app but these features may not be released soon.
 
+I NEED A CAT! 
+
 > [!NOTE]
 > This is a fork based on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune).
 >
@@ -23,17 +25,26 @@ Currently, we are working on movable UI elements and a visualiser. These are bot
 
 ## What This Fork Improves
 
-This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune) with a focus on YouTube Music playback stability, lyrics, navigation, and local music playback.
+This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune) with a focus on YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
 
+### Discord Rich Presence
+- Added rich presence (huge thanks to https://github.com/reocat/OuterTune)
+- Added clickable song and artist
+- Added Song cover and artist icon
+- Added a working progress bar
+- Added token login along with normal login
+- Added connection tester to diagnose any connection issues
 ### YouTube Music playback and display
 
 - Fixed albums with missing tracks, crashes while opening playlists, and failed search result parsing
 - Fixed the "Source error 2004" issue that could block YouTube Music playback
-- Improved YouTube Music thumbnail resolution
+- Improved YouTube Music thumbnail resolution and allows for switching between low res and standard thumbnails (on some songs)
 - Fixed a crash that could occur when opening playlists or albums while their data was being updated
 - Fixed m3u playlist import crashes and improved YouTube song matching
 - Fixed incorrect Liked Music song sequence
 - Fixed blurry cover art on some songs
+- Cleaned up the top bar and removed a redundant icon
+- Added frosted glass player style
 
 ### Lyrics
 
@@ -47,7 +58,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 
 - Adjusted bottom navigation so tab switching and re-tapping the active tab behave more naturally
 - Fixed issues with the search bar, sorting, and list refreshes on the Folders screen
-- Replaced the persistent search bar on tab screens with a top icon row (search, history, stats, settings, and more)
+- Replaced the persistent search bar on tab screens with a top icon row (search, stats, and settings)
 - Added swipe-to-skip to the mini player
 
 ### Local music playback
@@ -65,12 +76,13 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Added a home screen grid showing your recent YouTube Music activity when signed in
 - Added the current queue's name to the player's queue handle
 - Replaced the account icon with the signed-in account's profile image
-- Reorganized the settings screens, merging Appearance and Interface into "Appearance and controls" and adding a top-level Privacy screen
+- Reorganised the settings screens, merging Appearance and Interface into "Appearance and controls" and adding a top-level Privacy screen
 
 ### Playback and downloads
 
 - Added a sleep timer that fades out and fully stops playback
 - Added a Wi-Fi-only download toggle
+- Improved time to fetch uncached songs
 
 ### Internal libraries and build tooling
 
@@ -133,6 +145,8 @@ Thanks to all our contributors! Check them out [here](https://github.com/OuterTu
 
 [Outertune](github.com/OuterTune/OuterTune) and (https://github.com/yuuichi-s/OuterTune) for almost all the main code, this is just a casual project to fix some small errors, but almost ALL credit goes to them.
 
+Note: this builds on a few other Outertune forks, so a lot of credit goes to https://github.com/reocat/OuterTune and of course https://github.com/yuuichi-s/OuterTune
+
 [z-huang/InnerTune](https://github.com/z-huang/InnerTune) for providing an awesome base for this fork, none of this
 would have been possible without it.
 
@@ -150,5 +164,3 @@ way associated with YouTube, Google LLC or any of its affiliates and subsidiarie
 
 Any trademark, service mark, trade name, or other intellectual property rights used in this project
 are owned by the respective owners.
-
-I really NEED a cat.
