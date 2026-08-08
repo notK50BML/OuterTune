@@ -4,6 +4,7 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.db.entities.Song
 import com.my.kizzy.rpc.KizzyRPC
 import com.my.kizzy.rpc.RpcImage
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -30,6 +31,11 @@ class DiscordRPC(
             if (thisUpdate != latestUpdate) return@runCatching
             sendPresence(song, currentPlaybackTimeMillis)
         }
+    }.onFailure {
+        // runCatching swallows CancellationException, which would quietly break the caller's
+        // structured concurrency: a superseded update would look like it completed normally
+        // instead of unwinding. Let cancellation through; keep swallowing real failures.
+        if (it is CancellationException) throw it
     }
 
     private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {

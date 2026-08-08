@@ -145,6 +145,8 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -158,6 +160,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import java.io.File
 import java.net.ConnectException
@@ -222,6 +225,24 @@ class MusicService : MediaLibraryService(),
     lateinit var syncUtils: SyncUtils
 
     private var discordRpc: DiscordRPC? = null
+
+    /**
+     * Presence updates are *requested*, never pushed directly.
+     *
+     * Two independent writers used to publish presences: a collector on [currentSong] and the
+     * play/pause hook in [onEvents]. On a track change both fire, and whichever finished its
+     * network round trip last decided what Discord showed - so roughly one skip in three left the
+     * card describing the outgoing song. Everything now funnels through this one request, which a
+     * single collector serves, so there is no ordering to lose.
+     */
+    private val discordUpdateRequests = MutableSharedFlow<Unit>(
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+
+    private fun requestDiscordUpdate() {
+        discordUpdateRequests.tryEmit(Unit)
+    }
 
     lateinit var connectivityObserver: NetworkConnectivityObserver
     val waitingForNetworkConnection = MutableStateFlow(false)
@@ -322,24 +343,42 @@ class MusicService : MediaLibraryService(),
             updateNotification()
         }
 
-        // Discord presence follows the current song. Debounced so skipping through a queue
-        // doesn't fire a gateway write per track.
-        // collectLatest, not collect: setActivity resolves both artwork URLs through Discord's
-        // external-assets API before it sends anything, which can take seconds. With plain
-        // collect, a skip during that window queued a second update behind the first, and the
-        // one that eventually landed carried timestamps computed before the skip - an elapsed
-        // time from the previous track against the new track's duration. collectLatest cancels
-        // the superseded update instead.
-        currentSong.debounce(1000).collectLatest(scope) { song ->
-            if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
-                discordRpc?.updateSong(song, discordPositionFor(song.id))
+        // The one and only writer of Discord presence.
+        //
+        // It reads what to publish from the player at the moment it publishes, rather than being
+        // handed a song by whoever triggered it. That matters because currentSong lags the player:
+        // it is database.song(id), so on a skip it still holds the *previous* track for as long as
+        // the new row takes to read. The old code trusted that value and published the outgoing
+        // song against the incoming one's timestamps.
+        //
+        // Nothing is silently dropped here either. The previous version required
+        // playbackState == STATE_READY, but a track change usually spends its first moment
+        // BUFFERING, so the update was discarded with nothing left to retry it - which is exactly
+        // the state where the presence froze until you rewound.
+        discordUpdateRequests.debounce(700).collectLatest(scope) {
+            val rpc = discordRpc ?: return@collectLatest
+            if (!player.playWhenReady) {
+                // playWhenReady, not isPlaying: isPlaying also goes false while a track buffers,
+                // and clearing the activity on every skip made the card flicker out and back.
+                rpc.stopActivity()
+                return@collectLatest
             }
-            // Deliberately no else. currentSong is database.song(id), so skipping to a track whose
-            // row has not been written yet emits a transient null - and tearing down the gateway
-            // on that meant every skip closed the socket and had to reconnect, leaving the
-            // presence stale until it came back. Pausing and stopping are handled in onEvents,
-            // which is the right place for them.
+            val mediaId = player.currentMediaItem?.mediaId ?: return@collectLatest
+            // Wait for the row instead of giving up on it. A freshly queued track may not be in
+            // the database yet; that used to mean no presence at all for that song.
+            val song = withTimeoutOrNull(DISCORD_SONG_ROW_TIMEOUT_MS) {
+                database.song(mediaId).first { it != null }
+            } ?: return@collectLatest
+            // The wait above can outlast the track it was for.
+            if (player.currentMediaItem?.mediaId != mediaId) return@collectLatest
+            rpc.updateSong(song, player.currentPosition)
         }
+
+        // Track changes that the player does not announce as an event still move the metadata.
+        currentMediaMetadata
+            .map { it?.id }
+            .distinctUntilChanged()
+            .collect(scope) { requestDiscordUpdate() }
 
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(
@@ -387,9 +426,10 @@ class MusicService : MediaLibraryService(),
                     discordRpc = null
                     if (!token.isNullOrEmpty() && enabled) {
                         discordRpc = DiscordRPC(this@MusicService, token)
-                        if (player.playbackState == Player.STATE_READY && player.playWhenReady) {
-                            currentSong.value?.let { discordRpc?.updateSong(it, discordPositionFor(it.id)) }
-                        }
+                        // Let the single writer decide what to publish, so turning the switch back
+                        // on behaves exactly like a track change rather than being its own path
+                        // with its own guards.
+                        requestDiscordUpdate()
                     }
                 }
 
@@ -1133,18 +1173,6 @@ class MusicService : MediaLibraryService(),
     }
 
 
-    /**
-     * Playback position to report to Discord for [songId].
-     *
-     * player.currentPosition can still refer to the outgoing item while a transition is settling,
-     * so publishing it blindly produced a presence whose elapsed time came from the *previous*
-     * track - an already-elapsed 2:22 against the new track's much shorter length, which Discord
-     * draws as a broken bar. Rewinding to the start fixed it only because that happens to reset
-     * the position to zero. Trust the position only when the player agrees on which song it is.
-     */
-    private fun discordPositionFor(songId: String): Long =
-        if (player.currentMediaItem?.mediaId == songId) player.currentPosition else 0L
-
     override fun onEvents(player: Player, events: Player.Events) {
         if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
             val isBufferingOrReady =
@@ -1162,19 +1190,19 @@ class MusicService : MediaLibraryService(),
             currentMediaMetadata.value = player.currentMetadata
         }
 
-        // Discord presence has to follow play/pause as well as track changes. currentSong only
-        // emits when the song itself changes, so without this, pressing play on an already
-        // loaded track - or signing in while something was already playing - never pushed a
-        // presence at all. Resuming also re-anchors the progress bar to the real position.
-        if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED)) {
-            if (player.isPlaying) {
-                currentSong.value?.let { song ->
-                    scope.launch { discordRpc?.updateSong(song, discordPositionFor(song.id)) }
-                }
-            } else if (!events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_MEDIA_ITEM_TRANSITION)) {
-                // A pause that is not just the gap between tracks: clear the activity.
-                scope.launch { discordRpc?.stopActivity() }
-            }
+        // Anything that can change what should be on the card asks for an update; the collector in
+        // onCreate decides what that update contains. Asking too often is free - requests
+        // collapse - whereas missing one leaves a stale presence with nothing to correct it, which
+        // is the failure this replaced.
+        if (events.containsAny(
+                Player.EVENT_IS_PLAYING_CHANGED,
+                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                Player.EVENT_PLAYBACK_STATE_CHANGED,
+                EVENT_MEDIA_ITEM_TRANSITION,
+                EVENT_POSITION_DISCONTINUITY,
+            )
+        ) {
+            requestDiscordUpdate()
         }
     }
 
@@ -1312,6 +1340,9 @@ class MusicService : MediaLibraryService(),
     }
 
     companion object {
+        /** How long to wait for a just-queued track's database row before giving up on it. */
+        private const val DISCORD_SONG_ROW_TIMEOUT_MS = 5_000L
+
         const val ROOT = "root"
         const val SONG = "song"
         const val ARTIST = "artist"
