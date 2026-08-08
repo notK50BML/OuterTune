@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AppShortcut
+import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -122,6 +123,12 @@ fun AppearanceSettings(
                 icon = { Icon(Icons.Rounded.Image, null) },
                 checked = showTopBarLogo,
                 onCheckedChange = onShowTopBarLogoChange
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.player_layout)) },
+                description = stringResource(R.string.player_layout_summary),
+                icon = { Icon(Icons.Rounded.Dashboard, null) },
+                onClick = { navController.navigate("settings/appearance/layout") }
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.app_icon)) },

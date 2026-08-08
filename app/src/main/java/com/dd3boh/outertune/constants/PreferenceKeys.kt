@@ -23,6 +23,14 @@ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
 
 /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
 val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
+
+/**
+ * The imported player layout, stored as the raw JSON the editor produced.
+ *
+ * Kept as text rather than exploded into a preference per field so that a layout from a newer
+ * editor survives a downgrade untouched, and so the user can see exactly what they imported.
+ */
+val PlayerLayoutKey = stringPreferencesKey("playerLayout")
 val ShowQueueTitleKey = booleanPreferencesKey("showQueueTitle")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val PureBlackKey = booleanPreferencesKey("pureBlack")

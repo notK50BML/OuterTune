@@ -410,6 +410,16 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="stats_extended_artists">Top artists</string>
     <string name="show_top_bar_logo_title">Show logo in the top bar</string>
     <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
+    <!-- Player layout -->
+    <string name="player_layout">Player layout</string>
+    <string name="player_layout_summary">Import a layout made in the layout editor</string>
+    <string name="player_layout_import">Import a layout file</string>
+    <string name="player_layout_import_description">Using the built-in layout</string>
+    <string name="player_layout_imported">Layout imported.</string>
+    <string name="player_layout_reset">Back to the built-in layout</string>
+    <string name="player_layout_reset_done">Back to the built-in layout.</string>
+    <string name="player_layout_unreadable">That file could not be read.</string>
+    <string name="player_layout_note">Layouts are made in the standalone editor and apply to the portrait player. Landscape and tablet keep the built-in layout, since they are laid out differently and one set of positions cannot serve all three.</string>
     <!-- App icon -->
     <string name="app_icon">App icon</string>
     <string name="app_icon_default">Default</string>

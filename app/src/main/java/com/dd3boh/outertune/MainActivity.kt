@@ -180,6 +180,7 @@ import com.dd3boh.outertune.ui.screens.settings.LibrariesScreen
 import com.dd3boh.outertune.ui.screens.settings.LibrarySettings
 import com.dd3boh.outertune.ui.screens.settings.LocalPlayerSettings
 import com.dd3boh.outertune.ui.screens.settings.LyricsSettings
+import com.dd3boh.outertune.ui.screens.settings.PlayerLayoutSettings
 import com.dd3boh.outertune.ui.screens.settings.PlayerSettings
 import com.dd3boh.outertune.ui.screens.settings.PrivacySettings
 import com.dd3boh.outertune.ui.screens.settings.SettingsScreen
@@ -712,6 +713,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("settings/appearance/icon") {
                                         AppIconSettings(navController, scrollBehavior)
+                                    }
+                                    composable("settings/appearance/layout") {
+                                        PlayerLayoutSettings(navController, scrollBehavior)
                                     }
                                     composable("settings/library") {
                                         LibrarySettings(navController, scrollBehavior)

@@ -121,6 +121,7 @@ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
+import com.dd3boh.outertune.constants.PlayerLayoutKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.PLAYER_DEBUG
@@ -136,6 +137,7 @@ import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.constants.ShowLyricsOnClickKey
 import com.dd3boh.outertune.constants.SleepTimerShowOnPlayerKey
 import com.dd3boh.outertune.constants.SwipeToSkipKey
+import com.dd3boh.outertune.models.PlayerLayout
 import com.dd3boh.outertune.extensions.isPowerSaver
 import com.dd3boh.outertune.extensions.metadata
 import com.dd3boh.outertune.extensions.supportsWideScreen
@@ -750,6 +752,15 @@ fun ControlsContent(
 
     val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
 
+    // Parsed once per change rather than per frame. A file that no longer parses - edited by
+    // hand, or written by a newer editor after a downgrade - falls back to the built-in layout
+    // instead of leaving the player empty.
+    val layoutJson by rememberPreference(PlayerLayoutKey, "")
+    val playerLayout = remember(layoutJson) {
+        if (layoutJson.isBlank()) PlayerLayout.DEFAULT
+        else PlayerLayout.parse(layoutJson).getOrDefault(PlayerLayout.DEFAULT)
+    }
+
     // Only the artwork-derived backgrounds have anything to measure. Asking for a luminance on
     // the others would load a bitmap on every track change and then ignore the answer.
     val coverIsLight = rememberCoverIsLight(
@@ -815,278 +826,298 @@ fun ControlsContent(
                 }
             }
 
-            Row(
-                horizontalArrangement = Arrangement.Start,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = PlayerHorizontalPadding)
-            ) {
-                Row {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = mediaMetadata?.title ?: "",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = onBackgroundColor,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier
-                                .basicMarquee(
-                                    iterations = 1,
-                                    initialDelayMillis = 3000
-                                )
-                                .clickable(enabled = mediaMetadata?.album != null) {
-                                    navController.navigate("album/${mediaMetadata?.album!!.id}")
-                                    playerSheetState.collapseSoft()
-                                }
-                        )
+            // Each group is captured rather than emitted in place, so the imported layout can
+            // decide the order and which of them appear at all. Nothing about how they are built
+            // changed - only when they are called.
+            val infoBlock: @Composable () -> Unit = {
+                Row(
+                    horizontalArrangement = Arrangement.Start,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = PlayerHorizontalPadding)
+                ) {
+                    Row {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = mediaMetadata?.title ?: "",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = onBackgroundColor,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier
+                                    .basicMarquee(
+                                        iterations = 1,
+                                        initialDelayMillis = 3000
+                                    )
+                                    .clickable(enabled = mediaMetadata?.album != null) {
+                                        navController.navigate("album/${mediaMetadata?.album!!.id}")
+                                        playerSheetState.collapseSoft()
+                                    }
+                            )
 
-                        Row {
-                            mediaMetadata?.artists?.fastForEachIndexed { index, artist ->
-                                Text(
-                                    text = artist.name,
+                            Row {
+                                mediaMetadata?.artists?.fastForEachIndexed { index, artist ->
+                                    Text(
+                                        text = artist.name,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        color = onBackgroundColor,
+                                        maxLines = 1,
+                                        modifier = Modifier
+                                            .basicMarquee(
+                                                iterations = 1,
+                                                initialDelayMillis = 5000
+                                            )
+                                            .clickable(enabled = artist.id != null) {
+                                                navController.navigate("artist/${artist.id}")
+                                                playerSheetState.collapseSoft()
+                                            }
+                                    )
+
+                                    if (index != mediaMetadata?.artists?.lastIndex) {
+                                        Text(
+                                            text = ", ",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = onBackgroundColor
+                                        )
+                                    }
+                                } ?: Text(
+                                    text = "",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = onBackgroundColor,
                                     maxLines = 1,
-                                    modifier = Modifier
-                                        .basicMarquee(
-                                            iterations = 1,
-                                            initialDelayMillis = 5000
-                                        )
-                                        .clickable(enabled = artist.id != null) {
-                                            navController.navigate("artist/${artist.id}")
-                                            playerSheetState.collapseSoft()
-                                        }
                                 )
+                            }
+                        }
 
-                                if (index != mediaMetadata?.artists?.lastIndex) {
-                                    Text(
-                                        text = ", ",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        color = onBackgroundColor
-                                    )
+                        // action buttons for portrait (inline with title)
+                        if (!compactWidth) {
+                            ActionButtons(playerSheetState, navController)
+                        }
+                    }
+                }
+
+            }
+            val progressBlock: @Composable () -> Unit = {
+                Slider(
+                    value = (sliderPosition ?: position).toFloat(),
+                    valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+                    onValueChange = {
+                        sliderPosition = it.toLong()
+                        // slider too granular for this haptic to feel right
+    //                    haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                    },
+                    onValueChangeFinished = {
+                        sliderPosition?.let {
+                            playerConnection.player.seekTo(it)
+                            position = it
+                        }
+                        sliderPosition = null
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                    },
+                    thumb = { Spacer(modifier = Modifier.size(0.dp)) },
+                    track = { sliderState ->
+                        PlayerSliderTrack(
+                            sliderState = sliderState,
+                            colors = SliderDefaults.colors(),
+                            style = sliderStyle,
+                            animate = isPlaying && sliderPosition == null
+                        )
+                    },
+                    modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = PlayerHorizontalPadding + 4.dp)
+                ) {
+                    Text(
+                        text = makeTimeString(sliderPosition ?: position),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = onBackgroundColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+
+                    Text(
+                        text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = onBackgroundColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+            }
+            val controlsBlock: @Composable () -> Unit = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = PlayerHorizontalPadding)
+                ) {
+                    val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        ResizableIconButton(
+                            icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .padding(4.dp)
+                                .align(Alignment.Center),
+                            color = onBackgroundColor,
+                            enabled = playerConnection.player.currentMediaItem != null,
+                            onClick = {
+                                playerConnection.triggerShuffle()
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                            }
+                        )
+                    }
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        ResizableIconButton(
+                            icon = Icons.Rounded.SkipPrevious,
+                            enabled = canSkipPrevious,
+                            modifier = Modifier
+                                .size(32.dp)
+                                .align(Alignment.Center),
+                            color = onBackgroundColor,
+                            onClick = {
+                                if (playerConnection.player.currentMediaItem == null) {
+                                    queueBoard.setCurrQueue()
                                 }
-                            } ?: Text(
-                                text = "",
-                                style = MaterialTheme.typography.titleMedium,
+                                playerConnection.player.seekToPrevious()
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                            }
+                        )
+                    }
+
+                    if (seekIncrement != SeekIncrement.OFF) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            ResizableIconButton(
+                                icon = Icons.Rounded.FastRewind,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .align(Alignment.Center),
                                 color = onBackgroundColor,
-                                maxLines = 1,
+                                enabled = playerConnection.player.currentMediaItem != null,
+                                onClick = {
+                                    playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
+                                }
                             )
                         }
                     }
 
-                    // action buttons for portrait (inline with title)
-                    if (!compactWidth) {
-                        ActionButtons(playerSheetState, navController)
-                    }
-                }
-            }
+                    Spacer(Modifier.width(8.dp))
 
-            Slider(
-                value = (sliderPosition ?: position).toFloat(),
-                valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
-                onValueChange = {
-                    sliderPosition = it.toLong()
-                    // slider too granular for this haptic to feel right
-//                    haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                },
-                onValueChangeFinished = {
-                    sliderPosition?.let {
-                        playerConnection.player.seekTo(it)
-                        position = it
-                    }
-                    sliderPosition = null
-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                },
-                thumb = { Spacer(modifier = Modifier.size(0.dp)) },
-                track = { sliderState ->
-                    PlayerSliderTrack(
-                        sliderState = sliderState,
-                        colors = SliderDefaults.colors(),
-                        style = sliderStyle,
-                        animate = isPlaying && sliderPosition == null
-                    )
-                },
-                modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
-            )
-
-            Row(
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = PlayerHorizontalPadding + 4.dp)
-            ) {
-                Text(
-                    text = makeTimeString(sliderPosition ?: position),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = onBackgroundColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-
-                Text(
-                    text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = onBackgroundColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            Spacer(Modifier.height(12.dp))
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = PlayerHorizontalPadding)
-            ) {
-                val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
-
-                Box(modifier = Modifier.weight(1f)) {
-                    ResizableIconButton(
-                        icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+                    Box(
                         modifier = Modifier
-                            .size(32.dp)
-                            .padding(4.dp)
-                            .align(Alignment.Center),
-                        color = onBackgroundColor,
-                        enabled = playerConnection.player.currentMediaItem != null,
-                        onClick = {
-                            playerConnection.triggerShuffle()
-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                        }
-                    )
-                }
-
-                Box(modifier = Modifier.weight(1f)) {
-                    ResizableIconButton(
-                        icon = Icons.Rounded.SkipPrevious,
-                        enabled = canSkipPrevious,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .align(Alignment.Center),
-                        color = onBackgroundColor,
-                        onClick = {
-                            if (playerConnection.player.currentMediaItem == null) {
-                                queueBoard.setCurrQueue()
+                            // Same size whether or not lyrics are showing: the controls should not
+                            // change shape just because the artwork was swapped for lyrics.
+                            .size(if (maxW >= 320.dp) 72.dp else 42.dp)
+                            .animateContentSize()
+                            .clip(RoundedCornerShape(playPauseRoundness))
+                            .background(MaterialTheme.colorScheme.primary)
+                            .clickable {
+                                if (playerConnection.player.currentMediaItem == null) {
+                                    queueBoard.setCurrQueue()
+                                    playerConnection.player.togglePlayPause()
+                                } else if (playbackState == STATE_ENDED) {
+                                    playerConnection.player.seekTo(0, 0)
+                                    playerConnection.player.playWhenReady = true
+                                } else {
+                                    playerConnection.player.togglePlayPause()
+                                }
+                                // play/pause is slightly harder haptic
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                             }
-                            playerConnection.player.seekToPrevious()
-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                        }
-                    )
-                }
+                    ) {
+                        Image(
+                            imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                            contentDescription = null,
+                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                            modifier = Modifier
+                                .align(Alignment.Center)
+                                .size(36.dp)
+                        )
+                    }
 
-                if (seekIncrement != SeekIncrement.OFF) {
+                    Spacer(Modifier.width(8.dp))
+
+                    if (seekIncrement != SeekIncrement.OFF) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            ResizableIconButton(
+                                icon = Icons.Rounded.FastForward,
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .align(Alignment.Center),
+                                color = onBackgroundColor,
+                                enabled = playerConnection.player.currentMediaItem != null,
+                                onClick = {
+                                    //ExoPlayer seek increment can only be set in builder
+                                    //playerConnection.player.seekForward()
+                                    playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
+                                }
+                            )
+                        }
+                    }
+
+
+
                     Box(modifier = Modifier.weight(1f)) {
                         ResizableIconButton(
-                            icon = Icons.Rounded.FastRewind,
+                            icon = Icons.Rounded.SkipNext,
+                            enabled = canSkipNext,
                             modifier = Modifier
                                 .size(32.dp)
                                 .align(Alignment.Center),
                             color = onBackgroundColor,
+                            onClick = {
+                                playerConnection.player.seekToNext()
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                            }
+                        )
+                    }
+
+                    Box(modifier = Modifier.weight(1f)) {
+                        ResizableIconButton(
+                            icon = when (repeatMode) {
+                                REPEAT_MODE_OFF -> R.drawable.repeat_off
+                                REPEAT_MODE_ALL -> R.drawable.repeat_on
+                                REPEAT_MODE_ONE -> R.drawable.repeat_one
+                                else -> throw IllegalStateException()
+                            },
+                            modifier = Modifier
+                                .size(32.dp)
+                                .padding(4.dp)
+                                .align(Alignment.Center),
+                            color = onBackgroundColor,
                             enabled = playerConnection.player.currentMediaItem != null,
                             onClick = {
-                                playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
+                                playerConnection.player.toggleRepeatMode()
+                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
                             }
                         )
                     }
                 }
 
-                Spacer(Modifier.width(8.dp))
-
-                Box(
-                    modifier = Modifier
-                        // Same size whether or not lyrics are showing: the controls should not
-                        // change shape just because the artwork was swapped for lyrics.
-                        .size(if (maxW >= 320.dp) 72.dp else 42.dp)
-                        .animateContentSize()
-                        .clip(RoundedCornerShape(playPauseRoundness))
-                        .background(MaterialTheme.colorScheme.primary)
-                        .clickable {
-                            if (playerConnection.player.currentMediaItem == null) {
-                                queueBoard.setCurrQueue()
-                                playerConnection.player.togglePlayPause()
-                            } else if (playbackState == STATE_ENDED) {
-                                playerConnection.player.seekTo(0, 0)
-                                playerConnection.player.playWhenReady = true
-                            } else {
-                                playerConnection.player.togglePlayPause()
-                            }
-                            // play/pause is slightly harder haptic
-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                        }
-                ) {
-                    Image(
-                        imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                        contentDescription = null,
-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .size(36.dp)
-                    )
-                }
-
-                Spacer(Modifier.width(8.dp))
-
-                if (seekIncrement != SeekIncrement.OFF) {
-                    Box(modifier = Modifier.weight(1f)) {
-                        ResizableIconButton(
-                            icon = Icons.Rounded.FastForward,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .align(Alignment.Center),
-                            color = onBackgroundColor,
-                            enabled = playerConnection.player.currentMediaItem != null,
-                            onClick = {
-                                //ExoPlayer seek increment can only be set in builder
-                                //playerConnection.player.seekForward()
-                                playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
-                            }
-                        )
-                    }
-                }
-
-
-
-                Box(modifier = Modifier.weight(1f)) {
-                    ResizableIconButton(
-                        icon = Icons.Rounded.SkipNext,
-                        enabled = canSkipNext,
-                        modifier = Modifier
-                            .size(32.dp)
-                            .align(Alignment.Center),
-                        color = onBackgroundColor,
-                        onClick = {
-                            playerConnection.player.seekToNext()
-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                        }
-                    )
-                }
-
-                Box(modifier = Modifier.weight(1f)) {
-                    ResizableIconButton(
-                        icon = when (repeatMode) {
-                            REPEAT_MODE_OFF -> R.drawable.repeat_off
-                            REPEAT_MODE_ALL -> R.drawable.repeat_on
-                            REPEAT_MODE_ONE -> R.drawable.repeat_one
-                            else -> throw IllegalStateException()
-                        },
-                        modifier = Modifier
-                            .size(32.dp)
-                            .padding(4.dp)
-                            .align(Alignment.Center),
-                        color = onBackgroundColor,
-                        enabled = playerConnection.player.currentMediaItem != null,
-                        onClick = {
-                            playerConnection.player.toggleRepeatMode()
-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                        }
-                    )
-                }
             }
 
+            // CONTROLS is emitted whatever the file says. Hiding the play button leaves a player
+            // that cannot be paused from its own screen, and a layout file is not a good place to
+            // discover that.
+            playerLayout.blocks.forEach { b ->
+                when (b.id) {
+                    PlayerLayout.BlockId.INFO -> if (b.visible) infoBlock()
+                    PlayerLayout.BlockId.PROGRESS -> if (b.visible) progressBlock()
+                    PlayerLayout.BlockId.CONTROLS -> controlsBlock()
+                    else -> Unit
+                }
+            }
             // queue hint for landscape
             if (showQueueHint) {
                 Spacer(Modifier.height(12.dp))
