@@ -1,7 +1,7 @@
 From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/25] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/26] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 0000000..81d7f34
 From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/25] Add patch notes
+Subject: [PATCH 02/26] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 0000000..28c797a
 From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/25] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/26] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a8..27f97bf 100644
 From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/25] Clarify build route in patch notes
+Subject: [PATCH 04/26] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f96..a43e5d3 100644
 From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/25] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/26] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b93..7d50084 100644
 From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/25] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/26] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac..a848cde 100644
 From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/25] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/26] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf..580a4a9 100644
 From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/25] Add Discord rich presence
+Subject: [PATCH 08/26] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b85159..575e5de 100755
 From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/25] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/26] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d..b01f716 100644
 From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/25] Add a Liquid player background
+Subject: [PATCH 10/26] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2..9ce0f19 100644
 From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/25] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/26] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f19..0afd944 100644
 From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/25] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/26] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd944..8388e17 100644
 From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/25] Fix Discord presence never appearing
+Subject: [PATCH 13/26] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fc..d9eaf36 100644
 From 507a0bc3e25d1a10d886280ffcd87e20d5e76348 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/25] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/26] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17..25f56c2 100644
 From e1e4bcf1005f1970fe7ba90cf2650076058bee4c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/25] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/26] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f..90bac79 100644
 From 9e85fd9df9a1031c7bf38bb94d1754aa2cdd91f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/25] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/26] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c..9277053 100644
 From 8b263bbad0e6aa560b0dfe72e833e883279eb985 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/25] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/26] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 9277053..1fd386f 100644
 From 88b2f886e021b2aff01004049ea99a846b2360e6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/25] Point in-app links at this fork
+Subject: [PATCH 18/26] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 1fd386f..227e962 100644
 From e32309051637dd34f3fc81ced2ae9d7988b9481c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 19/25] Bump to 0.10.18 and document the versioning rule
+Subject: [PATCH 19/26] Bump to 0.10.18 and document the versioning rule
 
 The last component of versionName now moves by 0.00.01 for each new
 feature and stays put for fixes, with versionCode following so Android
@@ -6007,7 +6007,7 @@ index c4a617e..d7da63a 100644
 From 1df19436604875215bee6e1d0f197e5e3b7b79c7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 20/25] Fix the Discord presence freezing on a track change
+Subject: [PATCH 20/26] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6248,7 +6248,7 @@ index 227e962..e843bb7 100644
 From ded2ac8a7e26e38a127bc0ecc9e4fa61181a0624 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 21/25] Explain where to find the Discord token
+Subject: [PATCH 21/26] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6278,7 +6278,7 @@ index 035206e..93e4b92 100644
 From e5c326d20e4db49bbb5a7f88cd859c98d8318651 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 22/25] Ask Discord's module registry for the token
+Subject: [PATCH 22/26] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6465,7 +6465,7 @@ index 9244411..4aea73d 100644
 From d324e5e3131d3328156a6370fa5c18eb7fdcc405 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 23/25] Add app icon customisation
+Subject: [PATCH 23/26] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7403,7 +7403,7 @@ index 93e4b92..25673ab 100644
 From 31c4cd15f7738a5dc1aa223ebf5f687633eb232b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 24/25] Add a frosted glass player background
+Subject: [PATCH 24/26] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7784,7 +7784,7 @@ index 25673ab..d6c42ef 100644
 From 25b8f379b9baa4f33ccfee1d22b00b01fe9a8c5b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 25/25] Turn the home search into a field, and thin out the top
+Subject: [PATCH 25/26] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8065,6 +8065,302 @@ index d6c42ef..3774868 100644
      <!-- App icon -->
      <string name="app_icon">App icon</string>
      <string name="app_icon_default">Default</string>
+-- 
+2.43.0
+
+
+From 591f65ace531d61dee5ecf9f72f5e393ff056485 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 09:19:36 +0000
+Subject: [PATCH 26/26] Add extended charts to Stats
+
+The overview has always stopped at six of each, which is a summary rather
+than a chart. A collapsible section below it now goes to 20, 50 or 100 -
+the DAOs already took a limit, so this is the same query with the cap
+lifted, not new SQL.
+
+The overview is untouched: this sits underneath it.
+
+While collapsed the longer queries do not run at all. They are the same
+joins as the overview, and re-running them on every period change for a
+section nobody has opened is work for nothing.
+
+Extended list keys are prefixed, because the overview above holds the
+same songs and two items sharing a key in one LazyColumn is a crash
+rather than a cosmetic problem. Artist artwork is fetched for the longer
+list too - it reaches artists the overview never showed, which are
+exactly the ones most likely to be missing a picture.
+---
+ .../outertune/ui/screens/StatsScreen.kt       | 112 ++++++++++++++++++
+ .../outertune/viewmodels/StatsViewModel.kt    |  60 ++++++++++
+ app/src/main/res/values/strings-ot.xml        |   3 +
+ 3 files changed, 175 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
+index 4108db8..430dd5f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
+@@ -1,10 +1,13 @@
+ package com.dd3boh.outertune.ui.screens
+ 
+ import androidx.compose.foundation.ExperimentalFoundationApi
++import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.combinedClickable
+ import androidx.compose.foundation.layout.WindowInsetsSides
+ import androidx.compose.foundation.layout.asPaddingValues
++import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.only
+ import androidx.compose.foundation.layout.windowInsetsPadding
+ import androidx.compose.foundation.lazy.LazyColumn
+@@ -13,18 +16,23 @@ import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.ExpandLess
++import androidx.compose.material.icons.rounded.ExpandMore
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.pluralStringResource
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
+ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.LocalMenuState
+@@ -70,6 +78,10 @@ fun StatsScreen(
+     val mostPlayedSongs by viewModel.mostPlayedSongs.collectAsState()
+     val mostPlayedArtists by viewModel.mostPlayedArtists.collectAsState()
+     val mostPlayedAlbums by viewModel.mostPlayedAlbums.collectAsState()
++    val showExtended by viewModel.showExtended.collectAsState()
++    val extendedLimit by viewModel.extendedLimit.collectAsState()
++    val extendedSongs by viewModel.extendedSongs.collectAsState()
++    val extendedArtists by viewModel.extendedArtists.collectAsState()
+ 
+     val coroutineScope = rememberCoroutineScope()
+     val lazyListState = rememberLazyListState()
+@@ -213,6 +225,106 @@ fun StatsScreen(
+                 }
+             }
+         }
++
++        item(key = "extendedHeader") {
++            Row(
++                verticalAlignment = Alignment.CenterVertically,
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .clickable { viewModel.showExtended.value = !showExtended }
++                    .padding(horizontal = 20.dp, vertical = 14.dp)
++                    .animateItem()
++            ) {
++                Text(
++                    text = stringResource(R.string.stats_extended_title),
++                    style = MaterialTheme.typography.titleMedium,
++                    modifier = Modifier.weight(1f)
++                )
++                Icon(
++                    imageVector = if (showExtended) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
++                    contentDescription = null
++                )
++            }
++        }
++
++        if (showExtended) {
++            item(key = "extendedLimits") {
++                ChipsRow(
++                    chips = StatsViewModel.EXTENDED_LIMITS.map { it to it.toString() },
++                    currentValue = extendedLimit,
++                    onValueUpdate = { viewModel.extendedLimit.value = it },
++                    modifier = Modifier.animateItem()
++                )
++            }
++
++            item(key = "extendedSongsTitle") {
++                NavigationTitle(
++                    title = stringResource(R.string.stats_extended_songs),
++                    modifier = Modifier.animateItem()
++                )
++            }
++            items(
++                items = extendedSongs,
++                // Prefixed because the overview above holds the same songs, and two items sharing
++                // a key in one LazyColumn is a crash, not a cosmetic problem.
++                key = { "ext-song-" + it.id }
++            ) { song ->
++                SongListItem(
++                    song = song,
++                    navController = navController,
++                    isActive = song.song.id == mediaMetadata?.id,
++                    isPlaying = isPlaying,
++                    inSelectMode = false,
++                    isSelected = false,
++                    onSelectedChange = {},
++                    swipeEnabled = swipeEnabled,
++                    thumbnailSize = (ListThumbnailSize.value * density.density).roundToInt(),
++                    onPlay = {
++                        playerConnection.playQueue(
++                            ListQueue(
++                                title = mostPlayedSongTitle,
++                                items = extendedSongs.map { it.toMediaMetadata() }
++                            )
++                        )
++                    },
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .animateItem()
++                )
++            }
++
++            item(key = "extendedArtists") {
++                NavigationTitle(
++                    title = stringResource(R.string.stats_extended_artists),
++                    modifier = Modifier.animateItem()
++                )
++                LazyRow(modifier = Modifier.animateItem()) {
++                    items(
++                        items = extendedArtists,
++                        key = { "ext-artist-" + it.id }
++                    ) { artist ->
++                        ArtistGridItem(
++                            artist = artist,
++                            modifier = Modifier
++                                .fillMaxWidth()
++                                .combinedClickable(
++                                    onClick = { navController.navigate("artist/${artist.id}") },
++                                    onLongClick = {
++                                        menuState.show {
++                                            ArtistMenu(
++                                                originalArtist = artist,
++                                                coroutineScope = coroutineScope,
++                                                onDismiss = menuState::dismiss
++                                            )
++                                        }
++                                    }
++                                )
++                                .animateItem()
++                        )
++                    }
++                }
++            }
++        }
+     }
+     LazyColumnScrollbar(
+         state = lazyListState,
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
+index 1452b84..f26946a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
+@@ -9,6 +9,8 @@ import com.zionhuang.innertube.YouTube
+ import dagger.hilt.android.lifecycle.HiltViewModel
+ import kotlinx.coroutines.ExperimentalCoroutinesApi
+ import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.combine
++import kotlinx.coroutines.flow.flowOf
+ import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.flatMapLatest
+ import kotlinx.coroutines.flow.map
+@@ -26,6 +28,12 @@ class StatsViewModel @Inject constructor(
+ ) : ViewModel() {
+     val statPeriod = MutableStateFlow(StatPeriod.`1_WEEK`)
+ 
++    /** Whether the longer charts below the overview are open. */
++    val showExtended = MutableStateFlow(false)
++
++    /** How far the longer charts go. */
++    val extendedLimit = MutableStateFlow(EXTENDED_LIMITS.first())
++
+     val mostPlayedSongs = statPeriod.flatMapLatest { period ->
+         database.mostPlayedSongs(period.toTimeMillis())
+     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+@@ -42,7 +50,40 @@ class StatsViewModel @Inject constructor(
+         database.mostPlayedAlbums(period.toTimeMillis())
+     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+ 
++    /**
++     * The longer charts, queried only while the section is open.
++     *
++     * Collapsed emits an empty list rather than querying and hiding the result: these are the
++     * same joins as the overview but with the row cap lifted, and running them on every period
++     * change for a section nobody has opened is work for nothing.
++     */
++    private val extendedRequest = combine(statPeriod, extendedLimit, showExtended) { period, limit, show ->
++        Triple(period, limit, show)
++    }
++
++    val extendedSongs = extendedRequest.flatMapLatest { (period, limit, show) ->
++        if (!show) flowOf(emptyList()) else database.mostPlayedSongs(period.toTimeMillis(), limit)
++    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
++
++    val extendedArtists = extendedRequest.flatMapLatest { (period, limit, show) ->
++        if (!show) {
++            flowOf(emptyList())
++        } else {
++            val time = period.toLocalDateTime()
++            database.mostPlayedArtists(time.year, time.month.value, limit).map { artists ->
++                artists.filter { it.artist.isYouTubeArtist }
++            }
++        }
++    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
++
+     init {
++        // The extended chart reaches artists the overview never showed, which are exactly the
++        // ones most likely to be missing a picture.
++        viewModelScope.launch {
++            extendedArtists.collect { artists ->
++                fetchMissingArtistArt(artists.map { it.artist })
++            }
++        }
+         // fetch missing artist metadata
+         viewModelScope.launch {
+             mostPlayedArtists.collect { artists ->
+@@ -82,4 +123,23 @@ class StatsViewModel @Inject constructor(
+             }
+         }
+     }
++
++    private suspend fun fetchMissingArtistArt(artists: List<com.dd3boh.outertune.db.entities.ArtistEntity>) {
++        artists
++            .filter {
++                it.thumbnailUrl == null ||
++                        Duration.between(it.lastUpdateTime, LocalDateTime.now()) > Duration.ofDays(10)
++            }
++            .forEach { artist ->
++                YouTube.artist(artist.id).onSuccess { artistPage ->
++                    database.query {
++                        update(artist, artistPage)
++                    }
++                }
++            }
++    }
++
++    companion object {
++        val EXTENDED_LIMITS = listOf(20, 50, 100)
++    }
+ }
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 3774868..1041835 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -405,6 +405,9 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="speed_medium">Medium</string>
+     <string name="speed_fast">Fast</string>
+     <string name="speed_very_fast">Very fast</string>
++    <string name="stats_extended_title">Extended charts</string>
++    <string name="stats_extended_songs">Top songs</string>
++    <string name="stats_extended_artists">Top artists</string>
+     <string name="show_top_bar_logo_title">Show logo in the top bar</string>
+     <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
+     <!-- App icon -->
 -- 
 2.43.0
 
