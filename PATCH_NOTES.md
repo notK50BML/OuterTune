@@ -94,14 +94,16 @@ DOM for `<p>` elements wherever they are, accepts unprefixed or `ttp:`-namespace
 falls back to the earliest child `<span>` when a line has no `begin`, and reassembles
 Apple-style syllable spans back into words. `toLrc()` emits plain standard LRC.
 
-`LyricsHelper.parseResilient()` tries the strict parser first — so word-level karaoke
-timing is kept whenever the document is readable — and only falls back to the lenient
-reader plus plain line-by-line LRC when it isn't.
+`LyricsHelper.parseResilient()` tries the strict parser first and falls back to the
+lenient reader when it can't read the document.
 
 Unlike Metrolist's version, `toLrc()` emits **standard** LRC rather than Metrolist's
 extended `<word:start:end|…>` / `{bg}` / `{agent:v1}` form, which OuterTune's renderer
 would show as literal text. Background vocals become their own timed lines; speaker/agent
 tags are dropped.
+
+> Superseded in part by §6: `toLrc()` now has an enhanced mode, so the lenient path keeps
+> its word timings instead of flattening to line level.
 
 ## 5. Lyrics button removed from the player
 
@@ -109,6 +111,66 @@ The dedicated lyrics button is gone from the player controls. Lyrics toggle by t
 cover (`DEFAULT_SHOW_LYRICS_ON_CLICK` was already `true`) or via ⋮ → Toggle lyrics, as in
 older OuterTune. The unused imports and the local `showLyrics` state in `ActionButtons`
 went with it.
+
+## 6. Word-by-word lyrics, and a say in where lyrics come from
+
+**Word timings survive the lenient TTML path.** `TTMLParser` always extracted per-word
+timings — it needs them to rebuild a line's text out of syllable spans — but `toLrc()`
+threw them away, so any song only the lenient reader could parse was stuck at line level.
+`toLrc()` now has an enhanced mode that writes them back out as Enhanced LRC (the "A2
+extension"): a `<mm:ss.cc>` mark before each word, and one after the last word to pin its
+end time.
+
+Enhanced LRC rather than a schema change because `LyricsEntity.lyrics` is a plain string.
+Nobody takes a Room migration, a line-level reader still sees ordinary LRC because it
+ignores the `<...>` marks, and providers that return plain LRC need no special casing. A
+line the encoding can't represent safely — a word containing `<`, `>`, `[` or `]`, or
+timings that run backwards — is written line-level, so a mixed document degrades per line.
+
+**The sweep renderer was rewritten.** The old karaoke path measured nothing: progress
+across a line was the fraction of *words* completed, so the highlight moved in equal steps
+regardless of how wide each word actually was. A wrapped line was handled by re-splitting
+the text on spaces and slicing the word list by the resulting counts, which threw outright
+when the two disagreed, and it ignored the lyric alignment setting.
+
+`KaraokeLyricLine.kt` asks the text layout where the characters are instead. The line is
+measured once, the playback position becomes a fractional character offset, and
+`TextLayoutResult.getBoundingBox` turns that into an x coordinate. Wrapping then needs no
+special case at all, and shaping, kerning and alignment are whatever `Text` would have
+produced, because it is the same layout. The bright text is masked by a gradient at the
+boundary, so it reads as a light moving across the words.
+
+Two performance changes came with it: the position is read inside the *draw* lambda, so
+the clock ticking sixty times a second invalidates drawing rather than recomposing every
+visible lyric, and only the current line and the next one are drawn this way. The sweep is
+a pure function of the player's position rather than an animation running alongside it, so
+a seek lands where it should; between the player's own coarse position updates the wall
+clock carries it.
+
+**Provider selection.** Settings → Lyrics → Lyric sources gains two entries:
+
+| Setting | Behaviour |
+|---|---|
+| **Provider selection: Automatic** (default) | Exactly as before — every enabled provider at once, first synced result wins |
+| **Provider selection: In my order** | Providers are asked one at a time from the top; the first synced result wins. Slower on purpose |
+| **Provider priority** | Drag to reorder. Also decides how the alternate-lyrics picker lists candidates, so it is useful in either mode |
+
+The order is stored as a comma-joined list of provider ids. Unknown ids are ignored and
+providers the stored order does not mention keep their built-in position and go last, so
+the preference survives a provider being added, removed or renamed. `providerSignature`
+now carries the mode and the enabled ids — in the user's order under manual, sorted under
+automatic — so a cached miss recorded under one configuration is never served under
+another, and reordering under automatic does not throw away caches that are still valid.
+
+Going in order gets a per-provider time budget rather than the racing cap, which applied
+to a sequential walk would have meant the last entries in the order were never asked.
+
+## 7. shazamkit built against the wrong ktor engine
+
+`:shazamkit:compileKotlin` failed with `Unresolved reference 'requestTimeout'` and stopped
+the build before the app module was reached. The client is `HttpClient(OkHttp)`, so its
+`engine { }` block is an `OkHttpConfig`; `requestTimeout` is a CIO setting. Replaced with
+the engine-independent `HttpTimeout` plugin, which `:betterlyrics` and `:kizzy` already use.
 
 ---
 
