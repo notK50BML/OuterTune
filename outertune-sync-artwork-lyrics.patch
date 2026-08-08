@@ -1,7 +1,7 @@
 From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/22] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/25] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 0000000..81d7f34
 From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/22] Add patch notes
+Subject: [PATCH 02/25] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 0000000..28c797a
 From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/22] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/25] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a8..27f97bf 100644
 From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/22] Clarify build route in patch notes
+Subject: [PATCH 04/25] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f96..a43e5d3 100644
 From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/22] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/25] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b93..7d50084 100644
 From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/22] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/25] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac..a848cde 100644
 From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/22] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/25] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf..580a4a9 100644
 From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/22] Add Discord rich presence
+Subject: [PATCH 08/25] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b85159..575e5de 100755
 From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/22] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/25] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d..b01f716 100644
 From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/22] Add a Liquid player background
+Subject: [PATCH 10/25] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2..9ce0f19 100644
 From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/22] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/25] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f19..0afd944 100644
 From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/22] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/25] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd944..8388e17 100644
 From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/22] Fix Discord presence never appearing
+Subject: [PATCH 13/25] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fc..d9eaf36 100644
 From 507a0bc3e25d1a10d886280ffcd87e20d5e76348 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/22] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/25] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17..25f56c2 100644
 From e1e4bcf1005f1970fe7ba90cf2650076058bee4c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/22] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/25] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f..90bac79 100644
 From 9e85fd9df9a1031c7bf38bb94d1754aa2cdd91f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/22] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/25] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c..9277053 100644
 From 8b263bbad0e6aa560b0dfe72e833e883279eb985 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/22] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/25] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 9277053..1fd386f 100644
 From 88b2f886e021b2aff01004049ea99a846b2360e6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/22] Point in-app links at this fork
+Subject: [PATCH 18/25] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 1fd386f..227e962 100644
 From e32309051637dd34f3fc81ced2ae9d7988b9481c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 19/22] Bump to 0.10.18 and document the versioning rule
+Subject: [PATCH 19/25] Bump to 0.10.18 and document the versioning rule
 
 The last component of versionName now moves by 0.00.01 for each new
 feature and stays put for fixes, with versionCode following so Android
@@ -6007,7 +6007,7 @@ index c4a617e..d7da63a 100644
 From 1df19436604875215bee6e1d0f197e5e3b7b79c7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 20/22] Fix the Discord presence freezing on a track change
+Subject: [PATCH 20/25] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6248,7 +6248,7 @@ index 227e962..e843bb7 100644
 From ded2ac8a7e26e38a127bc0ecc9e4fa61181a0624 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 21/22] Explain where to find the Discord token
+Subject: [PATCH 21/25] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6278,7 +6278,7 @@ index 035206e..93e4b92 100644
 From e5c326d20e4db49bbb5a7f88cd859c98d8318651 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 22/22] Ask Discord's module registry for the token
+Subject: [PATCH 22/25] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6458,6 +6458,1613 @@ index 9244411..4aea73d 100644
              onDismiss = { showTokenDialog = false },
          )
      }
+-- 
+2.43.0
+
+
+From d324e5e3131d3328156a6370fa5c18eb7fdcc405 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 08:49:34 +0000
+Subject: [PATCH 23/25] Add app icon customisation
+
+Six launcher icons to choose from, declared as activity-aliases and
+switched by enabling one and disabling the rest - Android has no API for
+setting an app's icon, so this is the only route there is.
+
+The picker rebuilds each icon from its background colour and foreground
+layer rather than drawing @mipmap/ic_launcher, because that resource is
+an <adaptive-icon>: a composition the launcher performs, not a drawable
+Compose can render.
+
+Also a "use my own image" option, which pins a home screen tile carrying
+any picture. A gallery image genuinely cannot become the launcher icon -
+icons are compiled resources - and a pinned shortcut is the one place
+the system accepts a runtime bitmap. The screen says so plainly instead
+of leaving people wondering why the app drawer did not change.
+
+The alias class names are built from MainActivity's package rather than
+from context.packageName, since debug builds carry an applicationIdSuffix
+that the class names do not, and using the wrong one would have made
+every switch silently do nothing on those builds.
+---
+ app/src/main/AndroidManifest.xml              | 130 ++++++++-
+ .../java/com/dd3boh/outertune/MainActivity.kt |   4 +
+ .../ui/screens/settings/AppIconSettings.kt    | 246 ++++++++++++++++++
+ .../ui/screens/settings/AppearanceSettings.kt |   7 +
+ .../com/dd3boh/outertune/utils/AppIcon.kt     | 141 ++++++++++
+ .../outertune/utils/CustomIconShortcut.kt     | 113 ++++++++
+ .../main/res/drawable/launcher_mono_dark.xml  |  11 +
+ .../main/res/drawable/launcher_mono_light.xml |  11 +
+ .../mipmap-anydpi-v26/ic_launcher_crimson.xml |  10 +
+ .../ic_launcher_midnight.xml                  |  10 +
+ .../ic_launcher_mono_dark.xml                 |  10 +
+ .../ic_launcher_mono_light.xml                |  10 +
+ .../mipmap-anydpi-v26/ic_launcher_ocean.xml   |  10 +
+ .../res/values/ic_launcher_background.xml     |  13 +-
+ app/src/main/res/values/strings-ot.xml        |  16 ++
+ 15 files changed, 731 insertions(+), 11 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppIconSettings.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/utils/AppIcon.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/utils/CustomIconShortcut.kt
+ create mode 100644 app/src/main/res/drawable/launcher_mono_dark.xml
+ create mode 100644 app/src/main/res/drawable/launcher_mono_light.xml
+ create mode 100644 app/src/main/res/mipmap-anydpi-v26/ic_launcher_crimson.xml
+ create mode 100644 app/src/main/res/mipmap-anydpi-v26/ic_launcher_midnight.xml
+ create mode 100644 app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_dark.xml
+ create mode 100644 app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_light.xml
+ create mode 100644 app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index a05e64f..7cb7dcd 100755
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -42,16 +42,6 @@
+             android:launchMode="singleTask"
+             android:theme="@style/Theme.OuterTune"
+             android:windowSoftInputMode="adjustResize">
+-            <intent-filter>
+-                <action android:name="android.intent.action.MAIN" />
+-                <action android:name="android.intent.action.VIEW" />
+-                <action android:name="android.intent.action.MUSIC_PLAYER" />
+-
+-                <category android:name="android.intent.category.LAUNCHER" />
+-                <category android:name="android.intent.category.APP_MUSIC" />
+-                <category android:name="android.intent.category.DEFAULT" />
+-            </intent-filter>
+-
+             <!-- Youtube filter -->
+             <intent-filter android:autoVerify="true">
+                 <action android:name="android.intent.action.VIEW" />
+@@ -118,6 +108,126 @@
+                 android:resource="@xml/shortcuts" />
+         </activity>
+ 
++
++        <!--
++          Launcher entry points, one per selectable icon. Android has no API for changing an
++          app icon, so the way this is done everywhere is to declare an alias per icon and
++          enable exactly one of them at a time - see AppIcon.kt.
++
++          The MAIN/LAUNCHER filter lives here rather than on MainActivity because a disabled
++          component is invisible to the launcher, and MainActivity itself must stay enabled for
++          the aliases to have something to target. IconDefault is the one enabled at install.
++        -->
++
++        <activity-alias
++            android:name=".IconDefault"
++            android:targetActivity=".MainActivity"
++            android:enabled="true"
++            android:exported="true"
++            android:icon="@mipmap/ic_launcher"
++            android:roundIcon="@mipmap/ic_launcher_round"
++            android:label="@string/app_name">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.intent.action.VIEW" />
++                <action android:name="android.intent.action.MUSIC_PLAYER" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.APP_MUSIC" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity-alias>
++
++        <activity-alias
++            android:name=".IconMidnight"
++            android:targetActivity=".MainActivity"
++            android:enabled="false"
++            android:exported="true"
++            android:icon="@mipmap/ic_launcher_midnight"
++            android:label="@string/app_name">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.intent.action.VIEW" />
++                <action android:name="android.intent.action.MUSIC_PLAYER" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.APP_MUSIC" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity-alias>
++
++        <activity-alias
++            android:name=".IconMonoLight"
++            android:targetActivity=".MainActivity"
++            android:enabled="false"
++            android:exported="true"
++            android:icon="@mipmap/ic_launcher_mono_light"
++            android:label="@string/app_name">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.intent.action.VIEW" />
++                <action android:name="android.intent.action.MUSIC_PLAYER" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.APP_MUSIC" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity-alias>
++
++        <activity-alias
++            android:name=".IconMonoDark"
++            android:targetActivity=".MainActivity"
++            android:enabled="false"
++            android:exported="true"
++            android:icon="@mipmap/ic_launcher_mono_dark"
++            android:label="@string/app_name">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.intent.action.VIEW" />
++                <action android:name="android.intent.action.MUSIC_PLAYER" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.APP_MUSIC" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity-alias>
++
++        <activity-alias
++            android:name=".IconCrimson"
++            android:targetActivity=".MainActivity"
++            android:enabled="false"
++            android:exported="true"
++            android:icon="@mipmap/ic_launcher_crimson"
++            android:label="@string/app_name">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.intent.action.VIEW" />
++                <action android:name="android.intent.action.MUSIC_PLAYER" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.APP_MUSIC" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity-alias>
++
++        <activity-alias
++            android:name=".IconOcean"
++            android:targetActivity=".MainActivity"
++            android:enabled="false"
++            android:exported="true"
++            android:icon="@mipmap/ic_launcher_ocean"
++            android:label="@string/app_name">
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.intent.action.VIEW" />
++                <action android:name="android.intent.action.MUSIC_PLAYER" />
++
++                <category android:name="android.intent.category.LAUNCHER" />
++                <category android:name="android.intent.category.APP_MUSIC" />
++                <category android:name="android.intent.category.DEFAULT" />
++            </intent-filter>
++        </activity-alias>
++
+         <provider
+             android:name="androidx.core.content.FileProvider"
+             android:authorities="${applicationId}.FileProvider"
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 8de9d6c..7a60d64 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -169,6 +169,7 @@ import com.dd3boh.outertune.ui.screens.search.OnlineSearchResult
+ import com.dd3boh.outertune.ui.screens.search.SearchBarContainer
+ import com.dd3boh.outertune.ui.screens.settings.AboutScreen
+ import com.dd3boh.outertune.ui.screens.settings.AccountSyncSettings
++import com.dd3boh.outertune.ui.screens.settings.AppIconSettings
+ import com.dd3boh.outertune.ui.screens.settings.AppearanceSettings
+ import com.dd3boh.outertune.ui.screens.settings.AttributionScreen
+ import com.dd3boh.outertune.ui.screens.settings.BackupAndRestore
+@@ -709,6 +710,9 @@ class MainActivity : ComponentActivity() {
+                                     composable("settings/appearance") {
+                                         AppearanceSettings(navController, scrollBehavior)
+                                     }
++                                    composable("settings/appearance/icon") {
++                                        AppIconSettings(navController, scrollBehavior)
++                                    }
+                                     composable("settings/library") {
+                                         LibrarySettings(navController, scrollBehavior)
+                                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppIconSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppIconSettings.kt
+new file mode 100644
+index 0000000..cd782fc
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppIconSettings.kt
+@@ -0,0 +1,246 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.ui.screens.settings
++
++import android.net.Uri
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.AddPhotoAlternate
++import androidx.compose.material3.ElevatedCard
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarScrollBehavior
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.colorResource
++import androidx.compose.ui.res.painterResource
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.input.TextFieldValue
++import androidx.compose.ui.unit.dp
++import androidx.navigation.NavController
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.TopBarInsets
++import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
++import com.dd3boh.outertune.ui.component.PreferenceEntry
++import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
++import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.ui.dialog.TextFieldDialog
++import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.AppIcon
++import com.dd3boh.outertune.utils.CustomIconShortcut
++
++/** Size of a swatch as the launcher would show it, and of the layer it is cropped from. */
++private val SWATCH_SIZE = 64.dp
++
++/**
++ * An adaptive icon's layers are 108dp and the launcher's mask reveals the middle 72dp, so a
++ * faithful preview draws the foreground at 108/72 of the tile and clips the overflow.
++ */
++private val SWATCH_LAYER_SIZE = SWATCH_SIZE * 108 / 72
++
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++fun AppIconSettings(
++    navController: NavController,
++    scrollBehavior: TopAppBarScrollBehavior,
++) {
++    val context = LocalContext.current
++
++    // Read from the package manager rather than a stored preference, so this always shows what
++    // the launcher is actually using - the two drift apart after a restore from backup.
++    var selected by remember { mutableStateOf(AppIcon.current(context)) }
++    var pickedImage by remember { mutableStateOf<Uri?>(null) }
++    var status by remember { mutableStateOf<String?>(null) }
++
++    val pickImage = rememberLauncherForActivityResultCompat { uri ->
++        if (uri != null) pickedImage = uri
++    }
++
++    pickedImage?.let { uri ->
++        TextFieldDialog(
++            icon = { Icon(Icons.Rounded.AddPhotoAlternate, null) },
++            title = { Text(stringResource(R.string.app_icon_custom_name)) },
++            initialTextFieldValue = TextFieldValue(stringResource(R.string.app_name)),
++            isInputValid = { it.isNotBlank() },
++            onDone = { name ->
++                status = CustomIconShortcut.create(context, uri, name.trim())
++                    ?: context.getString(R.string.app_icon_custom_done)
++            },
++            onDismiss = { pickedImage = null },
++        )
++    }
++
++    ColumnWithContentPadding(
++        modifier = Modifier.fillMaxHeight(),
++        columnModifier = Modifier
++            .padding(horizontal = 16.dp)
++            .verticalScroll(rememberScrollState())
++    ) {
++        PreferenceGroupTitle(title = stringResource(R.string.app_icon))
++        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
++            Column(modifier = Modifier.padding(16.dp)) {
++                // Laid out by hand in rows of three rather than with a grid, because this sits
++                // inside a scrolling column and a lazy grid inside one has no height to measure.
++                AppIcon.entries.chunked(3).forEach { row ->
++                    Row(
++                        modifier = Modifier.fillMaxWidth(),
++                        horizontalArrangement = Arrangement.SpaceEvenly,
++                    ) {
++                        row.forEach { icon ->
++                            IconSwatch(
++                                icon = icon,
++                                isSelected = icon == selected,
++                                onClick = {
++                                    AppIcon.apply(context, icon)
++                                    selected = icon
++                                    status = context.getString(R.string.app_icon_changed)
++                                },
++                            )
++                        }
++                        // Keep a short final row aligned with the ones above it.
++                        repeat(3 - row.size) {
++                            Spacer(modifier = Modifier.size(SWATCH_SIZE))
++                        }
++                    }
++                    Spacer(modifier = Modifier.height(12.dp))
++                }
++            }
++        }
++
++        Text(
++            text = stringResource(R.string.app_icon_note),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
++        )
++        Spacer(modifier = Modifier.height(8.dp))
++
++        PreferenceGroupTitle(title = stringResource(R.string.app_icon_custom))
++        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.app_icon_custom_title)) },
++                description = status ?: stringResource(R.string.app_icon_custom_description),
++                icon = { Icon(Icons.Rounded.AddPhotoAlternate, null) },
++                isEnabled = CustomIconShortcut.isSupported(context),
++                onClick = { pickImage("image/*") },
++            )
++        }
++
++        Text(
++            text = stringResource(R.string.app_icon_custom_note),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++            modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp),
++        )
++        Spacer(modifier = Modifier.height(16.dp))
++    }
++
++    TopAppBar(
++        title = { Text(stringResource(R.string.app_icon)) },
++        navigationIcon = {
++            IconButton(
++                onClick = navController::navigateUp,
++                onLongClick = navController::backToMain
++            ) {
++                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
++            }
++        },
++        windowInsets = TopBarInsets,
++        scrollBehavior = scrollBehavior
++    )
++}
++
++@Composable
++private fun IconSwatch(
++    icon: AppIcon,
++    isSelected: Boolean,
++    onClick: () -> Unit,
++) {
++    Column(horizontalAlignment = Alignment.CenterHorizontally) {
++        Box(
++            modifier = Modifier
++                .size(SWATCH_SIZE)
++                .clip(RoundedCornerShape(SWATCH_SIZE / 4))
++                .background(colorResource(icon.previewBackground))
++                .then(
++                    if (isSelected) {
++                        Modifier.border(
++                            width = 3.dp,
++                            color = MaterialTheme.colorScheme.primary,
++                            shape = RoundedCornerShape(SWATCH_SIZE / 4),
++                        )
++                    } else {
++                        Modifier
++                    }
++                )
++                .clickable(onClick = onClick),
++            contentAlignment = Alignment.Center,
++        ) {
++            Image(
++                painter = painterResource(icon.previewForeground),
++                contentDescription = null,
++                modifier = Modifier.size(SWATCH_LAYER_SIZE),
++            )
++        }
++        Spacer(modifier = Modifier.height(6.dp))
++        Text(
++            text = stringResource(icon.titleId),
++            style = MaterialTheme.typography.labelMedium,
++            textAlign = TextAlign.Center,
++            color = if (isSelected) {
++                MaterialTheme.colorScheme.primary
++            } else {
++                MaterialTheme.colorScheme.onSurfaceVariant
++            },
++        )
++    }
++}
++
++/**
++ * Wrapper purely so the call site above reads as one expression. GetContent is used rather than
++ * the photo picker because it works the same way back to API 24, which this app still supports.
++ */
++@Composable
++private fun rememberLauncherForActivityResultCompat(
++    onResult: (Uri?) -> Unit,
++): (String) -> Unit {
++    val launcher = androidx.activity.compose.rememberLauncherForActivityResult(
++        ActivityResultContracts.GetContent()
++    ) { onResult(it) }
++    return { mime -> launcher.launch(mime) }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index 0f7382a..2d24a85 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.AppShortcut
+ import androidx.compose.material.icons.rounded.HighQuality
+ import androidx.compose.material.icons.rounded.MoreHoriz
+ import androidx.compose.material3.ElevatedCard
+@@ -37,6 +38,7 @@ import com.dd3boh.outertune.constants.HighResArtworkKey
+ import com.dd3boh.outertune.constants.SlimNavBarKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
++import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
+ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.component.button.IconButton
+@@ -110,6 +112,11 @@ fun AppearanceSettings(
+                 checked = highResArtworkPref,
+                 onCheckedChange = onHighResArtworkChange
+             )
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.app_icon)) },
++                icon = { Icon(Icons.Rounded.AppShortcut, null) },
++                onClick = { navController.navigate("settings/appearance/icon") }
++            )
+         }
+         Spacer(modifier = Modifier.height(16.dp))
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/AppIcon.kt b/app/src/main/java/com/dd3boh/outertune/utils/AppIcon.kt
+new file mode 100644
+index 0000000..3d18edf
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/utils/AppIcon.kt
+@@ -0,0 +1,141 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.utils
++
++import android.content.ComponentName
++import android.content.Context
++import android.content.pm.PackageManager
++import androidx.annotation.ColorRes
++import androidx.annotation.DrawableRes
++import androidx.annotation.StringRes
++import com.dd3boh.outertune.MainActivity
++import com.dd3boh.outertune.R
++
++/**
++ * The launcher icons this app ships, and the machinery for switching between them.
++ *
++ * Android has no API for setting an app's icon: the icon is a manifest attribute, read by the
++ * launcher, and an installed package cannot rewrite its own manifest. What it *can* do is enable
++ * and disable components, so every icon is declared as an `<activity-alias>` pointing at
++ * MainActivity, and exactly one of them is enabled at a time.
++ *
++ * [previewBackground] and [previewForeground] exist because a settings screen cannot simply draw
++ * `@mipmap/ic_launcher`: that resource is an `<adaptive-icon>`, which is a launcher-side
++ * composition rather than a drawable Compose can render. The picker rebuilds the same two layers
++ * itself instead.
++ */
++enum class AppIcon(
++    /** Matches the `android:name` of the alias in AndroidManifest.xml. */
++    val aliasSuffix: String,
++    @StringRes val titleId: Int,
++    @ColorRes val previewBackground: Int,
++    @DrawableRes val previewForeground: Int,
++) {
++    DEFAULT(
++        aliasSuffix = ".IconDefault",
++        titleId = R.string.app_icon_default,
++        previewBackground = R.color.ic_launcher_background,
++        previewForeground = R.drawable.launcher_foreground,
++    ),
++    MIDNIGHT(
++        aliasSuffix = ".IconMidnight",
++        titleId = R.string.app_icon_midnight,
++        previewBackground = R.color.ic_launcher_background_midnight,
++        previewForeground = R.drawable.launcher_foreground,
++    ),
++    MONO_LIGHT(
++        aliasSuffix = ".IconMonoLight",
++        titleId = R.string.app_icon_mono_light,
++        previewBackground = R.color.ic_launcher_background_mono_light,
++        previewForeground = R.drawable.launcher_mono_dark,
++    ),
++    MONO_DARK(
++        aliasSuffix = ".IconMonoDark",
++        titleId = R.string.app_icon_mono_dark,
++        previewBackground = R.color.ic_launcher_background_mono_dark,
++        previewForeground = R.drawable.launcher_mono_light,
++    ),
++    CRIMSON(
++        aliasSuffix = ".IconCrimson",
++        titleId = R.string.app_icon_crimson,
++        previewBackground = R.color.ic_launcher_background_crimson,
++        previewForeground = R.drawable.launcher_mono_light,
++    ),
++    OCEAN(
++        aliasSuffix = ".IconOcean",
++        titleId = R.string.app_icon_ocean,
++        previewBackground = R.color.ic_launcher_background_ocean,
++        previewForeground = R.drawable.launcher_mono_light,
++    );
++
++    fun component(context: Context): ComponentName = ComponentName(context, ALIAS_CLASS_PREFIX + aliasSuffix)
++
++    companion object {
++        /**
++         * Aliases are named relative to the manifest package, which is the *namespace* - not the
++         * applicationId. Debug builds carry applicationIdSuffix ".debug", so building the class
++         * name from context.packageName would look for com.dd3boh.outertune.debug.IconDefault,
++         * a component that does not exist, and every icon switch would silently do nothing.
++         * Taking it from MainActivity gets the namespace whatever the variant.
++         */
++        private val ALIAS_CLASS_PREFIX: String =
++            MainActivity::class.java.name.substringBeforeLast('.')
++
++        /**
++         * Switches the launcher icon to [target].
++         *
++         * The new alias is enabled before the old ones are disabled. Doing it the other way round
++         * leaves a moment with no enabled launcher component at all, and some launchers notice and
++         * drop the app from the home screen and app drawer permanently - the user has to reinstall
++         * to get it back. Overlapping instead means a brief moment with two entries, which
++         * launchers handle by refreshing.
++         *
++         * DONT_KILL_APP keeps playback alive across the change. It also means launchers can take a
++         * few seconds - or a home-screen refresh - to notice, which is normal and not worth
++         * pretending otherwise in the UI.
++         */
++        fun apply(context: Context, target: AppIcon) {
++            val pm = context.packageManager
++            val enabled = target.component(context)
++
++            if (pm.getComponentEnabledSetting(enabled) != PackageManager.COMPONENT_ENABLED_STATE_ENABLED) {
++                pm.setComponentEnabledSetting(
++                    enabled,
++                    PackageManager.COMPONENT_ENABLED_STATE_ENABLED,
++                    PackageManager.DONT_KILL_APP,
++                )
++            }
++
++            entries.filter { it != target }.forEach { other ->
++                val component = other.component(context)
++                if (pm.getComponentEnabledSetting(component) != PackageManager.COMPONENT_ENABLED_STATE_DISABLED) {
++                    pm.setComponentEnabledSetting(
++                        component,
++                        PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
++                        PackageManager.DONT_KILL_APP,
++                    )
++                }
++            }
++        }
++
++        /**
++         * Which icon the package manager currently has enabled.
++         *
++         * Read from the system rather than from a stored preference: the two can disagree after a
++         * restore from backup, where the preference comes back but component state does not.
++         */
++        fun current(context: Context): AppIcon {
++            val pm = context.packageManager
++            return entries.firstOrNull {
++                pm.getComponentEnabledSetting(it.component(context)) ==
++                        PackageManager.COMPONENT_ENABLED_STATE_ENABLED
++            } ?: DEFAULT
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/CustomIconShortcut.kt b/app/src/main/java/com/dd3boh/outertune/utils/CustomIconShortcut.kt
+new file mode 100644
+index 0000000..a131337
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/utils/CustomIconShortcut.kt
+@@ -0,0 +1,113 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.utils
++
++import android.content.Context
++import android.content.Intent
++import android.graphics.Bitmap
++import android.graphics.BitmapFactory
++import android.net.Uri
++import androidx.core.content.pm.ShortcutInfoCompat
++import androidx.core.content.pm.ShortcutManagerCompat
++import androidx.core.graphics.drawable.IconCompat
++import com.dd3boh.outertune.MainActivity
++
++/**
++ * Puts a launcher tile carrying an image of the user's choosing on the home screen.
++ *
++ * This exists because the thing people usually mean by "use my own icon" - replacing the app's
++ * launcher icon with an arbitrary picture - is not something Android permits. An app icon is a
++ * resource compiled into the APK and resolved by the launcher, so the only icons an installed
++ * build can offer are ones it already contains (see [AppIcon]). A pinned shortcut is the one
++ * place the system does accept a runtime bitmap, so that is what this uses.
++ *
++ * The result behaves like the app: same task, same launch behaviour. What it is not is a
++ * replacement - the original icon stays in the app drawer, and the tile disappears if the app is
++ * uninstalled. Worth being straight about that in the UI rather than letting it surprise anyone.
++ */
++object CustomIconShortcut {
++
++    /** Adaptive icons are masked heavily by the launcher, so oversample and let it crop. */
++    private const val ICON_SIZE_PX = 512
++
++    fun isSupported(context: Context): Boolean =
++        ShortcutManagerCompat.isRequestPinShortcutSupported(context)
++
++    /**
++     * @return null on success, or a short reason the shortcut could not be created.
++     */
++    fun create(context: Context, imageUri: Uri, label: String): String? {
++        if (!isSupported(context)) {
++            return "This launcher does not support pinned shortcuts."
++        }
++        val bitmap = decodeSquare(context, imageUri)
++            ?: return "That image could not be read."
++
++        val shortcut = ShortcutInfoCompat.Builder(context, "custom_icon_" + label.hashCode())
++            .setShortLabel(label.ifBlank { "OuterTune" })
++            .setLongLabel(label.ifBlank { "OuterTune" })
++            .setIcon(IconCompat.createWithAdaptiveBitmap(bitmap))
++            // A pinned shortcut's intent must name an action explicitly; without one the system
++            // rejects it with an exception rather than a return value.
++            .setIntent(
++                Intent(context, MainActivity::class.java).apply {
++                    action = Intent.ACTION_MAIN
++                    addCategory(Intent.CATEGORY_LAUNCHER)
++                }
++            )
++            .build()
++
++        return runCatching { ShortcutManagerCompat.requestPinShortcut(context, shortcut, null) }
++            .fold(
++                onSuccess = { accepted ->
++                    if (accepted) null else "The launcher declined to add the shortcut."
++                },
++                onFailure = { it.message ?: "The shortcut could not be created." },
++            )
++    }
++
++    /**
++     * Loads [uri] as a square bitmap, downsampling on the way in.
++     *
++     * Decoding at full size first would mean holding a phone-camera JPEG in memory - tens of
++     * megabytes - purely to shrink it to 512px, which is a real out-of-memory risk on the
++     * devices least able to absorb it.
++     */
++    private fun decodeSquare(context: Context, uri: Uri): Bitmap? = runCatching {
++        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
++        context.contentResolver.openInputStream(uri)?.use {
++            BitmapFactory.decodeStream(it, null, bounds)
++        }
++        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
++
++        var sample = 1
++        while (bounds.outWidth / (sample * 2) >= ICON_SIZE_PX && bounds.outHeight / (sample * 2) >= ICON_SIZE_PX) {
++            sample *= 2
++        }
++
++        val decoded = context.contentResolver.openInputStream(uri)?.use {
++            BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
++        } ?: return null
++
++        // Centre-crop to a square before scaling, so the picture keeps its proportions instead of
++        // being stretched into one.
++        val side = minOf(decoded.width, decoded.height)
++        val cropped = Bitmap.createBitmap(
++            decoded,
++            (decoded.width - side) / 2,
++            (decoded.height - side) / 2,
++            side,
++            side,
++        )
++        val scaled = Bitmap.createScaledBitmap(cropped, ICON_SIZE_PX, ICON_SIZE_PX, true)
++        if (cropped != decoded) decoded.recycle()
++        if (scaled != cropped) cropped.recycle()
++        scaled
++    }.getOrNull()
++}
+diff --git a/app/src/main/res/drawable/launcher_mono_dark.xml b/app/src/main/res/drawable/launcher_mono_dark.xml
+new file mode 100644
+index 0000000..20d0955
+--- /dev/null
++++ b/app/src/main/res/drawable/launcher_mono_dark.xml
+@@ -0,0 +1,11 @@
++<!--
++  Colour variants of launcher_monochrome, used as the foreground of the alternative
++  launcher icons. Kept as separate files rather than tinted at runtime because an
++  adaptive-icon foreground is resolved by the launcher process, which cannot see any
++  tint this app applies.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android" android:height="108dp" android:viewportHeight="180" android:viewportWidth="180" android:width="108dp">
++
++    <path android:fillColor="#1B1B1F" android:pathData="M68.4,47.42C68.15,47.41 67.9,47.41 67.66,47.42C63.37,47.65 60.46,51.2 60.46,57.2L60.46,121.54C60.46,130.27 66.62,133.82 74.21,129.48L130.64,97.23C138.24,92.89 138.24,85.85 130.64,81.51L74.21,49.26C72.14,48.07 70.17,47.48 68.4,47.42zM85.61,69.67A2.08,1.79 0,0 1,87.53 71.45L87.53,107.29A2.08,1.79 0,0 1,83.38 107.29L83.38,71.45A2.08,1.79 0,0 1,85.1 69.69A2.08,1.79 0,0 1,85.61 69.67zM108.97,75.57A2.08,1.97 0,0 1,111.05 77.54L111.05,101.2A2.08,1.97 0,0 1,106.9 101.2L106.9,77.54A2.08,1.97 0,0 1,108.97 75.57zM93.29,76.56A2.08,1.83 0,0 1,95.37 78.39L95.37,100.35A2.08,1.83 0,0 1,91.22 100.35L91.22,78.39A2.08,1.83 0,0 1,93.29 76.56zM77.83,77.95A2.08,1.63 0,0 1,79.69 79.57L79.69,99.17A2.08,1.63 0,0 1,75.54 99.17L75.54,79.57A2.08,1.63 0,0 1,77.32 77.96A2.08,1.63 0,0 1,77.83 77.95zM100.92,82.48A2.08,2.3 0,0 1,103.21 84.77L103.21,93.97A2.08,2.3 0,0 1,99.06 93.97L99.06,84.77A2.08,2.3 0,0 1,100.92 82.48zM69.56,84.06A2.08,1.77 0,0 1,71.85 85.82L71.85,92.92A2.08,1.77 0,0 1,67.7 92.92L67.7,85.82A2.08,1.77 0,0 1,69.56 84.06zM116.62,84.84A2.08,1.51 0,0 1,118.89 86.35L118.89,92.39A2.08,1.51 0,0 1,114.74 92.39L114.74,86.35A2.08,1.51 0,0 1,116.62 84.84z" android:strokeWidth="0.351517"/>
++
++</vector>
+diff --git a/app/src/main/res/drawable/launcher_mono_light.xml b/app/src/main/res/drawable/launcher_mono_light.xml
+new file mode 100644
+index 0000000..cebf95c
+--- /dev/null
++++ b/app/src/main/res/drawable/launcher_mono_light.xml
+@@ -0,0 +1,11 @@
++<!--
++  Colour variants of launcher_monochrome, used as the foreground of the alternative
++  launcher icons. Kept as separate files rather than tinted at runtime because an
++  adaptive-icon foreground is resolved by the launcher process, which cannot see any
++  tint this app applies.
++-->
++<vector xmlns:android="http://schemas.android.com/apk/res/android" android:height="108dp" android:viewportHeight="180" android:viewportWidth="180" android:width="108dp">
++
++    <path android:fillColor="#FFFFFF" android:pathData="M68.4,47.42C68.15,47.41 67.9,47.41 67.66,47.42C63.37,47.65 60.46,51.2 60.46,57.2L60.46,121.54C60.46,130.27 66.62,133.82 74.21,129.48L130.64,97.23C138.24,92.89 138.24,85.85 130.64,81.51L74.21,49.26C72.14,48.07 70.17,47.48 68.4,47.42zM85.61,69.67A2.08,1.79 0,0 1,87.53 71.45L87.53,107.29A2.08,1.79 0,0 1,83.38 107.29L83.38,71.45A2.08,1.79 0,0 1,85.1 69.69A2.08,1.79 0,0 1,85.61 69.67zM108.97,75.57A2.08,1.97 0,0 1,111.05 77.54L111.05,101.2A2.08,1.97 0,0 1,106.9 101.2L106.9,77.54A2.08,1.97 0,0 1,108.97 75.57zM93.29,76.56A2.08,1.83 0,0 1,95.37 78.39L95.37,100.35A2.08,1.83 0,0 1,91.22 100.35L91.22,78.39A2.08,1.83 0,0 1,93.29 76.56zM77.83,77.95A2.08,1.63 0,0 1,79.69 79.57L79.69,99.17A2.08,1.63 0,0 1,75.54 99.17L75.54,79.57A2.08,1.63 0,0 1,77.32 77.96A2.08,1.63 0,0 1,77.83 77.95zM100.92,82.48A2.08,2.3 0,0 1,103.21 84.77L103.21,93.97A2.08,2.3 0,0 1,99.06 93.97L99.06,84.77A2.08,2.3 0,0 1,100.92 82.48zM69.56,84.06A2.08,1.77 0,0 1,71.85 85.82L71.85,92.92A2.08,1.77 0,0 1,67.7 92.92L67.7,85.82A2.08,1.77 0,0 1,69.56 84.06zM116.62,84.84A2.08,1.51 0,0 1,118.89 86.35L118.89,92.39A2.08,1.51 0,0 1,114.74 92.39L114.74,86.35A2.08,1.51 0,0 1,116.62 84.84z" android:strokeWidth="0.351517"/>
++
++</vector>
+diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_crimson.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_crimson.xml
+new file mode 100644
+index 0000000..07d3099
+--- /dev/null
++++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_crimson.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++  Alternative launcher icon. Selected at runtime by enabling the matching <activity-alias> in
++  AndroidManifest.xml; see AppIcon.kt.
++-->
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/ic_launcher_background_crimson" />
++    <foreground android:drawable="@drawable/launcher_mono_light" />
++    <monochrome android:drawable="@drawable/launcher_monochrome" />
++</adaptive-icon>
+diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_midnight.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_midnight.xml
+new file mode 100644
+index 0000000..0c168cf
+--- /dev/null
++++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_midnight.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++  Alternative launcher icon. Selected at runtime by enabling the matching <activity-alias> in
++  AndroidManifest.xml; see AppIcon.kt.
++-->
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/ic_launcher_background_midnight" />
++    <foreground android:drawable="@drawable/launcher_foreground" />
++    <monochrome android:drawable="@drawable/launcher_monochrome" />
++</adaptive-icon>
+diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_dark.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_dark.xml
+new file mode 100644
+index 0000000..36e1ca7
+--- /dev/null
++++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_dark.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++  Alternative launcher icon. Selected at runtime by enabling the matching <activity-alias> in
++  AndroidManifest.xml; see AppIcon.kt.
++-->
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/ic_launcher_background_mono_dark" />
++    <foreground android:drawable="@drawable/launcher_mono_light" />
++    <monochrome android:drawable="@drawable/launcher_monochrome" />
++</adaptive-icon>
+diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_light.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_light.xml
+new file mode 100644
+index 0000000..9140700
+--- /dev/null
++++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_light.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++  Alternative launcher icon. Selected at runtime by enabling the matching <activity-alias> in
++  AndroidManifest.xml; see AppIcon.kt.
++-->
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/ic_launcher_background_mono_light" />
++    <foreground android:drawable="@drawable/launcher_mono_dark" />
++    <monochrome android:drawable="@drawable/launcher_monochrome" />
++</adaptive-icon>
+diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml
+new file mode 100644
+index 0000000..e3d61e2
+--- /dev/null
++++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!--
++  Alternative launcher icon. Selected at runtime by enabling the matching <activity-alias> in
++  AndroidManifest.xml; see AppIcon.kt.
++-->
++<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
++    <background android:drawable="@color/ic_launcher_background_ocean" />
++    <foreground android:drawable="@drawable/launcher_mono_light" />
++    <monochrome android:drawable="@drawable/launcher_monochrome" />
++</adaptive-icon>
+diff --git a/app/src/main/res/values/ic_launcher_background.xml b/app/src/main/res/values/ic_launcher_background.xml
+index c5d5899..eaf1b92 100644
+--- a/app/src/main/res/values/ic_launcher_background.xml
++++ b/app/src/main/res/values/ic_launcher_background.xml
+@@ -1,4 +1,15 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <resources>
+     <color name="ic_launcher_background">#FFFFFF</color>
+-</resources>
+\ No newline at end of file
++
++    <!--
++      Backgrounds for the alternative launcher icons. An adaptive icon's background is drawn
++      edge to edge and then masked by the launcher, so these are flat colours rather than
++      anything with detail near the corners.
++    -->
++    <color name="ic_launcher_background_midnight">#14141B</color>
++    <color name="ic_launcher_background_mono_light">#F2F2F7</color>
++    <color name="ic_launcher_background_mono_dark">#1B1B1F</color>
++    <color name="ic_launcher_background_crimson">#ED5564</color>
++    <color name="ic_launcher_background_ocean">#215E7C</color>
++</resources>
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 93e4b92..25673ab 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -402,4 +402,20 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="speed_medium">Medium</string>
+     <string name="speed_fast">Fast</string>
+     <string name="speed_very_fast">Very fast</string>
++    <!-- App icon -->
++    <string name="app_icon">App icon</string>
++    <string name="app_icon_default">Default</string>
++    <string name="app_icon_midnight">Midnight</string>
++    <string name="app_icon_mono_light">Mono light</string>
++    <string name="app_icon_mono_dark">Mono dark</string>
++    <string name="app_icon_crimson">Crimson</string>
++    <string name="app_icon_ocean">Ocean</string>
++    <string name="app_icon_changed">Icon changed. Your launcher may take a moment to catch up.</string>
++    <string name="app_icon_note">Switching the icon briefly replaces the app\'s launcher entry. Home screen shortcuts pointing at the old one may need to be added again, and some launchers only refresh after a restart.</string>
++    <string name="app_icon_custom">Your own image</string>
++    <string name="app_icon_custom_title">Create a shortcut with my own image</string>
++    <string name="app_icon_custom_description">Pick any picture and add it to your home screen</string>
++    <string name="app_icon_custom_name">Name for the shortcut</string>
++    <string name="app_icon_custom_done">Shortcut sent to your launcher.</string>
++    <string name="app_icon_custom_note">Android only lets an app use icons compiled into it, so a picture from your gallery cannot replace the launcher icon itself. A pinned shortcut is the way round it: it opens the app exactly as the normal icon does, but the original stays in your app drawer alongside it.</string>
+ </resources>
+\ No newline at end of file
+-- 
+2.43.0
+
+
+From 31c4cd15f7738a5dc1aa223ebf5f687633eb232b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 08:53:08 +0000
+Subject: [PATCH 24/25] Add a frosted glass player background
+
+A new option alongside the existing ones, not a replacement for any of
+them: the album art blurred past recognition, with a soft scrim over it.
+
+The blur comes from fetching the artwork at 18px and letting it stretch
+across the screen rather than from a large blur radius. It looks the
+same, costs almost nothing, and works below Android 12 - where
+Modifier.blur silently does nothing, which is why the existing Blur
+option is hidden on those versions.
+
+Also an optional "match text to the artwork" switch for the backgrounds
+that are drawn from the cover. It measures the same tiny bitmap the
+background is drawn from and puts dark text over pale covers, light text
+over dark ones, using Rec. 709 luminance weights rather than a plain RGB
+mean - a saturated blue cover reads as dark to the eye while a naive
+average calls it mid-grey, and the text would come out the wrong colour.
+
+Until the artwork has been measured the theme's own answer is used, so a
+track change never flashes text in a colour it is about to abandon.
+---
+ .../outertune/constants/PreferenceKeys.kt     |   7 +
+ .../dd3boh/outertune/constants/Settings.kt    |   2 +-
+ .../outertune/ui/player/FrostedBackground.kt  | 166 ++++++++++++++++++
+ .../com/dd3boh/outertune/ui/player/Player.kt  |  41 ++++-
+ .../screens/settings/fragments/PlayerFrag.kt  |  20 +++
+ app/src/main/res/values/strings-ot.xml        |   3 +
+ 6 files changed, 229 insertions(+), 10 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 3f8cd1b..b6d49f9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -13,6 +13,13 @@ val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")
+ val CustomThemeKey = booleanPreferencesKey("customTheme")
+ val CustomThemeColorKey = intPreferencesKey("customThemeColor")
+ val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
++
++/**
++ * Pick the player's text colour from the artwork's brightness instead of from the app theme.
++ * Only consulted by the backgrounds that are drawn from the artwork, since it has nothing to
++ * measure otherwise.
++ */
++val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
+ val ShowQueueTitleKey = booleanPreferencesKey("showQueueTitle")
+ val DarkModeKey = stringPreferencesKey("darkMode")
+ val PureBlackKey = booleanPreferencesKey("pureBlack")
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index bc9841a..bff834c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -13,7 +13,7 @@ enum class DarkMode {
+ }
+ 
+ enum class PlayerBackgroundStyle {
+-    FOLLOW_THEME, GRADIENT, BLUR, LIQUID
++    FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED
+ }
+ 
+ enum class SliderStyle {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+new file mode 100644
+index 0000000..67b4110
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+@@ -0,0 +1,166 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.ui.player
++
++import android.graphics.Bitmap
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.blur
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.layout.ContentScale
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.unit.dp
++import coil3.compose.AsyncImage
++import coil3.imageLoader
++import coil3.request.ImageRequest
++import coil3.request.allowHardware
++import coil3.toBitmap
++import com.dd3boh.outertune.models.MediaMetadata
++import com.dd3boh.outertune.utils.coilCoroutine
++import kotlinx.coroutines.withContext
++
++/**
++ * How small the artwork is fetched before being stretched over the screen.
++ *
++ * The blur is mostly this: an 18px image scaled to fill a phone display is already a smooth wash
++ * of colour, because the upscale interpolates between a handful of pixels. Doing it this way
++ * rather than through a large blur radius means it costs almost nothing, looks identical, and -
++ * unlike [Modifier.blur], which is a no-op before Android 12 - works on every version this app
++ * supports.
++ */
++private const val FROST_SOURCE_PX = 18
++
++/** A small extra blur on top, where the platform can do it, to take the last edges off. */
++private val FROST_EXTRA_BLUR = 24.dp
++
++/**
++ * Above this relative luminance the background counts as "light", and dark text belongs on it.
++ *
++ * Slightly above the midpoint on purpose: white text on a mid-grey stays legible further down
++ * than black text does, so the tie is broken towards keeping light text.
++ */
++private const val LIGHT_BACKGROUND_THRESHOLD = 0.58f
++
++/**
++ * The album art, blurred past recognition, as a background for the player.
++ *
++ * A scrim is drawn on top with a colour chosen from the artwork's own brightness. Without it a
++ * pale cover leaves white controls on near-white, and a very dark one swallows them; with it the
++ * background keeps the cover's character while the foreground stays readable.
++ */
++@Composable
++fun FrostedBackground(
++    mediaMetadata: MediaMetadata?,
++    isLight: Boolean,
++    modifier: Modifier = Modifier,
++) {
++    Box(modifier = modifier.fillMaxSize()) {
++        AsyncImage(
++            model = mediaMetadata?.getThumbnailModel(FROST_SOURCE_PX, FROST_SOURCE_PX),
++            contentDescription = null,
++            contentScale = ContentScale.FillBounds,
++            modifier = Modifier
++                .fillMaxSize()
++                .blur(FROST_EXTRA_BLUR),
++        )
++
++        // Frosted glass is a light scattering layer over the image, not a flat wash - hence the
++        // gradient rather than a single alpha. Denser at the bottom, where the controls sit.
++        val scrim = if (isLight) Color.White else Color.Black
++        Box(
++            modifier = Modifier
++                .fillMaxSize()
++                .background(
++                    Brush.verticalGradient(
++                        listOf(
++                            scrim.copy(alpha = if (isLight) 0.35f else 0.30f),
++                            scrim.copy(alpha = if (isLight) 0.55f else 0.50f),
++                        )
++                    )
++                )
++        )
++    }
++}
++
++/**
++ * Whether the frosted background for [mediaMetadata] is light enough to need dark text.
++ *
++ * Returns null while unknown, so callers can keep whatever they were using rather than flashing
++ * through a wrong colour on every track change.
++ *
++ * The measurement is taken from the same tiny bitmap the background is drawn from, which is both
++ * cheap and the right thing to measure: it is the blurred average that sits behind the text, not
++ * any particular pixel of the full-size cover.
++ */
++@Composable
++fun rememberCoverIsLight(mediaMetadata: MediaMetadata?, enabled: Boolean): Boolean? {
++    val context = LocalContext.current
++    var isLight by remember { mutableStateOf<Boolean?>(null) }
++
++    LaunchedEffect(mediaMetadata, enabled) {
++        if (!enabled || mediaMetadata == null) {
++            isLight = null
++            return@LaunchedEffect
++        }
++        withContext(coilCoroutine) {
++            val result = context.imageLoader.execute(
++                ImageRequest.Builder(context)
++                    .data(mediaMetadata.getThumbnailModel(FROST_SOURCE_PX, FROST_SOURCE_PX))
++                    // Hardware bitmaps live in graphics memory and cannot be read back pixel by
++                    // pixel, which is exactly what this needs to do.
++                    .allowHardware(false)
++                    .build()
++            )
++            val luminance = result.image?.toBitmap()?.averageLuminance()
++            isLight = luminance?.let { it > LIGHT_BACKGROUND_THRESHOLD }
++        }
++    }
++
++    return isLight
++}
++
++/**
++ * Mean relative luminance of a bitmap, 0f (black) to 1f (white).
++ *
++ * Uses the Rec. 709 weights rather than a plain RGB mean, because the eye is far more sensitive
++ * to green than to blue: a saturated blue cover reads as dark to a viewer while a naive average
++ * calls it mid-grey, and the text colour would be chosen wrongly.
++ */
++private fun Bitmap.averageLuminance(): Float? {
++    val w = width
++    val h = height
++    if (w <= 0 || h <= 0) return null
++
++    val pixels = IntArray(w * h)
++    getPixels(pixels, 0, w, 0, 0, w, h)
++
++    var total = 0.0
++    var counted = 0
++    for (pixel in pixels) {
++        val alpha = (pixel ushr 24) and 0xFF
++        // Fully transparent pixels show the surface behind them, not the artwork, so letting
++        // them count would drag every measurement towards black.
++        if (alpha < 16) continue
++        val r = (pixel shr 16) and 0xFF
++        val g = (pixel shr 8) and 0xFF
++        val b = pixel and 0xFF
++        total += (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255.0
++        counted++
++    }
++    return if (counted == 0) null else (total / counted).toFloat()
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 8a2a5f4..5b1c0ef 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -120,6 +120,7 @@ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+ import com.dd3boh.outertune.constants.DarkMode
+ import com.dd3boh.outertune.constants.DarkModeKey
++import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.PLAYER_DEBUG
+@@ -747,16 +748,27 @@ fun ControlsContent(
+         defaultValue = DEFAULT_SLIDER_STYLE
+     )
+ 
++    val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+ 
+-    val onBackgroundColor = when (playerBackground) {
+-        PlayerBackgroundStyle.FOLLOW_THEME -> MaterialTheme.colorScheme.secondary
+-        else ->
+-            if (useDarkTheme)
+-                MaterialTheme.colorScheme.onSurface
+-            else {
+-                val c = MaterialTheme.colorScheme.secondary
+-                c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
+-            }
++    // Only the artwork-derived backgrounds have anything to measure. Asking for a luminance on
++    // the others would load a bitmap on every track change and then ignore the answer.
++    val coverIsLight = rememberCoverIsLight(
++        mediaMetadata = mediaMetadata,
++        enabled = autoTextContrast &&
++                (playerBackground == PlayerBackgroundStyle.FROSTED ||
++                        playerBackground == PlayerBackgroundStyle.BLUR),
++    )
++
++    val onBackgroundColor = when {
++        playerBackground == PlayerBackgroundStyle.FOLLOW_THEME -> MaterialTheme.colorScheme.secondary
++        // A measured answer beats the theme's guess: a white album cover behind white text is
++        // unreadable no matter which theme the app is in.
++        coverIsLight != null -> if (coverIsLight) Color(0xFF16161A) else Color.White
++        useDarkTheme -> MaterialTheme.colorScheme.onSurface
++        else -> {
++            val c = MaterialTheme.colorScheme.secondary
++            c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
++        }
+     }
+ 
+ 
+@@ -1189,6 +1201,17 @@ fun PlayerBackground(
+             }
+         }
+ 
++        if (playerBackground == PlayerBackgroundStyle.FROSTED) {
++            if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2e")
++            // Falls back to the theme's own sense of light/dark until the artwork has been
++            // measured, so a track change never flashes text in the wrong colour.
++            val coverIsLight = rememberCoverIsLight(mediaMetadata, enabled = true)
++            FrostedBackground(
++                mediaMetadata = mediaMetadata,
++                isLight = coverIsLight ?: !useDarkTheme,
++            )
++        }
++
+         if (playerBackground == PlayerBackgroundStyle.LIQUID) {
+             if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2d")
+             val isPlaying by playerConnection.isPlaying.collectAsState()
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index 5a36c6a..2162df2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -5,10 +5,12 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+ import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
++import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.material.icons.rounded.Autorenew
+ import androidx.compose.material.icons.rounded.Bedtime
+ import androidx.compose.material.icons.rounded.BlurOn
+ import androidx.compose.material.icons.rounded.ClearAll
++import androidx.compose.material.icons.rounded.Contrast
+ import androidx.compose.material.icons.rounded.FastForward
+ import androidx.compose.material.icons.rounded.GraphicEq
+ import androidx.compose.material.icons.rounded.Headset
+@@ -42,6 +44,7 @@ import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
+ import com.dd3boh.outertune.constants.KeepAliveKey
+ import com.dd3boh.outertune.constants.PersistentQueueKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
++import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.SeekIncrement
+ import com.dd3boh.outertune.constants.SeekIncrementKey
+@@ -149,6 +152,8 @@ fun NowPlayingFrag() {
+     val availableBackgroundStyles = PlayerBackgroundStyle.entries.filter {
+         it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+     }
++    val (autoTextContrast, onAutoTextContrastChange) =
++        rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+     val (showQueueTitle, onShowQueueTitleChange) = rememberPreference(ShowQueueTitleKey, defaultValue = true)
+     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
+     val (swipeToSkip, onSwipeToSkipChange) = rememberPreference(SwipeToSkipKey, defaultValue = DEFAULT_SWIPE_TO_SKIP)
+@@ -168,10 +173,25 @@ fun NowPlayingFrag() {
+                 PlayerBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.player_background_default)
+                 PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
+                 PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
++                PlayerBackgroundStyle.FROSTED -> stringResource(R.string.player_background_frosted)
+             }
+         },
+         values = availableBackgroundStyles
+     )
++    // Only offered for the backgrounds drawn from the artwork; the others have no brightness to
++    // read, so the switch would sit there doing nothing.
++    AnimatedVisibility(
++        visible = playerBackground == PlayerBackgroundStyle.FROSTED ||
++                playerBackground == PlayerBackgroundStyle.BLUR
++    ) {
++        SwitchPreference(
++            title = { Text(stringResource(R.string.player_auto_text_contrast_title)) },
++            description = stringResource(R.string.player_auto_text_contrast_description),
++            icon = { Icon(Icons.Rounded.Contrast, null) },
++            checked = autoTextContrast,
++            onCheckedChange = onAutoTextContrastChange,
++        )
++    }
+     EnumListPreference(
+         title = { Text(stringResource(R.string.slider_style_title)) },
+         icon = { Icon(Icons.Rounded.GraphicEq, null) },
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 25673ab..d6c42ef 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -130,6 +130,9 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="player_background_gradient">Gradient</string>
+     <string name="player_background_liquid">Liquid</string>
+     <string name="player_background_style">Player background style</string>
++    <string name="player_background_frosted">Frosted glass</string>
++    <string name="player_auto_text_contrast_title">Match text to the artwork</string>
++    <string name="player_auto_text_contrast_description">Use dark text over pale covers and light text over dark ones</string>
+     <string name="show_queue_title">Show queue name on player</string>
+     <string name="show_liked_and_downloaded_playlist">Show playlists for liked and downloaded songs in library</string>
+     <string name="slim_navbar_title">Slim navbar</string>
+-- 
+2.43.0
+
+
+From 25b8f379b9baa4f33ccfee1d22b00b01fe9a8c5b Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 09:06:43 +0000
+Subject: [PATCH 25/25] Turn the home search into a field, and thin out the top
+ bar
+
+The search was a magnifying glass in a row of five near-identical icons,
+which is a poor signpost for the thing most people open the app to do.
+It is now a field running the width of the bar. Tapping it opens the same
+search component as before - nothing about search itself changed - but it
+reads as somewhere to type.
+
+The logo sits slightly further in, and can be turned off entirely under
+Appearance, in which case the field runs to the left edge.
+
+History moves to Settings, next to the other library entries, and the
+local media button is gone from the bar: it only ever navigated to
+settings/local, which is already listed on the settings screen a few rows
+below where History now is.
+---
+ .../outertune/constants/PreferenceKeys.kt     |  3 +
+ .../ui/screens/search/SearchScreen.kt         | 84 +++++++++++--------
+ .../ui/screens/settings/AppearanceSettings.kt | 11 +++
+ .../ui/screens/settings/SettingsScreen.kt     |  6 ++
+ app/src/main/res/values/strings-ot.xml        |  2 +
+ 5 files changed, 73 insertions(+), 33 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index b6d49f9..85e4615 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -20,6 +20,9 @@ val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
+  * measure otherwise.
+  */
+ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
++
++/** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
++val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
+ val ShowQueueTitleKey = booleanPreferencesKey("showQueueTitle")
+ val DarkModeKey = stringPreferencesKey("darkMode")
+ val PureBlackKey = booleanPreferencesKey("pureBlack")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index ece2847..c734851 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
+ import androidx.compose.foundation.Image
+ import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.width
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.WindowInsets
+@@ -30,16 +32,16 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+ import androidx.compose.material.icons.rounded.Close
+-import androidx.compose.material.icons.rounded.History
+ import androidx.compose.material.icons.rounded.Language
+ import androidx.compose.material.icons.rounded.LibraryMusic
+ import androidx.compose.material.icons.rounded.Person
+-import androidx.compose.material.icons.rounded.SdCard
+ import androidx.compose.material.icons.rounded.Search
+ import androidx.compose.material.icons.rounded.Settings
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.SnackbarHostState
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
+@@ -54,6 +56,7 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
++import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.focus.FocusRequester
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+@@ -75,7 +78,7 @@ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.AppBarHeight
+ import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
+ import com.dd3boh.outertune.constants.EnabledTabsKey
+-import com.dd3boh.outertune.constants.LocalLibraryEnableKey
++import com.dd3boh.outertune.constants.ShowTopBarLogoKey
+ import com.dd3boh.outertune.constants.PauseSearchHistoryKey
+ import com.dd3boh.outertune.constants.SearchSource
+ import com.dd3boh.outertune.constants.SearchSourceKey
+@@ -115,7 +118,7 @@ fun SearchBarContainer(
+     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
+     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
+-    val localLibEnable by rememberPreference(LocalLibraryEnableKey, defaultValue = true)
++    val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = true)
+ 
+     val navigationItems = remember { Screens.getScreens(enabledTabs) }
+     val searchBarFocusRequester = remember { FocusRequester() }
+@@ -361,10 +364,8 @@ fun SearchBarContainer(
+         TopIconBar(
+             scrollBehavior = scrollBehavior,
+             windowInsets = iconRowInset,
+-            localLibEnable = localLibEnable,
+-            onHistoryClick = { navController.navigate("history") },
++            showLogo = showTopBarLogo,
+             onStatsClick = { navController.navigate("stats") },
+-            onScannerClick = { navController.navigate("settings/local") },
+             onSettingsClick = { navController.navigate("settings") },
+             onAccountClick = { navController.navigate("settings/account_sync") },
+             onSearchClick = { onSearchActiveChange(true) },
+@@ -377,10 +378,8 @@ fun SearchBarContainer(
+ private fun TopIconBar(
+     scrollBehavior: TopAppBarScrollBehavior,
+     windowInsets: WindowInsets,
+-    localLibEnable: Boolean,
+-    onHistoryClick: () -> Unit,
++    showLogo: Boolean,
+     onStatsClick: () -> Unit,
+-    onScannerClick: () -> Unit,
+     onSettingsClick: () -> Unit,
+     onAccountClick: () -> Unit,
+     onSearchClick: () -> Unit,
+@@ -405,38 +404,57 @@ private fun TopIconBar(
+             .padding(horizontal = SearchBarHorizontalPadding, vertical = SearchBarVerticalPadding)
+             .height(InputFieldHeight)
+     ) {
+-        Image(
+-            painter = painterResource(R.drawable.app_logo),
+-            contentDescription = null,
+-            modifier = Modifier.size(36.dp)
+-        )
+-        Spacer(Modifier.weight(1f))
+-        IconButton(onClick = onSearchClick) {
+-            Icon(
+-                imageVector = Icons.Rounded.Search,
+-                contentDescription = stringResource(R.string.search)
++        if (showLogo) {
++            Image(
++                painter = painterResource(R.drawable.app_logo),
++                contentDescription = null,
++                modifier = Modifier
++                    .padding(start = 4.dp)
++                    .size(36.dp)
+             )
++            Spacer(Modifier.width(8.dp))
+         }
+-        IconButton(onClick = onHistoryClick) {
+-            Icon(
+-                imageVector = Icons.Rounded.History,
+-                contentDescription = stringResource(R.string.history)
+-            )
++
++        // A field rather than a magnifying glass. It does not accept typing here - tapping it
++        // opens the real search bar, which is the same component the rest of the app uses - but
++        // it reads as somewhere to type, which a 24dp icon in a row of five identical icons did
++        // not. With the logo hidden it runs to the left edge and the row becomes the search.
++        Surface(
++            shape = CircleShape,
++            color = MaterialTheme.colorScheme.surfaceContainerHigh,
++            modifier = Modifier
++                .weight(1f)
++                .fillMaxHeight()
++                .clip(CircleShape)
++                .clickable(onClick = onSearchClick)
++        ) {
++            Row(
++                verticalAlignment = Alignment.CenterVertically,
++                modifier = Modifier.padding(horizontal = 14.dp)
++            ) {
++                Icon(
++                    imageVector = Icons.Rounded.Search,
++                    contentDescription = stringResource(R.string.search),
++                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
++                )
++                Spacer(Modifier.width(10.dp))
++                Text(
++                    text = stringResource(R.string.search),
++                    style = MaterialTheme.typography.bodyLarge,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant,
++                    maxLines = 1,
++                    overflow = TextOverflow.Ellipsis,
++                )
++            }
+         }
++        Spacer(Modifier.width(4.dp))
++
+         IconButton(onClick = onStatsClick) {
+             Icon(
+                 imageVector = Icons.AutoMirrored.Rounded.TrendingUp,
+                 contentDescription = stringResource(R.string.stats)
+             )
+         }
+-        if (localLibEnable) {
+-            IconButton(onClick = onScannerClick) {
+-                Icon(
+-                    imageVector = Icons.Rounded.SdCard,
+-                    contentDescription = stringResource(R.string.scanner_local_title)
+-                )
+-            }
+-        }
+         IconButton(onClick = onSettingsClick) {
+             Icon(
+                 imageVector = Icons.Rounded.Settings,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index 2d24a85..93fd1c5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.AppShortcut
+ import androidx.compose.material.icons.rounded.HighQuality
++import androidx.compose.material.icons.rounded.Image
+ import androidx.compose.material.icons.rounded.MoreHoriz
+ import androidx.compose.material3.ElevatedCard
+ import androidx.compose.material3.ExperimentalMaterial3Api
+@@ -35,6 +36,7 @@ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.HighResArtworkKey
++import com.dd3boh.outertune.constants.ShowTopBarLogoKey
+ import com.dd3boh.outertune.constants.SlimNavBarKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+@@ -62,6 +64,8 @@ fun AppearanceSettings(
+     scrollBehavior: TopAppBarScrollBehavior,
+ ) {
+     val (slimNav, onSlimNavChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
++    val (showTopBarLogo, onShowTopBarLogoChange) =
++        rememberPreference(ShowTopBarLogoKey, defaultValue = true)
+     val (highResArtworkPref, onHighResArtworkChange) =
+         rememberPreference(HighResArtworkKey, defaultValue = true)
+ 
+@@ -112,6 +116,13 @@ fun AppearanceSettings(
+                 checked = highResArtworkPref,
+                 onCheckedChange = onHighResArtworkChange
+             )
++            SwitchPreference(
++                title = { Text(stringResource(R.string.show_top_bar_logo_title)) },
++                description = stringResource(R.string.show_top_bar_logo_description),
++                icon = { Icon(Icons.Rounded.Image, null) },
++                checked = showTopBarLogo,
++                onCheckedChange = onShowTopBarLogoChange
++            )
+             PreferenceEntry(
+                 title = { Text(stringResource(R.string.app_icon)) },
+                 icon = { Icon(Icons.Rounded.AppShortcut, null) },
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
+index fad9bb0..ff659bf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
+@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
+ import androidx.compose.material.icons.rounded.AccountCircle
+ import androidx.compose.material.icons.rounded.Info
++import androidx.compose.material.icons.rounded.History
+ import androidx.compose.material.icons.rounded.Lyrics
+ import androidx.compose.material.icons.rounded.Palette
+ import androidx.compose.material.icons.rounded.PlayArrow
+@@ -129,6 +130,11 @@ fun SettingsScreen(
+                 icon = { Icon(Icons.AutoMirrored.Rounded.LibraryBooks, null) },
+                 onClick = { navController.navigate("settings/library") }
+             )
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.history)) },
++                icon = { Icon(Icons.Rounded.History, null) },
++                onClick = { navController.navigate("history") }
++            )
+             PreferenceEntry(
+                 title = { Text(stringResource(R.string.local_player_settings_title)) },
+                 icon = { Icon(Icons.Rounded.SdCard, null) },
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index d6c42ef..3774868 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -405,6 +405,8 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="speed_medium">Medium</string>
+     <string name="speed_fast">Fast</string>
+     <string name="speed_very_fast">Very fast</string>
++    <string name="show_top_bar_logo_title">Show logo in the top bar</string>
++    <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
+     <!-- App icon -->
+     <string name="app_icon">App icon</string>
+     <string name="app_icon_default">Default</string>
 -- 
 2.43.0
 
