@@ -47,11 +47,11 @@ on:
       version_name:
         description: "versionName for this build (blank = leave whatever the patch set)"
         required: false
-        default: "0.10.15"
+        default: "0.16"
       version_code:
         description: "versionCode - must be HIGHER than the build you already have installed, or Android refuses the upgrade"
         required: false
-        default: "85"
+        default: "86"
 
 jobs:
   build:
@@ -82,9 +82,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: 581d637fd4016ba663087f47f8e591db7e8b11649dc0214735497c454e6ca6d4"
-          echo "lines: $(wc -l < "$PATCH")  (expected 6463)   bytes: $(wc -c < "$PATCH")  (expected 300525)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 22)"
+          echo "expected: 6ccee449145b758abc347c4b478df61bfe29f8110e107792c3e9905adebfc66a"
+          echo "lines: $(wc -l < "$PATCH")  (expected 8070)   bytes: $(wc -c < "$PATCH")  (expected 379588)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 25)"
           echo "================"
 
           git config user.name "github-actions"
