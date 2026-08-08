@@ -13,6 +13,13 @@ val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")
 val CustomThemeKey = booleanPreferencesKey("customTheme")
 val CustomThemeColorKey = intPreferencesKey("customThemeColor")
 val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
+
+/**
+ * Pick the player's text colour from the artwork's brightness instead of from the app theme.
+ * Only consulted by the backgrounds that are drawn from the artwork, since it has nothing to
+ * measure otherwise.
+ */
+val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
 val ShowQueueTitleKey = booleanPreferencesKey("showQueueTitle")
 val DarkModeKey = stringPreferencesKey("darkMode")
 val PureBlackKey = booleanPreferencesKey("pureBlack")

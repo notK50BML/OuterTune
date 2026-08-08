@@ -120,6 +120,7 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
+import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.PLAYER_DEBUG
@@ -747,16 +748,27 @@ fun ControlsContent(
         defaultValue = DEFAULT_SLIDER_STYLE
     )
 
+    val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
 
-    val onBackgroundColor = when (playerBackground) {
-        PlayerBackgroundStyle.FOLLOW_THEME -> MaterialTheme.colorScheme.secondary
-        else ->
-            if (useDarkTheme)
-                MaterialTheme.colorScheme.onSurface
-            else {
-                val c = MaterialTheme.colorScheme.secondary
-                c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
-            }
+    // Only the artwork-derived backgrounds have anything to measure. Asking for a luminance on
+    // the others would load a bitmap on every track change and then ignore the answer.
+    val coverIsLight = rememberCoverIsLight(
+        mediaMetadata = mediaMetadata,
+        enabled = autoTextContrast &&
+                (playerBackground == PlayerBackgroundStyle.FROSTED ||
+                        playerBackground == PlayerBackgroundStyle.BLUR),
+    )
+
+    val onBackgroundColor = when {
+        playerBackground == PlayerBackgroundStyle.FOLLOW_THEME -> MaterialTheme.colorScheme.secondary
+        // A measured answer beats the theme's guess: a white album cover behind white text is
+        // unreadable no matter which theme the app is in.
+        coverIsLight != null -> if (coverIsLight) Color(0xFF16161A) else Color.White
+        useDarkTheme -> MaterialTheme.colorScheme.onSurface
+        else -> {
+            val c = MaterialTheme.colorScheme.secondary
+            c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
+        }
     }
 
 
@@ -1187,6 +1199,17 @@ fun PlayerBackground(
                         .background(Brush.verticalGradient(colors), alpha = 0.4f)
                 )
             }
+        }
+
+        if (playerBackground == PlayerBackgroundStyle.FROSTED) {
+            if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2e")
+            // Falls back to the theme's own sense of light/dark until the artwork has been
+            // measured, so a track change never flashes text in the wrong colour.
+            val coverIsLight = rememberCoverIsLight(mediaMetadata, enabled = true)
+            FrostedBackground(
+                mediaMetadata = mediaMetadata,
+                isLight = coverIsLight ?: !useDarkTheme,
+            )
         }
 
         if (playerBackground == PlayerBackgroundStyle.LIQUID) {

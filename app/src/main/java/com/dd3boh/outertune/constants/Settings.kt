@@ -13,7 +13,7 @@ enum class DarkMode {
 }
 
 enum class PlayerBackgroundStyle {
-    FOLLOW_THEME, GRADIENT, BLUR, LIQUID
+    FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED
 }
 
 enum class SliderStyle {

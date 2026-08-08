@@ -5,10 +5,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.ClearAll
+import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Headset
@@ -42,6 +44,7 @@ import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
 import com.dd3boh.outertune.constants.KeepAliveKey
 import com.dd3boh.outertune.constants.PersistentQueueKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
@@ -149,6 +152,8 @@ fun NowPlayingFrag() {
     val availableBackgroundStyles = PlayerBackgroundStyle.entries.filter {
         it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
     }
+    val (autoTextContrast, onAutoTextContrastChange) =
+        rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
     val (showQueueTitle, onShowQueueTitleChange) = rememberPreference(ShowQueueTitleKey, defaultValue = true)
     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
     val (swipeToSkip, onSwipeToSkipChange) = rememberPreference(SwipeToSkipKey, defaultValue = DEFAULT_SWIPE_TO_SKIP)
@@ -168,10 +173,25 @@ fun NowPlayingFrag() {
                 PlayerBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.player_background_default)
                 PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
                 PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
+                PlayerBackgroundStyle.FROSTED -> stringResource(R.string.player_background_frosted)
             }
         },
         values = availableBackgroundStyles
     )
+    // Only offered for the backgrounds drawn from the artwork; the others have no brightness to
+    // read, so the switch would sit there doing nothing.
+    AnimatedVisibility(
+        visible = playerBackground == PlayerBackgroundStyle.FROSTED ||
+                playerBackground == PlayerBackgroundStyle.BLUR
+    ) {
+        SwitchPreference(
+            title = { Text(stringResource(R.string.player_auto_text_contrast_title)) },
+            description = stringResource(R.string.player_auto_text_contrast_description),
+            icon = { Icon(Icons.Rounded.Contrast, null) },
+            checked = autoTextContrast,
+            onCheckedChange = onAutoTextContrastChange,
+        )
+    }
     EnumListPreference(
         title = { Text(stringResource(R.string.slider_style_title)) },
         icon = { Icon(Icons.Rounded.GraphicEq, null) },
