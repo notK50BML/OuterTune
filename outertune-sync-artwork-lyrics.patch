@@ -1,7 +1,7 @@
 From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/19] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/22] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 0000000..81d7f34
 From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/19] Add patch notes
+Subject: [PATCH 02/22] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 0000000..28c797a
 From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/19] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/22] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a8..27f97bf 100644
 From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/19] Clarify build route in patch notes
+Subject: [PATCH 04/22] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f96..a43e5d3 100644
 From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/19] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/22] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b93..7d50084 100644
 From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/19] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/22] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac..a848cde 100644
 From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/19] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/22] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf..580a4a9 100644
 From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/19] Add Discord rich presence
+Subject: [PATCH 08/22] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b85159..575e5de 100755
 From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/19] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/22] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d..b01f716 100644
 From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/19] Add a Liquid player background
+Subject: [PATCH 10/22] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2..9ce0f19 100644
 From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/19] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/22] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f19..0afd944 100644
 From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/19] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/22] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd944..8388e17 100644
 From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/19] Fix Discord presence never appearing
+Subject: [PATCH 13/22] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fc..d9eaf36 100644
 From 507a0bc3e25d1a10d886280ffcd87e20d5e76348 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/19] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/22] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17..25f56c2 100644
 From e1e4bcf1005f1970fe7ba90cf2650076058bee4c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/19] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/22] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f..90bac79 100644
 From 9e85fd9df9a1031c7bf38bb94d1754aa2cdd91f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/19] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/22] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c..9277053 100644
 From 8b263bbad0e6aa560b0dfe72e833e883279eb985 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/19] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/22] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 9277053..1fd386f 100644
 From 88b2f886e021b2aff01004049ea99a846b2360e6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/19] Point in-app links at this fork
+Subject: [PATCH 18/22] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 1fd386f..227e962 100644
 From e32309051637dd34f3fc81ced2ae9d7988b9481c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 19/19] Bump to 0.10.18 and document the versioning rule
+Subject: [PATCH 19/22] Bump to 0.10.18 and document the versioning rule
 
 The last component of versionName now moves by 0.00.01 for each new
 feature and stays put for fixes, with versionCode following so Android
@@ -6000,6 +6000,464 @@ index c4a617e..d7da63a 100644
          testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
  
          // expose the TagLib library version (from the version catalog) for the About screen
+-- 
+2.43.0
+
+
+From 1df19436604875215bee6e1d0f197e5e3b7b79c7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 08:21:06 +0000
+Subject: [PATCH 20/22] Fix the Discord presence freezing on a track change
+
+Two writers were publishing presences: a collector on currentSong and the
+play/pause hook in onEvents. On a skip both fired, and whichever finished
+its network round trip last won - so the card often ended up describing
+the outgoing track, with an elapsed time from that track against the new
+one's length. That is the "2:22/:22" reading.
+
+Worse, the currentSong collector required playbackState == STATE_READY a
+full second after the change, and a track change usually spends that
+moment BUFFERING. When the guard rejected it nothing retried, so the
+presence stayed frozen until something else happened to push an update -
+which is why rewinding fixed it and skipping did not: rewinding settles
+the player before the check, a skip does not.
+
+There is now one writer. Everything that could change the card requests
+an update; a single collector serves those requests, reads what to
+publish from the player itself rather than from currentSong (which lags
+by a database read), and waits for the song row instead of giving up on
+it. No path drops an update silently any more.
+
+Also let CancellationException out of DiscordRPC.updateSong; runCatching
+was swallowing it, so a superseded update looked like it had succeeded.
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 119 +++++++++++-------
+ .../com/dd3boh/outertune/utils/DiscordRPC.kt  |   6 +
+ 2 files changed, 81 insertions(+), 44 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 0ac7b82..4aec198 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -145,6 +145,8 @@ import kotlinx.coroutines.FlowPreview
+ import kotlinx.coroutines.SupervisorJob
+ import kotlinx.coroutines.currentCoroutineContext
+ import kotlinx.coroutines.delay
++import kotlinx.coroutines.channels.BufferOverflow
++import kotlinx.coroutines.flow.MutableSharedFlow
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.SharingStarted
+ import kotlinx.coroutines.flow.combine
+@@ -158,6 +160,7 @@ import kotlinx.coroutines.isActive
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.runBlocking
+ import kotlinx.coroutines.withContext
++import kotlinx.coroutines.withTimeoutOrNull
+ import okhttp3.OkHttpClient
+ import java.io.File
+ import java.net.ConnectException
+@@ -223,6 +226,24 @@ class MusicService : MediaLibraryService(),
+ 
+     private var discordRpc: DiscordRPC? = null
+ 
++    /**
++     * Presence updates are *requested*, never pushed directly.
++     *
++     * Two independent writers used to publish presences: a collector on [currentSong] and the
++     * play/pause hook in [onEvents]. On a track change both fire, and whichever finished its
++     * network round trip last decided what Discord showed - so roughly one skip in three left the
++     * card describing the outgoing song. Everything now funnels through this one request, which a
++     * single collector serves, so there is no ordering to lose.
++     */
++    private val discordUpdateRequests = MutableSharedFlow<Unit>(
++        extraBufferCapacity = 1,
++        onBufferOverflow = BufferOverflow.DROP_OLDEST,
++    )
++
++    private fun requestDiscordUpdate() {
++        discordUpdateRequests.tryEmit(Unit)
++    }
++
+     lateinit var connectivityObserver: NetworkConnectivityObserver
+     val waitingForNetworkConnection = MutableStateFlow(false)
+     private val isNetworkConnected = MutableStateFlow(true)
+@@ -322,25 +343,43 @@ class MusicService : MediaLibraryService(),
+             updateNotification()
+         }
+ 
+-        // Discord presence follows the current song. Debounced so skipping through a queue
+-        // doesn't fire a gateway write per track.
+-        // collectLatest, not collect: setActivity resolves both artwork URLs through Discord's
+-        // external-assets API before it sends anything, which can take seconds. With plain
+-        // collect, a skip during that window queued a second update behind the first, and the
+-        // one that eventually landed carried timestamps computed before the skip - an elapsed
+-        // time from the previous track against the new track's duration. collectLatest cancels
+-        // the superseded update instead.
+-        currentSong.debounce(1000).collectLatest(scope) { song ->
+-            if (song != null && player.playWhenReady && player.playbackState == Player.STATE_READY) {
+-                discordRpc?.updateSong(song, discordPositionFor(song.id))
++        // The one and only writer of Discord presence.
++        //
++        // It reads what to publish from the player at the moment it publishes, rather than being
++        // handed a song by whoever triggered it. That matters because currentSong lags the player:
++        // it is database.song(id), so on a skip it still holds the *previous* track for as long as
++        // the new row takes to read. The old code trusted that value and published the outgoing
++        // song against the incoming one's timestamps.
++        //
++        // Nothing is silently dropped here either. The previous version required
++        // playbackState == STATE_READY, but a track change usually spends its first moment
++        // BUFFERING, so the update was discarded with nothing left to retry it - which is exactly
++        // the state where the presence froze until you rewound.
++        discordUpdateRequests.debounce(700).collectLatest(scope) {
++            val rpc = discordRpc ?: return@collectLatest
++            if (!player.playWhenReady) {
++                // playWhenReady, not isPlaying: isPlaying also goes false while a track buffers,
++                // and clearing the activity on every skip made the card flicker out and back.
++                rpc.stopActivity()
++                return@collectLatest
+             }
+-            // Deliberately no else. currentSong is database.song(id), so skipping to a track whose
+-            // row has not been written yet emits a transient null - and tearing down the gateway
+-            // on that meant every skip closed the socket and had to reconnect, leaving the
+-            // presence stale until it came back. Pausing and stopping are handled in onEvents,
+-            // which is the right place for them.
++            val mediaId = player.currentMediaItem?.mediaId ?: return@collectLatest
++            // Wait for the row instead of giving up on it. A freshly queued track may not be in
++            // the database yet; that used to mean no presence at all for that song.
++            val song = withTimeoutOrNull(DISCORD_SONG_ROW_TIMEOUT_MS) {
++                database.song(mediaId).first { it != null }
++            } ?: return@collectLatest
++            // The wait above can outlast the track it was for.
++            if (player.currentMediaItem?.mediaId != mediaId) return@collectLatest
++            rpc.updateSong(song, player.currentPosition)
+         }
+ 
++        // Track changes that the player does not announce as an event still move the metadata.
++        currentMediaMetadata
++            .map { it?.id }
++            .distinctUntilChanged()
++            .collect(scope) { requestDiscordUpdate() }
++
+         setMediaNotificationProvider(
+             DefaultMediaNotificationProvider(
+                 this@MusicService,
+@@ -387,9 +426,10 @@ class MusicService : MediaLibraryService(),
+                     discordRpc = null
+                     if (!token.isNullOrEmpty() && enabled) {
+                         discordRpc = DiscordRPC(this@MusicService, token)
+-                        if (player.playbackState == Player.STATE_READY && player.playWhenReady) {
+-                            currentSong.value?.let { discordRpc?.updateSong(it, discordPositionFor(it.id)) }
+-                        }
++                        // Let the single writer decide what to publish, so turning the switch back
++                        // on behaves exactly like a track change rather than being its own path
++                        // with its own guards.
++                        requestDiscordUpdate()
+                     }
+                 }
+ 
+@@ -1133,18 +1173,6 @@ class MusicService : MediaLibraryService(),
+     }
+ 
+ 
+-    /**
+-     * Playback position to report to Discord for [songId].
+-     *
+-     * player.currentPosition can still refer to the outgoing item while a transition is settling,
+-     * so publishing it blindly produced a presence whose elapsed time came from the *previous*
+-     * track - an already-elapsed 2:22 against the new track's much shorter length, which Discord
+-     * draws as a broken bar. Rewinding to the start fixed it only because that happens to reset
+-     * the position to zero. Trust the position only when the player agrees on which song it is.
+-     */
+-    private fun discordPositionFor(songId: String): Long =
+-        if (player.currentMediaItem?.mediaId == songId) player.currentPosition else 0L
+-
+     override fun onEvents(player: Player, events: Player.Events) {
+         if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
+             val isBufferingOrReady =
+@@ -1162,19 +1190,19 @@ class MusicService : MediaLibraryService(),
+             currentMediaMetadata.value = player.currentMetadata
+         }
+ 
+-        // Discord presence has to follow play/pause as well as track changes. currentSong only
+-        // emits when the song itself changes, so without this, pressing play on an already
+-        // loaded track - or signing in while something was already playing - never pushed a
+-        // presence at all. Resuming also re-anchors the progress bar to the real position.
+-        if (events.containsAny(Player.EVENT_IS_PLAYING_CHANGED)) {
+-            if (player.isPlaying) {
+-                currentSong.value?.let { song ->
+-                    scope.launch { discordRpc?.updateSong(song, discordPositionFor(song.id)) }
+-                }
+-            } else if (!events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_MEDIA_ITEM_TRANSITION)) {
+-                // A pause that is not just the gap between tracks: clear the activity.
+-                scope.launch { discordRpc?.stopActivity() }
+-            }
++        // Anything that can change what should be on the card asks for an update; the collector in
++        // onCreate decides what that update contains. Asking too often is free - requests
++        // collapse - whereas missing one leaves a stale presence with nothing to correct it, which
++        // is the failure this replaced.
++        if (events.containsAny(
++                Player.EVENT_IS_PLAYING_CHANGED,
++                Player.EVENT_PLAY_WHEN_READY_CHANGED,
++                Player.EVENT_PLAYBACK_STATE_CHANGED,
++                EVENT_MEDIA_ITEM_TRANSITION,
++                EVENT_POSITION_DISCONTINUITY,
++            )
++        ) {
++            requestDiscordUpdate()
+         }
+     }
+ 
+@@ -1312,6 +1340,9 @@ class MusicService : MediaLibraryService(),
+     }
+ 
+     companion object {
++        /** How long to wait for a just-queued track's database row before giving up on it. */
++        private const val DISCORD_SONG_ROW_TIMEOUT_MS = 5_000L
++
+         const val ROOT = "root"
+         const val SONG = "song"
+         const val ARTIST = "artist"
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+index 227e962..e843bb7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
+@@ -4,6 +4,7 @@ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.db.entities.Song
+ import com.my.kizzy.rpc.KizzyRPC
+ import com.my.kizzy.rpc.RpcImage
++import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.sync.Mutex
+ import kotlinx.coroutines.sync.withLock
+ 
+@@ -30,6 +31,11 @@ class DiscordRPC(
+             if (thisUpdate != latestUpdate) return@runCatching
+             sendPresence(song, currentPlaybackTimeMillis)
+         }
++    }.onFailure {
++        // runCatching swallows CancellationException, which would quietly break the caller's
++        // structured concurrency: a superseded update would look like it completed normally
++        // instead of unwinding. Let cancellation through; keep swallowing real failures.
++        if (it is CancellationException) throw it
+     }
+ 
+     private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {
+-- 
+2.43.0
+
+
+From ded2ac8a7e26e38a127bc0ecc9e4fa61181a0624 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 08:22:16 +0000
+Subject: [PATCH 21/22] Explain where to find the Discord token
+
+The in-app login reads localStorage, which Discord's web client no longer
+reliably exposes, so the token dialog is the path that actually works and
+it only said "Paste your Discord token" - which is no help if you do not
+already know where one lives. Spell out the DevTools route instead.
+---
+ app/src/main/res/values/strings-ot.xml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 035206e..93e4b92 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -147,7 +147,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="discord_login_summary">Log in to show what you are listening to</string>
+     <string name="discord_login_token">Log in with token</string>
+     <string name="discord_login_token_description">Use this if the login page will not finish</string>
+-    <string name="discord_login_token_hint">Paste your Discord token</string>
++    <string name="discord_login_token_hint">On desktop Discord or discord.com, open DevTools (F12) → Network, click any request (for example messages?limit=50), and copy the value of the \"authorization\" request header.</string>
+     <string name="discord_test_connection">Test connection</string>
+     <string name="discord_test_connection_description">Open a connection to Discord and report what happens</string>
+     <string name="discord_login_failed">Could not read the token from this page. Go back and use \"Log in with token\" instead.</string>
+-- 
+2.43.0
+
+
+From e5c326d20e4db49bbb5a7f88cd859c98d8318651 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 08:27:16 +0000
+Subject: [PATCH 22/22] Ask Discord's module registry for the token
+
+The WebView login read localStorage, which Discord's client no longer
+reliably populates - that is why the login page just sat there. Push a
+webpack chunk instead and ask the module that owns the token for it
+directly, which does not depend on where the client happens to keep the
+value. localStorage and the iframe read stay on as fallbacks.
+
+Method contributed by @notK50BML, who found it works on both the web and
+desktop clients.
+
+Tokens are also normalised now, at all three entry points. localStorage
+holds the value JSON-encoded, so it arrives wrapped in quote characters,
+and a token copied out of a console picks them up the same way. Those
+quotes reach the gateway as part of the token and come back as a bare
+close code 4004 with nothing to explain it.
+---
+ .../ui/screens/settings/DiscordLoginScreen.kt | 106 ++++++++++++++----
+ .../ui/screens/settings/DiscordSettings.kt    |   2 +-
+ 2 files changed, 86 insertions(+), 22 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
+index a798375..286a9f1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
+@@ -59,7 +59,7 @@ import kotlinx.coroutines.withContext
+ import kotlinx.coroutines.launch
+ 
+ /**
+- * Signs in to Discord in a WebView and lifts the account token out of local storage.
++ * Signs in to Discord in a WebView and lifts the account token back out of the page.
+  *
+  * There is no official Discord API for setting a rich presence from Android, so the token is used
+  * to open a gateway connection as the account itself. The token never leaves the device — it is
+@@ -122,9 +122,10 @@ fun DiscordLoginScreen(navController: NavController) {
+                 addJavascriptInterface(object {
+                     @JavascriptInterface
+                     fun onRetrieveToken(token: String) {
+-                        if (token != "null" && token != "error" && token.isNotBlank()) {
++                        val clean = normalizeDiscordToken(token)
++                        if (clean != "null" && clean != "error" && clean.isNotBlank()) {
+                             captured = true
+-                            discordToken = token
++                            discordToken = clean
+                             scope.launch(Dispatchers.Main) {
+                                 webView?.loadUrl("about:blank")
+                                 navController.navigateUp()
+@@ -160,9 +161,10 @@ fun DiscordLoginScreen(navController: NavController) {
+                         message: String,
+                         result: JsResult
+                     ): Boolean {
+-                        if (message != "null" && message != "error" && message.isNotBlank()) {
++                        val clean = normalizeDiscordToken(message)
++                        if (clean != "null" && clean != "error" && clean.isNotBlank()) {
+                             captured = true
+-                            discordToken = message
++                            discordToken = clean
+                             scope.launch(Dispatchers.Main) {
+                                 view.loadUrl("about:blank")
+                                 navController.navigateUp()
+@@ -231,28 +233,90 @@ private const val TAG = "DiscordLogin"
+ private const val POLL_ATTEMPTS = 60
+ private const val POLL_INTERVAL_MS = 500L
+ 
++/**
++ * Strips the quotes a token can arrive wrapped in.
++ *
++ * localStorage stores it JSON-encoded, so `getItem` hands back `"MTIz..."` with the quote
++ * characters as part of the value. Pasted tokens pick them up too, from copying a console
++ * result. A Discord token never legitimately contains a quote, so removing a matched pair is
++ * safe and saves a login that would otherwise fail with a baffling 4004.
++ */
++internal fun normalizeDiscordToken(raw: String): String {
++    val t = raw.trim()
++    val quoted = t.length >= 2 &&
++            ((t.startsWith("\"") && t.endsWith("\"")) || (t.startsWith("'") && t.endsWith("'")))
++    return (if (quoted) t.substring(1, t.length - 1) else t).trim()
++}
++
++/**
++ * Three ways to get the token, tried in order of how well they hold up.
++ *
++ * 1. Ask Discord's own webpack registry for the module that owns the token and call its
++ *    getToken(). This is the only one that does not depend on where Discord happens to keep
++ *    the value, so it survives the client changing its storage - which is what broke the
++ *    other two.
++ * 2. localStorage, for older builds that still populate it.
++ * 3. A same-origin iframe's localStorage, for builds that sandbox it away from the top frame.
++ *
++ * Nothing here is sent anywhere: the value goes straight into this app's DataStore.
++ */
+ private val TOKEN_EXTRACTION_JS = """
+     (function() {
++        function done(t) {
++            if (t) { Android.onRetrieveToken(String(t)); return true; }
++            return false;
++        }
++
++        // 1. Discord's module registry.
+         try {
+-            var token = localStorage.getItem("token");
+-            if (token) {
+-                Android.onRetrieveToken(token.slice(1, -1));
+-            } else {
+-                var i = document.createElement('iframe');
+-                document.body.appendChild(i);
+-                setTimeout(function() {
++            var chunk = window.webpackChunkdiscord_app;
++            if (chunk && typeof chunk.push === 'function') {
++                var found = null;
++                chunk.push([[Symbol('ot')], {}, function(req) {
+                     try {
+-                        var alt = i.contentWindow.localStorage.token;
+-                        if (alt) {
+-                            alert(alt.slice(1, -1));
+-                        } else {
+-                            alert("null");
++                        var cache = req.c || {};
++                        for (var id in cache) {
++                            if (found) break;
++                            try {
++                                var mod = cache[id];
++                                var ex = mod && mod.exports;
++                                if (!ex) continue;
++                                // The token store is sometimes the export itself and sometimes
++                                // sitting behind a minified wrapper key.
++                                var candidates = [ex, ex.default, ex.Z, ex.ZP];
++                                for (var i = 0; i < candidates.length; i++) {
++                                    var c = candidates[i];
++                                    if (c && c.setToken && typeof c.getToken === 'function') {
++                                        var t = c.getToken();
++                                        if (t) { found = t; break; }
++                                    }
++                                }
++                            } catch (e) {}
+                         }
+-                    } catch (e) {
+-                        alert("error");
+-                    }
+-                }, 1000);
++                    } catch (e) {}
++                }]);
++                if (done(found)) return;
+             }
++        } catch (e) {}
++
++        // 2. localStorage on the top frame.
++        try {
++            var token = localStorage.getItem("token");
++            if (done(token)) return;
++        } catch (e) {}
++
++        // 3. localStorage via a same-origin iframe.
++        try {
++            var i = document.createElement('iframe');
++            document.body.appendChild(i);
++            setTimeout(function() {
++                try {
++                    var alt = i.contentWindow.localStorage.token;
++                    alert(alt ? String(alt) : "null");
++                } catch (e) {
++                    alert("error");
++                }
++            }, 1000);
+         } catch (e) {
+             alert("error");
+         }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
+index 9244411..4aea73d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
+@@ -87,7 +87,7 @@ fun DiscordSettings(
+             placeholder = { Text(stringResource(R.string.discord_login_token_hint)) },
+             singleLine = false,
+             isInputValid = { it.isNotBlank() },
+-            onDone = { discordToken = it.trim() },
++            onDone = { discordToken = normalizeDiscordToken(it) },
+             onDismiss = { showTokenDialog = false },
+         )
+     }
 -- 
 2.43.0
 
