@@ -1,7 +1,7 @@
 From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/26] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/31] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 0000000..81d7f34
 From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/26] Add patch notes
+Subject: [PATCH 02/31] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 0000000..28c797a
 From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/26] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/31] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a8..27f97bf 100644
 From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/26] Clarify build route in patch notes
+Subject: [PATCH 04/31] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f96..a43e5d3 100644
 From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/26] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/31] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b93..7d50084 100644
 From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/26] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/31] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac..a848cde 100644
 From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/26] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/31] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf..580a4a9 100644
 From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/26] Add Discord rich presence
+Subject: [PATCH 08/31] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b85159..575e5de 100755
 From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/26] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/31] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d..b01f716 100644
 From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/26] Add a Liquid player background
+Subject: [PATCH 10/31] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2..9ce0f19 100644
 From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/26] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/31] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f19..0afd944 100644
 From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/26] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/31] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd944..8388e17 100644
 From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/26] Fix Discord presence never appearing
+Subject: [PATCH 13/31] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fc..d9eaf36 100644
 From 507a0bc3e25d1a10d886280ffcd87e20d5e76348 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/26] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/31] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17..25f56c2 100644
 From e1e4bcf1005f1970fe7ba90cf2650076058bee4c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/26] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/31] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f..90bac79 100644
 From 9e85fd9df9a1031c7bf38bb94d1754aa2cdd91f8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/26] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/31] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c..9277053 100644
 From 8b263bbad0e6aa560b0dfe72e833e883279eb985 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/26] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/31] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 9277053..1fd386f 100644
 From 88b2f886e021b2aff01004049ea99a846b2360e6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/26] Point in-app links at this fork
+Subject: [PATCH 18/31] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 1fd386f..227e962 100644
 From e32309051637dd34f3fc81ced2ae9d7988b9481c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 19/26] Bump to 0.10.18 and document the versioning rule
+Subject: [PATCH 19/31] Bump to 0.10.18 and document the versioning rule
 
 The last component of versionName now moves by 0.00.01 for each new
 feature and stays put for fixes, with versionCode following so Android
@@ -6007,7 +6007,7 @@ index c4a617e..d7da63a 100644
 From 1df19436604875215bee6e1d0f197e5e3b7b79c7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 20/26] Fix the Discord presence freezing on a track change
+Subject: [PATCH 20/31] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6248,7 +6248,7 @@ index 227e962..e843bb7 100644
 From ded2ac8a7e26e38a127bc0ecc9e4fa61181a0624 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 21/26] Explain where to find the Discord token
+Subject: [PATCH 21/31] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6278,7 +6278,7 @@ index 035206e..93e4b92 100644
 From e5c326d20e4db49bbb5a7f88cd859c98d8318651 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 22/26] Ask Discord's module registry for the token
+Subject: [PATCH 22/31] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6465,7 +6465,7 @@ index 9244411..4aea73d 100644
 From d324e5e3131d3328156a6370fa5c18eb7fdcc405 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 23/26] Add app icon customisation
+Subject: [PATCH 23/31] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7403,7 +7403,7 @@ index 93e4b92..25673ab 100644
 From 31c4cd15f7738a5dc1aa223ebf5f687633eb232b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 24/26] Add a frosted glass player background
+Subject: [PATCH 24/31] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7784,7 +7784,7 @@ index 25673ab..d6c42ef 100644
 From 25b8f379b9baa4f33ccfee1d22b00b01fe9a8c5b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 25/26] Turn the home search into a field, and thin out the top
+Subject: [PATCH 25/31] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8072,7 +8072,7 @@ index d6c42ef..3774868 100644
 From 591f65ace531d61dee5ecf9f72f5e393ff056485 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 26/26] Add extended charts to Stats
+Subject: [PATCH 26/31] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8361,6 +8361,3757 @@ index 3774868..1041835 100644
      <string name="show_top_bar_logo_title">Show logo in the top bar</string>
      <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
      <!-- App icon -->
+-- 
+2.43.0
+
+
+From d91448588026cd7b85dfa6d0d45a75fe3740372e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 09:59:55 +0000
+Subject: [PATCH 27/31] Import player layouts from the layout editor
+
+Settings -> Appearance -> Player layout takes a file from the standalone
+editor. The portrait player's title block, progress block and transport
+row are now emitted in the order the file gives, and hidden if it says
+to hide them.
+
+Parsed with org.json rather than kotlinx.serialization: the :app module
+does not apply the serialization plugin, and pulling in a compiler plugin
+and runtime to read one small file is a poor trade when org.json ships
+with Android.
+
+The parser assumes nothing. Every field falls back to the built-in value
+if it is missing, malformed or out of range; unknown block ids are
+dropped; a block the file never mentions comes back with its defaults
+rather than vanishing. A file is validated before it is stored, so a bad
+one cannot leave the player in a state the user has to reinstall to
+escape, and there is a reset either way.
+
+Two deliberate refusals: a layout claiming a newer schema is rejected
+rather than guessed at, and the transport row is drawn whatever the file
+says - hiding the play button leaves a player that cannot be paused from
+its own screen, and a JSON file is not where anyone should discover that.
+
+Not yet honoured: free placement, artwork size and per-block scale. Those
+need the artwork and action row lifted out of their current parents,
+which is a bigger change than this one and better made on its own.
+---
+ .../java/com/dd3boh/outertune/MainActivity.kt |   4 +
+ .../outertune/constants/PreferenceKeys.kt     |   8 +
+ .../dd3boh/outertune/models/PlayerLayout.kt   | 131 +++++
+ .../com/dd3boh/outertune/ui/player/Player.kt  | 471 ++++++++++--------
+ .../ui/screens/settings/AppearanceSettings.kt |   7 +
+ .../screens/settings/PlayerLayoutSettings.kt  | 142 ++++++
+ app/src/main/res/values/strings-ot.xml        |  10 +
+ 7 files changed, 553 insertions(+), 220 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 7a60d64..4a2b600 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -180,6 +180,7 @@ import com.dd3boh.outertune.ui.screens.settings.LibrariesScreen
+ import com.dd3boh.outertune.ui.screens.settings.LibrarySettings
+ import com.dd3boh.outertune.ui.screens.settings.LocalPlayerSettings
+ import com.dd3boh.outertune.ui.screens.settings.LyricsSettings
++import com.dd3boh.outertune.ui.screens.settings.PlayerLayoutSettings
+ import com.dd3boh.outertune.ui.screens.settings.PlayerSettings
+ import com.dd3boh.outertune.ui.screens.settings.PrivacySettings
+ import com.dd3boh.outertune.ui.screens.settings.SettingsScreen
+@@ -713,6 +714,9 @@ class MainActivity : ComponentActivity() {
+                                     composable("settings/appearance/icon") {
+                                         AppIconSettings(navController, scrollBehavior)
+                                     }
++                                    composable("settings/appearance/layout") {
++                                        PlayerLayoutSettings(navController, scrollBehavior)
++                                    }
+                                     composable("settings/library") {
+                                         LibrarySettings(navController, scrollBehavior)
+                                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 85e4615..ebbc192 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -23,6 +23,14 @@ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
+ 
+ /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
+ val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
++
++/**
++ * The imported player layout, stored as the raw JSON the editor produced.
++ *
++ * Kept as text rather than exploded into a preference per field so that a layout from a newer
++ * editor survives a downgrade untouched, and so the user can see exactly what they imported.
++ */
++val PlayerLayoutKey = stringPreferencesKey("playerLayout")
+ val ShowQueueTitleKey = booleanPreferencesKey("showQueueTitle")
+ val DarkModeKey = stringPreferencesKey("darkMode")
+ val PureBlackKey = booleanPreferencesKey("pureBlack")
+diff --git a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+new file mode 100644
+index 0000000..ee3a36c
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+@@ -0,0 +1,131 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.models
++
++import org.json.JSONObject
++
++/**
++ * A player layout, as produced by the standalone layout editor.
++ *
++ * Parsed with org.json rather than kotlinx.serialization on purpose. The :app module does not
++ * apply the serialization plugin, and adding it to read one small file would pull a compiler
++ * plugin and a runtime into the build for no benefit - org.json is part of Android.
++ *
++ * Everything here is defensive. This file arrives from outside the app, possibly hand-edited,
++ * possibly from an older or newer editor, and the cost of getting it wrong is a player that
++ * cannot be used to turn the music off. Any field that is missing, malformed or out of range
++ * falls back to the built-in value rather than failing the whole layout.
++ */
++data class PlayerLayout(
++    val mode: Mode = Mode.STACK,
++    val spacingDp: Int = DEFAULT_SPACING_DP,
++    val sidePaddingDp: Int = DEFAULT_SIDE_PADDING_DP,
++    val blocks: List<Block> = DEFAULT_BLOCKS,
++) {
++    enum class Mode { STACK, FREE }
++
++    enum class Align { START, CENTER }
++
++    data class Block(
++        val id: BlockId,
++        val visible: Boolean = true,
++        /** Artwork width as a percentage of the available width. */
++        val sizePercent: Int = 100,
++        /** Artwork corner radius in dp. */
++        val radiusDp: Int = 12,
++        /** Size multiplier as a percentage. */
++        val scalePercent: Int = 100,
++        val align: Align = Align.START,
++        /** Free placement, as percentages of the player area. Unused in [Mode.STACK]. */
++        val xPercent: Float = 0f,
++        val yPercent: Float = 0f,
++        val widthPercent: Float = 100f,
++    )
++
++    enum class BlockId(val key: String) {
++        ARTWORK("artwork"),
++        INFO("info"),
++        PROGRESS("progress"),
++        CONTROLS("controls"),
++        ACTIONS("actions"),
++        QUEUE("queue");
++
++        companion object {
++            fun from(key: String?) = entries.firstOrNull { it.key == key }
++        }
++    }
++
++    fun block(id: BlockId): Block = blocks.firstOrNull { it.id == id } ?: Block(id)
++
++    fun isVisible(id: BlockId): Boolean = block(id).visible
++
++    companion object {
++        /** Bumped alongside the editor. A file claiming a newer version is refused, not guessed at. */
++        const val SCHEMA_VERSION = 2
++
++        const val DEFAULT_SPACING_DP = 16
++        const val DEFAULT_SIDE_PADDING_DP = 24
++
++        val DEFAULT_BLOCKS: List<Block> = BlockId.entries.map { Block(it) }
++
++        /** The built-in layout: what the player looks like with no file imported. */
++        val DEFAULT = PlayerLayout()
++
++        /**
++         * @return the parsed layout, or a message explaining why the file was refused.
++         */
++        fun parse(json: String): Result<PlayerLayout> = runCatching {
++            val root = JSONObject(json)
++
++            val version = root.optInt("schemaVersion", 1)
++            require(version <= SCHEMA_VERSION) {
++                "This layout was made with a newer editor (v$version)."
++            }
++
++            val array = root.optJSONArray("blocks")
++            require(array != null && array.length() > 0) { "That file has no blocks in it." }
++
++            val parsed = LinkedHashMap<BlockId, Block>()
++            for (i in 0 until array.length()) {
++                val obj = array.optJSONObject(i) ?: continue
++                val id = BlockId.from(obj.optString("id")) ?: continue
++                // First occurrence wins. A duplicated id is a hand-editing slip, not a reason to
++                // reject a file that is otherwise fine.
++                if (parsed.containsKey(id)) continue
++                parsed[id] = Block(
++                    id = id,
++                    visible = obj.optBoolean("visible", true),
++                    sizePercent = obj.optInt("size", 100).coerceIn(20, 200),
++                    radiusDp = obj.optInt("radius", 12).coerceIn(0, 400),
++                    scalePercent = obj.optInt("scale", 100).coerceIn(50, 200),
++                    align = if (obj.optString("align") == "center") Align.CENTER else Align.START,
++                    xPercent = obj.optDouble("x", 0.0).toFloat().coerceIn(0f, 100f),
++                    yPercent = obj.optDouble("y", 0.0).toFloat().coerceIn(0f, 100f),
++                    widthPercent = obj.optDouble("w", 100.0).toFloat().coerceIn(5f, 100f),
++                )
++            }
++            require(parsed.isNotEmpty()) { "None of the blocks in that file were recognised." }
++
++            // A block the file never mentioned comes back with its defaults, at the end. Dropping
++            // it instead would silently remove a control - the play button, say - from a player
++            // the user then has no way to fix from inside the app.
++            val blocks = parsed.values.toMutableList()
++            BlockId.entries.forEach { id ->
++                if (!parsed.containsKey(id)) blocks.add(Block(id))
++            }
++
++            PlayerLayout(
++                mode = if (root.optString("mode") == "free") Mode.FREE else Mode.STACK,
++                spacingDp = root.optInt("spacing", DEFAULT_SPACING_DP).coerceIn(0, 64),
++                sidePaddingDp = root.optInt("sidePadding", DEFAULT_SIDE_PADDING_DP).coerceIn(0, 64),
++                blocks = blocks,
++            )
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 5b1c0ef..ca6fc88 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -121,6 +121,7 @@ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+ import com.dd3boh.outertune.constants.DarkMode
+ import com.dd3boh.outertune.constants.DarkModeKey
+ import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
++import com.dd3boh.outertune.constants.PlayerLayoutKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.PLAYER_DEBUG
+@@ -136,6 +137,7 @@ import com.dd3boh.outertune.constants.ShowLyricsKey
+ import com.dd3boh.outertune.constants.ShowLyricsOnClickKey
+ import com.dd3boh.outertune.constants.SleepTimerShowOnPlayerKey
+ import com.dd3boh.outertune.constants.SwipeToSkipKey
++import com.dd3boh.outertune.models.PlayerLayout
+ import com.dd3boh.outertune.extensions.isPowerSaver
+ import com.dd3boh.outertune.extensions.metadata
+ import com.dd3boh.outertune.extensions.supportsWideScreen
+@@ -750,6 +752,15 @@ fun ControlsContent(
+ 
+     val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+ 
++    // Parsed once per change rather than per frame. A file that no longer parses - edited by
++    // hand, or written by a newer editor after a downgrade - falls back to the built-in layout
++    // instead of leaving the player empty.
++    val layoutJson by rememberPreference(PlayerLayoutKey, "")
++    val playerLayout = remember(layoutJson) {
++        if (layoutJson.isBlank()) PlayerLayout.DEFAULT
++        else PlayerLayout.parse(layoutJson).getOrDefault(PlayerLayout.DEFAULT)
++    }
++
+     // Only the artwork-derived backgrounds have anything to measure. Asking for a luminance on
+     // the others would load a bitmap on every track change and then ignore the answer.
+     val coverIsLight = rememberCoverIsLight(
+@@ -815,278 +826,298 @@ fun ControlsContent(
+                 }
+             }
+ 
+-            Row(
+-                horizontalArrangement = Arrangement.Start,
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .padding(horizontal = PlayerHorizontalPadding)
+-            ) {
+-                Row {
+-                    Column(modifier = Modifier.weight(1f)) {
+-                        Text(
+-                            text = mediaMetadata?.title ?: "",
+-                            style = MaterialTheme.typography.titleLarge,
+-                            color = onBackgroundColor,
+-                            fontWeight = FontWeight.Bold,
+-                            maxLines = 1,
+-                            overflow = TextOverflow.Ellipsis,
+-                            modifier = Modifier
+-                                .basicMarquee(
+-                                    iterations = 1,
+-                                    initialDelayMillis = 3000
+-                                )
+-                                .clickable(enabled = mediaMetadata?.album != null) {
+-                                    navController.navigate("album/${mediaMetadata?.album!!.id}")
+-                                    playerSheetState.collapseSoft()
+-                                }
+-                        )
++            // Each group is captured rather than emitted in place, so the imported layout can
++            // decide the order and which of them appear at all. Nothing about how they are built
++            // changed - only when they are called.
++            val infoBlock: @Composable () -> Unit = {
++                Row(
++                    horizontalArrangement = Arrangement.Start,
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .padding(horizontal = PlayerHorizontalPadding)
++                ) {
++                    Row {
++                        Column(modifier = Modifier.weight(1f)) {
++                            Text(
++                                text = mediaMetadata?.title ?: "",
++                                style = MaterialTheme.typography.titleLarge,
++                                color = onBackgroundColor,
++                                fontWeight = FontWeight.Bold,
++                                maxLines = 1,
++                                overflow = TextOverflow.Ellipsis,
++                                modifier = Modifier
++                                    .basicMarquee(
++                                        iterations = 1,
++                                        initialDelayMillis = 3000
++                                    )
++                                    .clickable(enabled = mediaMetadata?.album != null) {
++                                        navController.navigate("album/${mediaMetadata?.album!!.id}")
++                                        playerSheetState.collapseSoft()
++                                    }
++                            )
+ 
+-                        Row {
+-                            mediaMetadata?.artists?.fastForEachIndexed { index, artist ->
+-                                Text(
+-                                    text = artist.name,
++                            Row {
++                                mediaMetadata?.artists?.fastForEachIndexed { index, artist ->
++                                    Text(
++                                        text = artist.name,
++                                        style = MaterialTheme.typography.titleMedium,
++                                        color = onBackgroundColor,
++                                        maxLines = 1,
++                                        modifier = Modifier
++                                            .basicMarquee(
++                                                iterations = 1,
++                                                initialDelayMillis = 5000
++                                            )
++                                            .clickable(enabled = artist.id != null) {
++                                                navController.navigate("artist/${artist.id}")
++                                                playerSheetState.collapseSoft()
++                                            }
++                                    )
++
++                                    if (index != mediaMetadata?.artists?.lastIndex) {
++                                        Text(
++                                            text = ", ",
++                                            style = MaterialTheme.typography.titleMedium,
++                                            color = onBackgroundColor
++                                        )
++                                    }
++                                } ?: Text(
++                                    text = "",
+                                     style = MaterialTheme.typography.titleMedium,
+                                     color = onBackgroundColor,
+                                     maxLines = 1,
+-                                    modifier = Modifier
+-                                        .basicMarquee(
+-                                            iterations = 1,
+-                                            initialDelayMillis = 5000
+-                                        )
+-                                        .clickable(enabled = artist.id != null) {
+-                                            navController.navigate("artist/${artist.id}")
+-                                            playerSheetState.collapseSoft()
+-                                        }
+                                 )
+-
+-                                if (index != mediaMetadata?.artists?.lastIndex) {
+-                                    Text(
+-                                        text = ", ",
+-                                        style = MaterialTheme.typography.titleMedium,
+-                                        color = onBackgroundColor
+-                                    )
+-                                }
+-                            } ?: Text(
+-                                text = "",
+-                                style = MaterialTheme.typography.titleMedium,
+-                                color = onBackgroundColor,
+-                                maxLines = 1,
+-                            )
++                            }
+                         }
+-                    }
+ 
+-                    // action buttons for portrait (inline with title)
+-                    if (!compactWidth) {
+-                        ActionButtons(playerSheetState, navController)
++                        // action buttons for portrait (inline with title)
++                        if (!compactWidth) {
++                            ActionButtons(playerSheetState, navController)
++                        }
+                     }
+                 }
+-            }
+-
+-            Slider(
+-                value = (sliderPosition ?: position).toFloat(),
+-                valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+-                onValueChange = {
+-                    sliderPosition = it.toLong()
+-                    // slider too granular for this haptic to feel right
+-//                    haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                },
+-                onValueChangeFinished = {
+-                    sliderPosition?.let {
+-                        playerConnection.player.seekTo(it)
+-                        position = it
+-                    }
+-                    sliderPosition = null
+-                    haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+-                },
+-                thumb = { Spacer(modifier = Modifier.size(0.dp)) },
+-                track = { sliderState ->
+-                    PlayerSliderTrack(
+-                        sliderState = sliderState,
+-                        colors = SliderDefaults.colors(),
+-                        style = sliderStyle,
+-                        animate = isPlaying && sliderPosition == null
+-                    )
+-                },
+-                modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
+-            )
+ 
+-            Row(
+-                horizontalArrangement = Arrangement.SpaceBetween,
+-                verticalAlignment = Alignment.CenterVertically,
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .padding(horizontal = PlayerHorizontalPadding + 4.dp)
+-            ) {
+-                Text(
+-                    text = makeTimeString(sliderPosition ?: position),
+-                    style = MaterialTheme.typography.labelMedium,
+-                    color = onBackgroundColor,
+-                    maxLines = 1,
+-                    overflow = TextOverflow.Ellipsis,
+-                )
+-
+-                Text(
+-                    text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
+-                    style = MaterialTheme.typography.labelMedium,
+-                    color = onBackgroundColor,
+-                    maxLines = 1,
+-                    overflow = TextOverflow.Ellipsis,
+-                )
+             }
++            val progressBlock: @Composable () -> Unit = {
++                Slider(
++                    value = (sliderPosition ?: position).toFloat(),
++                    valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
++                    onValueChange = {
++                        sliderPosition = it.toLong()
++                        // slider too granular for this haptic to feel right
++    //                    haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
++                    },
++                    onValueChangeFinished = {
++                        sliderPosition?.let {
++                            playerConnection.player.seekTo(it)
++                            position = it
++                        }
++                        sliderPosition = null
++                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
++                    },
++                    thumb = { Spacer(modifier = Modifier.size(0.dp)) },
++                    track = { sliderState ->
++                        PlayerSliderTrack(
++                            sliderState = sliderState,
++                            colors = SliderDefaults.colors(),
++                            style = sliderStyle,
++                            animate = isPlaying && sliderPosition == null
++                        )
++                    },
++                    modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
++                )
+ 
+-            Spacer(Modifier.height(12.dp))
+-
+-            Row(
+-                verticalAlignment = Alignment.CenterVertically,
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .padding(horizontal = PlayerHorizontalPadding)
+-            ) {
+-                val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+-
+-                Box(modifier = Modifier.weight(1f)) {
+-                    ResizableIconButton(
+-                        icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+-                        modifier = Modifier
+-                            .size(32.dp)
+-                            .padding(4.dp)
+-                            .align(Alignment.Center),
++                Row(
++                    horizontalArrangement = Arrangement.SpaceBetween,
++                    verticalAlignment = Alignment.CenterVertically,
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .padding(horizontal = PlayerHorizontalPadding + 4.dp)
++                ) {
++                    Text(
++                        text = makeTimeString(sliderPosition ?: position),
++                        style = MaterialTheme.typography.labelMedium,
+                         color = onBackgroundColor,
+-                        enabled = playerConnection.player.currentMediaItem != null,
+-                        onClick = {
+-                            playerConnection.triggerShuffle()
+-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                        }
++                        maxLines = 1,
++                        overflow = TextOverflow.Ellipsis,
+                     )
+-                }
+ 
+-                Box(modifier = Modifier.weight(1f)) {
+-                    ResizableIconButton(
+-                        icon = Icons.Rounded.SkipPrevious,
+-                        enabled = canSkipPrevious,
+-                        modifier = Modifier
+-                            .size(32.dp)
+-                            .align(Alignment.Center),
++                    Text(
++                        text = if (duration != C.TIME_UNSET) makeTimeString(duration) else "",
++                        style = MaterialTheme.typography.labelMedium,
+                         color = onBackgroundColor,
+-                        onClick = {
+-                            if (playerConnection.player.currentMediaItem == null) {
+-                                queueBoard.setCurrQueue()
+-                            }
+-                            playerConnection.player.seekToPrevious()
+-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                        }
++                        maxLines = 1,
++                        overflow = TextOverflow.Ellipsis,
+                     )
+                 }
+ 
+-                if (seekIncrement != SeekIncrement.OFF) {
++                Spacer(Modifier.height(12.dp))
++            }
++            val controlsBlock: @Composable () -> Unit = {
++                Row(
++                    verticalAlignment = Alignment.CenterVertically,
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .padding(horizontal = PlayerHorizontalPadding)
++                ) {
++                    val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
++
+                     Box(modifier = Modifier.weight(1f)) {
+                         ResizableIconButton(
+-                            icon = Icons.Rounded.FastRewind,
++                            icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+                             modifier = Modifier
+                                 .size(32.dp)
++                                .padding(4.dp)
+                                 .align(Alignment.Center),
+                             color = onBackgroundColor,
+                             enabled = playerConnection.player.currentMediaItem != null,
+                             onClick = {
+-                                playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
++                                playerConnection.triggerShuffle()
++                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                             }
+                         )
+                     }
+-                }
+ 
+-                Spacer(Modifier.width(8.dp))
+-
+-                Box(
+-                    modifier = Modifier
+-                        // Same size whether or not lyrics are showing: the controls should not
+-                        // change shape just because the artwork was swapped for lyrics.
+-                        .size(if (maxW >= 320.dp) 72.dp else 42.dp)
+-                        .animateContentSize()
+-                        .clip(RoundedCornerShape(playPauseRoundness))
+-                        .background(MaterialTheme.colorScheme.primary)
+-                        .clickable {
+-                            if (playerConnection.player.currentMediaItem == null) {
+-                                queueBoard.setCurrQueue()
+-                                playerConnection.player.togglePlayPause()
+-                            } else if (playbackState == STATE_ENDED) {
+-                                playerConnection.player.seekTo(0, 0)
+-                                playerConnection.player.playWhenReady = true
+-                            } else {
+-                                playerConnection.player.togglePlayPause()
++                    Box(modifier = Modifier.weight(1f)) {
++                        ResizableIconButton(
++                            icon = Icons.Rounded.SkipPrevious,
++                            enabled = canSkipPrevious,
++                            modifier = Modifier
++                                .size(32.dp)
++                                .align(Alignment.Center),
++                            color = onBackgroundColor,
++                            onClick = {
++                                if (playerConnection.player.currentMediaItem == null) {
++                                    queueBoard.setCurrQueue()
++                                }
++                                playerConnection.player.seekToPrevious()
++                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                             }
+-                            // play/pause is slightly harder haptic
+-                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
++                        )
++                    }
++
++                    if (seekIncrement != SeekIncrement.OFF) {
++                        Box(modifier = Modifier.weight(1f)) {
++                            ResizableIconButton(
++                                icon = Icons.Rounded.FastRewind,
++                                modifier = Modifier
++                                    .size(32.dp)
++                                    .align(Alignment.Center),
++                                color = onBackgroundColor,
++                                enabled = playerConnection.player.currentMediaItem != null,
++                                onClick = {
++                                    playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
++                                }
++                            )
+                         }
+-                ) {
+-                    Image(
+-                        imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+-                        contentDescription = null,
+-                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
++                    }
++
++                    Spacer(Modifier.width(8.dp))
++
++                    Box(
+                         modifier = Modifier
+-                            .align(Alignment.Center)
+-                            .size(36.dp)
+-                    )
+-                }
++                            // Same size whether or not lyrics are showing: the controls should not
++                            // change shape just because the artwork was swapped for lyrics.
++                            .size(if (maxW >= 320.dp) 72.dp else 42.dp)
++                            .animateContentSize()
++                            .clip(RoundedCornerShape(playPauseRoundness))
++                            .background(MaterialTheme.colorScheme.primary)
++                            .clickable {
++                                if (playerConnection.player.currentMediaItem == null) {
++                                    queueBoard.setCurrQueue()
++                                    playerConnection.player.togglePlayPause()
++                                } else if (playbackState == STATE_ENDED) {
++                                    playerConnection.player.seekTo(0, 0)
++                                    playerConnection.player.playWhenReady = true
++                                } else {
++                                    playerConnection.player.togglePlayPause()
++                                }
++                                // play/pause is slightly harder haptic
++                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
++                            }
++                    ) {
++                        Image(
++                            imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
++                            contentDescription = null,
++                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
++                            modifier = Modifier
++                                .align(Alignment.Center)
++                                .size(36.dp)
++                        )
++                    }
++
++                    Spacer(Modifier.width(8.dp))
++
++                    if (seekIncrement != SeekIncrement.OFF) {
++                        Box(modifier = Modifier.weight(1f)) {
++                            ResizableIconButton(
++                                icon = Icons.Rounded.FastForward,
++                                modifier = Modifier
++                                    .size(32.dp)
++                                    .align(Alignment.Center),
++                                color = onBackgroundColor,
++                                enabled = playerConnection.player.currentMediaItem != null,
++                                onClick = {
++                                    //ExoPlayer seek increment can only be set in builder
++                                    //playerConnection.player.seekForward()
++                                    playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
++                                }
++                            )
++                        }
++                    }
++
+ 
+-                Spacer(Modifier.width(8.dp))
+ 
+-                if (seekIncrement != SeekIncrement.OFF) {
+                     Box(modifier = Modifier.weight(1f)) {
+                         ResizableIconButton(
+-                            icon = Icons.Rounded.FastForward,
++                            icon = Icons.Rounded.SkipNext,
++                            enabled = canSkipNext,
+                             modifier = Modifier
+                                 .size(32.dp)
+                                 .align(Alignment.Center),
+                             color = onBackgroundColor,
++                            onClick = {
++                                playerConnection.player.seekToNext()
++                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
++                            }
++                        )
++                    }
++
++                    Box(modifier = Modifier.weight(1f)) {
++                        ResizableIconButton(
++                            icon = when (repeatMode) {
++                                REPEAT_MODE_OFF -> R.drawable.repeat_off
++                                REPEAT_MODE_ALL -> R.drawable.repeat_on
++                                REPEAT_MODE_ONE -> R.drawable.repeat_one
++                                else -> throw IllegalStateException()
++                            },
++                            modifier = Modifier
++                                .size(32.dp)
++                                .padding(4.dp)
++                                .align(Alignment.Center),
++                            color = onBackgroundColor,
+                             enabled = playerConnection.player.currentMediaItem != null,
+                             onClick = {
+-                                //ExoPlayer seek increment can only be set in builder
+-                                //playerConnection.player.seekForward()
+-                                playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
++                                playerConnection.player.toggleRepeatMode()
++                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                             }
+                         )
+                     }
+                 }
+ 
++            }
+ 
+-
+-                Box(modifier = Modifier.weight(1f)) {
+-                    ResizableIconButton(
+-                        icon = Icons.Rounded.SkipNext,
+-                        enabled = canSkipNext,
+-                        modifier = Modifier
+-                            .size(32.dp)
+-                            .align(Alignment.Center),
+-                        color = onBackgroundColor,
+-                        onClick = {
+-                            playerConnection.player.seekToNext()
+-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                        }
+-                    )
+-                }
+-
+-                Box(modifier = Modifier.weight(1f)) {
+-                    ResizableIconButton(
+-                        icon = when (repeatMode) {
+-                            REPEAT_MODE_OFF -> R.drawable.repeat_off
+-                            REPEAT_MODE_ALL -> R.drawable.repeat_on
+-                            REPEAT_MODE_ONE -> R.drawable.repeat_one
+-                            else -> throw IllegalStateException()
+-                        },
+-                        modifier = Modifier
+-                            .size(32.dp)
+-                            .padding(4.dp)
+-                            .align(Alignment.Center),
+-                        color = onBackgroundColor,
+-                        enabled = playerConnection.player.currentMediaItem != null,
+-                        onClick = {
+-                            playerConnection.player.toggleRepeatMode()
+-                            haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                        }
+-                    )
++            // CONTROLS is emitted whatever the file says. Hiding the play button leaves a player
++            // that cannot be paused from its own screen, and a layout file is not a good place to
++            // discover that.
++            playerLayout.blocks.forEach { b ->
++                when (b.id) {
++                    PlayerLayout.BlockId.INFO -> if (b.visible) infoBlock()
++                    PlayerLayout.BlockId.PROGRESS -> if (b.visible) progressBlock()
++                    PlayerLayout.BlockId.CONTROLS -> controlsBlock()
++                    else -> Unit
+                 }
+             }
+-
+             // queue hint for landscape
+             if (showQueueHint) {
+                 Spacer(Modifier.height(12.dp))
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index 93fd1c5..6224377 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.AppShortcut
++import androidx.compose.material.icons.rounded.Dashboard
+ import androidx.compose.material.icons.rounded.HighQuality
+ import androidx.compose.material.icons.rounded.Image
+ import androidx.compose.material.icons.rounded.MoreHoriz
+@@ -123,6 +124,12 @@ fun AppearanceSettings(
+                 checked = showTopBarLogo,
+                 onCheckedChange = onShowTopBarLogoChange
+             )
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.player_layout)) },
++                description = stringResource(R.string.player_layout_summary),
++                icon = { Icon(Icons.Rounded.Dashboard, null) },
++                onClick = { navController.navigate("settings/appearance/layout") }
++            )
+             PreferenceEntry(
+                 title = { Text(stringResource(R.string.app_icon)) },
+                 icon = { Icon(Icons.Rounded.AppShortcut, null) },
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt
+new file mode 100644
+index 0000000..b793cb1
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt
+@@ -0,0 +1,142 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.ui.screens.settings
++
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.FileOpen
++import androidx.compose.material.icons.rounded.RestartAlt
++import androidx.compose.material3.ElevatedCard
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarScrollBehavior
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.navigation.NavController
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.PlayerLayoutKey
++import com.dd3boh.outertune.constants.TopBarInsets
++import com.dd3boh.outertune.models.PlayerLayout
++import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
++import com.dd3boh.outertune.ui.component.PreferenceEntry
++import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
++import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.rememberPreference
++
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++fun PlayerLayoutSettings(
++    navController: NavController,
++    scrollBehavior: TopAppBarScrollBehavior,
++) {
++    val context = LocalContext.current
++    var layoutJson by rememberPreference(PlayerLayoutKey, "")
++    var status by remember { mutableStateOf<String?>(null) }
++
++    val current = remember(layoutJson) {
++        if (layoutJson.isBlank()) null else PlayerLayout.parse(layoutJson).getOrNull()
++    }
++
++    // OpenDocument rather than GetContent: this needs a real file the user picked from storage,
++    // and OpenDocument is the one that gives a durable, readable uri for it.
++    val pickFile = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++        if (uri == null) return@rememberLauncherForActivityResult
++        val text = runCatching {
++            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
++        }.getOrNull()
++
++        if (text.isNullOrBlank()) {
++            status = context.getString(R.string.player_layout_unreadable)
++            return@rememberLauncherForActivityResult
++        }
++        // Validated before it is stored, so a bad file cannot leave the player in a state the
++        // user has to reinstall to escape.
++        PlayerLayout.parse(text)
++            .onSuccess {
++                layoutJson = text
++                status = context.getString(R.string.player_layout_imported)
++            }
++            .onFailure { status = it.message ?: context.getString(R.string.player_layout_unreadable) }
++    }
++
++    ColumnWithContentPadding(
++        modifier = Modifier.fillMaxHeight(),
++        columnModifier = Modifier
++            .padding(horizontal = 16.dp)
++            .verticalScroll(rememberScrollState())
++    ) {
++        PreferenceGroupTitle(title = stringResource(R.string.player_layout))
++        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.player_layout_import)) },
++                description = status
++                    ?: current?.let {
++                        val hidden = it.blocks.count { block -> !block.visible }
++                        val mode = if (it.mode == PlayerLayout.Mode.FREE) "free placement" else "stacked"
++                        "In use: $mode" + if (hidden > 0) ", $hidden block(s) hidden" else ""
++                    }
++                    ?: stringResource(R.string.player_layout_import_description),
++                icon = { Icon(Icons.Rounded.FileOpen, null) },
++                onClick = { pickFile.launch(arrayOf("application/json", "text/plain", "*/*")) },
++            )
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.player_layout_reset)) },
++                icon = { Icon(Icons.Rounded.RestartAlt, null) },
++                isEnabled = layoutJson.isNotBlank(),
++                onClick = {
++                    layoutJson = ""
++                    status = context.getString(R.string.player_layout_reset_done)
++                },
++            )
++        }
++        Spacer(modifier = Modifier.height(16.dp))
++
++        Text(
++            text = stringResource(R.string.player_layout_note),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++            modifier = Modifier.padding(horizontal = 8.dp),
++        )
++        Spacer(modifier = Modifier.height(16.dp))
++    }
++
++    TopAppBar(
++        title = { Text(stringResource(R.string.player_layout)) },
++        navigationIcon = {
++            IconButton(
++                onClick = navController::navigateUp,
++                onLongClick = navController::backToMain
++            ) {
++                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
++            }
++        },
++        windowInsets = TopBarInsets,
++        scrollBehavior = scrollBehavior
++    )
++}
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 1041835..20ed4dc 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -410,6 +410,16 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="stats_extended_artists">Top artists</string>
+     <string name="show_top_bar_logo_title">Show logo in the top bar</string>
+     <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
++    <!-- Player layout -->
++    <string name="player_layout">Player layout</string>
++    <string name="player_layout_summary">Import a layout made in the layout editor</string>
++    <string name="player_layout_import">Import a layout file</string>
++    <string name="player_layout_import_description">Using the built-in layout</string>
++    <string name="player_layout_imported">Layout imported.</string>
++    <string name="player_layout_reset">Back to the built-in layout</string>
++    <string name="player_layout_reset_done">Back to the built-in layout.</string>
++    <string name="player_layout_unreadable">That file could not be read.</string>
++    <string name="player_layout_note">Layouts are made in the standalone editor and apply to the portrait player. Landscape and tablet keep the built-in layout, since they are laid out differently and one set of positions cannot serve all three.</string>
+     <!-- App icon -->
+     <string name="app_icon">App icon</string>
+     <string name="app_icon_default">Default</string>
+-- 
+2.43.0
+
+
+From e7309db61fd8346c70589b9c37d996a174777d63 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 10:08:06 +0000
+Subject: [PATCH 28/31] Add song recognition
+
+A microphone button beside the search field records about twelve seconds,
+computes a Shazam-compatible fingerprint on the device, and asks Shazam
+what it was. Only the fingerprint is sent - the recording never leaves the
+phone and is never written to disk.
+
+Ported from Metrolist, which took it from Aleksey Saenko's MusicRecognizer;
+the fingerprint algorithm itself is a port of vibra/SongRec. The shazamkit
+module is a plain JVM library like the other siblings here, so its Timber
+logging became a small internal logger rather than pulling in a dependency,
+and it uses the OkHttp ktor engine that this project already ships instead
+of CIO.
+
+android.util.Log does not take format arguments the way Timber does, so
+calls like Log.d(TAG, "%d bytes", size) would not have compiled at all.
+RecogLog keeps the original call shape and formats only when the line will
+actually be printed.
+
+A result opens the existing search rather than playing anything: Shazam
+answers with a title and an artist, not a YouTube Music id, so there is
+nothing to play directly.
+
+RECORD_AUDIO is requested when the screen opens, and the microphone
+feature is declared optional so the app still installs without one.
+Leaving the screen releases the microphone and clears the result.
+
+No recognition history yet: that needs a database migration, which is
+worth doing on its own rather than inside this.
+---
+ app/build.gradle.kts                          |   1 +
+ app/src/main/AndroidManifest.xml              |   4 +
+ .../java/com/dd3boh/outertune/MainActivity.kt |   4 +
+ .../outertune/recognition/AudioResampler.kt   | 101 ++++
+ .../recognition/MusicRecognitionService.kt    | 192 +++++++
+ .../dd3boh/outertune/recognition/RecogLog.kt  |  59 +++
+ .../recognition/ShazamSignatureGenerator.kt   | 385 ++++++++++++++
+ .../outertune/recognition/VibraSignature.kt   |  22 +
+ .../outertune/ui/screens/RecognitionScreen.kt | 230 ++++++++
+ .../ui/screens/search/SearchScreen.kt         |   9 +
+ app/src/main/res/values/strings-ot.xml        |   9 +
+ settings.gradle.kts                           |   1 +
+ shazamkit/build.gradle.kts                    |  17 +
+ .../main/java/com/dd3boh/shazamkit/Shazam.kt  | 496 ++++++++++++++++++
+ .../dd3boh/shazamkit/models/ShazamModels.kt   | 317 +++++++++++
+ 15 files changed, 1847 insertions(+)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/recognition/AudioResampler.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/recognition/MusicRecognitionService.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/recognition/RecogLog.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/recognition/ShazamSignatureGenerator.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/recognition/VibraSignature.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/RecognitionScreen.kt
+ create mode 100644 shazamkit/build.gradle.kts
+ create mode 100644 shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
+ create mode 100644 shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt
+
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index d7da63a..3a144df 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -273,6 +273,7 @@ dependencies {
+     implementation(project(":betterlyrics"))
+     implementation(project(":simpmusic"))
+     implementation(project(":kizzy"))
++    implementation(project(":shazamkit"))
+ 
+     // misc
+     implementation(libs.aboutlibraries.compose.m3)
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 7cb7dcd..ecf1b80 100755
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -10,6 +10,10 @@
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
++    <!-- Music recognition listens through the microphone for about twelve seconds. Declared
++         optional so the app still installs on a device without one. -->
++    <uses-permission android:name="android.permission.RECORD_AUDIO" />
++    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+         android:maxSdkVersion="32" />
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 4a2b600..3a465f7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -150,6 +150,7 @@ import com.dd3boh.outertune.ui.screens.Screens
+ import com.dd3boh.outertune.ui.screens.SetupWizard
+ import com.dd3boh.outertune.ui.screens.StatsScreen
+ import com.dd3boh.outertune.ui.screens.YouTubeBrowseScreen
++import com.dd3boh.outertune.ui.screens.RecognitionScreen
+ import com.dd3boh.outertune.ui.screens.artist.ArtistAlbumsScreen
+ import com.dd3boh.outertune.ui.screens.artist.ArtistItemsScreen
+ import com.dd3boh.outertune.ui.screens.artist.ArtistScreen
+@@ -705,6 +706,9 @@ class MainActivity : ComponentActivity() {
+                                     ) {
+                                         YouTubeBrowseScreen(navController, scrollBehavior)
+                                     }
++                                    composable("recognition") {
++                                        RecognitionScreen(navController)
++                                    }
+                                     composable("settings") {
+                                         SettingsScreen(navController, scrollBehavior)
+                                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/AudioResampler.kt b/app/src/main/java/com/dd3boh/outertune/recognition/AudioResampler.kt
+new file mode 100644
+index 0000000..c7794af
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/recognition/AudioResampler.kt
+@@ -0,0 +1,101 @@
++package com.dd3boh.outertune.recognition
++
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.withContext
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
++
++/**
++ * Data class representing decoded audio data with its properties.
++ */
++data class DecodedAudio(
++    val data: ByteArray,
++    val channelCount: Int,
++    val sampleRate: Int,
++    val pcmEncoding: Int,
++) {
++    override fun equals(other: Any?): Boolean {
++        if (this === other) return true
++        if (javaClass != other?.javaClass) return false
++        other as DecodedAudio
++        return data.contentEquals(other.data) &&
++                channelCount == other.channelCount &&
++                sampleRate == other.sampleRate &&
++                pcmEncoding == other.pcmEncoding
++    }
++
++    override fun hashCode(): Int {
++        var result = data.contentHashCode()
++        result = 31 * result + channelCount
++        result = 31 * result + sampleRate
++        result = 31 * result + pcmEncoding
++        return result
++    }
++}
++
++/**
++ * Audio resampler using linear interpolation.
++ * Resamples mono 16-bit PCM audio to the required sample rate for fingerprinting.
++ */
++object AudioResampler {
++    private const val TAG = "AudioResampler"
++
++    suspend fun resample(
++        decodedAudio: DecodedAudio,
++        outputSampleRate: Int
++    ): Result<DecodedAudio> = withContext(Dispatchers.Default) {
++        if (decodedAudio.sampleRate == outputSampleRate) {
++            RecogLog.d(TAG, "Sample rate already matches (%dHz), skipping resample", outputSampleRate)
++            return@withContext Result.success(decodedAudio)
++        }
++
++        try {
++            RecogLog.d(TAG, "Resampling: %dHz → %dHz, %d bytes input", decodedAudio.sampleRate, outputSampleRate, decodedAudio.data.size)
++
++            val inputSamples = shortArrayFromByteArray(decodedAudio.data)
++            val ratio = outputSampleRate.toDouble() / decodedAudio.sampleRate
++            val outputLength = (inputSamples.size * ratio).toInt()
++            val outputSamples = ShortArray(outputLength)
++
++            for (i in 0 until outputLength) {
++                ensureActive()
++                val srcPos = i / ratio
++                val srcIndex = srcPos.toInt()
++                val fraction = srcPos - srcIndex
++                val sample = if (srcIndex + 1 < inputSamples.size) {
++                    (inputSamples[srcIndex] * (1.0 - fraction) + inputSamples[srcIndex + 1] * fraction).toInt().toShort()
++                } else {
++                    inputSamples[srcIndex]
++                }
++                outputSamples[i] = sample
++            }
++
++            val resampledData = byteArrayFromShortArray(outputSamples)
++            RecogLog.d(TAG, "Resampling complete: %d bytes output, %dHz, %d channels", resampledData.size, outputSampleRate, decodedAudio.channelCount)
++
++            Result.success(DecodedAudio(
++                data = resampledData,
++                channelCount = decodedAudio.channelCount,
++                sampleRate = outputSampleRate,
++                pcmEncoding = decodedAudio.pcmEncoding,
++            ))
++        } catch (e: Exception) {
++            RecogLog.e(TAG, e, "Audio resampling failed")
++            ensureActive()
++            Result.failure(e)
++        }
++    }
++
++    private fun shortArrayFromByteArray(data: ByteArray): ShortArray {
++        val shorts = ShortArray(data.size / 2)
++        ByteBuffer.wrap(data).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(shorts)
++        return shorts
++    }
++
++    private fun byteArrayFromShortArray(shorts: ShortArray): ByteArray {
++        val bytes = ByteArray(shorts.size * 2)
++        ByteBuffer.wrap(bytes).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().put(shorts)
++        return bytes
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/MusicRecognitionService.kt b/app/src/main/java/com/dd3boh/outertune/recognition/MusicRecognitionService.kt
+new file mode 100644
+index 0000000..2c214c5
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/recognition/MusicRecognitionService.kt
+@@ -0,0 +1,192 @@
++/**
++ * Music Recognition Feature
++ * 
++ * This feature is based on the original MusicRecognizer project by Aleksey Saenko.
++ * Original project: https://github.com/aleksey-saenko/MusicRecognizer
++ * 
++ * Special thanks to Aleksey Saenko for the music recognition implementation.
++ */
++
++package com.dd3boh.outertune.recognition
++
++import android.Manifest
++import android.annotation.SuppressLint
++import android.content.Context
++import android.content.pm.PackageManager
++import android.media.AudioFormat
++import android.media.AudioRecord
++import android.media.MediaRecorder
++import androidx.core.content.ContextCompat
++import com.dd3boh.shazamkit.Shazam
++import com.dd3boh.shazamkit.models.RecognitionResult
++import com.dd3boh.shazamkit.models.RecognitionStatus
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.withContext
++import java.io.ByteArrayOutputStream
++import java.nio.ByteOrder
++
++/**
++ * Service for recognizing music using audio fingerprinting.
++ * Records audio from the microphone, generates a Shazam-compatible fingerprint,
++ * and sends it to the Shazam API for recognition.
++ */
++object MusicRecognitionService {
++    
++    // Recording parameters
++    private const val RECORDING_SAMPLE_RATE = 44100
++    private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
++    private const val AUDIO_FORMAT = AudioFormat.ENCODING_PCM_16BIT
++    // Recording duration: 12 seconds for better recognition accuracy
++    // We use 12s directly to match the fallback duration for maximum compatibility
++    private const val RECORDING_DURATION_MS = 12000L
++    private const val TAG = "MusicRecognitionService"
++
++    private val _recognitionStatus = MutableStateFlow<RecognitionStatus>(RecognitionStatus.Ready)
++    val recognitionStatus: StateFlow<RecognitionStatus> = _recognitionStatus.asStateFlow()
++
++    fun hasRecordPermission(context: Context): Boolean {
++        return ContextCompat.checkSelfPermission(
++            context, 
++            Manifest.permission.RECORD_AUDIO
++        ) == PackageManager.PERMISSION_GRANTED
++    }
++    
++    /**
++     * Start the music recognition process.
++     * Records audio, generates fingerprint, and queries Shazam API.
++     */
++    @SuppressLint("MissingPermission")
++    suspend fun recognize(context: Context): RecognitionStatus = withContext(Dispatchers.IO) {
++        if (!hasRecordPermission(context)) {
++            RecogLog.w(TAG, "Microphone permission not granted, aborting recognition")
++            return@withContext RecognitionStatus.Error("Microphone permission not granted")
++        }
++
++        _recognitionStatus.value = RecognitionStatus.Listening
++        RecogLog.d(TAG, "Starting music recognition")
++        
++        try {
++            // Step 1: Record audio
++            val audioData = recordAudio()
++            RecogLog.d(TAG, "Audio recorded: %d bytes", audioData.size)
++
++            _recognitionStatus.value = RecognitionStatus.Processing
++            
++            // Step 2: Convert to mono if needed and resample to 16kHz
++            RecogLog.d(TAG, "Resampling audio from %dHz to %dHz", RECORDING_SAMPLE_RATE, VibraSignature.REQUIRED_SAMPLE_RATE)
++            val decodedAudio = DecodedAudio(
++                data = audioData,
++                channelCount = 1,
++                sampleRate = RECORDING_SAMPLE_RATE,
++                pcmEncoding = AUDIO_FORMAT
++            )
++            
++            val resampledAudio = AudioResampler.resample(
++                decodedAudio,
++                VibraSignature.REQUIRED_SAMPLE_RATE
++            ).getOrElse { error ->
++                RecogLog.e(TAG, error, "Audio resampling failed")
++                _recognitionStatus.value = RecognitionStatus.Error("Failed to resample audio: ${error.message}")
++                return@withContext _recognitionStatus.value
++            }
++            RecogLog.d(TAG, "Resampled audio: %d bytes, %d channels, %dHz", resampledAudio.data.size, resampledAudio.channelCount, resampledAudio.sampleRate)
++            
++            // Verify format
++            require(
++                resampledAudio.channelCount == 1 &&
++                resampledAudio.sampleRate == VibraSignature.REQUIRED_SAMPLE_RATE &&
++                resampledAudio.pcmEncoding == AudioFormat.ENCODING_PCM_16BIT &&
++                ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN &&
++                resampledAudio.data.isNotEmpty() && 
++                resampledAudio.data.size % 2 == 0
++            ) { "Invalid audio format for fingerprint generation" }
++            
++            // Step 3: Generate fingerprint using native library
++            val signature = try {
++                VibraSignature.fromI16(resampledAudio.data)
++            } catch (e: Exception) {
++                RecogLog.e(TAG, e, "Fingerprint generation failed")
++                _recognitionStatus.value = RecognitionStatus.Error("Failed to generate fingerprint: ${e.message}")
++                return@withContext _recognitionStatus.value
++            }
++            
++            // Step 4: Send to Shazam API
++            val sampleDurationMs = (resampledAudio.data.size / 2) * 1000L / VibraSignature.REQUIRED_SAMPLE_RATE
++            RecogLog.d(TAG, "Fingerprint generated, sampleDurationMs=%d", sampleDurationMs)
++            
++            val result = Shazam.recognize(signature, sampleDurationMs)
++            
++            result.fold(
++                onSuccess = { recognitionResult ->
++                    RecogLog.i(TAG, "Recognition successful: '%s' by %s", recognitionResult.title, recognitionResult.artist)
++                    _recognitionStatus.value = RecognitionStatus.Success(recognitionResult)
++                },
++                onFailure = { error ->
++                    val message = error.message ?: "Unknown error"
++                    RecogLog.w(TAG, error, "Recognition API returned failure: %s", message)
++                    _recognitionStatus.value = if (message.contains("No match", ignoreCase = true)) {
++                        RecognitionStatus.NoMatch("No matches found. Try again with clearer audio.")
++                    } else {
++                        RecognitionStatus.Error(message)
++                    }
++                }
++            )
++            
++            _recognitionStatus.value
++        } catch (e: Exception) {
++            RecogLog.e(TAG, e, "Recognition failed with exception")
++            _recognitionStatus.value = RecognitionStatus.Error(e.message ?: "Recognition failed")
++            _recognitionStatus.value
++        }
++    }
++    
++    @SuppressLint("MissingPermission")
++    private suspend fun recordAudio(): ByteArray = withContext(Dispatchers.IO) {
++        val bufferSize = AudioRecord.getMinBufferSize(
++            RECORDING_SAMPLE_RATE,
++            CHANNEL_CONFIG,
++            AUDIO_FORMAT
++        )
++        RecogLog.d(TAG, "Recording audio: sampleRate=%d, bufferSize=%d, durationMs=%d", RECORDING_SAMPLE_RATE, bufferSize, RECORDING_DURATION_MS)
++
++        val audioRecord = AudioRecord(
++            MediaRecorder.AudioSource.MIC,
++            RECORDING_SAMPLE_RATE,
++            CHANNEL_CONFIG,
++            AUDIO_FORMAT,
++            bufferSize
++        )
++        
++        val outputStream = ByteArrayOutputStream()
++        val buffer = ByteArray(bufferSize)
++        val startTime = System.currentTimeMillis()
++        
++        try {
++            audioRecord.startRecording()
++            RecogLog.d(TAG, "AudioRecord started, recording for %dms", RECORDING_DURATION_MS)
++
++            while (System.currentTimeMillis() - startTime < RECORDING_DURATION_MS && isActive) {
++                val bytesRead = audioRecord.read(buffer, 0, bufferSize)
++                if (bytesRead > 0) {
++                    outputStream.write(buffer, 0, bytesRead)
++                }
++            }
++        } finally {
++            audioRecord.stop()
++            audioRecord.release()
++        }
++
++        val totalBytes = outputStream.size()
++        RecogLog.d(TAG, "Audio recording complete: %d bytes collected", totalBytes)
++        outputStream.toByteArray()
++    }
++    
++    fun reset() {
++        RecogLog.d(TAG, "Recognition state reset")
++        _recognitionStatus.value = RecognitionStatus.Ready
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/RecogLog.kt b/app/src/main/java/com/dd3boh/outertune/recognition/RecogLog.kt
+new file mode 100644
+index 0000000..1ec8129
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/recognition/RecogLog.kt
+@@ -0,0 +1,59 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.recognition
++
++import android.util.Log
++import com.dd3boh.outertune.BuildConfig
++
++/**
++ * Timber-shaped logging over android.util.Log.
++ *
++ * The recognition code was written against Timber, which takes a format string and arguments.
++ * android.util.Log does not - it takes a message and optionally a throwable - so calls like
++ * `Log.d(TAG, "%d bytes", size)` do not compile at all. Rather than rewrite every call site into
++ * string templates, this keeps the original shape and does the formatting here.
++ *
++ * Formatting only happens when the message will actually be printed, so the arguments cost
++ * nothing on a release build.
++ */
++internal object RecogLog {
++    private val verbose = BuildConfig.DEBUG
++
++    fun d(tag: String, message: String, vararg args: Any?) {
++        if (verbose) Log.d(tag, format(message, args))
++    }
++
++    fun i(tag: String, message: String, vararg args: Any?) {
++        Log.i(tag, format(message, args))
++    }
++
++    fun w(tag: String, message: String, vararg args: Any?) {
++        Log.w(tag, format(message, args))
++    }
++
++    fun w(tag: String, t: Throwable, message: String, vararg args: Any?) {
++        Log.w(tag, format(message, args), t)
++    }
++
++    fun e(tag: String, message: String, vararg args: Any?) {
++        Log.e(tag, format(message, args))
++    }
++
++    fun e(tag: String, t: Throwable, message: String, vararg args: Any?) {
++        Log.e(tag, format(message, args), t)
++    }
++
++    /**
++     * A malformed format string must not take down recognition, so a failure here falls back to
++     * the raw message rather than throwing.
++     */
++    private fun format(message: String, args: Array<out Any?>): String =
++        if (args.isEmpty()) message
++        else runCatching { String.format(message, *args) }.getOrDefault(message)
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/ShazamSignatureGenerator.kt b/app/src/main/java/com/dd3boh/outertune/recognition/ShazamSignatureGenerator.kt
+new file mode 100644
+index 0000000..ef35582
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/recognition/ShazamSignatureGenerator.kt
+@@ -0,0 +1,385 @@
++package com.dd3boh.outertune.recognition
++
++import android.util.Base64
++import java.io.ByteArrayOutputStream
++import java.nio.ByteBuffer
++import java.nio.ByteOrder
++import java.util.zip.CRC32
++import kotlin.math.PI
++import kotlin.math.cos
++import kotlin.math.ln
++import kotlin.math.max
++
++/**
++ * Pure Kotlin implementation of the Shazam audio fingerprinting algorithm.
++ *
++ * Ported from the vibra C++ library (https://github.com/marin-m/SongRec) which implements
++ * the Shazam signature algorithm using FFT-based audio fingerprinting.
++ *
++ * This replaces the native C++ + FFTW3 implementation with a pure JVM solution.
++ */
++internal object ShazamSignatureGenerator {
++    private const val TAG = "ShazamSigGen"
++
++    private const val SAMPLE_RATE = 16_000
++    private const val FFT_SIZE = 2048
++    private const val FFT_OUTPUT_SIZE = FFT_SIZE / 2 + 1  // 1025
++    private const val MAX_PEAKS = 255
++    private const val MAX_TIME_SECONDS = 12.0
++
++    // Spread ring buffer size
++    private const val RING_BUF_SIZE = 256
++
++    // Band IDs matching FrequencyBand enum in C++ (0=250-520Hz, 1=520-1450Hz, 2=1450-3500Hz, 3=3500-5500Hz)
++    private const val BAND_250_520 = 0
++    private const val BAND_520_1450 = 1
++    private const val BAND_1450_3500 = 2
++    private const val BAND_3500_5500 = 3
++
++    /**
++     * Hanning window: w[i] = 0.5 * (1 - cos(2π*(i+1)/2049)) for i=0..2047.
++     *
++     * This matches the precomputed HANNIG_MATRIX values in the C++ hanning.h header.
++     */
++    private val HANNING = DoubleArray(FFT_SIZE) { i ->
++        0.5 * (1.0 - cos(2.0 * PI * (i + 1).toDouble() / 2049.0))
++    }
++
++    /**
++     * Generates a Shazam-compatible audio fingerprint from raw 16-bit PCM samples.
++     *
++     * @param samples ByteArray of mono PCM audio (16-bit signed little-endian, 16kHz)
++     * @return Signature URI string (data:audio/vnd.shazam.sig;base64,...)
++     */
++    fun fromI16(samples: ByteArray): String {
++        require(samples.size >= 2 && samples.size % 2 == 0) {
++            "samples must be a non-empty byte array with even length (16-bit PCM)"
++        }
++        val pcm = ShortArray(samples.size / 2)
++        ByteBuffer.wrap(samples).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer().get(pcm)
++        RecogLog.d(TAG, "Generating fingerprint from %d bytes of PCM data", samples.size)
++        return SignatureGeneratorState().process(pcm)
++    }
++
++    private class SignatureGeneratorState {
++        // Circular buffer for 2048 raw samples (as Shorts stored in Int for speed)
++        private val samplesRing = IntArray(FFT_SIZE)
++        private var samplesPos = 0
++
++        // Circular buffer of FFT magnitude outputs (RING_BUF_SIZE x FFT_OUTPUT_SIZE)
++        private val fftOutputs = Array(RING_BUF_SIZE) { DoubleArray(FFT_OUTPUT_SIZE) }
++        private var fftPos = 0
++        private var fftNumWritten = 0
++
++        // Circular buffer of time-spread FFT outputs (RING_BUF_SIZE x FFT_OUTPUT_SIZE)
++        private val spreadFfts = Array(RING_BUF_SIZE) { DoubleArray(FFT_OUTPUT_SIZE) }
++        private var spreadPos = 0
++        private var spreadNumWritten = 0
++
++        // Accumulated samples count (for signature header)
++        private var numSamples = 0
++
++        // Band → list of peaks (bands 0..3)
++        private val bandPeaks = Array(4) { mutableListOf<FrequencyPeak>() }
++        private var totalPeaks = 0
++
++        fun process(pcm: ShortArray): String {
++            var offset = 0
++            while (offset + 128 <= pcm.size) {
++                // Match C++ stopping condition: stop when BOTH time≥max AND peaks≥max
++                val elapsedSec = numSamples.toDouble() / SAMPLE_RATE
++                if (elapsedSec >= MAX_TIME_SECONDS && totalPeaks >= MAX_PEAKS) break
++
++                numSamples += 128
++                feedSamples(pcm, offset, 128)
++                doFFT()
++                doPeakSpreadingAndRecognition()
++                offset += 128
++            }
++            RecogLog.d(TAG, "Fingerprint processing complete: %d samples, %d peaks", numSamples, totalPeaks)
++            return encodeSignature()
++        }
++
++        private fun feedSamples(pcm: ShortArray, start: Int, count: Int) {
++            for (k in start until start + count) {
++                samplesRing[samplesPos] = pcm[k].toInt()
++                samplesPos = (samplesPos + 1) % FFT_SIZE
++            }
++        }
++
++        private fun doFFT() {
++            // Build windowed excerpt from ring buffer (oldest → newest)
++            val windowed = DoubleArray(FFT_SIZE) { i ->
++                samplesRing[(samplesPos + i) % FFT_SIZE].toDouble() * HANNING[i]
++            }
++            val result = computeRfft(windowed)
++            result.copyInto(fftOutputs[fftPos])
++            fftPos = (fftPos + 1) % RING_BUF_SIZE
++            fftNumWritten++
++        }
++
++        private fun doPeakSpreadingAndRecognition() {
++            doPeakSpreading()
++            if (spreadNumWritten >= 47) {
++                doPeakRecognition()
++            }
++        }
++
++        private fun doPeakSpreading() {
++            // Start with a copy of the last FFT output
++            val lastFftIdx = (fftPos - 1 + RING_BUF_SIZE) % RING_BUF_SIZE
++            val spread = fftOutputs[lastFftIdx].copyOf()
++
++            // Frequency spreading: 3-point running max (in-place, forward pass)
++            for (pos in 0 until FFT_OUTPUT_SIZE - 2) {
++                spread[pos] = maxOf(spread[pos], spread[pos + 1], spread[pos + 2])
++            }
++
++            // Time spreading: propagate max to/from older spread entries at offsets -1, -3, -6
++            // Only older entries are updated; the new entry keeps only frequency spreading (matches C++).
++            for (pos in 0 until FFT_OUTPUT_SIZE) {
++                var maxVal = spread[pos]
++                for (offset in intArrayOf(-1, -3, -6)) {
++                    val idx = ((spreadPos + offset) % RING_BUF_SIZE + RING_BUF_SIZE) % RING_BUF_SIZE
++                    val oldVal = spreadFfts[idx][pos]
++                    if (oldVal > maxVal) maxVal = oldVal
++                    spreadFfts[idx][pos] = maxVal
++                }
++                // Note: spread[pos] is intentionally NOT updated here.
++                // The new entry stored in spreadFfts should only have frequency spreading applied,
++                // not time spreading. This matches the original C++ vibra implementation.
++            }
++
++            spread.copyInto(spreadFfts[spreadPos])
++            spreadPos = (spreadPos + 1) % RING_BUF_SIZE
++            spreadNumWritten++
++        }
++
++        private fun doPeakRecognition() {
++            val fftMinus46 = fftOutputs[(fftPos - 46 + RING_BUF_SIZE * 2) % RING_BUF_SIZE]
++            val spreadMinus49 = spreadFfts[(spreadPos - 49 + RING_BUF_SIZE * 2) % RING_BUF_SIZE]
++
++            val otherOffsets = intArrayOf(-53, -45, 165, 172, 179, 186, 193, 200, 214, 221, 228, 235, 242, 249)
++
++            for (binPos in 10 until FFT_OUTPUT_SIZE - 8) {
++                val fftVal = fftMinus46[binPos]
++                if (fftVal < 1.0 / 64.0 || fftVal < spreadMinus49[binPos]) continue
++
++                // Check 8 neighbors in spreadMinus49
++                var maxNeighborSpread49 = 0.0
++                for (neighborOffset in intArrayOf(-10, -7, -4, -3, 1, 2, 5, 8)) {
++                    val v = spreadMinus49[binPos + neighborOffset]
++                    if (v > maxNeighborSpread49) maxNeighborSpread49 = v
++                }
++                if (fftVal <= maxNeighborSpread49) continue
++
++                // Check 14 other spread FFT offsets
++                var maxNeighborOther = maxNeighborSpread49
++                for (otherOffset in otherOffsets) {
++                    val spreadIdx = ((spreadPos + otherOffset) % RING_BUF_SIZE + RING_BUF_SIZE) % RING_BUF_SIZE
++                    val v = spreadFfts[spreadIdx][binPos - 1]
++                    if (v > maxNeighborOther) maxNeighborOther = v
++                }
++                if (fftVal <= maxNeighborOther) continue
++
++                // Valid peak found: compute corrected bin and frequency
++                val fftNumber = spreadNumWritten - 46
++
++                val peakMag = ln(max(1.0 / 64.0, fftVal)) * 1477.3 + 6144
++                val peakMagBefore = ln(max(1.0 / 64.0, fftMinus46[binPos - 1])) * 1477.3 + 6144
++                val peakMagAfter = ln(max(1.0 / 64.0, fftMinus46[binPos + 1])) * 1477.3 + 6144
++
++                val peakVariation1 = peakMag * 2 - peakMagBefore - peakMagAfter
++                val peakVariation2 = (peakMagAfter - peakMagBefore) * 32 / peakVariation1
++
++                val correctedBin = binPos * 64.0 + peakVariation2
++                val frequencyHz = correctedBin * (16000.0 / 2.0 / 1024.0 / 64.0)
++
++                val band = when {
++                    frequencyHz < 250.0  -> continue
++                    frequencyHz < 520.0  -> BAND_250_520
++                    frequencyHz < 1450.0 -> BAND_520_1450
++                    frequencyHz < 3500.0 -> BAND_1450_3500
++                    frequencyHz <= 5500.0 -> BAND_3500_5500
++                    else -> continue
++                }
++
++                bandPeaks[band].add(
++                    FrequencyPeak(
++                        fftPassNumber = fftNumber,
++                        peakMagnitude = peakMag.toInt(),
++                        correctedPeakFrequencyBin = correctedBin.toInt()
++                    )
++                )
++                totalPeaks++
++            }
++        }
++
++        private fun encodeSignature(): String {
++            val contentsStream = ByteArrayOutputStream()
++
++            // Write each frequency band's peaks in ascending band order (matches C++ std::map iteration)
++            for (bandId in 0..3) {
++                val peaks = bandPeaks[bandId]
++                if (peaks.isEmpty()) continue
++
++                val peakBuf = ByteArrayOutputStream()
++                var prevFftPassNumber = 0
++
++                for (peak in peaks) {
++                    val diff = peak.fftPassNumber - prevFftPassNumber
++                    if (diff >= 255) {
++                        // Encode absolute position with 0xFF marker
++                        peakBuf.write(0xFF)
++                        writeLittleEndian32(peakBuf, peak.fftPassNumber)
++                        prevFftPassNumber = peak.fftPassNumber
++                    }
++                    peakBuf.write(peak.fftPassNumber - prevFftPassNumber)
++                    writeLittleEndian16(peakBuf, peak.peakMagnitude)
++                    writeLittleEndian16(peakBuf, peak.correctedPeakFrequencyBin)
++                    prevFftPassNumber = peak.fftPassNumber
++                }
++
++                val peakBytes = peakBuf.toByteArray()
++
++                // Band tag: 0x60030040 + bandId
++                writeLittleEndian32(contentsStream, 0x60030040 + bandId)
++                writeLittleEndian32(contentsStream, peakBytes.size)
++                contentsStream.write(peakBytes)
++
++                // Pad to 4-byte alignment
++                val padBytes = (4 - peakBytes.size % 4) % 4
++                repeat(padBytes) { contentsStream.write(0) }
++            }
++
++            val contents = contentsStream.toByteArray()
++            val sizeMinusHeader = contents.size + 8
++            val samplesAndOffset = (numSamples + SAMPLE_RATE * 0.24).toInt()
++
++            // Build 48-byte header struct (all fields little-endian)
++            val headerBytes = ByteBuffer.allocate(48).order(ByteOrder.LITTLE_ENDIAN).apply {
++                putInt(0xcafe2580.toInt())     // magic1
++                putInt(0)                      // crc32 placeholder
++                putInt(sizeMinusHeader)        // size_minus_header
++                putInt(0x94119c00.toInt())     // magic2
++                putInt(0); putInt(0); putInt(0) // void1[3]
++                putInt(3 shl 27)               // shifted_sample_rate_id
++                putInt(0); putInt(0)           // void2[2]
++                putInt(samplesAndOffset)       // number_samples_plus_divided_sample_rate
++                putInt((15 shl 19) + 0x40000) // fixed_value
++            }.array()
++
++            // Assemble full buffer: header(48) + 0x40000000(4) + sizeMinusHeader(4) + contents
++            val fullBuf = ByteArrayOutputStream(56 + contents.size)
++            fullBuf.write(headerBytes)
++            writeLittleEndian32(fullBuf, 0x40000000)
++            writeLittleEndian32(fullBuf, contents.size + 8)
++            fullBuf.write(contents)
++
++            val fullBytes = fullBuf.toByteArray()
++
++            // CRC32 over bytes from offset 8 to end (skipping magic1 and the crc32 field itself)
++            val crc = CRC32()
++            crc.update(fullBytes, 8, fullBytes.size - 8)
++            val crc32Value = crc.value.toInt()
++
++            // Write CRC32 at offset 4 (little-endian)
++            fullBytes[4] = (crc32Value and 0xFF).toByte()
++            fullBytes[5] = ((crc32Value shr 8) and 0xFF).toByte()
++            fullBytes[6] = ((crc32Value shr 16) and 0xFF).toByte()
++            fullBytes[7] = ((crc32Value shr 24) and 0xFF).toByte()
++
++            val base64 = Base64.encodeToString(fullBytes, Base64.NO_WRAP)
++            return "data:audio/vnd.shazam.sig;base64,$base64"
++        }
++    }
++
++    private data class FrequencyPeak(
++        val fftPassNumber: Int,
++        val peakMagnitude: Int,
++        val correctedPeakFrequencyBin: Int
++    )
++
++    private fun writeLittleEndian32(out: ByteArrayOutputStream, value: Int) {
++        out.write(value and 0xFF)
++        out.write((value ushr 8) and 0xFF)
++        out.write((value ushr 16) and 0xFF)
++        out.write((value ushr 24) and 0xFF)
++    }
++
++    private fun writeLittleEndian16(out: ByteArrayOutputStream, value: Int) {
++        out.write(value and 0xFF)
++        out.write((value ushr 8) and 0xFF)
++    }
++
++    /**
++     * Computes the real-input FFT of [windowed] (size 2048) using an iterative
++     * Cooley-Tukey radix-2 DIT algorithm.
++     *
++     * Returns FFT_OUTPUT_SIZE (1025) magnitude values:
++     *   magnitude[k] = max((re[k]² + im[k]²) / 2^17, 1e-10)
++     *
++     * This matches the FFTW3 r2c output format used in the C++ vibra library.
++     */
++    private fun computeRfft(windowed: DoubleArray): DoubleArray {
++        val n = windowed.size  // 2048
++        val re = windowed.copyOf()
++        val im = DoubleArray(n)
++
++        // Bit-reversal permutation
++        var j = 0
++        for (i in 1 until n) {
++            var bit = n ushr 1
++            while (j and bit != 0) {
++                j = j xor bit
++                bit = bit ushr 1
++            }
++            j = j xor bit
++            if (i < j) {
++                var tmp = re[i]; re[i] = re[j]; re[j] = tmp
++                tmp = im[i]; im[i] = im[j]; im[j] = tmp
++            }
++        }
++
++        // Cooley-Tukey butterfly stages (11 stages for n=2048)
++        var len = 2
++        while (len <= n) {
++            val halfLen = len ushr 1
++            val ang = -PI / halfLen       // = -2π / len
++            val wBaseRe = cos(ang)
++            val wBaseIm = kotlin.math.sin(ang)
++            var i = 0
++            while (i < n) {
++                var wRe = 1.0
++                var wIm = 0.0
++                for (k in 0 until halfLen) {
++                    val u = i + k
++                    val v = u + halfLen
++                    val evenRe = re[u]
++                    val evenIm = im[u]
++                    val oddRe = re[v] * wRe - im[v] * wIm
++                    val oddIm = re[v] * wIm + im[v] * wRe
++                    re[u] = evenRe + oddRe
++                    im[u] = evenIm + oddIm
++                    re[v] = evenRe - oddRe
++                    im[v] = evenIm - oddIm
++                    val newWRe = wRe * wBaseRe - wIm * wBaseIm
++                    wIm = wRe * wBaseIm + wIm * wBaseRe
++                    wRe = newWRe
++                }
++                i += len
++            }
++            len = len shl 1
++        }
++
++        // Extract magnitudes for bins 0..n/2 (FFT_OUTPUT_SIZE = 1025)
++        val scaleFactor = 1.0 / (1 shl 17)
++        val minVal = 1e-10
++        return DoubleArray(FFT_OUTPUT_SIZE) { idx ->
++            val r = re[idx]
++            val img = im[idx]
++            val mag = (r * r + img * img) * scaleFactor
++            if (mag < minVal) minVal else mag
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/VibraSignature.kt b/app/src/main/java/com/dd3boh/outertune/recognition/VibraSignature.kt
+new file mode 100644
+index 0000000..e7f8d7e
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/recognition/VibraSignature.kt
+@@ -0,0 +1,22 @@
++package com.dd3boh.outertune.recognition
++
++/**
++ * Audio fingerprint generator for Shazam-compatible signatures.
++ *
++ * Pure Kotlin implementation — no native C++ or FFTW3 dependency required.
++ * Uses [ShazamSignatureGenerator] which ports the vibra algorithm to JVM.
++ */
++object VibraSignature {
++
++    const val REQUIRED_SAMPLE_RATE = 16_000
++
++    /**
++     * Generates a Shazam signature from raw PCM audio data.
++     *
++     * @param samples Raw PCM audio data (mono, 16-bit signed little-endian, 16kHz)
++     * @return The encoded signature URI string suitable for the Shazam API
++     * @throws IllegalArgumentException if samples is empty or has odd length
++     */
++    @JvmStatic
++    fun fromI16(samples: ByteArray): String = ShazamSignatureGenerator.fromI16(samples)
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/RecognitionScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/RecognitionScreen.kt
+new file mode 100644
+index 0000000..38f5b56
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/RecognitionScreen.kt
+@@ -0,0 +1,230 @@
++/*
++ * Copyright (C) 2025 O‌ute‌rTu‌ne Project
++ *
++ * Music recognition is based on the MusicRecognizer project by Aleksey Saenko, by way of
++ * Metrolist. See git history for contributors.
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.screens
++
++import android.Manifest
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.animation.core.LinearEasing
++import androidx.compose.animation.core.RepeatMode
++import androidx.compose.animation.core.animateFloat
++import androidx.compose.animation.core.infiniteRepeatable
++import androidx.compose.animation.core.rememberInfiniteTransition
++import androidx.compose.animation.core.tween
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.Mic
++import androidx.compose.material3.Button
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TopAppBar
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.DisposableEffect
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.drawBehind
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.dp
++import androidx.navigation.NavController
++import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.TopBarInsets
++import com.dd3boh.outertune.recognition.MusicRecognitionService
++import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.urlEncode
++import com.dd3boh.shazamkit.models.RecognitionStatus
++import kotlinx.coroutines.launch
++
++/**
++ * Listens through the microphone and asks what is playing.
++ *
++ * A fingerprint of about twelve seconds of audio is computed on the device and only that
++ * fingerprint is sent - the recording itself never leaves the phone, and is not written to disk.
++ */
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++fun RecognitionScreen(navController: NavController) {
++    val context = LocalContext.current
++    val scope = rememberCoroutineScope()
++    val status by MusicRecognitionService.recognitionStatus.collectAsState()
++
++    var permissionDenied by remember { mutableStateOf(false) }
++
++    val start: () -> Unit = {
++        scope.launch { MusicRecognitionService.recognize(context) }
++        Unit
++    }
++
++    val requestPermission = rememberLauncherForActivityResult(
++        ActivityResultContracts.RequestPermission()
++    ) { granted ->
++        if (granted) start() else permissionDenied = true
++    }
++
++    // Listen as soon as the screen opens. Anyone who navigated here wants the answer now, and
++    // making them press a second button to begin is a wasted step.
++    LaunchedEffect(Unit) {
++        if (MusicRecognitionService.hasRecordPermission(context)) {
++            start()
++        } else {
++            requestPermission.launch(Manifest.permission.RECORD_AUDIO)
++        }
++    }
++
++    // Leaving mid-listen must release the microphone and clear the result, or coming back shows
++    // the last answer as though it were fresh.
++    DisposableEffect(Unit) {
++        onDispose { MusicRecognitionService.reset() }
++    }
++
++    val listening = status is RecognitionStatus.Listening || status is RecognitionStatus.Processing
++
++    Column(
++        horizontalAlignment = Alignment.CenterHorizontally,
++        verticalArrangement = Arrangement.Center,
++        modifier = Modifier
++            .fillMaxSize()
++            .padding(32.dp),
++    ) {
++        PulsingMic(active = listening)
++        Spacer(Modifier.height(32.dp))
++
++        Text(
++            text = when {
++                permissionDenied -> stringResource(R.string.recognition_no_permission)
++                status is RecognitionStatus.Listening -> stringResource(R.string.recognition_listening)
++                status is RecognitionStatus.Processing -> stringResource(R.string.recognition_processing)
++                status is RecognitionStatus.Success ->
++                    (status as RecognitionStatus.Success).result.title
++                status is RecognitionStatus.NoMatch -> stringResource(R.string.recognition_no_match)
++                status is RecognitionStatus.Error -> (status as RecognitionStatus.Error).message
++                else -> stringResource(R.string.recognition_ready)
++            },
++            style = MaterialTheme.typography.titleLarge,
++            textAlign = TextAlign.Center,
++        )
++
++        (status as? RecognitionStatus.Success)?.let { success ->
++            Spacer(Modifier.height(8.dp))
++            Text(
++                text = success.result.artist,
++                style = MaterialTheme.typography.bodyLarge,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++                textAlign = TextAlign.Center,
++            )
++            Spacer(Modifier.height(28.dp))
++            Button(onClick = {
++                // Handed to the existing search rather than played directly: Shazam answers with
++                // a title and an artist, not a YouTube Music id, so there is nothing to play yet.
++                val query = "${success.result.title} ${success.result.artist}"
++                navController.navigate("search/${query.urlEncode()}")
++            }) {
++                Text(stringResource(R.string.recognition_search_for_it))
++            }
++        }
++
++        if (!listening && status !is RecognitionStatus.Success) {
++            Spacer(Modifier.height(28.dp))
++            Button(onClick = {
++                permissionDenied = false
++                if (MusicRecognitionService.hasRecordPermission(context)) start()
++                else requestPermission.launch(Manifest.permission.RECORD_AUDIO)
++            }) {
++                Text(stringResource(R.string.recognition_try_again))
++            }
++        }
++    }
++
++    TopAppBar(
++        title = { Text(stringResource(R.string.recognition)) },
++        navigationIcon = {
++            IconButton(
++                onClick = navController::navigateUp,
++                onLongClick = navController::backToMain
++            ) {
++                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
++            }
++        },
++        windowInsets = TopBarInsets,
++    )
++}
++
++/**
++ * A microphone with rings breathing out of it while it listens.
++ *
++ * Not driven by the microphone level: reading the amplitude would mean tapping the same
++ * AudioRecord the fingerprint depends on, and a decorative animation is no reason to put anything
++ * near that. The rings are read inside [drawBehind], so each frame redraws without recomposing.
++ */
++@Composable
++private fun PulsingMic(active: Boolean) {
++    val transition = rememberInfiniteTransition(label = "mic")
++    val phase = if (active) {
++        transition.animateFloat(
++            initialValue = 0f,
++            targetValue = 1f,
++            animationSpec = infiniteRepeatable(tween(2200, easing = LinearEasing), RepeatMode.Restart),
++            label = "phase",
++        ).value
++    } else {
++        0f
++    }
++
++    val ringColor = MaterialTheme.colorScheme.primary
++
++    Box(contentAlignment = Alignment.Center) {
++        Box(
++            modifier = Modifier
++                .size(180.dp)
++                .drawBehind {
++                    if (!active) return@drawBehind
++                    val base = size.minDimension / 5f
++                    // Three rings a third of a cycle apart, each fading as it grows, so the
++                    // sequence loops without a visible restart.
++                    repeat(3) { i ->
++                        val t = (phase + i / 3f) % 1f
++                        val radius = base * (1f + t * 1.9f)
++                        drawCircle(
++                            color = ringColor.copy(alpha = 0.32f * (1f - t)),
++                            radius = radius,
++                            center = Offset(size.width / 2f, size.height / 2f),
++                        )
++                    }
++                }
++        )
++        Icon(
++            imageVector = Icons.Rounded.Mic,
++            contentDescription = null,
++            tint = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
++            modifier = Modifier.size(64.dp),
++        )
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index c734851..c0a682b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+ import androidx.compose.material.icons.rounded.Close
+ import androidx.compose.material.icons.rounded.Language
++import androidx.compose.material.icons.rounded.Mic
+ import androidx.compose.material.icons.rounded.LibraryMusic
+ import androidx.compose.material.icons.rounded.Person
+ import androidx.compose.material.icons.rounded.Search
+@@ -365,6 +366,7 @@ fun SearchBarContainer(
+             scrollBehavior = scrollBehavior,
+             windowInsets = iconRowInset,
+             showLogo = showTopBarLogo,
++            onRecognizeClick = { navController.navigate("recognition") },
+             onStatsClick = { navController.navigate("stats") },
+             onSettingsClick = { navController.navigate("settings") },
+             onAccountClick = { navController.navigate("settings/account_sync") },
+@@ -379,6 +381,7 @@ private fun TopIconBar(
+     scrollBehavior: TopAppBarScrollBehavior,
+     windowInsets: WindowInsets,
+     showLogo: Boolean,
++    onRecognizeClick: () -> Unit,
+     onStatsClick: () -> Unit,
+     onSettingsClick: () -> Unit,
+     onAccountClick: () -> Unit,
+@@ -449,6 +452,12 @@ private fun TopIconBar(
+         }
+         Spacer(Modifier.width(4.dp))
+ 
++        IconButton(onClick = onRecognizeClick) {
++            Icon(
++                imageVector = Icons.Rounded.Mic,
++                contentDescription = stringResource(R.string.recognition)
++            )
++        }
+         IconButton(onClick = onStatsClick) {
+             Icon(
+                 imageVector = Icons.AutoMirrored.Rounded.TrendingUp,
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 20ed4dc..f709608 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -410,6 +410,15 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="stats_extended_artists">Top artists</string>
+     <string name="show_top_bar_logo_title">Show logo in the top bar</string>
+     <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
++    <!-- Music recognition -->
++    <string name="recognition">Identify a song</string>
++    <string name="recognition_ready">Ready to listen</string>
++    <string name="recognition_listening">Listening…</string>
++    <string name="recognition_processing">Working out what that was…</string>
++    <string name="recognition_no_match">No match. Try again somewhere quieter, or closer to the speaker.</string>
++    <string name="recognition_no_permission">Microphone access is needed to identify what is playing.</string>
++    <string name="recognition_search_for_it">Search for it</string>
++    <string name="recognition_try_again">Listen again</string>
+     <!-- Player layout -->
+     <string name="player_layout">Player layout</string>
+     <string name="player_layout_summary">Import a layout made in the layout editor</string>
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 575e5de..464cd0a 100755
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -17,6 +17,7 @@ include(":lrclib")
+ include(":betterlyrics")
+ include(":simpmusic")
+ include(":kizzy")
++include(":shazamkit")
+ 
+ // Use a local copy of NewPipe Extractor by uncommenting the lines below.
+ // We assume, that OuterTune and NewPipe Extractor have the same parent directory.
+diff --git a/shazamkit/build.gradle.kts b/shazamkit/build.gradle.kts
+new file mode 100644
+index 0000000..9a9761c
+--- /dev/null
++++ b/shazamkit/build.gradle.kts
+@@ -0,0 +1,17 @@
++plugins {
++    kotlin("jvm")
++    alias(libs.plugins.kotlin.serialization)
++}
++
++kotlin {
++    jvmToolchain(21)
++}
++
++dependencies {
++    implementation(libs.ktor.client.core)
++    implementation(libs.ktor.client.okhttp)
++    implementation(libs.ktor.client.content.negotiation)
++    implementation(libs.ktor.serialization.json)
++    implementation(libs.ktor.client.encoding)
++    testImplementation(libs.junit)
++}
+diff --git a/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt b/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
+new file mode 100644
+index 0000000..156d94c
+--- /dev/null
++++ b/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
+@@ -0,0 +1,496 @@
++package com.dd3boh.shazamkit
++
++import com.dd3boh.shazamkit.models.RecognitionResult
++import com.dd3boh.shazamkit.models.ShazamRequestJson
++import com.dd3boh.shazamkit.models.ShazamResponseJson
++import io.ktor.client.HttpClient
++import io.ktor.client.call.body
++import io.ktor.client.engine.okhttp.OkHttp
++import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
++import io.ktor.client.request.header
++import io.ktor.client.request.parameter
++import io.ktor.client.request.post
++import io.ktor.client.request.setBody
++import io.ktor.http.ContentType
++import io.ktor.http.contentType
++import io.ktor.http.isSuccess
++import io.ktor.serialization.kotlinx.json.json
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.serialization.json.Json
++import java.util.UUID
++import java.util.concurrent.ConcurrentHashMap
++import java.util.concurrent.ConcurrentLinkedQueue
++import java.util.concurrent.atomic.AtomicInteger
++import kotlin.random.Random
++
++/**
++ * Shazam music recognition with built-in rate limiting and queue management
++ */
++object Shazam {
++    private const val TAG = "ShazamApi"
++
++    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
++
++    // Configuration
++    private const val MAX_CONCURRENT_REQUESTS = 2
++    
++    private const val MIN_REQUEST_INTERVAL_MS = 1000L
++    
++    private const val MAX_RETRIES = 3
++    
++    private const val INITIAL_RETRY_DELAY_MS = 2000L
++    
++    private const val CACHE_DURATION_MS = 300000L
++    
++    private const val MAX_QUEUE_SIZE = 50
++
++    // Internal State
++    private val activeRequests = AtomicInteger(0)
++    
++    private var lastRequestTime = 0L
++    
++    private val requestMutex = Mutex()
++    
++    private val requestQueue = ConcurrentLinkedQueue<PendingRequest>()
++    
++    private val resultCache = ConcurrentHashMap<String, CachedResult>()
++    
++    private var nextRequestId = 0L
++    
++    private var isProcessingQueue = false
++
++    // HTTP Client Configuration
++    private val client by lazy {
++        HttpClient(OkHttp) {
++            install(ContentNegotiation) {
++                json(
++                    Json {
++                        isLenient = true
++                        ignoreUnknownKeys = true
++                        encodeDefaults = true
++                    },
++                )
++            }
++            expectSuccess = false
++            
++            engine {
++                requestTimeout = 30000
++            }
++        }
++    }
++
++    private val userAgents = listOf(
++        "Dalvik/2.1.0 (Linux; U; Android 5.0.2; VS980 4G Build/LRX22G)",
++        "Dalvik/1.6.0 (Linux; U; Android 4.4.2; SM-T210 Build/KOT49H)",
++        "Dalvik/2.1.0 (Linux; U; Android 5.1.1; SM-P905V Build/LMY47X)",
++        "Dalvik/2.1.0 (Linux; U; Android 6.0.1; SM-G920F Build/MMB29K)",
++        "Dalvik/2.1.0 (Linux; U; Android 5.0; SM-G900F Build/LRX21T)"
++    )
++
++    private val timezones = listOf(
++        "Europe/Paris", "Europe/London", "America/New_York",
++        "America/Los_Angeles", "Asia/Tokyo", "Asia/Dubai"
++    )
++
++    /**
++     * Recognize music from audio signature
++     * 
++     * @param signature Audio signature in Shazam DejaVu format
++     * @param sampleDurationMs Sample duration in milliseconds
++     * @return Result containing recognition result or error
++     */
++    suspend fun recognize(signature: String, sampleDurationMs: Long): Result<RecognitionResult> {
++        val cacheKey = generateCacheKey(signature)
++        getCachedResult(cacheKey)?.let {
++            ShazamLog.d("Cache hit for key=%s", cacheKey)
++            return Result.success(it)
++        }
++
++        ShazamLog.d("No cache hit, enqueueing request (pending=%d, active=%d)", requestQueue.size, activeRequests.get())
++        return enqueueRequest(signature, sampleDurationMs)
++    }
++
++    /**
++     * Get number of pending requests in queue
++     */
++    fun getPendingRequestsCount(): Int = requestQueue.size
++
++    /**
++     * Get number of active requests
++     */
++    fun getActiveRequestsCount(): Int = activeRequests.get()
++
++    /**
++     * Clear cache
++     */
++    fun clearCache() {
++        resultCache.clear()
++    }
++
++    /**
++     * Cancel all pending requests
++     */
++    fun cancelPendingRequests() {
++        requestQueue.clear()
++    }
++
++    /**
++     * Cleanup resources
++     */
++    fun cleanup() {
++        cancelPendingRequests()
++        clearCache()
++        client.close()
++    }
++
++    /**
++     * Enqueue request for processing
++     */
++    private suspend fun enqueueRequest(
++        signature: String,
++        sampleDurationMs: Long
++    ): Result<RecognitionResult> = requestMutex.withLock {
++        if (requestQueue.size >= MAX_QUEUE_SIZE) {
++            ShazamLog.w("Request queue full (%d/%d), rejecting request", requestQueue.size, MAX_QUEUE_SIZE)
++            return Result.failure(Exception("Request queue is full. Please wait."))
++        }
++
++        val requestId = nextRequestId++
++        val request = PendingRequest(
++            id = requestId,
++            signature = signature,
++            sampleDurationMs = sampleDurationMs
++        )
++
++        requestQueue.offer(request)
++        ShazamLog.d("Request #%d enqueued (queue size=%d)", requestId, requestQueue.size)
++
++        if (!isProcessingQueue) {
++            isProcessingQueue = true
++            ShazamLog.d("Starting queue processor")
++            processQueue()
++        }
++
++        return request.awaitResult()
++    }
++
++    /**
++     * Process request queue
++     */
++    private suspend fun processQueue() {
++        while (true) {
++            val request = requestQueue.poll() ?: break
++
++            while (activeRequests.get() >= MAX_CONCURRENT_REQUESTS) {
++                delay(100)
++            }
++
++            activeRequests.incrementAndGet()
++
++            scope.launch {
++            try {
++                val result = executeRequest(request.signature, request.sampleDurationMs)
++                request.completeWith(result)
++            } catch (e: Exception) {
++                ShazamLog.w(e, "Request #%d failed in queue processor", request.id)
++                request.completeWith(Result.failure(e))
++                } finally {
++                    activeRequests.decrementAndGet()
++                }
++            }
++
++            enforceRateLimit()
++        }
++
++        isProcessingQueue = false
++    }
++
++    /**
++     * Execute recognition request with retry logic
++     */
++    private suspend fun executeRequest(
++        signature: String,
++        sampleDurationMs: Long
++    ): Result<RecognitionResult> {
++        var lastException: Exception? = null
++
++        for (attempt in 0 until MAX_RETRIES) {
++            try {
++                enforceRateLimit()
++                
++                val result = performRecognition(signature, sampleDurationMs)
++                
++                val cacheKey = generateCacheKey(signature)
++                cacheResult(cacheKey, result)
++                ShazamLog.d("Request succeeded on attempt %d", attempt + 1)
++
++                return Result.success(result)
++            } catch (e: Exception) {
++                lastException = e
++                ShazamLog.w(e, "Request failed on attempt %d/%d: %s", attempt + 1, MAX_RETRIES, e.message)
++
++                if (e.message?.contains("429") == true ||
++                    e.message?.contains("Too many requests", ignoreCase = true) == true
++                ) {
++                    if (attempt < MAX_RETRIES - 1) {
++                        val delayTime = calculateBackoffDelay(attempt)
++                        ShazamLog.d("Rate limited, retrying in %dms (attempt %d/%d)", delayTime, attempt + 2, MAX_RETRIES)
++                        delay(delayTime)
++                        continue
++                    }
++                } else {
++                    throw e
++                }
++            }
++        }
++
++        throw lastException ?: Exception("Recognition failed after $MAX_RETRIES attempts")
++    }
++
++    /**
++     * Perform actual recognition request
++     */
++    private suspend fun performRecognition(
++        signature: String,
++        sampleDurationMs: Long
++    ): RecognitionResult {
++        val timestamp = System.currentTimeMillis() / 1000
++        val uuid1 = UUID.randomUUID().toString().uppercase()
++        val uuid2 = UUID.randomUUID().toString()
++
++        val request = ShazamRequestJson(
++            geolocation = ShazamRequestJson.Geolocation(
++                altitude = Random.nextDouble() * 400 + 100,
++                latitude = Random.nextDouble() * 180 - 90,
++                longitude = Random.nextDouble() * 360 - 180
++            ),
++            signature = ShazamRequestJson.Signature(
++                samplems = sampleDurationMs,
++                timestamp = timestamp,
++                uri = signature
++            ),
++            timestamp = timestamp,
++            timezone = timezones.random()
++        )
++
++        ShazamLog.d("Sending recognition request to Shazam API")
++        val response = client.post("https://amp.shazam.com/discovery/v5/en/US/android/-/tag/$uuid1/$uuid2") {
++            parameter("sync", "true")
++            parameter("webv3", "true")
++            parameter("sampling", "true")
++            parameter("connected", "")
++            parameter("shazamapiversion", "v3")
++            parameter("sharehub", "true")
++            parameter("video", "v3")
++            header("User-Agent", userAgents.random())
++            header("Content-Language", "en_US")
++            contentType(ContentType.Application.Json)
++            setBody(request)
++        }
++
++        if (!response.status.isSuccess()) {
++            val statusCode = response.status.value
++            ShazamLog.w("Shazam API returned HTTP %d", statusCode)
++            when (statusCode) {
++                429 -> throw Exception("Too many requests")
++                404 -> throw Exception("No match found")
++                in 500..599 -> throw Exception("Shazam service temporarily unavailable")
++                else -> throw Exception("Recognition failed (error $statusCode)")
++            }
++        }
++
++        val shazamResponse = response.body<ShazamResponseJson>()
++        ShazamLog.d("Shazam API response received, hasTrack=%s", shazamResponse.track != null)
++        return shazamResponse.toRecognitionResult()
++            ?: throw Exception("No match found")
++    }
++
++    /**
++     * Enforce minimum time between requests
++     */
++    private suspend fun enforceRateLimit() {
++        val currentTime = System.currentTimeMillis()
++        val timeSinceLastRequest = currentTime - lastRequestTime
++
++        if (timeSinceLastRequest < MIN_REQUEST_INTERVAL_MS) {
++            val delayTime = MIN_REQUEST_INTERVAL_MS - timeSinceLastRequest
++            delay(delayTime)
++        }
++
++        lastRequestTime = System.currentTimeMillis()
++    }
++
++    /**
++     * Calculate delay using Exponential Backoff
++     */
++    private fun calculateBackoffDelay(attempt: Int): Long {
++        return INITIAL_RETRY_DELAY_MS * (1 shl attempt)
++    }
++
++    /**
++     * Generate cache key
++     */
++    private fun generateCacheKey(signature: String): String {
++        return signature.hashCode().toString()
++    }
++
++    /**
++     * Get result from cache
++     */
++    private fun getCachedResult(key: String): RecognitionResult? {
++        val cached = resultCache[key] ?: return null
++        val currentTime = System.currentTimeMillis()
++
++        if (currentTime - cached.timestamp > CACHE_DURATION_MS) {
++            resultCache.remove(key)
++            return null
++        }
++
++        return cached.result
++    }
++
++    /**
++     * Cache result
++     */
++    private fun cacheResult(key: String, result: RecognitionResult) {
++        resultCache[key] = CachedResult(
++            timestamp = System.currentTimeMillis(),
++            result = result
++        )
++        ShazamLog.d("Result cached for key=%s (cache size=%d)", key, resultCache.size)
++
++        cleanupCache()
++    }
++
++    /**
++     * Cleanup expired cache entries
++     */
++    private fun cleanupCache() {
++        if (resultCache.size < 100) return
++        ShazamLog.d("Cache cleanup: %d entries, pruning expired", resultCache.size)
++
++        val currentTime = System.currentTimeMillis()
++        val iterator = resultCache.entries.iterator()
++
++        while (iterator.hasNext()) {
++            val entry = iterator.next()
++            if (currentTime - entry.value.timestamp > CACHE_DURATION_MS) {
++                iterator.remove()
++            }
++        }
++    }
++
++    /**
++     * Convert Shazam response to internal model
++     */
++    private fun ShazamResponseJson.toRecognitionResult(): RecognitionResult? {
++        val track = this.track ?: return null
++
++        val songSection = track.sections?.find { it?.type == "SONG" }
++        val metadata = songSection?.metadata
++        val album = metadata?.find { it?.title == "Album" }?.text
++        val label = metadata?.find { it?.title == "Label" }?.text
++        val releaseDate = metadata?.find { it?.title == "Released" }?.text
++
++        val lyricsSection = track.sections?.find { it?.type == "LYRICS" }
++        val lyrics = lyricsSection?.text
++
++        val appleAction = track.hub?.options?.firstOrNull {
++            it?.providername?.contains("apple", ignoreCase = true) == true
++        }?.actions?.firstOrNull()
++        
++        val spotifyProvider = track.hub?.providers?.find {
++            it?.caption?.contains("spotify", ignoreCase = true) == true
++        }
++
++        val youtubeAction = track.hub?.options?.find {
++            it?.type?.contains("video", ignoreCase = true) == true
++        }?.actions?.firstOrNull()
++        
++        val youtubeVideoId = youtubeAction?.uri?.let { uri ->
++            uri.substringAfterLast("v=", "").takeIf { it.isNotEmpty() }
++                ?: uri.substringAfterLast("/", "").takeIf { it.isNotEmpty() && it.length == 11 }
++        }
++
++        return RecognitionResult(
++            trackId = track.key ?: tagid ?: "",
++            title = track.title ?: "",
++            artist = track.subtitle ?: "",
++            album = album,
++            coverArtUrl = track.images?.coverart,
++            coverArtHqUrl = track.images?.coverarthq,
++            genre = track.genres?.primary,
++            releaseDate = releaseDate,
++            label = label,
++            lyrics = lyrics,
++            shazamUrl = track.url,
++            appleMusicUrl = appleAction?.uri,
++            spotifyUrl = spotifyProvider?.actions?.firstOrNull()?.uri,
++            isrc = track.isrc,
++            youtubeVideoId = youtubeVideoId
++        )
++    }
++
++    /**
++     * Pending request in queue
++     */
++    private class PendingRequest(
++        val id: Long,
++        val signature: String,
++        val sampleDurationMs: Long
++    ) {
++        private val mutex = Mutex()
++        private var result: Result<RecognitionResult>? = null
++        private var isCompleted = false
++
++        suspend fun awaitResult(): Result<RecognitionResult> {
++            while (!isCompleted) {
++                delay(50)
++            }
++            return result ?: Result.failure(Exception("Result not received"))
++        }
++
++        fun completeWith(result: Result<RecognitionResult>) {
++            this.result = result
++            this.isCompleted = true
++        }
++    }
++
++    /**
++     * Cached result
++     */
++    private data class CachedResult(
++        val timestamp: Long,
++        val result: RecognitionResult
++    )
++}
++
++/**
++ * The sibling modules here are plain JVM libraries, so there is no android.util.Log to call and
++ * pulling a logging framework in for a handful of lines would be out of proportion. Off by
++ * default; flip [enabled] from a debug build when something needs watching.
++ */
++internal object ShazamLog {
++    @Volatile
++    var enabled = false
++
++    fun d(message: String, vararg args: Any?) = log("D", message, args, null)
++    fun w(message: String, vararg args: Any?) = log("W", message, args, null)
++    fun w(t: Throwable, message: String, vararg args: Any?) = log("W", message, args, t)
++    fun e(message: String, vararg args: Any?) = log("E", message, args, null)
++    fun e(t: Throwable, message: String, vararg args: Any?) = log("E", message, args, t)
++
++    private fun log(level: String, message: String, args: Array<out Any?>, t: Throwable?) {
++        if (!enabled) return
++        val text = runCatching { if (args.isEmpty()) message else String.format(message, *args) }
++            .getOrDefault(message)
++        System.err.println("[Shazam/$level] $text")
++        t?.printStackTrace()
++    }
++}
+diff --git a/shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt b/shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt
+new file mode 100644
+index 0000000..1c59e9c
+--- /dev/null
++++ b/shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt
+@@ -0,0 +1,317 @@
++package com.dd3boh.shazamkit.models
++
++import kotlinx.serialization.SerialName
++import kotlinx.serialization.Serializable
++
++@Serializable
++data class ShazamRequestJson(
++    @SerialName("geolocation")
++    val geolocation: Geolocation,
++    @SerialName("signature")
++    val signature: Signature,
++    @SerialName("timestamp")
++    val timestamp: Long,
++    @SerialName("timezone")
++    val timezone: String
++) {
++    @Serializable
++    data class Geolocation(
++        @SerialName("altitude")
++        val altitude: Double,
++        @SerialName("latitude")
++        val latitude: Double,
++        @SerialName("longitude")
++        val longitude: Double
++    )
++
++    @Serializable
++    data class Signature(
++        @SerialName("samplems")
++        val samplems: Long,
++        @SerialName("timestamp")
++        val timestamp: Long,
++        @SerialName("uri")
++        val uri: String
++    )
++}
++
++@Serializable
++data class ShazamResponseJson(
++    @SerialName("matches")
++    val matches: List<Match?>? = null,
++    @SerialName("location")
++    val location: Location? = null,
++    @SerialName("timestamp")
++    val timestamp: Long? = null,
++    @SerialName("timezone")
++    val timezone: String? = null,
++    @SerialName("track")
++    val track: Track? = null,
++    @SerialName("tagid")
++    val tagid: String? = null
++) {
++    @Serializable
++    data class Match(
++        @SerialName("id")
++        val id: String? = null,
++        @SerialName("offset")
++        val offset: Double? = null,
++        @SerialName("timeskew")
++        val timeskew: Double? = null,
++        @SerialName("frequencyskew")
++        val frequencyskew: Double? = null
++    )
++
++    @Serializable
++    data class Location(
++        @SerialName("latitude")
++        val latitude: Double? = null,
++        @SerialName("longitude")
++        val longitude: Double? = null,
++        @SerialName("altitude")
++        val altitude: Double? = null,
++        @SerialName("accuracy")
++        val accuracy: Double? = null
++    )
++
++    @Serializable
++    data class Track(
++        @SerialName("layout")
++        val layout: String? = null,
++        @SerialName("type")
++        val type: String? = null,
++        @SerialName("key")
++        val key: String? = null,
++        @SerialName("title")
++        val title: String? = null,
++        @SerialName("subtitle")
++        val subtitle: String? = null,
++        @SerialName("images")
++        val images: Images? = null,
++        @SerialName("share")
++        val share: Share? = null,
++        @SerialName("hub")
++        val hub: Hub? = null,
++        @SerialName("sections")
++        val sections: List<Section?>? = null,
++        @SerialName("url")
++        val url: String? = null,
++        @SerialName("artists")
++        val artists: List<Artist?>? = null,
++        @SerialName("isrc")
++        val isrc: String? = null,
++        @SerialName("genres")
++        val genres: Genres? = null,
++        @SerialName("relatedtracksurl")
++        val relatedtracksurl: String? = null,
++        @SerialName("albumadamid")
++        val albumadamid: String? = null
++    ) {
++        @Serializable
++        data class Images(
++            @SerialName("background")
++            val background: String? = null,
++            @SerialName("coverart")
++            val coverart: String? = null,
++            @SerialName("coverarthq")
++            val coverarthq: String? = null,
++            @SerialName("joecolor")
++            val joecolor: String? = null
++        )
++
++        @Serializable
++        data class Share(
++            @SerialName("subject")
++            val subject: String? = null,
++            @SerialName("text")
++            val text: String? = null,
++            @SerialName("href")
++            val href: String? = null,
++            @SerialName("image")
++            val image: String? = null,
++            @SerialName("twitter")
++            val twitter: String? = null,
++            @SerialName("html")
++            val html: String? = null,
++            @SerialName("avatar")
++            val avatar: String? = null,
++            @SerialName("snapchat")
++            val snapchat: String? = null
++        )
++
++        @Serializable
++        data class Hub(
++            @SerialName("type")
++            val type: String? = null,
++            @SerialName("image")
++            val image: String? = null,
++            @SerialName("actions")
++            val actions: List<Action?>? = null,
++            @SerialName("options")
++            val options: List<Option?>? = null,
++            @SerialName("providers")
++            val providers: List<Provider?>? = null,
++            @SerialName("explicit")
++            val explicit: Boolean? = null,
++            @SerialName("displayname")
++            val displayname: String? = null
++        ) {
++            @Serializable
++            data class Action(
++                @SerialName("name")
++                val name: String? = null,
++                @SerialName("type")
++                val type: String? = null,
++                @SerialName("id")
++                val id: String? = null,
++                @SerialName("uri")
++                val uri: String? = null
++            )
++
++            @Serializable
++            data class Option(
++                @SerialName("caption")
++                val caption: String? = null,
++                @SerialName("actions")
++                val actions: List<OptionAction?>? = null,
++                @SerialName("beacondata")
++                val beacondata: Beacondata? = null,
++                @SerialName("image")
++                val image: String? = null,
++                @SerialName("type")
++                val type: String? = null,
++                @SerialName("listcaption")
++                val listcaption: String? = null,
++                @SerialName("overflowimage")
++                val overflowimage: String? = null,
++                @SerialName("colouroverflowimage")
++                val colouroverflowimage: Boolean? = null,
++                @SerialName("providername")
++                val providername: String? = null
++            ) {
++                @Serializable
++                data class OptionAction(
++                    @SerialName("name")
++                    val name: String? = null,
++                    @SerialName("type")
++                    val type: String? = null,
++                    @SerialName("uri")
++                    val uri: String? = null,
++                    @SerialName("id")
++                    val id: String? = null
++                )
++
++                @Serializable
++                data class Beacondata(
++                    @SerialName("type")
++                    val type: String? = null,
++                    @SerialName("providername")
++                    val providername: String? = null
++                )
++            }
++
++            @Serializable
++            data class Provider(
++                @SerialName("caption")
++                val caption: String? = null,
++                @SerialName("images")
++                val images: ProviderImages? = null,
++                @SerialName("actions")
++                val actions: List<ProviderAction?>? = null,
++                @SerialName("type")
++                val type: String? = null
++            ) {
++                @Serializable
++                data class ProviderImages(
++                    @SerialName("overflow")
++                    val overflow: String? = null,
++                    @SerialName("default")
++                    val default: String? = null
++                )
++
++                @Serializable
++                data class ProviderAction(
++                    @SerialName("name")
++                    val name: String? = null,
++                    @SerialName("type")
++                    val type: String? = null,
++                    @SerialName("uri")
++                    val uri: String? = null
++                )
++            }
++        }
++
++        @Serializable
++        data class Section(
++            @SerialName("type")
++            val type: String? = null,
++            @SerialName("metapages")
++            val metapages: List<Metapage?>? = null,
++            @SerialName("tabname")
++            val tabname: String? = null,
++            @SerialName("metadata")
++            val metadata: List<Metadata?>? = null,
++            @SerialName("url")
++            val url: String? = null,
++            @SerialName("text")
++            val text: List<String>? = null,
++        ) {
++            @Serializable
++            data class Metapage(
++                @SerialName("image")
++                val image: String? = null,
++                @SerialName("caption")
++                val caption: String? = null
++            )
++
++            @Serializable
++            data class Metadata(
++                @SerialName("title")
++                val title: String? = null,
++                @SerialName("text")
++                val text: String? = null
++            )
++        }
++
++        @Serializable
++        data class Artist(
++            @SerialName("id")
++            val id: String? = null,
++            @SerialName("adamid")
++            val adamid: String? = null
++        )
++
++        @Serializable
++        data class Genres(
++            @SerialName("primary")
++            val primary: String? = null
++        )
++    }
++}
++
++data class RecognitionResult(
++    val trackId: String,
++    val title: String,
++    val artist: String,
++    val album: String?,
++    val coverArtUrl: String?,
++    val coverArtHqUrl: String?,
++    val genre: String?,
++    val releaseDate: String?,
++    val label: String?,
++    val lyrics: List<String>?,
++    val shazamUrl: String?,
++    val appleMusicUrl: String?,
++    val spotifyUrl: String?,
++    val isrc: String?,
++    val youtubeVideoId: String? = null
++)
++
++sealed class RecognitionStatus {
++    data object Ready : RecognitionStatus()
++    data object Listening : RecognitionStatus()
++    data object Processing : RecognitionStatus()
++    data class Success(val result: RecognitionResult) : RecognitionStatus()
++    data class NoMatch(val message: String = "No matches found") : RecognitionStatus()
++    data class Error(val message: String) : RecognitionStatus()
++}
+-- 
+2.43.0
+
+
+From 8c7563cd42a4e50bcb3fcc6880f1cf56ba86be3f Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 10:12:28 +0000
+Subject: [PATCH 29/31] Fix the stats charts
+
+Three separate problems, all visible at once, none of them the user's data.
+
+The ranking was being thrown away. Both charts selected their top N in a
+subquery that ordered correctly, then wrapped it in WHERE id IN (...) -
+and SQLite does not preserve a subquery's order through IN. The right six
+songs came back in essentially arbitrary order, so the number one track
+could appear anywhere in the list. Joining against the ranked set instead
+keeps the order.
+
+The artist chart measured something else entirely. It read the playCount
+table, which stores one total per calendar month, so its window was
+rounded out to whole months - a "1 month" period actually covered five
+and a half weeks, "1 year" covered twelve and a half months - and it
+ranked by number of plays while the song chart ranked by time listened.
+It also counted only songs marked as in the library, which on a real
+collection discarded about a quarter of all plays: an artist could be
+absent from the chart while their track sat at number one directly above
+it. It now reads event, the same source the song chart uses, so the two
+agree on window, measure and scope.
+
+Also moves the player background to Appearance, where people look for it,
+and says plainly what the minimum playback duration actually controls -
+it decides what reaches your history and your stats, which the old label
+gave no hint of.
+---
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    | 106 ++++--------------
+ .../com/dd3boh/outertune/db/daos/SongsDao.kt  |  17 +--
+ .../ui/screens/settings/AppearanceSettings.kt |   2 +
+ .../screens/settings/fragments/PlayerFrag.kt  |  93 ++++++++-------
+ .../outertune/viewmodels/HomeViewModel.kt     |   4 +-
+ .../outertune/viewmodels/StatsViewModel.kt    |   6 +-
+ app/src/main/res/values/strings-ot.xml        |   1 +
+ 7 files changed, 90 insertions(+), 139 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index ba7d033..ae45302 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -33,100 +33,36 @@ import java.time.LocalDateTime
+ interface ArtistsDao {
+ 
+     // region Gets
++    /**
++     * Artists ranked over the same window, by the same measure, as [mostPlayedSongs].
++     *
++     * This used to read the playCount table, which only records a total per calendar month. That
++     * made the artist chart disagree with the song chart in three ways at once: its window was
++     * rounded out to whole months (a "1 month" period actually covered five and a half weeks),
++     * it ranked by number of plays while songs ranked by time listened, and it counted only songs
++     * in the library - which on a real collection silently discarded about a quarter of all plays,
++     * so an artist could be missing from the chart while their track sat at number one just above
++     * it. Reading from event fixes all three, because it is the same source the song chart uses.
++     */
+     @Query("""
+-        SELECT 
+-            artist.*,
+-            COUNT(song.id) AS songCount,
+-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+-        FROM artist
+-            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+-            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
+-        WHERE artist.id = :id
+-        GROUP BY artist.id
+-    """)
+-    fun artist(id: String): Flow<Artist?>
+-
+-    @Query("SELECT * FROM artist WHERE id = :id")
+-    fun artistById(id: String): ArtistEntity?
+-
+-    @Query("SELECT * FROM artist WHERE name = :name")
+-    fun artistByName(name: String): ArtistEntity?
+-
+-    @Query("SELECT * FROM artist WHERE isLocal = 1 AND name LIKE '%' || :name || '%'")
+-    fun localArtistsByNameFuzzy(name: String): List<ArtistEntity>
+-
+-    @Query("""
+-        SELECT 
+-            artist.*,
+-            COUNT(song.id) AS songCount,
+-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+-        FROM artist
+-            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+-            LEFT JOIN song ON sam.songId = song.id
+-        WHERE artist.name LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL)
+-        GROUP BY artist.id
+-        HAVING songCount > 0
+-        ORDER BY artist.bookmarkedAt ASC
+-        LIMIT :previewSize
+-    """)
+-    fun searchArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
+-
+-    @Query("""
+-        SELECT 
+-            artist.*,
+-            COUNT(song.id) AS songCount,
+-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+-        FROM artist
+-            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+-            LEFT JOIN song ON sam.songId = song.id
+-        WHERE artist.name LIKE '%' || :query || '%' AND song.inLibrary IS NOT NULL AND song.isLocal
+-        GROUP BY artist.id
+-        HAVING songCount > 0
+-        LIMIT :previewSize
+-    """)
+-    fun searchLocalArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
+-
+-
+-    @Transaction
+-    @Query("""
+-        SELECT song.* 
+-        FROM song_artist_map JOIN song ON song_artist_map.songId = song.id 
+-        WHERE song_artist_map.artistId IN (SELECT id FROM artist WHERE name LIKE '%' || :query || '%') AND song.inLibrary IS NOT NULL 
+-        LIMIT :previewSize
+-    """)
+-    fun searchArtistSongs(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Song>>
+-
+-    @Query("SELECT * FROM artist WHERE name LIKE '%' || :query || '%' LIMIT :previewSize")
+-    fun artistsByNameFuzzy(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<ArtistEntity>>
+-
+-    @Query("SELECT * FROM artist WHERE isLocal != 1")
+-    fun allRemoteArtists(): Flow<List<ArtistEntity>>
+-
+-    @Query("SELECT * FROM artist WHERE isLocal = 1")
+-    fun allLocalArtists(): List<ArtistEntity>
+-
+-    @Query("""
+-        SELECT 
++        SELECT
+             artist.*,
+-            COUNT(song.id) AS songCount,
++            COUNT(DISTINCT sam.songId) AS songCount,
+             SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+         FROM artist
++            JOIN (SELECT sam.artistId AS rankedArtistId, SUM(event.playTime) AS totalPlayTime
++                  FROM event
++                      JOIN song_artist_map sam ON sam.songId = event.songId
++                  WHERE event.timestamp > :fromTimeStamp
++                  GROUP BY sam.artistId) AS ranked
++                 ON ranked.rankedArtistId = artist.id
+             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+             LEFT JOIN song ON sam.songId = song.id
+-            LEFT JOIN (
+-                SELECT 
+-                    song AS songId, 
+-                    SUM(count) AS songTotalPlays
+-                FROM playCount
+-                WHERE year > :fromYear OR (year = :fromYear AND month >= :fromMonth)
+-                GROUP BY song
+-            ) AS pc ON sam.songId = pc.songId
+-        WHERE song.inLibrary IS NOT NULL
+         GROUP BY artist.id
+-        ORDER BY SUM(pc.songTotalPlays) DESC
++        ORDER BY ranked.totalPlayTime DESC
+         LIMIT :limit
+     """)
+-    fun mostPlayedArtists(fromYear: Int, fromMonth: Int, limit: Int = 6): Flow<List<Artist>>
++    fun mostPlayedArtists(fromTimeStamp: Long, limit: Int = 6): Flow<List<Artist>>
+ 
+     @RawQuery(observedEntities = [ArtistEntity::class])
+     fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
+index 8fc3dda..264e14e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
+@@ -59,15 +59,16 @@ interface SongsDao {
+ 
+     @Transaction
+     @Query("""
+-        SELECT *
++        SELECT song.*
+         FROM song
+-        WHERE id IN (SELECT songId
+-                     FROM event
+-                     WHERE timestamp > :fromTimeStamp
+-                     GROUP BY songId
+-                     ORDER BY SUM(playTime) DESC
+-                     LIMIT :limit
+-                     OFFSET :offset)
++                 JOIN (SELECT songId, SUM(playTime) AS totalPlayTime
++                       FROM event
++                       WHERE timestamp > :fromTimeStamp
++                       GROUP BY songId) AS ranked
++                      ON ranked.songId = song.id
++        ORDER BY ranked.totalPlayTime DESC
++        LIMIT :limit
++        OFFSET :offset
+     """)
+     fun mostPlayedSongs(fromTimeStamp: Long, limit: Int = 6, offset: Int = 0): Flow<List<Song>>
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index 6224377..c0d7c4a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -48,6 +48,7 @@ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.screens.settings.fragments.GestureSettingsFrag
+ import com.dd3boh.outertune.ui.screens.settings.fragments.TabArrangementFrag
+ import com.dd3boh.outertune.ui.screens.settings.fragments.TabExtrasFrag
++import com.dd3boh.outertune.ui.screens.settings.fragments.PlayerBackgroundFrag
+ import com.dd3boh.outertune.ui.screens.settings.fragments.ThemeAppFrag
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.utils.rememberPreference
+@@ -124,6 +125,7 @@ fun AppearanceSettings(
+                 checked = showTopBarLogo,
+                 onCheckedChange = onShowTopBarLogoChange
+             )
++            PlayerBackgroundFrag()
+             PreferenceEntry(
+                 title = { Text(stringResource(R.string.player_layout)) },
+                 description = stringResource(R.string.player_layout_summary),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index 2162df2..9cb798e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -145,15 +145,6 @@ fun AudioQualityFrag() {
+ 
+ @Composable
+ fun NowPlayingFrag() {
+-    val (playerBackground, onPlayerBackgroundChange) = rememberEnumPreference(
+-        key = PlayerBackgroundStyleKey,
+-        defaultValue = DEFAULT_PLAYER_BACKGROUND
+-    )
+-    val availableBackgroundStyles = PlayerBackgroundStyle.entries.filter {
+-        it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+-    }
+-    val (autoTextContrast, onAutoTextContrastChange) =
+-        rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+     val (showQueueTitle, onShowQueueTitleChange) = rememberPreference(ShowQueueTitleKey, defaultValue = true)
+     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
+     val (swipeToSkip, onSwipeToSkipChange) = rememberPreference(SwipeToSkipKey, defaultValue = DEFAULT_SWIPE_TO_SKIP)
+@@ -162,36 +153,6 @@ fun NowPlayingFrag() {
+         defaultValue = DEFAULT_SHOW_LYRICS_ON_CLICK
+     )
+ 
+-    EnumListPreference(
+-        title = { Text(stringResource(R.string.player_background_style)) },
+-        icon = { Icon(Icons.Rounded.BlurOn, null) },
+-        selectedValue = playerBackground,
+-        onValueSelected = onPlayerBackgroundChange,
+-        valueText = {
+-            when (it) {
+-                PlayerBackgroundStyle.LIQUID -> stringResource(R.string.player_background_liquid)
+-                PlayerBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.player_background_default)
+-                PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
+-                PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
+-                PlayerBackgroundStyle.FROSTED -> stringResource(R.string.player_background_frosted)
+-            }
+-        },
+-        values = availableBackgroundStyles
+-    )
+-    // Only offered for the backgrounds drawn from the artwork; the others have no brightness to
+-    // read, so the switch would sit there doing nothing.
+-    AnimatedVisibility(
+-        visible = playerBackground == PlayerBackgroundStyle.FROSTED ||
+-                playerBackground == PlayerBackgroundStyle.BLUR
+-    ) {
+-        SwitchPreference(
+-            title = { Text(stringResource(R.string.player_auto_text_contrast_title)) },
+-            description = stringResource(R.string.player_auto_text_contrast_description),
+-            icon = { Icon(Icons.Rounded.Contrast, null) },
+-            checked = autoTextContrast,
+-            onCheckedChange = onAutoTextContrastChange,
+-        )
+-    }
+     EnumListPreference(
+         title = { Text(stringResource(R.string.slider_style_title)) },
+         icon = { Icon(Icons.Rounded.GraphicEq, null) },
+@@ -245,6 +206,7 @@ fun PlaybackBehaviourFrag() {
+ 
+     PreferenceEntry(
+         title = { Text(stringResource(R.string.min_playback_duration)) },
++        description = stringResource(R.string.min_playback_duration_description, minPlaybackDur),
+         icon = { Icon(Icons.Rounded.Sync, null) },
+         onClick = { showMinPlaybackDur = true }
+     )
+@@ -403,4 +365,55 @@ private fun NowPlayingFragPreview() {
+ @Composable
+ private fun PlaybackBehaviourFragPreview() {
+     PlaybackBehaviourFrag()
+-}
+\ No newline at end of file
++}
++
++/**
++ * The player background lives under Appearance rather than with the playback settings: it is a
++ * question about how the app looks, and that is where people go looking for it.
++ */
++@Composable
++fun PlayerBackgroundFrag() {
++    val (playerBackground, onPlayerBackgroundChange) = rememberEnumPreference(
++        key = PlayerBackgroundStyleKey,
++        defaultValue = DEFAULT_PLAYER_BACKGROUND
++    )
++    val (autoTextContrast, onAutoTextContrastChange) =
++        rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
++
++    // Blur is hidden below Android 12, where Modifier.blur silently does nothing. Frosted glass
++    // gets its blur from a tiny upscaled bitmap instead, so it stays available everywhere.
++    val availableBackgroundStyles = PlayerBackgroundStyle.entries.filter {
++        it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
++    }
++
++    EnumListPreference(
++        title = { Text(stringResource(R.string.player_background_style)) },
++        icon = { Icon(Icons.Rounded.BlurOn, null) },
++        selectedValue = playerBackground,
++        onValueSelected = onPlayerBackgroundChange,
++        valueText = {
++            when (it) {
++                PlayerBackgroundStyle.LIQUID -> stringResource(R.string.player_background_liquid)
++                PlayerBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.player_background_default)
++                PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
++                PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
++                PlayerBackgroundStyle.FROSTED -> stringResource(R.string.player_background_frosted)
++            }
++        },
++        values = availableBackgroundStyles
++    )
++    // Only offered for the backgrounds drawn from the artwork; the others have no brightness to
++    // read, so the switch would sit there doing nothing.
++    AnimatedVisibility(
++        visible = playerBackground == PlayerBackgroundStyle.FROSTED ||
++                playerBackground == PlayerBackgroundStyle.BLUR
++    ) {
++        SwitchPreference(
++            title = { Text(stringResource(R.string.player_auto_text_contrast_title)) },
++            description = stringResource(R.string.player_auto_text_contrast_description),
++            icon = { Icon(Icons.Rounded.Contrast, null) },
++            checked = autoTextContrast,
++            onCheckedChange = onAutoTextContrastChange,
++        )
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+index 6b2d6e9..14d91ba 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+@@ -76,7 +76,7 @@ class HomeViewModel @Inject constructor(
+             .first().shuffled().take(10)
+         val keepListeningAlbums = database.mostPlayedAlbums(fromTimeStamp, limit = 8, offset = 2)
+             .first().filter { it.album.thumbnailUrl != null }.shuffled().take(5)
+-        val keepListeningArtists = database.mostPlayedArtists(0, 1)
++        val keepListeningArtists = database.mostPlayedArtists(0L)
+             .first().filter { it.artist.isYouTubeArtist && it.artist.thumbnailUrl != null }.shuffled().take(5)
+         keepListening.value = (keepListeningSongs + keepListeningAlbums + keepListeningArtists).shuffled()
+ 
+@@ -96,7 +96,7 @@ class HomeViewModel @Inject constructor(
+ 
+         // Similar to artists
+         val artistRecommendations =
+-            database.mostPlayedArtists(0, 1, limit = 10).first()
++            database.mostPlayedArtists(0L, limit = 10).first()
+                 .filter { it.artist.isYouTubeArtist }
+                 .shuffled().take(3)
+                 .mapNotNull {
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
+index f26946a..6821f47 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
+@@ -39,8 +39,7 @@ class StatsViewModel @Inject constructor(
+     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+ 
+     val mostPlayedArtists = statPeriod.flatMapLatest { period ->
+-        val time = period.toLocalDateTime()
+-        database.mostPlayedArtists(time.year, time.month.value).map { artists ->
++        database.mostPlayedArtists(period.toTimeMillis()).map { artists ->
+             artists.filter { it.artist.isYouTubeArtist }
+         }
+     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+@@ -69,8 +68,7 @@ class StatsViewModel @Inject constructor(
+         if (!show) {
+             flowOf(emptyList())
+         } else {
+-            val time = period.toLocalDateTime()
+-            database.mostPlayedArtists(time.year, time.month.value, limit).map { artists ->
++            database.mostPlayedArtists(period.toTimeMillis(), limit).map { artists ->
+                 artists.filter { it.artist.isYouTubeArtist }
+             }
+         }
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index f709608..a26b3be 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -410,6 +410,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="stats_extended_artists">Top artists</string>
+     <string name="show_top_bar_logo_title">Show logo in the top bar</string>
+     <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
++    <string name="min_playback_duration_description">A song counts as played once %1$d%% of it has been heard. Below that it is not added to your history and does not count towards your stats.</string>
+     <!-- Music recognition -->
+     <string name="recognition">Identify a song</string>
+     <string name="recognition_ready">Ready to listen</string>
+-- 
+2.43.0
+
+
+From f2b088e8753f4816979363dc132033303a8b4213 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 10:19:27 +0000
+Subject: [PATCH 30/31] Let the stats charts rank by plays or by time
+
+A chip row above the charts switches songs and artists together between
+time listened and number of plays. They genuinely disagree - a long track
+played twice beats a short one played ten times on time and loses on
+count - and neither is the right answer for everyone.
+
+One query each rather than two, with the measure chosen in an ORDER BY
+CASE. Both columns come from the same aggregate, so switching costs a
+re-sort rather than a second pass over the events table.
+---
+ .../dd3boh/outertune/constants/Settings.kt    |  3 ++
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    | 12 +++--
+ .../com/dd3boh/outertune/db/daos/SongsDao.kt  | 13 +++--
+ .../outertune/ui/screens/StatsScreen.kt       | 14 +++++
+ .../outertune/viewmodels/StatsViewModel.kt    | 54 ++++++++++++++-----
+ app/src/main/res/values/strings-ot.xml        |  2 +
+ 6 files changed, 80 insertions(+), 18 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index bff834c..a75285d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -12,6 +12,9 @@ enum class DarkMode {
+     ON, OFF, AUTO
+ }
+ 
++/** What the stats charts rank by. */
++enum class StatMetric { TIME_LISTENED, TIMES_PLAYED }
++
+ enum class PlayerBackgroundStyle {
+     FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index ae45302..6a7034b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -50,7 +50,9 @@ interface ArtistsDao {
+             COUNT(DISTINCT sam.songId) AS songCount,
+             SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+         FROM artist
+-            JOIN (SELECT sam.artistId AS rankedArtistId, SUM(event.playTime) AS totalPlayTime
++            JOIN (SELECT sam.artistId AS rankedArtistId,
++                         SUM(event.playTime) AS totalPlayTime,
++                         COUNT(*)            AS totalPlays
+                   FROM event
+                       JOIN song_artist_map sam ON sam.songId = event.songId
+                   WHERE event.timestamp > :fromTimeStamp
+@@ -59,10 +61,14 @@ interface ArtistsDao {
+             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+             LEFT JOIN song ON sam.songId = song.id
+         GROUP BY artist.id
+-        ORDER BY ranked.totalPlayTime DESC
++        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC
+         LIMIT :limit
+     """)
+-    fun mostPlayedArtists(fromTimeStamp: Long, limit: Int = 6): Flow<List<Artist>>
++    fun mostPlayedArtists(
++        fromTimeStamp: Long,
++        limit: Int = 6,
++        byPlayTime: Boolean = true,
++    ): Flow<List<Artist>>
+ 
+     @RawQuery(observedEntities = [ArtistEntity::class])
+     fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
+index 264e14e..900aaf7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
+@@ -61,16 +61,23 @@ interface SongsDao {
+     @Query("""
+         SELECT song.*
+         FROM song
+-                 JOIN (SELECT songId, SUM(playTime) AS totalPlayTime
++                 JOIN (SELECT songId,
++                              SUM(playTime) AS totalPlayTime,
++                              COUNT(*)      AS totalPlays
+                        FROM event
+                        WHERE timestamp > :fromTimeStamp
+                        GROUP BY songId) AS ranked
+                       ON ranked.songId = song.id
+-        ORDER BY ranked.totalPlayTime DESC
++        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC
+         LIMIT :limit
+         OFFSET :offset
+     """)
+-    fun mostPlayedSongs(fromTimeStamp: Long, limit: Int = 6, offset: Int = 0): Flow<List<Song>>
++    fun mostPlayedSongs(
++        fromTimeStamp: Long,
++        limit: Int = 6,
++        offset: Int = 0,
++        byPlayTime: Boolean = true,
++    ): Flow<List<Song>>
+ 
+     @Query("SELECT sum(count) from playCount WHERE song = :songId")
+     fun getLifetimePlayCount(songId: String?): Int
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
+index 430dd5f..4872141 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
+@@ -40,6 +40,7 @@ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
+ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.ListThumbnailSize
++import com.dd3boh.outertune.constants.StatMetric
+ import com.dd3boh.outertune.constants.StatPeriod
+ import com.dd3boh.outertune.constants.SwipeToQueueKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+@@ -82,6 +83,7 @@ fun StatsScreen(
+     val extendedLimit by viewModel.extendedLimit.collectAsState()
+     val extendedSongs by viewModel.extendedSongs.collectAsState()
+     val extendedArtists by viewModel.extendedArtists.collectAsState()
++    val statMetric by viewModel.statMetric.collectAsState()
+ 
+     val coroutineScope = rememberCoroutineScope()
+     val lazyListState = rememberLazyListState()
+@@ -109,6 +111,18 @@ fun StatsScreen(
+             )
+         }
+ 
++        item(key = "statMetric") {
++            ChipsRow(
++                chips = listOf(
++                    StatMetric.TIME_LISTENED to stringResource(R.string.stats_by_time),
++                    StatMetric.TIMES_PLAYED to stringResource(R.string.stats_by_count),
++                ),
++                currentValue = statMetric,
++                onValueUpdate = { viewModel.statMetric.value = it },
++                modifier = Modifier.animateItem()
++            )
++        }
++
+         item(key = "mostPlayedSongs") {
+             NavigationTitle(
+                 title = stringResource(R.string.most_played_songs),
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
+index 6821f47..daccc10 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
+@@ -2,6 +2,7 @@ package com.dd3boh.outertune.viewmodels
+ 
+ import androidx.lifecycle.ViewModel
+ import androidx.lifecycle.viewModelScope
++import com.dd3boh.outertune.constants.StatMetric
+ import com.dd3boh.outertune.constants.StatPeriod
+ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.utils.reportException
+@@ -28,18 +29,29 @@ class StatsViewModel @Inject constructor(
+ ) : ViewModel() {
+     val statPeriod = MutableStateFlow(StatPeriod.`1_WEEK`)
+ 
++    /**
++     * Time listened or number of plays. They rank differently and both are reasonable: a long
++     * track you play twice beats a short one you play ten times by time, and loses by count.
++     */
++    val statMetric = MutableStateFlow(StatMetric.TIME_LISTENED)
++
+     /** Whether the longer charts below the overview are open. */
+     val showExtended = MutableStateFlow(false)
+ 
+     /** How far the longer charts go. */
+     val extendedLimit = MutableStateFlow(EXTENDED_LIMITS.first())
+ 
+-    val mostPlayedSongs = statPeriod.flatMapLatest { period ->
+-        database.mostPlayedSongs(period.toTimeMillis())
++    private val overviewRequest = combine(statPeriod, statMetric) { period, metric -> period to metric }
++
++    val mostPlayedSongs = overviewRequest.flatMapLatest { (period, metric) ->
++        database.mostPlayedSongs(period.toTimeMillis(), byPlayTime = metric == StatMetric.TIME_LISTENED)
+     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+ 
+-    val mostPlayedArtists = statPeriod.flatMapLatest { period ->
+-        database.mostPlayedArtists(period.toTimeMillis()).map { artists ->
++    val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric) ->
++        database.mostPlayedArtists(
++            period.toTimeMillis(),
++            byPlayTime = metric == StatMetric.TIME_LISTENED,
++        ).map { artists ->
+             artists.filter { it.artist.isYouTubeArtist }
+         }
+     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+@@ -56,19 +68,37 @@ class StatsViewModel @Inject constructor(
+      * same joins as the overview but with the row cap lifted, and running them on every period
+      * change for a section nobody has opened is work for nothing.
+      */
+-    private val extendedRequest = combine(statPeriod, extendedLimit, showExtended) { period, limit, show ->
+-        Triple(period, limit, show)
+-    }
++    private data class ExtendedRequest(
++        val period: StatPeriod,
++        val limit: Int,
++        val show: Boolean,
++        val metric: StatMetric,
++    )
+ 
+-    val extendedSongs = extendedRequest.flatMapLatest { (period, limit, show) ->
+-        if (!show) flowOf(emptyList()) else database.mostPlayedSongs(period.toTimeMillis(), limit)
++    private val extendedRequest =
++        combine(statPeriod, extendedLimit, showExtended, statMetric, ::ExtendedRequest)
++
++    val extendedSongs = extendedRequest.flatMapLatest { r ->
++        if (!r.show) {
++            flowOf(emptyList())
++        } else {
++            database.mostPlayedSongs(
++                r.period.toTimeMillis(),
++                limit = r.limit,
++                byPlayTime = r.metric == StatMetric.TIME_LISTENED,
++            )
++        }
+     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+ 
+-    val extendedArtists = extendedRequest.flatMapLatest { (period, limit, show) ->
+-        if (!show) {
++    val extendedArtists = extendedRequest.flatMapLatest { r ->
++        if (!r.show) {
+             flowOf(emptyList())
+         } else {
+-            database.mostPlayedArtists(period.toTimeMillis(), limit).map { artists ->
++            database.mostPlayedArtists(
++                r.period.toTimeMillis(),
++                limit = r.limit,
++                byPlayTime = r.metric == StatMetric.TIME_LISTENED,
++            ).map { artists ->
+                 artists.filter { it.artist.isYouTubeArtist }
+             }
+         }
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index a26b3be..3bc88bf 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -405,6 +405,8 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="speed_medium">Medium</string>
+     <string name="speed_fast">Fast</string>
+     <string name="speed_very_fast">Very fast</string>
++    <string name="stats_by_time">Time listened</string>
++    <string name="stats_by_count">Times played</string>
+     <string name="stats_extended_title">Extended charts</string>
+     <string name="stats_extended_songs">Top songs</string>
+     <string name="stats_extended_artists">Top artists</string>
+-- 
+2.43.0
+
+
+From 94f00cc88e03965f6f9b42ddd02a91a0cb94b785 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Sat, 8 Aug 2026 10:33:05 +0000
+Subject: [PATCH 31/31] Position layout blocks by their centre, and allow
+ rotation
+
+Schema 3. x and y are now a block's centre rather than its top-left
+corner, which is what makes the horizontal control behave the way anyone
+would expect: it slides a block across the screen instead of pinning its
+left edge, and a centred block stays centred when it is resized.
+
+Done with a translate rather than arithmetic, so text blocks - whose
+height nothing knows in advance - centre correctly too.
+
+Cover art is named as such and its free-placement control says Size,
+since for a square that is what changing the width does; everything else
+still says Width.
+
+Rotation is offered on cover art, the title block and the action row -
+the pieces where a tilt reads as deliberate rather than broken.
+---
+ .../com/dd3boh/outertune/models/PlayerLayout.kt | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+index ee3a36c..641eb5f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
++++ b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+@@ -42,10 +42,18 @@ data class PlayerLayout(
+         /** Size multiplier as a percentage. */
+         val scalePercent: Int = 100,
+         val align: Align = Align.START,
+-        /** Free placement, as percentages of the player area. Unused in [Mode.STACK]. */
+-        val xPercent: Float = 0f,
++        /**
++         * Free placement, as percentages of the player area. Unused in [Mode.STACK].
++         *
++         * From schema 3 these are the block's *centre*, not its top-left corner: sliding a block
++         * across the screen should not depend on how wide it happens to be, and a centred block
++         * should stay centred when it is resized.
++         */
++        val xPercent: Float = 50f,
+         val yPercent: Float = 0f,
+         val widthPercent: Float = 100f,
++        /** Degrees clockwise. Only meaningful for the blocks the editor offers it on. */
++        val rotationDegrees: Float = 0f,
+     )
+ 
+     enum class BlockId(val key: String) {
+@@ -67,7 +75,7 @@ data class PlayerLayout(
+ 
+     companion object {
+         /** Bumped alongside the editor. A file claiming a newer version is refused, not guessed at. */
+-        const val SCHEMA_VERSION = 2
++        const val SCHEMA_VERSION = 3
+ 
+         const val DEFAULT_SPACING_DP = 16
+         const val DEFAULT_SIDE_PADDING_DP = 24
+@@ -105,9 +113,10 @@ data class PlayerLayout(
+                     radiusDp = obj.optInt("radius", 12).coerceIn(0, 400),
+                     scalePercent = obj.optInt("scale", 100).coerceIn(50, 200),
+                     align = if (obj.optString("align") == "center") Align.CENTER else Align.START,
+-                    xPercent = obj.optDouble("x", 0.0).toFloat().coerceIn(0f, 100f),
++                    xPercent = obj.optDouble("x", 50.0).toFloat().coerceIn(0f, 100f),
+                     yPercent = obj.optDouble("y", 0.0).toFloat().coerceIn(0f, 100f),
+                     widthPercent = obj.optDouble("w", 100.0).toFloat().coerceIn(5f, 100f),
++                    rotationDegrees = obj.optDouble("rot", 0.0).toFloat().coerceIn(-90f, 90f),
+                 )
+             }
+             require(parsed.isNotEmpty()) { "None of the blocks in that file were recognised." }
 -- 
 2.43.0
 
