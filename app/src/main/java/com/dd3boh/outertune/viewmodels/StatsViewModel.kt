@@ -9,6 +9,8 @@ import com.zionhuang.innertube.YouTube
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -26,6 +28,12 @@ class StatsViewModel @Inject constructor(
 ) : ViewModel() {
     val statPeriod = MutableStateFlow(StatPeriod.`1_WEEK`)
 
+    /** Whether the longer charts below the overview are open. */
+    val showExtended = MutableStateFlow(false)
+
+    /** How far the longer charts go. */
+    val extendedLimit = MutableStateFlow(EXTENDED_LIMITS.first())
+
     val mostPlayedSongs = statPeriod.flatMapLatest { period ->
         database.mostPlayedSongs(period.toTimeMillis())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -42,7 +50,40 @@ class StatsViewModel @Inject constructor(
         database.mostPlayedAlbums(period.toTimeMillis())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
+    /**
+     * The longer charts, queried only while the section is open.
+     *
+     * Collapsed emits an empty list rather than querying and hiding the result: these are the
+     * same joins as the overview but with the row cap lifted, and running them on every period
+     * change for a section nobody has opened is work for nothing.
+     */
+    private val extendedRequest = combine(statPeriod, extendedLimit, showExtended) { period, limit, show ->
+        Triple(period, limit, show)
+    }
+
+    val extendedSongs = extendedRequest.flatMapLatest { (period, limit, show) ->
+        if (!show) flowOf(emptyList()) else database.mostPlayedSongs(period.toTimeMillis(), limit)
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    val extendedArtists = extendedRequest.flatMapLatest { (period, limit, show) ->
+        if (!show) {
+            flowOf(emptyList())
+        } else {
+            val time = period.toLocalDateTime()
+            database.mostPlayedArtists(time.year, time.month.value, limit).map { artists ->
+                artists.filter { it.artist.isYouTubeArtist }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
     init {
+        // The extended chart reaches artists the overview never showed, which are exactly the
+        // ones most likely to be missing a picture.
+        viewModelScope.launch {
+            extendedArtists.collect { artists ->
+                fetchMissingArtistArt(artists.map { it.artist })
+            }
+        }
         // fetch missing artist metadata
         viewModelScope.launch {
             mostPlayedArtists.collect { artists ->
@@ -81,5 +122,24 @@ class StatsViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    private suspend fun fetchMissingArtistArt(artists: List<com.dd3boh.outertune.db.entities.ArtistEntity>) {
+        artists
+            .filter {
+                it.thumbnailUrl == null ||
+                        Duration.between(it.lastUpdateTime, LocalDateTime.now()) > Duration.ofDays(10)
+            }
+            .forEach { artist ->
+                YouTube.artist(artist.id).onSuccess { artistPage ->
+                    database.query {
+                        update(artist, artistPage)
+                    }
+                }
+            }
+    }
+
+    companion object {
+        val EXTENDED_LIMITS = listOf(20, 50, 100)
     }
 }
