@@ -197,9 +197,11 @@ class LyricsHelper @Inject constructor(
      * path, into an UNPARSEABLE classification that discarded the result entirely. That is why
      * BetterLyrics appeared not to work at all.
      *
-     * So: try the strict parsers first with errorText suppressed, keeping word-level karaoke timing
-     * whenever they can read the document; otherwise re-read the TTML leniently and hand the strict
-     * parser plain line-by-line LRC instead.
+     * So: try the strict parsers first with errorText suppressed; otherwise re-read the TTML
+     * leniently and hand the strict parser Enhanced LRC instead. The lenient re-read keeps the
+     * word timings it found — they survive the round trip as `<mm:ss.cc>` sync points — so a
+     * document only this parser can read still renders word by word rather than dropping to
+     * line-level.
      */
     private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
         val strictOptions = parserOptions.copy(errorText = null)

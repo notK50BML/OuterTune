@@ -23,19 +23,29 @@ import javax.xml.parsers.DocumentBuilderFactory
  *
  * This parser is deliberately forgiving — it walks the DOM looking for `<p>` elements wherever they
  * are, accepts unprefixed or `ttp:`-namespaced timing attributes, and falls back to the earliest
- * child `<span>` when a line carries no `begin` of its own. [toLrc] then emits plain, standard LRC
- * so the rest of the app can render it line by line with no special casing.
+ * child `<span>` when a line carries no `begin` of its own. [toLrc] then emits standard LRC so the
+ * rest of the app can render it with no special casing.
  *
- * Word-level timings are still parsed, because they are needed to reconstruct a line's text when it
- * is split across syllable spans. They are not emitted: the strict parser above handles karaoke
- * rendering when it can read the document, and this path exists to guarantee line-by-line lyrics
- * when it cannot.
+ * Word-level timings are parsed both to reconstruct a line's text when it is split across syllable
+ * spans and, in [toLrc]'s enhanced mode, to be written back out as Enhanced LRC — the widely
+ * supported "A2 extension" that carries a `<mm:ss.xx>` sync point before each word:
+ *
+ * ```
+ * [00:21.10]<00:21.10>Never <00:21.62>gonna <00:22.05>give <00:22.48>you <00:22.79>up<00:23.20>
+ * ```
+ *
+ * A reader that only understands line-level LRC ignores the `<...>` marks and still sees an ordinary
+ * line, so this degrades on its own; OuterTune's own parser reads them back into word timings and
+ * renders the line word by word.
  */
 object TTMLParser {
 
     /** TTML timing attributes may appear unprefixed or as `ttp:*` (parameter namespace). */
     private const val TTML_PARAMETER_NS = "http://www.w3.org/ns/ttml#parameter"
     private const val TTML_METADATA_NS = "http://www.w3.org/ns/ttml#metadata"
+
+    /** Characters the LRC syntax gives meaning to, and so cannot appear inside an emitted word. */
+    private const val LRC_RESERVED = "<>[]\n\r"
 
     data class ParsedLine(
         val text: String,
@@ -109,18 +119,24 @@ object TTMLParser {
     }
 
     /**
-     * Render [lines] as plain LRC: one `[mm:ss.cc]text` entry per line, in time order.
+     * Render [lines] as LRC: one `[mm:ss.cc]text` entry per line, in time order.
+     *
+     * With [enhanced] set, a line that carries word timings is written as Enhanced LRC instead —
+     * the same text, with a `<mm:ss.cc>` sync point before every word and one more after the last
+     * word to pin its end time. Lines without word timings are unaffected, so a mixed document
+     * (real TTML routinely has both) comes out mixed and each line degrades on its own. With
+     * [enhanced] unset the output is plain, line-level LRC.
      *
      * Background vocals become their own lines rather than being dropped, so a duet or an
      * ad-libbed line still shows up. Speaker/agent information is discarded because standard LRC
      * has no way to express it and OuterTune's renderer does not read it.
      */
-    fun toLrc(lines: List<ParsedLine>): String {
+    fun toLrc(lines: List<ParsedLine>, enhanced: Boolean = false): String {
         val flat = mutableListOf<Pair<Double, String>>()
         for (line in lines) {
-            if (line.text.isNotBlank()) flat += line.startTime to line.text.trim()
+            if (line.text.isNotBlank()) flat += line.startTime to renderLine(line, enhanced)
             for (bg in line.backgroundLines) {
-                if (bg.text.isNotBlank()) flat += bg.startTime to bg.text.trim()
+                if (bg.text.isNotBlank()) flat += bg.startTime to renderLine(bg, enhanced)
             }
         }
         if (flat.isEmpty()) return ""
@@ -132,8 +148,52 @@ object TTMLParser {
     }
 
     /** Convenience: TTML straight to LRC, or null when nothing usable came out. */
-    fun ttmlToLrc(ttml: String): String? =
-        toLrc(parseTTML(ttml)).takeIf { it.isNotBlank() }
+    fun ttmlToLrc(ttml: String, enhanced: Boolean = true): String? =
+        toLrc(parseTTML(ttml), enhanced).takeIf { it.isNotBlank() }
+
+    /**
+     * The body of one LRC entry — everything after the `[mm:ss.cc]`.
+     *
+     * Plain mode, and any line the enhanced encoding cannot safely represent, yields the trimmed
+     * line text exactly as before. Otherwise the text is rebuilt from the words with a sync point
+     * in front of each, which keeps the emitted text and the emitted timings consistent by
+     * construction even for the aggregated background lines, whose [ParsedLine.text] and
+     * [ParsedLine.words] are assembled separately.
+     *
+     * A line is left alone when:
+     * - it has no word timings at all;
+     * - a word contains `<`, `>`, `[` or `]`, which the LRC syntax would read back as a tag and so
+     *   would corrupt the whole line rather than just losing its timings;
+     * - the word timings run backwards, which would make the per-word ranges nonsense.
+     */
+    private fun renderLine(line: ParsedLine, enhanced: Boolean): String {
+        val plain = line.text.trim()
+        if (!enhanced) return plain
+
+        val words = line.words
+        if (words.isEmpty()) return plain
+        if (words.any { word -> word.text.any { it in LRC_RESERVED } }) return plain
+        for (i in 1 until words.size) {
+            if (words[i].startTime < words[i - 1].startTime) return plain
+        }
+
+        return buildString {
+            words.forEachIndexed { i, word ->
+                append(formatLrcTime(word.startTime, '<', '>'))
+                append(word.text)
+                // Same spacing rule buildLineText uses, so the enhanced text reads identically to
+                // the plain one. A trailing hyphen means the next word continues this one.
+                if (word.hasTrailingSpace && !word.text.endsWith('-') && i < words.lastIndex) append(' ')
+            }
+            // One final sync point so the reader knows where the last word ends. Without it the
+            // reader has to estimate that from a characters-per-second average. Skipped when it
+            // would round to the last word's own start, which carries no information.
+            val last = words.last()
+            val start = formatLrcTime(last.startTime, '<', '>')
+            val end = formatLrcTime(last.endTime, '<', '>')
+            if (end != start && last.endTime > last.startTime) append(end)
+        }
+    }
 
     // region DOM walking
 
@@ -349,19 +409,19 @@ object TTMLParser {
 
     // endregion
 
-    private fun formatLrcTime(time: Double): String {
+    private fun formatLrcTime(time: Double, open: Char = '[', close: Char = ']'): String {
         val ms = (time.coerceAtLeast(0.0) * 1000).toLong()
         val minutes = ms / 60000
         val seconds = (ms % 60000) / 1000
         val centis = (ms % 1000) / 10
         return buildString(12) {
-            append('[')
+            append(open)
             if (minutes < 10) append('0')
             append(minutes).append(':')
             if (seconds < 10) append('0')
             append(seconds).append('.')
             if (centis < 10) append('0')
-            append(centis).append(']')
+            append(centis).append(close)
         }
     }
 
