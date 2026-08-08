@@ -87,7 +87,7 @@ fun DiscordSettings(
             placeholder = { Text(stringResource(R.string.discord_login_token_hint)) },
             singleLine = false,
             isInputValid = { it.isNotBlank() },
-            onDone = { discordToken = it.trim() },
+            onDone = { discordToken = normalizeDiscordToken(it) },
             onDismiss = { showTokenDialog = false },
         )
     }

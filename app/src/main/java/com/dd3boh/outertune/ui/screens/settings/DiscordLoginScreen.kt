@@ -59,7 +59,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 /**
- * Signs in to Discord in a WebView and lifts the account token out of local storage.
+ * Signs in to Discord in a WebView and lifts the account token back out of the page.
  *
  * There is no official Discord API for setting a rich presence from Android, so the token is used
  * to open a gateway connection as the account itself. The token never leaves the device — it is
@@ -122,9 +122,10 @@ fun DiscordLoginScreen(navController: NavController) {
                 addJavascriptInterface(object {
                     @JavascriptInterface
                     fun onRetrieveToken(token: String) {
-                        if (token != "null" && token != "error" && token.isNotBlank()) {
+                        val clean = normalizeDiscordToken(token)
+                        if (clean != "null" && clean != "error" && clean.isNotBlank()) {
                             captured = true
-                            discordToken = token
+                            discordToken = clean
                             scope.launch(Dispatchers.Main) {
                                 webView?.loadUrl("about:blank")
                                 navController.navigateUp()
@@ -160,9 +161,10 @@ fun DiscordLoginScreen(navController: NavController) {
                         message: String,
                         result: JsResult
                     ): Boolean {
-                        if (message != "null" && message != "error" && message.isNotBlank()) {
+                        val clean = normalizeDiscordToken(message)
+                        if (clean != "null" && clean != "error" && clean.isNotBlank()) {
                             captured = true
-                            discordToken = message
+                            discordToken = clean
                             scope.launch(Dispatchers.Main) {
                                 view.loadUrl("about:blank")
                                 navController.navigateUp()
@@ -231,28 +233,90 @@ private const val TAG = "DiscordLogin"
 private const val POLL_ATTEMPTS = 60
 private const val POLL_INTERVAL_MS = 500L
 
+/**
+ * Strips the quotes a token can arrive wrapped in.
+ *
+ * localStorage stores it JSON-encoded, so `getItem` hands back `"MTIz..."` with the quote
+ * characters as part of the value. Pasted tokens pick them up too, from copying a console
+ * result. A Discord token never legitimately contains a quote, so removing a matched pair is
+ * safe and saves a login that would otherwise fail with a baffling 4004.
+ */
+internal fun normalizeDiscordToken(raw: String): String {
+    val t = raw.trim()
+    val quoted = t.length >= 2 &&
+            ((t.startsWith("\"") && t.endsWith("\"")) || (t.startsWith("'") && t.endsWith("'")))
+    return (if (quoted) t.substring(1, t.length - 1) else t).trim()
+}
+
+/**
+ * Three ways to get the token, tried in order of how well they hold up.
+ *
+ * 1. Ask Discord's own webpack registry for the module that owns the token and call its
+ *    getToken(). This is the only one that does not depend on where Discord happens to keep
+ *    the value, so it survives the client changing its storage - which is what broke the
+ *    other two.
+ * 2. localStorage, for older builds that still populate it.
+ * 3. A same-origin iframe's localStorage, for builds that sandbox it away from the top frame.
+ *
+ * Nothing here is sent anywhere: the value goes straight into this app's DataStore.
+ */
 private val TOKEN_EXTRACTION_JS = """
     (function() {
+        function done(t) {
+            if (t) { Android.onRetrieveToken(String(t)); return true; }
+            return false;
+        }
+
+        // 1. Discord's module registry.
+        try {
+            var chunk = window.webpackChunkdiscord_app;
+            if (chunk && typeof chunk.push === 'function') {
+                var found = null;
+                chunk.push([[Symbol('ot')], {}, function(req) {
+                    try {
+                        var cache = req.c || {};
+                        for (var id in cache) {
+                            if (found) break;
+                            try {
+                                var mod = cache[id];
+                                var ex = mod && mod.exports;
+                                if (!ex) continue;
+                                // The token store is sometimes the export itself and sometimes
+                                // sitting behind a minified wrapper key.
+                                var candidates = [ex, ex.default, ex.Z, ex.ZP];
+                                for (var i = 0; i < candidates.length; i++) {
+                                    var c = candidates[i];
+                                    if (c && c.setToken && typeof c.getToken === 'function') {
+                                        var t = c.getToken();
+                                        if (t) { found = t; break; }
+                                    }
+                                }
+                            } catch (e) {}
+                        }
+                    } catch (e) {}
+                }]);
+                if (done(found)) return;
+            }
+        } catch (e) {}
+
+        // 2. localStorage on the top frame.
         try {
             var token = localStorage.getItem("token");
-            if (token) {
-                Android.onRetrieveToken(token.slice(1, -1));
-            } else {
-                var i = document.createElement('iframe');
-                document.body.appendChild(i);
-                setTimeout(function() {
-                    try {
-                        var alt = i.contentWindow.localStorage.token;
-                        if (alt) {
-                            alert(alt.slice(1, -1));
-                        } else {
-                            alert("null");
-                        }
-                    } catch (e) {
-                        alert("error");
-                    }
-                }, 1000);
-            }
+            if (done(token)) return;
+        } catch (e) {}
+
+        // 3. localStorage via a same-origin iframe.
+        try {
+            var i = document.createElement('iframe');
+            document.body.appendChild(i);
+            setTimeout(function() {
+                try {
+                    var alt = i.contentWindow.localStorage.token;
+                    alert(alt ? String(alt) : "null");
+                } catch (e) {
+                    alert("error");
+                }
+            }, 1000);
         } catch (e) {
             alert("error");
         }
