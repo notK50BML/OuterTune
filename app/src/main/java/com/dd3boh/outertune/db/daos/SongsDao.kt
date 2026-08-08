@@ -59,15 +59,16 @@ interface SongsDao {
 
     @Transaction
     @Query("""
-        SELECT *
+        SELECT song.*
         FROM song
-        WHERE id IN (SELECT songId
-                     FROM event
-                     WHERE timestamp > :fromTimeStamp
-                     GROUP BY songId
-                     ORDER BY SUM(playTime) DESC
-                     LIMIT :limit
-                     OFFSET :offset)
+                 JOIN (SELECT songId, SUM(playTime) AS totalPlayTime
+                       FROM event
+                       WHERE timestamp > :fromTimeStamp
+                       GROUP BY songId) AS ranked
+                      ON ranked.songId = song.id
+        ORDER BY ranked.totalPlayTime DESC
+        LIMIT :limit
+        OFFSET :offset
     """)
     fun mostPlayedSongs(fromTimeStamp: Long, limit: Int = 6, offset: Int = 0): Flow<List<Song>>
 

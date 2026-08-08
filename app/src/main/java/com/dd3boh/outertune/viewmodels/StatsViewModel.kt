@@ -39,8 +39,7 @@ class StatsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val mostPlayedArtists = statPeriod.flatMapLatest { period ->
-        val time = period.toLocalDateTime()
-        database.mostPlayedArtists(time.year, time.month.value).map { artists ->
+        database.mostPlayedArtists(period.toTimeMillis()).map { artists ->
             artists.filter { it.artist.isYouTubeArtist }
         }
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
@@ -69,8 +68,7 @@ class StatsViewModel @Inject constructor(
         if (!show) {
             flowOf(emptyList())
         } else {
-            val time = period.toLocalDateTime()
-            database.mostPlayedArtists(time.year, time.month.value, limit).map { artists ->
+            database.mostPlayedArtists(period.toTimeMillis(), limit).map { artists ->
                 artists.filter { it.artist.isYouTubeArtist }
             }
         }

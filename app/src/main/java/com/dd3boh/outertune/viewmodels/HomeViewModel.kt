@@ -76,7 +76,7 @@ class HomeViewModel @Inject constructor(
             .first().shuffled().take(10)
         val keepListeningAlbums = database.mostPlayedAlbums(fromTimeStamp, limit = 8, offset = 2)
             .first().filter { it.album.thumbnailUrl != null }.shuffled().take(5)
-        val keepListeningArtists = database.mostPlayedArtists(0, 1)
+        val keepListeningArtists = database.mostPlayedArtists(0L)
             .first().filter { it.artist.isYouTubeArtist && it.artist.thumbnailUrl != null }.shuffled().take(5)
         keepListening.value = (keepListeningSongs + keepListeningAlbums + keepListeningArtists).shuffled()
 
@@ -96,7 +96,7 @@ class HomeViewModel @Inject constructor(
 
         // Similar to artists
         val artistRecommendations =
-            database.mostPlayedArtists(0, 1, limit = 10).first()
+            database.mostPlayedArtists(0L, limit = 10).first()
                 .filter { it.artist.isYouTubeArtist }
                 .shuffled().take(3)
                 .mapNotNull {

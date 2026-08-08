@@ -410,6 +410,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="stats_extended_artists">Top artists</string>
     <string name="show_top_bar_logo_title">Show logo in the top bar</string>
     <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
+    <string name="min_playback_duration_description">A song counts as played once %1$d%% of it has been heard. Below that it is not added to your history and does not count towards your stats.</string>
     <!-- Music recognition -->
     <string name="recognition">Identify a song</string>
     <string name="recognition_ready">Ready to listen</string>

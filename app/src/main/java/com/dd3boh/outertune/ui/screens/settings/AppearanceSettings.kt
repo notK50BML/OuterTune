@@ -48,6 +48,7 @@ import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.screens.settings.fragments.GestureSettingsFrag
 import com.dd3boh.outertune.ui.screens.settings.fragments.TabArrangementFrag
 import com.dd3boh.outertune.ui.screens.settings.fragments.TabExtrasFrag
+import com.dd3boh.outertune.ui.screens.settings.fragments.PlayerBackgroundFrag
 import com.dd3boh.outertune.ui.screens.settings.fragments.ThemeAppFrag
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
@@ -124,6 +125,7 @@ fun AppearanceSettings(
                 checked = showTopBarLogo,
                 onCheckedChange = onShowTopBarLogoChange
             )
+            PlayerBackgroundFrag()
             PreferenceEntry(
                 title = { Text(stringResource(R.string.player_layout)) },
                 description = stringResource(R.string.player_layout_summary),

@@ -33,100 +33,36 @@ import java.time.LocalDateTime
 interface ArtistsDao {
 
     // region Gets
+    /**
+     * Artists ranked over the same window, by the same measure, as [mostPlayedSongs].
+     *
+     * This used to read the playCount table, which only records a total per calendar month. That
+     * made the artist chart disagree with the song chart in three ways at once: its window was
+     * rounded out to whole months (a "1 month" period actually covered five and a half weeks),
+     * it ranked by number of plays while songs ranked by time listened, and it counted only songs
+     * in the library - which on a real collection silently discarded about a quarter of all plays,
+     * so an artist could be missing from the chart while their track sat at number one just above
+     * it. Reading from event fixes all three, because it is the same source the song chart uses.
+     */
     @Query("""
-        SELECT 
+        SELECT
             artist.*,
-            COUNT(song.id) AS songCount,
+            COUNT(DISTINCT sam.songId) AS songCount,
             SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
-            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
-            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
-        WHERE artist.id = :id
-        GROUP BY artist.id
-    """)
-    fun artist(id: String): Flow<Artist?>
-
-    @Query("SELECT * FROM artist WHERE id = :id")
-    fun artistById(id: String): ArtistEntity?
-
-    @Query("SELECT * FROM artist WHERE name = :name")
-    fun artistByName(name: String): ArtistEntity?
-
-    @Query("SELECT * FROM artist WHERE isLocal = 1 AND name LIKE '%' || :name || '%'")
-    fun localArtistsByNameFuzzy(name: String): List<ArtistEntity>
-
-    @Query("""
-        SELECT 
-            artist.*,
-            COUNT(song.id) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
-        FROM artist
+            JOIN (SELECT sam.artistId AS rankedArtistId, SUM(event.playTime) AS totalPlayTime
+                  FROM event
+                      JOIN song_artist_map sam ON sam.songId = event.songId
+                  WHERE event.timestamp > :fromTimeStamp
+                  GROUP BY sam.artistId) AS ranked
+                 ON ranked.rankedArtistId = artist.id
             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
             LEFT JOIN song ON sam.songId = song.id
-        WHERE artist.name LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL)
         GROUP BY artist.id
-        HAVING songCount > 0
-        ORDER BY artist.bookmarkedAt ASC
-        LIMIT :previewSize
-    """)
-    fun searchArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
-
-    @Query("""
-        SELECT 
-            artist.*,
-            COUNT(song.id) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
-        FROM artist
-            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
-            LEFT JOIN song ON sam.songId = song.id
-        WHERE artist.name LIKE '%' || :query || '%' AND song.inLibrary IS NOT NULL AND song.isLocal
-        GROUP BY artist.id
-        HAVING songCount > 0
-        LIMIT :previewSize
-    """)
-    fun searchLocalArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
-
-
-    @Transaction
-    @Query("""
-        SELECT song.* 
-        FROM song_artist_map JOIN song ON song_artist_map.songId = song.id 
-        WHERE song_artist_map.artistId IN (SELECT id FROM artist WHERE name LIKE '%' || :query || '%') AND song.inLibrary IS NOT NULL 
-        LIMIT :previewSize
-    """)
-    fun searchArtistSongs(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Song>>
-
-    @Query("SELECT * FROM artist WHERE name LIKE '%' || :query || '%' LIMIT :previewSize")
-    fun artistsByNameFuzzy(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<ArtistEntity>>
-
-    @Query("SELECT * FROM artist WHERE isLocal != 1")
-    fun allRemoteArtists(): Flow<List<ArtistEntity>>
-
-    @Query("SELECT * FROM artist WHERE isLocal = 1")
-    fun allLocalArtists(): List<ArtistEntity>
-
-    @Query("""
-        SELECT 
-            artist.*,
-            COUNT(song.id) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
-        FROM artist
-            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
-            LEFT JOIN song ON sam.songId = song.id
-            LEFT JOIN (
-                SELECT 
-                    song AS songId, 
-                    SUM(count) AS songTotalPlays
-                FROM playCount
-                WHERE year > :fromYear OR (year = :fromYear AND month >= :fromMonth)
-                GROUP BY song
-            ) AS pc ON sam.songId = pc.songId
-        WHERE song.inLibrary IS NOT NULL
-        GROUP BY artist.id
-        ORDER BY SUM(pc.songTotalPlays) DESC
+        ORDER BY ranked.totalPlayTime DESC
         LIMIT :limit
     """)
-    fun mostPlayedArtists(fromYear: Int, fromMonth: Int, limit: Int = 6): Flow<List<Artist>>
+    fun mostPlayedArtists(fromTimeStamp: Long, limit: Int = 6): Flow<List<Artist>>
 
     @RawQuery(observedEntities = [ArtistEntity::class])
     fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>

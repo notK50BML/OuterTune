@@ -145,15 +145,6 @@ fun AudioQualityFrag() {
 
 @Composable
 fun NowPlayingFrag() {
-    val (playerBackground, onPlayerBackgroundChange) = rememberEnumPreference(
-        key = PlayerBackgroundStyleKey,
-        defaultValue = DEFAULT_PLAYER_BACKGROUND
-    )
-    val availableBackgroundStyles = PlayerBackgroundStyle.entries.filter {
-        it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-    }
-    val (autoTextContrast, onAutoTextContrastChange) =
-        rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
     val (showQueueTitle, onShowQueueTitleChange) = rememberPreference(ShowQueueTitleKey, defaultValue = true)
     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
     val (swipeToSkip, onSwipeToSkipChange) = rememberPreference(SwipeToSkipKey, defaultValue = DEFAULT_SWIPE_TO_SKIP)
@@ -162,36 +153,6 @@ fun NowPlayingFrag() {
         defaultValue = DEFAULT_SHOW_LYRICS_ON_CLICK
     )
 
-    EnumListPreference(
-        title = { Text(stringResource(R.string.player_background_style)) },
-        icon = { Icon(Icons.Rounded.BlurOn, null) },
-        selectedValue = playerBackground,
-        onValueSelected = onPlayerBackgroundChange,
-        valueText = {
-            when (it) {
-                PlayerBackgroundStyle.LIQUID -> stringResource(R.string.player_background_liquid)
-                PlayerBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.player_background_default)
-                PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
-                PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
-                PlayerBackgroundStyle.FROSTED -> stringResource(R.string.player_background_frosted)
-            }
-        },
-        values = availableBackgroundStyles
-    )
-    // Only offered for the backgrounds drawn from the artwork; the others have no brightness to
-    // read, so the switch would sit there doing nothing.
-    AnimatedVisibility(
-        visible = playerBackground == PlayerBackgroundStyle.FROSTED ||
-                playerBackground == PlayerBackgroundStyle.BLUR
-    ) {
-        SwitchPreference(
-            title = { Text(stringResource(R.string.player_auto_text_contrast_title)) },
-            description = stringResource(R.string.player_auto_text_contrast_description),
-            icon = { Icon(Icons.Rounded.Contrast, null) },
-            checked = autoTextContrast,
-            onCheckedChange = onAutoTextContrastChange,
-        )
-    }
     EnumListPreference(
         title = { Text(stringResource(R.string.slider_style_title)) },
         icon = { Icon(Icons.Rounded.GraphicEq, null) },
@@ -245,6 +206,7 @@ fun PlaybackBehaviourFrag() {
 
     PreferenceEntry(
         title = { Text(stringResource(R.string.min_playback_duration)) },
+        description = stringResource(R.string.min_playback_duration_description, minPlaybackDur),
         icon = { Icon(Icons.Rounded.Sync, null) },
         onClick = { showMinPlaybackDur = true }
     )
@@ -403,4 +365,55 @@ private fun NowPlayingFragPreview() {
 @Composable
 private fun PlaybackBehaviourFragPreview() {
     PlaybackBehaviourFrag()
+}
+
+/**
+ * The player background lives under Appearance rather than with the playback settings: it is a
+ * question about how the app looks, and that is where people go looking for it.
+ */
+@Composable
+fun PlayerBackgroundFrag() {
+    val (playerBackground, onPlayerBackgroundChange) = rememberEnumPreference(
+        key = PlayerBackgroundStyleKey,
+        defaultValue = DEFAULT_PLAYER_BACKGROUND
+    )
+    val (autoTextContrast, onAutoTextContrastChange) =
+        rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+
+    // Blur is hidden below Android 12, where Modifier.blur silently does nothing. Frosted glass
+    // gets its blur from a tiny upscaled bitmap instead, so it stays available everywhere.
+    val availableBackgroundStyles = PlayerBackgroundStyle.entries.filter {
+        it != PlayerBackgroundStyle.BLUR || Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+    }
+
+    EnumListPreference(
+        title = { Text(stringResource(R.string.player_background_style)) },
+        icon = { Icon(Icons.Rounded.BlurOn, null) },
+        selectedValue = playerBackground,
+        onValueSelected = onPlayerBackgroundChange,
+        valueText = {
+            when (it) {
+                PlayerBackgroundStyle.LIQUID -> stringResource(R.string.player_background_liquid)
+                PlayerBackgroundStyle.FOLLOW_THEME -> stringResource(R.string.player_background_default)
+                PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
+                PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
+                PlayerBackgroundStyle.FROSTED -> stringResource(R.string.player_background_frosted)
+            }
+        },
+        values = availableBackgroundStyles
+    )
+    // Only offered for the backgrounds drawn from the artwork; the others have no brightness to
+    // read, so the switch would sit there doing nothing.
+    AnimatedVisibility(
+        visible = playerBackground == PlayerBackgroundStyle.FROSTED ||
+                playerBackground == PlayerBackgroundStyle.BLUR
+    ) {
+        SwitchPreference(
+            title = { Text(stringResource(R.string.player_auto_text_contrast_title)) },
+            description = stringResource(R.string.player_auto_text_contrast_description),
+            icon = { Icon(Icons.Rounded.Contrast, null) },
+            checked = autoTextContrast,
+            onCheckedChange = onAutoTextContrastChange,
+        )
+    }
 }
