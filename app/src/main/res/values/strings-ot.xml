@@ -214,6 +214,12 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_karaoke_hz_title">Adjust karaoke lyrics update speed</string>
     <string name="lyrics_multiline_title">Read multiline lyrics</string>
     <string name="lyrics_multiline_description">Treat all the lines between sync points as one lyric text</string>
+    <string name="lyrics_fetch_mode_title">Provider selection</string>
+    <string name="lyrics_fetch_mode_auto">Automatic (fastest)</string>
+    <string name="lyrics_fetch_mode_manual">In my order</string>
+    <string name="lyrics_provider_order_title">Provider priority</string>
+    <string name="lyrics_provider_order_description">Providers are tried one at a time from the top, and the first synced lyrics win. This is slower than asking all of them at once.</string>
+    <string name="lyrics_provider_order_auto_note">Provider selection is set to automatic, so this order only decides how alternate lyrics are listed. Set provider selection to use your order to have it decide which provider is used.</string>
     <string name="lyrics_prefer_local">Prefer local lyric files</string>
     <string name="lyrics_prefer_local_description">Prioritize resolving local lyric files before using all cloud providers. Turn this off to prioritize cloud providers</string>
     <string name="lyrics_prefetch_title">Pre-fetch upcoming lyrics</string>

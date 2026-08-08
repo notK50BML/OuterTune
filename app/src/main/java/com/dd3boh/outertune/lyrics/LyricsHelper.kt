@@ -6,6 +6,9 @@ import android.util.LruCache
 import com.dd3boh.betterlyrics.TTMLParser
 import com.dd3boh.outertune.constants.LyricSourcePrefKey
 import com.dd3boh.outertune.constants.LyricTrimKey
+import com.dd3boh.outertune.constants.LyricsFetchMode
+import com.dd3boh.outertune.constants.LyricsFetchModeKey
+import com.dd3boh.outertune.constants.LyricsProviderOrderKey
 import com.dd3boh.outertune.constants.MultilineLrcKey
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.entities.LyricsEntity
@@ -45,15 +48,7 @@ class LyricsHelper @Inject constructor(
     @ApplicationContext private val context: Context,
     val database: MusicDatabase
 ) {
-    private val lyricsProviders =
-        listOf(
-            SimpMusicLyricsProvider,
-            BetterLyricsProvider,
-            LrcLibLyricsProvider,
-            KuGouLyricsProvider,
-            YouTubeLyricsProvider,
-            YouTubeSubtitleLyricsProvider,
-        )
+    private val lyricsProviders = REMOTE_LYRICS_PROVIDERS
     private val cache = LruCache<String, List<LyricsResult>>(MAX_CACHE_SIZE)
 
     /**
@@ -255,13 +250,57 @@ class LyricsHelper @Inject constructor(
         }
 
     /**
+     * Run one provider lookup with a timeout, and log how it went.
+     *
+     * A timeout is reported as [LyricsFetchResult.Failed] rather than an absence, so a provider that
+     * was merely slow can never contribute to a negative cache.
+     */
+    private suspend fun runProvider(
+        provider: LyricsProvider,
+        mediaMetadata: MediaMetadata,
+        artistName: String,
+        role: LyricsFetchRole,
+        timeoutMs: Long,
+    ): LyricsFetchResult {
+        val t0 = System.currentTimeMillis()
+        val result = withTimeoutOrNull(timeoutMs) { provider.fetchIsolated(mediaMetadata, artistName) }
+        val elapsed = System.currentTimeMillis() - t0
+        return when (result) {
+            null -> {
+                Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: timeout after ${timeoutMs}ms")
+                LyricsFetchResult.Failed()
+            }
+
+            is LyricsFetchResult.Found -> {
+                Log.d(TAG, "${provider.name} SUCCESS in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
+                result
+            }
+
+            LyricsFetchResult.NotFound -> {
+                Log.d(TAG, "${provider.name} NOT_FOUND in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
+                result
+            }
+
+            is LyricsFetchResult.Failed -> {
+                Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: ${result.cause?.message}")
+                result
+            }
+        }
+    }
+
+    /**
      * Lookup lyrics from remote providers.
      *
-     * Every provider in [selection] runs at once. Results are judged as they arrive: the first synced
-     * result wins immediately and the remaining providers are cancelled; an unsynced result is kept as
-     * a fallback and used only if no synced result arrives before every provider finishes or the overall
-     * timeout is reached. Each provider has an individual timeout; the whole resolution is bounded by an
-     * overall cap.
+     * In [LyricsFetchMode.AUTO] every provider in [selection] runs at once and results are judged as
+     * they arrive: the first synced result wins immediately and the remaining providers are
+     * cancelled. In [LyricsFetchMode.MANUAL] the providers are tried one at a time in the user's
+     * order and the first synced result wins; nothing is raced, because the whole point of an order
+     * is that the earlier entries are preferred even when a later one would have answered sooner. In
+     * both modes an unsynced result is kept as a fallback and used only if no synced result turns up.
+     *
+     * Each provider has an individual timeout, and the resolution as a whole is bounded: by a fixed
+     * cap when racing, and by a per-provider budget when going in order, since a fixed cap there
+     * would quietly mean the last entries in the user's order never get asked at all.
      *
      * The possible outcomes are: [RemoteLyricsResult.Found] when a usable result was adopted,
      * [RemoteLyricsResult.DefinitiveNotFound] only when every provider reported a definitive absence,
@@ -294,96 +333,125 @@ class LyricsHelper @Inject constructor(
         // synthesized UnsyncedLyrics; the user-facing errorText is only used by the display path.
         val verifyOptions = getParserOptions().copy(errorText = null)
 
-        return coroutineScope {
-            val channel = Channel<ProviderOutcome>(Channel.UNLIMITED)
-            val fetchJobs = enabled.map { provider ->
-                launch {
-                    val t0 = System.currentTimeMillis()
-                    val result = withTimeoutOrNull(PROVIDER_TIMEOUT_MS) {
-                        provider.fetchIsolated(mediaMetadata, artistName)
-                    }
-                    val elapsed = System.currentTimeMillis() - t0
-                    val outcome: LyricsFetchResult = when (result) {
-                        null -> {
-                            Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: timeout after ${PROVIDER_TIMEOUT_MS}ms")
-                            LyricsFetchResult.Failed()
-                        }
-
-                        is LyricsFetchResult.Found -> {
-                            Log.d(TAG, "${provider.name} SUCCESS in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
-                            result
-                        }
-
-                        LyricsFetchResult.NotFound -> {
-                            Log.d(TAG, "${provider.name} NOT_FOUND in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
-                            result
-                        }
-
-                        is LyricsFetchResult.Failed -> {
-                            Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: ${result.cause?.message}")
-                            result
-                        }
-                    }
-                    channel.send(ProviderOutcome(provider.name, outcome))
-                }
+        val aggregator = RemoteLyricsAggregator(enabled.size)
+        // Classify a Found result for adoption. errorText = null means an unparseable input surfaces
+        // as null or an exception rather than a synthesized UnsyncedLyrics.
+        val classifyFound: (String) -> FoundKind = { raw ->
+            val parsed = try {
+                parseResilient(raw, verifyOptions)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                null
             }
-            // Close the channel once every provider has reported so exhaustion is detected promptly
-            // instead of waiting for the overall timeout.
-            val closer = launch {
-                fetchJobs.joinAll()
-                channel.close()
+            when (parsed) {
+                is SemanticLyrics.SyncedLyrics -> FoundKind.SYNCED
+                is SemanticLyrics.UnsyncedLyrics -> FoundKind.UNSYNCED
+                null -> FoundKind.UNPARSEABLE
             }
+        }
+        val deadline = start + when (selection.mode) {
+            LyricsFetchMode.AUTO -> OVERALL_TIMEOUT_MS
+            LyricsFetchMode.MANUAL -> enabled.size * MANUAL_TIMEOUT_PER_PROVIDER_MS
+        }
 
-            val aggregator = RemoteLyricsAggregator(enabled.size)
-            // Classify a Found result for adoption. errorText = null means an unparseable input surfaces
-            // as null or an exception rather than a synthesized UnsyncedLyrics.
-            val classifyFound: (String) -> FoundKind = { raw ->
-                val parsed = try {
-                    parseResilient(raw, verifyOptions)
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    null
-                }
-                when (parsed) {
-                    is SemanticLyrics.SyncedLyrics -> FoundKind.SYNCED
-                    is SemanticLyrics.UnsyncedLyrics -> FoundKind.UNSYNCED
-                    null -> FoundKind.UNPARSEABLE
-                }
+        when (selection.mode) {
+            LyricsFetchMode.AUTO ->
+                raceProviders(enabled, mediaMetadata, artistName, role, deadline, aggregator, classifyFound)
+
+            LyricsFetchMode.MANUAL ->
+                askProvidersInOrder(enabled, mediaMetadata, artistName, role, deadline, aggregator, classifyFound)
+        }
+
+        val totalMs = System.currentTimeMillis() - start
+        val result = aggregator.result()
+        when (result) {
+            is RemoteLyricsResult.Found ->
+                Log.d(TAG, "adopted: videoId=${mediaMetadata.id} role=${role.log} provider=${result.provider} synced=${result.synced} mode=${selection.mode} total=${totalMs}ms")
+
+            RemoteLyricsResult.DefinitiveNotFound ->
+                Log.d(TAG, "end: not found videoId=${mediaMetadata.id} role=${role.log} mode=${selection.mode} total=${totalMs}ms")
+
+            RemoteLyricsResult.Indeterminate ->
+                Log.d(TAG, "end: indeterminate videoId=${mediaMetadata.id} role=${role.log} mode=${selection.mode} total=${totalMs}ms")
+
+            RemoteLyricsResult.Skipped -> {} // handled above
+        }
+        return result
+    }
+
+    /**
+     * [LyricsFetchMode.AUTO]: start every provider at once and fold outcomes into [aggregator] as
+     * they arrive, stopping as soon as one is adopted.
+     */
+    private suspend fun raceProviders(
+        providers: List<LyricsProvider>,
+        mediaMetadata: MediaMetadata,
+        artistName: String,
+        role: LyricsFetchRole,
+        deadline: Long,
+        aggregator: RemoteLyricsAggregator,
+        classifyFound: (String) -> FoundKind,
+    ) = coroutineScope {
+        val channel = Channel<ProviderOutcome>(Channel.UNLIMITED)
+        val fetchJobs = providers.map { provider ->
+            launch {
+                val outcome = runProvider(provider, mediaMetadata, artistName, role, PROVIDER_TIMEOUT_MS)
+                channel.send(ProviderOutcome(provider.name, outcome))
             }
-            val deadline = start + OVERALL_TIMEOUT_MS
+        }
+        // Close the channel once every provider has reported so exhaustion is detected promptly
+        // instead of waiting for the overall timeout.
+        val closer = launch {
+            fetchJobs.joinAll()
+            channel.close()
+        }
 
-            try {
-                while (true) {
-                    val remaining = deadline - System.currentTimeMillis()
-                    if (remaining <= 0) break
-                    val outcome = withTimeoutOrNull(remaining) {
-                        channel.receiveCatching().getOrNull()
-                    } ?: break // overall timeout, or every provider has reported
-                    // A synced result was adopted: stop and cancel the remaining providers.
-                    if (aggregator.offer(outcome.providerName, outcome.result, classifyFound)) break
-                }
-            } finally {
-                fetchJobs.forEach { it.cancel() }
-                closer.cancel()
-                channel.close()
+        try {
+            while (true) {
+                val remaining = deadline - System.currentTimeMillis()
+                if (remaining <= 0) break
+                val outcome = withTimeoutOrNull(remaining) {
+                    channel.receiveCatching().getOrNull()
+                } ?: break // overall timeout, or every provider has reported
+                // A synced result was adopted: stop and cancel the remaining providers.
+                if (aggregator.offer(outcome.providerName, outcome.result, classifyFound)) break
             }
+        } finally {
+            fetchJobs.forEach { it.cancel() }
+            closer.cancel()
+            channel.close()
+        }
+    }
 
-            val totalMs = System.currentTimeMillis() - start
-            val result = aggregator.result()
-            when (result) {
-                is RemoteLyricsResult.Found ->
-                    Log.d(TAG, "adopted: videoId=${mediaMetadata.id} role=${role.log} provider=${result.provider} synced=${result.synced} total=${totalMs}ms")
-
-                RemoteLyricsResult.DefinitiveNotFound ->
-                    Log.d(TAG, "end: not found videoId=${mediaMetadata.id} role=${role.log} total=${totalMs}ms")
-
-                RemoteLyricsResult.Indeterminate ->
-                    Log.d(TAG, "end: indeterminate videoId=${mediaMetadata.id} role=${role.log} total=${totalMs}ms")
-
-                RemoteLyricsResult.Skipped -> {} // handled above
+    /**
+     * [LyricsFetchMode.MANUAL]: ask [providers] one at a time in the given order and stop at the
+     * first adopted result.
+     *
+     * A provider that cannot be asked before [deadline] simply never reports, which leaves the
+     * outcome [RemoteLyricsResult.Indeterminate] rather than a negative cache — the correct answer,
+     * since the providers further down the order were never given the chance to say otherwise.
+     */
+    private suspend fun askProvidersInOrder(
+        providers: List<LyricsProvider>,
+        mediaMetadata: MediaMetadata,
+        artistName: String,
+        role: LyricsFetchRole,
+        deadline: Long,
+        aggregator: RemoteLyricsAggregator,
+        classifyFound: (String) -> FoundKind,
+    ) {
+        for (provider in providers) {
+            val remaining = deadline - System.currentTimeMillis()
+            if (remaining <= 0) {
+                Log.d(TAG, "${provider.name} SKIPPED (out of time) videoId=${mediaMetadata.id} role=${role.log}")
+                continue
             }
-            result
+            val outcome = runProvider(
+                provider, mediaMetadata, artistName, role,
+                timeoutMs = minOf(PROVIDER_TIMEOUT_MS, remaining),
+            )
+            if (aggregator.offer(provider.name, outcome, classifyFound)) break
         }
     }
 
@@ -441,7 +509,8 @@ class LyricsHelper @Inject constructor(
             return
         }
         val allResult = mutableListOf<LyricsResult>()
-        lyricsProviders.forEach { provider ->
+        // Same order the fetch path uses, so the candidates are listed the way the user ranked them.
+        orderProviders(lyricsProviders, readProviderOrder(context)).forEach { provider ->
             if (provider.isEnabled(context)) {
                 provider.searchIsolated(mediaId, songTitle, songArtists, duration) { lyrics ->
                     val result = LyricsResult(provider.name, lyrics)
@@ -460,8 +529,15 @@ class LyricsHelper @Inject constructor(
         /** Per-provider timeout for a single remote lookup. */
         private const val PROVIDER_TIMEOUT_MS = 8000L
 
-        /** Upper bound for resolving lyrics across all providers of a single song. */
+        /** Upper bound for resolving lyrics across all providers of a single song, when racing them. */
         private const val OVERALL_TIMEOUT_MS = 12000L
+
+        /**
+         * Budget per provider when going through them in order. The overall bound is this times the
+         * number of enabled providers rather than a fixed wall, because a fixed wall would silently
+         * mean the last few entries in the user's order are never asked.
+         */
+        private const val MANUAL_TIMEOUT_PER_PROVIDER_MS = PROVIDER_TIMEOUT_MS + 1000L
     }
 }
 
@@ -507,22 +583,56 @@ private data class ProviderOutcome(
 )
 
 /**
- * Snapshot of the enabled providers taken once at the start of a fetch, together with a signature
- * derived from their stable ids (sorted, so provider order never affects it). The same snapshot drives
- * the search set, the all-NotFound decision and the stored signature, so a provider-configuration
- * change during a fetch cannot desync them.
+ * Snapshot of the enabled providers, their order and the fetch mode, taken once at the start of a
+ * fetch. The same snapshot drives the search set, the all-NotFound decision and the stored
+ * signature, so a settings change during a fetch cannot desync them.
+ *
+ * The signature is what stops a cached answer outliving the settings it was produced under. It
+ * carries the mode and the enabled ids; in [LyricsFetchMode.MANUAL] the ids are in the user's order,
+ * because there the order changes which provider answers, while in [LyricsFetchMode.AUTO] they are
+ * sorted, because there it does not and reordering should not throw away perfectly good caches.
  */
 data class ProviderSelection(
     val providers: List<LyricsProvider>,
+    val mode: LyricsFetchMode,
     val signature: String,
 ) {
     companion object {
         fun snapshot(context: Context, all: List<LyricsProvider>): ProviderSelection {
-            val enabled = all.filter { it.isEnabled(context) }
-            val signature = enabled.map { it.id }.sorted().joinToString(",")
-            return ProviderSelection(enabled, signature)
+            val mode = readFetchMode(context)
+            val enabled = orderProviders(all, readProviderOrder(context)).filter { it.isEnabled(context) }
+            val ids = enabled.map { it.id }.let { if (mode == LyricsFetchMode.MANUAL) it else it.sorted() }
+            return ProviderSelection(enabled, mode, "${mode.name}:${ids.joinToString(",")}")
         }
     }
+}
+
+/** Fetch mode as stored, falling back to [LyricsFetchMode.AUTO] for an unset or unknown value. */
+fun readFetchMode(context: Context): LyricsFetchMode =
+    context.dataStore[LyricsFetchModeKey]
+        ?.let { stored -> LyricsFetchMode.entries.find { it.name == stored } }
+        ?: LyricsFetchMode.AUTO
+
+/** The stored provider order as a list of ids, empty when the user has never set one. */
+fun readProviderOrder(context: Context): List<String> =
+    (context.dataStore[LyricsProviderOrderKey] ?: "")
+        .split(',')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+
+/**
+ * [all] arranged by [order].
+ *
+ * Ids in [order] that name no provider are dropped and providers [order] does not mention keep
+ * their built-in position relative to each other and go last. That means the preference survives a
+ * provider being added, removed or renamed without ever losing one: a stored order written before a
+ * new provider existed simply leaves the newcomer at the end rather than hiding it.
+ */
+fun orderProviders(all: List<LyricsProvider>, order: List<String>): List<LyricsProvider> {
+    if (order.isEmpty()) return all
+    val byId = all.associateBy { it.id }
+    val ranked = order.distinct().mapNotNull { byId[it] }
+    return ranked + all.filterNot { it in ranked }
 }
 
 /**

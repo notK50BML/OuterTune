@@ -117,6 +117,16 @@ val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
 val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
 val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")
 
+/**
+ * How the remote lyric providers are consulted, and in what order.
+ *
+ * The order is a comma-joined list of provider ids. Ids that are not recognised are ignored and
+ * providers missing from the list are appended in their built-in order, so the preference survives
+ * a provider being added, renamed or removed. Empty means "the built-in order".
+ */
+val LyricsFetchModeKey = stringPreferencesKey("lyricsFetchMode")
+val LyricsProviderOrderKey = stringPreferencesKey("lyricsProviderOrder")
+
 
 /**
  * Storage

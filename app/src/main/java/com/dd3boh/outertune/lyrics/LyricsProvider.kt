@@ -40,3 +40,19 @@ interface LyricsProvider {
         (getLyrics(id, title, artist, duration) as? LyricsFetchResult.Found)?.let { callback(it.raw) }
     }
 }
+
+/**
+ * Every remote lyric provider, in the order they are consulted when the user has not set one.
+ *
+ * The order here is the default, and the ids are what the order preference stores, so neither can
+ * be changed casually: renaming an id orphans it in every stored order, which then falls back to
+ * this list's position for that provider.
+ */
+val REMOTE_LYRICS_PROVIDERS: List<LyricsProvider> = listOf(
+    SimpMusicLyricsProvider,
+    BetterLyricsProvider,
+    LrcLibLyricsProvider,
+    KuGouLyricsProvider,
+    YouTubeLyricsProvider,
+    YouTubeSubtitleLyricsProvider,
+)

@@ -245,6 +245,18 @@ enum class SearchSource {
     LOCAL, ONLINE
 }
 
+/**
+ * How remote lyric providers are consulted for one song.
+ *
+ * [AUTO] asks every enabled provider at once and takes the first synced result to come back, which
+ * is the fastest way to get lyrics and gives no weight to which provider they came from. [MANUAL]
+ * walks the user's order one provider at a time and stops at the first synced result, which is
+ * slower - deliberately so, because being able to say which provider is preferred is the point.
+ */
+enum class LyricsFetchMode {
+    AUTO, MANUAL
+}
+
 enum class Speed {
     SLOW, MEDIUM, FAST;
 
