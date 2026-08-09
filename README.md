@@ -4,7 +4,7 @@
 
 [![Release](https://img.shields.io/badge/release-v0.16-orange)](https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
-A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. In contrast, Spotify and Youtube Music's APKs are all 60mB or more. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a special UI editor (still WIP), and much more. It has a dynamic Material 3 theme and multiple player styles. 
+A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. In contrast, Spotify and Youtube Music's APKs are all 60MB or more. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a special UI editor (still WIP), and much more. It has a dynamic Material 3 theme and multiple player styles. 
 
 Currently, we are working on movable UI elements and a visualiser. Both of these are still in the WIP stage, so some features may be introduced in part.  Although an alpha release of the app with these functions is not going to be here any time soon, you can still try out the latest beta features by compiling the APK yourself.
 
