@@ -2,7 +2,7 @@
 
 [![OuterTune app icon](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/outertune.webp)](https://github.com/yuuichi-s/OuterTune/blob/dev/assets/outertune.webp)
 
-![Release](https://img.shields.io/badge/release-v0.16-orange)(https%3A%2F%2Fgithub.com%2FnotK50BML%2FOuterTune%2Freleases%2Flatest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
+![Release](https://img.shields.io/badge/release-v0.16-orange)(https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
 
 [English](README.md) | [日本語](README_ja.md)
