@@ -1,7 +1,7 @@
-From e665ee58031e656eb21b79eca34bf40ec2d5c682 Mon Sep 17 00:00:00 2001
+From abf57753acf02ec795fde670a7994060c66d61d5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/31] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/36] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -86,7 +86,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  create mode 100644 betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
-index 637191d..682edec 100644
+index 637191de..682edec7 100644
 --- a/app/src/main/java/com/dd3boh/outertune/App.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/App.kt
 @@ -33,6 +33,7 @@ import com.dd3boh.outertune.constants.ContentCountryKey
@@ -123,7 +123,7 @@ index 637191d..682edec 100644
              dataStore.data
                  .map { it[InnerTubeCookieKey] }
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
-index 5abac52..bcaceca 100644
+index 5abac52f..bcacecae 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 @@ -109,6 +109,14 @@ val DownloadOnWifiOnlyKey = booleanPreferencesKey("downloadOnWifiOnly")
@@ -142,7 +142,7 @@ index 5abac52..bcaceca 100644
  /**
   * Privacy
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt b/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
-index 6d83c10..4db83ff 100644
+index 6d83c10b..4db83ff4 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
 @@ -77,8 +77,21 @@ const val SCANNER_OWNER_DL = 32
@@ -168,7 +168,7 @@ index 6d83c10..4db83ff 100644
  
  /**
 diff --git a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
-index e2cc8de..488e23c 100644
+index e2cc8de4..488e23c3 100644
 --- a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
 @@ -6,6 +6,7 @@ import androidx.room.Entity
@@ -189,7 +189,7 @@ index e2cc8de..488e23c 100644
      }
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
-index dbef188..f6b13dc 100644
+index dbef1888..f6b13dcb 100644
 --- a/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/lyrics/BetterLyricsProvider.kt
 @@ -11,7 +11,7 @@ object BetterLyricsProvider : LyricsProvider {
@@ -202,7 +202,7 @@ index dbef188..f6b13dc 100644
      override suspend fun getLyrics(id: String, title: String, artist: String, duration: Int): LyricsFetchResult =
          BetterLyrics.getLyrics(title, artist, duration).toFetchResult()
 diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
-index 10f2389..ad76bb8 100644
+index 10f2389d..ad76bb88 100644
 --- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
 @@ -3,6 +3,7 @@ package com.dd3boh.outertune.lyrics
@@ -294,7 +294,7 @@ index 10f2389..ad76bb8 100644
                      throw e
                  } catch (e: Exception) {
 diff --git a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
-index 3253175..04cad18 100644
+index 32531759..04cad18c 100644
 --- a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
 @@ -5,6 +5,7 @@ import com.dd3boh.outertune.db.entities.Song
@@ -315,7 +315,7 @@ index 3253175..04cad18 100644
      }
  }
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
-index 2143e4d..f7d955b 100644
+index 2143e4d1..f7d955b6 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
 @@ -55,6 +55,7 @@ import androidx.compose.material3.surfaceColorAtElevation
@@ -370,7 +370,7 @@ index 2143e4d..f7d955b 100644
  //            placeholder = rememberVectorPainter(placeholderIcon),
              contentDescription = null,
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
-index 94b55a4..4329d6d 100644
+index 94b55a44..4329d6d6 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 @@ -55,12 +55,10 @@ import androidx.compose.foundation.lazy.grid.items
@@ -423,7 +423,7 @@ index 94b55a4..4329d6d 100644
      Box(
          modifier = Modifier
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
-index 0ddffcd..305ff7c 100644
+index 0ddffcd4..305ff7c3 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
 @@ -35,6 +35,7 @@ import androidx.compose.ui.Modifier
@@ -452,7 +452,7 @@ index 0ddffcd..305ff7c 100644
                          modifier = Modifier
                              .aspectRatio(1f)
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
-index 4492369..6bb506f 100644
+index 44923699..6bb506f9 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
 @@ -115,6 +115,7 @@ import com.dd3boh.outertune.utils.LocalArtworkPath
@@ -473,7 +473,7 @@ index 4492369..6bb506f 100644
                                  modifier = Modifier
                                      .size(AlbumThumbnailSize)
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
-index fa9e4e3..0f7382a 100644
+index fa9e4e32..0f7382a1 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 @@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
@@ -516,7 +516,7 @@ index fa9e4e3..0f7382a 100644
          Spacer(modifier = Modifier.height(16.dp))
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
-index 2db1b2e..8444e70 100644
+index 2db1b2ee..8444e70e 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
 @@ -143,7 +143,7 @@ fun ColumnScope.LyricParserFrag() {
@@ -529,7 +529,7 @@ index 2db1b2e..8444e70 100644
      val (preferLocalLyric, onPreferLocalLyric) = rememberPreference(LyricSourcePrefKey, defaultValue = true)
      val (enablePrefetch, onEnablePrefetchChange) = rememberPreference(EnableLyricsPrefetchKey, defaultValue = true)
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
-index bd1619a..f5230a8 100644
+index bd1619ab..f5230a89 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
 @@ -1,9 +1,11 @@
@@ -1785,7 +1785,7 @@ index bd1619a..f5230a8 100644
 -    }
  }
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt b/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
-index 1e0b342..be9ca68 100644
+index 1e0b342a..be9ca681 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
 @@ -16,6 +16,7 @@ import com.dd3boh.outertune.constants.MAX_LM_SCANNER_JOBS
@@ -1833,7 +1833,7 @@ index 1e0b342..be9ca68 100644
      }
  }
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 5892427..7ddc94e 100644
+index 58924272..7ddc94e6 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -133,6 +133,8 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -1846,7 +1846,7 @@ index 5892427..7ddc94e 100644
      <string name="slider_style_squiggly">Squiggly</string>
      <string name="slider_style_default">Default</string>
 diff --git a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
-index 77680a7..a063897 100644
+index 77680a74..a0638974 100644
 --- a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
 +++ b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/BetterLyrics.kt
 @@ -3,9 +3,11 @@ package com.dd3boh.betterlyrics
@@ -1885,7 +1885,7 @@ index 77680a7..a063897 100644
              expectSuccess = false
 diff --git a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
 new file mode 100644
-index 0000000..81d7f34
+index 00000000..81d7f34c
 --- /dev/null
 +++ b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
 @@ -0,0 +1,392 @@
@@ -2285,10 +2285,10 @@ index 0000000..81d7f34
 2.43.0
 
 
-From e7286c52f8a53fd3ac8132a238aa8640275e62ca Mon Sep 17 00:00:00 2001
+From 7e2560b1e5a19726eb902f2309313689ab52acba Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/31] Add patch notes
+Subject: [PATCH 02/36] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2299,7 +2299,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
 
 diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
 new file mode 100644
-index 0000000..28c797a
+index 00000000..28c797a0
 --- /dev/null
 +++ b/PATCH_NOTES.md
 @@ -0,0 +1,146 @@
@@ -2453,10 +2453,10 @@ index 0000000..28c797a
 2.43.0
 
 
-From 1abcc41690f00f2b2a2180a5dba8c1afa5cf2feb Mon Sep 17 00:00:00 2001
+From 8d4e4bfed77bddefc92a068871c4b5e15c39d08e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/31] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/36] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2476,7 +2476,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 9 insertions(+), 2 deletions(-)
 
 diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
-index 28c797a..2480f96 100644
+index 28c797a0..2480f961 100644
 --- a/PATCH_NOTES.md
 +++ b/PATCH_NOTES.md
 @@ -58,6 +58,8 @@ changing.
@@ -2489,7 +2489,7 @@ index 28c797a..2480f96 100644
  ## 3. Album covers are no longer soft — with a toggle
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
-index f5230a8..27f97bf 100644
+index f5230a89..27f97bf7 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
 @@ -423,7 +423,9 @@ class SyncUtils @Inject constructor(
@@ -2519,10 +2519,10 @@ index f5230a8..27f97bf 100644
 2.43.0
 
 
-From 72155c47ea20dcbaff530cd860c287da2c367c26 Mon Sep 17 00:00:00 2001
+From fdb002ab4f58ab0fa4d18b04b72981b155d7fa18 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/31] Clarify build route in patch notes
+Subject: [PATCH 04/36] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2531,7 +2531,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  1 file changed, 9 insertions(+), 5 deletions(-)
 
 diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
-index 2480f96..a43e5d3 100644
+index 2480f961..a43e5d3f 100644
 --- a/PATCH_NOTES.md
 +++ b/PATCH_NOTES.md
 @@ -127,11 +127,15 @@ git apply /path/to/outertune-sync-artwork-lyrics.patch    # or: git am
@@ -2559,10 +2559,10 @@ index 2480f96..a43e5d3 100644
 2.43.0
 
 
-From c1c72cb02d32081e2bf87a7168b60f46a6fc1f62 Mon Sep 17 00:00:00 2001
+From 5d8cd31674bce4e1ef5c5a43add291aed48977f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/31] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/36] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2585,7 +2585,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 5 insertions(+), 29 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-index 9163ae3..8688e5f 100644
+index 9163ae33..8688e5f8 100644
 --- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 @@ -1043,33 +1043,9 @@ class MainActivity : ComponentActivity() {
@@ -2626,7 +2626,7 @@ index 9163ae3..8688e5f 100644
                      }
                  }
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
-index d192b93..7d50084 100644
+index d192b930..7d500840 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
 @@ -44,7 +44,6 @@ import androidx.compose.ui.res.pluralStringResource
@@ -2651,10 +2651,10 @@ index d192b93..7d50084 100644
 2.43.0
 
 
-From b67f92e3dbfb425c0acf9306c305560084be78f8 Mon Sep 17 00:00:00 2001
+From 120ee52c97be12b7987d9c525c6fd94e319ec7b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/31] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/36] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2672,7 +2672,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 22 insertions(+), 7 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
-index f7d955b..f3c83bd 100644
+index f7d955b6..f3c83bd9 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
 @@ -684,13 +684,19 @@ fun ItemThumbnail(
@@ -2701,7 +2701,7 @@ index f7d955b..f3c83bd 100644
              contentDescription = null,
              modifier = Modifier
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
-index d5068ac..a848cde 100644
+index d5068ac8..a848cde2 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
 @@ -1,11 +1,20 @@
@@ -2739,10 +2739,10 @@ index d5068ac..a848cde 100644
 2.43.0
 
 
-From bc5e77f582fe0b12a33c3c6ac62b39e305945470 Mon Sep 17 00:00:00 2001
+From e079634c37585a3cd08526d579c011edad00f573 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/31] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/36] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2763,7 +2763,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 52 insertions(+), 4 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
-index 8df3313..81251e1 100644
+index 8df33130..81251e1d 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
 @@ -328,6 +328,13 @@ fun AutoPlaylistScreen(
@@ -2781,7 +2781,7 @@ index 8df3313..81251e1 100644
                  }
              ),
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
-index 27f97bf..580a4a9 100644
+index 27f97bf7..580a4a9c 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
 @@ -108,6 +108,11 @@ data class SyncState(
@@ -2877,10 +2877,10 @@ index 27f97bf..580a4a9 100644
 2.43.0
 
 
-From 148bf5b705afa6dfc04b89fabb3aa97cd4a286ae Mon Sep 17 00:00:00 2001
+From 2e53b39fd015a9d178a7ac8ba4684ab4df15eed6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/31] Add Discord rich presence
+Subject: [PATCH 08/36] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -2972,7 +2972,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  create mode 100644 kizzy/src/main/java/com/my/kizzy/utils/Ext.kt
 
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
-index 92903a9..c4a617e 100644
+index 92903a93..c4a617e8 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
 @@ -261,6 +261,7 @@ dependencies {
@@ -2984,7 +2984,7 @@ index 92903a9..c4a617e 100644
      // misc
      implementation(libs.aboutlibraries.compose.m3)
 diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-index 8688e5f..8de9d6c 100644
+index 8688e5f8..8de9d6c5 100644
 --- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 @@ -172,6 +172,8 @@ import com.dd3boh.outertune.ui.screens.settings.AccountSyncSettings
@@ -3010,7 +3010,7 @@ index 8688e5f..8de9d6c 100644
                                          AboutScreen(navController, scrollBehavior)
                                      }
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
-index bcaceca..3f8cd1b 100644
+index bcacecae..3f8cd1b6 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 @@ -117,6 +117,15 @@ val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
@@ -3030,7 +3030,7 @@ index bcaceca..3f8cd1b 100644
  /**
   * Privacy
 diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-index b905290..36f30a8 100644
+index b9052905..36f30a8c 100644
 --- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 @@ -73,6 +73,8 @@ import com.dd3boh.outertune.constants.AudioOffloadKey
@@ -3116,7 +3116,7 @@ index b905290..36f30a8 100644
          mediaSession.player.release()
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 new file mode 100644
-index 0000000..ed6b2dd
+index 00000000..ed6b2dd3
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 @@ -0,0 +1,195 @@
@@ -3317,7 +3317,7 @@ index 0000000..ed6b2dd
 +""".trimIndent()
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 new file mode 100644
-index 0000000..d6b534c
+index 00000000..d6b534c0
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 @@ -0,0 +1,154 @@
@@ -3476,7 +3476,7 @@ index 0000000..d6b534c
 +    )
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
-index 4b34902..fad9bb0 100644
+index 4b34902a..fad9bb0d 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
 @@ -50,6 +50,7 @@ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
@@ -3502,7 +3502,7 @@ index 4b34902..fad9bb0 100644
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 new file mode 100644
-index 0000000..8652b7c
+index 00000000..8652b7c0
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 @@ -0,0 +1,42 @@
@@ -3551,7 +3551,7 @@ index 0000000..8652b7c
 \ No newline at end of file
 diff --git a/app/src/main/res/drawable/discord.xml b/app/src/main/res/drawable/discord.xml
 new file mode 100644
-index 0000000..792279e
+index 00000000..792279e3
 --- /dev/null
 +++ b/app/src/main/res/drawable/discord.xml
 @@ -0,0 +1,9 @@
@@ -3566,7 +3566,7 @@ index 0000000..792279e
 +</vector>
 \ No newline at end of file
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 7ddc94e..c6d8cb2 100644
+index 7ddc94e6..c6d8cb2e 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -135,6 +135,15 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -3586,7 +3586,7 @@ index 7ddc94e..c6d8cb2 100644
      <string name="slider_style_squiggly">Squiggly</string>
      <string name="slider_style_default">Default</string>
 diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
-index 480cbbe..f12ff0c 100644
+index 480cbbe4..f12ff0c0 100644
 --- a/gradle/libs.versions.toml
 +++ b/gradle/libs.versions.toml
 @@ -1,4 +1,5 @@
@@ -3605,7 +3605,7 @@ index 480cbbe..f12ff0c 100644
  aboutlibraries-compose-m3 = { module = "com.mikepenz:aboutlibraries-compose-m3", version.ref = "aboutLibraries" }
 diff --git a/kizzy/.gitignore b/kizzy/.gitignore
 new file mode 100644
-index 0000000..42afabf
+index 00000000..42afabfd
 --- /dev/null
 +++ b/kizzy/.gitignore
 @@ -0,0 +1 @@
@@ -3613,7 +3613,7 @@ index 0000000..42afabf
 \ No newline at end of file
 diff --git a/kizzy/build.gradle.kts b/kizzy/build.gradle.kts
 new file mode 100644
-index 0000000..16172be
+index 00000000..16172bed
 --- /dev/null
 +++ b/kizzy/build.gradle.kts
 @@ -0,0 +1,14 @@
@@ -3634,7 +3634,7 @@ index 0000000..16172be
 \ No newline at end of file
 diff --git a/kizzy/src/main/AndroidManifest.xml b/kizzy/src/main/AndroidManifest.xml
 new file mode 100644
-index 0000000..44008a4
+index 00000000..44008a43
 --- /dev/null
 +++ b/kizzy/src/main/AndroidManifest.xml
 @@ -0,0 +1,4 @@
@@ -3645,7 +3645,7 @@ index 0000000..44008a4
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
 new file mode 100644
-index 0000000..6e9d8fc
+index 00000000..6e9d8fcc
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
 @@ -0,0 +1,235 @@
@@ -3887,7 +3887,7 @@ index 0000000..6e9d8fc
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/HeartBeat.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/HeartBeat.kt
 new file mode 100644
-index 0000000..18f451a
+index 00000000..18f451ac
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/HeartBeat.kt
 @@ -0,0 +1,21 @@
@@ -3915,7 +3915,7 @@ index 0000000..18f451a
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/Identify.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Identify.kt
 new file mode 100644
-index 0000000..64ce9a4
+index 00000000..64ce9a4c
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Identify.kt
 @@ -0,0 +1,41 @@
@@ -3963,7 +3963,7 @@ index 0000000..64ce9a4
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/Payload.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Payload.kt
 new file mode 100644
-index 0000000..ed40ed7
+index 00000000..ed40ed76
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Payload.kt
 @@ -0,0 +1,18 @@
@@ -3988,7 +3988,7 @@ index 0000000..ed40ed7
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/Ready.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Ready.kt
 new file mode 100644
-index 0000000..be1a4dd
+index 00000000..be1a4dd4
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Ready.kt
 @@ -0,0 +1,24 @@
@@ -4019,7 +4019,7 @@ index 0000000..be1a4dd
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/Resume.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Resume.kt
 new file mode 100644
-index 0000000..56ee841
+index 00000000..56ee8415
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/Resume.kt
 @@ -0,0 +1,14 @@
@@ -4040,7 +4040,7 @@ index 0000000..56ee841
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/op/OpCode.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/op/OpCode.kt
 new file mode 100644
-index 0000000..348f5b1
+index 00000000..348f5b13
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/op/OpCode.kt
 @@ -0,0 +1,31 @@
@@ -4078,7 +4078,7 @@ index 0000000..348f5b1
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/op/OpCodesSerializer.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/op/OpCodesSerializer.kt
 new file mode 100644
-index 0000000..c5fe985
+index 00000000..c5fe985c
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/op/OpCodesSerializer.kt
 @@ -0,0 +1,20 @@
@@ -4105,7 +4105,7 @@ index 0000000..c5fe985
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Activity.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Activity.kt
 new file mode 100644
-index 0000000..6eff6bc
+index 00000000..6eff6bcf
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Activity.kt
 @@ -0,0 +1,34 @@
@@ -4146,7 +4146,7 @@ index 0000000..6eff6bc
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/ApiResponse.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/ApiResponse.kt
 new file mode 100644
-index 0000000..fe69023
+index 00000000..fe69023f
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/ApiResponse.kt
 @@ -0,0 +1,10 @@
@@ -4163,7 +4163,7 @@ index 0000000..fe69023
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Assets.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Assets.kt
 new file mode 100644
-index 0000000..994849c
+index 00000000..994849c1
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Assets.kt
 @@ -0,0 +1,16 @@
@@ -4186,7 +4186,7 @@ index 0000000..994849c
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Metadata.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Metadata.kt
 new file mode 100644
-index 0000000..b1cdb69
+index 00000000..b1cdb699
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Metadata.kt
 @@ -0,0 +1,10 @@
@@ -4203,7 +4203,7 @@ index 0000000..b1cdb69
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Presence.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Presence.kt
 new file mode 100644
-index 0000000..d32373f
+index 00000000..d32373f0
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Presence.kt
 @@ -0,0 +1,16 @@
@@ -4226,7 +4226,7 @@ index 0000000..d32373f
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Timestamps.kt b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Timestamps.kt
 new file mode 100644
-index 0000000..a1a7ddb
+index 00000000..a1a7ddb6
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/entities/presence/Timestamps.kt
 @@ -0,0 +1,12 @@
@@ -4245,7 +4245,7 @@ index 0000000..a1a7ddb
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/remote/ApiService.kt b/kizzy/src/main/java/com/my/kizzy/remote/ApiService.kt
 new file mode 100644
-index 0000000..d5d0ef9
+index 00000000..d5d0ef9d
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/remote/ApiService.kt
 @@ -0,0 +1,50 @@
@@ -4301,7 +4301,7 @@ index 0000000..d5d0ef9
 +}
 diff --git a/kizzy/src/main/java/com/my/kizzy/repository/KizzyRepository.kt b/kizzy/src/main/java/com/my/kizzy/repository/KizzyRepository.kt
 new file mode 100644
-index 0000000..030e6e4
+index 00000000..030e6e45
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/repository/KizzyRepository.kt
 @@ -0,0 +1,26 @@
@@ -4334,7 +4334,7 @@ index 0000000..030e6e4
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
 new file mode 100644
-index 0000000..2d7f99f
+index 00000000..2d7f99f5
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
 @@ -0,0 +1,134 @@
@@ -4475,7 +4475,7 @@ index 0000000..2d7f99f
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/rpc/RpcImage.kt b/kizzy/src/main/java/com/my/kizzy/rpc/RpcImage.kt
 new file mode 100644
-index 0000000..23b6733
+index 00000000..23b67330
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/rpc/RpcImage.kt
 @@ -0,0 +1,32 @@
@@ -4514,7 +4514,7 @@ index 0000000..23b6733
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/rpc/UserInfo.kt b/kizzy/src/main/java/com/my/kizzy/rpc/UserInfo.kt
 new file mode 100644
-index 0000000..244231d
+index 00000000..244231d6
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/rpc/UserInfo.kt
 @@ -0,0 +1,9 @@
@@ -4530,7 +4530,7 @@ index 0000000..244231d
 \ No newline at end of file
 diff --git a/kizzy/src/main/java/com/my/kizzy/utils/Ext.kt b/kizzy/src/main/java/com/my/kizzy/utils/Ext.kt
 new file mode 100644
-index 0000000..9d73100
+index 00000000..9d731003
 --- /dev/null
 +++ b/kizzy/src/main/java/com/my/kizzy/utils/Ext.kt
 @@ -0,0 +1,39 @@
@@ -4574,7 +4574,7 @@ index 0000000..9d73100
 +        RpcImage.ExternalImage(this)
 +}
 diff --git a/settings.gradle.kts b/settings.gradle.kts
-index 7b85159..575e5de 100755
+index 7b851593..575e5dee 100755
 --- a/settings.gradle.kts
 +++ b/settings.gradle.kts
 @@ -16,6 +16,7 @@ include(":kugou")
@@ -4589,10 +4589,10 @@ index 7b85159..575e5de 100755
 2.43.0
 
 
-From 874fce3c71c95d24b3503ccee485a7a0f8abfe6c Mon Sep 17 00:00:00 2001
+From d67c1f597d8e00d0652a668a3ddd580782785de1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/31] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/36] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4607,7 +4607,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  1 file changed, 3 insertions(+), 2 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
-index 4329d6d..b01f716 100644
+index 4329d6d6..b01f7166 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 @@ -730,7 +730,6 @@ fun ControlsContent(
@@ -4633,10 +4633,10 @@ index 4329d6d..b01f716 100644
 2.43.0
 
 
-From be600f7e691f791b00f1bfd589f7a6f333c7cb0a Mon Sep 17 00:00:00 2001
+From 2d3c0ac370ddbc2085eba2ddc94fa3d8e4549eca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/31] Add a Liquid player background
+Subject: [PATCH 10/36] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4667,7 +4667,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
-index 6f949f8..bc9841a 100644
+index 6f949f8c..bc9841a7 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
 @@ -13,7 +13,7 @@ enum class DarkMode {
@@ -4681,7 +4681,7 @@ index 6f949f8..bc9841a 100644
  enum class SliderStyle {
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
 new file mode 100644
-index 0000000..87f5281
+index 00000000..87f52810
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
 @@ -0,0 +1,119 @@
@@ -4805,7 +4805,7 @@ index 0000000..87f5281
 +    )
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
-index b01f716..8a2a5f4 100644
+index b01f7166..8a2a5f4d 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 @@ -1133,7 +1133,9 @@ fun PlayerBackground(
@@ -4839,7 +4839,7 @@ index b01f716..8a2a5f4 100644
              if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2c")
              Box(
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
-index bfea03d..5a36c6a 100644
+index bfea03d7..5a36c6a9 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
 @@ -164,6 +164,7 @@ fun NowPlayingFrag() {
@@ -4851,7 +4851,7 @@ index bfea03d..5a36c6a 100644
                  PlayerBackgroundStyle.GRADIENT -> stringResource(R.string.player_background_gradient)
                  PlayerBackgroundStyle.BLUR -> stringResource(R.string.player_background_blur)
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index c6d8cb2..9ce0f19 100644
+index c6d8cb2e..9ce0f192 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -128,6 +128,7 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -4866,10 +4866,10 @@ index c6d8cb2..9ce0f19 100644
 2.43.0
 
 
-From 1aafef6e9b7961ee1aba3daf550b69026e048679 Mon Sep 17 00:00:00 2001
+From 18c53c761d971b8bef303d371d8ea800568bb83b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/31] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/36] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -4899,7 +4899,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  3 files changed, 64 insertions(+), 3 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
-index ed6b2dd..148f0c5 100644
+index ed6b2dd3..148f0c5c 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 @@ -29,7 +29,10 @@ import androidx.compose.material3.Icon
@@ -4983,7 +4983,7 @@ index ed6b2dd..148f0c5 100644
      (function() {
          try {
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
-index d6b534c..874c2bf 100644
+index d6b534c0..874c2bf9 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 @@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
@@ -5054,7 +5054,7 @@ index d6b534c..874c2bf 100644
          Spacer(modifier = Modifier.height(16.dp))
  
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 9ce0f19..0afd944 100644
+index 9ce0f192..0afd9445 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -145,6 +145,9 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -5071,10 +5071,10 @@ index 9ce0f19..0afd944 100644
 2.43.0
 
 
-From 690b2d0584b94cfd06d2a94f52a6de9043289284 Mon Sep 17 00:00:00 2001
+From 921ead638ee8f1c73fe9d27a863ee918356f126c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/31] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/36] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5092,7 +5092,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 35 insertions(+)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
-index 148f0c5..a798375 100644
+index 148f0c5c..a798375e 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 @@ -20,12 +20,17 @@ import android.webkit.WebStorage
@@ -5173,7 +5173,7 @@ index 148f0c5..a798375 100644
          title = { Text(stringResource(R.string.action_login)) },
          navigationIcon = {
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 0afd944..8388e17 100644
+index 0afd9445..8388e17e 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -148,6 +148,7 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -5188,10 +5188,10 @@ index 0afd944..8388e17 100644
 2.43.0
 
 
-From 82d91a41a7950088f33865bf1284b1b9e6c998f9 Mon Sep 17 00:00:00 2001
+From 5833674cf816ba403c4c93098d3a3142f50118fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/31] Fix Discord presence never appearing
+Subject: [PATCH 13/36] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5221,7 +5221,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 27 insertions(+), 3 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-index 36f30a8..c456243 100644
+index 36f30a8c..c456243d 100644
 --- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 @@ -28,6 +28,7 @@ import androidx.media3.common.Format
@@ -5255,7 +5255,7 @@ index 36f30a8..c456243 100644
  
      override fun onPlaybackStatsReady(eventTime: AnalyticsListener.EventTime, playbackStats: PlaybackStats) {
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
-index 6e9d8fc..d9eaf36 100644
+index 6e9d8fcc..d9eaf365 100644
 --- a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
 @@ -29,6 +29,7 @@ import kotlinx.coroutines.Dispatchers
@@ -5297,10 +5297,10 @@ index 6e9d8fc..d9eaf36 100644
 2.43.0
 
 
-From 507a0bc3e25d1a10d886280ffcd87e20d5e76348 Mon Sep 17 00:00:00 2001
+From 5584e908333eb1fba58a1cc8a735e5d167047b87 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/31] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/36] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5315,7 +5315,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 8388e17..25f56c2 100644
+index 8388e17e..25f56c21 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -148,7 +148,7 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -5331,10 +5331,10 @@ index 8388e17..25f56c2 100644
 2.43.0
 
 
-From e1e4bcf1005f1970fe7ba90cf2650076058bee4c Mon Sep 17 00:00:00 2001
+From 6f80c5af64eb7a4e820a13fb4feb5c11efb507b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/31] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/36] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5363,7 +5363,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  4 files changed, 91 insertions(+), 3 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
-index 874c2bf..9244411 100644
+index 874c2bf9..9244411c 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 @@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -5428,7 +5428,7 @@ index 874c2bf..9244411 100644
          Spacer(modifier = Modifier.height(16.dp))
  
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 25f56c2..035206e 100644
+index 25f56c21..035206ed 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -148,6 +148,8 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -5441,7 +5441,7 @@ index 25f56c2..035206e 100644
      <string name="slider_style_title">Slider style</string>
      <string name="slider_style_squiggly">Squiggly</string>
 diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
-index d9eaf36..7c9db8d 100644
+index d9eaf365..7c9db8d5 100644
 --- a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
 +++ b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
 @@ -58,6 +58,15 @@ open class DiscordWebSocket(
@@ -5547,7 +5547,7 @@ index d9eaf36..7c9db8d 100644
          Logger.getLogger("Kizzy").log(INFO, "Gateway: Sending $PRESENCE_UPDATE")
          send(
 diff --git a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
-index 2d7f99f..90bac79 100644
+index 2d7f99f5..90bac793 100644
 --- a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
 +++ b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
 @@ -40,6 +40,26 @@ open class KizzyRPC(token: String) {
@@ -5581,10 +5581,10 @@ index 2d7f99f..90bac79 100644
 2.43.0
 
 
-From 9e85fd9df9a1031c7bf38bb94d1754aa2cdd91f8 Mon Sep 17 00:00:00 2001
+From e989327818aa23fe2d413857f472822ca0915b21 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/31] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/36] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5617,7 +5617,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 24 insertions(+), 3 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-index c456243..2ad9c0a 100644
+index c456243d..2ad9c0a3 100644
 --- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 @@ -327,9 +327,12 @@ class MusicService : MediaLibraryService(),
@@ -5636,7 +5636,7 @@ index c456243..2ad9c0a 100644
  
          setMediaNotificationProvider(
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
-index 8652b7c..9277053 100644
+index 8652b7c0..92770533 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 @@ -13,13 +13,31 @@ class DiscordRPC(
@@ -5684,10 +5684,10 @@ index 8652b7c..9277053 100644
 2.43.0
 
 
-From 8b263bbad0e6aa560b0dfe72e833e883279eb985 Mon Sep 17 00:00:00 2001
+From 813807fab1d4d67dd0130b0c0ba581b2675a1ea0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/31] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/36] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5715,7 +5715,7 @@ Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
  2 files changed, 47 insertions(+), 4 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-index 2ad9c0a..0ac7b82 100644
+index 2ad9c0a3..0ac7b829 100644
 --- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 @@ -324,9 +324,15 @@ class MusicService : MediaLibraryService(),
@@ -5775,7 +5775,7 @@ index 2ad9c0a..0ac7b82 100644
              } else if (!events.containsAny(EVENT_POSITION_DISCONTINUITY, EVENT_MEDIA_ITEM_TRANSITION)) {
                  // A pause that is not just the gap between tracks: clear the activity.
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
-index 9277053..1fd386f 100644
+index 92770533..1fd386f5 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 @@ -4,12 +4,35 @@ import com.dd3boh.outertune.R
@@ -5826,10 +5826,10 @@ index 9277053..1fd386f 100644
 2.43.0
 
 
-From 88b2f886e021b2aff01004049ea99a846b2360e6 Mon Sep 17 00:00:00 2001
+From 0c5bb4fcd45a196b90ba3cf1dcbdbed32c1dbec3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/31] Point in-app links at this fork
+Subject: [PATCH 18/36] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5848,7 +5848,7 @@ that this fork does not host.
  6 files changed, 10 insertions(+), 10 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
-index edaf515..879a039 100644
+index edaf515d..879a0391 100644
 --- a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
 @@ -674,7 +674,7 @@ class Migration12To13 : AutoMigrationSpec {
@@ -5861,7 +5861,7 @@ index edaf515..879a039 100644
  @DeleteColumn.Entries(
      DeleteColumn(tableName = "playCount", columnName = "id"),
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt
-index 1ce6b70..b1faa3f 100644
+index 1ce6b706..b1faa3f2 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/SetupWizard.kt
 @@ -812,14 +812,14 @@ fun SetupWizard(
@@ -5882,7 +5882,7 @@ index 1ce6b70..b1faa3f 100644
                                  )
                              }
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
-index 2f6c0da..abd781c 100644
+index 2f6c0daf..abd781c0 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
 @@ -158,14 +158,14 @@ fun AboutScreen(
@@ -5919,7 +5919,7 @@ index 2f6c0da..abd781c 100644
                  )
                  PreferenceEntry(
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt
-index abb914e..70c0680 100644
+index abb914e8..70c0680d 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AttributionScreen.kt
 @@ -85,7 +85,7 @@ fun AttributionScreen(
@@ -5932,7 +5932,7 @@ index abb914e..70c0680 100644
              )
          }
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
-index 151d36e..e5fce1b 100644
+index 151d36e0..e5fce1b2 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
 @@ -205,7 +205,7 @@ fun ExperimentalSettings(
@@ -5945,7 +5945,7 @@ index 151d36e..e5fce1b 100644
              )
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
-index 1fd386f..227e962 100644
+index 1fd386f5..227e9628 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 @@ -67,7 +67,7 @@ class DiscordRPC(
@@ -5961,10 +5961,10 @@ index 1fd386f..227e962 100644
 2.43.0
 
 
-From e32309051637dd34f3fc81ced2ae9d7988b9481c Mon Sep 17 00:00:00 2001
+From d35211c67f93873c75d11c3e8a24335cc946bfaa Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 19/31] Bump to 0.10.18 and document the versioning rule
+Subject: [PATCH 19/36] Bump to 0.10.18 and document the versioning rule
 
 The last component of versionName now moves by 0.00.01 for each new
 feature and stays put for fixes, with versionCode following so Android
@@ -5975,7 +5975,7 @@ covers, so future bumps have something to count from.
  1 file changed, 13 insertions(+), 2 deletions(-)
 
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
-index c4a617e..d7da63a 100644
+index c4a617e8..d7da63ad 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
 @@ -29,8 +29,19 @@ android {
@@ -6004,10 +6004,10 @@ index c4a617e..d7da63a 100644
 2.43.0
 
 
-From 1df19436604875215bee6e1d0f197e5e3b7b79c7 Mon Sep 17 00:00:00 2001
+From 848bcf59a3960528ac5579eba4bec80242b9b5cb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 20/31] Fix the Discord presence freezing on a track change
+Subject: [PATCH 20/36] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6036,7 +6036,7 @@ was swallowing it, so a superseded update looked like it had succeeded.
  2 files changed, 81 insertions(+), 44 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-index 0ac7b82..4aec198 100644
+index 0ac7b829..4aec1984 100644
 --- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 @@ -145,6 +145,8 @@ import kotlinx.coroutines.FlowPreview
@@ -6218,7 +6218,7 @@ index 0ac7b82..4aec198 100644
          const val SONG = "song"
          const val ARTIST = "artist"
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
-index 227e962..e843bb7 100644
+index 227e9628..e843bb7d 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/DiscordRPC.kt
 @@ -4,6 +4,7 @@ import com.dd3boh.outertune.R
@@ -6245,10 +6245,10 @@ index 227e962..e843bb7 100644
 2.43.0
 
 
-From ded2ac8a7e26e38a127bc0ecc9e4fa61181a0624 Mon Sep 17 00:00:00 2001
+From e9ccbb36c1bb42307cf2c000bde43d6a0fadcc6b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 21/31] Explain where to find the Discord token
+Subject: [PATCH 21/36] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6259,7 +6259,7 @@ already know where one lives. Spell out the DevTools route instead.
  1 file changed, 1 insertion(+), 1 deletion(-)
 
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 035206e..93e4b92 100644
+index 035206ed..93e4b92b 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -147,7 +147,7 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -6275,10 +6275,10 @@ index 035206e..93e4b92 100644
 2.43.0
 
 
-From e5c326d20e4db49bbb5a7f88cd859c98d8318651 Mon Sep 17 00:00:00 2001
+From b5a4b99535300c351e8f13f984908d31af87f382 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 22/31] Ask Discord's module registry for the token
+Subject: [PATCH 22/36] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6300,7 +6300,7 @@ close code 4004 with nothing to explain it.
  2 files changed, 86 insertions(+), 22 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
-index a798375..286a9f1 100644
+index a798375e..286a9f1c 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordLoginScreen.kt
 @@ -59,7 +59,7 @@ import kotlinx.coroutines.withContext
@@ -6446,7 +6446,7 @@ index a798375..286a9f1 100644
              alert("error");
          }
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
-index 9244411..4aea73d 100644
+index 9244411c..4aea73d0 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/DiscordSettings.kt
 @@ -87,7 +87,7 @@ fun DiscordSettings(
@@ -6462,10 +6462,10 @@ index 9244411..4aea73d 100644
 2.43.0
 
 
-From d324e5e3131d3328156a6370fa5c18eb7fdcc405 Mon Sep 17 00:00:00 2001
+From 1873a96e24954e3615b26721bfe834dde086839e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 23/31] Add app icon customisation
+Subject: [PATCH 23/36] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -6515,7 +6515,7 @@ every switch silently do nothing on those builds.
  create mode 100644 app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml
 
 diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
-index a05e64f..7cb7dcd 100755
+index a05e64f1..7cb7dcd1 100755
 --- a/app/src/main/AndroidManifest.xml
 +++ b/app/src/main/AndroidManifest.xml
 @@ -42,16 +42,6 @@
@@ -6663,7 +6663,7 @@ index a05e64f..7cb7dcd 100755
              android:name="androidx.core.content.FileProvider"
              android:authorities="${applicationId}.FileProvider"
 diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-index 8de9d6c..7a60d64 100644
+index 8de9d6c5..7a60d64a 100644
 --- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 @@ -169,6 +169,7 @@ import com.dd3boh.outertune.ui.screens.search.OnlineSearchResult
@@ -6686,7 +6686,7 @@ index 8de9d6c..7a60d64 100644
                                      }
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppIconSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppIconSettings.kt
 new file mode 100644
-index 0000000..cd782fc
+index 00000000..cd782fc1
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppIconSettings.kt
 @@ -0,0 +1,246 @@
@@ -6937,7 +6937,7 @@ index 0000000..cd782fc
 +    return { mime -> launcher.launch(mime) }
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
-index 0f7382a..2d24a85 100644
+index 0f7382a1..2d24a850 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 @@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
@@ -6970,7 +6970,7 @@ index 0f7382a..2d24a85 100644
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/AppIcon.kt b/app/src/main/java/com/dd3boh/outertune/utils/AppIcon.kt
 new file mode 100644
-index 0000000..3d18edf
+index 00000000..3d18edf2
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/AppIcon.kt
 @@ -0,0 +1,141 @@
@@ -7117,7 +7117,7 @@ index 0000000..3d18edf
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/CustomIconShortcut.kt b/app/src/main/java/com/dd3boh/outertune/utils/CustomIconShortcut.kt
 new file mode 100644
-index 0000000..a131337
+index 00000000..a1313371
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/CustomIconShortcut.kt
 @@ -0,0 +1,113 @@
@@ -7236,7 +7236,7 @@ index 0000000..a131337
 +}
 diff --git a/app/src/main/res/drawable/launcher_mono_dark.xml b/app/src/main/res/drawable/launcher_mono_dark.xml
 new file mode 100644
-index 0000000..20d0955
+index 00000000..20d0955f
 --- /dev/null
 +++ b/app/src/main/res/drawable/launcher_mono_dark.xml
 @@ -0,0 +1,11 @@
@@ -7253,7 +7253,7 @@ index 0000000..20d0955
 +</vector>
 diff --git a/app/src/main/res/drawable/launcher_mono_light.xml b/app/src/main/res/drawable/launcher_mono_light.xml
 new file mode 100644
-index 0000000..cebf95c
+index 00000000..cebf95c7
 --- /dev/null
 +++ b/app/src/main/res/drawable/launcher_mono_light.xml
 @@ -0,0 +1,11 @@
@@ -7270,7 +7270,7 @@ index 0000000..cebf95c
 +</vector>
 diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_crimson.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_crimson.xml
 new file mode 100644
-index 0000000..07d3099
+index 00000000..07d3099c
 --- /dev/null
 +++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_crimson.xml
 @@ -0,0 +1,10 @@
@@ -7286,7 +7286,7 @@ index 0000000..07d3099
 +</adaptive-icon>
 diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_midnight.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_midnight.xml
 new file mode 100644
-index 0000000..0c168cf
+index 00000000..0c168cf5
 --- /dev/null
 +++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_midnight.xml
 @@ -0,0 +1,10 @@
@@ -7302,7 +7302,7 @@ index 0000000..0c168cf
 +</adaptive-icon>
 diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_dark.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_dark.xml
 new file mode 100644
-index 0000000..36e1ca7
+index 00000000..36e1ca74
 --- /dev/null
 +++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_dark.xml
 @@ -0,0 +1,10 @@
@@ -7318,7 +7318,7 @@ index 0000000..36e1ca7
 +</adaptive-icon>
 diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_light.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_light.xml
 new file mode 100644
-index 0000000..9140700
+index 00000000..9140700d
 --- /dev/null
 +++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_mono_light.xml
 @@ -0,0 +1,10 @@
@@ -7334,7 +7334,7 @@ index 0000000..9140700
 +</adaptive-icon>
 diff --git a/app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml
 new file mode 100644
-index 0000000..e3d61e2
+index 00000000..e3d61e2c
 --- /dev/null
 +++ b/app/src/main/res/mipmap-anydpi-v26/ic_launcher_ocean.xml
 @@ -0,0 +1,10 @@
@@ -7349,7 +7349,7 @@ index 0000000..e3d61e2
 +    <monochrome android:drawable="@drawable/launcher_monochrome" />
 +</adaptive-icon>
 diff --git a/app/src/main/res/values/ic_launcher_background.xml b/app/src/main/res/values/ic_launcher_background.xml
-index c5d5899..eaf1b92 100644
+index c5d5899f..eaf1b92c 100644
 --- a/app/src/main/res/values/ic_launcher_background.xml
 +++ b/app/src/main/res/values/ic_launcher_background.xml
 @@ -1,4 +1,15 @@
@@ -7371,7 +7371,7 @@ index c5d5899..eaf1b92 100644
 +    <color name="ic_launcher_background_ocean">#215E7C</color>
 +</resources>
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 93e4b92..25673ab 100644
+index 93e4b92b..25673abe 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -402,4 +402,20 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -7400,10 +7400,10 @@ index 93e4b92..25673ab 100644
 2.43.0
 
 
-From 31c4cd15f7738a5dc1aa223ebf5f687633eb232b Mon Sep 17 00:00:00 2001
+From db0a212f606efc8c4351fda4f77aa639baed4bac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 24/31] Add a frosted glass player background
+Subject: [PATCH 24/36] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7434,7 +7434,7 @@ track change never flashes text in a colour it is about to abandon.
  create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
-index 3f8cd1b..b6d49f9 100644
+index 3f8cd1b6..b6d49f9b 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 @@ -13,6 +13,13 @@ val DynamicThemeKey = booleanPreferencesKey("dynamicTheme")
@@ -7452,7 +7452,7 @@ index 3f8cd1b..b6d49f9 100644
  val DarkModeKey = stringPreferencesKey("darkMode")
  val PureBlackKey = booleanPreferencesKey("pureBlack")
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
-index bc9841a..bff834c 100644
+index bc9841a7..bff834cb 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
 @@ -13,7 +13,7 @@ enum class DarkMode {
@@ -7466,7 +7466,7 @@ index bc9841a..bff834c 100644
  enum class SliderStyle {
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
 new file mode 100644
-index 0000000..67b4110
+index 00000000..67b41109
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
 @@ -0,0 +1,166 @@
@@ -7637,7 +7637,7 @@ index 0000000..67b4110
 +    return if (counted == 0) null else (total / counted).toFloat()
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
-index 8a2a5f4..5b1c0ef 100644
+index 8a2a5f4d..5b1c0ef8 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 @@ -120,6 +120,7 @@ import com.dd3boh.outertune.R
@@ -7704,7 +7704,7 @@ index 8a2a5f4..5b1c0ef 100644
              if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2d")
              val isPlaying by playerConnection.isPlaying.collectAsState()
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
-index 5a36c6a..2162df2 100644
+index 5a36c6a9..2162df26 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
 @@ -5,10 +5,12 @@ import androidx.compose.material.icons.Icons
@@ -7764,7 +7764,7 @@ index 5a36c6a..2162df2 100644
          title = { Text(stringResource(R.string.slider_style_title)) },
          icon = { Icon(Icons.Rounded.GraphicEq, null) },
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 25673ab..d6c42ef 100644
+index 25673abe..d6c42efd 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -130,6 +130,9 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -7781,10 +7781,10 @@ index 25673ab..d6c42ef 100644
 2.43.0
 
 
-From 25b8f379b9baa4f33ccfee1d22b00b01fe9a8c5b Mon Sep 17 00:00:00 2001
+From af2b3e49d01dc5650304ea722ae4c266fb461479 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 25/31] Turn the home search into a field, and thin out the top
+Subject: [PATCH 25/36] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -7809,7 +7809,7 @@ below where History now is.
  5 files changed, 73 insertions(+), 33 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
-index b6d49f9..85e4615 100644
+index b6d49f9b..85e46150 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 @@ -20,6 +20,9 @@ val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
@@ -7823,7 +7823,7 @@ index b6d49f9..85e4615 100644
  val DarkModeKey = stringPreferencesKey("darkMode")
  val PureBlackKey = booleanPreferencesKey("pureBlack")
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
-index ece2847..c734851 100644
+index ece28471..c7348519 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
 @@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
@@ -7986,7 +7986,7 @@ index ece2847..c734851 100644
              Icon(
                  imageVector = Icons.Rounded.Settings,
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
-index 2d24a85..93fd1c5 100644
+index 2d24a850..93fd1c52 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 @@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
@@ -8029,7 +8029,7 @@ index 2d24a85..93fd1c5 100644
                  title = { Text(stringResource(R.string.app_icon)) },
                  icon = { Icon(Icons.Rounded.AppShortcut, null) },
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
-index fad9bb0..ff659bf 100644
+index fad9bb0d..ff659bf2 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
 @@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -8053,7 +8053,7 @@ index fad9bb0..ff659bf 100644
                  title = { Text(stringResource(R.string.local_player_settings_title)) },
                  icon = { Icon(Icons.Rounded.SdCard, null) },
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index d6c42ef..3774868 100644
+index d6c42efd..37748685 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -405,6 +405,8 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -8069,10 +8069,10 @@ index d6c42ef..3774868 100644
 2.43.0
 
 
-From 591f65ace531d61dee5ecf9f72f5e393ff056485 Mon Sep 17 00:00:00 2001
+From 88c8501d7d9094570339fb2763462ddb9b50a1d4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 26/31] Add extended charts to Stats
+Subject: [PATCH 26/36] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8097,7 +8097,7 @@ exactly the ones most likely to be missing a picture.
  3 files changed, 175 insertions(+)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
-index 4108db8..430dd5f 100644
+index 4108db89..430dd5f8 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
 @@ -1,10 +1,13 @@
@@ -8257,7 +8257,7 @@ index 4108db8..430dd5f 100644
      LazyColumnScrollbar(
          state = lazyListState,
 diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
-index 1452b84..f26946a 100644
+index 1452b84a..f26946a9 100644
 --- a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
 @@ -9,6 +9,8 @@ import com.zionhuang.innertube.YouTube
@@ -8348,7 +8348,7 @@ index 1452b84..f26946a 100644
 +    }
  }
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 3774868..1041835 100644
+index 37748685..10418352 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -405,6 +405,9 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -8365,10 +8365,10 @@ index 3774868..1041835 100644
 2.43.0
 
 
-From d91448588026cd7b85dfa6d0d45a75fe3740372e Mon Sep 17 00:00:00 2001
+From a2d2264ec1ffd6f7ffb55e60ce30565e01197e84 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 27/31] Import player layouts from the layout editor
+Subject: [PATCH 27/36] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -8408,7 +8408,7 @@ which is a bigger change than this one and better made on its own.
  create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-index 7a60d64..4a2b600 100644
+index 7a60d64a..4a2b600b 100644
 --- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 @@ -180,6 +180,7 @@ import com.dd3boh.outertune.ui.screens.settings.LibrariesScreen
@@ -8430,7 +8430,7 @@ index 7a60d64..4a2b600 100644
                                          LibrarySettings(navController, scrollBehavior)
                                      }
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
-index 85e4615..ebbc192 100644
+index 85e46150..ebbc1923 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
 @@ -23,6 +23,14 @@ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
@@ -8450,7 +8450,7 @@ index 85e4615..ebbc192 100644
  val PureBlackKey = booleanPreferencesKey("pureBlack")
 diff --git a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
 new file mode 100644
-index 0000000..ee3a36c
+index 00000000..ee3a36c6
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
 @@ -0,0 +1,131 @@
@@ -8586,7 +8586,7 @@ index 0000000..ee3a36c
 +    }
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
-index 5b1c0ef..ca6fc88 100644
+index 5b1c0ef8..ca6fc888 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 @@ -121,6 +121,7 @@ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
@@ -9141,7 +9141,7 @@ index 5b1c0ef..ca6fc88 100644
              if (showQueueHint) {
                  Spacer(Modifier.height(12.dp))
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
-index 93fd1c5..6224377 100644
+index 93fd1c52..6224377b 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 @@ -20,6 +20,7 @@ import androidx.compose.foundation.verticalScroll
@@ -9167,7 +9167,7 @@ index 93fd1c5..6224377 100644
                  icon = { Icon(Icons.Rounded.AppShortcut, null) },
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt
 new file mode 100644
-index 0000000..b793cb1
+index 00000000..b793cb19
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerLayoutSettings.kt
 @@ -0,0 +1,142 @@
@@ -9314,7 +9314,7 @@ index 0000000..b793cb1
 +    )
 +}
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 1041835..20ed4dc 100644
+index 10418352..20ed4dc7 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -410,6 +410,16 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -9338,10 +9338,10 @@ index 1041835..20ed4dc 100644
 2.43.0
 
 
-From e7309db61fd8346c70589b9c37d996a174777d63 Mon Sep 17 00:00:00 2001
+From 5d549d06c7a742efa2997fd9e7aafc59dc1bc582 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 28/31] Add song recognition
+Subject: [PATCH 28/36] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -9398,7 +9398,7 @@ worth doing on its own rather than inside this.
  create mode 100644 shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt
 
 diff --git a/app/build.gradle.kts b/app/build.gradle.kts
-index d7da63a..3a144df 100644
+index d7da63ad..3a144df6 100644
 --- a/app/build.gradle.kts
 +++ b/app/build.gradle.kts
 @@ -273,6 +273,7 @@ dependencies {
@@ -9410,7 +9410,7 @@ index d7da63a..3a144df 100644
      // misc
      implementation(libs.aboutlibraries.compose.m3)
 diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
-index 7cb7dcd..ecf1b80 100755
+index 7cb7dcd1..ecf1b809 100755
 --- a/app/src/main/AndroidManifest.xml
 +++ b/app/src/main/AndroidManifest.xml
 @@ -10,6 +10,10 @@
@@ -9425,7 +9425,7 @@ index 7cb7dcd..ecf1b80 100755
      <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
          android:maxSdkVersion="32" />
 diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-index 4a2b600..3a465f7 100644
+index 4a2b600b..3a465f7f 100644
 --- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
 @@ -150,6 +150,7 @@ import com.dd3boh.outertune.ui.screens.Screens
@@ -9448,7 +9448,7 @@ index 4a2b600..3a465f7 100644
                                      }
 diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/AudioResampler.kt b/app/src/main/java/com/dd3boh/outertune/recognition/AudioResampler.kt
 new file mode 100644
-index 0000000..c7794af
+index 00000000..c7794afb
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/recognition/AudioResampler.kt
 @@ -0,0 +1,101 @@
@@ -9555,7 +9555,7 @@ index 0000000..c7794af
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/MusicRecognitionService.kt b/app/src/main/java/com/dd3boh/outertune/recognition/MusicRecognitionService.kt
 new file mode 100644
-index 0000000..2c214c5
+index 00000000..2c214c5b
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/recognition/MusicRecognitionService.kt
 @@ -0,0 +1,192 @@
@@ -9753,7 +9753,7 @@ index 0000000..2c214c5
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/RecogLog.kt b/app/src/main/java/com/dd3boh/outertune/recognition/RecogLog.kt
 new file mode 100644
-index 0000000..1ec8129
+index 00000000..1ec8129e
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/recognition/RecogLog.kt
 @@ -0,0 +1,59 @@
@@ -9818,7 +9818,7 @@ index 0000000..1ec8129
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/ShazamSignatureGenerator.kt b/app/src/main/java/com/dd3boh/outertune/recognition/ShazamSignatureGenerator.kt
 new file mode 100644
-index 0000000..ef35582
+index 00000000..ef35582c
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/recognition/ShazamSignatureGenerator.kt
 @@ -0,0 +1,385 @@
@@ -10209,7 +10209,7 @@ index 0000000..ef35582
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/recognition/VibraSignature.kt b/app/src/main/java/com/dd3boh/outertune/recognition/VibraSignature.kt
 new file mode 100644
-index 0000000..e7f8d7e
+index 00000000..e7f8d7e3
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/recognition/VibraSignature.kt
 @@ -0,0 +1,22 @@
@@ -10237,7 +10237,7 @@ index 0000000..e7f8d7e
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/RecognitionScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/RecognitionScreen.kt
 new file mode 100644
-index 0000000..38f5b56
+index 00000000..38f5b562
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/RecognitionScreen.kt
 @@ -0,0 +1,230 @@
@@ -10472,7 +10472,7 @@ index 0000000..38f5b56
 +    }
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
-index c734851..c0a682b 100644
+index c7348519..c0a682b1 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
 @@ -33,6 +33,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -10513,7 +10513,7 @@ index c734851..c0a682b 100644
              Icon(
                  imageVector = Icons.AutoMirrored.Rounded.TrendingUp,
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 20ed4dc..f709608 100644
+index 20ed4dc7..f7096084 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -410,6 +410,15 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -10533,7 +10533,7 @@ index 20ed4dc..f709608 100644
      <string name="player_layout">Player layout</string>
      <string name="player_layout_summary">Import a layout made in the layout editor</string>
 diff --git a/settings.gradle.kts b/settings.gradle.kts
-index 575e5de..464cd0a 100755
+index 575e5dee..464cd0a8 100755
 --- a/settings.gradle.kts
 +++ b/settings.gradle.kts
 @@ -17,6 +17,7 @@ include(":lrclib")
@@ -10546,7 +10546,7 @@ index 575e5de..464cd0a 100755
  // We assume, that OuterTune and NewPipe Extractor have the same parent directory.
 diff --git a/shazamkit/build.gradle.kts b/shazamkit/build.gradle.kts
 new file mode 100644
-index 0000000..9a9761c
+index 00000000..9a9761cf
 --- /dev/null
 +++ b/shazamkit/build.gradle.kts
 @@ -0,0 +1,17 @@
@@ -10569,7 +10569,7 @@ index 0000000..9a9761c
 +}
 diff --git a/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt b/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
 new file mode 100644
-index 0000000..156d94c
+index 00000000..156d94ca
 --- /dev/null
 +++ b/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
 @@ -0,0 +1,496 @@
@@ -11071,7 +11071,7 @@ index 0000000..156d94c
 +}
 diff --git a/shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt b/shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt
 new file mode 100644
-index 0000000..1c59e9c
+index 00000000..1c59e9ca
 --- /dev/null
 +++ b/shazamkit/src/main/java/com/dd3boh/shazamkit/models/ShazamModels.kt
 @@ -0,0 +1,317 @@
@@ -11396,10 +11396,10 @@ index 0000000..1c59e9c
 2.43.0
 
 
-From 8c7563cd42a4e50bcb3fcc6880f1cf56ba86be3f Mon Sep 17 00:00:00 2001
+From 5507609bd18e297ca58393cd4ece1676b49190f2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 29/31] Fix the stats charts
+Subject: [PATCH 29/36] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11436,7 +11436,7 @@ gave no hint of.
  7 files changed, 90 insertions(+), 139 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
-index ba7d033..ae45302 100644
+index ba7d0334..ae45302d 100644
 --- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
 @@ -33,100 +33,36 @@ import java.time.LocalDateTime
@@ -11562,7 +11562,7 @@ index ba7d033..ae45302 100644
      @RawQuery(observedEntities = [ArtistEntity::class])
      fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>
 diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
-index 8fc3dda..264e14e 100644
+index 8fc3ddaf..264e14ea 100644
 --- a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
 @@ -59,15 +59,16 @@ interface SongsDao {
@@ -11591,7 +11591,7 @@ index 8fc3dda..264e14e 100644
      fun mostPlayedSongs(fromTimeStamp: Long, limit: Int = 6, offset: Int = 0): Flow<List<Song>>
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
-index 6224377..c0d7c4a 100644
+index 6224377b..c0d7c4a5 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
 @@ -48,6 +48,7 @@ import com.dd3boh.outertune.ui.component.button.IconButton
@@ -11611,7 +11611,7 @@ index 6224377..c0d7c4a 100644
                  title = { Text(stringResource(R.string.player_layout)) },
                  description = stringResource(R.string.player_layout_summary),
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
-index 2162df2..9cb798e 100644
+index 2162df26..9cb798e0 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
 @@ -145,15 +145,6 @@ fun AudioQualityFrag() {
@@ -11734,7 +11734,7 @@ index 2162df2..9cb798e 100644
 +    }
 +}
 diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
-index 6b2d6e9..14d91ba 100644
+index 6b2d6e93..14d91ba2 100644
 --- a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
 @@ -76,7 +76,7 @@ class HomeViewModel @Inject constructor(
@@ -11756,7 +11756,7 @@ index 6b2d6e9..14d91ba 100644
                  .shuffled().take(3)
                  .mapNotNull {
 diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
-index f26946a..6821f47 100644
+index f26946a9..6821f47a 100644
 --- a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
 @@ -39,8 +39,7 @@ class StatsViewModel @Inject constructor(
@@ -11780,7 +11780,7 @@ index f26946a..6821f47 100644
              }
          }
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index f709608..a26b3be 100644
+index f7096084..a26b3be5 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -410,6 +410,7 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -11795,10 +11795,10 @@ index f709608..a26b3be 100644
 2.43.0
 
 
-From f2b088e8753f4816979363dc132033303a8b4213 Mon Sep 17 00:00:00 2001
+From 14150c4857efa0c3b8cc22dc8d7ca23928c51edc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 30/31] Let the stats charts rank by plays or by time
+Subject: [PATCH 30/36] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -11818,7 +11818,7 @@ re-sort rather than a second pass over the events table.
  6 files changed, 80 insertions(+), 18 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
-index bff834c..a75285d 100644
+index bff834cb..a75285d3 100644
 --- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
 @@ -12,6 +12,9 @@ enum class DarkMode {
@@ -11832,7 +11832,7 @@ index bff834c..a75285d 100644
      FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED
  }
 diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
-index ae45302..6a7034b 100644
+index ae45302d..6a7034b5 100644
 --- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
 @@ -50,7 +50,9 @@ interface ArtistsDao {
@@ -11864,7 +11864,7 @@ index ae45302..6a7034b 100644
      @RawQuery(observedEntities = [ArtistEntity::class])
      fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>
 diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
-index 264e14e..900aaf7 100644
+index 264e14ea..900aaf7f 100644
 --- a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
 @@ -61,16 +61,23 @@ interface SongsDao {
@@ -11895,7 +11895,7 @@ index 264e14e..900aaf7 100644
      @Query("SELECT sum(count) from playCount WHERE song = :songId")
      fun getLifetimePlayCount(songId: String?): Int
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
-index 430dd5f..4872141 100644
+index 430dd5f8..48721417 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
 @@ -40,6 +40,7 @@ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
@@ -11934,7 +11934,7 @@ index 430dd5f..4872141 100644
              NavigationTitle(
                  title = stringResource(R.string.most_played_songs),
 diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
-index 6821f47..daccc10 100644
+index 6821f47a..daccc10b 100644
 --- a/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/StatsViewModel.kt
 @@ -2,6 +2,7 @@ package com.dd3boh.outertune.viewmodels
@@ -12026,7 +12026,7 @@ index 6821f47..daccc10 100644
              }
          }
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index a26b3be..3bc88bf 100644
+index a26b3be5..3bc88bf8 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -405,6 +405,8 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -12042,10 +12042,10 @@ index a26b3be..3bc88bf 100644
 2.43.0
 
 
-From 94f00cc88e03965f6f9b42ddd02a91a0cb94b785 Mon Sep 17 00:00:00 2001
+From 96e16dce7bc0670ac994374e0a40896d78fe2002 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 31/31] Position layout blocks by their centre, and allow
+Subject: [PATCH 31/36] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12067,7 +12067,7 @@ the pieces where a tilt reads as deliberate rather than broken.
  1 file changed, 13 insertions(+), 4 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
-index ee3a36c..641eb5f 100644
+index ee3a36c6..641eb5f5 100644
 --- a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
 @@ -42,10 +42,18 @@ data class PlayerLayout(
@@ -12112,6 +12112,2147 @@ index ee3a36c..641eb5f 100644
                  )
              }
              require(parsed.isNotEmpty()) { "None of the blocks in that file were recognised." }
+-- 
+2.43.0
+
+
+From f9746a61495e96fda7bbbc19dd288ecadd8f4aa4 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sat, 8 Aug 2026 11:15:41 +0000
+Subject: [PATCH 32/36] Keep word timings when the lenient TTML parser is used
+
+BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
+those go through the lenient parser in the betterlyrics module instead. That
+parser has always extracted word timings - it needs them to reconstruct a
+line's text out of syllable spans - but toLrc() then threw them away and
+emitted one timestamp per line, so a song recovered that way could only ever
+be highlighted line by line.
+
+toLrc() gains an enhanced mode that writes the words back out as Enhanced LRC
+("the A2 extension"): a <mm:ss.cc> sync point before each word, plus one after
+the last word to pin its end time rather than leaving the reader to estimate
+it from a characters-per-second average.
+
+Enhanced LRC rather than a schema change because lyrics are stored as a plain
+string. Nobody takes a Room migration, a line-level reader still sees ordinary
+LRC because it ignores the <...> marks, and providers that return plain LRC
+need no special casing - they simply have no marks. A line the encoding cannot
+represent safely (a word containing <, >, [ or ], or timings that run
+backwards) is written line-level, so a mixed document degrades per line.
+
+Plain mode is byte-identical to the previous output, and the tests assert that
+stripping every word mark from the enhanced form gives it back.
+---
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   |   8 +-
+ .../com/dd3boh/betterlyrics/TTMLParser.kt     |  90 ++++++++++--
+ .../com/dd3boh/betterlyrics/TTMLParserTest.kt | 130 ++++++++++++++++++
+ 3 files changed, 210 insertions(+), 18 deletions(-)
+ create mode 100644 betterlyrics/src/test/java/com/dd3boh/betterlyrics/TTMLParserTest.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index ad76bb88..46da1ff5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -197,9 +197,11 @@ class LyricsHelper @Inject constructor(
+      * path, into an UNPARSEABLE classification that discarded the result entirely. That is why
+      * BetterLyrics appeared not to work at all.
+      *
+-     * So: try the strict parsers first with errorText suppressed, keeping word-level karaoke timing
+-     * whenever they can read the document; otherwise re-read the TTML leniently and hand the strict
+-     * parser plain line-by-line LRC instead.
++     * So: try the strict parsers first with errorText suppressed; otherwise re-read the TTML
++     * leniently and hand the strict parser Enhanced LRC instead. The lenient re-read keeps the
++     * word timings it found — they survive the round trip as `<mm:ss.cc>` sync points — so a
++     * document only this parser can read still renders word by word rather than dropping to
++     * line-level.
+      */
+     private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
+         val strictOptions = parserOptions.copy(errorText = null)
+diff --git a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
+index 81d7f34c..077eb773 100644
+--- a/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
++++ b/betterlyrics/src/main/java/com/dd3boh/betterlyrics/TTMLParser.kt
+@@ -23,13 +23,20 @@ import javax.xml.parsers.DocumentBuilderFactory
+  *
+  * This parser is deliberately forgiving — it walks the DOM looking for `<p>` elements wherever they
+  * are, accepts unprefixed or `ttp:`-namespaced timing attributes, and falls back to the earliest
+- * child `<span>` when a line carries no `begin` of its own. [toLrc] then emits plain, standard LRC
+- * so the rest of the app can render it line by line with no special casing.
++ * child `<span>` when a line carries no `begin` of its own. [toLrc] then emits standard LRC so the
++ * rest of the app can render it with no special casing.
+  *
+- * Word-level timings are still parsed, because they are needed to reconstruct a line's text when it
+- * is split across syllable spans. They are not emitted: the strict parser above handles karaoke
+- * rendering when it can read the document, and this path exists to guarantee line-by-line lyrics
+- * when it cannot.
++ * Word-level timings are parsed both to reconstruct a line's text when it is split across syllable
++ * spans and, in [toLrc]'s enhanced mode, to be written back out as Enhanced LRC — the widely
++ * supported "A2 extension" that carries a `<mm:ss.xx>` sync point before each word:
++ *
++ * ```
++ * [00:21.10]<00:21.10>Never <00:21.62>gonna <00:22.05>give <00:22.48>you <00:22.79>up<00:23.20>
++ * ```
++ *
++ * A reader that only understands line-level LRC ignores the `<...>` marks and still sees an ordinary
++ * line, so this degrades on its own; OuterTune's own parser reads them back into word timings and
++ * renders the line word by word.
+  */
+ object TTMLParser {
+ 
+@@ -37,6 +44,9 @@ object TTMLParser {
+     private const val TTML_PARAMETER_NS = "http://www.w3.org/ns/ttml#parameter"
+     private const val TTML_METADATA_NS = "http://www.w3.org/ns/ttml#metadata"
+ 
++    /** Characters the LRC syntax gives meaning to, and so cannot appear inside an emitted word. */
++    private const val LRC_RESERVED = "<>[]\n\r"
++
+     data class ParsedLine(
+         val text: String,
+         val startTime: Double,
+@@ -109,18 +119,24 @@ object TTMLParser {
+     }
+ 
+     /**
+-     * Render [lines] as plain LRC: one `[mm:ss.cc]text` entry per line, in time order.
++     * Render [lines] as LRC: one `[mm:ss.cc]text` entry per line, in time order.
++     *
++     * With [enhanced] set, a line that carries word timings is written as Enhanced LRC instead —
++     * the same text, with a `<mm:ss.cc>` sync point before every word and one more after the last
++     * word to pin its end time. Lines without word timings are unaffected, so a mixed document
++     * (real TTML routinely has both) comes out mixed and each line degrades on its own. With
++     * [enhanced] unset the output is plain, line-level LRC.
+      *
+      * Background vocals become their own lines rather than being dropped, so a duet or an
+      * ad-libbed line still shows up. Speaker/agent information is discarded because standard LRC
+      * has no way to express it and OuterTune's renderer does not read it.
+      */
+-    fun toLrc(lines: List<ParsedLine>): String {
++    fun toLrc(lines: List<ParsedLine>, enhanced: Boolean = false): String {
+         val flat = mutableListOf<Pair<Double, String>>()
+         for (line in lines) {
+-            if (line.text.isNotBlank()) flat += line.startTime to line.text.trim()
++            if (line.text.isNotBlank()) flat += line.startTime to renderLine(line, enhanced)
+             for (bg in line.backgroundLines) {
+-                if (bg.text.isNotBlank()) flat += bg.startTime to bg.text.trim()
++                if (bg.text.isNotBlank()) flat += bg.startTime to renderLine(bg, enhanced)
+             }
+         }
+         if (flat.isEmpty()) return ""
+@@ -132,8 +148,52 @@ object TTMLParser {
+     }
+ 
+     /** Convenience: TTML straight to LRC, or null when nothing usable came out. */
+-    fun ttmlToLrc(ttml: String): String? =
+-        toLrc(parseTTML(ttml)).takeIf { it.isNotBlank() }
++    fun ttmlToLrc(ttml: String, enhanced: Boolean = true): String? =
++        toLrc(parseTTML(ttml), enhanced).takeIf { it.isNotBlank() }
++
++    /**
++     * The body of one LRC entry — everything after the `[mm:ss.cc]`.
++     *
++     * Plain mode, and any line the enhanced encoding cannot safely represent, yields the trimmed
++     * line text exactly as before. Otherwise the text is rebuilt from the words with a sync point
++     * in front of each, which keeps the emitted text and the emitted timings consistent by
++     * construction even for the aggregated background lines, whose [ParsedLine.text] and
++     * [ParsedLine.words] are assembled separately.
++     *
++     * A line is left alone when:
++     * - it has no word timings at all;
++     * - a word contains `<`, `>`, `[` or `]`, which the LRC syntax would read back as a tag and so
++     *   would corrupt the whole line rather than just losing its timings;
++     * - the word timings run backwards, which would make the per-word ranges nonsense.
++     */
++    private fun renderLine(line: ParsedLine, enhanced: Boolean): String {
++        val plain = line.text.trim()
++        if (!enhanced) return plain
++
++        val words = line.words
++        if (words.isEmpty()) return plain
++        if (words.any { word -> word.text.any { it in LRC_RESERVED } }) return plain
++        for (i in 1 until words.size) {
++            if (words[i].startTime < words[i - 1].startTime) return plain
++        }
++
++        return buildString {
++            words.forEachIndexed { i, word ->
++                append(formatLrcTime(word.startTime, '<', '>'))
++                append(word.text)
++                // Same spacing rule buildLineText uses, so the enhanced text reads identically to
++                // the plain one. A trailing hyphen means the next word continues this one.
++                if (word.hasTrailingSpace && !word.text.endsWith('-') && i < words.lastIndex) append(' ')
++            }
++            // One final sync point so the reader knows where the last word ends. Without it the
++            // reader has to estimate that from a characters-per-second average. Skipped when it
++            // would round to the last word's own start, which carries no information.
++            val last = words.last()
++            val start = formatLrcTime(last.startTime, '<', '>')
++            val end = formatLrcTime(last.endTime, '<', '>')
++            if (end != start && last.endTime > last.startTime) append(end)
++        }
++    }
+ 
+     // region DOM walking
+ 
+@@ -349,19 +409,19 @@ object TTMLParser {
+ 
+     // endregion
+ 
+-    private fun formatLrcTime(time: Double): String {
++    private fun formatLrcTime(time: Double, open: Char = '[', close: Char = ']'): String {
+         val ms = (time.coerceAtLeast(0.0) * 1000).toLong()
+         val minutes = ms / 60000
+         val seconds = (ms % 60000) / 1000
+         val centis = (ms % 1000) / 10
+         return buildString(12) {
+-            append('[')
++            append(open)
+             if (minutes < 10) append('0')
+             append(minutes).append(':')
+             if (seconds < 10) append('0')
+             append(seconds).append('.')
+             if (centis < 10) append('0')
+-            append(centis).append(']')
++            append(centis).append(close)
+         }
+     }
+ 
+diff --git a/betterlyrics/src/test/java/com/dd3boh/betterlyrics/TTMLParserTest.kt b/betterlyrics/src/test/java/com/dd3boh/betterlyrics/TTMLParserTest.kt
+new file mode 100644
+index 00000000..5d346a37
+--- /dev/null
++++ b/betterlyrics/src/test/java/com/dd3boh/betterlyrics/TTMLParserTest.kt
+@@ -0,0 +1,130 @@
++package com.dd3boh.betterlyrics
++
++import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++/**
++ * [TTMLParser.toLrc]'s two modes: plain LRC, unchanged from before enhanced output existed, and
++ * Enhanced LRC, which carries the word timings this parser already extracts.
++ *
++ * The invariant that matters most is that the two modes describe the *same words in the same
++ * order*: stripping every `<mm:ss.cc>` mark from the enhanced output has to give back the plain
++ * output. That is what lets a line-level reader treat the enhanced form as ordinary LRC.
++ */
++class TTMLParserTest {
++
++    private val wordMark = Regex("<\\d+:\\d{2}[.:]\\d+>")
++
++    private fun ttml(body: String) = """
++        <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata">
++          <body><div>$body</div></body>
++        </tt>
++    """.trimIndent()
++
++    private val syllableLine = ttml(
++        """<p begin="00:21.100" end="00:23.200">""" +
++            """<span begin="00:21.100" end="00:21.620">Never </span>""" +
++            """<span begin="00:21.620" end="00:22.050">gonna </span>""" +
++            """<span begin="00:22.050" end="00:22.480">give </span>""" +
++            """<span begin="00:22.480" end="00:22.790">you </span>""" +
++            """<span begin="00:22.790" end="00:23.200">up</span></p>"""
++    )
++
++    @Test
++    fun plainMode_isUnchangedByTheEnhancedFeature() {
++        assertEquals(
++            "[00:21.10]Never gonna give you up",
++            TTMLParser.toLrc(TTMLParser.parseTTML(syllableLine), enhanced = false)
++        )
++    }
++
++    @Test
++    fun enhancedMode_emitsAWordMarkPerWordAndAnEndMark() {
++        assertEquals(
++            "[00:21.10]<00:21.10>Never <00:21.62>gonna <00:22.05>give <00:22.48>you <00:22.79>up<00:23.20>",
++            TTMLParser.toLrc(TTMLParser.parseTTML(syllableLine), enhanced = true)
++        )
++    }
++
++    @Test
++    fun enhancedMode_strippedOfWordMarks_equalsPlainMode() {
++        val lines = TTMLParser.parseTTML(syllableLine)
++        assertEquals(
++            TTMLParser.toLrc(lines, enhanced = false),
++            TTMLParser.toLrc(lines, enhanced = true).replace(wordMark, "")
++        )
++    }
++
++    /**
++     * Real documents mix the two: some lines carry syllable spans, some are bare text. Each line has
++     * to degrade on its own rather than the whole document dropping to line level.
++     */
++    @Test
++    fun mixedDocument_keepsWordMarksOnlyWhereThereAreWords() {
++        val lrc = TTMLParser.ttmlToLrc(
++            ttml(
++                """<p begin="00:21.100" end="00:23.200">""" +
++                    """<span begin="00:21.100" end="00:21.620">Never </span>""" +
++                    """<span begin="00:21.620" end="00:22.050">gonna</span></p>""" +
++                    """<p begin="00:25.000" end="00:27.000">a bare line</p>"""
++            )
++        )!!.lines()
++
++        assertEquals(2, lrc.size)
++        assertEquals("[00:21.10]<00:21.10>Never <00:21.62>gonna<00:22.05>", lrc[0])
++        assertEquals("[00:25.00]a bare line", lrc[1])
++    }
++
++    /**
++     * A word containing a character the LRC syntax gives meaning to would be read back as a tag and
++     * corrupt the whole line, not merely lose its timing. Such a line stays line-level.
++     */
++    @Test
++    fun wordWithReservedCharacter_fallsBackToLineLevel() {
++        val lrc = TTMLParser.ttmlToLrc(
++            ttml("""<p begin="00:40.000" end="00:41.000"><span begin="00:40.000" end="00:41.000">a&lt;b</span></p>""")
++        )!!
++        assertFalse("no word mark should have been emitted", wordMark.containsMatchIn(lrc))
++        assertEquals("[00:40.00]a<b", lrc)
++    }
++
++    /**
++     * The end mark is what pins the last word's end time; without it a reader has to estimate it.
++     * It is pointless, though, when it rounds to the same centisecond as the word's own start.
++     */
++    @Test
++    fun endMarkIsOmittedWhenItWouldRepeatTheLastWordsStart() {
++        val lrc = TTMLParser.ttmlToLrc(
++            ttml("""<p begin="00:10.000"><span begin="00:10.000" end="00:10.003">hi</span></p>""")
++        )!!
++        assertEquals("[00:10.00]<00:10.00>hi", lrc)
++    }
++
++    @Test
++    fun backgroundVocalsGetTheirOwnEnhancedLine() {
++        val lrc = TTMLParser.ttmlToLrc(
++            ttml(
++                """<p begin="00:30.000">""" +
++                    """<span begin="00:30.000" end="00:30.400">hey</span>""" +
++                    """<span ttm:role="x-bg" begin="00:30.200" end="00:31.000">""" +
++                    """<span begin="00:30.200" end="00:31.000">(ooh)</span></span></p>"""
++            )
++        )!!.lines()
++
++        assertEquals(2, lrc.size)
++        assertTrue(lrc[0].startsWith("[00:30.00]<00:30.00>hey"))
++        assertTrue(lrc[1].startsWith("[00:30.20]<00:30.20>(ooh)"))
++    }
++
++    @Test
++    fun ttmlToLrc_isEnhancedByDefault() {
++        assertTrue(TTMLParser.ttmlToLrc(syllableLine)!!.contains("<00:21.62>"))
++    }
++
++    @Test
++    fun nonTtmlInput_yieldsNull() {
++        assertEquals(null, TTMLParser.ttmlToLrc("[00:01.00]not ttml at all"))
++    }
++}
+-- 
+2.43.0
+
+
+From 91a8c27bace9cfd1a236824ad3869fe1e8f86192 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sat, 8 Aug 2026 11:25:38 +0000
+Subject: [PATCH 33/36] Rewrite the word-by-word lyrics sweep
+
+The karaoke path measured nothing and guessed everything. Progress across a
+line was the fraction of words completed, so the highlight advanced in equal
+steps regardless of how wide each word actually was and drifted away from the
+voice on any line with uneven words. A wrapped line was handled by re-splitting
+the text on spaces and slicing the word list by the resulting word counts,
+which is only correct when the two agree; when they did not, words.first() on
+an empty slice threw, and a slice whose start ran past the end of the list threw
+before that. It also ignored the lyric alignment setting, so a wrapping
+line was left-aligned mid-song and jumped back to centre when it finished.
+
+Replaced with a renderer that asks the text layout where the characters are.
+The line is measured once, the playback position becomes a fractional character
+offset, and TextLayoutResult.getBoundingBox turns that into an x coordinate.
+Wrapping then needs no special case at all - a character on the third visual
+line reports a box on the third visual line - and shaping, kerning and
+alignment are whatever Text would have produced, because it is the same layout.
+The sweep itself is the bright text masked by a gradient at the boundary, so it
+reads as a light moving across the words rather than words changing colour.
+
+Two performance changes come with it. The position is read inside the draw
+lambda, so the clock ticking sixty times a second invalidates drawing and not
+composition; previously it was read during composition, which recomposed every
+visible lyric on every tick. And only the current line and the next one are
+drawn this way, which also removes the visible swap when a line becomes
+current, since an unswept line is drawn exactly as the plain path draws an
+upcoming one.
+
+The sweep is a pure function of the player's position rather than an animation
+running alongside it, so a seek lands where it should instead of unwinding from
+wherever the animation had got to. Between the player's own coarse position
+updates the wall clock carries it, re-latching whenever the player reports a
+new position.
+
+Also: the power-saver check was a binder call per lyric line per recomposition
+and is now made once; the scroll refresh no longer skips its whole tick while
+paused, so scrubbing moves the highlight; and lyricRefreshRate was a local
+reassigned from inside a LaunchedEffect that had already captured it, which
+never took effect.
+---
+ .../ui/component/KaraokeLyricLine.kt          | 227 +++++++++++++
+ .../dd3boh/outertune/ui/component/Lyrics.kt   | 312 ++++++------------
+ .../ui/component/RevealedCharOffsetTest.kt    | 104 ++++++
+ 3 files changed, 439 insertions(+), 204 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt
+ create mode 100644 app/src/test/java/com/dd3boh/outertune/ui/component/RevealedCharOffsetTest.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt
+new file mode 100644
+index 00000000..dfc983d9
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt
+@@ -0,0 +1,227 @@
++/*
++ * Copyright (C) 2026 O﻿ute﻿rTu﻿ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.ui.component
++
++import androidx.compose.foundation.Canvas
++import androidx.compose.foundation.layout.BoxWithConstraints
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.geometry.Rect
++import androidx.compose.ui.geometry.Size
++import androidx.compose.ui.graphics.BlendMode
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Paint
++import androidx.compose.ui.graphics.drawscope.clipRect
++import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
++import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.text.TextLayoutResult
++import androidx.compose.ui.text.TextStyle
++import androidx.compose.ui.text.drawText
++import androidx.compose.ui.text.rememberTextMeasurer
++import androidx.compose.ui.text.style.ResolvedTextDirection
++import androidx.compose.ui.unit.Constraints
++import org.akanework.gramophone.logic.utils.SemanticLyrics.Word
++import kotlin.math.floor
++import kotlin.math.max
++
++/**
++ * One lyric line drawn with a word-level illumination sweep.
++ *
++ * The line is painted twice: once dim, for the whole line, and once bright, masked so that only the
++ * part that has already been sung shows through. The boundary between the two moves with playback,
++ * with a short gradient across it so it reads as a light sweeping over the words rather than words
++ * switching colour one at a time.
++ *
++ * Three things make this behave where the obvious implementation does not:
++ *
++ * - **Real glyph geometry.** The boundary is a character offset, turned into an x coordinate with
++ *   [TextLayoutResult.getBoundingBox]. Nothing here assumes words are equally wide or re-measures
++ *   the text itself, so kerning, ligatures and shaping are exactly what [Text] would have produced,
++ *   and a line that wraps needs no special case: a wrapped line's characters simply report boxes on
++ *   the visual line they landed on.
++ *
++ * - **Draw-phase position reads.** [positionProvider] is called inside the draw lambda, so the
++ *   playback clock ticking sixty times a second invalidates drawing and nothing else. Reading it
++ *   during composition instead would recompose every visible lyric on every frame.
++ *
++ * - **Player-driven progress.** The sweep is a pure function of the position [positionProvider]
++ *   reports, with no animation running alongside it, so a seek lands exactly where it should
++ *   instead of unwinding from wherever an animation happened to be.
++ *
++ * Cost per frame is two text draws and one small layer for the line the boundary is on, regardless
++ * of how long the line is. Only lines near the playhead should be drawn this way; everything else
++ * is cheaper as a plain [Text].
++ *
++ * @param text the full line, as it should be displayed
++ * @param words word timings for [text], whose char ranges index into it
++ * @param style text style, including the alignment the line should be laid out with
++ * @param sungColor colour of the part already sung
++ * @param unsungColor colour of the rest of the line
++ * @param positionProvider current playback position in milliseconds; called once per drawn frame
++ */
++@Composable
++fun KaraokeLyricLine(
++    text: String,
++    words: List<Word>,
++    style: TextStyle,
++    sungColor: Color,
++    unsungColor: Color,
++    positionProvider: () -> Long,
++    modifier: Modifier = Modifier,
++) {
++    BoxWithConstraints(modifier = modifier.fillMaxWidth()) {
++        val widthPx = if (constraints.hasBoundedWidth) constraints.maxWidth else 0
++
++        // Without a width there is nothing to lay out against, and without text or timings there is
++        // nothing to sweep. Fall back rather than drawing a blank.
++        if (widthPx <= 0 || text.isEmpty() || words.isEmpty()) {
++            Text(text = text, style = style, color = unsungColor, modifier = Modifier.fillMaxWidth())
++            return@BoxWithConstraints
++        }
++
++        val measurer = rememberTextMeasurer()
++        val layout = remember(text, widthPx, style) {
++            measurer.measure(
++                text = text,
++                style = style,
++                constraints = Constraints(minWidth = widthPx, maxWidth = widthPx),
++                softWrap = true,
++            )
++        }
++
++        // Char ranges come from the lyric provider and are only as trustworthy as it is; a range
++        // that runs off the end of the text would make getBoundingBox throw mid-draw.
++        val safeWords = remember(text, words) {
++            words.filter { it.charRange.first in text.indices && it.charRange.last < text.length }
++        }
++        if (safeWords.isEmpty()) {
++            Text(text = text, style = style, color = unsungColor, modifier = Modifier.fillMaxWidth())
++            return@BoxWithConstraints
++        }
++
++        val heightDp = with(LocalDensity.current) { layout.size.height.toDp() }
++        val layerPaint = remember { Paint() }
++
++        Canvas(
++            modifier = Modifier
++                .fillMaxWidth()
++                .height(heightDp)
++        ) {
++            drawText(layout, color = unsungColor)
++
++            val reveal = revealedCharOffset(safeWords, text.length, positionProvider())
++            if (reveal <= 0f) return@Canvas
++
++            // The visual line the boundary sits on. Trailing whitespace is deliberately counted as
++            // part of the line it trails, so a boundary that lands exactly on a line's last space
++            // resolves against that line's geometry rather than the next line's.
++            var boundaryLine = -1
++            for (line in 0 until layout.lineCount) {
++                if (reveal < layout.getLineEnd(line).toFloat()) {
++                    boundaryLine = line
++                    break
++                }
++            }
++            if (boundaryLine == -1) {
++                drawText(layout, color = sungColor) // the whole line has been sung
++                return@Canvas
++            }
++
++            // Everything above the boundary line is fully sung and needs no mask.
++            val bandTop = layout.getLineTop(boundaryLine)
++            if (bandTop > 0f) {
++                clipRect(0f, 0f, size.width, bandTop) {
++                    drawText(layout, color = sungColor)
++                }
++            }
++
++            val bandBottom = layout.getLineBottom(boundaryLine)
++            val index = floor(reveal).toInt().coerceIn(0, text.length - 1)
++            val fraction = (reveal - index).coerceIn(0f, 1f)
++            val box = layout.getBoundingBox(index)
++
++            // Which way the sweep travels. A line mixing directions cannot have a single contiguous
++            // sung region at all, so the paragraph's own direction is the only sensible answer, and
++            // an embedded run of the other direction is at most one glyph out of step.
++            val rtl = layout.getParagraphDirection(index) == ResolvedTextDirection.Rtl
++            val boundaryX = if (rtl) box.right - box.width * fraction else box.left + box.width * fraction
++
++            // Soft edge scaled to the text size, so it looks the same at any lyric font size.
++            val edge = max((bandBottom - bandTop) * SOFT_EDGE_RATIO, 1f)
++            val gradient = Brush.horizontalGradient(
++                colors = if (rtl) listOf(Color.Transparent, Color.Black) else listOf(Color.Black, Color.Transparent),
++                startX = boundaryX - edge / 2f,
++                endX = boundaryX + edge / 2f,
++            )
++
++            // The bright pass for this band goes into its own layer so the gradient can be used as
++            // an alpha mask (DstIn keeps the destination, scaled by the mask's alpha) instead of
++            // being blended into the colour, which would wash the text out against the background.
++            drawIntoCanvas { canvas ->
++                val bounds = Rect(0f, bandTop, size.width, bandBottom)
++                canvas.saveLayer(bounds, layerPaint)
++                clipRect(0f, bandTop, size.width, bandBottom) {
++                    drawText(layout, color = sungColor)
++                }
++                drawRect(
++                    brush = gradient,
++                    topLeft = Offset(0f, bandTop),
++                    size = Size(size.width, bandBottom - bandTop),
++                    blendMode = BlendMode.DstIn,
++                )
++                canvas.restore()
++            }
++        }
++    }
++}
++
++/** Width of the gradient at the sweep's leading edge, as a fraction of the line's height. */
++private const val SOFT_EDGE_RATIO = 0.45f
++
++/**
++ * How much of the line has been sung at [positionMs], as a fractional character offset into a line
++ * of [textLength] characters.
++ *
++ * Within a word the offset advances evenly across that word's characters. Between words it holds
++ * still at the end of the word that just finished — the gap is whitespace, which has no ink, so the
++ * pause is invisible rather than looking like a stall.
++ *
++ * The result never moves backwards within a call, which keeps a provider that emits slightly
++ * overlapping words from making the sweep stutter.
++ */
++internal fun revealedCharOffset(words: List<Word>, textLength: Int, positionMs: Long): Float {
++    if (positionMs < 0 || words.isEmpty()) return 0f
++    val position = positionMs.toULong()
++
++    var revealed = 0f
++    for (word in words) {
++        val start = word.timeRange.first
++        if (position < start) break // not started; anything later has not started either
++
++        val from = word.charRange.first.toFloat()
++        val to = (word.charRange.last + 1).toFloat()
++        val end = word.timeRange.last
++        revealed = max(
++            revealed,
++            if (position >= end) {
++                to
++            } else {
++                val span = (end - start).coerceAtLeast(1uL).toFloat()
++                from + (to - from) * ((position - start).toFloat() / span)
++            }
++        )
++    }
++    return revealed.coerceIn(0f, textLength.toFloat())
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index 9d49f27d..1700c659 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -11,9 +11,6 @@ package com.dd3boh.outertune.ui.component
+ 
+ import android.annotation.SuppressLint
+ import android.content.res.Configuration
+-import androidx.compose.animation.core.LinearEasing
+-import androidx.compose.animation.core.animateFloatAsState
+-import androidx.compose.animation.core.tween
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxWithConstraints
+@@ -50,14 +47,11 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.snapshots.SnapshotStateList
++import androidx.compose.runtime.withFrameMillis
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.alpha
+-import androidx.compose.ui.draw.drawWithContent
+ import androidx.compose.ui.geometry.Offset
+-import androidx.compose.ui.graphics.RectangleShape
+-import androidx.compose.ui.graphics.drawscope.clipRect
+-import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+ import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+@@ -67,15 +61,11 @@ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.res.stringResource
+-import androidx.compose.ui.text.TextStyle
+ import androidx.compose.ui.text.font.FontWeight
+-import androidx.compose.ui.text.rememberTextMeasurer
+ import androidx.compose.ui.text.style.TextAlign
+-import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.Velocity
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+-import androidx.compose.ui.util.fastAny
+ import com.dd3boh.outertune.LocalMenuState
+ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
+@@ -128,7 +118,17 @@ fun Lyrics(
+     val lyricsClickable by rememberPreference(LyricClickable, true)
+     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
+     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+-    var lyricRefreshRate = lyricsUpdateSpeed.toLrcRefreshMillis()
++
++    // Asking the power manager costs a binder call, so it is asked once rather than once per lyric
++    // line per recomposition.
++    val powerSaver = remember { context.isPowerSaver() }
++    val karaokeEnabled = lyricsFancy && !powerSaver
++
++    // How often the *current line* is recomputed, which is what drives highlighting and scrolling.
++    // The word sweep does not go through here: it redraws itself every frame.
++    val lyricRefreshRate = remember(lyricsUpdateSpeed, karaokeEnabled) {
++        if (karaokeEnabled) lyricsUpdateSpeed.toLrcRefreshMillis() else Speed.SLOW.toLrcRefreshMillis()
++    }
+ 
+     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+ 
+@@ -150,14 +150,7 @@ fun Lyrics(
+         lines.clear()
+         lyricsModel?.let { model ->
+             if (isSynced) {
+-                val lyrics = lyricsModel as SemanticLyrics.SyncedLyrics
+-                lines.addAll(lyrics.text)
+-
+-                if (lyricsFancy && lyrics.text.fastAny { it.words != null }) {
+-                    lyricRefreshRate = lyricsUpdateSpeed.toLrcRefreshMillis()
+-                } else {
+-                    lyricRefreshRate = Speed.SLOW.toLrcRefreshMillis()
+-                }
++                lines.addAll((model as SemanticLyrics.SyncedLyrics).text)
+             } else {
+                 lines.add(
+                     LyricLine(
+@@ -165,7 +158,6 @@ fun Lyrics(
+                         null, null, false
+                     )
+                 )
+-                lyricRefreshRate = Speed.SLOW.toLrcRefreshMillis()
+             }
+         }
+     }
+@@ -188,7 +180,13 @@ fun Lyrics(
+     var isSeeking by remember {
+         mutableStateOf(false)
+     }
+-    var currentPos by remember { mutableLongStateOf(0L) }
++
++    /**
++     * Playback position for the word sweep. Held apart from [currentLineIndex] because it is only
++     * ever read from a draw lambda, so writing it every frame costs a redraw of the two or three
++     * lines around the playhead and no recomposition at all.
++     */
++    val karaokePosition = remember { mutableLongStateOf(0L) }
+ 
+     LaunchedEffect(lyricsModel) {
+         if (lyricsModel == null || !isSynced || (lyricsModel as SemanticLyrics.SyncedLyrics).text.isEmpty()) {
+@@ -198,11 +196,50 @@ fun Lyrics(
+         while (isActive) {
+             // TODO: likely can improve power usage by disabling lyric refresh
+             delay(lyricRefreshRate)
+-            if (!playerConnection.isPlaying.value) continue
+             val sliderPosition = sliderPositionProvider()
+             isSeeking = sliderPosition != null
++            // Scrubbing has to move the highlight even while paused, which is why this no longer
++            // skips the whole tick when the player is stopped.
++            if (!playerConnection.isPlaying.value && !isSeeking) continue
+             currentLineIndex = findCurrentLineIndex(lines, sliderPosition ?: playerConnection.player.currentPosition)
+-            currentPos = sliderPosition ?: playerConnection.player.currentPosition
++        }
++    }
++
++    /**
++     * Advance [karaokePosition] once per frame while the sweep is visible.
++     *
++     * ExoPlayer only moves `currentPosition` every few hundred milliseconds, so between its updates
++     * the wall clock carries the sweep: the last position the player actually reported is latched
++     * together with the time it was reported, and the difference is added on. A seek changes
++     * `currentPosition`, which re-latches on the very next frame, so the estimate never drifts
++     * further than one player tick and lands exactly right after a seek.
++     */
++    LaunchedEffect(lyricsModel, karaokeEnabled, isSynced) {
++        if (!karaokeEnabled || !isSynced || lyricsModel == null) return@LaunchedEffect
++        var latchedPosition = Long.MIN_VALUE
++        var latchedAt = 0L
++        while (isActive) {
++            val scrubbed = sliderPositionProvider()
++            if (scrubbed != null) {
++                karaokePosition.longValue = scrubbed
++                latchedPosition = Long.MIN_VALUE // re-latch against the player once the scrub ends
++            } else {
++                val now = System.currentTimeMillis()
++                val reported = playerConnection.player.currentPosition
++                if (reported != latchedPosition) {
++                    latchedPosition = reported
++                    latchedAt = now
++                }
++                karaokePosition.longValue =
++                    latchedPosition + if (playerConnection.player.isPlaying) now - latchedAt else 0L
++            }
++            // Frame-synced while something is moving, idle polling otherwise, so a paused player
++            // with the lyrics open does not hold the choreographer awake.
++            if (scrubbed != null || playerConnection.player.isPlaying) {
++                withFrameMillis { }
++            } else {
++                delay(IDLE_KARAOKE_REFRESH_MS)
++            }
+         }
+     }
+ 
+@@ -305,7 +342,6 @@ fun Lyrics(
+                     }
+                 }
+             } else if (lyricsModel != uninitializedLyric) {
+-                val maxW = maxWidth - 48.dp
+                 itemsIndexed(
+                     items = lines
+                 ) { index, item ->
+@@ -335,70 +371,53 @@ fun Lyrics(
+                             .clickable(enabled = isSynced && lyricsClickable) {
+                                 playerConnection.player.seekTo(item.start.toLong())
+                                 currentLineIndex = index
+-                                currentPos = item.start.toLong()
++                                karaokePosition.longValue = item.start.toLong()
+                                 lastPreviewTime = 0L
+                                 haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                             }
+                     ) {
+-                        if (currentPos.toULong() in item.start..item.end + 100.toULong() && lyricsFancy
+-                            && item.words != null && !context.isPowerSaver()
+-                        ) { // word by word
+-                            // now do eye bleach to make lyric line babies
+-                            val style = LocalTextStyle.current.copy(
+-                                fontSize = lyricsFontSize.sp,
+-                                color = textColor,
+-                                fontWeight = FontWeight.Bold
++                        val textAlign = when (lyricsTextPosition) {
++                            LyricsPosition.LEFT -> TextAlign.Left
++                            LyricsPosition.CENTER -> TextAlign.Center
++                            LyricsPosition.RIGHT -> TextAlign.Right
++                        }
++                        val isHighlighted =
++                            index == displayedCurrentLineIndex ||
++                                (index == displayedCurrentLineIndex + 1 && item.isTranslated)
++                        // Which lines are behind the playhead is decided by index rather than by
++                        // comparing the playback position, so the position does not have to be read
++                        // during composition and the whole list does not recompose as it advances.
++                        val isConsumed = displayedCurrentLineIndex >= 0 && index < displayedCurrentLineIndex
++
++                        val words = item.words
++                        // The line being sung and the one after it, and nothing else. Taking the
++                        // next line too means a line is already being drawn this way before it
++                        // starts, so there is no swap at the moment it does - and an unswept line
++                        // is drawn exactly as the plain path draws an upcoming one, so the two are
++                        // indistinguishable. Every other line is cheaper as a plain Text.
++                        val karaoke = karaokeEnabled && isSynced && !words.isNullOrEmpty() &&
++                            displayedCurrentLineIndex >= 0 &&
++                            (index == displayedCurrentLineIndex || index == displayedCurrentLineIndex + 1)
++
++                        if (karaoke) {
++                            KaraokeLyricLine(
++                                text = item.text,
++                                words = words.orEmpty(),
++                                style = LocalTextStyle.current.copy(
++                                    fontSize = lyricFontSizeAdjusted.sp,
++                                    fontWeight = FontWeight.Bold,
++                                    textAlign = textAlign,
++                                ),
++                                sungColor = textColor,
++                                unsungColor = textColor.copy(alpha = UNSUNG_ALPHA),
++                                positionProvider = { karaokePosition.longValue },
+                             )
+-                            val rawSplitLines = splitTextToLines(item.text, style, maxW)
+-                            val lyricLines = ArrayList<LyricLine>()
+-                            if (rawSplitLines.size > 1) {
+-                                var from = 0
+-                                for (i in rawSplitLines) {
+-                                    val to = from + i.split(' ').size
+-                                    val words = item.words.subList(from, to.coerceIn(from, item.words.size))
+-                                    lyricLines.add(
+-                                        item.copy(
+-                                            text = i,
+-                                            start = words.first().timeRange.start,
+-                                            end = words.last().timeRange.endInclusive,
+-                                            words = words
+-                                        )
+-                                    )
+-                                    from = to
+-                                }
+-                            } else {
+-                                lyricLines.add(item)
+-                            }
+-
+-
+-                            lyricLines.forEach {
+-                                HorizontalReveal(
+-                                    progress = calculateLineProgress(it, currentPos),
+-                                    modifier = Modifier
+-                                ) {
+-                                    Text(
+-                                        text = it.text,
+-                                        fontSize = lyricFontSizeAdjusted.sp,
+-                                        color = textColor,
+-                                        fontWeight = FontWeight.Bold
+-                                    )
+-                                }
+-                            }
+-
+-
+-                        } else { // regular
+-                            val isConsumed = currentPos.toULong() > (item.end + 100.toULong())
+-                            val isHighlighted =
+-                                ((index == displayedCurrentLineIndex || (index == displayedCurrentLineIndex + 1 && item.isTranslated)))
++                        } else {
+                             Text(
+                                 text = item.text,
+                                 fontSize = lyricFontSizeAdjusted.sp,
+                                 color = if (isConsumed && !isHighlighted) prevTextColor else textColor,
+-                                textAlign = when (lyricsTextPosition) {
+-                                    LyricsPosition.LEFT -> TextAlign.Left
+-                                    LyricsPosition.CENTER -> TextAlign.Center
+-                                    LyricsPosition.RIGHT -> TextAlign.Right
+-                                },
++                                textAlign = textAlign,
+                                 fontWeight = FontWeight.Bold,
+                                 modifier = Modifier.alpha(
+                                     if (!isSynced || isHighlighted) {
+@@ -484,80 +503,6 @@ fun Lyrics(
+     }
+ }
+ 
+-@Composable
+-fun HorizontalReveal(
+-    progress: Float,
+-    modifier: Modifier = Modifier,
+-    backgroundAlpha: Float = 0.5f,
+-    rtl: Boolean = false,
+-    content: @Composable () -> Unit
+-) {
+-    val animatedProgress by animateFloatAsState(
+-        targetValue = progress.coerceIn(0f, 1f),
+-        animationSpec = tween(durationMillis = 100, easing = LinearEasing)
+-    )
+-
+-    Box(modifier = modifier.padding(start = 1.dp)) {
+-        Box(modifier = Modifier.alpha(backgroundAlpha)) {
+-            content()
+-        }
+-
+-        Box(
+-            modifier = Modifier
+-                .graphicsLayer {
+-                    clip = true
+-                    shape = RectangleShape
+-                }
+-                .drawWithContent {
+-                    val clipWidth = size.width * animatedProgress
+-                    val left = if (!rtl) 0f else size.width - clipWidth
+-                    val right = if (!rtl) clipWidth else size.width
+-                    clipRect(left, 0f, right, size.height) {
+-                        this@drawWithContent.drawContent()
+-                    }
+-                }
+-        ) {
+-            content()
+-        }
+-    }
+-}
+-
+-@Composable
+-fun splitTextToLines(
+-    text: String,
+-    style: TextStyle,
+-    maxWidth: Dp
+-): List<String> {
+-    val textMeasurer = rememberTextMeasurer()
+-    val density = LocalDensity.current
+-
+-    val words = text.split(" ")
+-    val lines = mutableListOf<String>()
+-    var currentLine = ""
+-
+-    for (word in words) {
+-        val tentativeLine = if (currentLine.isEmpty()) word else "$currentLine $word"
+-        val tentativeWidth = with(density) {
+-            textMeasurer.measure(
+-                tentativeLine, style,
+-            ).size.width.toDp()
+-        }
+-
+-        if (tentativeWidth < maxWidth) {
+-            currentLine = tentativeLine
+-        } else {
+-            lines.add(currentLine)
+-            currentLine = word
+-        }
+-    }
+-
+-    if (currentLine.isNotEmpty()) {
+-        lines.add(currentLine)
+-    }
+-
+-    return lines
+-}
+-
+ /**
+  * Get current position in lyric line list
+  */
+@@ -570,55 +515,14 @@ fun findCurrentLineIndex(lines: List<LyricLine>, position: Long): Int {
+     return if (lines[lines.lastIndex].isTranslated) lines.lastIndex - 1 else lines.lastIndex
+ }
+ 
+-/**
+- * Get current position in lyric line. Used for word by word lyrics
+- */
+-fun calculateLineProgress(line: LyricLine, currentPositionMs: Long): Float {
+-    val words = line.words
+-    val startMs = line.start.toLong()
+-    val endMs = line.end.toLong()
+-
+-    // by line if no words are available
+-    if (words.isNullOrEmpty()) {
+-        return when {
+-            currentPositionMs < startMs -> 0f
+-            currentPositionMs > endMs -> 1f // add buffer so lyric line animation completes
+-            else -> (currentPositionMs - startMs).toFloat() / (endMs - startMs).toFloat()
+-        }
+-    }
+-
+-    // progress based on words
+-    val currentMs = currentPositionMs.toULong()
+-    var completedWords = 0
+-    var partialProgress = 0f
+-
+-    return when {
+-        currentPositionMs < startMs -> 0f
+-        currentPositionMs > endMs -> 1f // add buffer so lyric line animation completes
+-        else -> {
+-            for (i in words.indices) {
+-                val word = words[i]
+-                val start = word.timeRange.first
+-                val end = word.timeRange.last
+-
+-                if (currentMs < start) {
+-                    break // we're before this word
+-                } else if (currentMs in word.timeRange) {
+-                    val wordDuration = (end - start).coerceAtLeast(1u).toFloat()
+-                    partialProgress = (currentMs - start).toFloat() / wordDuration
+-                    completedWords = i
+-                    break
+-                } else {
+-                    completedWords++
+-                }
+-            }
+-
+-            val totalWords = words.size.toFloat()
+-            var progress = (completedWords + partialProgress) / totalWords
+-            progress.coerceIn(0f, 1f)
+-        }
+-    }
+-}
+-
+ const val animateScrollDuration = 300L
+ val LyricsPreviewTime = 7.seconds
++
++/** How dim the not-yet-sung part of a karaoke line is, relative to the sung part. */
++private const val UNSUNG_ALPHA = 0.5f
++
++/**
++ * How often the karaoke position is refreshed when nothing is moving. Only exists so that a seek
++ * made while paused still lands on screen; the sweep is frame-synced whenever it is actually moving.
++ */
++private const val IDLE_KARAOKE_REFRESH_MS = 250L
+diff --git a/app/src/test/java/com/dd3boh/outertune/ui/component/RevealedCharOffsetTest.kt b/app/src/test/java/com/dd3boh/outertune/ui/component/RevealedCharOffsetTest.kt
+new file mode 100644
+index 00000000..c9a8384c
+--- /dev/null
++++ b/app/src/test/java/com/dd3boh/outertune/ui/component/RevealedCharOffsetTest.kt
+@@ -0,0 +1,104 @@
++package com.dd3boh.outertune.ui.component
++
++import org.akanework.gramophone.logic.utils.SemanticLyrics.Word
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++/**
++ * [revealedCharOffset] is the whole of the karaoke sweep's timing model: everything the renderer
++ * draws follows from the character offset this returns for a playback position.
++ *
++ * The text these ranges describe is "Never gonna give", laid out the way the lyric parser produces
++ * it — a word's char range covers the word only, never the space after it.
++ */
++class RevealedCharOffsetTest {
++
++    private val text = "Never gonna give"
++    private val words = listOf(
++        Word(timeRange = 1000uL..1499uL, charRange = 0..4, isRtl = false),   // Never
++        Word(timeRange = 2000uL..2499uL, charRange = 6..10, isRtl = false),  // gonna
++        Word(timeRange = 2500uL..2999uL, charRange = 12..15, isRtl = false), // give
++    )
++
++    private fun at(positionMs: Long) = revealedCharOffset(words, text.length, positionMs)
++
++    @Test
++    fun beforeTheFirstWord_nothingIsRevealed() {
++        assertEquals(0f, at(0), 0.001f)
++        assertEquals(0f, at(999), 0.001f)
++    }
++
++    @Test
++    fun negativePosition_isTreatedAsTheStart() {
++        assertEquals(0f, at(-5000), 0.001f)
++    }
++
++    @Test
++    fun withinAWord_theOffsetAdvancesEvenlyAcrossItsCharacters() {
++        // "Never" spans chars 0..4, so the whole word is 5 characters wide.
++        assertEquals(0f, at(1000), 0.001f)
++        assertEquals(2.5f, at(1250), 0.02f)
++        assertEquals(5f, at(1499), 0.02f)
++    }
++
++    /**
++     * Between words the offset holds at the end of the word that just finished. The gap is the
++     * space between them, which has no ink, so holding still there is invisible - whereas creeping
++     * through it would put the boundary inside the next word before it has been sung.
++     */
++    @Test
++    fun betweenWords_theOffsetHoldsAtTheEndOfTheFinishedWord() {
++        assertEquals(5f, at(1500), 0.001f)
++        assertEquals(5f, at(1750), 0.001f)
++        assertEquals(5f, at(1999), 0.001f)
++    }
++
++    @Test
++    fun theOffsetJumpsToTheNextWordsFirstCharacterWhenItStarts() {
++        assertEquals(6f, at(2000), 0.001f)
++    }
++
++    @Test
++    fun afterTheLastWord_theWholeLineIsRevealed() {
++        assertEquals(16f, at(3000), 0.001f)
++        assertEquals(16f, at(600_000), 0.001f)
++    }
++
++    @Test
++    fun theOffsetIsClampedToTheTextLength() {
++        // A provider whose last char range runs past the text must not push the boundary out of the
++        // layout, which would make the renderer ask for a bounding box that does not exist.
++        val overrunning = listOf(Word(timeRange = 1000uL..1499uL, charRange = 0..99, isRtl = false))
++        assertEquals(text.length.toFloat(), revealedCharOffset(overrunning, text.length, 5000), 0.001f)
++    }
++
++    /**
++     * Some providers emit words whose ranges overlap by a few milliseconds. Taking the maximum
++     * keeps the sweep monotonic instead of letting it flick backwards on those frames.
++     */
++    @Test
++    fun overlappingWords_neverMoveTheOffsetBackwards() {
++        val overlapping = listOf(
++            Word(timeRange = 1000uL..2000uL, charRange = 0..4, isRtl = false),
++            Word(timeRange = 1900uL..2400uL, charRange = 6..10, isRtl = false),
++        )
++        val early = revealedCharOffset(overlapping, text.length, 1950)
++        val late = revealedCharOffset(overlapping, text.length, 1990)
++        assertEquals(true, late >= early)
++        assertEquals(true, early >= 5f)
++    }
++
++    @Test
++    fun noWords_revealsNothing() {
++        assertEquals(0f, revealedCharOffset(emptyList(), text.length, 5000), 0.001f)
++    }
++
++    /**
++     * A zero-length word would otherwise divide by zero. It is treated as instantaneous.
++     */
++    @Test
++    fun zeroLengthWord_doesNotProduceANonFiniteOffset() {
++        val instant = listOf(Word(timeRange = 1000uL..1000uL, charRange = 0..4, isRtl = false))
++        assertEquals(5f, revealedCharOffset(instant, text.length, 1000), 0.001f)
++    }
++}
+-- 
+2.43.0
+
+
+From 1fc100ec75b62ec88f56e1fcf4d0daeb4d30f44c Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sat, 8 Aug 2026 11:33:21 +0000
+Subject: [PATCH 34/36] Fix the shazamkit build: requestTimeout is not an
+ OkHttp setting
+
+:shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
+which stopped the whole build before the app module was even reached.
+
+The client is built with HttpClient(OkHttp), so the engine { } block is an
+OkHttpConfig. requestTimeout belongs to CIO's engine config, not OkHttp's -
+OkHttp exposes its own timeouts through config { } on the underlying builder.
+The engine-independent way to say this is the HttpTimeout plugin, which is what
+:betterlyrics and :kizzy in this project already use, so shazamkit now does the
+same. Connect and socket timeouts come with it, so a stalled connection cannot
+sit there for the full request budget.
+---
+ .../src/main/java/com/dd3boh/shazamkit/Shazam.kt     | 12 +++++++++---
+ 1 file changed, 9 insertions(+), 3 deletions(-)
+
+diff --git a/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt b/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
+index 156d94ca..a909d4d5 100644
+--- a/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
++++ b/shazamkit/src/main/java/com/dd3boh/shazamkit/Shazam.kt
+@@ -6,6 +6,7 @@ import com.dd3boh.shazamkit.models.ShazamResponseJson
+ import io.ktor.client.HttpClient
+ import io.ktor.client.call.body
+ import io.ktor.client.engine.okhttp.OkHttp
++import io.ktor.client.plugins.HttpTimeout
+ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+ import io.ktor.client.request.header
+ import io.ktor.client.request.parameter
+@@ -78,9 +79,14 @@ object Shazam {
+                 )
+             }
+             expectSuccess = false
+-            
+-            engine {
+-                requestTimeout = 30000
++
++            // requestTimeout is a CIO engine setting and does not exist on OkHttp's engine config,
++            // so configuring the timeout here is what failed to compile. HttpTimeout is the
++            // engine-independent plugin, and is what the other ktor clients in this project use.
++            install(HttpTimeout) {
++                requestTimeoutMillis = 30000
++                connectTimeoutMillis = 10000
++                socketTimeoutMillis = 30000
+             }
+         }
+     }
+-- 
+2.43.0
+
+
+From 4ab3440c614b49521e4f3052d5c230a9cabdf632 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sat, 8 Aug 2026 11:33:37 +0000
+Subject: [PATCH 35/36] Let the user choose which lyric provider is preferred
+
+Lyrics came from whichever of the six providers answered first with a synced
+result. That is the fastest way to get lyrics and it is the right default, but
+it gives the user no way to say "I want LrcLib's version of this song", and no
+way to keep a provider they dislike from winning simply because it is quick.
+
+Two settings, in the lyric sources section:
+
+Provider selection, Automatic or In my order. Automatic is exactly today's
+behaviour. In my order asks the providers one at a time from the top and takes
+the first synced result. It is slower on purpose - that is the trade being
+offered, and racing the tail of the list to hide it would defeat the point.
+
+Provider priority, a drag-to-reorder list. The order is stored as a comma-
+joined list of provider ids. Ids that name nothing are ignored and providers
+the stored order does not mention keep their built-in position and go last, so
+a stored order written before a provider existed leaves the newcomer at the end
+rather than hiding it, and one written before a provider was removed still
+works. Reordering is only written back when the dialog is confirmed, so an
+abandoned drag does not silently change which provider answers.
+
+The order also decides how the alternate-lyrics picker lists its candidates,
+which is useful even in automatic mode - so the reorder list is available in
+both, and the dialog says which of the two it is currently affecting.
+
+providerSignature now carries the mode and the enabled ids, so a cached miss
+recorded under one configuration is not served under another. The ids are in
+the user's order in manual mode, where order changes which provider answers,
+and sorted in automatic mode, where it does not - reordering there should not
+throw away caches that are still perfectly valid.
+
+Going in order also needs its own time budget. The racing cap of 12 seconds
+applies to all providers at once; applied to a sequential walk it would mean
+the last entries in the user's order were simply never asked. The budget is
+per-provider instead, and a provider that runs out of time reports nothing at
+all, which leaves the result indeterminate rather than writing a negative cache
+the providers below it never got to contradict.
+---
+ .../outertune/constants/PreferenceKeys.kt     |  10 +
+ .../dd3boh/outertune/constants/Settings.kt    |  12 +
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   | 318 ++++++++++++------
+ .../dd3boh/outertune/lyrics/LyricsProvider.kt |  16 +
+ .../screens/settings/fragments/LyricFrag.kt   | 135 ++++++++
+ app/src/main/res/values/strings-ot.xml        |   6 +
+ .../outertune/lyrics/ProviderOrderTest.kt     |  71 ++++
+ 7 files changed, 464 insertions(+), 104 deletions(-)
+ create mode 100644 app/src/test/java/com/dd3boh/outertune/lyrics/ProviderOrderTest.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index ebbc1923..c799f0f5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -117,6 +117,16 @@ val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
+ val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
+ val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")
+ 
++/**
++ * How the remote lyric providers are consulted, and in what order.
++ *
++ * The order is a comma-joined list of provider ids. Ids that are not recognised are ignored and
++ * providers missing from the list are appended in their built-in order, so the preference survives
++ * a provider being added, renamed or removed. Empty means "the built-in order".
++ */
++val LyricsFetchModeKey = stringPreferencesKey("lyricsFetchMode")
++val LyricsProviderOrderKey = stringPreferencesKey("lyricsProviderOrder")
++
+ 
+ /**
+  * Storage
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index a75285d3..8549e442 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -245,6 +245,18 @@ enum class SearchSource {
+     LOCAL, ONLINE
+ }
+ 
++/**
++ * How remote lyric providers are consulted for one song.
++ *
++ * [AUTO] asks every enabled provider at once and takes the first synced result to come back, which
++ * is the fastest way to get lyrics and gives no weight to which provider they came from. [MANUAL]
++ * walks the user's order one provider at a time and stops at the first synced result, which is
++ * slower - deliberately so, because being able to say which provider is preferred is the point.
++ */
++enum class LyricsFetchMode {
++    AUTO, MANUAL
++}
++
+ enum class Speed {
+     SLOW, MEDIUM, FAST;
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 46da1ff5..7eaa07d3 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -6,6 +6,9 @@ import android.util.LruCache
+ import com.dd3boh.betterlyrics.TTMLParser
+ import com.dd3boh.outertune.constants.LyricSourcePrefKey
+ import com.dd3boh.outertune.constants.LyricTrimKey
++import com.dd3boh.outertune.constants.LyricsFetchMode
++import com.dd3boh.outertune.constants.LyricsFetchModeKey
++import com.dd3boh.outertune.constants.LyricsProviderOrderKey
+ import com.dd3boh.outertune.constants.MultilineLrcKey
+ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.db.entities.LyricsEntity
+@@ -45,15 +48,7 @@ class LyricsHelper @Inject constructor(
+     @ApplicationContext private val context: Context,
+     val database: MusicDatabase
+ ) {
+-    private val lyricsProviders =
+-        listOf(
+-            SimpMusicLyricsProvider,
+-            BetterLyricsProvider,
+-            LrcLibLyricsProvider,
+-            KuGouLyricsProvider,
+-            YouTubeLyricsProvider,
+-            YouTubeSubtitleLyricsProvider,
+-        )
++    private val lyricsProviders = REMOTE_LYRICS_PROVIDERS
+     private val cache = LruCache<String, List<LyricsResult>>(MAX_CACHE_SIZE)
+ 
+     /**
+@@ -254,14 +249,58 @@ class LyricsHelper @Inject constructor(
+             LyricsFetchResult.Failed(e)
+         }
+ 
++    /**
++     * Run one provider lookup with a timeout, and log how it went.
++     *
++     * A timeout is reported as [LyricsFetchResult.Failed] rather than an absence, so a provider that
++     * was merely slow can never contribute to a negative cache.
++     */
++    private suspend fun runProvider(
++        provider: LyricsProvider,
++        mediaMetadata: MediaMetadata,
++        artistName: String,
++        role: LyricsFetchRole,
++        timeoutMs: Long,
++    ): LyricsFetchResult {
++        val t0 = System.currentTimeMillis()
++        val result = withTimeoutOrNull(timeoutMs) { provider.fetchIsolated(mediaMetadata, artistName) }
++        val elapsed = System.currentTimeMillis() - t0
++        return when (result) {
++            null -> {
++                Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: timeout after ${timeoutMs}ms")
++                LyricsFetchResult.Failed()
++            }
++
++            is LyricsFetchResult.Found -> {
++                Log.d(TAG, "${provider.name} SUCCESS in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
++                result
++            }
++
++            LyricsFetchResult.NotFound -> {
++                Log.d(TAG, "${provider.name} NOT_FOUND in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
++                result
++            }
++
++            is LyricsFetchResult.Failed -> {
++                Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: ${result.cause?.message}")
++                result
++            }
++        }
++    }
++
+     /**
+      * Lookup lyrics from remote providers.
+      *
+-     * Every provider in [selection] runs at once. Results are judged as they arrive: the first synced
+-     * result wins immediately and the remaining providers are cancelled; an unsynced result is kept as
+-     * a fallback and used only if no synced result arrives before every provider finishes or the overall
+-     * timeout is reached. Each provider has an individual timeout; the whole resolution is bounded by an
+-     * overall cap.
++     * In [LyricsFetchMode.AUTO] every provider in [selection] runs at once and results are judged as
++     * they arrive: the first synced result wins immediately and the remaining providers are
++     * cancelled. In [LyricsFetchMode.MANUAL] the providers are tried one at a time in the user's
++     * order and the first synced result wins; nothing is raced, because the whole point of an order
++     * is that the earlier entries are preferred even when a later one would have answered sooner. In
++     * both modes an unsynced result is kept as a fallback and used only if no synced result turns up.
++     *
++     * Each provider has an individual timeout, and the resolution as a whole is bounded: by a fixed
++     * cap when racing, and by a per-provider budget when going in order, since a fixed cap there
++     * would quietly mean the last entries in the user's order never get asked at all.
+      *
+      * The possible outcomes are: [RemoteLyricsResult.Found] when a usable result was adopted,
+      * [RemoteLyricsResult.DefinitiveNotFound] only when every provider reported a definitive absence,
+@@ -294,96 +333,125 @@ class LyricsHelper @Inject constructor(
+         // synthesized UnsyncedLyrics; the user-facing errorText is only used by the display path.
+         val verifyOptions = getParserOptions().copy(errorText = null)
+ 
+-        return coroutineScope {
+-            val channel = Channel<ProviderOutcome>(Channel.UNLIMITED)
+-            val fetchJobs = enabled.map { provider ->
+-                launch {
+-                    val t0 = System.currentTimeMillis()
+-                    val result = withTimeoutOrNull(PROVIDER_TIMEOUT_MS) {
+-                        provider.fetchIsolated(mediaMetadata, artistName)
+-                    }
+-                    val elapsed = System.currentTimeMillis() - t0
+-                    val outcome: LyricsFetchResult = when (result) {
+-                        null -> {
+-                            Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: timeout after ${PROVIDER_TIMEOUT_MS}ms")
+-                            LyricsFetchResult.Failed()
+-                        }
+-
+-                        is LyricsFetchResult.Found -> {
+-                            Log.d(TAG, "${provider.name} SUCCESS in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
+-                            result
+-                        }
+-
+-                        LyricsFetchResult.NotFound -> {
+-                            Log.d(TAG, "${provider.name} NOT_FOUND in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}")
+-                            result
+-                        }
+-
+-                        is LyricsFetchResult.Failed -> {
+-                            Log.d(TAG, "${provider.name} FAILURE in ${elapsed}ms videoId=${mediaMetadata.id} role=${role.log}: ${result.cause?.message}")
+-                            result
+-                        }
+-                    }
+-                    channel.send(ProviderOutcome(provider.name, outcome))
+-                }
++        val aggregator = RemoteLyricsAggregator(enabled.size)
++        // Classify a Found result for adoption. errorText = null means an unparseable input surfaces
++        // as null or an exception rather than a synthesized UnsyncedLyrics.
++        val classifyFound: (String) -> FoundKind = { raw ->
++            val parsed = try {
++                parseResilient(raw, verifyOptions)
++            } catch (e: CancellationException) {
++                throw e
++            } catch (e: Exception) {
++                null
+             }
+-            // Close the channel once every provider has reported so exhaustion is detected promptly
+-            // instead of waiting for the overall timeout.
+-            val closer = launch {
+-                fetchJobs.joinAll()
+-                channel.close()
++            when (parsed) {
++                is SemanticLyrics.SyncedLyrics -> FoundKind.SYNCED
++                is SemanticLyrics.UnsyncedLyrics -> FoundKind.UNSYNCED
++                null -> FoundKind.UNPARSEABLE
+             }
++        }
++        val deadline = start + when (selection.mode) {
++            LyricsFetchMode.AUTO -> OVERALL_TIMEOUT_MS
++            LyricsFetchMode.MANUAL -> enabled.size * MANUAL_TIMEOUT_PER_PROVIDER_MS
++        }
+ 
+-            val aggregator = RemoteLyricsAggregator(enabled.size)
+-            // Classify a Found result for adoption. errorText = null means an unparseable input surfaces
+-            // as null or an exception rather than a synthesized UnsyncedLyrics.
+-            val classifyFound: (String) -> FoundKind = { raw ->
+-                val parsed = try {
+-                    parseResilient(raw, verifyOptions)
+-                } catch (e: CancellationException) {
+-                    throw e
+-                } catch (e: Exception) {
+-                    null
+-                }
+-                when (parsed) {
+-                    is SemanticLyrics.SyncedLyrics -> FoundKind.SYNCED
+-                    is SemanticLyrics.UnsyncedLyrics -> FoundKind.UNSYNCED
+-                    null -> FoundKind.UNPARSEABLE
+-                }
+-            }
+-            val deadline = start + OVERALL_TIMEOUT_MS
++        when (selection.mode) {
++            LyricsFetchMode.AUTO ->
++                raceProviders(enabled, mediaMetadata, artistName, role, deadline, aggregator, classifyFound)
+ 
+-            try {
+-                while (true) {
+-                    val remaining = deadline - System.currentTimeMillis()
+-                    if (remaining <= 0) break
+-                    val outcome = withTimeoutOrNull(remaining) {
+-                        channel.receiveCatching().getOrNull()
+-                    } ?: break // overall timeout, or every provider has reported
+-                    // A synced result was adopted: stop and cancel the remaining providers.
+-                    if (aggregator.offer(outcome.providerName, outcome.result, classifyFound)) break
+-                }
+-            } finally {
+-                fetchJobs.forEach { it.cancel() }
+-                closer.cancel()
+-                channel.close()
+-            }
++            LyricsFetchMode.MANUAL ->
++                askProvidersInOrder(enabled, mediaMetadata, artistName, role, deadline, aggregator, classifyFound)
++        }
++
++        val totalMs = System.currentTimeMillis() - start
++        val result = aggregator.result()
++        when (result) {
++            is RemoteLyricsResult.Found ->
++                Log.d(TAG, "adopted: videoId=${mediaMetadata.id} role=${role.log} provider=${result.provider} synced=${result.synced} mode=${selection.mode} total=${totalMs}ms")
+ 
+-            val totalMs = System.currentTimeMillis() - start
+-            val result = aggregator.result()
+-            when (result) {
+-                is RemoteLyricsResult.Found ->
+-                    Log.d(TAG, "adopted: videoId=${mediaMetadata.id} role=${role.log} provider=${result.provider} synced=${result.synced} total=${totalMs}ms")
++            RemoteLyricsResult.DefinitiveNotFound ->
++                Log.d(TAG, "end: not found videoId=${mediaMetadata.id} role=${role.log} mode=${selection.mode} total=${totalMs}ms")
+ 
+-                RemoteLyricsResult.DefinitiveNotFound ->
+-                    Log.d(TAG, "end: not found videoId=${mediaMetadata.id} role=${role.log} total=${totalMs}ms")
++            RemoteLyricsResult.Indeterminate ->
++                Log.d(TAG, "end: indeterminate videoId=${mediaMetadata.id} role=${role.log} mode=${selection.mode} total=${totalMs}ms")
+ 
+-                RemoteLyricsResult.Indeterminate ->
+-                    Log.d(TAG, "end: indeterminate videoId=${mediaMetadata.id} role=${role.log} total=${totalMs}ms")
++            RemoteLyricsResult.Skipped -> {} // handled above
++        }
++        return result
++    }
+ 
+-                RemoteLyricsResult.Skipped -> {} // handled above
++    /**
++     * [LyricsFetchMode.AUTO]: start every provider at once and fold outcomes into [aggregator] as
++     * they arrive, stopping as soon as one is adopted.
++     */
++    private suspend fun raceProviders(
++        providers: List<LyricsProvider>,
++        mediaMetadata: MediaMetadata,
++        artistName: String,
++        role: LyricsFetchRole,
++        deadline: Long,
++        aggregator: RemoteLyricsAggregator,
++        classifyFound: (String) -> FoundKind,
++    ) = coroutineScope {
++        val channel = Channel<ProviderOutcome>(Channel.UNLIMITED)
++        val fetchJobs = providers.map { provider ->
++            launch {
++                val outcome = runProvider(provider, mediaMetadata, artistName, role, PROVIDER_TIMEOUT_MS)
++                channel.send(ProviderOutcome(provider.name, outcome))
+             }
+-            result
++        }
++        // Close the channel once every provider has reported so exhaustion is detected promptly
++        // instead of waiting for the overall timeout.
++        val closer = launch {
++            fetchJobs.joinAll()
++            channel.close()
++        }
++
++        try {
++            while (true) {
++                val remaining = deadline - System.currentTimeMillis()
++                if (remaining <= 0) break
++                val outcome = withTimeoutOrNull(remaining) {
++                    channel.receiveCatching().getOrNull()
++                } ?: break // overall timeout, or every provider has reported
++                // A synced result was adopted: stop and cancel the remaining providers.
++                if (aggregator.offer(outcome.providerName, outcome.result, classifyFound)) break
++            }
++        } finally {
++            fetchJobs.forEach { it.cancel() }
++            closer.cancel()
++            channel.close()
++        }
++    }
++
++    /**
++     * [LyricsFetchMode.MANUAL]: ask [providers] one at a time in the given order and stop at the
++     * first adopted result.
++     *
++     * A provider that cannot be asked before [deadline] simply never reports, which leaves the
++     * outcome [RemoteLyricsResult.Indeterminate] rather than a negative cache — the correct answer,
++     * since the providers further down the order were never given the chance to say otherwise.
++     */
++    private suspend fun askProvidersInOrder(
++        providers: List<LyricsProvider>,
++        mediaMetadata: MediaMetadata,
++        artistName: String,
++        role: LyricsFetchRole,
++        deadline: Long,
++        aggregator: RemoteLyricsAggregator,
++        classifyFound: (String) -> FoundKind,
++    ) {
++        for (provider in providers) {
++            val remaining = deadline - System.currentTimeMillis()
++            if (remaining <= 0) {
++                Log.d(TAG, "${provider.name} SKIPPED (out of time) videoId=${mediaMetadata.id} role=${role.log}")
++                continue
++            }
++            val outcome = runProvider(
++                provider, mediaMetadata, artistName, role,
++                timeoutMs = minOf(PROVIDER_TIMEOUT_MS, remaining),
++            )
++            if (aggregator.offer(provider.name, outcome, classifyFound)) break
+         }
+     }
+ 
+@@ -441,7 +509,8 @@ class LyricsHelper @Inject constructor(
+             return
+         }
+         val allResult = mutableListOf<LyricsResult>()
+-        lyricsProviders.forEach { provider ->
++        // Same order the fetch path uses, so the candidates are listed the way the user ranked them.
++        orderProviders(lyricsProviders, readProviderOrder(context)).forEach { provider ->
+             if (provider.isEnabled(context)) {
+                 provider.searchIsolated(mediaId, songTitle, songArtists, duration) { lyrics ->
+                     val result = LyricsResult(provider.name, lyrics)
+@@ -460,8 +529,15 @@ class LyricsHelper @Inject constructor(
+         /** Per-provider timeout for a single remote lookup. */
+         private const val PROVIDER_TIMEOUT_MS = 8000L
+ 
+-        /** Upper bound for resolving lyrics across all providers of a single song. */
++        /** Upper bound for resolving lyrics across all providers of a single song, when racing them. */
+         private const val OVERALL_TIMEOUT_MS = 12000L
++
++        /**
++         * Budget per provider when going through them in order. The overall bound is this times the
++         * number of enabled providers rather than a fixed wall, because a fixed wall would silently
++         * mean the last few entries in the user's order are never asked.
++         */
++        private const val MANUAL_TIMEOUT_PER_PROVIDER_MS = PROVIDER_TIMEOUT_MS + 1000L
+     }
+ }
+ 
+@@ -507,24 +583,58 @@ private data class ProviderOutcome(
+ )
+ 
+ /**
+- * Snapshot of the enabled providers taken once at the start of a fetch, together with a signature
+- * derived from their stable ids (sorted, so provider order never affects it). The same snapshot drives
+- * the search set, the all-NotFound decision and the stored signature, so a provider-configuration
+- * change during a fetch cannot desync them.
++ * Snapshot of the enabled providers, their order and the fetch mode, taken once at the start of a
++ * fetch. The same snapshot drives the search set, the all-NotFound decision and the stored
++ * signature, so a settings change during a fetch cannot desync them.
++ *
++ * The signature is what stops a cached answer outliving the settings it was produced under. It
++ * carries the mode and the enabled ids; in [LyricsFetchMode.MANUAL] the ids are in the user's order,
++ * because there the order changes which provider answers, while in [LyricsFetchMode.AUTO] they are
++ * sorted, because there it does not and reordering should not throw away perfectly good caches.
+  */
+ data class ProviderSelection(
+     val providers: List<LyricsProvider>,
++    val mode: LyricsFetchMode,
+     val signature: String,
+ ) {
+     companion object {
+         fun snapshot(context: Context, all: List<LyricsProvider>): ProviderSelection {
+-            val enabled = all.filter { it.isEnabled(context) }
+-            val signature = enabled.map { it.id }.sorted().joinToString(",")
+-            return ProviderSelection(enabled, signature)
++            val mode = readFetchMode(context)
++            val enabled = orderProviders(all, readProviderOrder(context)).filter { it.isEnabled(context) }
++            val ids = enabled.map { it.id }.let { if (mode == LyricsFetchMode.MANUAL) it else it.sorted() }
++            return ProviderSelection(enabled, mode, "${mode.name}:${ids.joinToString(",")}")
+         }
+     }
+ }
+ 
++/** Fetch mode as stored, falling back to [LyricsFetchMode.AUTO] for an unset or unknown value. */
++fun readFetchMode(context: Context): LyricsFetchMode =
++    context.dataStore[LyricsFetchModeKey]
++        ?.let { stored -> LyricsFetchMode.entries.find { it.name == stored } }
++        ?: LyricsFetchMode.AUTO
++
++/** The stored provider order as a list of ids, empty when the user has never set one. */
++fun readProviderOrder(context: Context): List<String> =
++    (context.dataStore[LyricsProviderOrderKey] ?: "")
++        .split(',')
++        .map { it.trim() }
++        .filter { it.isNotEmpty() }
++
++/**
++ * [all] arranged by [order].
++ *
++ * Ids in [order] that name no provider are dropped and providers [order] does not mention keep
++ * their built-in position relative to each other and go last. That means the preference survives a
++ * provider being added, removed or renamed without ever losing one: a stored order written before a
++ * new provider existed simply leaves the newcomer at the end rather than hiding it.
++ */
++fun orderProviders(all: List<LyricsProvider>, order: List<String>): List<LyricsProvider> {
++    if (order.isEmpty()) return all
++    val byId = all.associateBy { it.id }
++    val ranked = order.distinct().mapNotNull { byId[it] }
++    return ranked + all.filterNot { it in ranked }
++}
++
+ /**
+  * Aggregate outcome of resolving lyrics across every enabled provider for one song.
+  */
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt
+index a026c010..c805a695 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt
+@@ -40,3 +40,19 @@ interface LyricsProvider {
+         (getLyrics(id, title, artist, duration) as? LyricsFetchResult.Found)?.let { callback(it.raw) }
+     }
+ }
++
++/**
++ * Every remote lyric provider, in the order they are consulted when the user has not set one.
++ *
++ * The order here is the default, and the ids are what the order preference stores, so neither can
++ * be changed casually: renaming an id orphans it in every stored order, which then falls back to
++ * this list's position for that provider.
++ */
++val REMOTE_LYRICS_PROVIDERS: List<LyricsProvider> = listOf(
++    SimpMusicLyricsProvider,
++    BetterLyricsProvider,
++    LrcLibLyricsProvider,
++    KuGouLyricsProvider,
++    YouTubeLyricsProvider,
++    YouTubeSubtitleLyricsProvider,
++)
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+index 8444e70e..b86ade19 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+@@ -7,27 +7,41 @@
+  */
+ package com.dd3boh.outertune.ui.screens.settings.fragments
+ 
++import androidx.compose.foundation.border
++import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.ColumnScope
++import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.itemsIndexed
++import androidx.compose.foundation.lazy.rememberLazyListState
++import androidx.compose.foundation.shape.RoundedCornerShape
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.Sort
+ import androidx.compose.material.icons.rounded.ContentCut
++import androidx.compose.material.icons.rounded.DragHandle
+ import androidx.compose.material.icons.rounded.Lyrics
++import androidx.compose.material.icons.rounded.Reorder
+ import androidx.compose.material.icons.rounded.Speed
+ import androidx.compose.material.icons.rounded.TextFields
+ import androidx.compose.material.icons.rounded.TextRotationAngledown
+ import androidx.compose.material.icons.rounded.TouchApp
+ import androidx.compose.material3.ElevatedCard
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateListOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.tooling.preview.Preview
+@@ -44,18 +58,30 @@ import com.dd3boh.outertune.constants.LyricKaraokeEnable
+ import com.dd3boh.outertune.constants.LyricSourcePrefKey
+ import com.dd3boh.outertune.constants.LyricTrimKey
+ import com.dd3boh.outertune.constants.LyricUpdateSpeed
++import com.dd3boh.outertune.constants.LyricsFetchMode
++import com.dd3boh.outertune.constants.LyricsFetchModeKey
+ import com.dd3boh.outertune.constants.LyricsPosition
+ import com.dd3boh.outertune.constants.LyricsPrefetchCountKey
++import com.dd3boh.outertune.constants.LyricsProviderOrderKey
+ import com.dd3boh.outertune.constants.LyricsTextPositionKey
+ import com.dd3boh.outertune.constants.MultilineLrcKey
+ import com.dd3boh.outertune.constants.Speed
++import com.dd3boh.outertune.constants.ThumbnailCornerRadius
++import com.dd3boh.outertune.extensions.move
++import com.dd3boh.outertune.lyrics.LyricsProvider
++import com.dd3boh.outertune.lyrics.REMOTE_LYRICS_PROVIDERS
++import com.dd3boh.outertune.lyrics.orderProviders
+ import com.dd3boh.outertune.ui.component.EnumListPreference
+ import com.dd3boh.outertune.ui.component.ListPreference
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.SwitchPreference
++import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
+ import com.dd3boh.outertune.ui.dialog.CounterDialog
++import com.dd3boh.outertune.ui.dialog.InfoLabel
+ import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
++import sh.calvin.reorderable.ReorderableItem
++import sh.calvin.reorderable.rememberReorderableLazyListState
+ 
+ @Composable
+ fun ColumnScope.LyricFormatFrag() {
+@@ -148,10 +174,35 @@ fun ColumnScope.LyricSourceFrag() {
+     val (preferLocalLyric, onPreferLocalLyric) = rememberPreference(LyricSourcePrefKey, defaultValue = true)
+     val (enablePrefetch, onEnablePrefetchChange) = rememberPreference(EnableLyricsPrefetchKey, defaultValue = true)
+     val (prefetchCount, onPrefetchCountChange) = rememberPreference(LyricsPrefetchCountKey, defaultValue = 3)
++    val (fetchMode, onFetchModeChange) = rememberEnumPreference(LyricsFetchModeKey, LyricsFetchMode.AUTO)
++    val (providerOrder, onProviderOrderChange) = rememberPreference(LyricsProviderOrderKey, defaultValue = "")
+ 
+     var showPrefetchCountDialog by remember {
+         mutableStateOf(false)
+     }
++    var showProviderOrder by remember {
++        mutableStateOf(false)
++    }
++
++    /**
++     * Working copy of the order, edited by dragging and only written back when the dialog is
++     * confirmed, so an abandoned drag does not silently change which provider answers first.
++     */
++    val mutableProviders = remember { mutableStateListOf<LyricsProvider>() }
++    val providerListState = rememberLazyListState()
++    val providerReorderState = rememberReorderableLazyListState(lazyListState = providerListState) { from, to ->
++        mutableProviders.move(from.index, to.index)
++    }
++
++    fun resolvedOrder(stored: String) =
++        orderProviders(REMOTE_LYRICS_PROVIDERS, stored.split(',').map { it.trim() }.filter { it.isNotEmpty() })
++
++    fun resetProviderList(stored: String) {
++        mutableProviders.clear()
++        mutableProviders.addAll(resolvedOrder(stored))
++    }
++
++    LaunchedEffect(providerOrder) { resetProviderList(providerOrder) }
+ 
+     SwitchPreference(
+         title = { Text(stringResource(R.string.enable_simpmusic)) },
+@@ -177,6 +228,25 @@ fun ColumnScope.LyricSourceFrag() {
+         checked = enableKugou,
+         onCheckedChange = onEnableKugouChange
+     )
++    EnumListPreference(
++        title = { Text(stringResource(R.string.lyrics_fetch_mode_title)) },
++        icon = { Icon(Icons.AutoMirrored.Rounded.Sort, null) },
++        selectedValue = fetchMode,
++        onValueSelected = onFetchModeChange,
++        values = LyricsFetchMode.entries,
++        valueText = {
++            when (it) {
++                LyricsFetchMode.AUTO -> stringResource(R.string.lyrics_fetch_mode_auto)
++                LyricsFetchMode.MANUAL -> stringResource(R.string.lyrics_fetch_mode_manual)
++            }
++        }
++    )
++    PreferenceEntry(
++        title = { Text(stringResource(R.string.lyrics_provider_order_title)) },
++        description = resolvedOrder(providerOrder).joinToString(", ") { it.name },
++        icon = { Icon(Icons.Rounded.Reorder, null) },
++        onClick = { showProviderOrder = true }
++    )
+     // prioritize local lyric files over all cloud providers
+     SwitchPreference(
+         title = { Text(stringResource(R.string.lyrics_prefer_local)) },
+@@ -200,6 +270,71 @@ fun ColumnScope.LyricSourceFrag() {
+         onClick = { showPrefetchCountDialog = true }
+     )
+ 
++    if (showProviderOrder) {
++        ActionPromptDialog(
++            title = stringResource(R.string.lyrics_provider_order_title),
++            onDismiss = { showProviderOrder = false },
++            onConfirm = {
++                onProviderOrderChange(mutableProviders.joinToString(",") { it.id })
++                showProviderOrder = false
++            },
++            onReset = {
++                onProviderOrderChange("")
++                resetProviderList("")
++            },
++            onCancel = {
++                resetProviderList(providerOrder)
++                showProviderOrder = false
++            }
++        ) {
++            LazyColumn(
++                state = providerListState,
++                modifier = Modifier
++                    .padding(vertical = 12.dp)
++                    .border(
++                        2.dp,
++                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
++                        RoundedCornerShape(ThumbnailCornerRadius)
++                    )
++            ) {
++                itemsIndexed(
++                    items = mutableProviders,
++                    key = { _, provider -> provider.id }
++                ) { _, provider ->
++                    ReorderableItem(
++                        state = providerReorderState,
++                        key = provider.id
++                    ) {
++                        Row(
++                            horizontalArrangement = Arrangement.SpaceBetween,
++                            verticalAlignment = Alignment.CenterVertically,
++                            modifier = Modifier
++                                .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
++                                .fillMaxWidth()
++                        ) {
++                            Text(text = provider.name)
++                            Icon(
++                                imageVector = Icons.Rounded.DragHandle,
++                                contentDescription = null,
++                                modifier = Modifier.draggableHandle()
++                            )
++                        }
++                    }
++                }
++            }
++
++            InfoLabel(
++                stringResource(
++                    if (fetchMode == LyricsFetchMode.MANUAL) {
++                        R.string.lyrics_provider_order_description
++                    } else {
++                        R.string.lyrics_provider_order_auto_note
++                    }
++                )
++            )
++        }
++    }
++
+     if (showPrefetchCountDialog) {
+         CounterDialog(
+             title = stringResource(R.string.lyrics_prefetch_count_title),
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 3bc88bf8..78bb0691 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -214,6 +214,12 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="lyrics_karaoke_hz_title">Adjust karaoke lyrics update speed</string>
+     <string name="lyrics_multiline_title">Read multiline lyrics</string>
+     <string name="lyrics_multiline_description">Treat all the lines between sync points as one lyric text</string>
++    <string name="lyrics_fetch_mode_title">Provider selection</string>
++    <string name="lyrics_fetch_mode_auto">Automatic (fastest)</string>
++    <string name="lyrics_fetch_mode_manual">In my order</string>
++    <string name="lyrics_provider_order_title">Provider priority</string>
++    <string name="lyrics_provider_order_description">Providers are tried one at a time from the top, and the first synced lyrics win. This is slower than asking all of them at once.</string>
++    <string name="lyrics_provider_order_auto_note">Provider selection is set to automatic, so this order only decides how alternate lyrics are listed. Set provider selection to use your order to have it decide which provider is used.</string>
+     <string name="lyrics_prefer_local">Prefer local lyric files</string>
+     <string name="lyrics_prefer_local_description">Prioritize resolving local lyric files before using all cloud providers. Turn this off to prioritize cloud providers</string>
+     <string name="lyrics_prefetch_title">Pre-fetch upcoming lyrics</string>
+diff --git a/app/src/test/java/com/dd3boh/outertune/lyrics/ProviderOrderTest.kt b/app/src/test/java/com/dd3boh/outertune/lyrics/ProviderOrderTest.kt
+new file mode 100644
+index 00000000..78961d0d
+--- /dev/null
++++ b/app/src/test/java/com/dd3boh/outertune/lyrics/ProviderOrderTest.kt
+@@ -0,0 +1,71 @@
++package com.dd3boh.outertune.lyrics
++
++import android.content.Context
++import org.junit.Assert.assertEquals
++import org.junit.Test
++
++/**
++ * [orderProviders] has to survive the provider list changing under a stored preference: a user who
++ * ordered five providers two releases ago must not lose the sixth, and must not lose the fifth if it
++ * was later removed.
++ */
++class ProviderOrderTest {
++
++    private class FakeProvider(override val id: String) : LyricsProvider {
++        override val name = id
++        override fun isEnabled(context: Context) = true
++        override suspend fun getLyrics(id: String, title: String, artist: String, duration: Int) =
++            LyricsFetchResult.NotFound
++    }
++
++    private val a = FakeProvider("a")
++    private val b = FakeProvider("b")
++    private val c = FakeProvider("c")
++    private val all = listOf(a, b, c)
++
++    private fun ids(providers: List<LyricsProvider>) = providers.map { it.id }
++
++    @Test
++    fun noStoredOrder_keepsTheBuiltInOrder() {
++        assertEquals(listOf("a", "b", "c"), ids(orderProviders(all, emptyList())))
++    }
++
++    @Test
++    fun aFullOrder_isUsedAsGiven() {
++        assertEquals(listOf("c", "a", "b"), ids(orderProviders(all, listOf("c", "a", "b"))))
++    }
++
++    /**
++     * The case that matters when a provider is added: a stored order written before it existed
++     * cannot mention it, and it has to end up somewhere rather than disappearing.
++     */
++    @Test
++    fun aProviderMissingFromTheOrder_isKeptAndGoesLast() {
++        assertEquals(listOf("c", "a", "b"), ids(orderProviders(all, listOf("c", "a"))))
++    }
++
++    /** And when one is removed or renamed, its id in the stored order is simply ignored. */
++    @Test
++    fun anUnknownIdInTheOrder_isIgnored() {
++        assertEquals(listOf("b", "a", "c"), ids(orderProviders(all, listOf("b", "gone", "a"))))
++    }
++
++    @Test
++    fun aDuplicatedIdDoesNotDuplicateTheProvider() {
++        assertEquals(listOf("b", "a", "c"), ids(orderProviders(all, listOf("b", "b", "a"))))
++    }
++
++    @Test
++    fun anOrderOfOnlyUnknownIds_fallsBackToTheBuiltInOrder() {
++        assertEquals(listOf("a", "b", "c"), ids(orderProviders(all, listOf("x", "y"))))
++    }
++
++    /** Every provider appears exactly once, whatever the stored order says. */
++    @Test
++    fun theResultIsAlwaysAPermutationOfTheInput() {
++        for (order in listOf(emptyList(), listOf("c"), listOf("c", "b", "a"), listOf("z", "a", "a"))) {
++            assertEquals(all.size, orderProviders(all, order).size)
++            assertEquals(all.toSet(), orderProviders(all, order).toSet())
++        }
++    }
++}
+-- 
+2.43.0
+
+
+From 4dd669f3a636a6fa0c4542b5fffd3c3404157b19 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sat, 8 Aug 2026 11:34:48 +0000
+Subject: [PATCH 36/36] Document the lyrics work in the patch notes
+
+---
+ PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
+ 1 file changed, 65 insertions(+), 3 deletions(-)
+
+diff --git a/PATCH_NOTES.md b/PATCH_NOTES.md
+index a43e5d3f..85917675 100644
+--- a/PATCH_NOTES.md
++++ b/PATCH_NOTES.md
+@@ -94,15 +94,17 @@ DOM for `<p>` elements wherever they are, accepts unprefixed or `ttp:`-namespace
+ falls back to the earliest child `<span>` when a line has no `begin`, and reassembles
+ Apple-style syllable spans back into words. `toLrc()` emits plain standard LRC.
+ 
+-`LyricsHelper.parseResilient()` tries the strict parser first — so word-level karaoke
+-timing is kept whenever the document is readable — and only falls back to the lenient
+-reader plus plain line-by-line LRC when it isn't.
++`LyricsHelper.parseResilient()` tries the strict parser first and falls back to the
++lenient reader when it can't read the document.
+ 
+ Unlike Metrolist's version, `toLrc()` emits **standard** LRC rather than Metrolist's
+ extended `<word:start:end|…>` / `{bg}` / `{agent:v1}` form, which OuterTune's renderer
+ would show as literal text. Background vocals become their own timed lines; speaker/agent
+ tags are dropped.
+ 
++> Superseded in part by §6: `toLrc()` now has an enhanced mode, so the lenient path keeps
++> its word timings instead of flattening to line level.
++
+ ## 5. Lyrics button removed from the player
+ 
+ The dedicated lyrics button is gone from the player controls. Lyrics toggle by tapping the
+@@ -110,6 +112,66 @@ cover (`DEFAULT_SHOW_LYRICS_ON_CLICK` was already `true`) or via ⋮ → Toggle
+ older OuterTune. The unused imports and the local `showLyrics` state in `ActionButtons`
+ went with it.
+ 
++## 6. Word-by-word lyrics, and a say in where lyrics come from
++
++**Word timings survive the lenient TTML path.** `TTMLParser` always extracted per-word
++timings — it needs them to rebuild a line's text out of syllable spans — but `toLrc()`
++threw them away, so any song only the lenient reader could parse was stuck at line level.
++`toLrc()` now has an enhanced mode that writes them back out as Enhanced LRC (the "A2
++extension"): a `<mm:ss.cc>` mark before each word, and one after the last word to pin its
++end time.
++
++Enhanced LRC rather than a schema change because `LyricsEntity.lyrics` is a plain string.
++Nobody takes a Room migration, a line-level reader still sees ordinary LRC because it
++ignores the `<...>` marks, and providers that return plain LRC need no special casing. A
++line the encoding can't represent safely — a word containing `<`, `>`, `[` or `]`, or
++timings that run backwards — is written line-level, so a mixed document degrades per line.
++
++**The sweep renderer was rewritten.** The old karaoke path measured nothing: progress
++across a line was the fraction of *words* completed, so the highlight moved in equal steps
++regardless of how wide each word actually was. A wrapped line was handled by re-splitting
++the text on spaces and slicing the word list by the resulting counts, which threw outright
++when the two disagreed, and it ignored the lyric alignment setting.
++
++`KaraokeLyricLine.kt` asks the text layout where the characters are instead. The line is
++measured once, the playback position becomes a fractional character offset, and
++`TextLayoutResult.getBoundingBox` turns that into an x coordinate. Wrapping then needs no
++special case at all, and shaping, kerning and alignment are whatever `Text` would have
++produced, because it is the same layout. The bright text is masked by a gradient at the
++boundary, so it reads as a light moving across the words.
++
++Two performance changes came with it: the position is read inside the *draw* lambda, so
++the clock ticking sixty times a second invalidates drawing rather than recomposing every
++visible lyric, and only the current line and the next one are drawn this way. The sweep is
++a pure function of the player's position rather than an animation running alongside it, so
++a seek lands where it should; between the player's own coarse position updates the wall
++clock carries it.
++
++**Provider selection.** Settings → Lyrics → Lyric sources gains two entries:
++
++| Setting | Behaviour |
++|---|---|
++| **Provider selection: Automatic** (default) | Exactly as before — every enabled provider at once, first synced result wins |
++| **Provider selection: In my order** | Providers are asked one at a time from the top; the first synced result wins. Slower on purpose |
++| **Provider priority** | Drag to reorder. Also decides how the alternate-lyrics picker lists candidates, so it is useful in either mode |
++
++The order is stored as a comma-joined list of provider ids. Unknown ids are ignored and
++providers the stored order does not mention keep their built-in position and go last, so
++the preference survives a provider being added, removed or renamed. `providerSignature`
++now carries the mode and the enabled ids — in the user's order under manual, sorted under
++automatic — so a cached miss recorded under one configuration is never served under
++another, and reordering under automatic does not throw away caches that are still valid.
++
++Going in order gets a per-provider time budget rather than the racing cap, which applied
++to a sequential walk would have meant the last entries in the order were never asked.
++
++## 7. shazamkit built against the wrong ktor engine
++
++`:shazamkit:compileKotlin` failed with `Unresolved reference 'requestTimeout'` and stopped
++the build before the app module was reached. The client is `HttpClient(OkHttp)`, so its
++`engine { }` block is an `OkHttpConfig`; `requestTimeout` is a CIO setting. Replaced with
++the engine-independent `HttpTimeout` plugin, which `:betterlyrics` and `:kizzy` already use.
++
+ ---
+ 
+ ## Building
 -- 
 2.43.0
 
