@@ -13,8 +13,7 @@ I NEED A CAT!
 > [!NOTE]
 > This is a fork based on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune).
 >
-> Occasionally, release APKs would be uploaded, but to test the latest release, please use compile the APK yourself, please read the wiki (https://github.com/notK50BML/OuterTune/wiki/Getting-started).
->
+> Occasionally, release APKs would be uploaded, but to test the latest release, please compile the APK yourself, please read the wiki (https://github.com/notK50BML/OuterTune/wiki/Getting-started).>
 ## What This Fork Improves
 
 This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune) with a focus on personalisation, YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
