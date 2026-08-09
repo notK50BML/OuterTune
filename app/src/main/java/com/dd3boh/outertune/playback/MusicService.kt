@@ -357,13 +357,14 @@ class MusicService : MediaLibraryService(),
         // the state where the presence froze until you rewound.
         discordUpdateRequests.debounce(700).collectLatest(scope) {
             val rpc = discordRpc ?: return@collectLatest
-            if (!player.playWhenReady) {
-                // playWhenReady, not isPlaying: isPlaying also goes false while a track buffers,
-                // and clearing the activity on every skip made the card flicker out and back.
+            // playWhenReady, not isPlaying: isPlaying also goes false while a track buffers, and
+            // treating that as a pause made the card flicker on every skip.
+            val paused = !player.playWhenReady
+            val mediaId = player.currentMediaItem?.mediaId ?: run {
+                // Nothing loaded at all is the only case with nothing to show.
                 rpc.stopActivity()
                 return@collectLatest
             }
-            val mediaId = player.currentMediaItem?.mediaId ?: return@collectLatest
             // Wait for the row instead of giving up on it. A freshly queued track may not be in
             // the database yet; that used to mean no presence at all for that song.
             val song = withTimeoutOrNull(DISCORD_SONG_ROW_TIMEOUT_MS) {
@@ -371,7 +372,7 @@ class MusicService : MediaLibraryService(),
             } ?: return@collectLatest
             // The wait above can outlast the track it was for.
             if (player.currentMediaItem?.mediaId != mediaId) return@collectLatest
-            rpc.updateSong(song, player.currentPosition)
+            rpc.updateSong(song, player.currentPosition, paused)
         }
 
         // Track changes that the player does not announce as an event still move the metadata.

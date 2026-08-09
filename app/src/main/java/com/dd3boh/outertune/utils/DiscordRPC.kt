@@ -24,12 +24,16 @@ class DiscordRPC(
     @Volatile
     private var latestUpdate = 0L
 
-    suspend fun updateSong(song: Song, currentPlaybackTimeMillis: Long = 0L) = runCatching {
+    suspend fun updateSong(
+        song: Song,
+        currentPlaybackTimeMillis: Long = 0L,
+        paused: Boolean = false,
+    ) = runCatching {
         val thisUpdate = ++latestUpdate
         updateMutex.withLock {
             // Something newer started while this one waited for the lock; that one wins.
             if (thisUpdate != latestUpdate) return@runCatching
-            sendPresence(song, currentPlaybackTimeMillis)
+            sendPresence(song, currentPlaybackTimeMillis, paused)
         }
     }.onFailure {
         // runCatching swallows CancellationException, which would quietly break the caller's
@@ -38,7 +42,12 @@ class DiscordRPC(
         if (it is CancellationException) throw it
     }
 
-    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {
+    /**
+     * @param paused keep the card up but drop its timestamps. Discord derives the progress bar
+     *   entirely from start and end, so a paused track has to send neither - with them it would
+     *   carry on counting as though the song were still playing.
+     */
+    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long, paused: Boolean) {
         val currentTime = System.currentTimeMillis()
         val calculatedStartTime = currentTime - currentPlaybackTimeMillis
 
@@ -68,7 +77,8 @@ class DiscordRPC(
             // Hover text only. Discord has no url slot for the large image, so the album
             // cannot be made clickable the way the title and artist can.
             largeText = song.album?.title,
-            smallText = song.artists.firstOrNull()?.name,
+            smallText = if (paused) context.getString(R.string.rpc_paused)
+            else song.artists.firstOrNull()?.name,
             buttons = listOf(
                 context.getString(R.string.rpc_listen_ytm) to
                         "https://music.youtube.com/watch?v=${song.song.id}",
@@ -78,8 +88,8 @@ class DiscordRPC(
             type = Type.LISTENING,
             statusDisplayType = StatusDisplayType.STATE,
             since = currentTime,
-            startTime = calculatedStartTime,
-            endTime = calculatedEndTime,
+            startTime = if (paused) null else calculatedStartTime,
+            endTime = if (paused) null else calculatedEndTime,
             applicationId = APPLICATION_ID
         )
     }
