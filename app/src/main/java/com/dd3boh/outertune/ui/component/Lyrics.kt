@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.MoreHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalTextStyle
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -84,6 +83,7 @@ import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
 import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
 import com.dd3boh.outertune.ui.menu.LyricsMenu
+import com.dd3boh.outertune.ui.player.rememberPlayerOnBackgroundColor
 import com.dd3boh.outertune.ui.utils.fadingEdge
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
@@ -162,8 +162,15 @@ fun Lyrics(
         }
     }
 
-    val textColor = MaterialTheme.colorScheme.secondary
-    val prevTextColor = MaterialTheme.colorScheme.primary
+    // Lyrics are drawn over the player background, so they need the colour that was measured from
+    // it - the theme's secondary is chosen against a surface that is not there, and over a pale
+    // album cover it is close to invisible. With the background set to follow the theme this
+    // resolves to secondary anyway, so nothing changes for anyone not using artwork behind the
+    // player.
+    val textColor = rememberPlayerOnBackgroundColor(mediaMetadata)
+    // Lines already sung keep their own shade of the same colour rather than the theme's primary,
+    // which has the same problem: readable against the theme, arbitrary against an album cover.
+    val prevTextColor = textColor.copy(alpha = CONSUMED_ALPHA)
 
     var currentLineIndex by remember {
         mutableIntStateOf(-1)
@@ -419,14 +426,10 @@ fun Lyrics(
                                 color = if (isConsumed && !isHighlighted) prevTextColor else textColor,
                                 textAlign = textAlign,
                                 fontWeight = FontWeight.Bold,
+                                // prevTextColor already carries its own alpha, so a consumed line
+                                // must not be faded a second time on top of it.
                                 modifier = Modifier.alpha(
-                                    if (!isSynced || isHighlighted) {
-                                        1f
-                                    } else if (isConsumed) {
-                                        0.6f
-                                    } else {
-                                        0.5f
-                                    }
+                                    if (!isSynced || isHighlighted || isConsumed) 1f else UNSUNG_ALPHA
                                 )
                             )
                         }
@@ -520,6 +523,9 @@ val LyricsPreviewTime = 7.seconds
 
 /** How dim the not-yet-sung part of a karaoke line is, relative to the sung part. */
 private const val UNSUNG_ALPHA = 0.5f
+
+/** How dim a line that has already been sung is. Kept above [UNSUNG_ALPHA] so the two read apart. */
+private const val CONSUMED_ALPHA = 0.65f
 
 /**
  * How often the karaoke position is refreshed when nothing is moving. Only exists so that a seek
