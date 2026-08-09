@@ -807,7 +807,7 @@ fun ControlsContent(
 
     BoxWithConstraints() {
         val maxW = maxWidth
-        val compactWidth = maxW < 400.dp
+        val compactWidth = false
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
