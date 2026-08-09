@@ -155,6 +155,7 @@ import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
@@ -187,6 +188,19 @@ fun QueueSheet(
             if (PLAYER_DEBUG) Log.v("QueueSheet", "Q-2")
             val showQueueTitle by rememberPreference(ShowQueueTitleKey, defaultValue = true)
             val queueTitle = if (showQueueTitle) currentQueueTitle(LocalPlayerConnection.current) else null
+
+            // While the sheet is collapsed its own surface is drawn at zero alpha, so the handle
+            // and title are sitting directly on the player background - the blurred artwork, if
+            // that is the background in use. onSurface is chosen for a surface that is not there,
+            // and against a pale cover it disappears. Use the colour the player picked for its own
+            // text, which is measured from that very artwork.
+            val connection = LocalPlayerConnection.current
+            val metadataFlow = remember(connection) {
+                connection?.mediaMetadata ?: MutableStateFlow<MediaMetadata?>(null)
+            }
+            val mediaMetadata by metadataFlow.collectAsState()
+            val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata)
+
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
@@ -202,14 +216,14 @@ fun QueueSheet(
             ) {
                 Icon(
                     imageVector = Icons.Rounded.ExpandLess,
-                    tint = MaterialTheme.colorScheme.onSurface,
+                    tint = handleColor,
                     contentDescription = null,
                 )
                 if (!queueTitle.isNullOrBlank()) {
                     Text(
                         text = queueTitle,
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = handleColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,

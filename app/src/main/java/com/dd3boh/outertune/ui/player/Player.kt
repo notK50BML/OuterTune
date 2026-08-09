@@ -120,7 +120,6 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
-import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
 import com.dd3boh.outertune.constants.PlayerLayoutKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
@@ -734,23 +733,10 @@ fun ControlsContent(
     )
 
 
-    val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
-    val isSystemInDarkTheme = isSystemInDarkTheme()
-    val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
-        if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
-    }
-
-    val playerBackground by rememberEnumPreference(
-        key = PlayerBackgroundStyleKey,
-        defaultValue = DEFAULT_PLAYER_BACKGROUND
-    )
-
     val sliderStyle by rememberEnumPreference(
         key = SliderStyleKey,
         defaultValue = DEFAULT_SLIDER_STYLE
     )
-
-    val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
 
     // Parsed once per change rather than per frame. A file that no longer parses - edited by
     // hand, or written by a newer editor after a downgrade - falls back to the built-in layout
@@ -761,26 +747,9 @@ fun ControlsContent(
         else PlayerLayout.parse(layoutJson).getOrDefault(PlayerLayout.DEFAULT)
     }
 
-    // Only the artwork-derived backgrounds have anything to measure. Asking for a luminance on
-    // the others would load a bitmap on every track change and then ignore the answer.
-    val coverIsLight = rememberCoverIsLight(
-        mediaMetadata = mediaMetadata,
-        enabled = autoTextContrast &&
-                (playerBackground == PlayerBackgroundStyle.FROSTED ||
-                        playerBackground == PlayerBackgroundStyle.BLUR),
-    )
-
-    val onBackgroundColor = when {
-        playerBackground == PlayerBackgroundStyle.FOLLOW_THEME -> MaterialTheme.colorScheme.secondary
-        // A measured answer beats the theme's guess: a white album cover behind white text is
-        // unreadable no matter which theme the app is in.
-        coverIsLight != null -> if (coverIsLight) Color(0xFF16161A) else Color.White
-        useDarkTheme -> MaterialTheme.colorScheme.onSurface
-        else -> {
-            val c = MaterialTheme.colorScheme.secondary
-            c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
-        }
-    }
+    // The same decision the queue handle makes, so the two cannot disagree about what is readable
+    // over this background.
+    val onBackgroundColor = rememberPlayerOnBackgroundColor(mediaMetadata)
 
 
     val playbackState by playerConnection.playbackState.collectAsState()

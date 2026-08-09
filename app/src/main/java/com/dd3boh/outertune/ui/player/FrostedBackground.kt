@@ -10,8 +10,10 @@ package com.dd3boh.outertune.ui.player
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -30,8 +32,16 @@ import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.toBitmap
+import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+import com.dd3boh.outertune.constants.DarkMode
+import com.dd3boh.outertune.constants.DarkModeKey
+import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
+import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.utils.coilCoroutine
+import com.dd3boh.outertune.utils.rememberEnumPreference
+import com.dd3boh.outertune.utils.rememberPreference
 import kotlinx.coroutines.withContext
 
 /**
@@ -132,6 +142,51 @@ fun rememberCoverIsLight(mediaMetadata: MediaMetadata?, enabled: Boolean): Boole
     }
 
     return isLight
+}
+
+/**
+ * The colour anything drawn over the player background should use.
+ *
+ * There is one decision here and several places that need its answer — the player's own text, and
+ * the queue handle, which sits over the same background because the queue sheet's surface is fully
+ * transparent until the sheet starts to open. Working it out separately in each of them is how they
+ * drift apart, so it is worked out once, here.
+ *
+ * The order matters. A measured answer beats the theme's guess, because a white album cover behind
+ * white text is unreadable no matter which theme the app is in; the theme is only consulted when
+ * there is no artwork-derived background to measure, or the user has turned the measuring off.
+ *
+ * Deciding this costs an 18px image and a luminance pass per track change, and Coil serves the same
+ * image from memory to every caller, so asking from more than one place is not worth avoiding.
+ */
+@Composable
+fun rememberPlayerOnBackgroundColor(mediaMetadata: MediaMetadata?): Color {
+    val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
+    val isSystemInDarkTheme = isSystemInDarkTheme()
+    val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
+        if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
+    }
+    val playerBackground by rememberEnumPreference(PlayerBackgroundStyleKey, DEFAULT_PLAYER_BACKGROUND)
+    val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+
+    // Only the artwork-derived backgrounds have anything to measure. Asking for a luminance on the
+    // others would load a bitmap on every track change and then ignore the answer.
+    val coverIsLight = rememberCoverIsLight(
+        mediaMetadata = mediaMetadata,
+        enabled = autoTextContrast &&
+                (playerBackground == PlayerBackgroundStyle.FROSTED ||
+                        playerBackground == PlayerBackgroundStyle.BLUR),
+    )
+
+    return when {
+        playerBackground == PlayerBackgroundStyle.FOLLOW_THEME -> MaterialTheme.colorScheme.secondary
+        coverIsLight != null -> if (coverIsLight) Color(0xFF16161A) else Color.White
+        useDarkTheme -> MaterialTheme.colorScheme.onSurface
+        else -> {
+            val c = MaterialTheme.colorScheme.secondary
+            c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
+        }
+    }
 }
 
 /**
