@@ -29,7 +29,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 ### Discord Rich Presence
 - Added rich presence (huge thanks to https://github.com/reocat/OuterTune)
 - Added clickable song and artist
-- Added Song cover and artist icon
+- Added song cover and artist icon
 - Added a working progress bar
 - Added token login along with normal login
 - Added connection tester to diagnose any connection issues
@@ -49,7 +49,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 ### Lyrics
 
 - Uses LrcLib and caption tracks to improve lyrics matching and loading speed
-- Adds a lyrics toggle button to the now-playing action bar
+- Added a lyrics toggle button to the now-playing action bar (can be hidden in settings now as well)
 - Added SimpMusic and BetterLyrics as lyrics providers
 - Queries enabled providers in parallel with timeouts
 - Fetches lyrics in the playback service even while the lyrics panel is closed
