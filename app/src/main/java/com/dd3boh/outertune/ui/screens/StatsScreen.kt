@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -131,10 +132,10 @@ fun StatsScreen(
         }
 
         val thumbnailSize = (ListThumbnailSize.value * density.density).roundToInt()
-        items(
+        itemsIndexed(
             items = mostPlayedSongs,
-            key = { it.id }
-        ) { song ->
+            key = { _, song -> song.id }
+        ) { index, song ->
             SongListItem(
                 song = song,
                 navController = navController,
@@ -151,7 +152,10 @@ fun StatsScreen(
                     playerConnection.playQueue(
                         ListQueue(
                             title = mostPlayedSongTitle,
-                            items = mostPlayedSongs.map { it.toMediaMetadata() }
+                            items = mostPlayedSongs.map { it.toMediaMetadata() },
+                            // Without this the queue always started at its first entry, so every
+                            // song in the chart played the number one track instead of itself.
+                            startIndex = index
                         )
                     )
                 },
@@ -277,12 +281,12 @@ fun StatsScreen(
                     modifier = Modifier.animateItem()
                 )
             }
-            items(
+            itemsIndexed(
                 items = extendedSongs,
                 // Prefixed because the overview above holds the same songs, and two items sharing
                 // a key in one LazyColumn is a crash, not a cosmetic problem.
-                key = { "ext-song-" + it.id }
-            ) { song ->
+                key = { _, song -> "ext-song-" + song.id }
+            ) { index, song ->
                 SongListItem(
                     song = song,
                     navController = navController,
@@ -297,7 +301,8 @@ fun StatsScreen(
                         playerConnection.playQueue(
                             ListQueue(
                                 title = mostPlayedSongTitle,
-                                items = extendedSongs.map { it.toMediaMetadata() }
+                                items = extendedSongs.map { it.toMediaMetadata() },
+                                startIndex = index
                             )
                         )
                     },
