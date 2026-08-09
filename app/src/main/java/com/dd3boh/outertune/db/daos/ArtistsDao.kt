@@ -33,6 +33,78 @@ import java.time.LocalDateTime
 interface ArtistsDao {
 
     // region Gets
+    @Query("""
+        SELECT 
+            artist.*,
+            COUNT(song.id) AS songCount,
+            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+        FROM artist
+            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
+        WHERE artist.id = :id
+        GROUP BY artist.id
+    """)
+    fun artist(id: String): Flow<Artist?>
+
+    @Query("SELECT * FROM artist WHERE id = :id")
+    fun artistById(id: String): ArtistEntity?
+
+    @Query("SELECT * FROM artist WHERE name = :name")
+    fun artistByName(name: String): ArtistEntity?
+
+    @Query("SELECT * FROM artist WHERE isLocal = 1 AND name LIKE '%' || :name || '%'")
+    fun localArtistsByNameFuzzy(name: String): List<ArtistEntity>
+
+    @Query("""
+        SELECT 
+            artist.*,
+            COUNT(song.id) AS songCount,
+            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+        FROM artist
+            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+            LEFT JOIN song ON sam.songId = song.id
+        WHERE artist.name LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL)
+        GROUP BY artist.id
+        HAVING songCount > 0
+        ORDER BY artist.bookmarkedAt ASC
+        LIMIT :previewSize
+    """)
+    fun searchArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
+
+    @Query("""
+        SELECT 
+            artist.*,
+            COUNT(song.id) AS songCount,
+            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+        FROM artist
+            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+            LEFT JOIN song ON sam.songId = song.id
+        WHERE artist.name LIKE '%' || :query || '%' AND song.inLibrary IS NOT NULL AND song.isLocal
+        GROUP BY artist.id
+        HAVING songCount > 0
+        LIMIT :previewSize
+    """)
+    fun searchLocalArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
+
+
+    @Transaction
+    @Query("""
+        SELECT song.* 
+        FROM song_artist_map JOIN song ON song_artist_map.songId = song.id 
+        WHERE song_artist_map.artistId IN (SELECT id FROM artist WHERE name LIKE '%' || :query || '%') AND song.inLibrary IS NOT NULL 
+        LIMIT :previewSize
+    """)
+    fun searchArtistSongs(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Song>>
+
+    @Query("SELECT * FROM artist WHERE name LIKE '%' || :query || '%' LIMIT :previewSize")
+    fun artistsByNameFuzzy(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<ArtistEntity>>
+
+    @Query("SELECT * FROM artist WHERE isLocal != 1")
+    fun allRemoteArtists(): Flow<List<ArtistEntity>>
+
+    @Query("SELECT * FROM artist WHERE isLocal = 1")
+    fun allLocalArtists(): List<ArtistEntity>
+
     /**
      * Artists ranked over the same window, by the same measure, as [mostPlayedSongs].
      *
