@@ -82,9 +82,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: b5dd25edd6c141fae9da7b38373059d236261e7c83e9054de85e922703e65b67"
-          echo "lines: $(wc -l < "$PATCH")  (expected 14544)   bytes: $(wc -c < "$PATCH")  (expected 675956)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 38)"
+          echo "expected: 2a05b7d0b9046d0c818a8a9c38fd30f6172b42cc1981fcfcc7bd6e0a32b82452"
+          echo "lines: $(wc -l < "$PATCH")  (expected 14661)   bytes: $(wc -c < "$PATCH")  (expected 680998)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 39)"
           echo "================"
 
           git config user.name "github-actions"
@@ -235,7 +235,45 @@ jobs:
       # Lint and unit tests are deliberately skipped: a lint warning should not stop an APK
       # from being produced.
       - name: Build ${{ inputs.variant }}
-        run: ./gradlew assemble${{ inputs.variant }} --stacktrace -DskipFormatKtlint
+        run: |
+          set -o pipefail
+          ./gradlew assemble${{ inputs.variant }} --stacktrace -DskipFormatKtlint 2>&1 | tee build.log
+
+      # Gradle prints compiler errors early and then buries them under a stack trace hundreds of
+      # lines long, so neither end of a failed log contains them. Put them somewhere that needs no
+      # scrolling at all: the run's summary page, and red annotations at the top of it.
+      - name: What actually failed
+        if: failure()
+        run: |
+          ERRORS="$(grep -aE '^e: |^error: |^ERROR: ' build.log | head -60 || true)"
+          TASKS="$(grep -aE '^> Task .* FAILED' build.log | head -20 || true)"
+
+          {
+            echo "## Build failed"
+            echo
+            if [ -n "$TASKS" ]; then
+              echo '```'
+              echo "$TASKS"
+              echo '```'
+            fi
+            if [ -n "$ERRORS" ]; then
+              echo "### Compiler errors"
+              echo '```'
+              echo "$ERRORS"
+              echo '```'
+            else
+              echo "No compiler errors in the log - the failure was somewhere else."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # Also as annotations, which GitHub pins to the top of the run page in red.
+          echo "$ERRORS" | while IFS= read -r line; do
+            [ -n "$line" ] && echo "::error::$line"
+          done
+
+          echo "================== COMPILER ERRORS =================="
+          echo "${ERRORS:-(none)}"
+          echo "===================================================="
 
       - name: Remove signing material
         if: always()
@@ -254,6 +292,7 @@ jobs:
         with:
           name: build-reports
           path: |
+            build.log
             app/build/reports/**
             app/build/outputs/logs/**
           if-no-files-found: ignore
