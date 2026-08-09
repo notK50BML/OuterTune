@@ -1,7 +1,7 @@
 From abf57753acf02ec795fde670a7994060c66d61d5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/38] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/39] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 00000000..81d7f34c
 From 7e2560b1e5a19726eb902f2309313689ab52acba Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/38] Add patch notes
+Subject: [PATCH 02/39] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 00000000..28c797a0
 From 8d4e4bfed77bddefc92a068871c4b5e15c39d08e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/38] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/39] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a89..27f97bf7 100644
 From fdb002ab4f58ab0fa4d18b04b72981b155d7fa18 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/38] Clarify build route in patch notes
+Subject: [PATCH 04/39] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f961..a43e5d3f 100644
 From 5d8cd31674bce4e1ef5c5a43add291aed48977f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/38] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/39] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b930..7d500840 100644
 From 120ee52c97be12b7987d9c525c6fd94e319ec7b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/38] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/39] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac8..a848cde2 100644
 From e079634c37585a3cd08526d579c011edad00f573 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/38] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/39] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf7..580a4a9c 100644
 From 2e53b39fd015a9d178a7ac8ba4684ab4df15eed6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/38] Add Discord rich presence
+Subject: [PATCH 08/39] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b851593..575e5dee 100755
 From d67c1f597d8e00d0652a668a3ddd580782785de1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/38] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/39] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d6..b01f7166 100644
 From 2d3c0ac370ddbc2085eba2ddc94fa3d8e4549eca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/38] Add a Liquid player background
+Subject: [PATCH 10/39] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2e..9ce0f192 100644
 From 18c53c761d971b8bef303d371d8ea800568bb83b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/38] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/39] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f192..0afd9445 100644
 From 921ead638ee8f1c73fe9d27a863ee918356f126c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/38] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/39] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd9445..8388e17e 100644
 From 5833674cf816ba403c4c93098d3a3142f50118fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/38] Fix Discord presence never appearing
+Subject: [PATCH 13/39] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fcc..d9eaf365 100644
 From 5584e908333eb1fba58a1cc8a735e5d167047b87 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/38] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/39] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17e..25f56c21 100644
 From 6f80c5af64eb7a4e820a13fb4feb5c11efb507b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/38] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/39] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f5..90bac793 100644
 From e989327818aa23fe2d413857f472822ca0915b21 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/38] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/39] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c0..92770533 100644
 From 813807fab1d4d67dd0130b0c0ba581b2675a1ea0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/38] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/39] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 92770533..1fd386f5 100644
 From 0c5bb4fcd45a196b90ba3cf1dcbdbed32c1dbec3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/38] Point in-app links at this fork
+Subject: [PATCH 18/39] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 1fd386f5..227e9628 100644
 From d35211c67f93873c75d11c3e8a24335cc946bfaa Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 19/38] Bump to 0.10.18 and document the versioning rule
+Subject: [PATCH 19/39] Bump to 0.10.18 and document the versioning rule
 
 The last component of versionName now moves by 0.00.01 for each new
 feature and stays put for fixes, with versionCode following so Android
@@ -6007,7 +6007,7 @@ index c4a617e8..d7da63ad 100644
 From 848bcf59a3960528ac5579eba4bec80242b9b5cb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 20/38] Fix the Discord presence freezing on a track change
+Subject: [PATCH 20/39] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6248,7 +6248,7 @@ index 227e9628..e843bb7d 100644
 From e9ccbb36c1bb42307cf2c000bde43d6a0fadcc6b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 21/38] Explain where to find the Discord token
+Subject: [PATCH 21/39] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6278,7 +6278,7 @@ index 035206ed..93e4b92b 100644
 From b5a4b99535300c351e8f13f984908d31af87f382 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 22/38] Ask Discord's module registry for the token
+Subject: [PATCH 22/39] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6465,7 +6465,7 @@ index 9244411c..4aea73d0 100644
 From 1873a96e24954e3615b26721bfe834dde086839e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 23/38] Add app icon customisation
+Subject: [PATCH 23/39] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7403,7 +7403,7 @@ index 93e4b92b..25673abe 100644
 From db0a212f606efc8c4351fda4f77aa639baed4bac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 24/38] Add a frosted glass player background
+Subject: [PATCH 24/39] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7784,7 +7784,7 @@ index 25673abe..d6c42efd 100644
 From af2b3e49d01dc5650304ea722ae4c266fb461479 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 25/38] Turn the home search into a field, and thin out the top
+Subject: [PATCH 25/39] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8072,7 +8072,7 @@ index d6c42efd..37748685 100644
 From 88c8501d7d9094570339fb2763462ddb9b50a1d4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 26/38] Add extended charts to Stats
+Subject: [PATCH 26/39] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8368,7 +8368,7 @@ index 37748685..10418352 100644
 From a2d2264ec1ffd6f7ffb55e60ce30565e01197e84 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 27/38] Import player layouts from the layout editor
+Subject: [PATCH 27/39] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9341,7 +9341,7 @@ index 10418352..20ed4dc7 100644
 From 5d549d06c7a742efa2997fd9e7aafc59dc1bc582 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 28/38] Add song recognition
+Subject: [PATCH 28/39] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11399,7 +11399,7 @@ index 00000000..1c59e9ca
 From 5507609bd18e297ca58393cd4ece1676b49190f2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 29/38] Fix the stats charts
+Subject: [PATCH 29/39] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11798,7 +11798,7 @@ index f7096084..a26b3be5 100644
 From 14150c4857efa0c3b8cc22dc8d7ca23928c51edc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 30/38] Let the stats charts rank by plays or by time
+Subject: [PATCH 30/39] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -12045,7 +12045,7 @@ index a26b3be5..3bc88bf8 100644
 From 96e16dce7bc0670ac994374e0a40896d78fe2002 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 31/38] Position layout blocks by their centre, and allow
+Subject: [PATCH 31/39] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12119,7 +12119,7 @@ index ee3a36c6..641eb5f5 100644
 From f9746a61495e96fda7bbbc19dd288ecadd8f4aa4 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 32/38] Keep word timings when the lenient TTML parser is used
+Subject: [PATCH 32/39] Keep word timings when the lenient TTML parser is used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
 those go through the lenient parser in the betterlyrics module instead. That
@@ -12459,7 +12459,7 @@ index 00000000..5d346a37
 From 91a8c27bace9cfd1a236824ad3869fe1e8f86192 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 33/38] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 33/39] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13277,7 +13277,7 @@ index 00000000..c9a8384c
 From 1fc100ec75b62ec88f56e1fcf4d0daeb4d30f44c Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 34/38] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 34/39] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13331,7 +13331,7 @@ index 156d94ca..a909d4d5 100644
 From 4ab3440c614b49521e4f3052d5c230a9cabdf632 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 35/38] Let the user choose which lyric provider is preferred
+Subject: [PATCH 35/39] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14155,7 +14155,7 @@ index 00000000..78961d0d
 From 4dd669f3a636a6fa0c4542b5fffd3c3404157b19 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 36/38] Document the lyrics work in the patch notes
+Subject: [PATCH 36/39] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14260,7 +14260,7 @@ index a43e5d3f..85917675 100644
 From ee14dbc6535b51ca785949c352ea9401109c34b9 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 37/38] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 37/39] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14316,7 +14316,7 @@ index 78bb0691..f7636ae1 100644
 From 02128f626a4bddaa2d0c8f309e1b705affcd4676 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 38/38] Colour the queue handle to match the player background
+Subject: [PATCH 38/39] Colour the queue handle to match the player background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
 alpha - the fade only starts once the sheet is about a tenth of the way open.
@@ -14539,6 +14539,123 @@ index 86483840..338957b0 100644
                          maxLines = 1,
                          overflow = TextOverflow.Ellipsis,
                          textAlign = TextAlign.Center,
+-- 
+2.43.0
+
+
+From 24db8b9a74f7d092bc3005fe3580174a84d884ae Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sun, 9 Aug 2026 01:39:12 +0000
+Subject: [PATCH 39/39] Restore the artist queries the stats fix deleted
+
+:app:compileCoreReleaseKotlin failed with a page of unresolved references -
+artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
+MediaLibrarySessionCallback, ArtistMenu and LocalSearchViewModel, plus a long
+cascade of "cannot infer type" errors downstream of them.
+
+"Fix the stats charts" meant to replace one query, mostPlayedArtists, with a
+version that reads the event table. It replaced the whole Gets region of
+ArtistsDao instead, taking ten unrelated queries with it: artist, artistById,
+artistByName, localArtistsByNameFuzzy, searchArtists, searchLocalArtists,
+searchArtistSongs, artistsByNameFuzzy, allRemoteArtists and allLocalArtists.
+Nothing about the stats charts needed any of them.
+
+They are restored exactly as the base declares them; the new mostPlayedArtists
+is untouched. Checked the rest of the patch the same way - every function the
+DAO layer declared at 03099c6 is still declared, so this file was the only
+casualty.
+
+Worth noting why it took three builds to find: the earlier failures in
+:shazamkit and in resource merging both happen before the app module's Kotlin
+is compiled, so this had been broken since the stats commit and could not
+surface until those were out of the way.
+---
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    | 72 +++++++++++++++++++
+ 1 file changed, 72 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index 6a7034b5..5a8ef057 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -33,6 +33,78 @@ import java.time.LocalDateTime
+ interface ArtistsDao {
+ 
+     // region Gets
++    @Query("""
++        SELECT 
++            artist.*,
++            COUNT(song.id) AS songCount,
++            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
++        FROM artist
++            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
++            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
++        WHERE artist.id = :id
++        GROUP BY artist.id
++    """)
++    fun artist(id: String): Flow<Artist?>
++
++    @Query("SELECT * FROM artist WHERE id = :id")
++    fun artistById(id: String): ArtistEntity?
++
++    @Query("SELECT * FROM artist WHERE name = :name")
++    fun artistByName(name: String): ArtistEntity?
++
++    @Query("SELECT * FROM artist WHERE isLocal = 1 AND name LIKE '%' || :name || '%'")
++    fun localArtistsByNameFuzzy(name: String): List<ArtistEntity>
++
++    @Query("""
++        SELECT 
++            artist.*,
++            COUNT(song.id) AS songCount,
++            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
++        FROM artist
++            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
++            LEFT JOIN song ON sam.songId = song.id
++        WHERE artist.name LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL)
++        GROUP BY artist.id
++        HAVING songCount > 0
++        ORDER BY artist.bookmarkedAt ASC
++        LIMIT :previewSize
++    """)
++    fun searchArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
++
++    @Query("""
++        SELECT 
++            artist.*,
++            COUNT(song.id) AS songCount,
++            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
++        FROM artist
++            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
++            LEFT JOIN song ON sam.songId = song.id
++        WHERE artist.name LIKE '%' || :query || '%' AND song.inLibrary IS NOT NULL AND song.isLocal
++        GROUP BY artist.id
++        HAVING songCount > 0
++        LIMIT :previewSize
++    """)
++    fun searchLocalArtists(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Artist>>
++
++
++    @Transaction
++    @Query("""
++        SELECT song.* 
++        FROM song_artist_map JOIN song ON song_artist_map.songId = song.id 
++        WHERE song_artist_map.artistId IN (SELECT id FROM artist WHERE name LIKE '%' || :query || '%') AND song.inLibrary IS NOT NULL 
++        LIMIT :previewSize
++    """)
++    fun searchArtistSongs(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<Song>>
++
++    @Query("SELECT * FROM artist WHERE name LIKE '%' || :query || '%' LIMIT :previewSize")
++    fun artistsByNameFuzzy(query: String, previewSize: Int = Int.MAX_VALUE): Flow<List<ArtistEntity>>
++
++    @Query("SELECT * FROM artist WHERE isLocal != 1")
++    fun allRemoteArtists(): Flow<List<ArtistEntity>>
++
++    @Query("SELECT * FROM artist WHERE isLocal = 1")
++    fun allLocalArtists(): List<ArtistEntity>
++
+     /**
+      * Artists ranked over the same window, by the same measure, as [mostPlayedSongs].
+      *
 -- 
 2.43.0
 
