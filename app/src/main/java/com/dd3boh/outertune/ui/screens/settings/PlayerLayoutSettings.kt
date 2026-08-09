@@ -57,7 +57,9 @@ fun PlayerLayoutSettings(
 ) {
     val context = LocalContext.current
     var layoutJson by rememberPreference(PlayerLayoutKey, "")
-    var status by remember { mutableStateOf<String?>(null) }
+    // Only ever holds a failure. Success is visible in the description below, which
+    // reads the stored layout rather than remembering what was done to it.
+    var error by remember { mutableStateOf<String?>(null) }
 
     val current = remember(layoutJson) {
         if (layoutJson.isBlank()) null else PlayerLayout.parse(layoutJson).getOrNull()
@@ -72,7 +74,7 @@ fun PlayerLayoutSettings(
         }.getOrNull()
 
         if (text.isNullOrBlank()) {
-            status = context.getString(R.string.player_layout_unreadable)
+            error = context.getString(R.string.player_layout_unreadable)
             return@rememberLauncherForActivityResult
         }
         // Validated before it is stored, so a bad file cannot leave the player in a state the
@@ -80,9 +82,9 @@ fun PlayerLayoutSettings(
         PlayerLayout.parse(text)
             .onSuccess {
                 layoutJson = text
-                status = context.getString(R.string.player_layout_imported)
+                error = null
             }
-            .onFailure { status = it.message ?: context.getString(R.string.player_layout_unreadable) }
+            .onFailure { error = it.message ?: context.getString(R.string.player_layout_unreadable) }
     }
 
     ColumnWithContentPadding(
@@ -95,13 +97,14 @@ fun PlayerLayoutSettings(
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
             PreferenceEntry(
                 title = { Text(stringResource(R.string.player_layout_import)) },
-                description = status
-                    ?: current?.let {
-                        val hidden = it.blocks.count { block -> !block.visible }
-                        val mode = if (it.mode == PlayerLayout.Mode.FREE) "free placement" else "stacked"
-                        "In use: $mode" + if (hidden > 0) ", $hidden block(s) hidden" else ""
-                    }
-                    ?: stringResource(R.string.player_layout_import_description),
+                // What is actually in use, always - not a message about the last thing that
+                // happened. A sticky "Imported" or "Reset" line survives the state it was
+                // describing, which makes a reset that did work look like one that did not.
+                description = current?.let {
+                    val hidden = it.blocks.count { block -> !block.visible }
+                    val mode = if (it.mode == PlayerLayout.Mode.FREE) "free placement" else "stacked"
+                    "In use: $mode" + if (hidden > 0) ", $hidden block(s) hidden" else ""
+                } ?: error ?: stringResource(R.string.player_layout_import_description),
                 icon = { Icon(Icons.Rounded.FileOpen, null) },
                 onClick = { pickFile.launch(arrayOf("application/json", "text/plain", "*/*")) },
             )
@@ -111,7 +114,7 @@ fun PlayerLayoutSettings(
                 isEnabled = layoutJson.isNotBlank(),
                 onClick = {
                     layoutJson = ""
-                    status = context.getString(R.string.player_layout_reset_done)
+                    error = null
                 },
             )
         }

@@ -826,6 +826,7 @@ fun ControlsContent(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val hasImportedLayout = layoutJson.isNotBlank()
             val actionsVisible = playerLayout.isVisible(PlayerLayout.BlockId.ACTIONS)
             // action buttons for landscape (above title)
             if (compactWidth && actionsVisible && artwork == null) {
@@ -1163,12 +1164,25 @@ fun ControlsContent(
                     }
                 }
             } else {
-                playerLayout.blocks.forEachIndexed { i, b ->
-                    if (shows(b) && b.id != PlayerLayout.BlockId.QUEUE &&
-                        b.id != PlayerLayout.BlockId.ARTWORK
-                    ) {
+                // ARTWORK is drawn by the caller in its own box above these, the QUEUE is a
+                // bottom sheet, and ACTIONS is drawn inline with the title - emitting it here as
+                // well would put two action rows on screen.
+                val stacked = playerLayout.blocks.filter {
+                    shows(it) &&
+                            it.id != PlayerLayout.BlockId.QUEUE &&
+                            it.id != PlayerLayout.BlockId.ARTWORK &&
+                            it.id != PlayerLayout.BlockId.ACTIONS
+                }
+                stacked.forEachIndexed { i, b ->
+                    if (hasImportedLayout) {
+                        // Spacing and the size transform are things a file asked for. With no file
+                        // there is nothing to apply, and applying the defaults anyway would add gaps
+                        // and a wrapper the built-in layout never had - which is what "reset to
+                        // default" is supposed to take away, not introduce.
                         if (i > 0) Spacer(Modifier.height(playerLayout.spacingDp.dp))
                         StackBlock(b) { contentFor(b.id) }
+                    } else {
+                        contentFor(b.id)
                     }
                 }
             }
