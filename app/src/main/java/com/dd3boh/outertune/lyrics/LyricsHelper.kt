@@ -345,7 +345,10 @@ class LyricsHelper @Inject constructor(
                 null
             }
             when (parsed) {
-                is SemanticLyrics.SyncedLyrics -> FoundKind.SYNCED
+                is SemanticLyrics.SyncedLyrics ->
+                    if (parsed.text.any { !it.words.isNullOrEmpty() }) FoundKind.WORD_SYNCED
+                    else FoundKind.SYNCED
+
                 is SemanticLyrics.UnsyncedLyrics -> FoundKind.UNSYNCED
                 null -> FoundKind.UNPARSEABLE
             }
@@ -645,8 +648,15 @@ sealed interface RemoteLyricsResult {
     data object Skipped : RemoteLyricsResult
 }
 
-/** How a [LyricsFetchResult.Found] parses when judged for adoption. */
-enum class FoundKind { SYNCED, UNSYNCED, UNPARSEABLE }
+/**
+ * How a [LyricsFetchResult.Found] parses when judged for adoption, best first.
+ *
+ * [WORD_SYNCED] is separated from [SYNCED] because it is what the word-by-word renderer needs, and
+ * without the distinction it could not win: providers were raced and the first synced answer took
+ * it, which in practice is whichever one is quickest, not whichever one carries word timings. A
+ * song whose lyrics exist in both forms would get the line-level version essentially every time.
+ */
+enum class FoundKind { WORD_SYNCED, SYNCED, UNSYNCED, UNPARSEABLE }
 
 /**
  * Accumulates provider outcomes and derives the aggregate [RemoteLyricsResult]. The rules, independent
@@ -657,7 +667,8 @@ enum class FoundKind { SYNCED, UNSYNCED, UNPARSEABLE }
  * @param enabledCount number of providers that were expected to report
  */
 class RemoteLyricsAggregator(private val enabledCount: Int) {
-    private var adoptedSynced: RemoteLyricsResult.Found? = null
+    private var adoptedWordSynced: RemoteLyricsResult.Found? = null
+    private var heldSynced: RemoteLyricsResult.Found? = null
     private var heldUnsynced: RemoteLyricsResult.Found? = null
     private var notFoundCount = 0
     private var nonNotFoundCount = 0
@@ -670,11 +681,19 @@ class RemoteLyricsAggregator(private val enabledCount: Int) {
     fun offer(providerName: String, result: LyricsFetchResult, classifyFound: (String) -> FoundKind): Boolean {
         when (result) {
             is LyricsFetchResult.Found -> when (classifyFound(result.raw)) {
-                FoundKind.SYNCED -> {
-                    if (adoptedSynced == null) {
-                        adoptedSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
+                // Word timings are strictly richer - a line-level renderer ignores the extra marks -
+                // so this is the one result worth stopping everything for.
+                FoundKind.WORD_SYNCED -> {
+                    if (adoptedWordSynced == null) {
+                        adoptedWordSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
                     }
                     return true
+                }
+
+                // Held rather than adopted: a slower provider may still come back with the same
+                // song in word-timed form, and that is worth the wait it costs.
+                FoundKind.SYNCED -> if (heldSynced == null) {
+                    heldSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
                 }
 
                 FoundKind.UNSYNCED -> if (heldUnsynced == null) {
@@ -691,7 +710,8 @@ class RemoteLyricsAggregator(private val enabledCount: Int) {
     }
 
     fun result(): RemoteLyricsResult = when {
-        adoptedSynced != null -> adoptedSynced as RemoteLyricsResult.Found
+        adoptedWordSynced != null -> adoptedWordSynced as RemoteLyricsResult.Found
+        heldSynced != null -> heldSynced as RemoteLyricsResult.Found
         heldUnsynced != null -> heldUnsynced as RemoteLyricsResult.Found
         nonNotFoundCount == 0 && notFoundCount == enabledCount -> RemoteLyricsResult.DefinitiveNotFound
         else -> RemoteLyricsResult.Indeterminate
