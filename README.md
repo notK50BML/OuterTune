@@ -7,7 +7,7 @@
 
 [English](README.md) | [日本語](README_ja.md)
 
-A Material 3 YouTube Music client & local music player for Android
+A personalisation-first music player, with a highly minimalist basis. The app is extremely lightweight, with the universal release around 10mb. In contrast Spotify and Youtube Music's APKs are all 60mB or more. Still, this is feature-packed with settings such as Discord Rich Presence, line-by-line lyrics, a special UI editor (still WIP) and much more. It has a dynamic material you 3 theme and multiple player styles. 
 
 Currently, we are working on movable UI elements and a visualiser. These are both very WIP projects and we will continue to update the app but these features may not be released soon.
 
@@ -16,15 +16,13 @@ I NEED A CAT!
 > [!NOTE]
 > This is a fork based on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune).
 >
-> Occasionally, release APKs would be uploaded, but to test the latest release, please use compile the APK yourself, the instructions are below.
+> Occasionally, release APKs would be uploaded, but to test the latest release, please use compile the APK yourself, please read the wiki (https://github.com/notK50BML/OuterTune/wiki/Getting-started).
 >
-> Go to the Actions tab, click on Build Patched APKs, click on build and then run all jobs. Hopefully, in good time I will get to releasing more often, I probably will.
->
-> For step-by-step instructions, see [CONTRIBUTING.md](https://github.com/yuuichi-s/OuterTune/blob/dev/CONTRIBUTING.md).
-
 ## What This Fork Improves
 
-This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune) with a focus on YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
+This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune) with a focus on personalisation, YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
+
+### Movable lyr
 
 ### Discord Rich Presence
 - Added rich presence (huge thanks to https://github.com/reocat/OuterTune)
@@ -33,6 +31,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Added a working progress bar
 - Added token login along with normal login
 - Added connection tester to diagnose any connection issues
+
 ### YouTube Music playback and display
 
 - Fixed albums with missing tracks, crashes while opening playlists, and failed search result parsing
@@ -52,6 +51,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Added SimpMusic and BetterLyrics as lyrics providers
 - Queries enabled providers in parallel with timeouts
 - Fetches lyrics in the playback service even while the lyrics panel is closed
+- Added word-by-word lyrics, rendered in the normal word-highlight style
 
 ### Navigation and menus
 
@@ -76,6 +76,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Added the current queue's name to the player's queue handle
 - Replaced the account icon with the signed-in account's profile image
 - Reorganised the settings screens, merging Appearance and Interface into "Appearance and controls" and adding a top-level Privacy screen
+- Added Frosted Glass and Liquid player themes, along with a toggle for contrasting text for accessibility. 
 
 ### Playback and downloads
 
@@ -87,7 +88,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 
 - Updated Kotlin, KSP, NewPipeExtractor, Ktor, Android Gradle Plugin, Gradle, and related tooling
 
-## Features
+## Original features
 
 OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/InnerTune). This app is both a local media player, and a YouTube Music client.
 
