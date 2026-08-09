@@ -247,6 +247,12 @@ fun PortraitPlayer(
 
     val playerConnection = LocalPlayerConnection.current ?: return
 
+    val layoutJson by rememberPreference(PlayerLayoutKey, "")
+    val freePlacement = remember(layoutJson) {
+        layoutJson.isNotBlank() &&
+                PlayerLayout.parse(layoutJson).getOrNull()?.mode == PlayerLayout.Mode.FREE
+    }
+
     val dismissedBound = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
 
     val queueSheetState = rememberBottomSheetState(
@@ -262,6 +268,38 @@ fun PortraitPlayer(
             .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
             .padding(bottom = queueSheetState.collapsedBound)
     ) {
+        if (freePlacement) {
+            // One coordinate space for the whole player. The cover is handed to ControlsContent as
+            // a block rather than drawn here, because in free placement it is positioned by the
+            // same rules as everything else and has to share their box.
+            //
+            // Swipe to skip is not offered here: it is a full-width pager, and a cover that can be
+            // any width, anywhere, at any angle is not one.
+            val meta by playerConnection.mediaMetadata.collectAsState()
+            val showLyricsOnClick by rememberPreference(ShowLyricsOnClickKey, defaultValue = DEFAULT_SHOW_LYRICS_ON_CLICK)
+            var freeSliderPosition by remember { mutableStateOf<Long?>(null) }
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .nestedScroll(playerSheetState.preUpPostDownNestedScrollConnection)
+            ) {
+                ControlsContent(
+                    playerSheetState, queueSheetState, navController, queueBoard,
+                    artwork = {
+                        Thumbnail(
+                            modifier = Modifier.animateContentSize(),
+                            sliderPositionProvider = { freeSliderPosition },
+                            showLyricsOnClick = showLyricsOnClick,
+                            customMediaMetadata = meta,
+                        )
+                    },
+                )
+            }
+            Spacer(Modifier.height(24.dp))
+            return@Column
+        }
+
         BoxWithConstraints(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -706,6 +744,12 @@ fun ControlsContent(
     navController: NavController,
     queueBoard: QueueBoard,
     showQueueHint: Boolean = false,
+    /**
+     * The cover, supplied only in free placement. There it is one placeable block among the rest
+     * and has to share their coordinate space, so the caller hands it over instead of drawing it
+     * itself. Null everywhere else, and the caller keeps drawing it as it always did.
+     */
+    artwork: (@Composable () -> Unit)? = null,
 ) {
     val TAG = "ControlsContent()"
     if (PLAYER_DEBUG) Log.v(TAG, "PLR-CC-1")
@@ -782,8 +826,9 @@ fun ControlsContent(
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            val actionsVisible = playerLayout.isVisible(PlayerLayout.BlockId.ACTIONS)
             // action buttons for landscape (above title)
-            if (compactWidth) {
+            if (compactWidth && actionsVisible && artwork == null) {
                 Row(
                     horizontalArrangement = Arrangement.End,
                     verticalAlignment = Alignment.CenterVertically,
@@ -859,8 +904,10 @@ fun ControlsContent(
                             }
                         }
 
-                        // action buttons for portrait (inline with title)
-                        if (!compactWidth) {
+                        // action buttons for portrait (inline with title). Not in free placement:
+                        // there they are their own block with their own coordinates, and drawing
+                        // them here as well would put two copies on screen.
+                        if (!compactWidth && actionsVisible && artwork == null) {
                             ActionButtons(playerSheetState, navController)
                         }
                     }
@@ -1076,15 +1123,53 @@ fun ControlsContent(
 
             }
 
+            val actionsBlock: @Composable () -> Unit = {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ActionButtons(playerSheetState, navController)
+                }
+            }
+
+            // What each block draws. The queue is not here: it is a bottom sheet anchored to the
+            // bottom of the screen, so it has nothing to place.
+            val contentFor: @Composable (PlayerLayout.BlockId) -> Unit = { id ->
+                when (id) {
+                    PlayerLayout.BlockId.ARTWORK -> artwork?.invoke()
+                    PlayerLayout.BlockId.INFO -> infoBlock()
+                    PlayerLayout.BlockId.PROGRESS -> progressBlock()
+                    PlayerLayout.BlockId.CONTROLS -> controlsBlock()
+                    PlayerLayout.BlockId.ACTIONS -> actionsBlock()
+                    PlayerLayout.BlockId.QUEUE -> Unit
+                }
+            }
+
             // CONTROLS is emitted whatever the file says. Hiding the play button leaves a player
             // that cannot be paused from its own screen, and a layout file is not a good place to
             // discover that.
-            playerLayout.blocks.forEach { b ->
-                when (b.id) {
-                    PlayerLayout.BlockId.INFO -> if (b.visible) infoBlock()
-                    PlayerLayout.BlockId.PROGRESS -> if (b.visible) progressBlock()
-                    PlayerLayout.BlockId.CONTROLS -> controlsBlock()
-                    else -> Unit
+            fun shows(b: PlayerLayout.Block) = b.visible || b.id == PlayerLayout.BlockId.CONTROLS
+
+            if (artwork != null) {
+                // Free placement. Every block is drawn into one box the size of the player, each
+                // one positioned by its own coordinates, in the order the file lists them - so a
+                // block later in the list draws over an earlier one where they overlap.
+                Box(modifier = Modifier.fillMaxSize()) {
+                    playerLayout.blocks.forEach { b ->
+                        if (shows(b) && b.id != PlayerLayout.BlockId.QUEUE) {
+                            FreeBlock(b) { contentFor(b.id) }
+                        }
+                    }
+                }
+            } else {
+                playerLayout.blocks.forEachIndexed { i, b ->
+                    if (shows(b) && b.id != PlayerLayout.BlockId.QUEUE &&
+                        b.id != PlayerLayout.BlockId.ARTWORK
+                    ) {
+                        if (i > 0) Spacer(Modifier.height(playerLayout.spacingDp.dp))
+                        StackBlock(b) { contentFor(b.id) }
+                    }
                 }
             }
             // queue hint for landscape
