@@ -24,7 +24,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Added multiple preset configurations to choose from
 - Easily revertible to the original layout
 - Simple and intuitive UI which lets you quickly export the current configuration
-Note: As said before, this project is still a work-in-progress, with known bugs and issues. This feature is working, but it is definitely nowhere near an alpha release.
+- Note: As mentioned above, this project is still a work-in-progress, with known bugs and issues. This feature is working, but it is definitely nowhere near an alpha release.
 
 ### Discord Rich Presence
 - Added rich presence (huge thanks to https://github.com/reocat/OuterTune)
