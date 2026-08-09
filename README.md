@@ -7,9 +7,9 @@
 
 [English](README.md) | [日本語](README_ja.md)
 
-A personalisation-first music player, with a highly minimalist basis. The app is extremely lightweight, with the universal release around 10mb. In contrast Spotify and Youtube Music's APKs are all 60mB or more. Still, this is feature-packed with settings such as Discord Rich Presence, line-by-line lyrics, a special UI editor (still WIP) and much more. It has a dynamic material you 3 theme and multiple player styles. 
+A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. In contrast, Spotify and Youtube Music's APKs are all 60mB or more. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a special UI editor (still WIP), and much more. It has a dynamic Material You 3 theme and multiple player styles. 
 
-Currently, we are working on movable UI elements and a visualiser. These are both very WIP projects and we will continue to update the app but these features may not be released soon.
+Currently, we are working on movable UI elements and a visualiser. These are both very WIP projects, and we will continue to update the app, but these features may not be released soon.
 
 I NEED A CAT! 
 
@@ -22,7 +22,13 @@ I NEED A CAT!
 
 This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune) with a focus on personalisation, YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
 
-### Movable lyr
+### Movable UI Elements
+- Added ability to configure UI elements
+- Added a HTML file which is run fully offline and extremely lightweight
+- Added multiple preset configurations to choose from
+- Easily revertible to the original layout
+- Simple and intuitive UI which lets you quickly export the current configuration
+Note: As said before, this project is still a work-in-progress, with known bugs and issues. This feature is working, but it is definitely nowhere near an alpha release.
 
 ### Discord Rich Presence
 - Added rich presence (huge thanks to https://github.com/reocat/OuterTune)
@@ -38,9 +44,9 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Fixed the "Source error 2004" issue that could block YouTube Music playback
 - Improved YouTube Music thumbnail resolution and allows for switching between low res and standard thumbnails (on some songs)
 - Fixed a crash that could occur when opening playlists or albums while their data was being updated
-- Fixed m3u playlist import crashes and improved YouTube song matching
+- Fixed .m3u playlist import crashes and improved YouTube song matching
 - Fixed incorrect Liked Music song sequence
-- Fixed blurry cover art on some songs
+- Fixed blurry cover art on some songs (again)
 - Cleaned up the top bar and removed a redundant icon
 - Added frosted glass and liquid player style
 
@@ -82,7 +88,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 
 - Added a sleep timer that fades out and fully stops playback
 - Added a Wi-Fi-only download toggle
-- Improved time to fetch uncached songs
+- Improved fetch time for uncached songs
 
 ### Internal libraries and build tooling
 
