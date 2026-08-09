@@ -119,9 +119,11 @@ fun Lyrics(
     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
 
-    // Asking the power manager costs a binder call, so it is asked once rather than once per lyric
-    // line per recomposition.
-    val powerSaver = remember { context.isPowerSaver() }
+    // Asking the power manager costs a binder call, so it is asked once per song rather than once
+    // per lyric line per recomposition. Keyed rather than cached outright: caching it for the life
+    // of the composable meant that turning battery saver off never brought the sweep back.
+    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+    val powerSaver = remember(mediaMetadata) { context.isPowerSaver() }
     val karaokeEnabled = lyricsFancy && !powerSaver
 
     // How often the *current line* is recomputed, which is what drives highlighting and scrolling.
@@ -130,7 +132,6 @@ fun Lyrics(
         if (karaokeEnabled) lyricsUpdateSpeed.toLrcRefreshMillis() else Speed.SLOW.toLrcRefreshMillis()
     }
 
-    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
     // NOTE: lyricsModel is the current display lyrics that is updated by playerLyrics AND/OR manually
     val playerLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
@@ -223,6 +224,9 @@ fun Lyrics(
      */
     LaunchedEffect(lyricsModel, karaokeEnabled, isSynced) {
         if (!karaokeEnabled || !isSynced || lyricsModel == null) return@LaunchedEffect
+        // Seed it before waiting for anything. Left at its initial zero the first frame draws an
+        // entirely unswept line, which is indistinguishable from the sweep not working at all.
+        karaokePosition.longValue = sliderPositionProvider() ?: playerConnection.player.currentPosition
         var latchedPosition = Long.MIN_VALUE
         var latchedAt = 0L
         while (isActive) {
@@ -403,8 +407,8 @@ fun Lyrics(
                         // is drawn exactly as the plain path draws an upcoming one, so the two are
                         // indistinguishable. Every other line is cheaper as a plain Text.
                         val karaoke = karaokeEnabled && isSynced && !words.isNullOrEmpty() &&
-                            displayedCurrentLineIndex >= 0 &&
-                            (index == displayedCurrentLineIndex || index == displayedCurrentLineIndex + 1)
+                            if (displayedCurrentLineIndex < 0) index == 0
+                            else index == displayedCurrentLineIndex || index == displayedCurrentLineIndex + 1
 
                         if (karaoke) {
                             KaraokeLyricLine(

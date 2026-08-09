@@ -86,8 +86,12 @@ fun KaraokeLyricLine(
 
         // Without a width there is nothing to lay out against, and without text or timings there is
         // nothing to sweep. Fall back rather than drawing a blank.
+        // No width to lay out against, no text, or no timings: draw the line plainly. It is drawn
+        // in the *sung* colour rather than the unsung one on purpose - this is the line that is
+        // playing, and dimming it here makes a missing-word-timings problem look identical to a
+        // sweep that has stopped working.
         if (widthPx <= 0 || text.isEmpty() || words.isEmpty()) {
-            Text(text = text, style = style, color = unsungColor, modifier = Modifier.fillMaxWidth())
+            Text(text = text, style = style, color = sungColor, modifier = Modifier.fillMaxWidth())
             return@BoxWithConstraints
         }
 
@@ -107,7 +111,7 @@ fun KaraokeLyricLine(
             words.filter { it.charRange.first in text.indices && it.charRange.last < text.length }
         }
         if (safeWords.isEmpty()) {
-            Text(text = text, style = style, color = unsungColor, modifier = Modifier.fillMaxWidth())
+            Text(text = text, style = style, color = sungColor, modifier = Modifier.fillMaxWidth())
             return@BoxWithConstraints
         }
 
