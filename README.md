@@ -42,7 +42,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Fixed incorrect Liked Music song sequence
 - Fixed blurry cover art on some songs
 - Cleaned up the top bar and removed a redundant icon
-- Added frosted glass player style
+- Added frosted glass and liquid player style
 
 ### Lyrics
 
