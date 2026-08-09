@@ -206,7 +206,7 @@ fun PlaybackBehaviourFrag() {
 
     PreferenceEntry(
         title = { Text(stringResource(R.string.min_playback_duration)) },
-        description = stringResource(R.string.min_playback_duration_description, minPlaybackDur),
+        description = stringResource(R.string.min_playback_duration_summary, minPlaybackDur),
         icon = { Icon(Icons.Rounded.Sync, null) },
         onClick = { showMinPlaybackDur = true }
     )
