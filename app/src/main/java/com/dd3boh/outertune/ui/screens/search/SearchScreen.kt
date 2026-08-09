@@ -81,6 +81,8 @@ import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
 import com.dd3boh.outertune.constants.EnabledTabsKey
 import com.dd3boh.outertune.constants.ShowTopBarLogoKey
 import com.dd3boh.outertune.constants.PauseSearchHistoryKey
+import com.dd3boh.outertune.constants.RecognitionButtonPlacement
+import com.dd3boh.outertune.constants.RecognitionButtonPlacementKey
 import com.dd3boh.outertune.constants.SearchSource
 import com.dd3boh.outertune.constants.SearchSourceKey
 import com.dd3boh.outertune.constants.UpdateAvailableKey
@@ -118,6 +120,10 @@ fun SearchBarContainer(
 
     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
+    val recognizePlacement by rememberEnumPreference(
+        RecognitionButtonPlacementKey,
+        RecognitionButtonPlacement.TOP_BAR
+    )
     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
     val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = true)
 
@@ -272,6 +278,14 @@ fun SearchBarContainer(
                             )
                         }
                     }
+                    if (recognizePlacement == RecognitionButtonPlacement.SEARCH_FIELD) {
+                        IconButton(onClick = { navController.navigate("recognition") }) {
+                            Icon(
+                                imageVector = Icons.Rounded.Mic,
+                                contentDescription = stringResource(R.string.recognition)
+                            )
+                        }
+                    }
                     IconButton(
                         onClick = {
                             searchSource =
@@ -366,6 +380,7 @@ fun SearchBarContainer(
             scrollBehavior = scrollBehavior,
             windowInsets = iconRowInset,
             showLogo = showTopBarLogo,
+            showRecognize = recognizePlacement == RecognitionButtonPlacement.TOP_BAR,
             onRecognizeClick = { navController.navigate("recognition") },
             onStatsClick = { navController.navigate("stats") },
             onSettingsClick = { navController.navigate("settings") },
@@ -381,6 +396,7 @@ private fun TopIconBar(
     scrollBehavior: TopAppBarScrollBehavior,
     windowInsets: WindowInsets,
     showLogo: Boolean,
+    showRecognize: Boolean,
     onRecognizeClick: () -> Unit,
     onStatsClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -452,11 +468,13 @@ private fun TopIconBar(
         }
         Spacer(Modifier.width(4.dp))
 
-        IconButton(onClick = onRecognizeClick) {
-            Icon(
-                imageVector = Icons.Rounded.Mic,
-                contentDescription = stringResource(R.string.recognition)
-            )
+        if (showRecognize) {
+            IconButton(onClick = onRecognizeClick) {
+                Icon(
+                    imageVector = Icons.Rounded.Mic,
+                    contentDescription = stringResource(R.string.recognition)
+                )
+            }
         }
         IconButton(onClick = onStatsClick) {
             Icon(

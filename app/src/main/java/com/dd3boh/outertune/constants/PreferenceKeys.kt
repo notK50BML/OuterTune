@@ -23,6 +23,7 @@ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
 
 /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
 val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
+val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")
 
 /**
  * The imported player layout, stored as the raw JSON the editor produced.

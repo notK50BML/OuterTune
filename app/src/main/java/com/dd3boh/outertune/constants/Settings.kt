@@ -246,6 +246,17 @@ enum class SearchSource {
 }
 
 /**
+ * Where the button that starts song recognition lives.
+ *
+ * [TOP_BAR] is the original spot, in the row of icons above the home screen. [SEARCH_FIELD] moves
+ * it next to the local/online toggle inside the search field, which is only on screen while a
+ * search is open - so it is out of the way until you are already looking for something.
+ */
+enum class RecognitionButtonPlacement {
+    TOP_BAR, SEARCH_FIELD, HIDDEN
+}
+
+/**
  * How remote lyric providers are consulted for one song.
  *
  * [AUTO] asks every enabled provider at once and takes the first synced result to come back, which

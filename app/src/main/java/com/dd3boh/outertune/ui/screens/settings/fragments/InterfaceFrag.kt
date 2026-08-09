@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Language
 import androidx.compose.material.icons.rounded.LocationOn
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Reorder
 import androidx.compose.material.icons.rounded.Tab
 import androidx.compose.material3.Icon
@@ -54,13 +55,17 @@ import com.dd3boh.outertune.constants.SYSTEM_DEFAULT
 import com.dd3boh.outertune.constants.SwipeToQueueKey
 import com.dd3boh.outertune.constants.ThumbnailCornerRadius
 import com.dd3boh.outertune.extensions.move
+import com.dd3boh.outertune.ui.component.EnumListPreference
 import com.dd3boh.outertune.ui.component.ListPreference
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
 import com.dd3boh.outertune.ui.dialog.InfoLabel
+import com.dd3boh.outertune.constants.RecognitionButtonPlacement
+import com.dd3boh.outertune.constants.RecognitionButtonPlacementKey
 import com.dd3boh.outertune.ui.screens.Screens
 import com.dd3boh.outertune.ui.screens.Screens.LibraryFilter
+import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import com.zionhuang.innertube.YouTube
 import sh.calvin.reorderable.ReorderableItem
@@ -378,6 +383,8 @@ fun ColumnScope.TabArrangementFrag() {
 fun ColumnScope.TabExtrasFrag() {
     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
     val (defaultOpenTab, onDefaultOpenTabChange) = rememberPreference(DefaultOpenTabKey, defaultValue = "home")
+    val (recognizePlacement, onRecognizePlacementChange) =
+        rememberEnumPreference(RecognitionButtonPlacementKey, RecognitionButtonPlacement.TOP_BAR)
 
     ListPreference(
         title = { Text(stringResource(R.string.default_open_tab)) },
@@ -388,6 +395,20 @@ fun ColumnScope.TabExtrasFrag() {
         },
         values = Screens.getAllScreens().filter { Screens.getScreens(enabledTabs).contains(it) },
         valueText = { stringResource(it.titleId) }
+    )
+    EnumListPreference(
+        title = { Text(stringResource(R.string.recognition_placement_title)) },
+        icon = { Icon(Icons.Rounded.Mic, null) },
+        selectedValue = recognizePlacement,
+        onValueSelected = onRecognizePlacementChange,
+        values = RecognitionButtonPlacement.entries,
+        valueText = {
+            when (it) {
+                RecognitionButtonPlacement.TOP_BAR -> stringResource(R.string.recognition_placement_top_bar)
+                RecognitionButtonPlacement.SEARCH_FIELD -> stringResource(R.string.recognition_placement_search_field)
+                RecognitionButtonPlacement.HIDDEN -> stringResource(R.string.recognition_placement_hidden)
+            }
+        }
     )
 }
 
