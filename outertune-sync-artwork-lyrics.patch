@@ -1,7 +1,7 @@
 From abf57753acf02ec795fde670a7994060c66d61d5 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/39] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/44] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 00000000..81d7f34c
 From 7e2560b1e5a19726eb902f2309313689ab52acba Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/39] Add patch notes
+Subject: [PATCH 02/44] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 00000000..28c797a0
 From 8d4e4bfed77bddefc92a068871c4b5e15c39d08e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/39] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/44] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a89..27f97bf7 100644
 From fdb002ab4f58ab0fa4d18b04b72981b155d7fa18 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/39] Clarify build route in patch notes
+Subject: [PATCH 04/44] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f961..a43e5d3f 100644
 From 5d8cd31674bce4e1ef5c5a43add291aed48977f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/39] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/44] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b930..7d500840 100644
 From 120ee52c97be12b7987d9c525c6fd94e319ec7b6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/39] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/44] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac8..a848cde2 100644
 From e079634c37585a3cd08526d579c011edad00f573 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/39] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/44] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf7..580a4a9c 100644
 From 2e53b39fd015a9d178a7ac8ba4684ab4df15eed6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/39] Add Discord rich presence
+Subject: [PATCH 08/44] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b851593..575e5dee 100755
 From d67c1f597d8e00d0652a668a3ddd580782785de1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/39] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/44] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 4329d6d6..b01f7166 100644
 From 2d3c0ac370ddbc2085eba2ddc94fa3d8e4549eca Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/39] Add a Liquid player background
+Subject: [PATCH 10/44] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2e..9ce0f192 100644
 From 18c53c761d971b8bef303d371d8ea800568bb83b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/39] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/44] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f192..0afd9445 100644
 From 921ead638ee8f1c73fe9d27a863ee918356f126c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/39] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/44] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd9445..8388e17e 100644
 From 5833674cf816ba403c4c93098d3a3142f50118fb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/39] Fix Discord presence never appearing
+Subject: [PATCH 13/44] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fcc..d9eaf365 100644
 From 5584e908333eb1fba58a1cc8a735e5d167047b87 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/39] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/44] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17e..25f56c21 100644
 From 6f80c5af64eb7a4e820a13fb4feb5c11efb507b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/39] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/44] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f5..90bac793 100644
 From e989327818aa23fe2d413857f472822ca0915b21 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/39] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/44] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c0..92770533 100644
 From 813807fab1d4d67dd0130b0c0ba581b2675a1ea0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/39] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/44] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 92770533..1fd386f5 100644
 From 0c5bb4fcd45a196b90ba3cf1dcbdbed32c1dbec3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/39] Point in-app links at this fork
+Subject: [PATCH 18/44] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 1fd386f5..227e9628 100644
 From d35211c67f93873c75d11c3e8a24335cc946bfaa Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 19/39] Bump to 0.10.18 and document the versioning rule
+Subject: [PATCH 19/44] Bump to 0.10.18 and document the versioning rule
 
 The last component of versionName now moves by 0.00.01 for each new
 feature and stays put for fixes, with versionCode following so Android
@@ -6007,7 +6007,7 @@ index c4a617e8..d7da63ad 100644
 From 848bcf59a3960528ac5579eba4bec80242b9b5cb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 20/39] Fix the Discord presence freezing on a track change
+Subject: [PATCH 20/44] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6248,7 +6248,7 @@ index 227e9628..e843bb7d 100644
 From e9ccbb36c1bb42307cf2c000bde43d6a0fadcc6b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 21/39] Explain where to find the Discord token
+Subject: [PATCH 21/44] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6278,7 +6278,7 @@ index 035206ed..93e4b92b 100644
 From b5a4b99535300c351e8f13f984908d31af87f382 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 22/39] Ask Discord's module registry for the token
+Subject: [PATCH 22/44] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6465,7 +6465,7 @@ index 9244411c..4aea73d0 100644
 From 1873a96e24954e3615b26721bfe834dde086839e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 23/39] Add app icon customisation
+Subject: [PATCH 23/44] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7403,7 +7403,7 @@ index 93e4b92b..25673abe 100644
 From db0a212f606efc8c4351fda4f77aa639baed4bac Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 24/39] Add a frosted glass player background
+Subject: [PATCH 24/44] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7784,7 +7784,7 @@ index 25673abe..d6c42efd 100644
 From af2b3e49d01dc5650304ea722ae4c266fb461479 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 25/39] Turn the home search into a field, and thin out the top
+Subject: [PATCH 25/44] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8072,7 +8072,7 @@ index d6c42efd..37748685 100644
 From 88c8501d7d9094570339fb2763462ddb9b50a1d4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 26/39] Add extended charts to Stats
+Subject: [PATCH 26/44] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8368,7 +8368,7 @@ index 37748685..10418352 100644
 From a2d2264ec1ffd6f7ffb55e60ce30565e01197e84 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 27/39] Import player layouts from the layout editor
+Subject: [PATCH 27/44] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9341,7 +9341,7 @@ index 10418352..20ed4dc7 100644
 From 5d549d06c7a742efa2997fd9e7aafc59dc1bc582 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 28/39] Add song recognition
+Subject: [PATCH 28/44] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11399,7 +11399,7 @@ index 00000000..1c59e9ca
 From 5507609bd18e297ca58393cd4ece1676b49190f2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 29/39] Fix the stats charts
+Subject: [PATCH 29/44] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11798,7 +11798,7 @@ index f7096084..a26b3be5 100644
 From 14150c4857efa0c3b8cc22dc8d7ca23928c51edc Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 30/39] Let the stats charts rank by plays or by time
+Subject: [PATCH 30/44] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -12045,7 +12045,7 @@ index a26b3be5..3bc88bf8 100644
 From 96e16dce7bc0670ac994374e0a40896d78fe2002 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 31/39] Position layout blocks by their centre, and allow
+Subject: [PATCH 31/44] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12119,7 +12119,7 @@ index ee3a36c6..641eb5f5 100644
 From f9746a61495e96fda7bbbc19dd288ecadd8f4aa4 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 32/39] Keep word timings when the lenient TTML parser is used
+Subject: [PATCH 32/44] Keep word timings when the lenient TTML parser is used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
 those go through the lenient parser in the betterlyrics module instead. That
@@ -12459,7 +12459,7 @@ index 00000000..5d346a37
 From 91a8c27bace9cfd1a236824ad3869fe1e8f86192 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 33/39] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 33/44] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13277,7 +13277,7 @@ index 00000000..c9a8384c
 From 1fc100ec75b62ec88f56e1fcf4d0daeb4d30f44c Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 34/39] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 34/44] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13331,7 +13331,7 @@ index 156d94ca..a909d4d5 100644
 From 4ab3440c614b49521e4f3052d5c230a9cabdf632 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 35/39] Let the user choose which lyric provider is preferred
+Subject: [PATCH 35/44] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14155,7 +14155,7 @@ index 00000000..78961d0d
 From 4dd669f3a636a6fa0c4542b5fffd3c3404157b19 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 36/39] Document the lyrics work in the patch notes
+Subject: [PATCH 36/44] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14260,7 +14260,7 @@ index a43e5d3f..85917675 100644
 From ee14dbc6535b51ca785949c352ea9401109c34b9 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 37/39] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 37/44] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14316,7 +14316,7 @@ index 78bb0691..f7636ae1 100644
 From 02128f626a4bddaa2d0c8f309e1b705affcd4676 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 38/39] Colour the queue handle to match the player background
+Subject: [PATCH 38/44] Colour the queue handle to match the player background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
 alpha - the fade only starts once the sheet is about a tenth of the way open.
@@ -14546,7 +14546,7 @@ index 86483840..338957b0 100644
 From 24db8b9a74f7d092bc3005fe3580174a84d884ae Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:39:12 +0000
-Subject: [PATCH 39/39] Restore the artist queries the stats fix deleted
+Subject: [PATCH 39/44] Restore the artist queries the stats fix deleted
 
 :app:compileCoreReleaseKotlin failed with a page of unresolved references -
 artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
@@ -14656,6 +14656,709 @@ index 6a7034b5..5a8ef057 100644
      /**
       * Artists ranked over the same window, by the same measure, as [mostPlayedSongs].
       *
+-- 
+2.43.0
+
+
+From a436013248235f4883c38718bc05b7a81140dcb8 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sun, 9 Aug 2026 02:33:57 +0000
+Subject: [PATCH 40/44] Let the identify-a-song button be moved or hidden
+
+Settings -> Appearance -> Display -> Identify a song button, with three
+choices: the top of the home screen, where it has always been; inside the
+search field next to the local/YouTube Music toggle; or hidden.
+
+The search field is the more interesting of the two placements and the reason
+for the setting: that field only exists once a search is open, so the button
+stays out of the way until you are already looking for a song you cannot name.
+The top bar keeps it one tap from the home screen, which is better if that is
+how you use it. Hidden is there because not everyone wants it at all.
+---
+ .../outertune/constants/PreferenceKeys.kt     |  1 +
+ .../dd3boh/outertune/constants/Settings.kt    | 11 ++++++++
+ .../ui/screens/search/SearchScreen.kt         | 28 +++++++++++++++----
+ .../settings/fragments/InterfaceFrag.kt       | 21 ++++++++++++++
+ app/src/main/res/values/strings-ot.xml        |  4 +++
+ 5 files changed, 60 insertions(+), 5 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index c799f0f5..aa235833 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -23,6 +23,7 @@ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
+ 
+ /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
+ val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
++val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")
+ 
+ /**
+  * The imported player layout, stored as the raw JSON the editor produced.
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index 8549e442..98d1be4d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -245,6 +245,17 @@ enum class SearchSource {
+     LOCAL, ONLINE
+ }
+ 
++/**
++ * Where the button that starts song recognition lives.
++ *
++ * [TOP_BAR] is the original spot, in the row of icons above the home screen. [SEARCH_FIELD] moves
++ * it next to the local/online toggle inside the search field, which is only on screen while a
++ * search is open - so it is out of the way until you are already looking for something.
++ */
++enum class RecognitionButtonPlacement {
++    TOP_BAR, SEARCH_FIELD, HIDDEN
++}
++
+ /**
+  * How remote lyric providers are consulted for one song.
+  *
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index c0a682b1..b33a6b87 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -81,6 +81,8 @@ import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
+ import com.dd3boh.outertune.constants.EnabledTabsKey
+ import com.dd3boh.outertune.constants.ShowTopBarLogoKey
+ import com.dd3boh.outertune.constants.PauseSearchHistoryKey
++import com.dd3boh.outertune.constants.RecognitionButtonPlacement
++import com.dd3boh.outertune.constants.RecognitionButtonPlacementKey
+ import com.dd3boh.outertune.constants.SearchSource
+ import com.dd3boh.outertune.constants.SearchSourceKey
+ import com.dd3boh.outertune.constants.UpdateAvailableKey
+@@ -118,6 +120,10 @@ fun SearchBarContainer(
+ 
+     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
++    val recognizePlacement by rememberEnumPreference(
++        RecognitionButtonPlacementKey,
++        RecognitionButtonPlacement.TOP_BAR
++    )
+     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
+     val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = true)
+ 
+@@ -272,6 +278,14 @@ fun SearchBarContainer(
+                             )
+                         }
+                     }
++                    if (recognizePlacement == RecognitionButtonPlacement.SEARCH_FIELD) {
++                        IconButton(onClick = { navController.navigate("recognition") }) {
++                            Icon(
++                                imageVector = Icons.Rounded.Mic,
++                                contentDescription = stringResource(R.string.recognition)
++                            )
++                        }
++                    }
+                     IconButton(
+                         onClick = {
+                             searchSource =
+@@ -366,6 +380,7 @@ fun SearchBarContainer(
+             scrollBehavior = scrollBehavior,
+             windowInsets = iconRowInset,
+             showLogo = showTopBarLogo,
++            showRecognize = recognizePlacement == RecognitionButtonPlacement.TOP_BAR,
+             onRecognizeClick = { navController.navigate("recognition") },
+             onStatsClick = { navController.navigate("stats") },
+             onSettingsClick = { navController.navigate("settings") },
+@@ -381,6 +396,7 @@ private fun TopIconBar(
+     scrollBehavior: TopAppBarScrollBehavior,
+     windowInsets: WindowInsets,
+     showLogo: Boolean,
++    showRecognize: Boolean,
+     onRecognizeClick: () -> Unit,
+     onStatsClick: () -> Unit,
+     onSettingsClick: () -> Unit,
+@@ -452,11 +468,13 @@ private fun TopIconBar(
+         }
+         Spacer(Modifier.width(4.dp))
+ 
+-        IconButton(onClick = onRecognizeClick) {
+-            Icon(
+-                imageVector = Icons.Rounded.Mic,
+-                contentDescription = stringResource(R.string.recognition)
+-            )
++        if (showRecognize) {
++            IconButton(onClick = onRecognizeClick) {
++                Icon(
++                    imageVector = Icons.Rounded.Mic,
++                    contentDescription = stringResource(R.string.recognition)
++                )
++            }
+         }
+         IconButton(onClick = onStatsClick) {
+             Icon(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+index 75e26fbb..14b4e92f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+ import androidx.compose.material.icons.rounded.DragHandle
+ import androidx.compose.material.icons.rounded.Language
+ import androidx.compose.material.icons.rounded.LocationOn
++import androidx.compose.material.icons.rounded.Mic
+ import androidx.compose.material.icons.rounded.Reorder
+ import androidx.compose.material.icons.rounded.Tab
+ import androidx.compose.material3.Icon
+@@ -54,13 +55,17 @@ import com.dd3boh.outertune.constants.SYSTEM_DEFAULT
+ import com.dd3boh.outertune.constants.SwipeToQueueKey
+ import com.dd3boh.outertune.constants.ThumbnailCornerRadius
+ import com.dd3boh.outertune.extensions.move
++import com.dd3boh.outertune.ui.component.EnumListPreference
+ import com.dd3boh.outertune.ui.component.ListPreference
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
+ import com.dd3boh.outertune.ui.dialog.InfoLabel
++import com.dd3boh.outertune.constants.RecognitionButtonPlacement
++import com.dd3boh.outertune.constants.RecognitionButtonPlacementKey
+ import com.dd3boh.outertune.ui.screens.Screens
+ import com.dd3boh.outertune.ui.screens.Screens.LibraryFilter
++import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
+ import com.zionhuang.innertube.YouTube
+ import sh.calvin.reorderable.ReorderableItem
+@@ -378,6 +383,8 @@ fun ColumnScope.TabArrangementFrag() {
+ fun ColumnScope.TabExtrasFrag() {
+     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+     val (defaultOpenTab, onDefaultOpenTabChange) = rememberPreference(DefaultOpenTabKey, defaultValue = "home")
++    val (recognizePlacement, onRecognizePlacementChange) =
++        rememberEnumPreference(RecognitionButtonPlacementKey, RecognitionButtonPlacement.TOP_BAR)
+ 
+     ListPreference(
+         title = { Text(stringResource(R.string.default_open_tab)) },
+@@ -389,6 +396,20 @@ fun ColumnScope.TabExtrasFrag() {
+         values = Screens.getAllScreens().filter { Screens.getScreens(enabledTabs).contains(it) },
+         valueText = { stringResource(it.titleId) }
+     )
++    EnumListPreference(
++        title = { Text(stringResource(R.string.recognition_placement_title)) },
++        icon = { Icon(Icons.Rounded.Mic, null) },
++        selectedValue = recognizePlacement,
++        onValueSelected = onRecognizePlacementChange,
++        values = RecognitionButtonPlacement.entries,
++        valueText = {
++            when (it) {
++                RecognitionButtonPlacement.TOP_BAR -> stringResource(R.string.recognition_placement_top_bar)
++                RecognitionButtonPlacement.SEARCH_FIELD -> stringResource(R.string.recognition_placement_search_field)
++                RecognitionButtonPlacement.HIDDEN -> stringResource(R.string.recognition_placement_hidden)
++            }
++        }
++    )
+ }
+ 
+ @Composable
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index f7636ae1..45596e34 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -214,6 +214,10 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="lyrics_karaoke_hz_title">Adjust karaoke lyrics update speed</string>
+     <string name="lyrics_multiline_title">Read multiline lyrics</string>
+     <string name="lyrics_multiline_description">Treat all the lines between sync points as one lyric text</string>
++    <string name="recognition_placement_title">Identify a song button</string>
++    <string name="recognition_placement_top_bar">Top of the home screen</string>
++    <string name="recognition_placement_search_field">In the search field</string>
++    <string name="recognition_placement_hidden">Hidden</string>
+     <string name="lyrics_fetch_mode_title">Provider selection</string>
+     <string name="lyrics_fetch_mode_auto">Automatic (fastest)</string>
+     <string name="lyrics_fetch_mode_manual">In my order</string>
+-- 
+2.43.0
+
+
+From ad7a21239191bea9842e65a0ed3df0c02447decb Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sun, 9 Aug 2026 02:33:57 +0000
+Subject: [PATCH 41/44] Colour the lyrics from the player background, not the
+ theme
+
+Lyrics are drawn on top of whatever the player is showing behind them, but they
+were painted in the theme's secondary colour, which is chosen to sit on a
+surface that is not there. Over a pale album cover with the frosted or blurred
+background they were close to unreadable - the same problem the queue handle
+had.
+
+They now use the colour measured from that background, which is what the
+player's own title and controls already use. With the background set to follow
+the theme the measurement is skipped and this resolves to secondary, so nothing
+changes for anyone not putting artwork behind the player.
+
+Lines already sung had the same problem for the same reason - the theme's
+primary, arbitrary against an album cover - and now take their own shade of the
+measured colour instead. That alpha lives in the colour rather than in a
+Modifier, so the plain path no longer fades a consumed line a second time on
+top of it.
+---
+ .../dd3boh/outertune/ui/component/Lyrics.kt   | 26 ++++++++++++-------
+ 1 file changed, 16 insertions(+), 10 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index 1700c659..18a7575b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -33,7 +33,6 @@ import androidx.compose.material.icons.rounded.Close
+ import androidx.compose.material.icons.rounded.MoreHoriz
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.LocalTextStyle
+-import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+@@ -84,6 +83,7 @@ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
+ import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
+ import com.dd3boh.outertune.ui.menu.LyricsMenu
++import com.dd3boh.outertune.ui.player.rememberPlayerOnBackgroundColor
+ import com.dd3boh.outertune.ui.utils.fadingEdge
+ import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
+@@ -162,8 +162,15 @@ fun Lyrics(
+         }
+     }
+ 
+-    val textColor = MaterialTheme.colorScheme.secondary
+-    val prevTextColor = MaterialTheme.colorScheme.primary
++    // Lyrics are drawn over the player background, so they need the colour that was measured from
++    // it - the theme's secondary is chosen against a surface that is not there, and over a pale
++    // album cover it is close to invisible. With the background set to follow the theme this
++    // resolves to secondary anyway, so nothing changes for anyone not using artwork behind the
++    // player.
++    val textColor = rememberPlayerOnBackgroundColor(mediaMetadata)
++    // Lines already sung keep their own shade of the same colour rather than the theme's primary,
++    // which has the same problem: readable against the theme, arbitrary against an album cover.
++    val prevTextColor = textColor.copy(alpha = CONSUMED_ALPHA)
+ 
+     var currentLineIndex by remember {
+         mutableIntStateOf(-1)
+@@ -419,14 +426,10 @@ fun Lyrics(
+                                 color = if (isConsumed && !isHighlighted) prevTextColor else textColor,
+                                 textAlign = textAlign,
+                                 fontWeight = FontWeight.Bold,
++                                // prevTextColor already carries its own alpha, so a consumed line
++                                // must not be faded a second time on top of it.
+                                 modifier = Modifier.alpha(
+-                                    if (!isSynced || isHighlighted) {
+-                                        1f
+-                                    } else if (isConsumed) {
+-                                        0.6f
+-                                    } else {
+-                                        0.5f
+-                                    }
++                                    if (!isSynced || isHighlighted || isConsumed) 1f else UNSUNG_ALPHA
+                                 )
+                             )
+                         }
+@@ -521,6 +524,9 @@ val LyricsPreviewTime = 7.seconds
+ /** How dim the not-yet-sung part of a karaoke line is, relative to the sung part. */
+ private const val UNSUNG_ALPHA = 0.5f
+ 
++/** How dim a line that has already been sung is. Kept above [UNSUNG_ALPHA] so the two read apart. */
++private const val CONSUMED_ALPHA = 0.65f
++
+ /**
+  * How often the karaoke position is refreshed when nothing is moving. Only exists so that a seek
+  * made while paused still lands on screen; the sweep is frame-synced whenever it is actually moving.
+-- 
+2.43.0
+
+
+From d429c1c902e26b0bb0c05f9798201f60900b1166 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sun, 9 Aug 2026 02:39:45 +0000
+Subject: [PATCH 42/44] Stop the word sweep from silently doing nothing
+
+Three ways it could look dead, all fixed, none of them confirmed as the one -
+this is written without a device to reproduce on.
+
+Battery saver was read once with a keyless remember, so it was sampled when the
+lyrics were first composed and never again. On a phone that was in battery
+saver at that moment the sweep was off for the rest of the session, and turning
+battery saver off did not bring it back. Now sampled per song.
+
+The position started at zero and was only written after the frame loop's first
+iteration, so the first frame drew a completely unswept line. It is seeded from
+the player before the loop begins.
+
+The gate required a current line index, which is -1 until the first tick of the
+polling loop; before that no line qualified. The first line now does.
+
+Also, both fallbacks in the renderer - no width, no text, no usable timings -
+drew the line at the *unsung* dimness. On the line that is actually playing that
+is precisely what a broken sweep looks like, so a provider returning line-level
+lyrics was indistinguishable from a rendering fault. They now draw at full
+strength, which is also just correct: that line is the one being sung.
+---
+ .../outertune/ui/component/KaraokeLyricLine.kt   |  8 ++++++--
+ .../com/dd3boh/outertune/ui/component/Lyrics.kt  | 16 ++++++++++------
+ 2 files changed, 16 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt
+index dfc983d9..11f30211 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/KaraokeLyricLine.kt
+@@ -86,8 +86,12 @@ fun KaraokeLyricLine(
+ 
+         // Without a width there is nothing to lay out against, and without text or timings there is
+         // nothing to sweep. Fall back rather than drawing a blank.
++        // No width to lay out against, no text, or no timings: draw the line plainly. It is drawn
++        // in the *sung* colour rather than the unsung one on purpose - this is the line that is
++        // playing, and dimming it here makes a missing-word-timings problem look identical to a
++        // sweep that has stopped working.
+         if (widthPx <= 0 || text.isEmpty() || words.isEmpty()) {
+-            Text(text = text, style = style, color = unsungColor, modifier = Modifier.fillMaxWidth())
++            Text(text = text, style = style, color = sungColor, modifier = Modifier.fillMaxWidth())
+             return@BoxWithConstraints
+         }
+ 
+@@ -107,7 +111,7 @@ fun KaraokeLyricLine(
+             words.filter { it.charRange.first in text.indices && it.charRange.last < text.length }
+         }
+         if (safeWords.isEmpty()) {
+-            Text(text = text, style = style, color = unsungColor, modifier = Modifier.fillMaxWidth())
++            Text(text = text, style = style, color = sungColor, modifier = Modifier.fillMaxWidth())
+             return@BoxWithConstraints
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index 18a7575b..5e9b45d5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -119,9 +119,11 @@ fun Lyrics(
+     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
+     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+ 
+-    // Asking the power manager costs a binder call, so it is asked once rather than once per lyric
+-    // line per recomposition.
+-    val powerSaver = remember { context.isPowerSaver() }
++    // Asking the power manager costs a binder call, so it is asked once per song rather than once
++    // per lyric line per recomposition. Keyed rather than cached outright: caching it for the life
++    // of the composable meant that turning battery saver off never brought the sweep back.
++    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
++    val powerSaver = remember(mediaMetadata) { context.isPowerSaver() }
+     val karaokeEnabled = lyricsFancy && !powerSaver
+ 
+     // How often the *current line* is recomputed, which is what drives highlighting and scrolling.
+@@ -130,7 +132,6 @@ fun Lyrics(
+         if (karaokeEnabled) lyricsUpdateSpeed.toLrcRefreshMillis() else Speed.SLOW.toLrcRefreshMillis()
+     }
+ 
+-    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+ 
+     // NOTE: lyricsModel is the current display lyrics that is updated by playerLyrics AND/OR manually
+     val playerLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
+@@ -223,6 +224,9 @@ fun Lyrics(
+      */
+     LaunchedEffect(lyricsModel, karaokeEnabled, isSynced) {
+         if (!karaokeEnabled || !isSynced || lyricsModel == null) return@LaunchedEffect
++        // Seed it before waiting for anything. Left at its initial zero the first frame draws an
++        // entirely unswept line, which is indistinguishable from the sweep not working at all.
++        karaokePosition.longValue = sliderPositionProvider() ?: playerConnection.player.currentPosition
+         var latchedPosition = Long.MIN_VALUE
+         var latchedAt = 0L
+         while (isActive) {
+@@ -403,8 +407,8 @@ fun Lyrics(
+                         // is drawn exactly as the plain path draws an upcoming one, so the two are
+                         // indistinguishable. Every other line is cheaper as a plain Text.
+                         val karaoke = karaokeEnabled && isSynced && !words.isNullOrEmpty() &&
+-                            displayedCurrentLineIndex >= 0 &&
+-                            (index == displayedCurrentLineIndex || index == displayedCurrentLineIndex + 1)
++                            if (displayedCurrentLineIndex < 0) index == 0
++                            else index == displayedCurrentLineIndex || index == displayedCurrentLineIndex + 1
+ 
+                         if (karaoke) {
+                             KaraokeLyricLine(
+-- 
+2.43.0
+
+
+From d00b3a1902979e3254bf476030eb7664044ed8cd Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sun, 9 Aug 2026 02:48:00 +0000
+Subject: [PATCH 43/44] Prefer word-timed lyrics over whichever provider
+ answers first
+
+The word-by-word sweep was never engaging, and the renderer was not the reason:
+the lyrics it was handed had no word timings in them.
+
+Providers are raced and the first synced result won. In practice that is
+whichever provider is quickest, not whichever one carries word timings - so a
+song whose lyrics exist in both forms got the line-level version essentially
+every time, and there was nothing for the sweep to sweep. BetterLyrics returns
+Apple-style TTML with per-word timing and is one of the slower providers, which
+is close to the worst case for a race decided on arrival order.
+
+Word timings are now their own outcome, ranked above plain synced. A word-timed
+result still ends the race immediately, since nothing better can arrive. A
+line-level one is held as a fallback instead of adopted, so a slower provider
+gets its chance to answer with the better form, bounded by the same overall
+timeout as before. Nothing is lost when no provider has word timings: the held
+result is adopted exactly as it would have been.
+
+This also makes the provider-order setting mean something for karaoke: in
+manual mode, putting BetterLyrics first now decides the outcome rather than
+being overtaken.
+
+One existing test asserted the old contract - that a synced result stops the
+race - and now asserts that it does not, with the reason written down.
+---
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   | 36 +++++++++---
+ .../lyrics/RemoteLyricsAggregatorTest.kt      | 56 ++++++++++++++++++-
+ 2 files changed, 81 insertions(+), 11 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 7eaa07d3..05de3998 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -345,7 +345,10 @@ class LyricsHelper @Inject constructor(
+                 null
+             }
+             when (parsed) {
+-                is SemanticLyrics.SyncedLyrics -> FoundKind.SYNCED
++                is SemanticLyrics.SyncedLyrics ->
++                    if (parsed.text.any { !it.words.isNullOrEmpty() }) FoundKind.WORD_SYNCED
++                    else FoundKind.SYNCED
++
+                 is SemanticLyrics.UnsyncedLyrics -> FoundKind.UNSYNCED
+                 null -> FoundKind.UNPARSEABLE
+             }
+@@ -645,8 +648,15 @@ sealed interface RemoteLyricsResult {
+     data object Skipped : RemoteLyricsResult
+ }
+ 
+-/** How a [LyricsFetchResult.Found] parses when judged for adoption. */
+-enum class FoundKind { SYNCED, UNSYNCED, UNPARSEABLE }
++/**
++ * How a [LyricsFetchResult.Found] parses when judged for adoption, best first.
++ *
++ * [WORD_SYNCED] is separated from [SYNCED] because it is what the word-by-word renderer needs, and
++ * without the distinction it could not win: providers were raced and the first synced answer took
++ * it, which in practice is whichever one is quickest, not whichever one carries word timings. A
++ * song whose lyrics exist in both forms would get the line-level version essentially every time.
++ */
++enum class FoundKind { WORD_SYNCED, SYNCED, UNSYNCED, UNPARSEABLE }
+ 
+ /**
+  * Accumulates provider outcomes and derives the aggregate [RemoteLyricsResult]. The rules, independent
+@@ -657,7 +667,8 @@ enum class FoundKind { SYNCED, UNSYNCED, UNPARSEABLE }
+  * @param enabledCount number of providers that were expected to report
+  */
+ class RemoteLyricsAggregator(private val enabledCount: Int) {
+-    private var adoptedSynced: RemoteLyricsResult.Found? = null
++    private var adoptedWordSynced: RemoteLyricsResult.Found? = null
++    private var heldSynced: RemoteLyricsResult.Found? = null
+     private var heldUnsynced: RemoteLyricsResult.Found? = null
+     private var notFoundCount = 0
+     private var nonNotFoundCount = 0
+@@ -670,13 +681,21 @@ class RemoteLyricsAggregator(private val enabledCount: Int) {
+     fun offer(providerName: String, result: LyricsFetchResult, classifyFound: (String) -> FoundKind): Boolean {
+         when (result) {
+             is LyricsFetchResult.Found -> when (classifyFound(result.raw)) {
+-                FoundKind.SYNCED -> {
+-                    if (adoptedSynced == null) {
+-                        adoptedSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
++                // Word timings are strictly richer - a line-level renderer ignores the extra marks -
++                // so this is the one result worth stopping everything for.
++                FoundKind.WORD_SYNCED -> {
++                    if (adoptedWordSynced == null) {
++                        adoptedWordSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
+                     }
+                     return true
+                 }
+ 
++                // Held rather than adopted: a slower provider may still come back with the same
++                // song in word-timed form, and that is worth the wait it costs.
++                FoundKind.SYNCED -> if (heldSynced == null) {
++                    heldSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
++                }
++
+                 FoundKind.UNSYNCED -> if (heldUnsynced == null) {
+                     heldUnsynced = RemoteLyricsResult.Found(providerName, result.raw, synced = false)
+                 }
+@@ -691,7 +710,8 @@ class RemoteLyricsAggregator(private val enabledCount: Int) {
+     }
+ 
+     fun result(): RemoteLyricsResult = when {
+-        adoptedSynced != null -> adoptedSynced as RemoteLyricsResult.Found
++        adoptedWordSynced != null -> adoptedWordSynced as RemoteLyricsResult.Found
++        heldSynced != null -> heldSynced as RemoteLyricsResult.Found
+         heldUnsynced != null -> heldUnsynced as RemoteLyricsResult.Found
+         nonNotFoundCount == 0 && notFoundCount == enabledCount -> RemoteLyricsResult.DefinitiveNotFound
+         else -> RemoteLyricsResult.Indeterminate
+diff --git a/app/src/test/java/com/dd3boh/outertune/lyrics/RemoteLyricsAggregatorTest.kt b/app/src/test/java/com/dd3boh/outertune/lyrics/RemoteLyricsAggregatorTest.kt
+index ed96011c..cfd6e83e 100644
+--- a/app/src/test/java/com/dd3boh/outertune/lyrics/RemoteLyricsAggregatorTest.kt
++++ b/app/src/test/java/com/dd3boh/outertune/lyrics/RemoteLyricsAggregatorTest.kt
+@@ -1,6 +1,7 @@
+ package com.dd3boh.outertune.lyrics
+ 
+ import org.junit.Assert.assertEquals
++import org.junit.Assert.assertFalse
+ import org.junit.Assert.assertTrue
+ import org.junit.Test
+ 
+@@ -12,6 +13,7 @@ class RemoteLyricsAggregatorTest {
+ 
+     private val classify: (String) -> FoundKind = { raw ->
+         when (raw) {
++            "wordsynced" -> FoundKind.WORD_SYNCED
+             "synced" -> FoundKind.SYNCED
+             "unsynced" -> FoundKind.UNSYNCED
+             else -> FoundKind.UNPARSEABLE
+@@ -73,14 +75,19 @@ class RemoteLyricsAggregatorTest {
+         assertEquals(RemoteLyricsResult.DefinitiveNotFound, aggregate(0, emptyList()))
+     }
+ 
++    /**
++     * A line-level synced result is adopted, but deliberately does *not* stop the race any more:
++     * a slower provider may still answer with the same song in word-timed form, and that is the
++     * only form the word-by-word renderer can use. Only WORD_SYNCED ends it early now.
++     */
+     @Test
+-    fun syncedWins_andStopsEarly() {
++    fun syncedWins_butDoesNotStopEarly() {
+         val aggregator = RemoteLyricsAggregator(3)
+-        assertTrue(aggregator.offer("a", LyricsFetchResult.Found("synced"), classify))
+-        // Later outcomes are never offered because production breaks on the true return.
++        assertFalse(aggregator.offer("a", LyricsFetchResult.Found("synced"), classify))
+         val result = aggregator.result()
+         assertTrue(result is RemoteLyricsResult.Found)
+         assertTrue((result as RemoteLyricsResult.Found).synced)
++        assertEquals("a", result.provider)
+     }
+ 
+     @Test
+@@ -134,4 +141,47 @@ class RemoteLyricsAggregatorTest {
+         )
+         assertEquals(RemoteLyricsResult.Indeterminate, result)
+     }
++
++    /**
++     * The reason word timings are a kind of their own: the providers are raced, so without this a
++     * line-level answer from a quick provider beat a word-timed one from a slower provider every
++     * time, and the word-by-word renderer had nothing to render.
++     */
++    @Test
++    fun wordSyncedWins_andStopsEarly() {
++        val agg = RemoteLyricsAggregator(3)
++        assertFalse(agg.offer("A", LyricsFetchResult.Found("synced"), classify))
++        assertTrue(agg.offer("B", LyricsFetchResult.Found("wordsynced"), classify))
++        val r = agg.result() as RemoteLyricsResult.Found
++        assertEquals("B", r.provider)
++    }
++
++    /** A line-level result is still adopted when nothing better ever arrives. */
++    @Test
++    fun syncedAdopted_whenNoWordSyncedArrives() {
++        val agg = RemoteLyricsAggregator(2)
++        assertFalse(agg.offer("A", LyricsFetchResult.Found("synced"), classify))
++        assertFalse(agg.offer("B", LyricsFetchResult.NotFound, classify))
++        val r = agg.result() as RemoteLyricsResult.Found
++        assertEquals("A", r.provider)
++        assertTrue(r.synced)
++    }
++
++    /** And it does not stop the race, so a later word-timed answer can still overtake it. */
++    @Test
++    fun syncedDoesNotStopTheRace() {
++        val agg = RemoteLyricsAggregator(3)
++        assertFalse(agg.offer("A", LyricsFetchResult.Found("synced"), classify))
++        assertFalse(agg.offer("B", LyricsFetchResult.Found("synced"), classify))
++        assertTrue(agg.offer("C", LyricsFetchResult.Found("wordsynced"), classify))
++        assertEquals("C", (agg.result() as RemoteLyricsResult.Found).provider)
++    }
++
++    @Test
++    fun wordSyncedStillBeatsUnsynced() {
++        val agg = RemoteLyricsAggregator(2)
++        assertFalse(agg.offer("A", LyricsFetchResult.Found("unsynced"), classify))
++        assertTrue(agg.offer("B", LyricsFetchResult.Found("wordsynced"), classify))
++        assertEquals("B", (agg.result() as RemoteLyricsResult.Found).provider)
++    }
+ }
+-- 
+2.43.0
+
+
+From 87ed5f5b640a946ede74499f81ed7e4d4d2923ca Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Sun, 9 Aug 2026 02:48:00 +0000
+Subject: [PATCH 44/44] Start the chart queue at the song that was tapped
+
+Tapping any song in Most played songs, or in the extended Top songs, played the
+number one track instead. Both built a queue from the whole chart and never said
+where in it to start, so it always began at index zero. Every other song list in
+the app passes startIndex; these two did not.
+---
+ .../outertune/ui/screens/StatsScreen.kt       | 21 ++++++++++++-------
+ 1 file changed, 13 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
+index 48721417..3c284db3 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/StatsScreen.kt
+@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
+ import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.LazyRow
+ import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.lazy.itemsIndexed
+ import androidx.compose.foundation.lazy.rememberLazyListState
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+@@ -131,10 +132,10 @@ fun StatsScreen(
+         }
+ 
+         val thumbnailSize = (ListThumbnailSize.value * density.density).roundToInt()
+-        items(
++        itemsIndexed(
+             items = mostPlayedSongs,
+-            key = { it.id }
+-        ) { song ->
++            key = { _, song -> song.id }
++        ) { index, song ->
+             SongListItem(
+                 song = song,
+                 navController = navController,
+@@ -151,7 +152,10 @@ fun StatsScreen(
+                     playerConnection.playQueue(
+                         ListQueue(
+                             title = mostPlayedSongTitle,
+-                            items = mostPlayedSongs.map { it.toMediaMetadata() }
++                            items = mostPlayedSongs.map { it.toMediaMetadata() },
++                            // Without this the queue always started at its first entry, so every
++                            // song in the chart played the number one track instead of itself.
++                            startIndex = index
+                         )
+                     )
+                 },
+@@ -277,12 +281,12 @@ fun StatsScreen(
+                     modifier = Modifier.animateItem()
+                 )
+             }
+-            items(
++            itemsIndexed(
+                 items = extendedSongs,
+                 // Prefixed because the overview above holds the same songs, and two items sharing
+                 // a key in one LazyColumn is a crash, not a cosmetic problem.
+-                key = { "ext-song-" + it.id }
+-            ) { song ->
++                key = { _, song -> "ext-song-" + song.id }
++            ) { index, song ->
+                 SongListItem(
+                     song = song,
+                     navController = navController,
+@@ -297,7 +301,8 @@ fun StatsScreen(
+                         playerConnection.playQueue(
+                             ListQueue(
+                                 title = mostPlayedSongTitle,
+-                                items = extendedSongs.map { it.toMediaMetadata() }
++                                items = extendedSongs.map { it.toMediaMetadata() },
++                                startIndex = index
+                             )
+                         )
+                     },
 -- 
 2.43.0
 
