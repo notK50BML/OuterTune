@@ -43,7 +43,7 @@ on:
       patch_file:
         description: "Patch file in the repo root to apply"
         required: true
-        default: "outertune-sync-artwork-lyrics.patch"
+        default: "outertune-sync-artwork-lyrics-landscape.patch"
       version_name:
         description: "versionName for this build (blank = leave whatever the patch set)"
         required: false
@@ -82,9 +82,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: f4343b963fc6e5ce6ce999970c3bc77170367b1ac6b426bc5d785a42bdcf60aa"
-          echo "lines: $(wc -l < "$PATCH")  (expected 15804)   bytes: $(wc -c < "$PATCH")  (expected 739049)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 46)"
+          echo "expected: a5fdd72d273b686eb0ba99e1ad1de36cba489ca6ac8c670f55d827ba764376eb"
+          echo "lines: $(wc -l < "$PATCH")  (expected 15929)   bytes: $(wc -c < "$PATCH")  (expected 745650)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 47)"
           echo "================"
 
           git config user.name "github-actions"
