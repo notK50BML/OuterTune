@@ -11,6 +11,7 @@ package com.dd3boh.outertune
 
 import android.annotation.SuppressLint
 import android.app.NotificationManager
+import android.content.res.Configuration
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -283,9 +284,10 @@ class MainActivity : ComponentActivity() {
 
             val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
             val tabMode = this@MainActivity.tabMode()
+            val isLandscape = this@MainActivity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
             val useNavRail by remember {
                 derivedStateOf {
-                    windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) && !tabMode
+                    windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) && (!tabMode || isLandscape)
                 }
             }
 
@@ -389,22 +391,26 @@ class MainActivity : ComponentActivity() {
                         expandedBound = maxHeight,
                     )
 
+                    // In landscape, the expanded player owns the whole screen.
+                    // Do not leave the navigation rail reserving space or visible over it.
+                    val showNavRail = useNavRail && !(isLandscape && playerBottomSheetState.isExpanded)
+
                     val playerAwareWindowInsets =
                         remember(
                             bottomInset,
                             playerBottomSheetState.isDismissed,
                         ) {
                             // TODO: Navbar is shown in all screens except for oobe (which doesn't use these insets). Idk what do to tbh
-                            var bottom = bottomInset + if (!useNavRail) NavigationBarHeight else 0.dp
+                            var bottom = bottomInset + if (!showNavRail) NavigationBarHeight else 0.dp
 
                             if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
-                            if (!tabMode) {
+                            if (!tabMode || isLandscape) {
                                 windowsInsets
                                     .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
                                     .add(cutoutInsets.only(WindowInsetsSides.Horizontal))
                                     .add(
                                         WindowInsets(
-                                            left = if (!useNavRail) 0.dp else NavigationBarHeight,
+                                            left = if (!showNavRail) 0.dp else NavigationBarHeight,
                                             top = AppBarHeight,
                                             bottom = bottom
                                         )
@@ -986,8 +992,9 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
-                            // phone
-                            if (!tabMode) {
+                            // phone layout: also use this path in landscape so the player is full-width
+                            // instead of entering the fixed-width tab layout based on effective DP width.
+                            if (!tabMode || isLandscape) {
                                 navHost()
 
                                 SearchBarContainer(navController, scrollBehavior)
@@ -1000,7 +1007,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                     }
 
-                                    if (!useNavRail) {
+                                    if (!showNavRail) {
                                         navbar()
                                     } else {
                                         navRail(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Alignment.BottomEnd else Alignment.BottomStart)

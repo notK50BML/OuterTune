@@ -140,7 +140,6 @@ import com.dd3boh.outertune.models.PlayerLayout
 import com.dd3boh.outertune.extensions.isPowerSaver
 import com.dd3boh.outertune.extensions.metadata
 import com.dd3boh.outertune.extensions.supportsWideScreen
-import com.dd3boh.outertune.extensions.tabMode
 import com.dd3boh.outertune.extensions.togglePlayPause
 import com.dd3boh.outertune.extensions.toggleRepeatMode
 import com.dd3boh.outertune.playback.PlayerConnection
@@ -226,7 +225,7 @@ fun BottomSheetPlayer(
     ) {
         if (PLAYER_DEBUG) Log.v(TAG, "PLR-3.0")
 
-        if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && !context.tabMode() && context.supportsWideScreen()) {
+        if (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && context.supportsWideScreen()) {
             LandscapePlayer(state, navController, queueBoard)
         } else {
             PortraitPlayer(state, navController, queueBoard)
