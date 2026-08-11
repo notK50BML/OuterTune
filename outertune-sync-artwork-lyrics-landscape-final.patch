@@ -15932,104 +15932,20 @@ index 45596e34..58bf36a5 100644
      <string name="recognition_placement_search_field">In the search field</string>
 -- 
 2.43.0
-From ab503a663bcf2034a23eb78e3a9be48b45b0cb71 Mon Sep 17 00:00:00 2001
-From: K50 <k50@example.com>
-Date: Mon, 10 Aug 2026 10:58:07 +0000
-Subject: [PATCH 48/48] Make landscape player full-width and hide navigation rail
+From 18f0cbae3ef4e1532aa1ea1cd69db0c7510d0432 Mon Sep 17 00:00:00 2001
+From: test <test@example.com>
+Date: Tue, 11 Aug 2026 09:30:16 +0000
+Subject: [PATCH] Make landscape player full-screen with bottom queue handle
 
 ---
- .../java/com/dd3boh/outertune/MainActivity.kt | 21 ++++++++++++-------
- .../com/dd3boh/outertune/ui/player/Player.kt  |  3 +--
- 2 files changed, 15 insertions(+), 9 deletions(-)
+ .../com/dd3boh/outertune/ui/player/Player.kt  | 51 ++++++++++++++-----
+ 1 file changed, 37 insertions(+), 14 deletions(-)
 
-diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-index 9163ae3..bfd9e44 100644
---- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-+++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
-@@ -11,6 +11,7 @@ package com.dd3boh.outertune
- 
- import android.annotation.SuppressLint
- import android.app.NotificationManager
-+import android.content.res.Configuration
- import android.content.Intent
- import android.os.Build
- import android.os.Bundle
-@@ -278,9 +279,10 @@ class MainActivity : ComponentActivity() {
- 
-             val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
-             val tabMode = this@MainActivity.tabMode()
-+            val isLandscape = this@MainActivity.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-             val useNavRail by remember {
-                 derivedStateOf {
--                    windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) && !tabMode
-+                    windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) && (!tabMode || isLandscape)
-                 }
-             }
- 
-@@ -384,22 +386,26 @@ class MainActivity : ComponentActivity() {
-                         expandedBound = maxHeight,
-                     )
- 
-+                    // In landscape, the expanded player owns the whole screen.
-+                    // Do not leave the navigation rail reserving space or visible over it.
-+                    val showNavRail = useNavRail && !(isLandscape && playerBottomSheetState.isExpanded)
-+
-                     val playerAwareWindowInsets =
-                         remember(
-                             bottomInset,
-                             playerBottomSheetState.isDismissed,
-                         ) {
-                             // TODO: Navbar is shown in all screens except for oobe (which doesn't use these insets). Idk what do to tbh
--                            var bottom = bottomInset + if (!useNavRail) NavigationBarHeight else 0.dp
-+                            var bottom = bottomInset + if (!showNavRail) NavigationBarHeight else 0.dp
- 
-                             if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
--                            if (!tabMode) {
-+                            if (!tabMode || isLandscape) {
-                                 windowsInsets
-                                     .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
-                                     .add(cutoutInsets.only(WindowInsetsSides.Horizontal))
-                                     .add(
-                                         WindowInsets(
--                                            left = if (!useNavRail) 0.dp else NavigationBarHeight,
-+                                            left = if (!showNavRail) 0.dp else NavigationBarHeight,
-                                             top = AppBarHeight,
-                                             bottom = bottom
-                                         )
-@@ -966,8 +972,9 @@ class MainActivity : ComponentActivity() {
-                                 )
-                             }
- 
--                            // phone
--                            if (!tabMode) {
-+                            // phone layout: also use this path in landscape so the player is full-width
-+                            // instead of entering the fixed-width tab layout based on effective DP width.
-+                            if (!tabMode || isLandscape) {
-                                 navHost()
- 
-                                 SearchBarContainer(navController, scrollBehavior)
-@@ -980,7 +987,7 @@ class MainActivity : ComponentActivity() {
-                                         )
-                                     }
- 
--                                    if (!useNavRail) {
-+                                    if (!showNavRail) {
-                                         navbar()
-                                     } else {
-                                         navRail(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Alignment.BottomEnd else Alignment.BottomStart)
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
-index 3c2c3ba..52dcc77 100644
+index 3c2c3ba..87bffc5 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
-@@ -140,7 +140,6 @@ import com.dd3boh.outertune.constants.SwipeToSkipKey
- import com.dd3boh.outertune.extensions.isPowerSaver
- import com.dd3boh.outertune.extensions.metadata
- import com.dd3boh.outertune.extensions.supportsWideScreen
--import com.dd3boh.outertune.extensions.tabMode
- import com.dd3boh.outertune.extensions.togglePlayPause
- import com.dd3boh.outertune.extensions.toggleRepeatMode
- import com.dd3boh.outertune.playback.PlayerConnection
-@@ -226,7 +225,7 @@ fun BottomSheetPlayer(
+@@ -226,7 +226,7 @@ fun BottomSheetPlayer(
      ) {
          if (PLAYER_DEBUG) Log.v(TAG, "PLR-3.0")
  
@@ -16038,6 +15954,156 @@ index 3c2c3ba..52dcc77 100644
              LandscapePlayer(state, navController, queueBoard)
          } else {
              PortraitPlayer(state, navController, queueBoard)
+@@ -436,24 +436,22 @@ fun LandscapePlayer(
+         initialAnchor = dismissedAnchor,
+     )
+ 
+-    val vPadding = max(
+-        WindowInsets.safeDrawing.getTop(LocalDensity.current),
+-        WindowInsets.safeDrawing.getBottom(LocalDensity.current)
+-    )
+-    val vPaddingDp = with(LocalDensity.current) { vPadding.toDp() }
+-    val verticalInsets = WindowInsets(left = 0.dp, top = vPaddingDp, right = 0.dp, bottom = vPaddingDp)
+-    Row(
++    val haptic = LocalHapticFeedback.current
++    Box(
+         modifier = Modifier
+-            .windowInsetsPadding(
+-                WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).add(verticalInsets)
+-            )
++            .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+             .fillMaxSize()
+     ) {
++        Row(
++            modifier = Modifier
++                .fillMaxSize()
++                .nestedScroll(playerSheetState.preUpPostDownNestedScrollConnection),
++            verticalAlignment = Alignment.CenterVertically
++        ) {
+         BoxWithConstraints(
+             contentAlignment = Alignment.Center,
+             modifier = Modifier
+                 .weight(1f)
+-                .nestedScroll(playerSheetState.preUpPostDownNestedScrollConnection)
+         ) {
+             if (PLAYER_DEBUG) Log.v(TAG, "PLR-3.1a")
+             if (!swipeToSkip) {
+@@ -532,14 +530,39 @@ fun LandscapePlayer(
+                 // "percentage to half width", not "percentage of width"
+                 .weight(if (showLyrics) 0.65f else 1f, false)
+                 .animateContentSize()
+-                .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
++                .fillMaxHeight()
+         ) {
+             Spacer(Modifier.weight(1f))
+ 
+-            ControlsContent(playerSheetState, queueSheetState, navController, queueBoard, context.supportsWideScreen())
++            ControlsContent(playerSheetState, queueSheetState, navController, queueBoard, false)
+ 
+             Spacer(Modifier.weight(1f))
+         }
++        }
++
++        Row(
++            horizontalArrangement = Arrangement.Center,
++            verticalAlignment = Alignment.CenterVertically,
++            modifier = Modifier
++                .align(Alignment.BottomCenter)
++                .fillMaxWidth()
++                .height(QueuePeekHeight)
++                .clickable {
++                    queueSheetState.expandSoft()
++                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
++                }
++        ) {
++            IconButton(onClick = {
++                queueSheetState.expandSoft()
++                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
++            }) {
++                Icon(
++                    imageVector = Icons.Rounded.ExpandLess,
++                    tint = MaterialTheme.colorScheme.onSurface,
++                    contentDescription = null,
++                )
++            }
++        }
+     }
+ 
+     if (enableQueueSheet) {
 -- 
 2.47.3
-
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -267,7 +267,8 @@
+             val windowSizeClass = currentWindowAdaptiveInfo().windowSizeClass
+             val tabMode = this@MainActivity.tabMode()
++            val landscape = this@MainActivity.resources.configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+             val useNavRail by remember {
+                 derivedStateOf {
+-                    windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) && !tabMode
++                    windowSizeClass.isWidthAtLeastBreakpoint(WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND) || landscape
+                 }
+             }
+@@ -370,6 +371,6 @@
+                             // TODO: Navbar is shown in all screens except for oobe (which doesn't use these insets). Idk what do to tbh
+                             var bottom = bottomInset + if (!useNavRail) NavigationBarHeight else 0.dp
+                             if (!playerBottomSheetState.isDismissed) bottom += MiniPlayerHeight
+-                            if (!tabMode) {
++                            if (!tabMode || landscape) {
+                                 windowsInsets
+                                     .only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top)
+@@ -926,25 +927,34 @@
+-                            // phone
+-                            if (!tabMode) {
+-                                navHost()
+-                                SearchBarContainer(navController, scrollBehavior)
+-                                if (oobeStatus >= OOBE_VERSION) {
+-                                    if (!navigationItems.contains(Screens.Player)) {
++                            // phone / landscape
++                            if (!tabMode || landscape) {
++                                if (landscape && playerBottomSheetState.isExpanded) {
++                                    if (oobeStatus >= OOBE_VERSION && !navigationItems.contains(Screens.Player)) {
+                                         BottomSheetPlayer(
+                                             state = playerBottomSheetState,
+                                             navController = navController
+                                         )
+                                     }
+-                                    if (!useNavRail) {
+-                                        navbar()
+-                                    } else {
+-                                        navRail(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Alignment.BottomEnd else Alignment.BottomStart)
++                                } else {
++                                    navHost()
++                                    SearchBarContainer(navController, scrollBehavior)
++                                    if (oobeStatus >= OOBE_VERSION) {
++                                        if (!navigationItems.contains(Screens.Player)) {
++                                            BottomSheetPlayer(
++                                                state = playerBottomSheetState,
++                                                navController = navController
++                                            )
++                                        }
++                                        if (!useNavRail) {
++                                            navbar()
++                                        } else {
++                                            navRail(if (LocalLayoutDirection.current == LayoutDirection.Rtl) Alignment.BottomEnd else Alignment.BottomStart)
++                                        }
+                                     }
++                                    bottomSheetMenu()
++                                    SnackbarHost(
++                                        hostState = snackbarHostState,
++                                        modifier = Modifier
++                                            .windowInsetsPadding(LocalPlayerAwareWindowInsets.current)
++                                            .align(Alignment.BottomCenter)
++                                    )
+                                 }
+-                                bottomSheetMenu()
+-                                SnackbarHost(
+-                                    hostState = snackbarHostState,
+-                                    modifier = Modifier
+-                                        .windowInsetsPadding(LocalPlayerAwareWindowInsets.current)
+-                                        .align(Alignment.BottomCenter)
+-                                )
+                             } else {
+-- 
+2.47.3
