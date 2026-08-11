@@ -31,7 +31,7 @@ on:
       variant:
         description: "Which variant to build"
         required: true
-        default: "fullUserdebug"
+        default: "coreRelease"
         type: choice
         options:
           - fullDebug
@@ -45,13 +45,13 @@ on:
         required: true
         default: "outertune-sync-artwork-lyrics-landscape-final.patch"
       version_name:
-        description: "versionName for this build (blank = leave whatever the patch set)"
+        description: "versionName for this build, can be anything (blank = leave whatever the patch set)"
         required: false
-        default: "0.17"
+        default: "0.16"
       version_code:
         description: "versionCode - must be HIGHER than the build you already have installed, or Android refuses the upgrade"
         required: false
-        default: "87"
+        default: "93"
 
 jobs:
   build:
