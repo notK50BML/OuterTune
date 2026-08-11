@@ -111,6 +111,7 @@ OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/Inner
 
 > [!NOTE]
 > Android 8 (Oreo) and higher is supported. While the app may work on Android 7.x (Nougat), we do not officially support this version
+> In order to help people understand the version naming, currently, the convention is v0.xx for a stable release, and v0.xx.x for a small beta release. This beta release typically adds small new features or improves the performance of the app slightly. Occasionally, if something breaks the app, I will push a v0.xx.x update, but I'll explicitly mark it as important. Each major release advances the stable release by 0.01, and any beta release advances the beta release by 0.00.1 
 
 ## Screenshots
 
