@@ -20,7 +20,7 @@ import com.dd3boh.outertune.constants.LastLibSongSyncKey
 import com.dd3boh.outertune.constants.LastLikeSongSyncKey
 import com.dd3boh.outertune.constants.LastPlaylistSyncKey
 import com.dd3boh.outertune.constants.LastRecentActivitySyncKey
-import com.dd3boh.outertune.constants.SYNC_CD
+import com.dd3boh.outertune.constants.SYNC_CD_SECONDS
 import com.dd3boh.outertune.constants.SyncConflictResolution
 import com.dd3boh.outertune.constants.SyncContent
 import com.dd3boh.outertune.constants.YtmSyncConflictKey
@@ -33,6 +33,7 @@ import com.dd3boh.outertune.db.entities.PlaylistSongMap
 import com.dd3boh.outertune.db.entities.SongEntity
 import com.dd3boh.outertune.extensions.isAutoSyncEnabled
 import com.dd3boh.outertune.extensions.isInternetConnected
+import com.dd3boh.outertune.extensions.isUserLoggedIn
 import com.dd3boh.outertune.extensions.toEnum
 import com.dd3boh.outertune.models.toMediaMetadata
 import com.dd3boh.outertune.playback.DownloadUtil
@@ -93,24 +94,23 @@ class SyncUtils @Inject constructor(
     }
 
     suspend fun tryAutoSync(bypassCd: Boolean = false) {
-        if (!context.isAutoSyncEnabled()) {
+        if (SYNC_DEBUG) Log.d(TAG, "Starting auto sync job")
+        // REQUIRED: signed in. A signed-out read is indistinguishable from an empty library.
+        if (!context.isUserLoggedIn()) {
             return
         }
-        if (SYNC_DEBUG) Log.d(TAG, "Starting auto sync job")
+        // OPTIONAL: auto sync and cooldown. A manual request runs regardless of both.
         if (!bypassCd) {
-            val lastSync = context.dataStore.get(LastFullSyncKey, LocalDateTime.now().toEpochSecond(ZoneOffset.UTC))
-            val currentTime = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
-            if (currentTime - lastSync > SYNC_CD) {
-                if (SYNC_DEBUG) Log.d(TAG, "Aborting auto sync. ${(currentTime - lastSync) * 60000} minutes until eligible")
+            if (!context.isAutoSyncEnabled() || !checkPartialSyncEligibility(LastFullSyncKey)) {
                 return
             }
         }
 
-        syncRemoteLikedSongs()
-        syncRemoteSongs()
-        syncRemoteAlbums()
-        syncRemoteArtists()
-        syncRemotePlaylists()
+        syncRemoteLikedSongs(bypassCd)
+        syncRemoteSongs(bypassCd)
+        syncRemoteAlbums(bypassCd)
+        syncRemoteArtists(bypassCd)
+        syncRemotePlaylists(bypassCd)
         context.dataStore.edit { settings ->
             settings[LastFullSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
         }
@@ -121,10 +121,11 @@ class SyncUtils @Inject constructor(
     }
 
     private fun checkPartialSyncEligibility(key: Preferences.Key<Long>): Boolean {
-        val lastSync = context.dataStore.get(key, LocalDateTime.now().toEpochSecond(ZoneOffset.UTC))
+        val lastSync = context.dataStore.get(key, 0L)
         val currentTime = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
-        if (currentTime - lastSync > SYNC_CD) {
-            if (SYNC_DEBUG) Log.d(TAG, "Aborting auto sync. ${(currentTime - lastSync) * 60000} minutes until eligible")
+        val elapsed = currentTime - lastSync
+        if (elapsed < SYNC_CD_SECONDS) {
+            if (SYNC_DEBUG) Log.d(TAG, "Aborting auto sync. ${(SYNC_CD_SECONDS - elapsed) / 60} minutes until eligible")
             return false
         }
         return true
@@ -159,10 +160,8 @@ class SyncUtils @Inject constructor(
      * Singleton syncRemoteLikedSongs
      */
     suspend fun syncRemoteLikedSongs(bypass: Boolean = false) {
-        // REQUIRED: internet, no ongoing sync, and category enabled
-        if (!_isSyncingRemoteLikedSongs.value && (!checkEnabled(SyncContent.LIKED_SONGS) || !context.isInternetConnected())) {
-            if (_isSyncingRemoteLikedSongs.value)
-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+        // REQUIRED: signed in, internet and category enabled
+        if (!context.isUserLoggedIn() || !checkEnabled(SyncContent.LIKED_SONGS) || !context.isInternetConnected()) {
             return
         }
         // OPTIONAL: auto sync and cooldown
@@ -171,7 +170,12 @@ class SyncUtils @Inject constructor(
                 return
             }
         }
-        _isSyncingRemoteLikedSongs.value = true
+        // REQUIRED: no ongoing sync. Claim the flag atomically so two starts cannot both pass.
+        if (!_isSyncingRemoteLikedSongs.compareAndSet(expect = false, update = true)) {
+            if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+            return
+        }
+        var synced = false
 
         try {
             if (SYNC_DEBUG) Log.d(TAG, "Liked songs synchronization started")
@@ -209,14 +213,19 @@ class SyncUtils @Inject constructor(
                         }
                     }
                 }
+                synced = true
             }
 
         } finally {
-            context.dataStore.edit { settings ->
-                settings[LastLikeSongSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+            // Release first: the suspending write below is skipped when the coroutine is cancelled.
+            _isSyncingRemoteLikedSongs.value = false
+            // Only a completed sync starts the cooldown.
+            if (synced) {
+                context.dataStore.edit { settings ->
+                    settings[LastLikeSongSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+                }
             }
             if (SYNC_DEBUG) Log.i(TAG, "Liked songs synchronization ended")
-            _isSyncingRemoteLikedSongs.value = false
         }
     }
 
@@ -224,10 +233,8 @@ class SyncUtils @Inject constructor(
      * Singleton syncRemoteSongs
      */
     suspend fun syncRemoteSongs(bypass: Boolean = false) {
-        // REQUIRED: internet, no ongoing sync, and category enabled
-        if (!_isSyncingRemoteSongs.value && (!checkEnabled(SyncContent.PRIVATE_SONGS) || !context.isInternetConnected())) {
-            if (_isSyncingRemoteSongs.value)
-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+        // REQUIRED: signed in, internet and category enabled
+        if (!context.isUserLoggedIn() || !checkEnabled(SyncContent.PRIVATE_SONGS) || !context.isInternetConnected()) {
             return
         }
         // OPTIONAL: auto sync and cooldown
@@ -236,13 +243,19 @@ class SyncUtils @Inject constructor(
                 return
             }
         }
-        _isSyncingRemoteSongs.value = true
+        // REQUIRED: no ongoing sync. Claim the flag atomically so two starts cannot both pass.
+        if (!_isSyncingRemoteSongs.compareAndSet(expect = false, update = true)) {
+            if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+            return
+        }
+        var synced = false
 
         try {
             if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization started")
 
             // Get remote songs (from library and uploads)
-            val remoteSongs = getRemoteData<SongItem>("FEmusic_liked_videos", "FEmusic_library_privately_owned_tracks")
+            val remoteSongs =
+                getRemoteData<SongItem>("FEmusic_liked_videos", "FEmusic_library_privately_owned_tracks") ?: return
             if (!context.isInternetConnected()) {
                 return
             }
@@ -279,12 +292,15 @@ class SyncUtils @Inject constructor(
                 }
                 jobs.joinAll()
             }
+            synced = true
         } finally {
-            context.dataStore.edit { settings ->
-                settings[LastLibSongSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+            _isSyncingRemoteSongs.value = false
+            if (synced) {
+                context.dataStore.edit { settings ->
+                    settings[LastLibSongSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+                }
             }
             if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization ended")
-            _isSyncingRemoteSongs.value = false
         }
     }
 
@@ -292,10 +308,8 @@ class SyncUtils @Inject constructor(
      * Singleton syncRemoteAlbums
      */
     suspend fun syncRemoteAlbums(bypass: Boolean = false) {
-        // REQUIRED: internet, no ongoing sync, and category enabled
-        if (!_isSyncingRemoteAlbums.value && (!checkEnabled(SyncContent.ALBUMS) || !context.isInternetConnected())) {
-            if (_isSyncingRemoteAlbums.value)
-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+        // REQUIRED: signed in, internet and category enabled
+        if (!context.isUserLoggedIn() || !checkEnabled(SyncContent.ALBUMS) || !context.isInternetConnected()) {
             return
         }
         // OPTIONAL: auto sync and cooldown
@@ -304,14 +318,19 @@ class SyncUtils @Inject constructor(
                 return
             }
         }
-        _isSyncingRemoteAlbums.value = true
+        // REQUIRED: no ongoing sync. Claim the flag atomically so two starts cannot both pass.
+        if (!_isSyncingRemoteAlbums.compareAndSet(expect = false, update = true)) {
+            if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+            return
+        }
+        var synced = false
 
         try {
             if (SYNC_DEBUG) Log.i(TAG, "Library albums synchronization started")
 
             // Get remote albums (from library and uploads)
             val remoteAlbums =
-                getRemoteData<AlbumItem>("FEmusic_liked_albums", "FEmusic_library_privately_owned_releases")
+                getRemoteData<AlbumItem>("FEmusic_liked_albums", "FEmusic_library_privately_owned_releases") ?: return
             if (!context.isInternetConnected()) {
                 return
             }
@@ -348,12 +367,15 @@ class SyncUtils @Inject constructor(
                     }
                 }
             }
+            synced = true
         } finally {
-            context.dataStore.edit { settings ->
-                settings[LastAlbumSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+            _isSyncingRemoteAlbums.value = false
+            if (synced) {
+                context.dataStore.edit { settings ->
+                    settings[LastAlbumSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+                }
             }
             if (SYNC_DEBUG) Log.i(TAG, "Library albums synchronization ended")
-            _isSyncingRemoteAlbums.value = false // Use the correct AtomicBoolean
         }
     }
 
@@ -361,10 +383,8 @@ class SyncUtils @Inject constructor(
      * Singleton syncRemoteArtists
      */
     suspend fun syncRemoteArtists(bypass: Boolean = false) {
-        // REQUIRED: internet, no ongoing sync, and category enabled
-        if (!_isSyncingRemoteArtists.value && (!checkEnabled(SyncContent.ARTISTS) || !context.isInternetConnected())) {
-            if (_isSyncingRemoteArtists.value)
-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+        // REQUIRED: signed in, internet and category enabled
+        if (!context.isUserLoggedIn() || !checkEnabled(SyncContent.ARTISTS) || !context.isInternetConnected()) {
             return
         }
         // OPTIONAL: auto sync and cooldown
@@ -373,7 +393,12 @@ class SyncUtils @Inject constructor(
                 return
             }
         }
-        _isSyncingRemoteArtists.value = true
+        // REQUIRED: no ongoing sync. Claim the flag atomically so two starts cannot both pass.
+        if (!_isSyncingRemoteArtists.compareAndSet(expect = false, update = true)) {
+            if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+            return
+        }
+        var synced = false
 
         try {
             if (SYNC_DEBUG) Log.i(TAG, "Artist subscriptions synchronization started")
@@ -382,11 +407,11 @@ class SyncUtils @Inject constructor(
             val likedArtists = getRemoteData<ArtistItem>(
                 "FEmusic_library_corpus_artists",
                 "FEmusic_library_privately_owned_artists"
-            )
+            ) ?: return
             val trackArtists = getRemoteData<ArtistItem>(
                 "FEmusic_library_corpus_track_artists",
                 "FEmusic_library_privately_owned_artists"
-            )
+            ) ?: return
             val remoteArtists = mutableListOf<ArtistItem>().apply {
                 addAll(likedArtists)
                 addAll(trackArtists.filterNot { trackArtist ->
@@ -439,12 +464,15 @@ class SyncUtils @Inject constructor(
                     }
                 }
             }
+            synced = true
         } finally {
-            context.dataStore.edit { settings ->
-                settings[LastArtistSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+            _isSyncingRemoteArtists.value = false
+            if (synced) {
+                context.dataStore.edit { settings ->
+                    settings[LastArtistSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+                }
             }
             if (SYNC_DEBUG) Log.i(TAG, "Artist subscriptions synchronization ended")
-            _isSyncingRemoteArtists.value = false
         }
     }
 
@@ -452,10 +480,8 @@ class SyncUtils @Inject constructor(
      * Singleton syncRemotePlaylists
      */
     suspend fun syncRemotePlaylists(bypass: Boolean = false) {
-        // REQUIRED: internet, no ongoing sync, and category enabled
-        if (!_isSyncingRemotePlaylists.value && (!checkEnabled(SyncContent.PLAYLISTS) || !context.isInternetConnected())) {
-            if (_isSyncingRemotePlaylists.value)
-                if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+        // REQUIRED: signed in, internet and category enabled
+        if (!context.isUserLoggedIn() || !checkEnabled(SyncContent.PLAYLISTS) || !context.isInternetConnected()) {
             return
         }
         // OPTIONAL: auto sync and cooldown
@@ -464,7 +490,12 @@ class SyncUtils @Inject constructor(
                 return
             }
         }
-        _isSyncingRemotePlaylists.value = true
+        // REQUIRED: no ongoing sync. Claim the flag atomically so two starts cannot both pass.
+        if (!_isSyncingRemotePlaylists.compareAndSet(expect = false, update = true)) {
+            if (SYNC_DEBUG) Log.i(TAG, "Library songs synchronization already in progress")
+            return
+        }
+        var synced = false
 
         try {
             if (SYNC_DEBUG) Log.i(TAG, "Library playlist synchronization started")
@@ -537,12 +568,15 @@ class SyncUtils @Inject constructor(
                         }
                     }
                 }
+                synced = true
             }
         } finally {
-            context.dataStore.edit { settings ->
-                settings[LastPlaylistSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
-            }
             _isSyncingRemotePlaylists.value = false
+            if (synced) {
+                context.dataStore.edit { settings ->
+                    settings[LastPlaylistSyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+                }
+            }
             if (SYNC_DEBUG) Log.i(TAG, "Library playlist synchronization ended")
         }
     }
@@ -581,10 +615,8 @@ class SyncUtils @Inject constructor(
     }
 
     suspend fun syncRecentActivity(bypass: Boolean = false) {
-        // REQUIRED: internet, no ongoing sync, and category enabled
-        if (!_isSyncingRecentActivity.value && (!checkEnabled(SyncContent.RECENT_ACTIVITY) || !context.isInternetConnected())) {
-            if (_isSyncingRecentActivity.value)
-                if (SYNC_DEBUG) Log.i(TAG, "Recent activity synchronization already in progress")
+        // REQUIRED: signed in, internet and category enabled
+        if (!context.isUserLoggedIn() || !checkEnabled(SyncContent.RECENT_ACTIVITY) || !context.isInternetConnected()) {
             return
         }
         // OPTIONAL: auto sync and cooldown
@@ -593,7 +625,12 @@ class SyncUtils @Inject constructor(
                 return
             }
         }
-        _isSyncingRecentActivity.value = true
+        // REQUIRED: no ongoing sync. Claim the flag atomically so two starts cannot both pass.
+        if (!_isSyncingRecentActivity.compareAndSet(expect = false, update = true)) {
+            if (SYNC_DEBUG) Log.i(TAG, "Recent activity synchronization already in progress")
+            return
+        }
+        var synced = false
 
         try {
             if (SYNC_DEBUG) Log.i(TAG, "Recent activity synchronization started")
@@ -602,40 +639,44 @@ class SyncUtils @Inject constructor(
 
                 runBlocking {
                     launch(Dispatchers.IO) {
-                        database.clearRecentActivity()
-
-                        recentActivity.reversed().forEach { database.insertRecentActivityItem(it) }
+                        database.replaceRecentActivity(recentActivity)
                     }
                 }
+                synced = true
             }
         } finally {
-            context.dataStore.edit { settings ->
-                settings[LastRecentActivitySyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
-            }
             _isSyncingRecentActivity.value = false
+            if (synced) {
+                context.dataStore.edit { settings ->
+                    settings[LastRecentActivitySyncKey] = LocalDateTime.now().toEpochSecond(ZoneOffset.UTC)
+                }
+            }
             if (SYNC_DEBUG) Log.i(TAG, "Recent activity synchronization ended")
         }
     }
 
-    private suspend inline fun <reified T> getRemoteData(libraryId: String, uploadsId: String): MutableList<T> {
+    /**
+     * Returns null when either request failed, so the caller can tell an incomplete read apart
+     * from a library that is genuinely empty.
+     */
+    private suspend inline fun <reified T> getRemoteData(libraryId: String, uploadsId: String): List<T>? {
         val browseIds = mapOf(
             libraryId to 0,
             uploadsId to 1
         )
 
         val remote = mutableListOf<T>()
-        runBlocking {
-            val fetchJobs = browseIds.map { (browseId, tab) ->
+        val fetched = runBlocking {
+            browseIds.map { (browseId, tab) ->
                 async {
                     YouTube.library(browseId, tab).completed().onSuccess { page ->
                         val data = page.items.filterIsInstance<T>().reversed()
                         synchronized(remote) { remote.addAll(data) }
-                    }
+                    }.isSuccess
                 }
-            }
-            fetchJobs.awaitAll()
+            }.awaitAll()
         }
 
-        return remote
+        return if (fetched.all { it }) remote else null
     }
 }

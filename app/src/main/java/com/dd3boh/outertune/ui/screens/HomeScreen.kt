@@ -338,13 +338,18 @@ fun HomeScreen(
         forgottenFavoritesLazyGridState.scrollToItem(0)
     }
 
+    // Keyed on the ids: every sync rewrites the rows, so entities never compare equal.
+    LaunchedEffect(recentActivity?.map { it.id }) {
+        recentActivityGridState.scrollToItem(0)
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .pullToRefresh(
                 state = pullRefreshState,
                 isRefreshing = isRefreshing,
-                onRefresh = viewModel::refresh
+                onRefresh = { viewModel.refresh(manual = true) }
             ),
         contentAlignment = Alignment.TopStart
     ) {

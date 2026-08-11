@@ -77,7 +77,7 @@ const val SCANNER_OWNER_DL = 32
 const val SCANNER_OWNER_LM = 1
 const val SCANNER_OWNER_M3U = 2
 
-const val SYNC_CD = 60000 * 30
+const val SYNC_CD_SECONDS = 24L * 60 * 60
 
 const val MAX_PLAYER_CONSECUTIVE_ERR = 3
 

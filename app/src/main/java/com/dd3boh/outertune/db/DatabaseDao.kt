@@ -44,6 +44,7 @@ import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.YTItem
 import com.zionhuang.innertube.pages.AlbumPage
 import kotlinx.coroutines.flow.Flow
+import java.time.LocalDateTime
 
 @Dao
 interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao {
@@ -373,8 +374,22 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
     @Query("DELETE FROM recent_activity")
     fun clearRecentActivity()
 
+    /**
+     * Replaces the whole recent activity table in a single transaction, keeping [items] in order.
+     *
+     * The dates are assigned here, one second apart, because the query orders by date descending.
+     */
     @Transaction
-    fun insertRecentActivityItem(item: YTItem) {
+    fun replaceRecentActivity(items: List<YTItem>) {
+        clearRecentActivity()
+        val date = LocalDateTime.now()
+        items.forEachIndexed { index, item ->
+            insertRecentActivityItem(item, date.minusSeconds(index.toLong()))
+        }
+    }
+
+    @Transaction
+    fun insertRecentActivityItem(item: YTItem, date: LocalDateTime) {
         when (item) {
             is AlbumItem -> {
                 insert(
@@ -387,7 +402,8 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                         type = RecentActivityType.ALBUM,
                         playlistId = item.playlistId,
                         radioPlaylistId = null,
-                        shufflePlaylistId = null
+                        shufflePlaylistId = null,
+                        date = date
                     )
                 )
             }
@@ -403,7 +419,8 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                         type = RecentActivityType.PLAYLIST,
                         playlistId = item.id,
                         radioPlaylistId = item.radioEndpoint?.playlistId,
-                        shufflePlaylistId = item.shuffleEndpoint?.playlistId
+                        shufflePlaylistId = item.shuffleEndpoint?.playlistId,
+                        date = date
                     )
                 )
             }
@@ -419,7 +436,8 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                         type = RecentActivityType.ARTIST,
                         playlistId = item.playEndpoint?.playlistId,
                         radioPlaylistId = item.radioEndpoint?.playlistId,
-                        shufflePlaylistId = item.shuffleEndpoint?.playlistId
+                        shufflePlaylistId = item.shuffleEndpoint?.playlistId,
+                        date = date
                     )
                 )
             }

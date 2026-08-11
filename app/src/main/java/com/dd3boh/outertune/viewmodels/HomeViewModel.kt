@@ -62,7 +62,7 @@ class HomeViewModel @Inject constructor(
     val allLocalItems = MutableStateFlow<List<LocalItem>>(emptyList())
     val allYtItems = MutableStateFlow<List<YTItem>>(emptyList())
 
-    private suspend fun load() {
+    private suspend fun load(manual: Boolean) {
         isLoading.value = true
 
         quickPicks.value = database.quickPicks()
@@ -145,7 +145,7 @@ class HomeViewModel @Inject constructor(
             reportException(it)
         }
 
-        syncUtils.syncRecentActivity()
+        syncUtils.syncRecentActivity(manual)
 
         allYtItems.value = similarRecommendations.value?.flatMap { it.items }.orEmpty() +
                 homePage.value?.sections?.flatMap { it.items }.orEmpty()
@@ -194,11 +194,14 @@ class HomeViewModel @Inject constructor(
         }
     }
 
-    fun refresh() {
+    /**
+     * @param manual true when the user asked for the refresh, which makes the sync ignore the cooldown.
+     */
+    fun refresh(manual: Boolean = false) {
         if (isRefreshing.value) return
         viewModelScope.launch(syncCoroutine) {
             isRefreshing.value = true
-            load()
+            load(manual)
             isRefreshing.value = false
         }
     }
