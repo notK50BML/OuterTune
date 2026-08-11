@@ -1,4 +1,4 @@
-name: Build patched APKs
+name: (deprecated) Build patched APKs
 
 # Applies outertune-sync-artwork-lyrics.patch on top of the checked-out source and builds
 # the variant you choose. Nothing needs to be cloned locally: the runner does the checkout,
