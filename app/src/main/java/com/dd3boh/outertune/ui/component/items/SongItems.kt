@@ -24,6 +24,7 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -93,6 +94,8 @@ fun SongListItem(
     showLikedIcon: Boolean = true,
     showInLibraryIcon: Boolean = true,
     showDownloadIcon: Boolean = true,
+    /** e.g. a listen-time/play-count value on the stats screen. Sits left of the 3-dot menu. */
+    extraInfo: String? = null,
 
     thumbnailSize: Int,
     onPlay: () -> Unit,
@@ -138,6 +141,14 @@ fun SongListItem(
                 )
             },
             trailingContent = {
+                if (extraInfo != null) {
+                    Text(
+                        text = extraInfo,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+
                 if (inSelectMode == true) {
                     Checkbox(
                         checked = isSelected,

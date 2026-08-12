@@ -45,6 +45,7 @@ import com.dd3boh.outertune.constants.StatMetric
 import com.dd3boh.outertune.constants.StatPeriod
 import com.dd3boh.outertune.constants.SwipeToQueueKey
 import com.dd3boh.outertune.constants.TopBarInsets
+import com.dd3boh.outertune.db.entities.SongPlayStats
 import com.dd3boh.outertune.models.toMediaMetadata
 import com.dd3boh.outertune.playback.queues.ListQueue
 import com.dd3boh.outertune.ui.component.ChipsRow
@@ -57,6 +58,7 @@ import com.dd3boh.outertune.ui.component.items.SongListItem
 import com.dd3boh.outertune.ui.menu.AlbumMenu
 import com.dd3boh.outertune.ui.menu.ArtistMenu
 import com.dd3boh.outertune.ui.utils.backToMain
+import com.dd3boh.outertune.utils.makeTimeString
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.StatsViewModel
 import kotlin.math.roundToInt
@@ -134,13 +136,13 @@ fun StatsScreen(
         val thumbnailSize = (ListThumbnailSize.value * density.density).roundToInt()
         itemsIndexed(
             items = mostPlayedSongs,
-            key = { _, song -> song.id }
-        ) { index, song ->
+            key = { _, songStat -> songStat.song.id }
+        ) { index, songStat ->
             SongListItem(
-                song = song,
+                song = songStat.song,
                 navController = navController,
 
-                isActive = song.song.id == mediaMetadata?.id,
+                isActive = songStat.song.id == mediaMetadata?.id,
                 isPlaying = isPlaying,
                 inSelectMode = false,
                 isSelected = false,
@@ -148,11 +150,12 @@ fun StatsScreen(
                 swipeEnabled = swipeEnabled,
 
                 thumbnailSize = thumbnailSize,
+                extraInfo = statValueText(statMetric, songStat),
                 onPlay = {
                     playerConnection.playQueue(
                         ListQueue(
                             title = mostPlayedSongTitle,
-                            items = mostPlayedSongs.map { it.toMediaMetadata() },
+                            items = mostPlayedSongs.map { it.song.toMediaMetadata() },
                             // Without this the queue always started at its first entry, so every
                             // song in the chart played the number one track instead of itself.
                             startIndex = index
@@ -285,23 +288,24 @@ fun StatsScreen(
                 items = extendedSongs,
                 // Prefixed because the overview above holds the same songs, and two items sharing
                 // a key in one LazyColumn is a crash, not a cosmetic problem.
-                key = { _, song -> "ext-song-" + song.id }
-            ) { index, song ->
+                key = { _, songStat -> "ext-song-" + songStat.song.id }
+            ) { index, songStat ->
                 SongListItem(
-                    song = song,
+                    song = songStat.song,
                     navController = navController,
-                    isActive = song.song.id == mediaMetadata?.id,
+                    isActive = songStat.song.id == mediaMetadata?.id,
                     isPlaying = isPlaying,
                     inSelectMode = false,
                     isSelected = false,
                     onSelectedChange = {},
                     swipeEnabled = swipeEnabled,
                     thumbnailSize = (ListThumbnailSize.value * density.density).roundToInt(),
+                    extraInfo = statValueText(statMetric, songStat),
                     onPlay = {
                         playerConnection.playQueue(
                             ListQueue(
                                 title = mostPlayedSongTitle,
-                                items = extendedSongs.map { it.toMediaMetadata() },
+                                items = extendedSongs.map { it.song.toMediaMetadata() },
                                 startIndex = index
                             )
                         )
@@ -364,4 +368,11 @@ fun StatsScreen(
         },
         windowInsets = TopBarInsets,
     )
+}
+
+/** The per-song value shown beside the 3-dot menu, matching whichever ranking metric is active. */
+@Composable
+private fun statValueText(metric: StatMetric, songStat: SongPlayStats): String = when (metric) {
+    StatMetric.TIME_LISTENED -> makeTimeString(songStat.totalPlayTime)
+    StatMetric.TIMES_PLAYED -> pluralStringResource(R.plurals.n_play, songStat.totalPlays, songStat.totalPlays)
 }

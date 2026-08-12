@@ -58,6 +58,16 @@ data class Song @JvmOverloads constructor(
         get() = song.thumbnailUrl
 }
 
+/** A [Song] paired with the listen stats a stats-screen ranking query already computed for it. */
+@Immutable
+data class SongPlayStats(
+    @Embedded val song: Song,
+    /** Total time this song was listened to within the query's time window, in milliseconds. */
+    val totalPlayTime: Long,
+    /** Total number of times this song was played within the query's time window. */
+    val totalPlays: Int,
+)
+
 data class QueueSong(
     @Embedded val song: Song,
     @ColumnInfo(name = "shuffledIndex") val shuffledIndex: Int

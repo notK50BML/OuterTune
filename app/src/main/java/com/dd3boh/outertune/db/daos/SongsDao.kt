@@ -2,6 +2,7 @@ package com.dd3boh.outertune.db.daos
 
 import androidx.room.Dao
 import androidx.room.Delete
+import androidx.room.Embedded
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
@@ -12,6 +13,7 @@ import com.dd3boh.outertune.constants.SongSortType
 import com.dd3boh.outertune.db.entities.PlayCountEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongEntity
+import com.dd3boh.outertune.db.entities.SongPlayStats
 import com.dd3boh.outertune.extensions.reversed
 import com.dd3boh.outertune.utils.fixFilePath
 import kotlinx.coroutines.flow.Flow
@@ -78,6 +80,31 @@ interface SongsDao {
         offset: Int = 0,
         byPlayTime: Boolean = true,
     ): Flow<List<Song>>
+
+    // Same query as mostPlayedSongs, but keeping the aggregates the ranking is already computing
+    // instead of throwing them away - the stats screen wants to show a song's own total listen
+    // time/play count next to it, not just use them to sort.
+    @Transaction
+    @Query("""
+        SELECT song.*, ranked.totalPlayTime AS totalPlayTime, ranked.totalPlays AS totalPlays
+        FROM song
+                 JOIN (SELECT songId,
+                              SUM(playTime) AS totalPlayTime,
+                              COUNT(*)      AS totalPlays
+                       FROM event
+                       WHERE timestamp > :fromTimeStamp
+                       GROUP BY songId) AS ranked
+                      ON ranked.songId = song.id
+        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC
+        LIMIT :limit
+        OFFSET :offset
+    """)
+    fun mostPlayedSongsWithStats(
+        fromTimeStamp: Long,
+        limit: Int = 6,
+        offset: Int = 0,
+        byPlayTime: Boolean = true,
+    ): Flow<List<SongPlayStats>>
 
     @Query("SELECT sum(count) from playCount WHERE song = :songId")
     fun getLifetimePlayCount(songId: String?): Int

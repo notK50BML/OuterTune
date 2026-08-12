@@ -189,6 +189,10 @@ We recycle translations from upstream, they are pulled periodically. -->
         <item quantity="one">%d year</item>
         <item quantity="other">%d years</item>
     </plurals>
+    <plurals name="n_play">
+        <item quantity="one">%d play</item>
+        <item quantity="other">%d plays</item>
+    </plurals>
 
     <!-- Snackbar -->
     <string name="playlist_imported">Playlist imported</string>

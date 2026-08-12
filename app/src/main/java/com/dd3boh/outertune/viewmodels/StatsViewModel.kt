@@ -44,7 +44,7 @@ class StatsViewModel @Inject constructor(
     private val overviewRequest = combine(statPeriod, statMetric) { period, metric -> period to metric }
 
     val mostPlayedSongs = overviewRequest.flatMapLatest { (period, metric) ->
-        database.mostPlayedSongs(period.toTimeMillis(), byPlayTime = metric == StatMetric.TIME_LISTENED)
+        database.mostPlayedSongsWithStats(period.toTimeMillis(), byPlayTime = metric == StatMetric.TIME_LISTENED)
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric) ->
@@ -82,7 +82,7 @@ class StatsViewModel @Inject constructor(
         if (!r.show) {
             flowOf(emptyList())
         } else {
-            database.mostPlayedSongs(
+            database.mostPlayedSongsWithStats(
                 r.period.toTimeMillis(),
                 limit = r.limit,
                 byPlayTime = r.metric == StatMetric.TIME_LISTENED,
