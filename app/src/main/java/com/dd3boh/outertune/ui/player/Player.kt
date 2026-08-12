@@ -1225,8 +1225,14 @@ fun PlayerBackground(
         // gradient colours
         LaunchedEffect(mediaMetadata, playerBackground) {
             val needsPalette = playerBackground == PlayerBackgroundStyle.GRADIENT ||
-                    playerBackground == PlayerBackgroundStyle.LIQUID
-            if (!needsPalette || context.isPowerSaver()) return@LaunchedEffect
+                    playerBackground == PlayerBackgroundStyle.LIQUID ||
+                    playerBackground == PlayerBackgroundStyle.FOLLOW_THEME
+            // Extraction itself is one cheap Palette pass over a 100x100 bitmap, not the thing
+            // power saver needs to guard against - only the continuous Liquid animation actually
+            // costs anything ongoing, and that already stops itself via `isActive` below. Skipping
+            // extraction here left gradientColors permanently empty for as long as power saver was
+            // on, which is what actually produced a solid-black background, not a slow one.
+            if (!needsPalette) return@LaunchedEffect
 
             withContext(coilCoroutine) {
                 val result = context.imageLoader.execute(
@@ -1277,6 +1283,15 @@ fun PlayerBackground(
                         .fillMaxSize()
                         .background(Brush.verticalGradient(colors), alpha = 0.4f)
                 )
+            }
+
+            // FOLLOW_THEME had no rendering branch at all previously, so it fell through to the
+            // plain elevated-surface Box background - solid near-black in dark theme. Two soft,
+            // overlapping blotches (one per dominant cover colour) rather than a flat blended wash,
+            // since a flat blend of two very different colours is what looked wrong on some covers.
+            if (playerBackground == PlayerBackgroundStyle.FOLLOW_THEME && colors.isNotEmpty()) {
+                if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2f")
+                FollowThemeBackground(colors = colors)
             }
         }
 

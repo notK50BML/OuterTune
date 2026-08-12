@@ -32,12 +32,9 @@ import coil3.imageLoader
 import coil3.request.ImageRequest
 import coil3.request.allowHardware
 import coil3.toBitmap
-import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
-import com.dd3boh.outertune.constants.PlayerBackgroundStyle
-import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.utils.coilCoroutine
 import com.dd3boh.outertune.utils.rememberEnumPreference
@@ -166,20 +163,17 @@ fun rememberPlayerOnBackgroundColor(mediaMetadata: MediaMetadata?): Color {
     val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
         if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
     }
-    val playerBackground by rememberEnumPreference(PlayerBackgroundStyleKey, DEFAULT_PLAYER_BACKGROUND)
     val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
 
-    // Only the artwork-derived backgrounds have anything to measure. Asking for a luminance on the
-    // others would load a bitmap on every track change and then ignore the answer.
+    // Every background style is artwork-derived now (FOLLOW_THEME and GRADIENT/LIQUID measure the
+    // cover via extractGradientColors, FROSTED/BLUR via this same luminance check), so there is no
+    // style left where the cover is beside the point.
     val coverIsLight = rememberCoverIsLight(
         mediaMetadata = mediaMetadata,
-        enabled = autoTextContrast &&
-                (playerBackground == PlayerBackgroundStyle.FROSTED ||
-                        playerBackground == PlayerBackgroundStyle.BLUR),
+        enabled = autoTextContrast,
     )
 
     return when {
-        playerBackground == PlayerBackgroundStyle.FOLLOW_THEME -> MaterialTheme.colorScheme.secondary
         coverIsLight != null -> if (coverIsLight) Color(0xFF16161A) else Color.White
         useDarkTheme -> MaterialTheme.colorScheme.onSurface
         else -> {
