@@ -1,4 +1,4 @@
-name: Build patched APKs
+name: Build APK with EQ
 
 # Applies outertune-backlog.patch on top of the checked-out source and builds
 # the variant you choose. Nothing needs to be cloned locally: the runner does the checkout,
@@ -31,7 +31,7 @@ on:
       variant:
         description: "Which variant to build"
         required: true
-        default: "fullUserdebug"
+        default: "coreRelease"
         type: choice
         options:
           - fullDebug
