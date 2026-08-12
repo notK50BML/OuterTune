@@ -1,4 +1,4 @@
-name: Build patched APK
+name: Build patched APKs
 
 # Applies outertune-backlog.patch on top of the checked-out source and builds
 # the variant you choose. Nothing needs to be cloned locally: the runner does the checkout,
@@ -31,7 +31,7 @@ on:
       variant:
         description: "Which variant to build"
         required: true
-        default: "fullUserdebug"
+        default: "coreRelease"
         type: choice
         options:
           - fullDebug
@@ -47,11 +47,11 @@ on:
       version_name:
         description: "versionName for this build (blank = leave whatever the patch set)"
         required: false
-        default: "0.20"
+        default: "0.17"
       version_code:
         description: "versionCode - must be HIGHER than the build you already have installed, or Android refuses the upgrade"
         required: false
-        default: "90"
+        default: "94"
 
 jobs:
   build:
@@ -82,9 +82,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: 4bc59af9b87707a95af7474b1a3caff19ffc433b88e64dbf3341ed2ae8af1bf1"
-          echo "lines: $(wc -l < "$PATCH")  (expected 18334)   bytes: $(wc -c < "$PATCH")  (expected 859130)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 55)"
+          echo "expected: 0d770bfab70f0748549424d63799b6576c83db66324ea18f8a10073c528263f5"
+          echo "lines: $(wc -l < "$PATCH")  (expected 20130)   bytes: $(wc -c < "$PATCH")  (expected 940043)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 59)"
           echo "================"
 
           git config user.name "github-actions"
