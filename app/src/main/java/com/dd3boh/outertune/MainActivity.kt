@@ -28,7 +28,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -51,8 +50,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
@@ -90,7 +87,6 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -893,20 +889,9 @@ class MainActivity : ComponentActivity() {
                                 }
                                 NavigationRail(
                                     containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
-                                    header = {
-                                        Spacer(Modifier.height(8.dp))
-                                        Image(
-                                            modifier = Modifier
-                                                .size(36.dp)
-                                                .padding(start = 8.dp),
-                                            painter = painterResource(R.drawable.small_icon),
-                                            contentDescription = null
-                                        )
-                                    },
                                     modifier = Modifier
                                         .align(alignment)
                                         .fillMaxHeight()
-                                        .verticalScroll(rememberScrollState())
                                         .offset {
                                             if (navigationBarHeight == 0.dp) {
                                                 IntOffset(
@@ -926,6 +911,10 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                 ) {
+                                    // Centers the item group within the rail's full height instead of
+                                    // letting NavigationRail's own column default to top-aligned - the
+                                    // logo header that used to anchor it up there is gone now.
+                                    Spacer(Modifier.weight(1f))
                                     navigationItems.fastForEach { screen ->
                                         // TODO: display selection when based on root page user entered
 //                                                val isSelected = navBackStackEntry?.destination?.hierarchy?.any {
@@ -985,6 +974,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         )
                                     }
+                                    Spacer(Modifier.weight(1f))
                                 }
                             }
 
