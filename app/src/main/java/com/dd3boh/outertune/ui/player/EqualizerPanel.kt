@@ -61,6 +61,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -387,12 +388,19 @@ private fun BandColumn(
 private fun MiniPlaybackControls() {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isPlaying.collectAsState()
+    val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
 
     Row(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
     ) {
+        IconButton(onClick = { playerConnection.triggerShuffle() }) {
+            Icon(
+                painter = painterResource(if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off),
+                contentDescription = null,
+            )
+        }
         IconButton(onClick = { playerConnection.player.seekToPrevious() }) {
             Icon(Icons.Rounded.SkipPrevious, contentDescription = null)
         }
