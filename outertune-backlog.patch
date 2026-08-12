@@ -17277,7 +17277,7 @@ index c27e51f0..095a91ff 100644
 2.45.1.windows.1
 
 
-From 399e46f4336f9171104ec0ec098c201706b54807 Mon Sep 17 00:00:00 2001
+From b5c4f66419daf1b043f249dc418df8b39961f96e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:26 +0800
 Subject: [PATCH 55/55] Add a 12-band parametric equalizer
@@ -17323,9 +17323,9 @@ ideas about how the tap should work.
  .../dd3boh/outertune/playback/MusicService.kt |  15 +-
  .../outertune/ui/component/VerticalSlider.kt  |  72 ++++
  .../dd3boh/outertune/ui/menu/PlayerMenu.kt    |  24 +-
- .../outertune/ui/player/EqualizerSheet.kt     | 331 ++++++++++++++++++
+ .../outertune/ui/player/EqualizerSheet.kt     | 332 ++++++++++++++++++
  app/src/main/res/values/strings.xml           |   1 +
- 9 files changed, 842 insertions(+), 16 deletions(-)
+ 9 files changed, 843 insertions(+), 16 deletions(-)
  create mode 100644 app/src/main/java/com/dd3boh/outertune/audio/Biquad.kt
  create mode 100644 app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
  create mode 100644 app/src/main/java/com/dd3boh/outertune/models/EqualizerSettings.kt
@@ -17981,10 +17981,10 @@ index 5692db2e..a2db7940 100644
              icon = Icons.Rounded.Tune,
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerSheet.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerSheet.kt
 new file mode 100644
-index 00000000..94781a81
+index 00000000..c366466e
 --- /dev/null
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerSheet.kt
-@@ -0,0 +1,331 @@
+@@ -0,0 +1,332 @@
 +/*
 + * Copyright (C) 2025 O‌ute‌rTu‌ne Project
 + *
@@ -18020,6 +18020,7 @@ index 00000000..94781a81
 +import androidx.compose.material3.Switch
 +import androidx.compose.material3.Text
 +import androidx.compose.material3.rememberModalBottomSheetState
++import androidx.compose.material3.surfaceColorAtElevation
 +import androidx.compose.runtime.Composable
 +import androidx.compose.runtime.getValue
 +import androidx.compose.runtime.mutableStateOf
