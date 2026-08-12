@@ -81,6 +81,8 @@ val AudioGaplessOffloadKey = booleanPreferencesKey("enableGaplessOffload")
 
 val MaxQueuesKey = intPreferencesKey("maxQueues")
 val ShowQueuesBesideCurrentKey = booleanPreferencesKey("showQueuesBesideCurrent")
+val EqualizerSettingsKey = stringPreferencesKey("equalizerSettings")
+val EqSliderStyleKey = stringPreferencesKey("eqSliderStyle")
 val PersistentQueueKey = booleanPreferencesKey("persistentQueue")
 
 val SeekIncrementKey = stringPreferencesKey("seekIncrement")

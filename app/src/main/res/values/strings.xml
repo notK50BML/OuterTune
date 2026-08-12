@@ -290,6 +290,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="ignore_audio_focus">Keep audio focus</string>
     <string name="ignore_audio_focus_desc">Keep playing when another app takes audio focus. Music will not pause for other audio sources, including phone calls.</string>
     <string name="equalizer">Equalizer</string>
+    <string name="equalizer_tap_a_band">Tap a band to edit its frequency, Q and filter type</string>
 
     <string name="storage">Storage</string>
     <string name="cache">Cache</string>

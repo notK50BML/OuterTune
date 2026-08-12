@@ -23,6 +23,7 @@ import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
 import androidx.media3.common.AudioAttributes
+import androidx.media3.common.audio.AudioProcessor
 import androidx.media3.common.C
 import androidx.media3.common.Format
 import androidx.media3.common.MediaItem
@@ -75,7 +76,10 @@ import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
 import com.dd3boh.outertune.constants.DiscordTokenKey
+import com.dd3boh.outertune.audio.EqualizerAudioProcessor
 import com.dd3boh.outertune.constants.DiscordRPCClearAfterMinutesKey
+import com.dd3boh.outertune.constants.EqualizerSettingsKey
+import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.constants.EnableDiscordRPCKey
 import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
 import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
@@ -222,6 +226,10 @@ class MusicService : MediaLibraryService(),
     lateinit var player: ExoPlayer
     private lateinit var mediaSession: MediaLibrarySession
 
+    // Constructed eagerly (not lateinit) because createRenderersFactory() needs it already built
+    // by the time the ExoPlayer.Builder in onCreate() runs.
+    val equalizerAudioProcessor = EqualizerAudioProcessor()
+
     // Player components
     @Inject
     lateinit var syncUtils: SyncUtils
@@ -315,6 +323,9 @@ class MusicService : MediaLibraryService(),
                 // misc
                 setOffloadEnabled(dataStore.get(AudioOffloadKey, false))
             }
+
+        EqualizerSettings.parse(dataStore.get(EqualizerSettingsKey, ""))
+            .onSuccess { equalizerAudioProcessor.setSettings(it) }
 
         mediaLibrarySessionCallback.apply {
             service = this@MusicService
@@ -950,7 +961,7 @@ class MusicService : MediaLibraryService(),
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                         .setAudioProcessorChain(
                             DefaultAudioSink.DefaultAudioProcessorChain(
-                                emptyArray(),
+                                arrayOf<AudioProcessor>(equalizerAudioProcessor),
                                 SilenceSkippingAudioProcessor(),
                                 SonicAudioProcessor()
                             )
@@ -979,7 +990,7 @@ class MusicService : MediaLibraryService(),
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                         .setAudioProcessorChain(
                             DefaultAudioSink.DefaultAudioProcessorChain(
-                                emptyArray(),
+                                arrayOf<AudioProcessor>(equalizerAudioProcessor),
                                 SilenceSkippingAudioProcessor(),
                                 SonicAudioProcessor()
                             )

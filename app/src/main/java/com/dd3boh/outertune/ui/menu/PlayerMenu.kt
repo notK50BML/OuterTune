@@ -1,9 +1,6 @@
 package com.dd3boh.outertune.ui.menu
 
 import android.content.Intent
-import android.media.audiofx.AudioEffect
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -101,6 +98,7 @@ import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.ArtistDialog
 import com.dd3boh.outertune.ui.dialog.DetailsDialog
+import com.dd3boh.outertune.ui.player.EqualizerSheet
 import com.dd3boh.outertune.utils.rememberPreference
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
@@ -142,8 +140,6 @@ fun PlayerMenu(
     val coroutineScope = rememberCoroutineScope()
 
     val download by LocalDownloadUtil.current.getDownload(mediaMetadata.id).collectAsState(initial = null)
-
-    val activityResultLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
 
     var showChooseQueueDialog by rememberSaveable {
         mutableStateOf(false)
@@ -214,6 +210,14 @@ fun PlayerMenu(
             clipboardManager = clipboardManager,
             setVisibility = { showDetailsDialog = it }
         )
+    }
+
+    var showEqualizerSheet by remember {
+        mutableStateOf(false)
+    }
+
+    if (showEqualizerSheet) {
+        EqualizerSheet(onDismiss = { showEqualizerSheet = false })
     }
 
     Row(
@@ -361,15 +365,7 @@ fun PlayerMenu(
             icon = Icons.Rounded.Equalizer,
             title = R.string.equalizer
         ) {
-            val intent = Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
-                putExtra(AudioEffect.EXTRA_AUDIO_SESSION, playerConnection.player.audioSessionId)
-                putExtra(AudioEffect.EXTRA_PACKAGE_NAME, context.packageName)
-                putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-            }
-            if (intent.resolveActivity(context.packageManager) != null) {
-                activityResultLauncher.launch(intent)
-            }
-            onDismiss()
+            showEqualizerSheet = true
         }
         GridMenuItem(
             icon = Icons.Rounded.Tune,
