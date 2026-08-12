@@ -155,6 +155,7 @@ val DiscordInfoDismissedKey = booleanPreferencesKey("discordInfoDismissed_v2")
 val DiscordUsernameKey = stringPreferencesKey("discordUsername")
 val DiscordNameKey = stringPreferencesKey("discordName")
 val EnableDiscordRPCKey = booleanPreferencesKey("discordRPCEnable")
+val DiscordRPCClearAfterMinutesKey = intPreferencesKey("discordRPCClearAfterMinutes")
 
 
 /**

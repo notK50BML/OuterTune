@@ -22,6 +22,7 @@ import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.Logout
 import androidx.compose.material.icons.rounded.NetworkCheck
+import androidx.compose.material.icons.rounded.Timelapse
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,11 +40,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.TextFieldValue
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DiscordNameKey
+import com.dd3boh.outertune.constants.DiscordRPCClearAfterMinutesKey
 import com.dd3boh.outertune.constants.DiscordTokenKey
 import com.dd3boh.outertune.constants.DiscordUsernameKey
 import com.dd3boh.outertune.constants.EnableDiscordRPCKey
@@ -53,6 +56,7 @@ import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
+import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.dialog.TextFieldDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
@@ -69,9 +73,14 @@ fun DiscordSettings(
     var discordUsername by rememberPreference(DiscordUsernameKey, "")
     var discordName by rememberPreference(DiscordNameKey, "")
     val (discordRPC, onDiscordRPCChange) = rememberPreference(EnableDiscordRPCKey, defaultValue = true)
+    val (clearAfterMinutes, onClearAfterMinutesChange) = rememberPreference(
+        DiscordRPCClearAfterMinutesKey,
+        defaultValue = 5
+    )
 
     val isLoggedIn = remember(discordToken) { discordToken.isNotEmpty() }
     var showTokenDialog by remember { mutableStateOf(false) }
+    var showClearAfterDialog by remember { mutableStateOf(false) }
     var connectionStatus by remember { mutableStateOf<String?>(null) }
     var testing by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
@@ -177,8 +186,33 @@ fun DiscordSettings(
                 onCheckedChange = onDiscordRPCChange,
                 isEnabled = isLoggedIn,
             )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.discord_rpc_clear_after_pause)) },
+                description = if (clearAfterMinutes <= 0) stringResource(R.string.never)
+                else pluralStringResource(R.plurals.minute, clearAfterMinutes, clearAfterMinutes),
+                icon = { Icon(Icons.Rounded.Timelapse, null) },
+                isEnabled = isLoggedIn && discordRPC,
+                onClick = { showClearAfterDialog = true },
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
+
+        if (showClearAfterDialog) {
+            CounterDialog(
+                title = stringResource(R.string.discord_rpc_clear_after_pause),
+                description = stringResource(R.string.discord_rpc_clear_after_pause_desc),
+                initialValue = clearAfterMinutes,
+                upperBound = 60,
+                lowerBound = 0,
+                unitDisplay = " min",
+                onDismiss = { showClearAfterDialog = false },
+                onConfirm = {
+                    showClearAfterDialog = false
+                    onClearAfterMinutesChange(it)
+                },
+                onCancel = { showClearAfterDialog = false }
+            )
+        }
 
         // Discord's own terms discourage driving a user account over the gateway. Say so plainly
         // rather than burying it, since the account at risk is the user's.

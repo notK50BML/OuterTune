@@ -75,6 +75,7 @@ import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
 import com.dd3boh.outertune.constants.DiscordTokenKey
+import com.dd3boh.outertune.constants.DiscordRPCClearAfterMinutesKey
 import com.dd3boh.outertune.constants.EnableDiscordRPCKey
 import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
 import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
@@ -142,6 +143,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -225,6 +227,10 @@ class MusicService : MediaLibraryService(),
     lateinit var syncUtils: SyncUtils
 
     private var discordRpc: DiscordRPC? = null
+
+    // Cleared/replaced on every presence update; only ever running while the last update sent
+    // was a paused one, so a resume or track change cancels it before it can fire.
+    private var discordClearJob: Job? = null
 
     /**
      * Presence updates are *requested*, never pushed directly.
@@ -373,6 +379,18 @@ class MusicService : MediaLibraryService(),
             // The wait above can outlast the track it was for.
             if (player.currentMediaItem?.mediaId != mediaId) return@collectLatest
             rpc.updateSong(song, player.currentPosition, paused)
+
+            discordClearJob?.cancel()
+            discordClearJob = null
+            if (paused) {
+                val clearAfterMinutes = dataStore.get(DiscordRPCClearAfterMinutesKey, 5)
+                if (clearAfterMinutes > 0) {
+                    discordClearJob = scope.launch {
+                        delay(clearAfterMinutes * 60_000L)
+                        rpc.stopActivity()
+                    }
+                }
+            }
         }
 
         // Track changes that the player does not announce as an event still move the metadata.
