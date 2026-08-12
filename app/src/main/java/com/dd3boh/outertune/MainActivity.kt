@@ -139,6 +139,8 @@ import com.dd3boh.outertune.ui.component.shimmer.ShimmerTheme
 import com.dd3boh.outertune.ui.menu.BottomSheetMenu
 import com.dd3boh.outertune.ui.menu.MenuState
 import com.dd3boh.outertune.ui.player.BottomSheetPlayer
+import com.dd3boh.outertune.ui.player.EqualizerPanelState
+import com.dd3boh.outertune.ui.player.LocalEqualizerPanelState
 import com.dd3boh.outertune.ui.screens.AccountScreen
 import com.dd3boh.outertune.ui.screens.AlbumScreen
 import com.dd3boh.outertune.ui.screens.BrowseScreen
@@ -461,6 +463,7 @@ class MainActivity : ComponentActivity() {
                         LocalAccountImageFetcher provides accountImageFetcher,
                         LocalNetworkConnected provides isNetworkConnected,
                         LocalSnackbarHostState provides snackbarHostState,
+                        LocalEqualizerPanelState provides remember { EqualizerPanelState() },
                     ) {
                         Box(
                             modifier = Modifier

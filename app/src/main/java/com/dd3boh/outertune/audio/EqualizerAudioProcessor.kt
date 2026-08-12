@@ -37,6 +37,15 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     @Volatile
     private var coefficients: Array<BiquadCoefficients> = arrayOf()
 
+    // Standard attenuate-the-far-side balance law, not a boost: at center both are 1, panning one
+    // way only pulls the other channel down. Channels beyond the first two (anything not a plain
+    // stereo stream) are left alone - "balance" has no defined meaning for them.
+    @Volatile
+    private var leftGain: Float = 1f
+
+    @Volatile
+    private var rightGain: Float = 1f
+
     // [channel][band]. Rebuilt only when channel count or band count changes, so ordinary gain/Q
     // tweaks never reset the running filter state (which would produce an audible click).
     private var states: Array<Array<BiquadState>> = arrayOf()
@@ -45,8 +54,11 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
     fun setSettings(settings: EqualizerSettings) {
-        bypass = !settings.enabled || settings.bands.all { !it.enabled || it.gainDb == 0f }
+        val flat = settings.bands.all { !it.enabled || it.gainDb == 0f }
+        bypass = !settings.enabled || (flat && settings.balance == 0f)
         bands = settings.bands
+        leftGain = (1f - settings.balance).coerceIn(0f, 1f)
+        rightGain = (1f + settings.balance).coerceIn(0f, 1f)
         recomputeCoefficients()
     }
 
@@ -87,6 +99,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         ensureStates(channelCount)
         val coeffs = coefficients
         val encoding = inputAudioFormat.encoding
+        val leftGain = this.leftGain
+        val rightGain = this.rightGain
 
         while (inputBuffer.hasRemaining()) {
             for (ch in 0 until channelCount) {
@@ -99,6 +113,12 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                 val channelStates = states[ch]
                 for (b in coeffs.indices) {
                     sample = channelStates[b].process(sample, coeffs[b])
+                }
+
+                sample *= when (ch) {
+                    0 -> leftGain
+                    1 -> rightGain
+                    else -> 1f
                 }
 
                 when (encoding) {

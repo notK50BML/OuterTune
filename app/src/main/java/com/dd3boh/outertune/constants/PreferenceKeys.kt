@@ -83,6 +83,8 @@ val MaxQueuesKey = intPreferencesKey("maxQueues")
 val ShowQueuesBesideCurrentKey = booleanPreferencesKey("showQueuesBesideCurrent")
 val EqualizerSettingsKey = stringPreferencesKey("equalizerSettings")
 val EqSliderStyleKey = stringPreferencesKey("eqSliderStyle")
+val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
+val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
 val PersistentQueueKey = booleanPreferencesKey("persistentQueue")
 
 val SeekIncrementKey = stringPreferencesKey("seekIncrement")

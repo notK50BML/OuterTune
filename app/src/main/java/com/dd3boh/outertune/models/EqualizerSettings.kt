@@ -20,6 +20,8 @@ import org.json.JSONObject
 data class EqualizerSettings(
     val enabled: Boolean = false,
     val bands: List<EqBand> = DEFAULT_BANDS,
+    /** Left/right balance, -1 (full left) .. 1 (full right), 0 = centered. */
+    val balance: Float = 0f,
 ) {
     enum class FilterType(val key: String) {
         PEAKING("peaking"),
@@ -53,6 +55,7 @@ data class EqualizerSettings(
         val root = JSONObject()
         root.put("schemaVersion", SCHEMA_VERSION)
         root.put("enabled", enabled)
+        root.put("balance", balance.toDouble())
         val array = JSONArray()
         bands.forEach { band ->
             val obj = JSONObject()
@@ -91,12 +94,26 @@ data class EqualizerSettings(
 
         val DEFAULT = EqualizerSettings()
 
-        /** Gain-per-band presets, applied over whatever frequencies/types/Qs are already set. */
+        /**
+         * Gain-per-band presets, applied over whatever frequencies/types/Qs are already set.
+         *
+         * Each list is 12 values matching [DEFAULT_FREQUENCIES]'s order (16Hz..16kHz). Modeled
+         * after the genre presets a Poweramp/Winamp-style graphic EQ ships with, not measured from
+         * anything - a starting point to nudge from, the same as those always were.
+         */
         val PRESETS: Map<String, List<Float>> = linkedMapOf(
             "Flat" to List(DEFAULT_FREQUENCIES.size) { 0f },
             "Bass Boost" to listOf(8f, 7f, 6f, 4f, 2f, 0f, 0f, 0f, 0f, 0f, 0f, 0f),
             "Treble Boost" to listOf(0f, 0f, 0f, 0f, 0f, 0f, 0f, 2f, 4f, 6f, 7f, 8f),
             "Vocal" to listOf(-4f, -4f, -3f, -1f, 1f, 3f, 3f, 2f, 0f, -1f, -2f, -3f),
+            "Pop" to listOf(3f, 2f, 1f, 0f, -1f, -2f, 0f, 2f, 3f, 4f, 3f, 2f),
+            "Rock" to listOf(5f, 4f, 3f, 1f, -1f, -2f, -1f, 1f, 3f, 4f, 4f, 3f),
+            "Classical" to listOf(0f, 0f, 0f, 0f, -1f, -2f, -1f, 0f, 1f, 2f, 3f, 3f),
+            "Jazz" to listOf(3f, 3f, 2f, 1f, 0f, -1f, 0f, 1f, 2f, 2f, 2f, 3f),
+            "Dance" to listOf(6f, 6f, 5f, 3f, 0f, -2f, -1f, 1f, 3f, 5f, 5f, 5f),
+            "Hip-Hop" to listOf(7f, 6f, 5f, 3f, 1f, 0f, 1f, 2f, 2f, 1f, 0f, 0f),
+            "Acoustic" to listOf(2f, 2f, 1f, 1f, 0f, 0f, 1f, 2f, 2f, 1f, 1f, 2f),
+            "Loudness" to listOf(6f, 5f, 3f, 1f, 0f, -1f, -1f, 0f, 1f, 3f, 4f, 5f),
         )
 
         /**
@@ -129,6 +146,7 @@ data class EqualizerSettings(
             EqualizerSettings(
                 enabled = root.optBoolean("enabled", false),
                 bands = bands,
+                balance = root.optDouble("balance", 0.0).toFloat().coerceIn(-1f, 1f),
             )
         }
     }

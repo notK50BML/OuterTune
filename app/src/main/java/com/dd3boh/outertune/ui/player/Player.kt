@@ -25,6 +25,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +58,7 @@ import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Bedtime
+import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.ExpandLess
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.FastRewind
@@ -80,6 +82,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -94,6 +97,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -132,6 +136,8 @@ import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
 import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
+import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
+import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
 import com.dd3boh.outertune.constants.SliderStyleKey
 import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.constants.ShowLyricsOnClickKey
@@ -231,6 +237,8 @@ fun BottomSheetPlayer(
         } else {
             PortraitPlayer(state, navController, queueBoard)
         }
+
+        EqualizerPanel()
     }
 }
 
@@ -299,6 +307,8 @@ fun PortraitPlayer(
             Spacer(Modifier.height(24.dp))
             return@Column
         }
+
+        EqualizerHandle()
 
         BoxWithConstraints(
             contentAlignment = Alignment.Center,
@@ -425,6 +435,50 @@ fun PortraitPlayer(
     }
 }
 
+/**
+ * A pull-down affordance above the cover art that opens the full-screen equalizer, mirroring the
+ * queue's swipe-up handle at the bottom - tap, or drag down past a small threshold.
+ */
+@Composable
+private fun EqualizerHandle() {
+    val showEqualizerHandle by rememberPreference(ShowEqualizerHandleKey, defaultValue = true)
+    if (!showEqualizerHandle) return
+
+    val equalizerPanelState = LocalEqualizerPanelState.current
+    var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
+    val openThresholdPx = with(LocalDensity.current) { 40.dp.toPx() }
+
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(28.dp)
+            .clickable { equalizerPanelState.visible = true }
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = { dragAccumulatorPx = 0f },
+                    onDragCancel = { dragAccumulatorPx = 0f },
+                    onVerticalDrag = { change, dragAmount ->
+                        change.consume()
+                        dragAccumulatorPx += dragAmount
+                        if (dragAccumulatorPx > openThresholdPx) {
+                            equalizerPanelState.visible = true
+                            dragAccumulatorPx = 0f
+                        }
+                    }
+                )
+            }
+    ) {
+        Box(
+            modifier = Modifier
+                .width(32.dp)
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+        )
+    }
+}
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun LandscapePlayer(
@@ -483,13 +537,15 @@ fun LandscapePlayer(
     )
     val vPaddingDp = with(LocalDensity.current) { vPadding.toDp() }
     val verticalInsets = WindowInsets(left = 0.dp, top = vPaddingDp, right = 0.dp, bottom = vPaddingDp)
-    Row(
+    Column(
         modifier = Modifier
             .windowInsetsPadding(
                 WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal).add(verticalInsets)
             )
             .fillMaxSize()
     ) {
+        EqualizerHandle()
+        Row(modifier = Modifier.weight(1f)) {
         BoxWithConstraints(
             contentAlignment = Alignment.Center,
             modifier = Modifier
@@ -586,6 +642,7 @@ fun LandscapePlayer(
                 .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
         ) {
             ControlsContent(playerSheetState, queueSheetState, navController, queueBoard)
+        }
         }
     }
 
@@ -716,6 +773,29 @@ fun ActionButtons(
     }
 
     Spacer(modifier = Modifier.width(7.dp))
+
+    val showEqualizerButton by rememberPreference(ShowEqualizerButtonKey, defaultValue = true)
+    if (showEqualizerButton) {
+        val equalizerPanelState = LocalEqualizerPanelState.current
+        Box(
+            modifier = Modifier
+                .offset(y = 5.dp)
+                .size(36.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.primary)
+        ) {
+            ResizableIconButton(
+                icon = Icons.Rounded.Equalizer,
+                color = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .size(24.dp),
+                onClick = { equalizerPanelState.visible = true }
+            )
+        }
+
+        Spacer(modifier = Modifier.width(7.dp))
+    }
 
     Box(
         modifier = Modifier

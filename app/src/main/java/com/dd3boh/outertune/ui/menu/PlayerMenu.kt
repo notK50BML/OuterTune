@@ -98,7 +98,7 @@ import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.ArtistDialog
 import com.dd3boh.outertune.ui.dialog.DetailsDialog
-import com.dd3boh.outertune.ui.player.EqualizerSheet
+import com.dd3boh.outertune.ui.player.LocalEqualizerPanelState
 import com.dd3boh.outertune.utils.rememberPreference
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
@@ -125,6 +125,7 @@ fun PlayerMenu(
 ) {
     mediaMetadata ?: return
     val context = LocalContext.current
+    val equalizerPanelState = LocalEqualizerPanelState.current
     val database = LocalDatabase.current
     val downloadUtil = LocalDownloadUtil.current
     val clipboardManager = LocalClipboard.current
@@ -210,14 +211,6 @@ fun PlayerMenu(
             clipboardManager = clipboardManager,
             setVisibility = { showDetailsDialog = it }
         )
-    }
-
-    var showEqualizerSheet by remember {
-        mutableStateOf(false)
-    }
-
-    if (showEqualizerSheet) {
-        EqualizerSheet(onDismiss = { showEqualizerSheet = false })
     }
 
     Row(
@@ -365,7 +358,7 @@ fun PlayerMenu(
             icon = Icons.Rounded.Equalizer,
             title = R.string.equalizer
         ) {
-            showEqualizerSheet = true
+            equalizerPanelState.visible = true
         }
         GridMenuItem(
             icon = Icons.Rounded.Tune,

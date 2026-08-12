@@ -48,6 +48,8 @@ import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
+import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
+import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
 import com.dd3boh.outertune.constants.ShowLyricsOnClickKey
 import com.dd3boh.outertune.constants.ShowQueueTitleKey
 import com.dd3boh.outertune.constants.SkipOnErrorKey
@@ -152,6 +154,14 @@ fun NowPlayingFrag() {
         ShowLyricsOnClickKey,
         defaultValue = DEFAULT_SHOW_LYRICS_ON_CLICK
     )
+    val (showEqualizerButton, onShowEqualizerButtonChange) = rememberPreference(
+        ShowEqualizerButtonKey,
+        defaultValue = true
+    )
+    val (showEqualizerHandle, onShowEqualizerHandleChange) = rememberPreference(
+        ShowEqualizerHandleKey,
+        defaultValue = true
+    )
 
     EnumListPreference(
         title = { Text(stringResource(R.string.slider_style_title)) },
@@ -185,6 +195,20 @@ fun NowPlayingFrag() {
         icon = { Icon(Icons.Rounded.Lyrics, null) },
         checked = showLyricsOnClick,
         onCheckedChange = onShowLyricsOnClickChange
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.show_equalizer_button_title)) },
+        description = stringResource(R.string.show_equalizer_button_description),
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        checked = showEqualizerButton,
+        onCheckedChange = onShowEqualizerButtonChange
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.show_equalizer_handle_title)) },
+        description = stringResource(R.string.show_equalizer_handle_description),
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        checked = showEqualizerHandle,
+        onCheckedChange = onShowEqualizerHandleChange
     )
 }
 
