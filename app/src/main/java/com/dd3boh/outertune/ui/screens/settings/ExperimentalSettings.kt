@@ -38,6 +38,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
@@ -69,6 +70,7 @@ import com.dd3boh.outertune.constants.AudioOffloadKey
 import com.dd3boh.outertune.constants.DevSettingsKey
 import com.dd3boh.outertune.constants.MaxQueuesKey
 import com.dd3boh.outertune.constants.OobeStatusKey
+import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
 import com.dd3boh.outertune.constants.TabletUiKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.constants.VisitorDataKey
@@ -78,6 +80,7 @@ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.dialog.CounterDialog
+import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.rememberPreference
@@ -106,6 +109,10 @@ fun ExperimentalSettings(
     )
     val (audioOffload, onAudioOffloadChange) = rememberPreference(key = AudioOffloadKey, defaultValue = false)
     val (maxQueues, onMaxQueuesChange) = rememberPreference(MaxQueuesKey, defaultValue = 19)
+    val (showQueuesBesideCurrent, onShowQueuesBesideCurrentChange) = rememberPreference(
+        ShowQueuesBesideCurrentKey,
+        defaultValue = false
+    )
     val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
 
     val (devSettings, onDevSettingsChange) = rememberPreference(DevSettingsKey, defaultValue = false)
@@ -113,6 +120,11 @@ fun ExperimentalSettings(
 
     var nukeEnabled by remember {
         mutableStateOf(false)
+    }
+
+    // (label shown in the confirm dialog, the destructive action to run once confirmed)
+    var pendingNuke by remember {
+        mutableStateOf<Pair<String, suspend () -> Any>?>(null)
     }
 
     var showMaxQueuesDialog by remember {
@@ -133,6 +145,13 @@ fun ExperimentalSettings(
             icon = { Icon(Icons.Rounded.Devices, null) },
             checked = tabletUi,
             onCheckedChange = onTabletUiChange
+        )
+        SwitchPreference(
+            title = { Text(stringResource(R.string.show_queues_beside_current_title)) },
+            description = stringResource(R.string.show_queues_beside_current_description),
+            icon = { Icon(Icons.Rounded.Queue, null) },
+            checked = showQueuesBesideCurrent,
+            onCheckedChange = onShowQueuesBesideCurrentChange
         )
         PreferenceEntry(
             title = { Text(stringResource(R.string.max_queues_title)) },
@@ -520,7 +539,7 @@ fun ExperimentalSettings(
                         .fillMaxWidth()
                 ) {
                     Text(
-                        text = "WARNING: These options have NO confirmation and will apply immediately!",
+                        text = "WARNING: These options permanently delete data and cannot be undone!",
                         fontWeight = FontWeight.ExtraBold,
                     )
                 }
@@ -530,64 +549,75 @@ fun ExperimentalSettings(
                     title = { Text("DEBUG: Nuke local lib") },
                     icon = { Icon(Icons.Rounded.ErrorOutline, null) },
                     onClick = {
-                        Toast.makeText(context, "Nuking local files from database...", Toast.LENGTH_SHORT).show()
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Log.i(SETTINGS_TAG, "Nuke database status:  ${database.nukeLocalData()}")
-                        }
+                        pendingNuke = "local files" to { database.nukeLocalData() }
                     }
                 )
                 PreferenceEntry(
                     title = { Text("DEBUG: Nuke local artists") },
                     icon = { Icon(Icons.Rounded.WarningAmber, null) },
                     onClick = {
-                        Toast.makeText(context, "Nuking local artists from database...", Toast.LENGTH_SHORT).show()
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Log.i(SETTINGS_TAG, "Nuke database status:  ${database.nukeLocalArtists()}")
-                        }
+                        pendingNuke = "local artists" to { database.nukeLocalArtists() }
                     }
                 )
                 PreferenceEntry(
                     title = { Text("DEBUG: Nuke dangling format entities") },
                     icon = { Icon(Icons.Rounded.WarningAmber, null) },
                     onClick = {
-                        Toast.makeText(context, "Nuking dangling format entities from database...", Toast.LENGTH_SHORT)
-                            .show()
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Log.i(SETTINGS_TAG, "Nuke database status:  ${database.nukeDanglingFormatEntities()}")
-                        }
+                        pendingNuke = "dangling format entities" to { database.nukeDanglingFormatEntities() }
                     }
                 )
                 PreferenceEntry(
                     title = { Text("DEBUG: Nuke local db lyrics") },
                     icon = { Icon(Icons.Rounded.WarningAmber, null) },
                     onClick = {
-                        Toast.makeText(context, "Nuking local lyrics from database...", Toast.LENGTH_SHORT).show()
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Log.i(SETTINGS_TAG, "Nuke database status:  ${database.nukeLocalLyrics()}")
-                        }
+                        pendingNuke = "local lyrics" to { database.nukeLocalLyrics() }
                     }
                 )
                 PreferenceEntry(
                     title = { Text("DEBUG: Nuke dangling db lyrics") },
                     icon = { Icon(Icons.Rounded.WarningAmber, null) },
                     onClick = {
-                        Toast.makeText(context, "Nuking dangling lyrics from database...", Toast.LENGTH_SHORT).show()
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Log.i(SETTINGS_TAG, "Nuke database status:  ${database.nukeDanglingLyrics()}")
-                        }
+                        pendingNuke = "dangling lyrics" to { database.nukeDanglingLyrics() }
                     }
                 )
                 PreferenceEntry(
                     title = { Text("DEBUG: Nuke remote playlists") },
                     icon = { Icon(Icons.Rounded.WarningAmber, null) },
                     onClick = {
-                        Toast.makeText(context, "Nuking remote playlists from database...", Toast.LENGTH_SHORT).show()
-                        coroutineScope.launch(Dispatchers.IO) {
-                            Log.i(SETTINGS_TAG, "Nuke database status:  ${database.nukeRemotePlaylists()}")
-                        }
+                        pendingNuke = "remote playlists" to { database.nukeRemotePlaylists() }
                     }
                 )
             }
+        }
+    }
+
+    pendingNuke?.let { (label, action) ->
+        DefaultDialog(
+            onDismiss = { pendingNuke = null },
+            icon = { Icon(Icons.Rounded.WarningAmber, null) },
+            title = { Text("Nuke $label?") },
+            buttons = {
+                TextButton(onClick = { pendingNuke = null }) {
+                    Text(text = stringResource(android.R.string.cancel))
+                }
+                TextButton(
+                    onClick = {
+                        pendingNuke = null
+                        Toast.makeText(context, "Nuking $label from database...", Toast.LENGTH_SHORT).show()
+                        coroutineScope.launch(Dispatchers.IO) {
+                            Log.i(SETTINGS_TAG, "Nuke database status: ${action()}")
+                        }
+                    }
+                ) {
+                    Text(text = stringResource(android.R.string.ok))
+                }
+            }
+        ) {
+            Text(
+                text = "This permanently deletes $label from the database and cannot be undone.",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(horizontal = 18.dp)
+            )
         }
     }
 

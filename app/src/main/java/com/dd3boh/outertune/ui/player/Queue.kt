@@ -125,6 +125,7 @@ import com.dd3boh.outertune.constants.InsetsSafeT
 import com.dd3boh.outertune.constants.ListItemHeight
 import com.dd3boh.outertune.constants.ListThumbnailSize
 import com.dd3boh.outertune.constants.LockQueueKey
+import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
 import com.dd3boh.outertune.constants.MiniPlayerHeight
 import com.dd3boh.outertune.constants.PLAYER_DEBUG
 import com.dd3boh.outertune.constants.PlayerHorizontalPadding
@@ -319,8 +320,13 @@ fun BoxScope.QueueContent(
     // ui
     val tabMode = context.tabMode()
     val wideScreen = context.supportsWideScreen()
-    val landscape =
-        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && wideScreen && !tabMode
+    val showQueuesBesideCurrent by rememberPreference(ShowQueuesBesideCurrentKey, defaultValue = false)
+    // Landscape phones already have room to show the queue list beside the current queue; this is
+    // also how a user can opt a portrait phone into that same side-by-side layout instead of the
+    // stacked one.
+    val sideBySideQueues =
+        (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && wideScreen && !tabMode) ||
+                showQueuesBesideCurrent
 
     val insets = LocalPlayerAwareWindowInsets.current
     val insetsSTE = if (!tabMode) {
@@ -549,7 +555,7 @@ fun BoxScope.QueueContent(
                     },
                 )
 
-                if (!landscape) {
+                if (!sideBySideQueues) {
                     ResizableIconButton(
                         icon = Icons.Rounded.Close,
                         onClick = {
@@ -976,7 +982,7 @@ fun BoxScope.QueueContent(
                             .border(1.dp, MaterialTheme.colorScheme.secondary, RoundedCornerShape(12.dp))
                             .padding(2.dp)
                             .weight(1f)
-                            .clickable(enabled = !landscape && !queueWindows.isEmpty()) {
+                            .clickable(enabled = !sideBySideQueues && !queueWindows.isEmpty()) {
                                 mqExpand = !mqExpand
                                 if (mqExpand) {
                                     exitDetachHead()
@@ -994,7 +1000,7 @@ fun BoxScope.QueueContent(
                         )
                         ResizableIconButton(
                             icon = if (mqExpand) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                            enabled = !landscape && !queueWindows.isEmpty(),
+                            enabled = !sideBySideQueues && !queueWindows.isEmpty(),
                             onClick = {
                                 mqExpand = !mqExpand
                                 if (mqExpand) {
@@ -1177,7 +1183,7 @@ fun BoxScope.QueueContent(
 
 
 // finally render ui
-    if (landscape) {
+    if (sideBySideQueues) {
         Row {
             // song header & song list
             Column(

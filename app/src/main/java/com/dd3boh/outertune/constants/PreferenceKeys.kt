@@ -80,6 +80,7 @@ val AudioOffloadKey = booleanPreferencesKey("enableOffload")
 val AudioGaplessOffloadKey = booleanPreferencesKey("enableGaplessOffload")
 
 val MaxQueuesKey = intPreferencesKey("maxQueues")
+val ShowQueuesBesideCurrentKey = booleanPreferencesKey("showQueuesBesideCurrent")
 val PersistentQueueKey = booleanPreferencesKey("persistentQueue")
 
 val SeekIncrementKey = stringPreferencesKey("seekIncrement")

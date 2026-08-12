@@ -354,6 +354,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="tap_artwork_to_show_lyrics_description">Show lyrics when tapping the artwork in the player</string>
 
     <string name="max_queues_title">Maximum number of queues</string>
+    <string name="show_queues_beside_current_title">Show previous queues beside current</string>
+    <string name="show_queues_beside_current_description">Use the older side-by-side queue layout in portrait instead of the stacked one</string>
 
 <!-- Setup wizard -->
     <string name="oobe_welcome_message">Welcome to OuterTune</string>
