@@ -1,4 +1,4 @@
-name: Build APK with EQ
+name: Build patched APKs
 
 # Applies outertune-backlog.patch on top of the checked-out source and builds
 # the variant you choose. Nothing needs to be cloned locally: the runner does the checkout,
@@ -31,7 +31,7 @@ on:
       variant:
         description: "Which variant to build"
         required: true
-        default: "coreRelease"
+        default: "fullUserdebug"
         type: choice
         options:
           - fullDebug
@@ -82,8 +82,8 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: 8fe9dc4d2f8e100aabd6016b6be03e47558fa12e559a7d7fdf323b2e21ff4c36"
-          echo "lines: $(wc -l < "$PATCH")  (expected 18333)   bytes: $(wc -c < "$PATCH")  (expected 859071)"
+          echo "expected: 4bc59af9b87707a95af7474b1a3caff19ffc433b88e64dbf3341ed2ae8af1bf1"
+          echo "lines: $(wc -l < "$PATCH")  (expected 18334)   bytes: $(wc -c < "$PATCH")  (expected 859130)"
           echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 55)"
           echo "================"
 
