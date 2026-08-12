@@ -88,6 +88,8 @@ import com.dd3boh.outertune.ui.component.SelectHeader
 import com.dd3boh.outertune.ui.component.SwipeToQueueBox
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.items.SongListItem
+import com.dd3boh.outertune.ui.component.shimmer.ListItemPlaceHolder
+import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
 import com.dd3boh.outertune.ui.component.items.YouTubeListItem
 import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
 import com.dd3boh.outertune.ui.utils.backToMain
@@ -163,6 +165,13 @@ fun HistoryScreen(
 
     // no multiselect for remote hisory (yet)
     val historyPage by viewModel.historyPage
+    val historyError by viewModel.historyError.collectAsState()
+    LaunchedEffect(historyError) {
+        historyError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.historyError.value = null
+        }
+    }
 
     val innerTubeCookie by rememberPreference(InnerTubeCookieKey, "")
     val isLoggedIn = remember(innerTubeCookie) {
@@ -210,6 +219,15 @@ fun HistoryScreen(
     }
 
     val lazyListState = rememberLazyListState()
+
+    LaunchedEffect(lazyListState, historySource) {
+        if (historySource != HistorySource.REMOTE) return@LaunchedEffect
+        snapshotFlow {
+            lazyListState.layoutInfo.visibleItemsInfo.any { it.key == "remote_history_loading" }
+        }.collectLatest { shouldLoadMore ->
+            if (shouldLoadMore) viewModel.loadMoreRemoteHistory()
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         ScrollToTopManager(navController, lazyListState)
@@ -366,6 +384,16 @@ fun HistoryScreen(
                             content = { content() },
                         )
 
+                    }
+                }
+
+                if (historyPage?.continuation != null) {
+                    item(key = "remote_history_loading") {
+                        ShimmerHost(modifier = Modifier.animateItem()) {
+                            repeat(3) {
+                                ListItemPlaceHolder()
+                            }
+                        }
                     }
                 }
             } else {

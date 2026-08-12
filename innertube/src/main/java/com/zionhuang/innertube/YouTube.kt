@@ -638,14 +638,46 @@ object YouTube {
             setLogin = true
         ).body<BrowseResponse>()
 
+        val shelves = response.contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()
+            ?.tabRenderer?.content?.sectionListRenderer?.contents
+
         HistoryPage(
-            sections = response.contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()
-                ?.tabRenderer?.content?.sectionListRenderer?.contents
-                ?.mapNotNull {
-                    it.musicShelfRenderer?.let { musicShelfRenderer ->
-                        HistoryPage.fromMusicShelfRenderer(musicShelfRenderer)
-                    }
+            sections = shelves?.mapNotNull {
+                it.musicShelfRenderer?.let { musicShelfRenderer ->
+                    HistoryPage.fromMusicShelfRenderer(musicShelfRenderer)
                 }
+            },
+            // YTM continues the whole history list from whichever shelf was rendered last.
+            continuation = shelves?.lastOrNull()?.musicShelfRenderer?.continuations?.getContinuation()
+        )
+    }
+
+    /**
+     * Fetches the next page of remote watch history after [HistoryPage.continuation].
+     *
+     * The continuation response is a flat item list, not shelves grouped by date - callers
+     * append [HistoryPage.sections] songs onto whichever section they're extending.
+     */
+    suspend fun musicHistoryContinuation(continuation: String) = runCatching {
+        val response = innerTube.browse(
+            client = WEB_REMIX,
+            continuation = continuation,
+            setLogin = true
+        ).body<BrowseResponse>()
+
+        val shelfContinuation = response.continuationContents?.musicShelfContinuation
+
+        HistoryPage(
+            sections = listOf(
+                HistoryPage.HistorySection(
+                    title = "",
+                    songs = shelfContinuation?.contents
+                        ?.mapNotNull(MusicShelfRenderer.Content::musicResponsiveListItemRenderer)
+                        ?.mapNotNull { HistoryPage.fromMusicResponsiveListItemRenderer(it) }
+                        .orEmpty()
+                )
+            ),
+            continuation = shelfContinuation?.continuations?.getContinuation()
         )
     }
 

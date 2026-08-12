@@ -11,6 +11,9 @@ import com.zionhuang.innertube.utils.parseTime
 
 data class HistoryPage(
     val sections: List<HistorySection>?,
+    // Token for fetching older history past what this page already contains. Only the last
+    // shelf on the page carries one - YTM continues history as one long list, not per-shelf.
+    val continuation: String? = null,
 ) {
     data class HistorySection(
         val title: String,
@@ -18,16 +21,17 @@ data class HistoryPage(
     )
 
     companion object {
-        fun fromMusicShelfRenderer(renderer: MusicShelfRenderer): HistorySection {
+        fun fromMusicShelfRenderer(renderer: MusicShelfRenderer): HistorySection? {
+            val title = renderer.title?.runs?.firstOrNull()?.text ?: return null
             return HistorySection(
-                title = renderer.title?.runs?.firstOrNull()?.text!!,
+                title = title,
                 songs = renderer.contents?.getItems()?.mapNotNull {
                     fromMusicResponsiveListItemRenderer(it)
-                }!!
+                }.orEmpty()
             )
         }
 
-        private fun fromMusicResponsiveListItemRenderer(renderer: MusicResponsiveListItemRenderer): SongItem? {
+        internal fun fromMusicResponsiveListItemRenderer(renderer: MusicResponsiveListItemRenderer): SongItem? {
             return SongItem(
                 id = renderer.playlistItemData?.videoId ?: return null,
                 title = renderer.flexColumns.firstOrNull()
