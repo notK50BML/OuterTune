@@ -85,8 +85,10 @@ import com.dd3boh.outertune.db.entities.FormatEntity
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.utils.YTPlayerUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.text.NumberFormat
 
@@ -508,8 +510,15 @@ fun DetailsDialog(
     val viewCount = remember(mediaMetadata.id) { mutableStateOf<String?>(null) }
     LaunchedEffect(mediaMetadata.id) {
         if (!mediaMetadata.isLocal) {
-            val count = YTPlayerUtils.playerResponseForMetadata(mediaMetadata.id)
-                .getOrNull()?.videoDetails?.viewCount?.toLongOrNull()
+            // LaunchedEffect runs on the composition's own (main-thread) dispatcher.
+            // playerResponseForMetadata's other callers are all already inside a background
+            // coroutine by the time they reach it, so it has never needed to hop to IO itself -
+            // called directly from here, its network/signature work ran on the main thread and
+            // froze the whole app for as long as that took.
+            val count = withContext(Dispatchers.IO) {
+                YTPlayerUtils.playerResponseForMetadata(mediaMetadata.id)
+                    .getOrNull()?.videoDetails?.viewCount?.toLongOrNull()
+            }
             if (count != null) {
                 viewCount.value = NumberFormat.getIntegerInstance().format(count)
             }
