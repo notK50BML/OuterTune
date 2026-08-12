@@ -597,7 +597,7 @@ class MainActivity : ComponentActivity() {
                                     composable(
                                         route = "search",
                                     ) {
-                                        SearchBarContainer(navController, scrollBehavior)
+                                        SearchBarContainer(navController, scrollBehavior, useNavRail)
                                     }
                                     composable(
                                         route = "search/{query}",
@@ -997,7 +997,7 @@ class MainActivity : ComponentActivity() {
                             if (!tabMode || isLandscape) {
                                 navHost()
 
-                                SearchBarContainer(navController, scrollBehavior)
+                                SearchBarContainer(navController, scrollBehavior, useNavRail)
 
                                 if (oobeStatus >= OOBE_VERSION) {
                                     if (!navigationItems.contains(Screens.Player)) {
@@ -1045,7 +1045,7 @@ class MainActivity : ComponentActivity() {
                                     ) {
                                         navHost()
 
-                                        SearchBarContainer(navController, scrollBehavior)
+                                        SearchBarContainer(navController, scrollBehavior, useNavRail)
 
                                         if (oobeStatus >= OOBE_VERSION) {
                                             navbar()

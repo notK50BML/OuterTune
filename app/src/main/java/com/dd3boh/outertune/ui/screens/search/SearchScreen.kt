@@ -109,6 +109,7 @@ import kotlin.math.roundToInt
 fun SearchBarContainer(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
+    useNavRail: Boolean = false,
 ) {
     if (UI_DEBUG) Log.v("SearchBarContainer", "SB-1")
     val context = LocalContext.current
@@ -195,10 +196,15 @@ fun SearchBarContainer(
     val savedHeightOffsets = remember { mutableMapOf<String, Float>() }
     var previousRoute by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(navBackStackEntry) {
-        if (searchActive) {
-            onSearchActiveChange(false)
-        }
+    // This has to run synchronously during composition, not inside a LaunchedEffect. scrollBehavior
+    // is shared with every screen's own TopAppBar (e.g. ArtistItemsScreen), so navigating away from
+    // one mid-scroll leaves heightOffset collapsed on the shared object. A LaunchedEffect's coroutine
+    // dispatch isn't guaranteed to correct that before this frame's layout/draw, so for one frame
+    // TopIconBar/the search bar render offset by whatever the previous screen scrolled to - visible
+    // as the icon row rendering stuck up under the status bar right after navigating back to it.
+    // remember(key) {} runs its block synchronously on the same composition pass the key changes in,
+    // which closes that gap.
+    remember(navBackStackEntry) {
         val currentRoute = navBackStackEntry?.destination?.route
         previousRoute?.let { savedHeightOffsets[it] = scrollBehavior.state.heightOffset }
         if (currentRoute?.startsWith("${Screens.Folders.route}/") == true) {
@@ -210,12 +216,18 @@ fun SearchBarContainer(
         previousRoute = currentRoute
     }
 
+    LaunchedEffect(navBackStackEntry) {
+        if (searchActive) {
+            onSearchActiveChange(false)
+        }
+    }
+
     AnimatedVisibility(
         visible = showSearchBar,
         enter = fadeIn(),
         exit = fadeOut()
     ) {
-        val searchBarInset = if (!context.tabMode()) {
+        val searchBarInset = if (!context.tabMode() || useNavRail) {
             WindowInsets.safeDrawing.union(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Start))
         }
         else {
@@ -371,7 +383,7 @@ fun SearchBarContainer(
         enter = fadeIn(),
         exit = fadeOut()
     ) {
-        val iconRowInset = if (!context.tabMode()) {
+        val iconRowInset = if (!context.tabMode() || useNavRail) {
             WindowInsets.safeDrawing.union(LocalPlayerAwareWindowInsets.current.only(WindowInsetsSides.Start))
         } else {
             WindowInsets.systemBars.only(WindowInsetsSides.Top)
