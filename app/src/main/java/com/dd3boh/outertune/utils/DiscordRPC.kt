@@ -44,11 +44,12 @@ class DiscordRPC(
 
     /**
      * @param paused keeps the same card layout (title/art/buttons unchanged, only the small-text
-     *   label switches to "Paused"). Discord ticks the elapsed/remaining time forward client-side
-     *   once start/end timestamps are set, with no way to tell it to hold still - omitting the
-     *   timestamps instead removes the whole progress-bar row and reshapes the card, which is the
-     *   "different screen" look this is fixing. Keeping them set is the tradeoff: the row stays
-     *   put, but its counter keeps advancing during the pause instead of freezing exactly.
+     *   label switches to "Paused"). Discord has no concept of a frozen counter: give it start/end
+     *   timestamps and it ticks them forward client-side against the wall clock regardless of
+     *   whether another update ever arrives, or give it neither and the progress-bar row simply
+     *   isn't drawn. A visibly advancing counter on a paused track reads as more obviously wrong
+     *   than a missing row, so timestamps are omitted while paused - the same tradeoff Spotify's
+     *   own Discord integration makes.
      */
     private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long, paused: Boolean) {
         val currentTime = System.currentTimeMillis()
@@ -91,8 +92,8 @@ class DiscordRPC(
             type = Type.LISTENING,
             statusDisplayType = StatusDisplayType.STATE,
             since = currentTime,
-            startTime = calculatedStartTime,
-            endTime = calculatedEndTime,
+            startTime = if (paused) null else calculatedStartTime,
+            endTime = if (paused) null else calculatedEndTime,
             applicationId = APPLICATION_ID
         )
     }
