@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
@@ -434,7 +435,6 @@ fun LandscapePlayer(
 ) {
     val TAG = "BottomSheetPlayer"
 
-    val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current ?: return
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -469,8 +469,12 @@ fun LandscapePlayer(
     val queueSheetState = rememberBottomSheetState(
         dismissedBound = dismissedBound,
         expandedBound = playerSheetState.expandedBound,
-        collapsedBound = dismissedBound,
-        initialAnchor = dismissedAnchor,
+        // Matches PortraitPlayer: a zero collapsed bound meant there was no peek strip at all to
+        // drag from, and the handle only existed as the narrower, controls-column-width hint
+        // below. This gives the sheet's own full-width collapsed content (icon + queue title) a
+        // real height to render into, spanning the whole player like portrait's does.
+        collapsedBound = dismissedBound + (QueuePeekHeight * 1.2f),
+        initialAnchor = collapsedAnchor,
     )
 
     val vPadding = max(
@@ -490,6 +494,12 @@ fun LandscapePlayer(
             contentAlignment = Alignment.Center,
             modifier = Modifier
                 .weight(1f)
+                // A Row's children default to top-aligned and only take their own content height,
+                // so without this the thumbnail (often shorter than the full row) sits at the top
+                // instead of centered - contentAlignment alone only centers within whatever bounds
+                // this Box actually ends up with. Filling the row's height gives it the full bounds
+                // to center in.
+                .fillMaxHeight()
                 .nestedScroll(playerSheetState.preUpPostDownNestedScrollConnection)
         ) {
             if (PLAYER_DEBUG) Log.v(TAG, "PLR-3.1a")
@@ -565,17 +575,17 @@ fun LandscapePlayer(
 
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
+            // Arrangement.Center rather than a weighted-spacer sandwich: equivalent for this one
+            // child, but doesn't silently stop centering the day a second sibling is added here.
+            verticalArrangement = Arrangement.Center,
             modifier = Modifier
                 // "percentage to half width", not "percentage of width"
                 .weight(if (showLyrics) 0.65f else 1f, false)
+                .fillMaxHeight()
                 .animateContentSize()
                 .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
         ) {
-            Spacer(Modifier.weight(1f))
-
-            ControlsContent(playerSheetState, queueSheetState, navController, queueBoard, context.supportsWideScreen())
-
-            Spacer(Modifier.weight(1f))
+            ControlsContent(playerSheetState, queueSheetState, navController, queueBoard)
         }
     }
 
@@ -742,7 +752,6 @@ fun ControlsContent(
     queueSheetState: BottomSheetState,
     navController: NavController,
     queueBoard: QueueBoard,
-    showQueueHint: Boolean = false,
     /**
      * The cover, supplied only in free placement. There it is one placeable block among the rest
      * and has to share their coordinate space, so the caller hands it over instead of drawing it
@@ -1182,34 +1191,6 @@ fun ControlsContent(
                         StackBlock(b) { contentFor(b.id) }
                     } else {
                         contentFor(b.id)
-                    }
-                }
-            }
-            // queue hint for landscape
-            if (showQueueHint) {
-                Spacer(Modifier.height(12.dp))
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .height(QueuePeekHeight)
-                        .fillMaxWidth()
-                        .clickable(
-                            onClick = {
-                                queueSheetState.expandSoft()
-                                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                            }
-                        )
-                ) {
-                    IconButton(onClick = {
-                        queueSheetState.expandSoft()
-                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                    }) {
-                        Icon(
-                            imageVector = Icons.Rounded.ExpandLess,
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            contentDescription = null,
-                        )
                     }
                 }
             }
