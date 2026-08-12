@@ -84,9 +84,11 @@ import com.dd3boh.outertune.constants.SNACKBAR_VERY_SHORT
 import com.dd3boh.outertune.db.entities.FormatEntity
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.ui.component.button.IconButton
+import com.dd3boh.outertune.utils.YTPlayerUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
+import java.text.NumberFormat
 
 @Composable
 fun DefaultDialog(
@@ -503,6 +505,17 @@ fun DetailsDialog(
     val coroutineScope = rememberCoroutineScope()
     val snackbarHostState = LocalSnackbarHostState.current
 
+    val viewCount = remember(mediaMetadata.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(mediaMetadata.id) {
+        if (!mediaMetadata.isLocal) {
+            val count = YTPlayerUtils.playerResponseForMetadata(mediaMetadata.id)
+                .getOrNull()?.videoDetails?.viewCount?.toLongOrNull()
+            if (count != null) {
+                viewCount.value = NumberFormat.getIntegerInstance().format(count)
+            }
+        }
+    }
+
     AlertDialog(
         properties = DialogProperties(usePlatformDefaultWidth = false),
         onDismissRequest = { setVisibility(false) },
@@ -534,6 +547,7 @@ fun DetailsDialog(
 
                 if (!mediaMetadata.isLocal) {
                     details.add("Itag" to currentFormat?.itag?.toString())
+                    details.add(stringResource(R.string.ytm_view_count) to viewCount.value)
                 } else {
                     mediaMetadata.trackNumber?.let {
                         details.add(stringResource(R.string.track_number) to it.toString())
