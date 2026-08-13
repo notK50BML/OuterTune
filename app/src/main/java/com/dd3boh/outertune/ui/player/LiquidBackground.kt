@@ -16,6 +16,7 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -54,7 +55,11 @@ fun LiquidBackground(
     alpha: Float = 0.45f,
     reactiveFrame: VisualizerFrame? = null,
 ) {
-    if (colors.isEmpty()) return
+    // Extraction can come back empty (still loading), or with a real but dull/greyish palette for
+    // some covers - either way, rendering nothing (or three grey blobs nobody can see against a
+    // grey surface behind them) reads as "broken", not "ambient". The theme's own primary color
+    // is mixed in as a guaranteed vibrant accent rather than trusting the cover alone.
+    val themeAccent = MaterialTheme.colorScheme.primary
 
     // Three blobs, each drifting on its own period so the pattern never visibly repeats.
     // Primes-ish durations keep them out of phase with one another.
@@ -80,12 +85,15 @@ fun LiquidBackground(
         0.5f
     }
 
-    // Pad out to three so a one- or two-colour album still gets depth.
-    val palette = remember(colors) {
+    // themeAccent always gets one of the three slots - guaranteed vibrant regardless of what
+    // extraction handed back, rather than trusting a possibly dull/grey cover to carry the whole
+    // effect on its own.
+    val palette = remember(colors, themeAccent) {
         when (colors.size) {
-            1 -> listOf(colors[0], colors[0], colors[0])
-            2 -> listOf(colors[0], colors[1], colors[0])
-            else -> colors.take(3)
+            0 -> listOf(themeAccent, themeAccent, themeAccent)
+            1 -> listOf(colors[0], themeAccent, colors[0])
+            2 -> listOf(colors[0], colors[1], themeAccent)
+            else -> colors.take(2) + themeAccent
         }
     }
 
@@ -109,8 +117,8 @@ fun LiquidBackground(
                 // sin() over the shared clock gives smooth, seamless looping motion: at t = 0 and
                 // t = 1 every term returns to the same value, so the restart is invisible.
                 val tau = (2 * PI).toFloat()
-                val pulse = 0.92f + 0.08f * sin(tau * breath) + bassKick * 0.4f + transientFlash * 0.15f
-                val dynamicAlpha = (alpha * (1f + trebleShimmer * 0.6f + transientFlash * 0.8f)).coerceAtMost(0.9f)
+                val pulse = 0.92f + 0.08f * sin(tau * breath) + bassKick * 0.6f + transientFlash * 0.35f
+                val dynamicAlpha = (alpha * (1f + trebleShimmer * 0.6f + transientFlash * 1f)).coerceAtMost(0.95f)
 
                 palette.forEachIndexed { i, color ->
                     val phase = i * (tau / palette.size)

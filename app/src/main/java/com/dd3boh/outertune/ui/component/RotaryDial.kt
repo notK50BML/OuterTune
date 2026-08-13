@@ -15,6 +15,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -43,20 +44,28 @@ fun RotaryDial(
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
     modifier: Modifier = Modifier,
-    dialSize: Dp = 56.dp,
+    dialSize: Dp = 76.dp,
     color: Color = LocalContentColor.current,
     enabled: Boolean = true,
     label: String? = null,
     valueLabel: String? = null,
 ) {
     val density = LocalDensity.current
+    // detectDragGestures runs in a coroutine that survives across separate physical drag
+    // gestures (it loops "await down, track drag, on up, await the next down" for as long as
+    // pointerInput's keys stay the same) - closing over `value` directly meant every drag after
+    // the first one computed its delta against whatever `value` was when that coroutine started,
+    // not the value that resulted from the previous drag. rememberUpdatedState keeps the closure
+    // reading the live value on every call instead of a stale one captured at coroutine start.
+    val currentValue by rememberUpdatedState(value)
+    val currentOnValueChange by rememberUpdatedState(onValueChange)
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
         modifier = modifier,
     ) {
         label?.let {
-            Text(text = it, style = MaterialTheme.typography.labelSmall, color = color.copy(alpha = 0.75f))
+            Text(text = it, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.75f))
         }
 
         Canvas(
@@ -72,7 +81,7 @@ fun RotaryDial(
                         // than a large one.
                         val pxForFullRange = with(density) { 200.dp.toPx() }
                         val delta = -dragAmount.y / pxForFullRange * range
-                        onValueChange((value + delta).coerceIn(valueRange.start, valueRange.endInclusive))
+                        currentOnValueChange((currentValue + delta).coerceIn(valueRange.start, valueRange.endInclusive))
                     }
                 }
         ) {
@@ -109,7 +118,7 @@ fun RotaryDial(
         }
 
         valueLabel?.let {
-            Text(text = it, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = if (enabled) 1f else 0.5f))
+            Text(text = it, style = MaterialTheme.typography.titleSmall, color = color.copy(alpha = if (enabled) 1f else 0.5f))
         }
     }
 }

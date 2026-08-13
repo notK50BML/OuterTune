@@ -16,6 +16,7 @@ import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -138,6 +139,7 @@ import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
 import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
+import com.dd3boh.outertune.audio.VisualizerFrame
 import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
@@ -469,7 +471,7 @@ private fun EqualizerHandle() {
             // horizontal system bars - without its own top inset it rendered directly under the
             // status bar/clock/battery instead of below them.
             .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
-            .height(28.dp)
+            .height(36.dp)
             .clickable { equalizerPanelState.visible = true }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -488,9 +490,9 @@ private fun EqualizerHandle() {
     ) {
         Box(
             modifier = Modifier
-                .width(32.dp)
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
+                .width(48.dp)
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
                 .background(handleColor.copy(alpha = 0.6f))
         )
     }
@@ -1421,13 +1423,26 @@ fun PlayerBackground(
 
             val visualizerFrame by visualizerAudioProcessor.visualizer.frames.collectAsState()
 
+            // The analyzer publishes a fresh value ~30 times a second; feeding that straight into
+            // the draw call means every tick is a hard jump to a new target with nothing in
+            // between, which reads as flicker rather than motion. Animating each channel gives the
+            // renderer a continuously-interpolated value instead of a staircase of raw samples.
+            val targetBass = if (visualizerWanted) visualizerFrame.bass else 0f
+            val targetTreble = if (visualizerWanted) visualizerFrame.treble else 0f
+            val targetTransient = if (visualizerWanted) visualizerFrame.transient else 0f
+            val animatedBass by animateFloatAsState(targetBass, label = "liquidBass")
+            val animatedTreble by animateFloatAsState(targetTreble, label = "liquidTreble")
+            val animatedTransient by animateFloatAsState(targetTransient, label = "liquidTransient")
+
             LiquidBackground(
                 colors = gradientColors,
                 // Stop the animation clock whenever it cannot be appreciated: paused playback or
                 // battery saver. The player sheet being collapsed already removes this from the
                 // composition entirely.
                 isActive = isActive,
-                reactiveFrame = if (visualizerWanted) visualizerFrame else null,
+                reactiveFrame = if (visualizerWanted) {
+                    VisualizerFrame(bass = animatedBass, treble = animatedTreble, transient = animatedTransient)
+                } else null,
             )
         }
 

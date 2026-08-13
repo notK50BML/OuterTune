@@ -490,7 +490,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     .background(MaterialTheme.colorScheme.secondaryContainer)
                     .fillMaxWidth()
                     .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(vertical = 8.dp)
+                    .padding(vertical = 16.dp)
             ) {
                 MiniPlaybackControls(color = if (useContrastColor) eqColor else null)
             }
@@ -638,7 +638,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(40.dp)
+            .height(48.dp)
             .clickable(onClick = onDismiss)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -658,11 +658,11 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .width(32.dp)
-                .height(4.dp)
+                .width(48.dp)
+                .height(6.dp)
                 .background(
                     handleColor.copy(alpha = 0.6f),
-                    RoundedCornerShape(2.dp)
+                    RoundedCornerShape(3.dp)
                 )
         )
         IconButton(
@@ -748,25 +748,25 @@ private fun MiniPlaybackControls(color: Color?) {
         ResizableIconButton(
             icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
             color = iconColor,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(34.dp),
             onClick = { playerConnection.triggerShuffle() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipPrevious,
             color = iconColor,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(38.dp),
             onClick = { playerConnection.player.seekToPrevious() },
         )
         ResizableIconButton(
             icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
             color = iconColor,
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(44.dp),
             onClick = { playerConnection.player.togglePlayPause() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipNext,
             color = iconColor,
-            modifier = Modifier.size(32.dp),
+            modifier = Modifier.size(38.dp),
             onClick = { playerConnection.player.seekToNext() },
         )
         ResizableIconButton(
@@ -777,7 +777,7 @@ private fun MiniPlaybackControls(color: Color?) {
                 else -> R.drawable.repeat_off
             },
             color = iconColor,
-            modifier = Modifier.size(28.dp),
+            modifier = Modifier.size(34.dp),
             onClick = { playerConnection.player.toggleRepeatMode() },
         )
     }
