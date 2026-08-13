@@ -215,7 +215,6 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_karaoke_hz_title">Adjust karaoke lyrics update speed</string>
     <string name="lyrics_multiline_title">Read multiline lyrics</string>
     <string name="lyrics_multiline_description">Treat all the lines between sync points as one lyric text</string>
-    <string name="rpc_paused">Paused</string>
     <string name="recognition_placement_title">Identify a song button</string>
     <string name="recognition_placement_top_bar">Top of the home screen</string>
     <string name="recognition_placement_search_field">In the search field</string>
