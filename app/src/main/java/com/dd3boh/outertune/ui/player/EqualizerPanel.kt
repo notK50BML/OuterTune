@@ -43,8 +43,8 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
-import androidx.compose.material3.AssistChip
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -84,17 +84,20 @@ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.EqBalanceUseDialKey
 import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
+import com.dd3boh.outertune.constants.EqualizerProfilesKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.constants.SliderStyle
 import com.dd3boh.outertune.extensions.togglePlayPause
 import com.dd3boh.outertune.extensions.toggleRepeatMode
+import com.dd3boh.outertune.models.EqualizerProfile
 import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.ui.component.PlayerSliderTrack
 import com.dd3boh.outertune.ui.component.RotaryDial
 import com.dd3boh.outertune.ui.component.VerticalSlider
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.button.ResizableIconButton
+import com.dd3boh.outertune.ui.dialog.TextFieldDialog
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import kotlin.math.log10
@@ -179,6 +182,39 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
 
     fun updateBand(index: Int, band: EqualizerSettings.EqBand) {
         update(settings.copy(bands = settings.bands.toMutableList().apply { this[index] = band }))
+    }
+
+    // A preset name doubles as a profile name: built-ins get a factory curve from PRESETS
+    // ([EqualizerProfile.factoryDefault]) plus, once Saved at least once, a custom override in
+    // this list; a user-created name only ever has the latter. Selecting a name loads whichever
+    // of the two exists (override first), so a tweak made while a preset is active has somewhere
+    // to persist instead of being silently lost the next time that preset is tapped again.
+    var profilesJson by rememberPreference(EqualizerProfilesKey, "")
+    val savedProfiles = remember(profilesJson) { EqualizerProfile.listFromJson(profilesJson) }
+    val builtInProfileNames = remember { EqualizerSettings.PRESETS.keys.toList() }
+    val profileNames = remember(savedProfiles, builtInProfileNames) {
+        builtInProfileNames + savedProfiles.map { it.name }.filter { it !in builtInProfileNames }
+    }
+    var activeProfileName by remember { mutableStateOf<String?>(null) }
+    var showSaveAsDialog by remember { mutableStateOf(false) }
+
+    fun savedProfile(name: String) = savedProfiles.find { it.name == name }
+
+    fun loadProfile(name: String) {
+        val toApply = savedProfile(name)?.settings ?: EqualizerProfile.factoryDefault(name)?.settings ?: return
+        update(toApply.copy(enabled = settings.enabled))
+        activeProfileName = name
+    }
+
+    fun saveProfile(name: String) {
+        val newList = savedProfiles.filterNot { it.name == name } + EqualizerProfile(name, settings)
+        profilesJson = EqualizerProfile.listToJson(newList)
+        activeProfileName = name
+    }
+
+    fun deleteProfile(name: String) {
+        profilesJson = EqualizerProfile.listToJson(savedProfiles.filterNot { it.name == name })
+        if (activeProfileName == name) activeProfileName = null
     }
 
     var selectedBand by remember { mutableStateOf<Int?>(null) }
@@ -268,12 +304,60 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(EqualizerSettings.PRESETS.entries.toList()) { (name, gains) ->
-                        AssistChip(
-                            onClick = { update(settings.withPresetGains(gains)) },
+                    items(profileNames) { name ->
+                        FilterChip(
+                            selected = activeProfileName == name,
+                            onClick = { loadProfile(name) },
                             label = { Text(name) },
+                            trailingIcon = if (name !in builtInProfileNames) {
+                                {
+                                    Icon(
+                                        Icons.Rounded.Close,
+                                        contentDescription = null,
+                                        modifier = Modifier
+                                            .size(16.dp)
+                                            .clickable { deleteProfile(name) },
+                                    )
+                                }
+                            } else null,
                         )
                     }
+                }
+
+                if (activeProfileName != null) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { activeProfileName?.let(::saveProfile) }) {
+                            Text("Save")
+                        }
+                        TextButton(onClick = { activeProfileName?.let { loadProfile(it) } }) {
+                            Text("Revert to saved")
+                        }
+                        if (activeProfileName in builtInProfileNames) {
+                            TextButton(onClick = {
+                                activeProfileName?.let { name ->
+                                    EqualizerProfile.factoryDefault(name)?.settings?.let {
+                                        update(it.copy(enabled = settings.enabled))
+                                    }
+                                }
+                            }) {
+                                Text("Revert to default")
+                            }
+                        }
+                    }
+                }
+                TextButton(onClick = { showSaveAsDialog = true }) {
+                    Text("Save as new profile…")
+                }
+
+                if (showSaveAsDialog) {
+                    TextFieldDialog(
+                        title = { Text("Save as new profile") },
+                        placeholder = { Text("Profile name") },
+                        isInputValid = { it.isNotBlank() },
+                        onDone = { name -> saveProfile(name.trim()) },
+                        onDismiss = { showSaveAsDialog = false },
+                    )
                 }
 
                 Spacer(Modifier.height(20.dp))
