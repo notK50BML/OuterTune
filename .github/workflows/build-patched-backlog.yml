@@ -82,9 +82,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: f59cf68b868ec501312d5dc1abf144a713cf9097efc28c9bea3770cf7d2154fc"
-          echo "lines: $(wc -l < "$PATCH")  (expected 22804)   bytes: $(wc -c < "$PATCH")  (expected 1069523)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 69)"
+          echo "expected: 33a6b42dc6633fd65ff16c1508c38d7f0db29059add3e4c2eea84f49427e9d9c"
+          echo "lines: $(wc -l < "$PATCH")  (expected 23306)   bytes: $(wc -c < "$PATCH")  (expected 1093825)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 71)"
           echo "================"
 
           git config user.name "github-actions"
@@ -192,7 +192,11 @@ jobs:
         with:
           java-version: 21
           distribution: temurin
-          cache: gradle
+          # setup-java's own Gradle cache hashing has been seen tripping over a
+          # "no such file or directory, realpath '.../.git/objects/xx'" ENOENT on this repo's
+          # history - a cache-key-hashing bug, not anything about the checkout itself. Caching is
+          # a speed nicety, not a correctness requirement, so it's simplest to just not depend on
+          # that code path at all rather than chase a transient runner-side glitch.
 
       - name: Accept Android SDK licenses
         run: yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
