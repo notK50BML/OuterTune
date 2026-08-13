@@ -13,6 +13,8 @@ import androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException
 import androidx.media3.common.audio.BaseAudioProcessor
 import com.dd3boh.outertune.models.EqualizerSettings
 import java.nio.ByteBuffer
+import kotlin.math.pow
+import kotlin.math.tanh
 
 /**
  * A cascaded-biquad parametric equalizer, inserted into [DefaultAudioSink]'s processor chain
@@ -45,6 +47,17 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
     @Volatile
     private var rightGain: Float = 1f
+
+    // A cascade of overlapping peaking filters doesn't add its bands' dB values independently -
+    // several adjacent bands boosted at once (a "Bass Boost" or "Loudness" curve) sum at the
+    // frequencies where their responses overlap, easily clearing 0dBFS on a track that was
+    // already close to it. That summed-over-full-scale signal is exactly what was reaching the
+    // hard clip below and coming out as crackle on transients. Backing off the input by half of
+    // however much total boost is in play - before the cascade even runs - keeps the boosted
+    // result close to where the unboosted signal already was, the same "preamp" a hardware/
+    // Winamp-style EQ needs whenever any band goes above zero.
+    @Volatile
+    private var preGainLinear: Float = 1f
 
     @Volatile
     private var compressorSettings: EqualizerSettings.CompressorSettings = EqualizerSettings.CompressorSettings()
@@ -83,6 +96,19 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         leftGain = (1f - settings.balance).coerceIn(0f, 1f)
         rightGain = (1f + settings.balance).coerceIn(0f, 1f)
         compressorSettings = settings.compressor
+
+        // The single worst band is guaranteed to clip on its own if left unaddressed, so it
+        // dominates the correction; the sum of every other boosted band contributes a smaller,
+        // secondary term rather than an equal one - two boosted bands an octave apart barely
+        // overlap and don't actually sum the way two adjacent ones do, so weighting every band
+        // in the whole curve equally (as an earlier version of this did) over-attenuated spread
+        // -out curves like "Full Bass & Treble" that were never really at risk of clipping.
+        val enabledPositiveGains = settings.bands.filter { it.enabled }.map { it.gainDb.coerceAtLeast(0f) }
+        val maxBoostDb = enabledPositiveGains.maxOrNull() ?: 0f
+        val totalBoostDb = enabledPositiveGains.sum()
+        val preGainDb = -(maxBoostDb * 0.8f + totalBoostDb * 0.1f).coerceAtMost(12f)
+        preGainLinear = 10f.pow(preGainDb / 20f)
+
         recomputeCoefficients()
     }
 
@@ -158,6 +184,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val coeffs = coefficients
         val compCoeffs = compressorCoefficients
         val compressorEnabled = compressorSettings.enabled
+        val preGain = preGainLinear
         val leftGain = this.leftGain
         val rightGain = this.rightGain
 
@@ -169,6 +196,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     C.ENCODING_PCM_FLOAT -> inputBuffer.getFloat()
                     else -> 0f
                 }
+
+                // Backed off before the cascade even sees it, not after - the whole point is
+                // giving the boosted bands room to sum without already having clipped.
+                sample *= preGain
 
                 val channelStates = states[ch]
                 for (b in coeffs.indices) {
@@ -187,10 +218,16 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     else -> 1f
                 }
 
+                // A hard coerceIn here is exactly what crackles on a transient that still gets
+                // through: a flat-topped waveform, not a rounded one. tanh leaves anything well
+                // under full scale untouched (tanh(x) ≈ x for small x) and only rounds off actual
+                // peaks, so the rare over from a boosted preset saturates instead of clipping.
+                val limited = tanh(sample)
+
                 when (encoding) {
                     C.ENCODING_PCM_16BIT ->
-                        buffer.putShort((sample.coerceIn(-1f, 1f) * 32767f).toInt().toShort())
-                    C.ENCODING_PCM_FLOAT -> buffer.putFloat(sample)
+                        buffer.putShort((limited * 32767f).toInt().toShort())
+                    C.ENCODING_PCM_FLOAT -> buffer.putFloat(limited)
                 }
             }
             if (feedVisualizer) visualizer.feed(frameSum / channelCount)
