@@ -283,8 +283,8 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     trebleGainDb = settings.bands.last().gainDb,
                     enabled = settings.enabled,
                     color = eqColor,
-                    onBassChange = { updateBand(0, settings.bands.first().copy(gainDb = it)) },
-                    onTrebleChange = { updateBand(settings.bands.lastIndex, settings.bands.last().copy(gainDb = it)) },
+                    onBassChange = { updateBand(0, settings.bands.first().copy(gainDb = quantizeTenth(it))) },
+                    onTrebleChange = { updateBand(settings.bands.lastIndex, settings.bands.last().copy(gainDb = quantizeTenth(it))) },
                 )
 
                 Spacer(Modifier.height(20.dp))
@@ -309,7 +309,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                             sliderStyle = SliderStyle.SLIM,
                             color = eqColor,
                             sliderColors = eqSliderColors,
-                            onGainChange = { updateBand(index, band.copy(gainDb = it)) },
+                            onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
                             onTapLabel = { selectedBand = if (selectedBand == index) null else index },
                         )
                     }
@@ -421,6 +421,12 @@ private fun balanceReadout(balance: Float): String {
     return "$left/$right"
 }
 
+/** Snaps a dial/slider's continuous drag output to a clean 0.1 step, e.g. "3.2" rather than "3.187456". */
+private fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10f
+
+private fun formatDb(db: Float): String =
+    "${if (db > 0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", db)}"
+
 /**
  * Quick single-knob access to the low and high ends without opening a band's full editor -
  * mapped onto the strip's lowest and highest bands rather than a separate shelf filter, so
@@ -446,7 +452,7 @@ private fun BassTrebleDials(
             enabled = enabled,
             color = color,
             label = "Bass",
-            valueLabel = "${if (bassGainDb > 0) "+" else ""}${bassGainDb.roundToInt()} dB",
+            valueLabel = "${formatDb(bassGainDb)} dB",
         )
         RotaryDial(
             value = trebleGainDb,
@@ -455,7 +461,7 @@ private fun BassTrebleDials(
             enabled = enabled,
             color = color,
             label = "Treble",
-            valueLabel = "${if (trebleGainDb > 0) "+" else ""}${trebleGainDb.roundToInt()} dB",
+            valueLabel = "${formatDb(trebleGainDb)} dB",
         )
     }
 }
@@ -492,9 +498,9 @@ private fun CompressorSection(
         if (compressor.enabled) {
             Spacer(Modifier.height(4.dp))
             LabeledSlider(
-                label = "Threshold: ${compressor.thresholdDb.roundToInt()} dB",
+                label = "Threshold: ${formatDb(compressor.thresholdDb)} dB",
                 value = compressor.thresholdDb,
-                onValueChange = { onChange(compressor.copy(thresholdDb = it)) },
+                onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
                 valueRange = EqualizerSettings.MIN_THRESHOLD_DB..EqualizerSettings.MAX_THRESHOLD_DB,
                 labelColor = color,
                 sliderColors = sliderColors,
@@ -524,9 +530,9 @@ private fun CompressorSection(
                 sliderColors = sliderColors,
             )
             LabeledSlider(
-                label = "Makeup gain: +${compressor.makeupGainDb.roundToInt()} dB",
+                label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
                 value = compressor.makeupGainDb,
-                onValueChange = { onChange(compressor.copy(makeupGainDb = it)) },
+                onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
                 valueRange = EqualizerSettings.MIN_MAKEUP_DB..EqualizerSettings.MAX_MAKEUP_DB,
                 labelColor = color,
                 sliderColors = sliderColors,
@@ -601,7 +607,7 @@ private fun BandColumn(
         modifier = Modifier.width(BandColumnWidth)
     ) {
         Text(
-            text = "${if (band.gainDb > 0) "+" else ""}${band.gainDb.roundToInt()}",
+            text = formatDb(band.gainDb),
             style = MaterialTheme.typography.labelSmall,
             color = color,
             maxLines = 1,
@@ -742,12 +748,12 @@ private fun BandEditor(
             )
             RotaryDial(
                 value = band.gainDb,
-                onValueChange = { onChange(band.copy(gainDb = it)) },
+                onValueChange = { onChange(band.copy(gainDb = quantizeTenth(it))) },
                 valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
                 enabled = band.enabled,
                 color = color,
                 label = "Gain",
-                valueLabel = "${if (band.gainDb > 0) "+" else ""}${band.gainDb.roundToInt()} dB",
+                valueLabel = "${formatDb(band.gainDb)} dB",
             )
         }
 
