@@ -89,6 +89,10 @@ val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
 val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
 val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
 val EqContrastColorKey = booleanPreferencesKey("eqContrastColor")
+/** Dials vs sliders for band gain, the band editor's frequency/gain, and bass/treble. */
+val EqUseDialsKey = booleanPreferencesKey("eqUseDials")
+/** Colors slider tracks/thumbs and dial arcs green-to-red by how high/low the value is. */
+val EqValueColorGradientKey = booleanPreferencesKey("eqValueColorGradient")
 val EqBalanceUseDialKey = booleanPreferencesKey("eqBalanceUseDial")
 val PersistentQueueKey = booleanPreferencesKey("persistentQueue")
 

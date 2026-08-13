@@ -27,8 +27,7 @@ import androidx.compose.ui.unit.Constraints
  * composable into a vertical one without reimplementing its drag handling.
  *
  * [track] has no default - callers always have an opinion on it here (the equalizer sheet passes
- * [PlayerSliderTrack]), so there is no "plain" case worth guessing a Material3 default track call
- * for.
+ * [PowerampTrack]), so there is no "plain" case worth guessing a Material3 default track call for.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +40,11 @@ fun VerticalSlider(
     enabled: Boolean = true,
     onValueChangeFinished: (() -> Unit)? = null,
     colors: SliderColors = SliderDefaults.colors(),
+    /**
+     * No default, same reasoning as [track]: this file has no "plain" thumb worth guessing at,
+     * every caller already has an opinion.
+     */
+    thumb: @Composable (SliderState) -> Unit,
 ) {
     Slider(
         value = value,
@@ -50,6 +54,7 @@ fun VerticalSlider(
         onValueChangeFinished = onValueChangeFinished,
         colors = colors,
         track = track,
+        thumb = thumb,
         modifier = modifier
             .graphicsLayer { rotationZ = -90f }
             .layout { measurable, constraints ->

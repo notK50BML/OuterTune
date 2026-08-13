@@ -52,8 +52,6 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderColors
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -67,11 +65,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.Player.REPEAT_MODE_ALL
 import androidx.media3.common.Player.REPEAT_MODE_OFF
@@ -83,16 +83,18 @@ import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.EqBalanceUseDialKey
 import com.dd3boh.outertune.constants.EqContrastColorKey
+import com.dd3boh.outertune.constants.EqUseDialsKey
+import com.dd3boh.outertune.constants.EqValueColorGradientKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.constants.EqualizerProfilesKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.ShowLyricsKey
-import com.dd3boh.outertune.constants.SliderStyle
 import com.dd3boh.outertune.extensions.togglePlayPause
 import com.dd3boh.outertune.extensions.toggleRepeatMode
 import com.dd3boh.outertune.models.EqualizerProfile
 import com.dd3boh.outertune.models.EqualizerSettings
-import com.dd3boh.outertune.ui.component.PlayerSliderTrack
+import com.dd3boh.outertune.ui.component.PowerampThumb
+import com.dd3boh.outertune.ui.component.PowerampTrack
 import com.dd3boh.outertune.ui.component.RotaryDial
 import com.dd3boh.outertune.ui.component.VerticalSlider
 import com.dd3boh.outertune.ui.component.button.IconButton
@@ -147,13 +149,13 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
     var useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
     val eqColor = if (useContrastColor) handleColor else MaterialTheme.colorScheme.onSurface
     val eqColorVariant = if (useContrastColor) handleColor.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
-    val eqSliderColors = if (useContrastColor) SliderDefaults.colors(
-        thumbColor = handleColor,
-        activeTrackColor = handleColor,
-        activeTickColor = handleColor,
-        inactiveTrackColor = handleColor.copy(alpha = 0.3f),
-        inactiveTickColor = handleColor.copy(alpha = 0.3f),
-    ) else SliderDefaults.colors()
+
+    // Dials vs sliders, and whether either one colors itself by its own value instead of by the
+    // contrast/theme color above - both apply everywhere a band gain, frequency, bass/treble, or
+    // compressor control appears, so there's one place that decides "how does this look" rather
+    // than each control guessing independently.
+    var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
 
     BackHandler(onBack = onDismiss)
 
@@ -301,6 +303,38 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     )
                 }
 
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Use dials instead of sliders",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = eqColorVariant,
+                    )
+                    Switch(
+                        checked = useDials,
+                        onCheckedChange = { useDials = it },
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Color by value (green to red)",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = eqColorVariant,
+                    )
+                    Switch(
+                        checked = useValueGradient,
+                        onCheckedChange = { useValueGradient = it },
+                    )
+                }
+
                 Spacer(Modifier.height(12.dp))
 
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -367,6 +401,8 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     trebleGainDb = settings.bands.last().gainDb,
                     enabled = settings.enabled,
                     color = eqColor,
+                    useDials = useDials,
+                    useGradient = useValueGradient,
                     onBassChange = { updateBand(0, settings.bands.first().copy(gainDb = quantizeTenth(it))) },
                     onTrebleChange = { updateBand(settings.bands.lastIndex, settings.bands.last().copy(gainDb = quantizeTenth(it))) },
                 )
@@ -388,11 +424,9 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                             band = band,
                             enabled = settings.enabled,
                             selected = selectedBand == index,
-                            // The only style on offer now - no per-feature slider-style setting to
-                            // maintain, and it's the one that reads clearly against a busy cover.
-                            sliderStyle = SliderStyle.SLIM,
                             color = eqColor,
-                            sliderColors = eqSliderColors,
+                            useDials = useDials,
+                            useGradient = useValueGradient,
                             onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
                             onTapLabel = { selectedBand = if (selectedBand == index) null else index },
                         )
@@ -406,7 +440,8 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         onChange = { updateBand(index, it) },
                         color = eqColor,
                         colorVariant = eqColorVariant,
-                        sliderColors = eqSliderColors,
+                        useDials = useDials,
+                        useGradient = useValueGradient,
                     )
                 }
 
@@ -429,20 +464,29 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         Text(if (balanceUseDial) "Use slider" else "Use dial")
                     }
                 }
+                val balanceRange = -1f..1f
+                val balanceColor = if (useValueGradient) valueGradientColor(settings.balance, balanceRange) else eqColor
                 if (balanceUseDial) {
                     RotaryDial(
                         value = settings.balance,
                         onValueChange = { update(settings.copy(balance = it)) },
-                        valueRange = -1f..1f,
-                        color = eqColor,
+                        valueRange = balanceRange,
+                        color = balanceColor,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 } else {
                     Slider(
                         value = settings.balance,
                         onValueChange = { update(settings.copy(balance = it)) },
-                        valueRange = -1f..1f,
-                        colors = eqSliderColors,
+                        valueRange = balanceRange,
+                        track = { sliderState ->
+                            PowerampTrack(
+                                sliderState = sliderState,
+                                activeColor = balanceColor,
+                                inactiveColor = balanceColor.copy(alpha = 0.25f),
+                            )
+                        },
+                        thumb = { PowerampThumb(color = balanceColor) },
                     )
                 }
 
@@ -455,7 +499,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     onChange = { update(settings.copy(compressor = it)) },
                     color = eqColor,
                     colorVariant = eqColorVariant,
-                    sliderColors = eqSliderColors,
+                    useGradient = useValueGradient,
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -511,6 +555,49 @@ private fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10
 private fun formatDb(db: Float): String =
     "${if (db > 0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", db)}"
 
+/** Green at the low end of [range], red at the high end - a VU-meter-style read of "how hot is this". */
+private fun valueGradientColor(value: Float, range: ClosedFloatingPointRange<Float>): Color {
+    val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+    return lerp(Color(0xFF4CAF50), Color(0xFFF44336), fraction)
+}
+
+/**
+ * A horizontal Poweramp-styled slider with a label above and a value readout below, mirroring
+ * [RotaryDial]'s own layout so switching the "use dials" setting doesn't reflow anything around it.
+ */
+@Composable
+private fun PowerampSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    valueRange: ClosedFloatingPointRange<Float>,
+    color: Color,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    label: String? = null,
+    valueLabel: String? = null,
+    width: Dp = 140.dp,
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+        label?.let {
+            Text(text = it, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.75f))
+        }
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            enabled = enabled,
+            modifier = Modifier.width(width),
+            track = { sliderState ->
+                PowerampTrack(sliderState = sliderState, activeColor = color, inactiveColor = color.copy(alpha = 0.25f))
+            },
+            thumb = { PowerampThumb(color = color) },
+        )
+        valueLabel?.let {
+            Text(text = it, style = MaterialTheme.typography.titleSmall, color = color.copy(alpha = if (enabled) 1f else 0.5f))
+        }
+    }
+}
+
 /**
  * Quick single-knob access to the low and high ends without opening a band's full editor -
  * mapped onto the strip's lowest and highest bands rather than a separate shelf filter, so
@@ -522,31 +609,58 @@ private fun BassTrebleDials(
     trebleGainDb: Float,
     enabled: Boolean,
     color: Color,
+    useDials: Boolean,
+    useGradient: Boolean,
     onBassChange: (Float) -> Unit,
     onTrebleChange: (Float) -> Unit,
 ) {
+    val range = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
+    val bassColor = if (useGradient) valueGradientColor(bassGainDb, range) else color
+    val trebleColor = if (useGradient) valueGradientColor(trebleGainDb, range) else color
+
     Row(
         horizontalArrangement = Arrangement.spacedBy(32.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        RotaryDial(
-            value = bassGainDb,
-            onValueChange = onBassChange,
-            valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
-            enabled = enabled,
-            color = color,
-            label = "Bass",
-            valueLabel = "${formatDb(bassGainDb)} dB",
-        )
-        RotaryDial(
-            value = trebleGainDb,
-            onValueChange = onTrebleChange,
-            valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
-            enabled = enabled,
-            color = color,
-            label = "Treble",
-            valueLabel = "${formatDb(trebleGainDb)} dB",
-        )
+        if (useDials) {
+            RotaryDial(
+                value = bassGainDb,
+                onValueChange = onBassChange,
+                valueRange = range,
+                enabled = enabled,
+                color = bassColor,
+                label = "Bass",
+                valueLabel = "${formatDb(bassGainDb)} dB",
+            )
+            RotaryDial(
+                value = trebleGainDb,
+                onValueChange = onTrebleChange,
+                valueRange = range,
+                enabled = enabled,
+                color = trebleColor,
+                label = "Treble",
+                valueLabel = "${formatDb(trebleGainDb)} dB",
+            )
+        } else {
+            PowerampSlider(
+                value = bassGainDb,
+                onValueChange = onBassChange,
+                valueRange = range,
+                enabled = enabled,
+                color = bassColor,
+                label = "Bass",
+                valueLabel = "${formatDb(bassGainDb)} dB",
+            )
+            PowerampSlider(
+                value = trebleGainDb,
+                onValueChange = onTrebleChange,
+                valueRange = range,
+                enabled = enabled,
+                color = trebleColor,
+                label = "Treble",
+                valueLabel = "${formatDb(trebleGainDb)} dB",
+            )
+        }
     }
 }
 
@@ -560,7 +674,7 @@ private fun CompressorSection(
     onChange: (EqualizerSettings.CompressorSettings) -> Unit,
     color: Color,
     colorVariant: Color,
-    sliderColors: SliderColors,
+    useGradient: Boolean,
 ) {
     Column {
         Row(
@@ -581,45 +695,45 @@ private fun CompressorSection(
 
         if (compressor.enabled) {
             Spacer(Modifier.height(4.dp))
+            val thresholdRange = EqualizerSettings.MIN_THRESHOLD_DB..EqualizerSettings.MAX_THRESHOLD_DB
+            val ratioRange = EqualizerSettings.MIN_RATIO..EqualizerSettings.MAX_RATIO
+            val attackRange = EqualizerSettings.MIN_ATTACK_MS..EqualizerSettings.MAX_ATTACK_MS
+            val releaseRange = EqualizerSettings.MIN_RELEASE_MS..EqualizerSettings.MAX_RELEASE_MS
+            val makeupRange = EqualizerSettings.MIN_MAKEUP_DB..EqualizerSettings.MAX_MAKEUP_DB
             LabeledSlider(
                 label = "Threshold: ${formatDb(compressor.thresholdDb)} dB",
                 value = compressor.thresholdDb,
                 onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
-                valueRange = EqualizerSettings.MIN_THRESHOLD_DB..EqualizerSettings.MAX_THRESHOLD_DB,
-                labelColor = color,
-                sliderColors = sliderColors,
+                valueRange = thresholdRange,
+                color = if (useGradient) valueGradientColor(compressor.thresholdDb, thresholdRange) else color,
             )
             LabeledSlider(
                 label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
                 value = compressor.ratio,
                 onValueChange = { onChange(compressor.copy(ratio = it)) },
-                valueRange = EqualizerSettings.MIN_RATIO..EqualizerSettings.MAX_RATIO,
-                labelColor = color,
-                sliderColors = sliderColors,
+                valueRange = ratioRange,
+                color = if (useGradient) valueGradientColor(compressor.ratio, ratioRange) else color,
             )
             LabeledSlider(
                 label = "Attack: ${compressor.attackMs.roundToInt()} ms",
                 value = compressor.attackMs,
                 onValueChange = { onChange(compressor.copy(attackMs = it)) },
-                valueRange = EqualizerSettings.MIN_ATTACK_MS..EqualizerSettings.MAX_ATTACK_MS,
-                labelColor = color,
-                sliderColors = sliderColors,
+                valueRange = attackRange,
+                color = if (useGradient) valueGradientColor(compressor.attackMs, attackRange) else color,
             )
             LabeledSlider(
                 label = "Release: ${compressor.releaseMs.roundToInt()} ms",
                 value = compressor.releaseMs,
                 onValueChange = { onChange(compressor.copy(releaseMs = it)) },
-                valueRange = EqualizerSettings.MIN_RELEASE_MS..EqualizerSettings.MAX_RELEASE_MS,
-                labelColor = color,
-                sliderColors = sliderColors,
+                valueRange = releaseRange,
+                color = if (useGradient) valueGradientColor(compressor.releaseMs, releaseRange) else color,
             )
             LabeledSlider(
                 label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
                 value = compressor.makeupGainDb,
                 onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
-                valueRange = EqualizerSettings.MIN_MAKEUP_DB..EqualizerSettings.MAX_MAKEUP_DB,
-                labelColor = color,
-                sliderColors = sliderColors,
+                valueRange = makeupRange,
+                color = if (useGradient) valueGradientColor(compressor.makeupGainDb, makeupRange) else color,
             )
         }
     }
@@ -680,39 +794,57 @@ private fun BandColumn(
     band: EqualizerSettings.EqBand,
     enabled: Boolean,
     selected: Boolean,
-    sliderStyle: SliderStyle,
     color: Color,
-    sliderColors: SliderColors,
+    useDials: Boolean,
+    useGradient: Boolean,
     onGainChange: (Float) -> Unit,
     onTapLabel: () -> Unit,
 ) {
+    val gainRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
+    val gainColor = if (useGradient) valueGradientColor(band.gainDb, gainRange) else color
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(BandColumnWidth)
     ) {
-        Text(
-            text = formatDb(band.gainDb),
-            style = MaterialTheme.typography.labelSmall,
-            color = color,
-            maxLines = 1,
-        )
-        VerticalSlider(
-            value = band.gainDb,
-            onValueChange = onGainChange,
-            valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
-            enabled = enabled && band.enabled,
-            colors = sliderColors,
-            track = { sliderState ->
-                PlayerSliderTrack(
-                    sliderState = sliderState,
-                    colors = sliderColors,
-                    style = sliderStyle,
+        if (useDials) {
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                RotaryDial(
+                    value = band.gainDb,
+                    onValueChange = onGainChange,
+                    valueRange = gainRange,
+                    enabled = enabled && band.enabled,
+                    dialSize = 48.dp,
+                    color = gainColor,
+                    valueLabel = formatDb(band.gainDb),
                 )
-            },
-            modifier = Modifier
-                .weight(1f)
-                .width(36.dp),
-        )
+            }
+        } else {
+            Text(
+                text = formatDb(band.gainDb),
+                style = MaterialTheme.typography.labelSmall,
+                color = gainColor,
+                maxLines = 1,
+            )
+            VerticalSlider(
+                value = band.gainDb,
+                onValueChange = onGainChange,
+                valueRange = gainRange,
+                enabled = enabled && band.enabled,
+                track = { sliderState ->
+                    PowerampTrack(
+                        sliderState = sliderState,
+                        activeColor = gainColor,
+                        inactiveColor = gainColor.copy(alpha = 0.25f),
+                        trackThickness = 8.dp,
+                    )
+                },
+                thumb = { PowerampThumb(color = gainColor) },
+                modifier = Modifier
+                    .weight(1f)
+                    .width(36.dp),
+            )
+        }
         Text(
             text = formatFrequency(band.freqHz),
             style = if (selected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelSmall,
@@ -790,8 +922,15 @@ private fun BandEditor(
     onChange: (EqualizerSettings.EqBand) -> Unit,
     color: Color,
     colorVariant: Color,
-    sliderColors: SliderColors,
+    useDials: Boolean,
+    useGradient: Boolean,
 ) {
+    val freqRange = log10(EqualizerSettings.MIN_FREQ_HZ)..log10(EqualizerSettings.MAX_FREQ_HZ)
+    val gainRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
+    val qRange = EqualizerSettings.MIN_Q..EqualizerSettings.MAX_Q
+    val freqColor = if (useGradient) valueGradientColor(log10(band.freqHz), freqRange) else color
+    val gainColor = if (useGradient) valueGradientColor(band.gainDb, gainRange) else color
+
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -811,34 +950,56 @@ private fun BandEditor(
 
         Spacer(Modifier.height(12.dp))
 
-        // Frequency and gain as dials here (the selected band's precise editor), while the strip
-        // above keeps vertical faders for a quick, all-bands-at-once overview - one gesture for
-        // "tweak this band exactly", another for "eyeball the whole curve".
+        // Frequency and gain here (the selected band's precise editor), while the strip above
+        // keeps its own quick, all-bands-at-once overview - one gesture for "tweak this band
+        // exactly", another for "eyeball the whole curve". Dials or sliders per the panel-wide
+        // setting, same as everywhere else.
         Row(
             horizontalArrangement = Arrangement.spacedBy(32.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            RotaryDial(
-                value = log10(band.freqHz),
-                // A frequency dial has to be logarithmic, not linear - a linear 16Hz-20kHz range
-                // would spend 99% of its travel above 2kHz and leave the entire bass end crammed
-                // into a couple of degrees. Dial in log-space, convert back to Hz for storage.
-                onValueChange = { onChange(band.copy(freqHz = 10f.pow(it))) },
-                valueRange = log10(EqualizerSettings.MIN_FREQ_HZ)..log10(EqualizerSettings.MAX_FREQ_HZ),
-                enabled = band.enabled,
-                color = color,
-                label = "Frequency",
-                valueLabel = formatFrequency(band.freqHz),
-            )
-            RotaryDial(
-                value = band.gainDb,
-                onValueChange = { onChange(band.copy(gainDb = quantizeTenth(it))) },
-                valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
-                enabled = band.enabled,
-                color = color,
-                label = "Gain",
-                valueLabel = "${formatDb(band.gainDb)} dB",
-            )
+            // A frequency control has to be logarithmic, not linear - a linear 16Hz-20kHz range
+            // would spend 99% of its travel above 2kHz and leave the entire bass end crammed into
+            // a couple of degrees/pixels. Drive it in log-space, convert back to Hz for storage.
+            if (useDials) {
+                RotaryDial(
+                    value = log10(band.freqHz),
+                    onValueChange = { onChange(band.copy(freqHz = 10f.pow(it))) },
+                    valueRange = freqRange,
+                    enabled = band.enabled,
+                    color = freqColor,
+                    label = "Frequency",
+                    valueLabel = formatFrequency(band.freqHz),
+                )
+                RotaryDial(
+                    value = band.gainDb,
+                    onValueChange = { onChange(band.copy(gainDb = quantizeTenth(it))) },
+                    valueRange = gainRange,
+                    enabled = band.enabled,
+                    color = gainColor,
+                    label = "Gain",
+                    valueLabel = "${formatDb(band.gainDb)} dB",
+                )
+            } else {
+                PowerampSlider(
+                    value = log10(band.freqHz),
+                    onValueChange = { onChange(band.copy(freqHz = 10f.pow(it))) },
+                    valueRange = freqRange,
+                    enabled = band.enabled,
+                    color = freqColor,
+                    label = "Frequency",
+                    valueLabel = formatFrequency(band.freqHz),
+                )
+                PowerampSlider(
+                    value = band.gainDb,
+                    onValueChange = { onChange(band.copy(gainDb = quantizeTenth(it))) },
+                    valueRange = gainRange,
+                    enabled = band.enabled,
+                    color = gainColor,
+                    label = "Gain",
+                    valueLabel = "${formatDb(band.gainDb)} dB",
+                )
+            }
         }
 
         Spacer(Modifier.height(12.dp))
@@ -847,9 +1008,8 @@ private fun BandEditor(
             label = "Q: ${String.format(java.util.Locale.US, "%.2f", band.q)}",
             value = band.q,
             onValueChange = { onChange(band.copy(q = it)) },
-            valueRange = EqualizerSettings.MIN_Q..EqualizerSettings.MAX_Q,
-            labelColor = color,
-            sliderColors = sliderColors,
+            valueRange = qRange,
+            color = if (useGradient) valueGradientColor(band.q, qRange) else color,
         )
 
         Spacer(Modifier.height(8.dp))
@@ -887,15 +1047,17 @@ private fun LabeledSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
-    labelColor: Color = Color.Unspecified,
-    sliderColors: SliderColors = SliderDefaults.colors(),
+    color: Color = Color.Unspecified,
 ) {
-    Text(text = label, style = MaterialTheme.typography.labelMedium, color = labelColor)
+    Text(text = label, style = MaterialTheme.typography.labelMedium, color = color)
     Slider(
         value = value,
         onValueChange = onValueChange,
         valueRange = valueRange,
-        colors = sliderColors,
+        track = { sliderState ->
+            PowerampTrack(sliderState = sliderState, activeColor = color, inactiveColor = color.copy(alpha = 0.25f))
+        },
+        thumb = { PowerampThumb(color = color) },
     )
 }
 
