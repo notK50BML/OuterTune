@@ -74,6 +74,7 @@ import com.dd3boh.outertune.constants.LyricKaraokeEnable
 import com.dd3boh.outertune.constants.LyricUpdateSpeed
 import com.dd3boh.outertune.constants.LyricsPosition
 import com.dd3boh.outertune.constants.LyricsTextPositionKey
+import com.dd3boh.outertune.constants.QueuePeekHeight
 import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.constants.Speed
 import com.dd3boh.outertune.db.entities.LyricsEntity
@@ -463,7 +464,14 @@ fun Lyrics(
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .padding(end = 12.dp)
+                    .padding(
+                        end = 12.dp,
+                        // In landscape the queue's collapsed peek strip (its handle) is drawn as an
+                        // overlay across the bottom of this same pane, so flush-bottom here means
+                        // sitting right underneath it. Lift clear of that strip's height instead of
+                        // just guessing at a fixed offset.
+                        bottom = if (landscapeOffset) QueuePeekHeight * 1.2f + 8.dp else 0.dp,
+                    )
             ) {
                 IconButton(
                     onClick = { onShowLyricsChange(false) }

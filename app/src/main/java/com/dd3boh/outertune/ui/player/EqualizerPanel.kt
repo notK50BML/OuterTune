@@ -21,14 +21,16 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -81,7 +83,6 @@ import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.EqBalanceUseDialKey
 import com.dd3boh.outertune.constants.EqContrastColorKey
-import com.dd3boh.outertune.constants.EqSliderStyleKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.ShowLyricsKey
@@ -165,12 +166,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
     val showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
 
     var settingsJson by rememberPreference(EqualizerSettingsKey, "")
-    // Squiggly's wave animation is driven by playback progress, which a gain slider has no
-    // equivalent of, so it doesn't actually animate here - just renders as a plain line but
-    // implies motion that never comes. Not offered as a choice, and coerced away if an older
-    // build already saved it.
-    var eqSliderStyleRaw by rememberEnumPreference(EqSliderStyleKey, SliderStyle.DEFAULT)
-    val eqSliderStyle = if (eqSliderStyleRaw == SliderStyle.SQUIGGLY) SliderStyle.DEFAULT else eqSliderStyleRaw
 
     var settings by remember {
         mutableStateOf(EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT))
@@ -232,9 +227,8 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
 
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .weight(1f, false)
                     .verticalScroll(rememberScrollState())
-                    .navigationBarsPadding()
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) {
                 Row(
@@ -310,7 +304,9 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                             band = band,
                             enabled = settings.enabled,
                             selected = selectedBand == index,
-                            sliderStyle = eqSliderStyle,
+                            // The only style on offer now - no per-feature slider-style setting to
+                            // maintain, and it's the one that reads clearly against a busy cover.
+                            sliderStyle = SliderStyle.SLIM,
                             color = eqColor,
                             sliderColors = eqSliderColors,
                             onGainChange = { updateBand(index, band.copy(gainDb = it)) },
@@ -383,29 +379,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 Spacer(Modifier.height(12.dp))
 
                 Text(
-                    text = stringResource(R.string.equalizer_slider_style),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = eqColorVariant,
-                )
-                Spacer(Modifier.height(6.dp))
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    val eqSliderStyles = listOf(SliderStyle.DEFAULT, SliderStyle.SLIM)
-                    eqSliderStyles.forEachIndexed { i, style ->
-                        SegmentedButton(
-                            selected = eqSliderStyle == style,
-                            onClick = { eqSliderStyleRaw = style },
-                            shape = SegmentedButtonDefaults.itemShape(index = i, count = eqSliderStyles.size),
-                        ) {
-                            Text(style.name.lowercase().replaceFirstChar { it.uppercase() })
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-
-                Text(
                     text = "Equalizer profile",
                     style = MaterialTheme.typography.labelMedium,
                     color = eqColorVariant,
@@ -422,9 +395,20 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 }
 
-                Spacer(Modifier.height(24.dp))
+                Spacer(Modifier.height(16.dp))
+            }
+
+            // Docked below the scrollable content, not inside it - the same treatment the queue's
+            // own bottom bar gets (secondaryContainer card, safe-area padding), just without a
+            // queue-info row since there's no queue here to describe.
+            Column(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                    .fillMaxWidth()
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+                    .padding(vertical = 8.dp)
+            ) {
                 MiniPlaybackControls(color = if (useContrastColor) eqColor else null)
-                Spacer(Modifier.height(24.dp))
             }
         }
     }
