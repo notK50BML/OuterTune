@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -156,16 +157,25 @@ class HomeViewModel @Inject constructor(
     private val _isLoadingMore = MutableStateFlow(false)
     fun loadMoreYouTubeItems(continuation: String?) {
         if (continuation == null) return
+        val requestedHomePage = homePage.value?.takeIf { it.continuation == continuation } ?: return
 
         viewModelScope.launch(Dispatchers.IO) {
             if (!_isLoadingMore.compareAndSet(false, true)) return@launch
 
             try {
+                if (homePage.value !== requestedHomePage) return@launch
+
                 val nextSections = YouTube.home(continuation).getOrNull() ?: return@launch
-                homePage.value = nextSections.copy(
-                    chips = homePage.value?.chips,
-                    sections = homePage.value?.sections.orEmpty() + nextSections.sections
-                )
+                homePage.update { currentHomePage ->
+                    if (currentHomePage !== requestedHomePage) {
+                        currentHomePage
+                    } else {
+                        nextSections.copy(
+                            chips = currentHomePage.chips,
+                            sections = currentHomePage.sections + nextSections.sections
+                        )
+                    }
+                }
             } finally {
                 _isLoadingMore.value = false
             }
