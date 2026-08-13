@@ -77,7 +77,6 @@ import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
 import com.dd3boh.outertune.constants.DiscordTokenKey
 import com.dd3boh.outertune.audio.EqualizerAudioProcessor
-import com.dd3boh.outertune.constants.DiscordRPCClearAfterMinutesKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.constants.EnableDiscordRPCKey
@@ -236,10 +235,6 @@ class MusicService : MediaLibraryService(),
 
     private var discordRpc: DiscordRPC? = null
 
-    // Cleared/replaced on every presence update; only ever running while the last update sent
-    // was a paused one, so a resume or track change cancels it before it can fire.
-    private var discordClearJob: Job? = null
-
     /**
      * Presence updates are *requested*, never pushed directly.
      *
@@ -375,10 +370,13 @@ class MusicService : MediaLibraryService(),
         discordUpdateRequests.debounce(700).collectLatest(scope) {
             val rpc = discordRpc ?: return@collectLatest
             // playWhenReady, not isPlaying: isPlaying also goes false while a track buffers, and
-            // treating that as a pause made the card flicker on every skip.
+            // treating that as a pause made the card disappear on every skip.
             val paused = !player.playWhenReady
-            val mediaId = player.currentMediaItem?.mediaId ?: run {
-                // Nothing loaded at all is the only case with nothing to show.
+            val mediaId = player.currentMediaItem?.mediaId
+            // Nothing loaded, or the song is paused, is the same "nothing to show" case now - no
+            // paused card, just no presence, the same way it disappears when playback stops
+            // entirely.
+            if (mediaId == null || paused) {
                 rpc.stopActivity()
                 return@collectLatest
             }
@@ -389,19 +387,7 @@ class MusicService : MediaLibraryService(),
             } ?: return@collectLatest
             // The wait above can outlast the track it was for.
             if (player.currentMediaItem?.mediaId != mediaId) return@collectLatest
-            rpc.updateSong(song, player.currentPosition, paused)
-
-            discordClearJob?.cancel()
-            discordClearJob = null
-            if (paused) {
-                val clearAfterMinutes = dataStore.get(DiscordRPCClearAfterMinutesKey, 5)
-                if (clearAfterMinutes > 0) {
-                    discordClearJob = scope.launch {
-                        delay(clearAfterMinutes * 60_000L)
-                        rpc.stopActivity()
-                    }
-                }
-            }
+            rpc.updateSong(song, player.currentPosition)
         }
 
         // Track changes that the player does not announce as an event still move the metadata.

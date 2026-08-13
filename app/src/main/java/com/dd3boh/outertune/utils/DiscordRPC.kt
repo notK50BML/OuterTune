@@ -24,16 +24,17 @@ class DiscordRPC(
     @Volatile
     private var latestUpdate = 0L
 
+    // Only ever called while something is actually playing - a paused/stopped player calls
+    // stopActivity() instead, so there is no "paused" card to render here at all.
     suspend fun updateSong(
         song: Song,
         currentPlaybackTimeMillis: Long = 0L,
-        paused: Boolean = false,
     ) = runCatching {
         val thisUpdate = ++latestUpdate
         updateMutex.withLock {
             // Something newer started while this one waited for the lock; that one wins.
             if (thisUpdate != latestUpdate) return@runCatching
-            sendPresence(song, currentPlaybackTimeMillis, paused)
+            sendPresence(song, currentPlaybackTimeMillis)
         }
     }.onFailure {
         // runCatching swallows CancellationException, which would quietly break the caller's
@@ -42,16 +43,7 @@ class DiscordRPC(
         if (it is CancellationException) throw it
     }
 
-    /**
-     * @param paused keeps the same card layout (title/art/buttons unchanged, only the small-text
-     *   label switches to "Paused"). Discord has no concept of a frozen counter: give it start/end
-     *   timestamps and it ticks them forward client-side against the wall clock regardless of
-     *   whether another update ever arrives, or give it neither and the progress-bar row simply
-     *   isn't drawn. A visibly advancing counter on a paused track reads as more obviously wrong
-     *   than a missing row, so timestamps are omitted while paused - the same tradeoff Spotify's
-     *   own Discord integration makes.
-     */
-    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long, paused: Boolean) {
+    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {
         val currentTime = System.currentTimeMillis()
         val calculatedStartTime = currentTime - currentPlaybackTimeMillis
 
@@ -81,8 +73,7 @@ class DiscordRPC(
             // Hover text only. Discord has no url slot for the large image, so the album
             // cannot be made clickable the way the title and artist can.
             largeText = song.album?.title,
-            smallText = if (paused) context.getString(R.string.rpc_paused)
-            else song.artists.firstOrNull()?.name,
+            smallText = song.artists.firstOrNull()?.name,
             buttons = listOf(
                 context.getString(R.string.rpc_listen_ytm) to
                         "https://music.youtube.com/watch?v=${song.song.id}",
@@ -92,8 +83,8 @@ class DiscordRPC(
             type = Type.LISTENING,
             statusDisplayType = StatusDisplayType.STATE,
             since = currentTime,
-            startTime = if (paused) null else calculatedStartTime,
-            endTime = if (paused) null else calculatedEndTime,
+            startTime = calculatedStartTime,
+            endTime = calculatedEndTime,
             applicationId = APPLICATION_ID
         )
     }
