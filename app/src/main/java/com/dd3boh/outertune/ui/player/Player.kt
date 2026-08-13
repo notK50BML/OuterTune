@@ -136,6 +136,7 @@ import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
 import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
+import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
 import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
 import com.dd3boh.outertune.constants.SliderStyleKey
@@ -444,6 +445,15 @@ private fun EqualizerHandle() {
     val showEqualizerHandle by rememberPreference(ShowEqualizerHandleKey, defaultValue = true)
     if (!showEqualizerHandle) return
 
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+    // The same colour the lyrics/queue handle already use - measured from the cover itself, so it
+    // stays legible against whichever background style and cover is currently showing instead of
+    // a fixed theme colour that can all but disappear on some covers. Same toggle as the panel
+    // itself, so turning contrast colour off is consistent everywhere the equalizer appears.
+    val useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
+    val handleColor = if (useContrastColor) rememberPlayerOnBackgroundColor(mediaMetadata) else MaterialTheme.colorScheme.onSurface
+
     val equalizerPanelState = LocalEqualizerPanelState.current
     var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
     val openThresholdPx = with(LocalDensity.current) { 40.dp.toPx() }
@@ -452,6 +462,10 @@ private fun EqualizerHandle() {
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .fillMaxWidth()
+            // This sits above everything else in the player's Column, which only pads for the
+            // horizontal system bars - without its own top inset it rendered directly under the
+            // status bar/clock/battery instead of below them.
+            .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
             .height(28.dp)
             .clickable { equalizerPanelState.visible = true }
             .pointerInput(Unit) {
@@ -474,7 +488,7 @@ private fun EqualizerHandle() {
                 .width(32.dp)
                 .height(4.dp)
                 .clip(RoundedCornerShape(2.dp))
-                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+                .background(handleColor.copy(alpha = 0.6f))
         )
     }
 }

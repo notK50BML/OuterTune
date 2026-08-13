@@ -85,6 +85,8 @@ val EqualizerSettingsKey = stringPreferencesKey("equalizerSettings")
 val EqSliderStyleKey = stringPreferencesKey("eqSliderStyle")
 val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
 val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
+val EqContrastColorKey = booleanPreferencesKey("eqContrastColor")
+val EqBalanceUseDialKey = booleanPreferencesKey("eqBalanceUseDial")
 val PersistentQueueKey = booleanPreferencesKey("persistentQueue")
 
 val SeekIncrementKey = stringPreferencesKey("seekIncrement")

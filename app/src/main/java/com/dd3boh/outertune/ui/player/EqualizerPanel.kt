@@ -7,6 +7,8 @@
 package com.dd3boh.outertune.ui.player
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
@@ -24,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
@@ -47,9 +50,11 @@ import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderColors
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -59,27 +64,36 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.media3.common.Player.REPEAT_MODE_ALL
+import androidx.media3.common.Player.REPEAT_MODE_OFF
+import androidx.media3.common.Player.REPEAT_MODE_ONE
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+import com.dd3boh.outertune.constants.EqBalanceUseDialKey
+import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.EqSliderStyleKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.constants.SliderStyle
 import com.dd3boh.outertune.extensions.togglePlayPause
+import com.dd3boh.outertune.extensions.toggleRepeatMode
 import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.ui.component.PlayerSliderTrack
+import com.dd3boh.outertune.ui.component.RotaryDial
 import com.dd3boh.outertune.ui.component.VerticalSlider
 import com.dd3boh.outertune.ui.component.button.IconButton
+import com.dd3boh.outertune.ui.component.button.ResizableIconButton
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import kotlin.math.log10
@@ -117,7 +131,25 @@ fun EqualizerPanel() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+    val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current ?: return
+    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+    val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata)
+
+    // Whether to color the panel's own text/icons/dials/sliders (everything that isn't already a
+    // Material3-themed widget like Switch/SegmentedButton, which already follows the app theme
+    // correctly) from the cover art's contrast color instead of the plain theme color - on by
+    // default since a busy or dark cover can otherwise swallow plain onSurface text.
+    var useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
+    val eqColor = if (useContrastColor) handleColor else MaterialTheme.colorScheme.onSurface
+    val eqColorVariant = if (useContrastColor) handleColor.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
+    val eqSliderColors = if (useContrastColor) SliderDefaults.colors(
+        thumbColor = handleColor,
+        activeTrackColor = handleColor,
+        activeTickColor = handleColor,
+        inactiveTrackColor = handleColor.copy(alpha = 0.3f),
+        inactiveTickColor = handleColor.copy(alpha = 0.3f),
+    ) else SliderDefaults.colors()
 
     BackHandler(onBack = onDismiss)
 
@@ -155,6 +187,33 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
     }
 
     var selectedBand by remember { mutableStateOf<Int?>(null) }
+    var importExportError by remember { mutableStateOf<String?>(null) }
+
+    val exportLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { it.write(settings.toJson().toByteArray()) }
+        }.onFailure { importExportError = it.message }
+    }
+
+    // OpenDocument rather than GetContent: this needs a real, re-readable uri, not a one-shot
+    // content stream.
+    val importLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        val text = runCatching {
+            context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+        }.getOrNull()
+        if (text.isNullOrBlank()) {
+            importExportError = "Could not read that file."
+            return@rememberLauncherForActivityResult
+        }
+        EqualizerSettings.parse(text)
+            .onSuccess {
+                update(it)
+                importExportError = null
+            }
+            .onFailure { importExportError = it.message ?: "That file isn't a valid equalizer profile." }
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         PlayerBackground(
@@ -169,7 +228,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 .fillMaxSize()
                 .statusBarsPadding()
         ) {
-            EqualizerPanelHandle(onDismiss = onDismiss)
+            EqualizerPanelHandle(onDismiss = onDismiss, handleColor = eqColor)
 
             Column(
                 modifier = Modifier
@@ -186,10 +245,29 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     Text(
                         text = stringResource(R.string.equalizer),
                         style = MaterialTheme.typography.titleLarge,
+                        color = eqColor,
                     )
                     Switch(
                         checked = settings.enabled,
                         onCheckedChange = { update(settings.copy(enabled = it)) },
+                    )
+                }
+
+                Spacer(Modifier.height(4.dp))
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Use cover contrast color",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = eqColorVariant,
+                    )
+                    Switch(
+                        checked = useContrastColor,
+                        onCheckedChange = { useContrastColor = it },
                     )
                 }
 
@@ -203,6 +281,17 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         )
                     }
                 }
+
+                Spacer(Modifier.height(20.dp))
+
+                BassTrebleDials(
+                    bassGainDb = settings.bands.first().gainDb,
+                    trebleGainDb = settings.bands.last().gainDb,
+                    enabled = settings.enabled,
+                    color = eqColor,
+                    onBassChange = { updateBand(0, settings.bands.first().copy(gainDb = it)) },
+                    onTrebleChange = { updateBand(settings.bands.lastIndex, settings.bands.last().copy(gainDb = it)) },
+                )
 
                 Spacer(Modifier.height(20.dp))
 
@@ -222,6 +311,8 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                             enabled = settings.enabled,
                             selected = selectedBand == index,
                             sliderStyle = eqSliderStyle,
+                            color = eqColor,
+                            sliderColors = eqSliderColors,
                             onGainChange = { updateBand(index, band.copy(gainDb = it)) },
                             onTapLabel = { selectedBand = if (selectedBand == index) null else index },
                         )
@@ -233,6 +324,9 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     BandEditor(
                         band = settings.bands[index],
                         onChange = { updateBand(index, it) },
+                        color = eqColor,
+                        colorVariant = eqColorVariant,
+                        sliderColors = eqSliderColors,
                     )
                 }
 
@@ -240,15 +334,48 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
 
-                Text(
-                    text = stringResource(R.string.equalizer_balance),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-                Slider(
-                    value = settings.balance,
-                    onValueChange = { update(settings.copy(balance = it)) },
-                    valueRange = -1f..1f,
+                var balanceUseDial by rememberPreference(EqBalanceUseDialKey, defaultValue = false)
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = stringResource(R.string.equalizer_balance) + " (${balanceReadout(settings.balance)})",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = eqColorVariant,
+                    )
+                    TextButton(onClick = { balanceUseDial = !balanceUseDial }) {
+                        Text(if (balanceUseDial) "Use slider" else "Use dial")
+                    }
+                }
+                if (balanceUseDial) {
+                    RotaryDial(
+                        value = settings.balance,
+                        onValueChange = { update(settings.copy(balance = it)) },
+                        valueRange = -1f..1f,
+                        color = eqColor,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                } else {
+                    Slider(
+                        value = settings.balance,
+                        onValueChange = { update(settings.copy(balance = it)) },
+                        valueRange = -1f..1f,
+                        colors = eqSliderColors,
+                    )
+                }
+
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+
+                CompressorSection(
+                    compressor = settings.compressor,
+                    onChange = { update(settings.copy(compressor = it)) },
+                    color = eqColor,
+                    colorVariant = eqColorVariant,
+                    sliderColors = eqSliderColors,
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -258,7 +385,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 Text(
                     text = stringResource(R.string.equalizer_slider_style),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = eqColorVariant,
                 )
                 Spacer(Modifier.height(6.dp))
                 SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -274,10 +401,152 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     }
                 }
 
+                Spacer(Modifier.height(12.dp))
+                HorizontalDivider()
+                Spacer(Modifier.height(12.dp))
+
+                Text(
+                    text = "Equalizer profile",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = eqColorVariant,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { exportLauncher.launch("equalizer-profile.json") }) {
+                        Text("Export")
+                    }
+                    TextButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
+                        Text("Import")
+                    }
+                }
+                importExportError?.let {
+                    Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                }
+
                 Spacer(Modifier.height(24.dp))
-                MiniPlaybackControls()
+                MiniPlaybackControls(color = if (useContrastColor) eqColor else null)
                 Spacer(Modifier.height(24.dp))
             }
+        }
+    }
+}
+
+/** left/right label like "50/50" - a balance of 0 is centered (50/50), +1 is full right (0/100). */
+private fun balanceReadout(balance: Float): String {
+    val right = ((balance + 1f) / 2f * 100f).roundToInt().coerceIn(0, 100)
+    val left = 100 - right
+    return "$left/$right"
+}
+
+/**
+ * Quick single-knob access to the low and high ends without opening a band's full editor -
+ * mapped onto the strip's lowest and highest bands rather than a separate shelf filter, so
+ * there's exactly one thing controlling any given frequency.
+ */
+@Composable
+private fun BassTrebleDials(
+    bassGainDb: Float,
+    trebleGainDb: Float,
+    enabled: Boolean,
+    color: Color,
+    onBassChange: (Float) -> Unit,
+    onTrebleChange: (Float) -> Unit,
+) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        RotaryDial(
+            value = bassGainDb,
+            onValueChange = onBassChange,
+            valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
+            enabled = enabled,
+            color = color,
+            label = "Bass",
+            valueLabel = "${if (bassGainDb > 0) "+" else ""}${bassGainDb.roundToInt()} dB",
+        )
+        RotaryDial(
+            value = trebleGainDb,
+            onValueChange = onTrebleChange,
+            valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
+            enabled = enabled,
+            color = color,
+            label = "Treble",
+            valueLabel = "${if (trebleGainDb > 0) "+" else ""}${trebleGainDb.roundToInt()} dB",
+        )
+    }
+}
+
+/**
+ * A simple feed-forward dynamics compressor sitting after the band cascade - turns down whatever
+ * is already louder than the threshold, then makes the result back up again.
+ */
+@Composable
+private fun CompressorSection(
+    compressor: EqualizerSettings.CompressorSettings,
+    onChange: (EqualizerSettings.CompressorSettings) -> Unit,
+    color: Color,
+    colorVariant: Color,
+    sliderColors: SliderColors,
+) {
+    Column {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "Compressor",
+                style = MaterialTheme.typography.labelMedium,
+                color = colorVariant,
+            )
+            Switch(
+                checked = compressor.enabled,
+                onCheckedChange = { onChange(compressor.copy(enabled = it)) },
+            )
+        }
+
+        if (compressor.enabled) {
+            Spacer(Modifier.height(4.dp))
+            LabeledSlider(
+                label = "Threshold: ${compressor.thresholdDb.roundToInt()} dB",
+                value = compressor.thresholdDb,
+                onValueChange = { onChange(compressor.copy(thresholdDb = it)) },
+                valueRange = EqualizerSettings.MIN_THRESHOLD_DB..EqualizerSettings.MAX_THRESHOLD_DB,
+                labelColor = color,
+                sliderColors = sliderColors,
+            )
+            LabeledSlider(
+                label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
+                value = compressor.ratio,
+                onValueChange = { onChange(compressor.copy(ratio = it)) },
+                valueRange = EqualizerSettings.MIN_RATIO..EqualizerSettings.MAX_RATIO,
+                labelColor = color,
+                sliderColors = sliderColors,
+            )
+            LabeledSlider(
+                label = "Attack: ${compressor.attackMs.roundToInt()} ms",
+                value = compressor.attackMs,
+                onValueChange = { onChange(compressor.copy(attackMs = it)) },
+                valueRange = EqualizerSettings.MIN_ATTACK_MS..EqualizerSettings.MAX_ATTACK_MS,
+                labelColor = color,
+                sliderColors = sliderColors,
+            )
+            LabeledSlider(
+                label = "Release: ${compressor.releaseMs.roundToInt()} ms",
+                value = compressor.releaseMs,
+                onValueChange = { onChange(compressor.copy(releaseMs = it)) },
+                valueRange = EqualizerSettings.MIN_RELEASE_MS..EqualizerSettings.MAX_RELEASE_MS,
+                labelColor = color,
+                sliderColors = sliderColors,
+            )
+            LabeledSlider(
+                label = "Makeup gain: +${compressor.makeupGainDb.roundToInt()} dB",
+                value = compressor.makeupGainDb,
+                onValueChange = { onChange(compressor.copy(makeupGainDb = it)) },
+                valueRange = EqualizerSettings.MIN_MAKEUP_DB..EqualizerSettings.MAX_MAKEUP_DB,
+                labelColor = color,
+                sliderColors = sliderColors,
+            )
         }
     }
 }
@@ -288,7 +557,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
  * a different gesture for the same idea. A close icon sits beside it for anyone who'd rather tap.
  */
 @Composable
-private fun EqualizerPanelHandle(onDismiss: () -> Unit) {
+private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
     var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
     val closeThresholdPx = with(LocalDensity.current) { 40.dp.toPx() }
 
@@ -318,7 +587,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit) {
                 .width(32.dp)
                 .height(4.dp)
                 .background(
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                    handleColor.copy(alpha = 0.6f),
                     RoundedCornerShape(2.dp)
                 )
         )
@@ -326,7 +595,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit) {
             onClick = onDismiss,
             modifier = Modifier.align(Alignment.CenterEnd)
         ) {
-            Icon(Icons.Rounded.Close, contentDescription = null)
+            Icon(Icons.Rounded.Close, contentDescription = null, tint = handleColor)
         }
     }
 }
@@ -338,6 +607,8 @@ private fun BandColumn(
     enabled: Boolean,
     selected: Boolean,
     sliderStyle: SliderStyle,
+    color: Color,
+    sliderColors: SliderColors,
     onGainChange: (Float) -> Unit,
     onTapLabel: () -> Unit,
 ) {
@@ -348,6 +619,7 @@ private fun BandColumn(
         Text(
             text = "${if (band.gainDb > 0) "+" else ""}${band.gainDb.roundToInt()}",
             style = MaterialTheme.typography.labelSmall,
+            color = color,
             maxLines = 1,
         )
         VerticalSlider(
@@ -355,10 +627,11 @@ private fun BandColumn(
             onValueChange = onGainChange,
             valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
             enabled = enabled && band.enabled,
+            colors = sliderColors,
             track = { sliderState ->
                 PlayerSliderTrack(
                     sliderState = sliderState,
-                    colors = SliderDefaults.colors(),
+                    colors = sliderColors,
                     style = sliderStyle,
                 )
             },
@@ -369,7 +642,7 @@ private fun BandColumn(
         Text(
             text = formatFrequency(band.freqHz),
             style = if (selected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelSmall,
-            color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            color = if (selected) MaterialTheme.colorScheme.primary else color,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier
@@ -382,37 +655,57 @@ private fun BandColumn(
 /**
  * Basic transport so the panel doesn't have to be closed just to skip a track or pause - it fills
  * the screen the way the queue does, so without this there'd be no way to touch playback at all
- * while it's open.
+ * while it's open. Deliberately the exact same five controls (shuffle, previous, play/pause,
+ * next, repeat) as the queue's own transport row, not a smaller ad-hoc set.
  */
 @Composable
-private fun MiniPlaybackControls() {
+private fun MiniPlaybackControls(color: Color?) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+    val repeatMode by playerConnection.repeatMode.collectAsState()
+    val iconColor = color ?: MaterialTheme.colorScheme.onSecondaryContainer
 
     Row(
         horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
     ) {
-        IconButton(onClick = { playerConnection.triggerShuffle() }) {
-            Icon(
-                painter = painterResource(if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off),
-                contentDescription = null,
-            )
-        }
-        IconButton(onClick = { playerConnection.player.seekToPrevious() }) {
-            Icon(Icons.Rounded.SkipPrevious, contentDescription = null)
-        }
-        IconButton(onClick = { playerConnection.player.togglePlayPause() }) {
-            Icon(
-                imageVector = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                contentDescription = null,
-            )
-        }
-        IconButton(onClick = { playerConnection.player.seekToNext() }) {
-            Icon(Icons.Rounded.SkipNext, contentDescription = null)
-        }
+        ResizableIconButton(
+            icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+            color = iconColor,
+            modifier = Modifier.size(28.dp),
+            onClick = { playerConnection.triggerShuffle() },
+        )
+        ResizableIconButton(
+            icon = Icons.Rounded.SkipPrevious,
+            color = iconColor,
+            modifier = Modifier.size(32.dp),
+            onClick = { playerConnection.player.seekToPrevious() },
+        )
+        ResizableIconButton(
+            icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+            color = iconColor,
+            modifier = Modifier.size(36.dp),
+            onClick = { playerConnection.player.togglePlayPause() },
+        )
+        ResizableIconButton(
+            icon = Icons.Rounded.SkipNext,
+            color = iconColor,
+            modifier = Modifier.size(32.dp),
+            onClick = { playerConnection.player.seekToNext() },
+        )
+        ResizableIconButton(
+            icon = when (repeatMode) {
+                REPEAT_MODE_OFF -> R.drawable.repeat_off
+                REPEAT_MODE_ALL -> R.drawable.repeat_on
+                REPEAT_MODE_ONE -> R.drawable.repeat_one
+                else -> R.drawable.repeat_off
+            },
+            color = iconColor,
+            modifier = Modifier.size(28.dp),
+            onClick = { playerConnection.player.toggleRepeatMode() },
+        )
     }
 }
 
@@ -421,6 +714,9 @@ private fun MiniPlaybackControls() {
 private fun BandEditor(
     band: EqualizerSettings.EqBand,
     onChange: (EqualizerSettings.EqBand) -> Unit,
+    color: Color,
+    colorVariant: Color,
+    sliderColors: SliderColors,
 ) {
     Column {
         Row(
@@ -431,6 +727,7 @@ private fun BandEditor(
             Text(
                 text = "${formatFrequency(band.freqHz)} band",
                 style = MaterialTheme.typography.titleSmall,
+                color = color,
             )
             Switch(
                 checked = band.enabled,
@@ -438,30 +735,54 @@ private fun BandEditor(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
 
-        LabeledSlider(
-            label = "Frequency: ${formatFrequency(band.freqHz)}",
-            // A frequency slider has to be logarithmic, not linear - a linear 16Hz-20kHz range
-            // would spend 99% of its travel above 2kHz and leave the entire bass end crammed into
-            // a couple of pixels. Slide in log-space, convert back to Hz for storage/display.
-            value = log10(band.freqHz),
-            onValueChange = { onChange(band.copy(freqHz = 10f.pow(it))) },
-            valueRange = log10(EqualizerSettings.MIN_FREQ_HZ)..log10(EqualizerSettings.MAX_FREQ_HZ),
-        )
+        // Frequency and gain as dials here (the selected band's precise editor), while the strip
+        // above keeps vertical faders for a quick, all-bands-at-once overview - one gesture for
+        // "tweak this band exactly", another for "eyeball the whole curve".
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(32.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            RotaryDial(
+                value = log10(band.freqHz),
+                // A frequency dial has to be logarithmic, not linear - a linear 16Hz-20kHz range
+                // would spend 99% of its travel above 2kHz and leave the entire bass end crammed
+                // into a couple of degrees. Dial in log-space, convert back to Hz for storage.
+                onValueChange = { onChange(band.copy(freqHz = 10f.pow(it))) },
+                valueRange = log10(EqualizerSettings.MIN_FREQ_HZ)..log10(EqualizerSettings.MAX_FREQ_HZ),
+                enabled = band.enabled,
+                color = color,
+                label = "Frequency",
+                valueLabel = formatFrequency(band.freqHz),
+            )
+            RotaryDial(
+                value = band.gainDb,
+                onValueChange = { onChange(band.copy(gainDb = it)) },
+                valueRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB,
+                enabled = band.enabled,
+                color = color,
+                label = "Gain",
+                valueLabel = "${if (band.gainDb > 0) "+" else ""}${band.gainDb.roundToInt()} dB",
+            )
+        }
+
+        Spacer(Modifier.height(12.dp))
 
         LabeledSlider(
             label = "Q: ${String.format(java.util.Locale.US, "%.2f", band.q)}",
             value = band.q,
             onValueChange = { onChange(band.copy(q = it)) },
             valueRange = EqualizerSettings.MIN_Q..EqualizerSettings.MAX_Q,
+            labelColor = color,
+            sliderColors = sliderColors,
         )
 
         Spacer(Modifier.height(8.dp))
         Text(
             text = "Filter type",
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = colorVariant,
         )
         Spacer(Modifier.height(4.dp))
         SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
@@ -492,12 +813,15 @@ private fun LabeledSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
+    labelColor: Color = Color.Unspecified,
+    sliderColors: SliderColors = SliderDefaults.colors(),
 ) {
-    Text(text = label, style = MaterialTheme.typography.labelMedium)
+    Text(text = label, style = MaterialTheme.typography.labelMedium, color = labelColor)
     Slider(
         value = value,
         onValueChange = onValueChange,
         valueRange = valueRange,
+        colors = sliderColors,
     )
 }
 
