@@ -24,18 +24,23 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import com.dd3boh.outertune.audio.VisualizerFrame
 import kotlin.math.PI
 import kotlin.math.sin
 
 /**
- * A slow, breathing wash of colour drawn from the current album art.
+ * A slow, breathing wash of colour drawn from the current album art - optionally driven by the
+ * actual audio instead of just an ambient sine drift.
  *
- * Deliberately not driven by the audio signal. Two reasons: reading the PCM stream would mean
- * inserting an [androidx.media3.common.audio.AudioProcessor] into the sink chain, which is the
- * code path that produces sound and is a poor place for an untested change; and amplitude data
- * is spiky, so anything calm enough to sit behind a player ends up so heavily smoothed that the
- * audio barely shows through anyway. A slow sine drift reads as "breathing" more convincingly
- * than a smoothed waveform does, and costs nothing.
+ * The ambient drift alone was a deliberate choice at first: reading the PCM stream needed an
+ * [androidx.media3.common.audio.AudioProcessor] in the sink chain, and there wasn't one yet to
+ * reuse. [EqualizerAudioProcessor][com.dd3boh.outertune.audio.EqualizerAudioProcessor] is now
+ * exactly that tap point (built for the equalizer, reused here), already publishing smoothed
+ * bass/mid/treble/transient energy - [reactiveFrame], when supplied, modulates the same blobs
+ * this always drew rather than replacing them with something spikier: bass swells their radius,
+ * treble adds a faster shimmer, and a transient gives everything a brief flash. Null keeps the
+ * original pure-ambient behaviour exactly as it was, since amplitude data really is spiky enough
+ * that a caller may reasonably want to skip it (battery saver, or just personal preference).
  *
  * Cost is a handful of radial gradients per frame. The animation is read inside [drawBehind], so
  * a frame redraws without recomposing anything, and [isActive] stops the clock entirely when the
@@ -47,6 +52,7 @@ fun LiquidBackground(
     isActive: Boolean,
     modifier: Modifier = Modifier,
     alpha: Float = 0.45f,
+    reactiveFrame: VisualizerFrame? = null,
 ) {
     if (colors.isEmpty()) return
 
@@ -83,6 +89,13 @@ fun LiquidBackground(
         }
     }
 
+    // Additive on top of the ambient pulse/alpha rather than a replacement for them, so audio
+    // reactivity reads as "the same breathing wash, now nudged by the music" instead of a
+    // different-looking effect switching in and out as tracks get louder or quieter.
+    val bassKick = reactiveFrame?.bass ?: 0f
+    val trebleShimmer = reactiveFrame?.treble ?: 0f
+    val transientFlash = reactiveFrame?.transient ?: 0f
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -96,7 +109,8 @@ fun LiquidBackground(
                 // sin() over the shared clock gives smooth, seamless looping motion: at t = 0 and
                 // t = 1 every term returns to the same value, so the restart is invisible.
                 val tau = (2 * PI).toFloat()
-                val pulse = 0.92f + 0.08f * sin(tau * breath)
+                val pulse = 0.92f + 0.08f * sin(tau * breath) + bassKick * 0.4f + transientFlash * 0.15f
+                val dynamicAlpha = (alpha * (1f + trebleShimmer * 0.6f + transientFlash * 0.8f)).coerceAtMost(0.9f)
 
                 palette.forEachIndexed { i, color ->
                     val phase = i * (tau / palette.size)
@@ -106,7 +120,7 @@ fun LiquidBackground(
 
                     drawCircle(
                         brush = Brush.radialGradient(
-                            colors = listOf(color.copy(alpha = alpha), Color.Transparent),
+                            colors = listOf(color.copy(alpha = dynamicAlpha), Color.Transparent),
                             center = Offset(cx, cy),
                             radius = radius,
                         ),

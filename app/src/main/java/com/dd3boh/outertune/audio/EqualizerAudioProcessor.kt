@@ -60,6 +60,18 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     // count, only the channel count, so it's resized independently.
     private var compStates: Array<CompressorState> = arrayOf()
 
+    /**
+     * Feature extraction for the audio-reactive visualiser - the same tap point as the EQ itself,
+     * since both need to see the actual samples as they pass through. Gated by [visualizerEnabled]
+     * rather than always running: decoding every sample to feed it is measurably more work than the
+     * bulk [ByteBuffer.put] the bypass path otherwise takes, so it's only worth paying while
+     * something is actually on-screen to consume it.
+     */
+    val visualizer = VisualizerAnalyzer()
+
+    @Volatile
+    var visualizerEnabled: Boolean = false
+
     private var configuredSampleRate = 0
 
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
@@ -105,6 +117,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             throw UnhandledAudioFormatException(inputAudioFormat)
         }
         configuredSampleRate = inputAudioFormat.sampleRate
+        visualizer.configure(configuredSampleRate)
         recomputeCoefficients()
         return inputAudioFormat
     }
@@ -114,8 +127,28 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
         val channelCount = inputAudioFormat.channelCount
         val buffer = replaceOutputBuffer(inputBuffer.remaining())
+        val encoding = inputAudioFormat.encoding
+        val feedVisualizer = visualizerEnabled
 
         if (bypass) {
+            // The visualiser reacts to whatever's actually playing, independent of whether the EQ
+            // itself is doing anything to it - so it still needs a look at the samples even on the
+            // path that otherwise just bulk-copies the buffer through untouched.
+            if (feedVisualizer) {
+                val startPosition = inputBuffer.position()
+                while (inputBuffer.hasRemaining()) {
+                    var frameSum = 0f
+                    for (ch in 0 until channelCount) {
+                        frameSum += when (encoding) {
+                            C.ENCODING_PCM_16BIT -> inputBuffer.getShort() / 32768f
+                            C.ENCODING_PCM_FLOAT -> inputBuffer.getFloat()
+                            else -> 0f
+                        }
+                    }
+                    visualizer.feed(frameSum / channelCount)
+                }
+                inputBuffer.position(startPosition)
+            }
             buffer.put(inputBuffer)
             buffer.flip()
             return
@@ -125,11 +158,11 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val coeffs = coefficients
         val compCoeffs = compressorCoefficients
         val compressorEnabled = compressorSettings.enabled
-        val encoding = inputAudioFormat.encoding
         val leftGain = this.leftGain
         val rightGain = this.rightGain
 
         while (inputBuffer.hasRemaining()) {
+            var frameSum = 0f
             for (ch in 0 until channelCount) {
                 var sample = when (encoding) {
                     C.ENCODING_PCM_16BIT -> inputBuffer.getShort() / 32768f
@@ -146,6 +179,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     sample = compStates[ch].process(sample, compCoeffs)
                 }
 
+                if (feedVisualizer) frameSum += sample
+
                 sample *= when (ch) {
                     0 -> leftGain
                     1 -> rightGain
@@ -158,6 +193,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     C.ENCODING_PCM_FLOAT -> buffer.putFloat(sample)
                 }
             }
+            if (feedVisualizer) visualizer.feed(frameSum / channelCount)
         }
         buffer.flip()
     }
@@ -167,11 +203,13 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // alone, the old delay-line values would ring into the start of the new audio.
         states.forEach { channel -> channel.forEach { it.reset() } }
         compStates.forEach { it.reset() }
+        visualizer.reset()
     }
 
     override fun onReset() {
         states = arrayOf()
         compStates = arrayOf()
         configuredSampleRate = 0
+        visualizer.reset()
     }
 }

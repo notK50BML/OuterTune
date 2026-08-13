@@ -77,6 +77,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
@@ -137,6 +138,7 @@ import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
 import com.dd3boh.outertune.constants.EqContrastColorKey
+import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
 import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
 import com.dd3boh.outertune.constants.SliderStyleKey
@@ -1403,12 +1405,28 @@ fun PlayerBackground(
         if (playerBackground == PlayerBackgroundStyle.LIQUID) {
             if (PLAYER_DEBUG) Log.v(TAG, "PLR-2.2d")
             val isPlaying by playerConnection.isPlaying.collectAsState()
+            val isActive = isPlaying && !context.isPowerSaver()
+            val liquidAudioReactive by rememberPreference(LiquidAudioReactiveKey, defaultValue = true)
+            val visualizerAudioProcessor = playerConnection.service.equalizerAudioProcessor
+            val visualizerWanted = liquidAudioReactive && isActive
+
+            // Only pay for feature extraction while this is actually the thing on screen wanting
+            // it - the processor otherwise takes the cheap bulk-copy path whenever the EQ has
+            // nothing else to do.
+            DisposableEffect(visualizerWanted) {
+                visualizerAudioProcessor.visualizerEnabled = visualizerWanted
+                onDispose { visualizerAudioProcessor.visualizerEnabled = false }
+            }
+
+            val visualizerFrame by visualizerAudioProcessor.visualizer.frames.collectAsState()
+
             LiquidBackground(
                 colors = gradientColors,
                 // Stop the animation clock whenever it cannot be appreciated: paused playback or
                 // battery saver. The player sheet being collapsed already removes this from the
                 // composition entirely.
-                isActive = isPlaying && !context.isPowerSaver(),
+                isActive = isActive,
+                reactiveFrame = if (visualizerWanted) visualizerFrame else null,
             )
         }
 

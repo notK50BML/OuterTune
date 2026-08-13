@@ -21,6 +21,9 @@ val PlayerBackgroundStyleKey = stringPreferencesKey("playerBackgroundStyle")
  */
 val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
 
+/** Drive the Liquid background's blobs from the actual audio instead of a fixed ambient drift. */
+val LiquidAudioReactiveKey = booleanPreferencesKey("liquidAudioReactive")
+
 /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
 val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
 val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")

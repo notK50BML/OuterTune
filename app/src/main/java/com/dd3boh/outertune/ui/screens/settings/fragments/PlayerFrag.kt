@@ -42,6 +42,7 @@ import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
 import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
 import com.dd3boh.outertune.constants.KeepAliveKey
+import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
 import com.dd3boh.outertune.constants.PersistentQueueKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
@@ -438,6 +439,18 @@ fun PlayerBackgroundFrag() {
             icon = { Icon(Icons.Rounded.Contrast, null) },
             checked = autoTextContrast,
             onCheckedChange = onAutoTextContrastChange,
+        )
+    }
+
+    val (liquidAudioReactive, onLiquidAudioReactiveChange) =
+        rememberPreference(LiquidAudioReactiveKey, defaultValue = true)
+    AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
+        SwitchPreference(
+            title = { Text("Audio-reactive") },
+            description = "Let the blobs respond to bass, treble and beats instead of drifting on their own",
+            icon = { Icon(Icons.Rounded.GraphicEq, null) },
+            checked = liquidAudioReactive,
+            onCheckedChange = onLiquidAudioReactiveChange,
         )
     }
 }
