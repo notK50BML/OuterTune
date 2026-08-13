@@ -1,12 +1,20 @@
 package com.dd3boh.outertune.viewmodels
 
+import androidx.compose.runtime.mutableStateOf
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.dd3boh.outertune.constants.HistorySource
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.utils.reportException
+import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.pages.HistoryPage
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
@@ -16,9 +24,14 @@ import javax.inject.Inject
 class HistoryViewModel @Inject constructor(
     val database: MusicDatabase,
 ) : ViewModel() {
+    var historySource = MutableStateFlow(HistorySource.LOCAL)
+
     private val today = LocalDate.now()
     private val thisMonday = today.with(DayOfWeek.MONDAY)
     private val lastMonday = thisMonday.minusDays(7)
+    val historyPage = mutableStateOf<HistoryPage?>(null)
+    val historyError = MutableStateFlow<String?>(null)
+    private val isLoadingMore = MutableStateFlow(false)
 
     val events = database.events()
         .map { events ->
@@ -43,6 +56,45 @@ class HistoryViewModel @Inject constructor(
             })
         }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+
+    init {
+        fetchRemoteHistory()
+    }
+    
+    fun fetchRemoteHistory() {
+        viewModelScope.launch(Dispatchers.IO) {
+            YouTube.musicHistory().onSuccess {
+                historyPage.value = it
+            }.onFailure {
+                reportException(it)
+                historyError.value = it.message ?: it.javaClass.simpleName
+            }
+        }
+    }
+
+    fun loadMoreRemoteHistory() {
+        val continuation = historyPage.value?.continuation ?: return
+        if (isLoadingMore.value) return
+        isLoadingMore.value = true
+        viewModelScope.launch(Dispatchers.IO) {
+            YouTube.musicHistoryContinuation(continuation).onSuccess { page ->
+                val current = historyPage.value
+                val extraSongs = page.sections.orEmpty().flatMap { it.songs }
+                val mergedSections = current?.sections.orEmpty().toMutableList()
+                if (mergedSections.isNotEmpty()) {
+                    val last = mergedSections.removeAt(mergedSections.lastIndex)
+                    mergedSections.add(last.copy(songs = last.songs + extraSongs))
+                } else if (extraSongs.isNotEmpty()) {
+                    mergedSections.add(HistoryPage.HistorySection(title = "", songs = extraSongs))
+                }
+                historyPage.value = HistoryPage(sections = mergedSections, continuation = page.continuation)
+            }.onFailure {
+                reportException(it)
+                historyError.value = it.message ?: it.javaClass.simpleName
+            }
+            isLoadingMore.value = false
+        }
+    }
 }
 
 sealed class DateAgo {
