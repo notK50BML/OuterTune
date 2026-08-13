@@ -148,7 +148,14 @@ data class EqualizerSettings(
             "Dance" to listOf(6f, 6f, 5f, 3f, 0f, -2f, -1f, 1f, 3f, 5f, 5f, 5f),
             "Hip-Hop" to listOf(7f, 6f, 5f, 3f, 1f, 0f, 1f, 2f, 2f, 1f, 0f, 0f),
             "Acoustic" to listOf(2f, 2f, 1f, 1f, 0f, 0f, 1f, 2f, 2f, 1f, 1f, 2f),
-            "Loudness" to listOf(6f, 5f, 3f, 1f, 0f, -1f, -1f, 0f, 1f, 3f, 4f, 5f),
+            // A Fletcher-Munson "smile": ears are least sensitive to bass/treble at low listening
+            // volumes, so boosting both ends (and leaving the mids alone) is what actually makes
+            // quiet playback sound full instead of thin - the classic loudness-compensation curve.
+            "Loudness" to listOf(9f, 8f, 6f, 3f, 0f, 0f, 0f, 1f, 3f, 6f, 8f, 9f),
+            // Small/phone speakers can't reproduce sub-bass or air at all - push both extremes
+            // hard rather than the gentler full-range boost "Full Bass & Treble" uses.
+            "Small Speakers" to listOf(10f, 9f, 6f, 2f, 0f, 0f, 0f, 1f, 3f, 6f, 8f, 8f),
+            "Full Bass & Treble" to listOf(7f, 6f, 5f, 3f, 1f, -1f, -1f, 1f, 3f, 5f, 6f, 7f),
         )
 
         /**
