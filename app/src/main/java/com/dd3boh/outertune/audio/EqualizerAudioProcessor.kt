@@ -46,19 +46,31 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     @Volatile
     private var rightGain: Float = 1f
 
+    @Volatile
+    private var compressorSettings: EqualizerSettings.CompressorSettings = EqualizerSettings.CompressorSettings()
+
+    @Volatile
+    private var compressorCoefficients: CompressorCoefficients = CompressorCoefficients.BYPASS
+
     // [channel][band]. Rebuilt only when channel count or band count changes, so ordinary gain/Q
     // tweaks never reset the running filter state (which would produce an audible click).
     private var states: Array<Array<BiquadState>> = arrayOf()
+
+    // One envelope follower per channel - unlike the biquad grid this doesn't depend on the band
+    // count, only the channel count, so it's resized independently.
+    private var compStates: Array<CompressorState> = arrayOf()
 
     private var configuredSampleRate = 0
 
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
     fun setSettings(settings: EqualizerSettings) {
         val flat = settings.bands.all { !it.enabled || it.gainDb == 0f }
-        bypass = !settings.enabled || (flat && settings.balance == 0f)
+        val compressorOff = !settings.compressor.enabled
+        bypass = !settings.enabled || (flat && settings.balance == 0f && compressorOff)
         bands = settings.bands
         leftGain = (1f - settings.balance).coerceIn(0f, 1f)
         rightGain = (1f + settings.balance).coerceIn(0f, 1f)
+        compressorSettings = settings.compressor
         recomputeCoefficients()
     }
 
@@ -66,11 +78,24 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val sr = configuredSampleRate
         if (sr <= 0) return
         coefficients = Array(bands.size) { i -> BiquadCoefficients.forBand(bands[i], sr) }
+        val comp = compressorSettings
+        compressorCoefficients = if (!comp.enabled) CompressorCoefficients.BYPASS else CompressorCoefficients.from(
+            sampleRateHz = sr,
+            thresholdDb = comp.thresholdDb,
+            ratio = comp.ratio,
+            attackMs = comp.attackMs,
+            releaseMs = comp.releaseMs,
+            makeupGainDb = comp.makeupGainDb,
+        )
     }
 
     private fun ensureStates(channelCount: Int) {
-        if (states.size == channelCount && states.getOrNull(0)?.size == bands.size) return
-        states = Array(channelCount) { Array(bands.size) { BiquadState() } }
+        if (states.size != channelCount || states.getOrNull(0)?.size != bands.size) {
+            states = Array(channelCount) { Array(bands.size) { BiquadState() } }
+        }
+        if (compStates.size != channelCount) {
+            compStates = Array(channelCount) { CompressorState() }
+        }
     }
 
     override fun onConfigure(inputAudioFormat: AudioFormat): AudioFormat {
@@ -98,6 +123,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
         ensureStates(channelCount)
         val coeffs = coefficients
+        val compCoeffs = compressorCoefficients
+        val compressorEnabled = compressorSettings.enabled
         val encoding = inputAudioFormat.encoding
         val leftGain = this.leftGain
         val rightGain = this.rightGain
@@ -113,6 +140,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                 val channelStates = states[ch]
                 for (b in coeffs.indices) {
                     sample = channelStates[b].process(sample, coeffs[b])
+                }
+
+                if (compressorEnabled) {
+                    sample = compStates[ch].process(sample, compCoeffs)
                 }
 
                 sample *= when (ch) {
@@ -135,10 +166,12 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // A seek or track change is a discontinuity the filter shouldn't carry a memory of - left
         // alone, the old delay-line values would ring into the start of the new audio.
         states.forEach { channel -> channel.forEach { it.reset() } }
+        compStates.forEach { it.reset() }
     }
 
     override fun onReset() {
         states = arrayOf()
+        compStates = arrayOf()
         configuredSampleRate = 0
     }
 }

@@ -22,6 +22,7 @@ data class EqualizerSettings(
     val bands: List<EqBand> = DEFAULT_BANDS,
     /** Left/right balance, -1 (full left) .. 1 (full right), 0 = centered. */
     val balance: Float = 0f,
+    val compressor: CompressorSettings = CompressorSettings(),
 ) {
     enum class FilterType(val key: String) {
         PEAKING("peaking"),
@@ -41,6 +42,21 @@ data class EqualizerSettings(
         val q: Float = DEFAULT_Q,
         val type: FilterType = FilterType.PEAKING,
         val enabled: Boolean = true,
+    )
+
+    /**
+     * A simple feed-forward dynamics compressor, applied after the band cascade. Turns down
+     * whatever's already louder than [thresholdDb] by [ratio] : 1, with [attackMs]/[releaseMs]
+     * controlling how quickly the gain reduction kicks in and lets go, then makes the result
+     * up again by [makeupGainDb] so compressing doesn't just make everything quieter.
+     */
+    data class CompressorSettings(
+        val enabled: Boolean = false,
+        val thresholdDb: Float = -18f,
+        val ratio: Float = 4f,
+        val attackMs: Float = 20f,
+        val releaseMs: Float = 150f,
+        val makeupGainDb: Float = 0f,
     )
 
     /** Applies a preset's gains onto this settings' existing band frequencies/types/Qs. */
@@ -67,12 +83,20 @@ data class EqualizerSettings(
             array.put(obj)
         }
         root.put("bands", array)
+        val comp = JSONObject()
+        comp.put("enabled", compressor.enabled)
+        comp.put("threshold", compressor.thresholdDb.toDouble())
+        comp.put("ratio", compressor.ratio.toDouble())
+        comp.put("attack", compressor.attackMs.toDouble())
+        comp.put("release", compressor.releaseMs.toDouble())
+        comp.put("makeup", compressor.makeupGainDb.toDouble())
+        root.put("compressor", comp)
         return root.toString()
     }
 
     companion object {
         /** Bumped alongside this file's shape. A file claiming a newer version is refused. */
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
 
         const val MIN_GAIN_DB = -15f
         const val MAX_GAIN_DB = 15f
@@ -81,6 +105,17 @@ data class EqualizerSettings(
         const val DEFAULT_Q = 1f
         const val MIN_FREQ_HZ = 16f
         const val MAX_FREQ_HZ = 20000f
+
+        const val MIN_THRESHOLD_DB = -60f
+        const val MAX_THRESHOLD_DB = 0f
+        const val MIN_RATIO = 1f
+        const val MAX_RATIO = 20f
+        const val MIN_ATTACK_MS = 1f
+        const val MAX_ATTACK_MS = 200f
+        const val MIN_RELEASE_MS = 10f
+        const val MAX_RELEASE_MS = 1000f
+        const val MIN_MAKEUP_DB = 0f
+        const val MAX_MAKEUP_DB = 24f
 
         /**
          * 12 bands, roughly octave-spaced at the low end and tightening toward the top, matching
@@ -143,10 +178,21 @@ data class EqualizerSettings(
                 }.ifEmpty { DEFAULT_BANDS }
             }
 
+            val compObj = root.optJSONObject("compressor")
+            val compressor = if (compObj == null) CompressorSettings() else CompressorSettings(
+                enabled = compObj.optBoolean("enabled", false),
+                thresholdDb = compObj.optDouble("threshold", -18.0).toFloat().coerceIn(MIN_THRESHOLD_DB, MAX_THRESHOLD_DB),
+                ratio = compObj.optDouble("ratio", 4.0).toFloat().coerceIn(MIN_RATIO, MAX_RATIO),
+                attackMs = compObj.optDouble("attack", 20.0).toFloat().coerceIn(MIN_ATTACK_MS, MAX_ATTACK_MS),
+                releaseMs = compObj.optDouble("release", 150.0).toFloat().coerceIn(MIN_RELEASE_MS, MAX_RELEASE_MS),
+                makeupGainDb = compObj.optDouble("makeup", 0.0).toFloat().coerceIn(MIN_MAKEUP_DB, MAX_MAKEUP_DB),
+            )
+
             EqualizerSettings(
                 enabled = root.optBoolean("enabled", false),
                 bands = bands,
                 balance = root.optDouble("balance", 0.0).toFloat().coerceIn(-1f, 1f),
+                compressor = compressor,
             )
         }
     }
