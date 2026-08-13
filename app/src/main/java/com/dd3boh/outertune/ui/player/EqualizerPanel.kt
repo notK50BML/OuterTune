@@ -565,6 +565,7 @@ private fun valueGradientColor(value: Float, range: ClosedFloatingPointRange<Flo
  * A horizontal Poweramp-styled slider with a label above and a value readout below, mirroring
  * [RotaryDial]'s own layout so switching the "use dials" setting doesn't reflow anything around it.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PowerampSlider(
     value: Float,
@@ -1041,6 +1042,7 @@ private fun BandEditor(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun LabeledSlider(
     label: String,
