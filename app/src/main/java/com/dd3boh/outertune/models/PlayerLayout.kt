@@ -54,6 +54,13 @@ data class PlayerLayout(
         val widthPercent: Float = 100f,
         /** Degrees clockwise. Only meaningful for the blocks the editor offers it on. */
         val rotationDegrees: Float = 0f,
+        /**
+         * Schema 4. Blocks sharing the same non-null [groupId] move, hide and show as one unit in
+         * free placement - grouping [BlockId.CONTROL_MEMBERS]/[BlockId.ACTION_MEMBERS] back
+         * together after splitting them out is exactly the "group/ungroup" the editor offers, not
+         * a separate mechanism from the split itself.
+         */
+        val groupId: String? = null,
     )
 
     enum class BlockId(val key: String) {
@@ -62,10 +69,32 @@ data class PlayerLayout(
         PROGRESS("progress"),
         CONTROLS("controls"),
         ACTIONS("actions"),
-        QUEUE("queue");
+        QUEUE("queue"),
+
+        // Schema 4: individually-positionable/hideable members of CONTROLS/ACTIONS. A layout that
+        // never mentions any of these keeps rendering CONTROLS/ACTIONS as the single grouped row
+        // they always were - these only take over once a file actually asks for one of them, which
+        // is what lets a v3 file import unchanged instead of needing migration.
+        SHUFFLE("shuffle"),
+        SEEK_BACKWARD("seek_backward"),
+        SKIP_PREVIOUS("skip_previous"),
+        PLAY_PAUSE("play_pause"),
+        SEEK_FORWARD("seek_forward"),
+        SKIP_NEXT("skip_next"),
+        REPEAT("repeat"),
+        SLEEP_TIMER("sleep_timer"),
+        LIKE("like"),
+        EQUALIZER("equalizer"),
+        MENU("menu");
 
         companion object {
             fun from(key: String?) = entries.firstOrNull { it.key == key }
+
+            /** The individually-positionable pieces [CONTROLS] splits into. */
+            val CONTROL_MEMBERS = setOf(SHUFFLE, SEEK_BACKWARD, SKIP_PREVIOUS, PLAY_PAUSE, SEEK_FORWARD, SKIP_NEXT, REPEAT)
+
+            /** The individually-positionable pieces [ACTIONS] splits into. */
+            val ACTION_MEMBERS = setOf(SLEEP_TIMER, LIKE, EQUALIZER, MENU)
         }
     }
 
@@ -73,14 +102,29 @@ data class PlayerLayout(
 
     fun isVisible(id: BlockId): Boolean = block(id).visible
 
+    /** True once the file asks for any individual member instead of the grouped [BlockId.CONTROLS] row. */
+    val hasGranularControls: Boolean by lazy { blocks.any { it.id in BlockId.CONTROL_MEMBERS } }
+
+    /** True once the file asks for any individual member instead of the grouped [BlockId.ACTIONS] row. */
+    val hasGranularActions: Boolean by lazy { blocks.any { it.id in BlockId.ACTION_MEMBERS } }
+
     companion object {
         /** Bumped alongside the editor. A file claiming a newer version is refused, not guessed at. */
-        const val SCHEMA_VERSION = 3
+        const val SCHEMA_VERSION = 4
 
         const val DEFAULT_SPACING_DP = 16
         const val DEFAULT_SIDE_PADDING_DP = 24
 
-        val DEFAULT_BLOCKS: List<Block> = BlockId.entries.map { Block(it) }
+        /**
+         * The six top-level blocks every layout has always had. Deliberately not
+         * [BlockId.entries] - that also includes the eleven granular members, and the built-in
+         * default (no file imported at all) is exactly the "nobody asked for granular yet" case
+         * that [hasGranularControls]/[hasGranularActions] exist to distinguish. Including them
+         * here would make both permanently true from the moment the app starts.
+         */
+        val DEFAULT_BLOCKS: List<Block> =
+            listOf(BlockId.ARTWORK, BlockId.INFO, BlockId.PROGRESS, BlockId.CONTROLS, BlockId.ACTIONS, BlockId.QUEUE)
+                .map { Block(it) }
 
         /** The built-in layout: what the player looks like with no file imported. */
         val DEFAULT = PlayerLayout()
@@ -117,16 +161,29 @@ data class PlayerLayout(
                     yPercent = obj.optDouble("y", 0.0).toFloat().coerceIn(0f, 100f),
                     widthPercent = obj.optDouble("w", 100.0).toFloat().coerceIn(5f, 100f),
                     rotationDegrees = obj.optDouble("rot", 0.0).toFloat().coerceIn(-90f, 90f),
+                    groupId = obj.optString("group").takeIf { it.isNotEmpty() },
                 )
             }
             require(parsed.isNotEmpty()) { "None of the blocks in that file were recognised." }
 
-            // A block the file never mentioned comes back with its defaults, at the end. Dropping
-            // it instead would silently remove a control - the play button, say - from a player
-            // the user then has no way to fix from inside the app.
+            // Whether *this file* actually asked for granular controls/actions, judged from what
+            // it explicitly listed - captured before backfilling below adds anything, since a
+            // block added only because it was missing is not the file asking for it.
+            val fileHasGranularControls = parsed.keys.any { it in BlockId.CONTROL_MEMBERS }
+            val fileHasGranularActions = parsed.keys.any { it in BlockId.ACTION_MEMBERS }
+
+            // A block the file never mentioned comes back with its defaults, at the end - dropping
+            // it instead would silently remove a control (the play button, say) from a player the
+            // user then has no way to fix from inside the app. But this only applies within a
+            // group the file already granularized: backfilling every granular id unconditionally
+            // is exactly what would make hasGranularControls/hasGranularActions permanently true
+            // for every file, granular or not, which defeats the entire point of checking them.
             val blocks = parsed.values.toMutableList()
             BlockId.entries.forEach { id ->
-                if (!parsed.containsKey(id)) blocks.add(Block(id))
+                if (parsed.containsKey(id)) return@forEach
+                val skip = (id in BlockId.CONTROL_MEMBERS && !fileHasGranularControls) ||
+                    (id in BlockId.ACTION_MEMBERS && !fileHasGranularActions)
+                if (!skip) blocks.add(Block(id))
             }
 
             PlayerLayout(

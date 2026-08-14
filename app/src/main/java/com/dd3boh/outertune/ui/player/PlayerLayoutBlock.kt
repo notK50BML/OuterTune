@@ -77,7 +77,7 @@ fun StackBlock(
  * without reflowing the text inside it or shoving its neighbours around, which is what the editor's
  * preview shows and what makes a scaled block land where its coordinates say it will.
  */
-private fun Modifier.blockTransform(block: PlayerLayout.Block): Modifier {
+internal fun Modifier.blockTransform(block: PlayerLayout.Block): Modifier {
     val scale = (block.scalePercent / 100f).coerceAtLeast(0.05f)
     if (scale == 1f && block.rotationDegrees == 0f) return this
     return graphicsLayer {

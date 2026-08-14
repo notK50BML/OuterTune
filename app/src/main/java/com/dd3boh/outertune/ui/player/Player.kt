@@ -958,6 +958,160 @@ fun ControlsContent(
                 }
             }
 
+            // Schema 4: ACTIONS split into individually hideable/positionable pieces, duplicating
+            // ActionButtons()'s own per-button visuals rather than refactoring it - ActionButtons
+            // is also called inline in the title row below and stays exactly as it was for any
+            // file that never asks for one of these by name. Declared before infoBlock/controlsBlock
+            // below since it references these from within its own lambda bodies.
+            val menuState = LocalMenuState.current
+            val currentSong by playerConnection.currentSong.collectAsState(initial = null)
+            val showSleepTimerButton by rememberPreference(SleepTimerShowOnPlayerKey, defaultValue = true)
+            val sleepTimerActive = remember(
+                playerConnection.service.sleepTimer.triggerTime,
+                playerConnection.service.sleepTimer.pauseWhenSongEnd
+            ) {
+                playerConnection.service.sleepTimer.isActive
+            }
+            var sleepTimerTimeLeft by remember { mutableLongStateOf(0L) }
+            LaunchedEffect(sleepTimerActive) {
+                if (sleepTimerActive) {
+                    while (isActive) {
+                        sleepTimerTimeLeft = if (playerConnection.service.sleepTimer.pauseWhenSongEnd) {
+                            playerConnection.player.duration - playerConnection.player.currentPosition
+                        } else {
+                            playerConnection.service.sleepTimer.triggerTime - System.currentTimeMillis()
+                        }
+                        delay(1000L)
+                    }
+                }
+            }
+            var showSleepTimerDialog by remember { mutableStateOf(false) }
+            if (showSleepTimerDialog) {
+                SleepTimerDialog(onDismiss = { showSleepTimerDialog = false })
+            }
+            val sleepTimerButtonBlock: @Composable () -> Unit = {
+                if (showSleepTimerButton) {
+                    if (sleepTimerActive) {
+                        Box(
+                            modifier = Modifier
+                                .height(36.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.primary)
+                                .clickable { showSleepTimerDialog = true }
+                                .padding(horizontal = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = makeTimeString(sleepTimerTimeLeft),
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1
+                            )
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.primary)
+                        ) {
+                            ResizableIconButton(
+                                icon = Icons.Rounded.Bedtime,
+                                color = MaterialTheme.colorScheme.onPrimary,
+                                modifier = Modifier.align(Alignment.Center).size(24.dp),
+                                onClick = { showSleepTimerDialog = true }
+                            )
+                        }
+                    }
+                }
+            }
+            val likeButtonBlock: @Composable () -> Unit = {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                ) {
+                    ResizableIconButton(
+                        icon = if (currentSong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.align(Alignment.Center).size(24.dp),
+                        onClick = playerConnection::toggleLike
+                    )
+                }
+            }
+            val showEqualizerButton by rememberPreference(ShowEqualizerButtonKey, defaultValue = true)
+            val equalizerButtonBlock: @Composable () -> Unit = {
+                if (showEqualizerButton) {
+                    val equalizerPanelState = LocalEqualizerPanelState.current
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.primary)
+                    ) {
+                        ResizableIconButton(
+                            icon = Icons.Rounded.Equalizer,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.align(Alignment.Center).size(24.dp),
+                            onClick = { equalizerPanelState.visible = true }
+                        )
+                    }
+                }
+            }
+            val menuButtonBlock: @Composable () -> Unit = {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(24.dp))
+                        .background(MaterialTheme.colorScheme.primary)
+                ) {
+                    ResizableIconButton(
+                        icon = Icons.Rounded.MoreVert,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(24.dp).align(Alignment.Center),
+                        onClick = {
+                            menuState.show {
+                                PlayerMenu(
+                                    mediaMetadata = mediaMetadata,
+                                    navController = navController,
+                                    playerBottomSheetState = playerSheetState,
+                                    onDismiss = menuState::dismiss
+                                )
+                            }
+                        }
+                    )
+                }
+            }
+
+            val actionsBlock: @Composable () -> Unit = {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    ActionButtons(playerSheetState, navController)
+                }
+            }
+            // The granular equivalent of actionsBlock, in the file's own block order and each
+            // gated on its own visibility - used wherever the legacy actionsBlock() used to be,
+            // once the file asks for any one of these by name.
+            val granularActionsRow: @Composable () -> Unit = {
+                Spacer(modifier = Modifier.width(10.dp))
+                playerLayout.blocks
+                    .filter { it.id in PlayerLayout.BlockId.ACTION_MEMBERS && it.visible }
+                    .forEach { b ->
+                        when (b.id) {
+                            PlayerLayout.BlockId.SLEEP_TIMER -> sleepTimerButtonBlock()
+                            PlayerLayout.BlockId.LIKE -> likeButtonBlock()
+                            PlayerLayout.BlockId.EQUALIZER -> equalizerButtonBlock()
+                            PlayerLayout.BlockId.MENU -> menuButtonBlock()
+                            else -> Unit
+                        }
+                        Spacer(modifier = Modifier.width(7.dp))
+                    }
+            }
+
             // Each group is captured rather than emitted in place, so the imported layout can
             // decide the order and which of them appear at all. Nothing about how they are built
             // changed - only when they are called.
@@ -1025,8 +1179,14 @@ fun ControlsContent(
                         // action buttons for portrait (inline with title). Not in free placement:
                         // there they are their own block with their own coordinates, and drawing
                         // them here as well would put two copies on screen.
-                        if (!compactWidth && actionsVisible && artwork == null) {
-                            ActionButtons(playerSheetState, navController)
+                        if (!compactWidth && artwork == null) {
+                            if (playerLayout.hasGranularActions) {
+                                if (playerLayout.blocks.any { it.id in PlayerLayout.BlockId.ACTION_MEMBERS && it.visible }) {
+                                    granularActionsRow()
+                                }
+                            } else if (actionsVisible) {
+                                ActionButtons(playerSheetState, navController)
+                            }
                         }
                     }
                 }
@@ -1087,6 +1247,132 @@ fun ControlsContent(
 
                 Spacer(Modifier.height(12.dp))
             }
+            // Schema 4: each of these is CONTROLS split into an individually
+            // hideable/positionable piece. controlsBlock() below composes all seven back into
+            // exactly the row it always was, so a v3 file (which never mentions any of them)
+            // renders unchanged - these only matter once a layout actually asks for one by name.
+            val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+            val shuffleButtonBlock: @Composable () -> Unit = {
+                ResizableIconButton(
+                    icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+                    modifier = Modifier.size(32.dp).padding(4.dp),
+                    color = onBackgroundColor,
+                    enabled = playerConnection.player.currentMediaItem != null,
+                    onClick = {
+                        playerConnection.triggerShuffle()
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                    }
+                )
+            }
+            val skipPreviousButtonBlock: @Composable () -> Unit = {
+                ResizableIconButton(
+                    icon = Icons.Rounded.SkipPrevious,
+                    enabled = canSkipPrevious,
+                    modifier = Modifier.size(32.dp),
+                    color = onBackgroundColor,
+                    onClick = {
+                        if (playerConnection.player.currentMediaItem == null) {
+                            queueBoard.setCurrQueue()
+                        }
+                        playerConnection.player.seekToPrevious()
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                    }
+                )
+            }
+            // Seek-backward/forward stay gated on the seek increment setting even when a layout
+            // explicitly asks for them - with the increment off there is no amount to jump by, so
+            // showing the button anyway would just be a control that does nothing.
+            val seekBackwardButtonBlock: @Composable () -> Unit = {
+                if (seekIncrement != SeekIncrement.OFF) {
+                    ResizableIconButton(
+                        icon = Icons.Rounded.FastRewind,
+                        modifier = Modifier.size(32.dp),
+                        color = onBackgroundColor,
+                        enabled = playerConnection.player.currentMediaItem != null,
+                        onClick = {
+                            playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
+                        }
+                    )
+                }
+            }
+            val playPauseButtonBlock: @Composable () -> Unit = {
+                Box(
+                    modifier = Modifier
+                        // Same size whether or not lyrics are showing: the controls should not
+                        // change shape just because the artwork was swapped for lyrics.
+                        .size(if (maxW >= 320.dp) 72.dp else 42.dp)
+                        .animateContentSize()
+                        .clip(RoundedCornerShape(playPauseRoundness))
+                        .background(MaterialTheme.colorScheme.primary)
+                        .clickable {
+                            if (playerConnection.player.currentMediaItem == null) {
+                                queueBoard.setCurrQueue()
+                                playerConnection.player.togglePlayPause()
+                            } else if (playbackState == STATE_ENDED) {
+                                playerConnection.player.seekTo(0, 0)
+                                playerConnection.player.playWhenReady = true
+                            } else {
+                                playerConnection.player.togglePlayPause()
+                            }
+                            // play/pause is slightly harder haptic
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        }
+                ) {
+                    Image(
+                        imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+                        contentDescription = null,
+                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .size(36.dp)
+                    )
+                }
+            }
+            val seekForwardButtonBlock: @Composable () -> Unit = {
+                if (seekIncrement != SeekIncrement.OFF) {
+                    ResizableIconButton(
+                        icon = Icons.Rounded.FastForward,
+                        modifier = Modifier.size(32.dp),
+                        color = onBackgroundColor,
+                        enabled = playerConnection.player.currentMediaItem != null,
+                        onClick = {
+                            //ExoPlayer seek increment can only be set in builder
+                            //playerConnection.player.seekForward()
+                            playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
+                        }
+                    )
+                }
+            }
+            val skipNextButtonBlock: @Composable () -> Unit = {
+                ResizableIconButton(
+                    icon = Icons.Rounded.SkipNext,
+                    enabled = canSkipNext,
+                    modifier = Modifier.size(32.dp),
+                    color = onBackgroundColor,
+                    onClick = {
+                        playerConnection.player.seekToNext()
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                    }
+                )
+            }
+            val repeatButtonBlock: @Composable () -> Unit = {
+                ResizableIconButton(
+                    icon = when (repeatMode) {
+                        REPEAT_MODE_OFF -> R.drawable.repeat_off
+                        REPEAT_MODE_ALL -> R.drawable.repeat_on
+                        REPEAT_MODE_ONE -> R.drawable.repeat_one
+                        else -> throw IllegalStateException()
+                    },
+                    modifier = Modifier.size(32.dp).padding(4.dp),
+                    color = onBackgroundColor,
+                    enabled = playerConnection.player.currentMediaItem != null,
+                    onClick = {
+                        playerConnection.player.toggleRepeatMode()
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                    }
+                )
+            }
+
             val controlsBlock: @Composable () -> Unit = {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -1094,160 +1380,19 @@ fun ControlsContent(
                         .fillMaxWidth()
                         .padding(horizontal = PlayerHorizontalPadding)
                 ) {
-                    val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        ResizableIconButton(
-                            icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .padding(4.dp)
-                                .align(Alignment.Center),
-                            color = onBackgroundColor,
-                            enabled = playerConnection.player.currentMediaItem != null,
-                            onClick = {
-                                playerConnection.triggerShuffle()
-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                            }
-                        )
-                    }
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        ResizableIconButton(
-                            icon = Icons.Rounded.SkipPrevious,
-                            enabled = canSkipPrevious,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .align(Alignment.Center),
-                            color = onBackgroundColor,
-                            onClick = {
-                                if (playerConnection.player.currentMediaItem == null) {
-                                    queueBoard.setCurrQueue()
-                                }
-                                playerConnection.player.seekToPrevious()
-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                            }
-                        )
-                    }
-
+                    Box(modifier = Modifier.weight(1f)) { shuffleButtonBlock() }
+                    Box(modifier = Modifier.weight(1f)) { skipPreviousButtonBlock() }
                     if (seekIncrement != SeekIncrement.OFF) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            ResizableIconButton(
-                                icon = Icons.Rounded.FastRewind,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .align(Alignment.Center),
-                                color = onBackgroundColor,
-                                enabled = playerConnection.player.currentMediaItem != null,
-                                onClick = {
-                                    playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
-                                }
-                            )
-                        }
+                        Box(modifier = Modifier.weight(1f)) { seekBackwardButtonBlock() }
                     }
-
                     Spacer(Modifier.width(8.dp))
-
-                    Box(
-                        modifier = Modifier
-                            // Same size whether or not lyrics are showing: the controls should not
-                            // change shape just because the artwork was swapped for lyrics.
-                            .size(if (maxW >= 320.dp) 72.dp else 42.dp)
-                            .animateContentSize()
-                            .clip(RoundedCornerShape(playPauseRoundness))
-                            .background(MaterialTheme.colorScheme.primary)
-                            .clickable {
-                                if (playerConnection.player.currentMediaItem == null) {
-                                    queueBoard.setCurrQueue()
-                                    playerConnection.player.togglePlayPause()
-                                } else if (playbackState == STATE_ENDED) {
-                                    playerConnection.player.seekTo(0, 0)
-                                    playerConnection.player.playWhenReady = true
-                                } else {
-                                    playerConnection.player.togglePlayPause()
-                                }
-                                // play/pause is slightly harder haptic
-                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
-                            }
-                    ) {
-                        Image(
-                            imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                            contentDescription = null,
-                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .size(36.dp)
-                        )
-                    }
-
+                    playPauseButtonBlock()
                     Spacer(Modifier.width(8.dp))
-
                     if (seekIncrement != SeekIncrement.OFF) {
-                        Box(modifier = Modifier.weight(1f)) {
-                            ResizableIconButton(
-                                icon = Icons.Rounded.FastForward,
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .align(Alignment.Center),
-                                color = onBackgroundColor,
-                                enabled = playerConnection.player.currentMediaItem != null,
-                                onClick = {
-                                    //ExoPlayer seek increment can only be set in builder
-                                    //playerConnection.player.seekForward()
-                                    playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
-                                }
-                            )
-                        }
+                        Box(modifier = Modifier.weight(1f)) { seekForwardButtonBlock() }
                     }
-
-
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        ResizableIconButton(
-                            icon = Icons.Rounded.SkipNext,
-                            enabled = canSkipNext,
-                            modifier = Modifier
-                                .size(32.dp)
-                                .align(Alignment.Center),
-                            color = onBackgroundColor,
-                            onClick = {
-                                playerConnection.player.seekToNext()
-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                            }
-                        )
-                    }
-
-                    Box(modifier = Modifier.weight(1f)) {
-                        ResizableIconButton(
-                            icon = when (repeatMode) {
-                                REPEAT_MODE_OFF -> R.drawable.repeat_off
-                                REPEAT_MODE_ALL -> R.drawable.repeat_on
-                                REPEAT_MODE_ONE -> R.drawable.repeat_one
-                                else -> throw IllegalStateException()
-                            },
-                            modifier = Modifier
-                                .size(32.dp)
-                                .padding(4.dp)
-                                .align(Alignment.Center),
-                            color = onBackgroundColor,
-                            enabled = playerConnection.player.currentMediaItem != null,
-                            onClick = {
-                                playerConnection.player.toggleRepeatMode()
-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
-                            }
-                        )
-                    }
-                }
-
-            }
-
-            val actionsBlock: @Composable () -> Unit = {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    ActionButtons(playerSheetState, navController)
+                    Box(modifier = Modifier.weight(1f)) { skipNextButtonBlock() }
+                    Box(modifier = Modifier.weight(1f)) { repeatButtonBlock() }
                 }
             }
 
@@ -1261,45 +1406,105 @@ fun ControlsContent(
                     PlayerLayout.BlockId.CONTROLS -> controlsBlock()
                     PlayerLayout.BlockId.ACTIONS -> actionsBlock()
                     PlayerLayout.BlockId.QUEUE -> Unit
+                    PlayerLayout.BlockId.SHUFFLE -> shuffleButtonBlock()
+                    PlayerLayout.BlockId.SEEK_BACKWARD -> seekBackwardButtonBlock()
+                    PlayerLayout.BlockId.SKIP_PREVIOUS -> skipPreviousButtonBlock()
+                    PlayerLayout.BlockId.PLAY_PAUSE -> playPauseButtonBlock()
+                    PlayerLayout.BlockId.SEEK_FORWARD -> seekForwardButtonBlock()
+                    PlayerLayout.BlockId.SKIP_NEXT -> skipNextButtonBlock()
+                    PlayerLayout.BlockId.REPEAT -> repeatButtonBlock()
+                    PlayerLayout.BlockId.SLEEP_TIMER -> sleepTimerButtonBlock()
+                    PlayerLayout.BlockId.LIKE -> likeButtonBlock()
+                    PlayerLayout.BlockId.EQUALIZER -> equalizerButtonBlock()
+                    PlayerLayout.BlockId.MENU -> menuButtonBlock()
                 }
             }
 
-            // CONTROLS is emitted whatever the file says. Hiding the play button leaves a player
-            // that cannot be paused from its own screen, and a layout file is not a good place to
-            // discover that.
-            fun shows(b: PlayerLayout.Block) = b.visible || b.id == PlayerLayout.BlockId.CONTROLS
+            // CONTROLS/PLAY_PAUSE are emitted whatever the file says. Hiding the play button
+            // leaves a player that cannot be paused from its own screen, and a layout file is not
+            // a good place to discover that - true for the legacy monolithic block and for its
+            // granular replacement alike.
+            fun shows(b: PlayerLayout.Block) =
+                b.visible || b.id == PlayerLayout.BlockId.CONTROLS || b.id == PlayerLayout.BlockId.PLAY_PAUSE
 
             if (artwork != null) {
                 // Free placement. Every block is drawn into one box the size of the player, each
                 // one positioned by its own coordinates, in the order the file lists them - so a
-                // block later in the list draws over an earlier one where they overlap.
+                // block later in the list draws over an earlier one where they overlap. The
+                // monolithic CONTROLS/ACTIONS blocks are skipped once granular members exist for
+                // them - both would otherwise draw at once, since a granular file still carries a
+                // backfilled-default CONTROLS/ACTIONS entry for round-trip compatibility.
                 Box(modifier = Modifier.fillMaxSize()) {
                     playerLayout.blocks.forEach { b ->
-                        if (shows(b) && b.id != PlayerLayout.BlockId.QUEUE) {
+                        val supersededByGranular =
+                            (b.id == PlayerLayout.BlockId.CONTROLS && playerLayout.hasGranularControls) ||
+                                (b.id == PlayerLayout.BlockId.ACTIONS && playerLayout.hasGranularActions)
+                        if (shows(b) && b.id != PlayerLayout.BlockId.QUEUE && !supersededByGranular) {
                             FreeBlock(b) { contentFor(b.id) }
                         }
                     }
                 }
             } else {
                 // ARTWORK is drawn by the caller in its own box above these, the QUEUE is a
-                // bottom sheet, and ACTIONS is drawn inline with the title - emitting it here as
-                // well would put two action rows on screen.
-                val stacked = playerLayout.blocks.filter {
-                    shows(it) &&
-                            it.id != PlayerLayout.BlockId.QUEUE &&
-                            it.id != PlayerLayout.BlockId.ARTWORK &&
-                            it.id != PlayerLayout.BlockId.ACTIONS
+                // bottom sheet, and ACTIONS (monolithic or granular) is drawn inline with the
+                // title - emitting it here as well would put two action rows on screen.
+                val stacked = playerLayout.blocks.filter { b ->
+                    shows(b) &&
+                        b.id != PlayerLayout.BlockId.QUEUE &&
+                        b.id != PlayerLayout.BlockId.ARTWORK &&
+                        b.id != PlayerLayout.BlockId.ACTIONS &&
+                        b.id !in PlayerLayout.BlockId.ACTION_MEMBERS &&
+                        !(b.id == PlayerLayout.BlockId.CONTROLS && playerLayout.hasGranularControls)
                 }
-                stacked.forEachIndexed { i, b ->
+                // Blocks sharing a group id render together as one row wherever the first member
+                // sits, the same clustering the layout editor's own preview does - so splitting
+                // "controls" into seven individually-hideable buttons doesn't turn them into seven
+                // separate stacked rows. PLAY_PAUSE keeps its fixed pill shape rather than being
+                // squeezed to an equal share of the row, matching controlsBlock()'s own layout.
+                val seenGroups = mutableSetOf<String>()
+                val units = stacked.mapNotNull { b ->
+                    val gid = b.groupId
+                    when {
+                        gid == null -> listOf(b)
+                        gid in seenGroups -> null
+                        else -> {
+                            seenGroups += gid
+                            stacked.filter { it.groupId == gid }
+                        }
+                    }
+                }
+                units.forEachIndexed { i, unit ->
                     if (hasImportedLayout) {
                         // Spacing and the size transform are things a file asked for. With no file
                         // there is nothing to apply, and applying the defaults anyway would add gaps
                         // and a wrapper the built-in layout never had - which is what "reset to
                         // default" is supposed to take away, not introduce.
                         if (i > 0) Spacer(Modifier.height(playerLayout.spacingDp.dp))
-                        StackBlock(b) { contentFor(b.id) }
+                        if (unit.size == 1) {
+                            StackBlock(unit.single()) { contentFor(unit.single().id) }
+                        } else {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = PlayerHorizontalPadding)
+                            ) {
+                                unit.forEach { b ->
+                                    // blockTransform (not StackBlock) - StackBlock forces
+                                    // fillMaxWidth, which is right for a block spanning the
+                                    // stack on its own but would push a Row child like this off
+                                    // its natural/weighted size. The transform is still applied,
+                                    // so a member's own scale/rotation works the same as it
+                                    // would rendering alone; grouping only changes whether it
+                                    // shares a row.
+                                    if (b.id == PlayerLayout.BlockId.PLAY_PAUSE) {
+                                        Box(modifier = Modifier.blockTransform(b)) { contentFor(b.id) }
+                                    } else {
+                                        Box(modifier = Modifier.weight(1f).blockTransform(b)) { contentFor(b.id) }
+                                    }
+                                }
+                            }
+                        }
                     } else {
-                        contentFor(b.id)
+                        unit.forEach { b -> contentFor(b.id) }
                     }
                 }
             }
