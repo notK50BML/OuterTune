@@ -1,7 +1,7 @@
 From ce6f7f799e2725b2420d65354b05d9b2932e9260 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/81] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/82] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 00000000..81d7f34c
 From 7f0e1fd0d2f68f9dd2ee974bba518e6de4c2aecb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/81] Add patch notes
+Subject: [PATCH 02/82] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 00000000..28c797a0
 From 14a0026fb47ca1dd0b4ffe318d936134ad3544c0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/81] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/82] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a89..27f97bf7 100644
 From ae6f8b0436d2b8f4c04775c6366e8408ca4bd77e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/81] Clarify build route in patch notes
+Subject: [PATCH 04/82] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f961..a43e5d3f 100644
 From a2a69476880e0932200a968cb2083100a7dd183e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/81] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/82] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b930..7d500840 100644
 From 3ae0c5459c9b78c1e45f534f61681fa4736c66ce Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/81] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/82] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac8..a848cde2 100644
 From 1bb5f2a86d88f1b6ea98d774f716ae0a456c3c61 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/81] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/82] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf7..580a4a9c 100644
 From b5cab04db270c6e3deef98d28a2ae287320eb62d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/81] Add Discord rich presence
+Subject: [PATCH 08/82] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b851593..575e5dee 100755
 From 155aa686f6c440d450880dab72e8a83ec7115232 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/81] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/82] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 83537f7a..113ca4e6 100644
 From a3a8ffb76d0f6fd2210f2a7bca654e5ab06ccaf7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/81] Add a Liquid player background
+Subject: [PATCH 10/82] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2e..9ce0f192 100644
 From dd43f1bd3ecfd1bf8579f6c98b52e9f936ca632b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/81] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/82] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f192..0afd9445 100644
 From aae3d59212eb43886ab8baf03a4b63f582810ea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/81] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/82] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd9445..8388e17e 100644
 From af8889f3b724566d259e89bfe01d6ed7950ccac4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/81] Fix Discord presence never appearing
+Subject: [PATCH 13/82] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fcc..d9eaf365 100644
 From d13be09e7bb19a5874f33c9849c00b4fb0e3735c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/81] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/82] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17e..25f56c21 100644
 From 28c032b66b173341a462e44b235f734937c60b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/81] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/82] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f5..90bac793 100644
 From 63c8d2f05745563c27dd450bc7c22bbe2cff4cf0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/81] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/82] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c0..92770533 100644
 From a1f9d093fc934f94eaa1fccb0ec3578c0e156fe8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/81] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/82] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 92770533..1fd386f5 100644
 From 93ac83ecb8abc1bd14dd35e6f83dd73a4cac165d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/81] Point in-app links at this fork
+Subject: [PATCH 18/82] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 3f52f92e..ea1302e1 160000
 From 1bc0166156cdc6ccdab97890f0a9737320e7d472 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 19/81] Fix the Discord presence freezing on a track change
+Subject: [PATCH 19/82] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6205,7 +6205,7 @@ index 227e9628..e843bb7d 100644
 From 1c459ecf189ebde4292f0ec027f3648a46a0c30f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 20/81] Explain where to find the Discord token
+Subject: [PATCH 20/82] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6235,7 +6235,7 @@ index 035206ed..93e4b92b 100644
 From 9ed0888d5759bafb731af62d30f8cec9c69d335c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 21/81] Ask Discord's module registry for the token
+Subject: [PATCH 21/82] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6422,7 +6422,7 @@ index 9244411c..4aea73d0 100644
 From 884c109ffd5bdf01594a4c3a126f809655ffca29 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 22/81] Add app icon customisation
+Subject: [PATCH 22/82] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7360,7 +7360,7 @@ index 93e4b92b..25673abe 100644
 From b33df24023f93249c3061e94b2d6420462df9857 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 23/81] Add a frosted glass player background
+Subject: [PATCH 23/82] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7741,7 +7741,7 @@ index 25673abe..d6c42efd 100644
 From 85bdabde5d107693e5404c7d37bfa9c90981ad93 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 24/81] Turn the home search into a field, and thin out the top
+Subject: [PATCH 24/82] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8029,7 +8029,7 @@ index d6c42efd..37748685 100644
 From 18916896604ef7934670495b3794d838b7963efd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 25/81] Add extended charts to Stats
+Subject: [PATCH 25/82] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8325,7 +8325,7 @@ index 37748685..10418352 100644
 From 29ddeed3e0ada034cb3501628a176ea241cb22b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 26/81] Import player layouts from the layout editor
+Subject: [PATCH 26/82] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9298,7 +9298,7 @@ index 10418352..20ed4dc7 100644
 From 99a3843c67380030057cfd7b5ef5ec256011704c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 27/81] Add song recognition
+Subject: [PATCH 27/82] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11356,7 +11356,7 @@ index 00000000..1c59e9ca
 From 82750b1199210b8cc04c3c75e0fa9eb568251585 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 28/81] Fix the stats charts
+Subject: [PATCH 28/82] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11755,7 +11755,7 @@ index f7096084..a26b3be5 100644
 From b305cfa3aebfc9f7df830ae6324f20bf328b5dc6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 29/81] Let the stats charts rank by plays or by time
+Subject: [PATCH 29/82] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -12002,7 +12002,7 @@ index a26b3be5..3bc88bf8 100644
 From 6af09d88c1916a8526a5842b2caf2bb622bf91c2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 30/81] Position layout blocks by their centre, and allow
+Subject: [PATCH 30/82] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12076,7 +12076,7 @@ index ee3a36c6..641eb5f5 100644
 From 5b8c3d0a9191c49c9824aca70cf10de20ec415ba Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 31/81] Keep word timings when the lenient TTML parser is used
+Subject: [PATCH 31/82] Keep word timings when the lenient TTML parser is used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
 those go through the lenient parser in the betterlyrics module instead. That
@@ -12416,7 +12416,7 @@ index 00000000..5d346a37
 From 40f68d78899f54767eb6c24be76a4588411f5e94 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 32/81] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 32/82] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13234,7 +13234,7 @@ index 00000000..c9a8384c
 From 328bdae8e63c63d7c3ae0ec9358b8a586ac1704c Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 33/81] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 33/82] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13288,7 +13288,7 @@ index 156d94ca..a909d4d5 100644
 From 36e7edfec22e65d65316f2713fa4a53530cb638e Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 34/81] Let the user choose which lyric provider is preferred
+Subject: [PATCH 34/82] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14112,7 +14112,7 @@ index 00000000..78961d0d
 From c0246f7046446a427bbcd0d558fce15ef6228dee Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 35/81] Document the lyrics work in the patch notes
+Subject: [PATCH 35/82] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14217,7 +14217,7 @@ index a43e5d3f..85917675 100644
 From 3ef61068af8b23d2d9c2a5eda00522e6c0444b54 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 36/81] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 36/82] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14273,7 +14273,7 @@ index 78bb0691..f7636ae1 100644
 From 65ed25bf4e9455c8cc5e40cd8308a8fba67dcb6f Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 37/81] Colour the queue handle to match the player background
+Subject: [PATCH 37/82] Colour the queue handle to match the player background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
 alpha - the fade only starts once the sheet is about a tenth of the way open.
@@ -14503,7 +14503,7 @@ index 86483840..338957b0 100644
 From b317322dff8bf8ae138edcf98fac49cbe133026a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:39:12 +0000
-Subject: [PATCH 38/81] Restore the artist queries the stats fix deleted
+Subject: [PATCH 38/82] Restore the artist queries the stats fix deleted
 
 :app:compileCoreReleaseKotlin failed with a page of unresolved references -
 artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
@@ -14620,7 +14620,7 @@ index 6a7034b5..5a8ef057 100644
 From 99658fa617f0c37b34d8a5538916bf0edfeed16a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 39/81] Let the identify-a-song button be moved or hidden
+Subject: [PATCH 39/82] Let the identify-a-song button be moved or hidden
 
 Settings -> Appearance -> Display -> Identify a song button, with three
 choices: the top of the home screen, where it has always been; inside the
@@ -14829,7 +14829,7 @@ index f7636ae1..45596e34 100644
 From fcbf211593695d397b2c0c43a646f7c875ace5c8 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 40/81] Colour the lyrics from the player background, not the
+Subject: [PATCH 40/82] Colour the lyrics from the player background, not the
  theme
 
 Lyrics are drawn on top of whatever the player is showing behind them, but they
@@ -14925,7 +14925,7 @@ index 1700c659..18a7575b 100644
 From 259253b40852aaf3a3e6a1a5ca8938acb4a1bf68 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:39:45 +0000
-Subject: [PATCH 41/81] Stop the word sweep from silently doing nothing
+Subject: [PATCH 41/82] Stop the word sweep from silently doing nothing
 
 Three ways it could look dead, all fixed, none of them confirmed as the one -
 this is written without a device to reproduce on.
@@ -15034,7 +15034,7 @@ index 18a7575b..5e9b45d5 100644
 From 6f7e373d0cbed0eea39930d085fd71ad420182aa Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 42/81] Prefer word-timed lyrics over whichever provider
+Subject: [PATCH 42/82] Prefer word-timed lyrics over whichever provider
  answers first
 
 The word-by-word sweep was never engaging, and the renderer was not the reason:
@@ -15242,7 +15242,7 @@ index ed96011c..cfd6e83e 100644
 From 60bc422126444523f64edaefebfdc2a1b763034a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 43/81] Start the chart queue at the song that was tapped
+Subject: [PATCH 43/82] Start the chart queue at the song that was tapped
 
 Tapping any song in Most played songs, or in the extended Top songs, played the
 number one track instead. Both built a queue from the whole chart and never said
@@ -15323,7 +15323,7 @@ index 48721417..3c284db3 100644
 From c6bdf7adbc5767e4b5d11435050af37e2d6482d6 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:28:52 +0000
-Subject: [PATCH 44/81] Actually place the blocks an imported layout asks for
+Subject: [PATCH 44/82] Actually place the blocks an imported layout asks for
 
 The importer read every field in the file, validated it, showed it back in the
 settings summary, and then the player used two of them: whether a block is
@@ -15619,7 +15619,7 @@ index 00000000..aa2ecafb
 From 72243f51268ca9f60a8e4b85fcf751e9cc47a811 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:58:53 +0000
-Subject: [PATCH 45/81] Stop the layout dispatch from changing the built-in
+Subject: [PATCH 45/82] Stop the layout dispatch from changing the built-in
  player
 
 Two faults, both mine, both from making the action row a block.
@@ -15763,7 +15763,7 @@ index b793cb19..291d13ee 100644
 From 2717fb2dd02bcd78bb2181af18a8593a4968164e Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 08:18:05 +0000
-Subject: [PATCH 46/81] Pause the Discord presence instead of removing it
+Subject: [PATCH 46/82] Pause the Discord presence instead of removing it
 
 Pausing a song cleared the activity outright, so the card vanished from your
 profile and came back on resume. It now stays up with its timestamps dropped.
@@ -15894,7 +15894,7 @@ index 45596e34..58bf36a5 100644
 From cd182e72c2ac2d400d9796ccca023f39578ddda5 Mon Sep 17 00:00:00 2001
 From: K50 <k50@example.com>
 Date: Mon, 10 Aug 2026 10:58:07 +0000
-Subject: [PATCH 47/81] Make landscape player full-width and hide navigation
+Subject: [PATCH 47/82] Make landscape player full-width and hide navigation
  rail
 
 ---
@@ -16005,7 +16005,7 @@ index d3568b6e..45152b97 100644
 From b874608ccc581de93b11a7c86ce882a9a2791a05 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:05 +0800
-Subject: [PATCH 48/81] Confirm nuke actions, and add a queue-beside-current
+Subject: [PATCH 48/82] Confirm nuke actions, and add a queue-beside-current
  toggle
 
 The debug nuke buttons deleted from the database immediately on click
@@ -16293,7 +16293,7 @@ index 58bf36a5..afc1ef7a 100644
 From bb162801acf301e6b67b3a32e40348a9bb21ac3a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:24 +0800
-Subject: [PATCH 49/81] Show the YTM view count in the song details dialog
+Subject: [PATCH 49/82] Show the YTM view count in the song details dialog
 
 PlayerResponse.VideoDetails.viewCount was already being fetched for
 playback but never surfaced anywhere. Thread it into the Details
@@ -16369,7 +16369,7 @@ index afc1ef7a..97586a2d 100644
 From acca28c373be043190acfd2ff98fe7e517978c95 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:38 +0800
-Subject: [PATCH 50/81] Keep the Discord card layout when paused, add an
+Subject: [PATCH 50/82] Keep the Discord card layout when paused, add an
  auto-clear timeout
 
 Pausing dropped both startTime and endTime, which also removes the
@@ -16588,7 +16588,7 @@ index e4422458..0c909c81 100644
 From b3bc081bf3f9d57366ec110dcd0f017b95479432 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:59 +0800
-Subject: [PATCH 51/81] Paginate remote history and stop swallowing fetch
+Subject: [PATCH 51/82] Paginate remote history and stop swallowing fetch
  failures
 
 musicHistory() only ever read the first page - there was no
@@ -16818,7 +16818,7 @@ index 5881062b..881ebce5 100644
 From 51e99817fb034ccbe6bc293255e1eb7d11d24a74 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:17:20 +0800
-Subject: [PATCH 52/81] Fix the top bar landing under the status bar, and the
+Subject: [PATCH 52/82] Fix the top bar landing under the status bar, and the
  tablet rail covering the search bar
 
 Two separate inset bugs in SearchBarContainer, both stemming from the
@@ -16942,7 +16942,7 @@ index b33a6b87..d34f96c1 100644
 From 4e86e4d03ac799fa5b804fc640ab0a262c3824a0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:06 +0800
-Subject: [PATCH 53/81] Center the landscape player and give it a full-width
+Subject: [PATCH 53/82] Center the landscape player and give it a full-width
  queue handle
 
 Three related fixes in LandscapePlayer:
@@ -17088,7 +17088,7 @@ index 45152b97..c27e51f0 100644
 From d9456e4abee862b293e459259d75493ccf0f9117 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 14:56:23 +0800
-Subject: [PATCH 54/81] Fix the black-screen player backgrounds, and give
+Subject: [PATCH 54/82] Fix the black-screen player backgrounds, and give
  FOLLOW_THEME a renderer
 
 Two bugs behind "the screens are all black":
@@ -17280,7 +17280,7 @@ index c27e51f0..095a91ff 100644
 From b5c4f66419daf1b043f249dc418df8b39961f96e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:26 +0800
-Subject: [PATCH 55/81] Add a 12-band parametric equalizer
+Subject: [PATCH 55/82] Add a 12-band parametric equalizer
 
 A cascaded-biquad IIR filter bank (Robert Bristow-Johnson cookbook
 coefficients, pure Kotlin - no native library, negligible size cost),
@@ -18336,7 +18336,7 @@ index 0c909c81..4e867ee5 100644
 From 09e10a7c4600c2e7c6f7d19f32f103ec0b28c26d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:10 +0800
-Subject: [PATCH 56/81] Rework the equalizer into a full-screen panel, and add
+Subject: [PATCH 56/82] Rework the equalizer into a full-screen panel, and add
  balance/more presets
 
 The EQ sheet's state used to live inside the transient 3-dot menu
@@ -19712,7 +19712,7 @@ index 4e867ee5..71024c63 100644
 From c6e9549793695456f8e38e953eb6768dc5a1f169 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:32 +0800
-Subject: [PATCH 57/81] Center the navigation rail and remove its logo header
+Subject: [PATCH 57/82] Center the navigation rail and remove its logo header
 
 The rail's own logo header anchored the item group to the top, and
 Modifier.verticalScroll() on the rail meant weight()-based centering
@@ -19808,7 +19808,7 @@ index 26330b96..703cac30 100644
 From b24abe296cb282d2e624c548da47053207e1b2ae Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:44 +0800
-Subject: [PATCH 58/81] Stop the Discord presence from still ticking forward
+Subject: [PATCH 58/82] Stop the Discord presence from still ticking forward
  while paused
 
 Kept timestamps set while paused so the progress-bar row stayed put
@@ -19862,7 +19862,7 @@ index 290d34fc..a6cf5a94 100644
 From 56043cf8fa7abd1a2c7505088dfb64ae958f457e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:40:07 +0800
-Subject: [PATCH 59/81] Show each song's own listen time/play count on the
+Subject: [PATCH 59/82] Show each song's own listen time/play count on the
  stats screen
 
 The stats screen already had a chip toggle to rank by time listened
@@ -20132,7 +20132,7 @@ index 71024c63..93e4840d 100644
 From 69741d9e84df31635bce725edd439b6a7786d523 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:43:17 +0800
-Subject: [PATCH 60/81] Add shuffle to the equalizer's mini transport
+Subject: [PATCH 60/82] Add shuffle to the equalizer's mini transport
 
 Missed from the prev/play-pause/next row - shuffle belongs in the
 same "basic playback controls" set.
@@ -20179,7 +20179,7 @@ index 62aabc08..4e5e33a0 100644
 From 71ae254af276ca0fdf6c5a0f55cb7dd0ee61e024 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:53:25 +0800
-Subject: [PATCH 61/81] Fix the app freezing when opening a song's details
+Subject: [PATCH 61/82] Fix the app freezing when opening a song's details
  dialog
 
 The view-count fetch added in the details dialog ran straight from
@@ -20234,7 +20234,7 @@ index 64586602..18f0ecda 100644
 From 5a314e56d26bb183ba3178e1b3fadf986c49b75d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:20 +0800
-Subject: [PATCH 62/81] Add a compressor to the equalizer's audio pipeline
+Subject: [PATCH 62/82] Add a compressor to the equalizer's audio pipeline
 
 A simple feed-forward dynamics compressor (threshold/ratio/attack/release/makeup gain), applied after the band cascade and gated by the same master enabled switch.
 ---
@@ -20523,7 +20523,7 @@ index e24b0e5b..1ecfc377 100644
 From d7d2843b1544bcda68152af268043ee8554f8b35 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:36 +0800
-Subject: [PATCH 63/81] Rework the equalizer panel: contrast color everywhere,
+Subject: [PATCH 63/82] Rework the equalizer panel: contrast color everywhere,
  rotary dials, compressor UI, matching transport
 
 - Add a rotary dial control and use it for per-band frequency/gain in the band editor, plus quick bass/treble dials and an optional balance dial with a left/right readout.
@@ -21407,7 +21407,7 @@ index 560f2441..7f41aec8 100644
 From 861c938125b3463fcf79d387914f1f08cf3e23b3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:24:27 +0800
-Subject: [PATCH 64/81] Remove the Discord presence entirely while paused
+Subject: [PATCH 64/82] Remove the Discord presence entirely while paused
  instead of showing a paused card
 
 Superseded the earlier omit-timestamps fix: a paused/stopped player now calls stopActivity() immediately (same as no media loaded), rather than sending a 'Paused' card with a frozen layout. Removes the now-meaningless auto-clear-after-pause timer and setting along with it, since there's nothing left for it to clear.
@@ -21645,7 +21645,7 @@ index a6cf5a94..49e2e224 100644
 From cdd2249d7db19222ccf3c49b8ea39cd812999a6d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:28:35 +0800
-Subject: [PATCH 65/81] Remove the remote history tab
+Subject: [PATCH 65/82] Remove the remote history tab
 
 Local history is the only option now that the remote tab is gone, so collapse the History screen to render it directly instead of behind a source selector. Drops the now-dead remote-history fetch/continuation/pagination code from the view model, the innertube client, and the HistoryPage model.
 ---
@@ -22230,7 +22230,7 @@ index 881ebce5..00000000
 From 82cf6eb32cb2379e2ea275c81a9e9d68a5a3d19f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:29:22 +0800
-Subject: [PATCH 66/81] Refine the equalizer's built-in presets to feel closer
+Subject: [PATCH 66/82] Refine the equalizer's built-in presets to feel closer
  to Poweramp's
 
 Loudness becomes a proper Fletcher-Munson smile curve, plus two more Poweramp-signature presets (Small Speakers, Full Bass & Treble).
@@ -22265,7 +22265,7 @@ index 1ecfc377..29258783 100644
 From e82f2f31535df2260f8b54a60ded4adfb01df950 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:41:37 +0800
-Subject: [PATCH 67/81] Simplify the EQ's slider styling, dock its transport
+Subject: [PATCH 67/82] Simplify the EQ's slider styling, dock its transport
  like the queue, fix landscape lyrics overlap
 
 - Drop the per-feature slim/default slider-style picker in the equalizer - it's slim everywhere now, no setting to maintain.
@@ -22442,7 +22442,7 @@ index a9cbaa3a..780b4e56 100644
 From 60ff3369ee6ded58cfb22481b5be0f9e9df5658d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:56:54 +0800
-Subject: [PATCH 68/81] Tweak equalizer gain values in 0.1 dB steps
+Subject: [PATCH 68/82] Tweak equalizer gain values in 0.1 dB steps
 
 Quantizes every gain-related dial/slider (band gain, bass/treble, compressor threshold/makeup) to 0.1 dB on change, and formats their labels to one decimal instead of rounding to a whole dB.
 ---
@@ -22559,7 +22559,7 @@ index 780b4e56..ae31fef8 100644
 From cefac396262a09030aeed0ebc57ff5ddd635f549 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:00:19 +0800
-Subject: [PATCH 69/81] Let equalizer presets remember custom edits as named
+Subject: [PATCH 69/82] Let equalizer presets remember custom edits as named
  profiles
 
 Adds EqualizerProfile: every preset name doubles as a profile, with a factory curve (from the existing PRESETS gains) and, once Saved, a persisted custom override. The preset row becomes a profile selector (FilterChip, built-ins undeletable, custom ones removable), with Save / Save as new / Revert to saved / Revert to default actions for whichever profile is active - so tweaking a band while a preset is selected has somewhere to persist instead of being overwritten the next time that preset is tapped.
@@ -22806,7 +22806,7 @@ index ae31fef8..9d8066a5 100644
 From f51bdafb9008f57e76f6a4ae506ac8833c81f172 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:18:05 +0800
-Subject: [PATCH 70/81] Make the Liquid player background audio-reactive
+Subject: [PATCH 70/82] Make the Liquid player background audio-reactive
 
 Adds VisualizerAnalyzer: cheap, no-FFT bass/mid/treble/transient extraction fed from the equalizer's existing audio tap (EqualizerAudioProcessor), published as a throttled ~30Hz StateFlow rather than per-sample. Gated by a visualizerEnabled flag so the extra sample decoding only happens while something's actually consuming it - the EQ's bypass path otherwise stays a cheap bulk buffer copy.
 
@@ -23282,7 +23282,7 @@ index f84b6af1..b0bd9449 100644
 From 5368302644eb3cebb03a118cb90a09eb2b3d327c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:19:25 +0800
-Subject: [PATCH 71/81] Fix missing WindowInsets.statusBars import breaking the
+Subject: [PATCH 71/82] Fix missing WindowInsets.statusBars import breaking the
  build
 
 ---
@@ -23308,7 +23308,7 @@ index 13ce963c..cd838c70 100644
 From 71db3ef7f5b461ad3c272a794230892a144775fb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:25:36 +0800
-Subject: [PATCH 72/81] Fix EQ crackle on boosted presets: automatic headroom
+Subject: [PATCH 72/82] Fix EQ crackle on boosted presets: automatic headroom
  pre-gain plus soft clipping
 
 Several adjacent bands boosted at once (Bass Boost, Loudness, Small Speakers) overlap enough that the summed signal clears 0dBFS well before any single band's own gain would suggest, and the previous hard coerceIn(-1f, 1f) turned that into audible crackle on transients.
@@ -23414,7 +23414,7 @@ index f2de06f8..cbf450a1 100644
 From de9fdca4c3a998caa785baf26471fd1b67ee7b32 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:41:57 +0800
-Subject: [PATCH 73/81] Bring back remote history
+Subject: [PATCH 73/82] Bring back remote history
 
 Reconsidered after removing it - the underlying fetch was already fixed (pagination, safe defaults instead of force-unwraps, failures surfaced via snackbar) before it got pulled entirely, so restoring the already-working version rather than rebuilding from scratch. Local/remote tab selector, HistoryPage/HistorySource, and YouTube.musicHistory()/musicHistoryContinuation() are all back exactly as they were right before removal.
 ---
@@ -23999,7 +23999,7 @@ index 00000000..881ebce5
 From 1a22012aedd29c113466d59d41b08b1c5f998610 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:43:44 +0800
-Subject: [PATCH 74/81] Remove orphaned strings left over from earlier removals
+Subject: [PATCH 74/82] Remove orphaned strings left over from earlier removals
 
 equalizer_slider_style, discord_rpc_clear_after_pause(_desc), never, and rpc_paused have had zero code references since the slider-style setting was dropped and the Discord paused-card behavior was removed - the resource shrinker already excludes them from the built APK, this is just source hygiene.
 ---
@@ -24048,7 +24048,7 @@ index 93e4840d..a2296ddb 100644
 From e265560790edda21e6cb8919f22d7c98cd15a51a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:58:57 +0800
-Subject: [PATCH 75/81] Fix the rotary dials not responding, and the liquid
+Subject: [PATCH 75/82] Fix the rotary dials not responding, and the liquid
  visualiser rendering grey
 
 - RotaryDial's drag handler closed over the value parameter directly, but detectDragGestures runs in a coroutine that survives across separate physical drags - so every drag after the first computed its delta against a stale value from whenever that coroutine started, not the value the previous drag actually landed on. Fixed with rememberUpdatedState on both the value and the callback.
@@ -24333,7 +24333,7 @@ index cd838c70..57eac864 100644
 From fb44b0dd0283478ea26793f8fa59e12fe1029e95 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:08:48 +0800
-Subject: [PATCH 76/81] Add dial/slider toggle, Poweramp-style flat sliders,
+Subject: [PATCH 76/82] Add dial/slider toggle, Poweramp-style flat sliders,
  and value color gradient to the equalizer
 
 - New 'Use dials instead of sliders' setting: band gain, the band editor's frequency/gain, and bass/treble all switch between the rotary dials and a slider depending on it, alongside the existing separate balance dial/slider toggle.
@@ -25091,7 +25091,7 @@ index 08e5f268..4ca41321 100644
 From f0ce97c1dc69cb998b8f88da7fe116fedb03877b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:52:17 +0800
-Subject: [PATCH 77/81] Fix RotaryDial compile error: missing getValue import
+Subject: [PATCH 77/82] Fix RotaryDial compile error: missing getValue import
  for by rememberUpdatedState
 
 State<T> needs the androidx.compose.runtime.getValue extension in scope to be
@@ -25121,7 +25121,7 @@ index e89d3b26..f2e16144 100644
 From c049e8447141ede6913e2086f7022f61613e8643 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 06:48:30 +0800
-Subject: [PATCH 78/81] Fix EqualizerPanel compile error: opt in to
+Subject: [PATCH 78/82] Fix EqualizerPanel compile error: opt in to
  ExperimentalMaterial3Api on PowerampSlider/LabeledSlider
 
 Both call the Slider(track=, thumb=) overload directly but weren't annotated,
@@ -25158,7 +25158,7 @@ index 4ca41321..e37fcebe 100644
 From ea63bd49d59fa8d0b42d28013244f6b721ad0aa9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 14:46:35 +0800
-Subject: [PATCH 79/81] EQ visual overhaul + lyrics sync fix + miniplayer
+Subject: [PATCH 79/82] EQ visual overhaul + lyrics sync fix + miniplayer
  dismiss fix
 
 - Lyrics: findCurrentLineIndex no longer wraps a transient negative
@@ -26088,7 +26088,7 @@ index 57eac864..430b1aa6 100644
 From b40ddc22e87a8f93cfcee19ad319680024ddb8b4 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:38:42 +0800
-Subject: [PATCH 80/81] EQ tone controls rework, Liquid background v3,
+Subject: [PATCH 80/82] EQ tone controls rework, Liquid background v3,
  per-style text contrast
 
 - Bass/Treble dials now move every band at/below 250Hz or at/above
@@ -26877,7 +26877,7 @@ index b0bd9449..5d63ed4a 100644
 From 5f0c662652148fe210c80d5163eddd49f166b090 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:33:54 +0800
-Subject: [PATCH 81/81] EQ color scheme rework, bigger handle, fix Liquid
+Subject: [PATCH 81/82] EQ color scheme rework, bigger handle, fix Liquid
  alpha-flash
 
 - Sliders: track fill is always a fixed green, unfilled portion a
@@ -27414,6 +27414,789 @@ index 8a31b1e2..d9f55c41 100644
  
                  palette.forEachIndexed { i, color ->
                      // Two sine terms per axis at deliberately non-harmonic speeds, each blob on its
+-- 
+2.45.1.windows.1
+
+
+From 1d5972c1d752a9fab59744f05acc518af8adea4a Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 14 Aug 2026 16:03:07 +0800
+Subject: [PATCH 82/82] Layout editor schema v4: render individual
+ transport/action buttons
+
+- PlayerLayout.kt: bumped to SCHEMA_VERSION 4, fixed two bugs in the
+  half-finished schema-4 groundwork from earlier - DEFAULT_BLOCKS was
+  including all 17 BlockIds (including the 11 granular ones), which
+  would have made hasGranularControls/hasGranularActions permanently
+  true from app launch with no file imported at all; parse()'s backfill
+  had the same problem for any imported file, since it filled in every
+  missing BlockId unconditionally. Both now only backfill a group's
+  members once the file already asked for at least one of them.
+  parse() also now reads the "group" field.
+- Player.kt: split controlsBlock's five transport buttons and the four
+  action buttons into individually addressable composables
+  (shuffleButtonBlock, playPauseButtonBlock, likeButtonBlock, etc.),
+  wired into contentFor() for the eleven new BlockIds. controlsBlock()
+  and actionsBlock() themselves are unchanged in what they render - they
+  just call the same underlying pieces now, so a v3 file (or the
+  built-in default) still renders identically.
+  Free placement: the monolithic CONTROLS/ACTIONS entries are skipped
+  once granular members exist for them, since a granular file still
+  carries a backfilled-default entry for round-trip compatibility that
+  would otherwise draw a second copy on screen.
+  Stacked mode: blocks sharing a group id now render together as one
+  row wherever the first member sits (matching the layout editor's own
+  preview), instead of a general grouping mechanism not existing at
+  all. PLAY_PAUSE keeps its fixed pill size within that row rather than
+  being squeezed by Row weighting like the icon buttons around it.
+  shows() now also force-includes PLAY_PAUSE, extending the existing
+  "the play button can't be hidden" rule to its granular form.
+- PlayerLayoutBlock.kt: blockTransform made internal so the new grouped-
+  row rendering in Player.kt can apply a member's own scale/rotation
+  without going through StackBlock's forced fillMaxWidth, which would
+  have broken Row sizing for anything sharing a row with others.
+---
+ .../dd3boh/outertune/models/PlayerLayout.kt   |  71 ++-
+ .../com/dd3boh/outertune/ui/player/Player.kt  | 537 ++++++++++++------
+ .../outertune/ui/player/PlayerLayoutBlock.kt  |   2 +-
+ 3 files changed, 436 insertions(+), 174 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+index 641eb5f5..901ae083 100644
+--- a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
++++ b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+@@ -54,6 +54,13 @@ data class PlayerLayout(
+         val widthPercent: Float = 100f,
+         /** Degrees clockwise. Only meaningful for the blocks the editor offers it on. */
+         val rotationDegrees: Float = 0f,
++        /**
++         * Schema 4. Blocks sharing the same non-null [groupId] move, hide and show as one unit in
++         * free placement - grouping [BlockId.CONTROL_MEMBERS]/[BlockId.ACTION_MEMBERS] back
++         * together after splitting them out is exactly the "group/ungroup" the editor offers, not
++         * a separate mechanism from the split itself.
++         */
++        val groupId: String? = null,
+     )
+ 
+     enum class BlockId(val key: String) {
+@@ -62,10 +69,32 @@ data class PlayerLayout(
+         PROGRESS("progress"),
+         CONTROLS("controls"),
+         ACTIONS("actions"),
+-        QUEUE("queue");
++        QUEUE("queue"),
++
++        // Schema 4: individually-positionable/hideable members of CONTROLS/ACTIONS. A layout that
++        // never mentions any of these keeps rendering CONTROLS/ACTIONS as the single grouped row
++        // they always were - these only take over once a file actually asks for one of them, which
++        // is what lets a v3 file import unchanged instead of needing migration.
++        SHUFFLE("shuffle"),
++        SEEK_BACKWARD("seek_backward"),
++        SKIP_PREVIOUS("skip_previous"),
++        PLAY_PAUSE("play_pause"),
++        SEEK_FORWARD("seek_forward"),
++        SKIP_NEXT("skip_next"),
++        REPEAT("repeat"),
++        SLEEP_TIMER("sleep_timer"),
++        LIKE("like"),
++        EQUALIZER("equalizer"),
++        MENU("menu");
+ 
+         companion object {
+             fun from(key: String?) = entries.firstOrNull { it.key == key }
++
++            /** The individually-positionable pieces [CONTROLS] splits into. */
++            val CONTROL_MEMBERS = setOf(SHUFFLE, SEEK_BACKWARD, SKIP_PREVIOUS, PLAY_PAUSE, SEEK_FORWARD, SKIP_NEXT, REPEAT)
++
++            /** The individually-positionable pieces [ACTIONS] splits into. */
++            val ACTION_MEMBERS = setOf(SLEEP_TIMER, LIKE, EQUALIZER, MENU)
+         }
+     }
+ 
+@@ -73,14 +102,29 @@ data class PlayerLayout(
+ 
+     fun isVisible(id: BlockId): Boolean = block(id).visible
+ 
++    /** True once the file asks for any individual member instead of the grouped [BlockId.CONTROLS] row. */
++    val hasGranularControls: Boolean by lazy { blocks.any { it.id in BlockId.CONTROL_MEMBERS } }
++
++    /** True once the file asks for any individual member instead of the grouped [BlockId.ACTIONS] row. */
++    val hasGranularActions: Boolean by lazy { blocks.any { it.id in BlockId.ACTION_MEMBERS } }
++
+     companion object {
+         /** Bumped alongside the editor. A file claiming a newer version is refused, not guessed at. */
+-        const val SCHEMA_VERSION = 3
++        const val SCHEMA_VERSION = 4
+ 
+         const val DEFAULT_SPACING_DP = 16
+         const val DEFAULT_SIDE_PADDING_DP = 24
+ 
+-        val DEFAULT_BLOCKS: List<Block> = BlockId.entries.map { Block(it) }
++        /**
++         * The six top-level blocks every layout has always had. Deliberately not
++         * [BlockId.entries] - that also includes the eleven granular members, and the built-in
++         * default (no file imported at all) is exactly the "nobody asked for granular yet" case
++         * that [hasGranularControls]/[hasGranularActions] exist to distinguish. Including them
++         * here would make both permanently true from the moment the app starts.
++         */
++        val DEFAULT_BLOCKS: List<Block> =
++            listOf(BlockId.ARTWORK, BlockId.INFO, BlockId.PROGRESS, BlockId.CONTROLS, BlockId.ACTIONS, BlockId.QUEUE)
++                .map { Block(it) }
+ 
+         /** The built-in layout: what the player looks like with no file imported. */
+         val DEFAULT = PlayerLayout()
+@@ -117,16 +161,29 @@ data class PlayerLayout(
+                     yPercent = obj.optDouble("y", 0.0).toFloat().coerceIn(0f, 100f),
+                     widthPercent = obj.optDouble("w", 100.0).toFloat().coerceIn(5f, 100f),
+                     rotationDegrees = obj.optDouble("rot", 0.0).toFloat().coerceIn(-90f, 90f),
++                    groupId = obj.optString("group").takeIf { it.isNotEmpty() },
+                 )
+             }
+             require(parsed.isNotEmpty()) { "None of the blocks in that file were recognised." }
+ 
+-            // A block the file never mentioned comes back with its defaults, at the end. Dropping
+-            // it instead would silently remove a control - the play button, say - from a player
+-            // the user then has no way to fix from inside the app.
++            // Whether *this file* actually asked for granular controls/actions, judged from what
++            // it explicitly listed - captured before backfilling below adds anything, since a
++            // block added only because it was missing is not the file asking for it.
++            val fileHasGranularControls = parsed.keys.any { it in BlockId.CONTROL_MEMBERS }
++            val fileHasGranularActions = parsed.keys.any { it in BlockId.ACTION_MEMBERS }
++
++            // A block the file never mentioned comes back with its defaults, at the end - dropping
++            // it instead would silently remove a control (the play button, say) from a player the
++            // user then has no way to fix from inside the app. But this only applies within a
++            // group the file already granularized: backfilling every granular id unconditionally
++            // is exactly what would make hasGranularControls/hasGranularActions permanently true
++            // for every file, granular or not, which defeats the entire point of checking them.
+             val blocks = parsed.values.toMutableList()
+             BlockId.entries.forEach { id ->
+-                if (!parsed.containsKey(id)) blocks.add(Block(id))
++                if (parsed.containsKey(id)) return@forEach
++                val skip = (id in BlockId.CONTROL_MEMBERS && !fileHasGranularControls) ||
++                    (id in BlockId.ACTION_MEMBERS && !fileHasGranularActions)
++                if (!skip) blocks.add(Block(id))
+             }
+ 
+             PlayerLayout(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 7c64f255..1b5f123b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -958,6 +958,160 @@ fun ControlsContent(
+                 }
+             }
+ 
++            // Schema 4: ACTIONS split into individually hideable/positionable pieces, duplicating
++            // ActionButtons()'s own per-button visuals rather than refactoring it - ActionButtons
++            // is also called inline in the title row below and stays exactly as it was for any
++            // file that never asks for one of these by name. Declared before infoBlock/controlsBlock
++            // below since it references these from within its own lambda bodies.
++            val menuState = LocalMenuState.current
++            val currentSong by playerConnection.currentSong.collectAsState(initial = null)
++            val showSleepTimerButton by rememberPreference(SleepTimerShowOnPlayerKey, defaultValue = true)
++            val sleepTimerActive = remember(
++                playerConnection.service.sleepTimer.triggerTime,
++                playerConnection.service.sleepTimer.pauseWhenSongEnd
++            ) {
++                playerConnection.service.sleepTimer.isActive
++            }
++            var sleepTimerTimeLeft by remember { mutableLongStateOf(0L) }
++            LaunchedEffect(sleepTimerActive) {
++                if (sleepTimerActive) {
++                    while (isActive) {
++                        sleepTimerTimeLeft = if (playerConnection.service.sleepTimer.pauseWhenSongEnd) {
++                            playerConnection.player.duration - playerConnection.player.currentPosition
++                        } else {
++                            playerConnection.service.sleepTimer.triggerTime - System.currentTimeMillis()
++                        }
++                        delay(1000L)
++                    }
++                }
++            }
++            var showSleepTimerDialog by remember { mutableStateOf(false) }
++            if (showSleepTimerDialog) {
++                SleepTimerDialog(onDismiss = { showSleepTimerDialog = false })
++            }
++            val sleepTimerButtonBlock: @Composable () -> Unit = {
++                if (showSleepTimerButton) {
++                    if (sleepTimerActive) {
++                        Box(
++                            modifier = Modifier
++                                .height(36.dp)
++                                .clip(RoundedCornerShape(24.dp))
++                                .background(MaterialTheme.colorScheme.primary)
++                                .clickable { showSleepTimerDialog = true }
++                                .padding(horizontal = 12.dp),
++                            contentAlignment = Alignment.Center
++                        ) {
++                            Text(
++                                text = makeTimeString(sleepTimerTimeLeft),
++                                color = MaterialTheme.colorScheme.onPrimary,
++                                style = MaterialTheme.typography.labelLarge,
++                                maxLines = 1
++                            )
++                        }
++                    } else {
++                        Box(
++                            modifier = Modifier
++                                .size(36.dp)
++                                .clip(RoundedCornerShape(24.dp))
++                                .background(MaterialTheme.colorScheme.primary)
++                        ) {
++                            ResizableIconButton(
++                                icon = Icons.Rounded.Bedtime,
++                                color = MaterialTheme.colorScheme.onPrimary,
++                                modifier = Modifier.align(Alignment.Center).size(24.dp),
++                                onClick = { showSleepTimerDialog = true }
++                            )
++                        }
++                    }
++                }
++            }
++            val likeButtonBlock: @Composable () -> Unit = {
++                Box(
++                    modifier = Modifier
++                        .size(36.dp)
++                        .clip(RoundedCornerShape(24.dp))
++                        .background(MaterialTheme.colorScheme.primary)
++                ) {
++                    ResizableIconButton(
++                        icon = if (currentSong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border,
++                        color = MaterialTheme.colorScheme.onPrimary,
++                        modifier = Modifier.align(Alignment.Center).size(24.dp),
++                        onClick = playerConnection::toggleLike
++                    )
++                }
++            }
++            val showEqualizerButton by rememberPreference(ShowEqualizerButtonKey, defaultValue = true)
++            val equalizerButtonBlock: @Composable () -> Unit = {
++                if (showEqualizerButton) {
++                    val equalizerPanelState = LocalEqualizerPanelState.current
++                    Box(
++                        modifier = Modifier
++                            .size(36.dp)
++                            .clip(RoundedCornerShape(24.dp))
++                            .background(MaterialTheme.colorScheme.primary)
++                    ) {
++                        ResizableIconButton(
++                            icon = Icons.Rounded.Equalizer,
++                            color = MaterialTheme.colorScheme.onPrimary,
++                            modifier = Modifier.align(Alignment.Center).size(24.dp),
++                            onClick = { equalizerPanelState.visible = true }
++                        )
++                    }
++                }
++            }
++            val menuButtonBlock: @Composable () -> Unit = {
++                Box(
++                    modifier = Modifier
++                        .size(36.dp)
++                        .clip(RoundedCornerShape(24.dp))
++                        .background(MaterialTheme.colorScheme.primary)
++                ) {
++                    ResizableIconButton(
++                        icon = Icons.Rounded.MoreVert,
++                        color = MaterialTheme.colorScheme.onPrimary,
++                        modifier = Modifier.size(24.dp).align(Alignment.Center),
++                        onClick = {
++                            menuState.show {
++                                PlayerMenu(
++                                    mediaMetadata = mediaMetadata,
++                                    navController = navController,
++                                    playerBottomSheetState = playerSheetState,
++                                    onDismiss = menuState::dismiss
++                                )
++                            }
++                        }
++                    )
++                }
++            }
++
++            val actionsBlock: @Composable () -> Unit = {
++                Row(
++                    horizontalArrangement = Arrangement.Center,
++                    verticalAlignment = Alignment.CenterVertically,
++                    modifier = Modifier.fillMaxWidth()
++                ) {
++                    ActionButtons(playerSheetState, navController)
++                }
++            }
++            // The granular equivalent of actionsBlock, in the file's own block order and each
++            // gated on its own visibility - used wherever the legacy actionsBlock() used to be,
++            // once the file asks for any one of these by name.
++            val granularActionsRow: @Composable () -> Unit = {
++                Spacer(modifier = Modifier.width(10.dp))
++                playerLayout.blocks
++                    .filter { it.id in PlayerLayout.BlockId.ACTION_MEMBERS && it.visible }
++                    .forEach { b ->
++                        when (b.id) {
++                            PlayerLayout.BlockId.SLEEP_TIMER -> sleepTimerButtonBlock()
++                            PlayerLayout.BlockId.LIKE -> likeButtonBlock()
++                            PlayerLayout.BlockId.EQUALIZER -> equalizerButtonBlock()
++                            PlayerLayout.BlockId.MENU -> menuButtonBlock()
++                            else -> Unit
++                        }
++                        Spacer(modifier = Modifier.width(7.dp))
++                    }
++            }
++
+             // Each group is captured rather than emitted in place, so the imported layout can
+             // decide the order and which of them appear at all. Nothing about how they are built
+             // changed - only when they are called.
+@@ -1025,8 +1179,14 @@ fun ControlsContent(
+                         // action buttons for portrait (inline with title). Not in free placement:
+                         // there they are their own block with their own coordinates, and drawing
+                         // them here as well would put two copies on screen.
+-                        if (!compactWidth && actionsVisible && artwork == null) {
+-                            ActionButtons(playerSheetState, navController)
++                        if (!compactWidth && artwork == null) {
++                            if (playerLayout.hasGranularActions) {
++                                if (playerLayout.blocks.any { it.id in PlayerLayout.BlockId.ACTION_MEMBERS && it.visible }) {
++                                    granularActionsRow()
++                                }
++                            } else if (actionsVisible) {
++                                ActionButtons(playerSheetState, navController)
++                            }
+                         }
+                     }
+                 }
+@@ -1087,6 +1247,132 @@ fun ControlsContent(
+ 
+                 Spacer(Modifier.height(12.dp))
+             }
++            // Schema 4: each of these is CONTROLS split into an individually
++            // hideable/positionable piece. controlsBlock() below composes all seven back into
++            // exactly the row it always was, so a v3 file (which never mentions any of them)
++            // renders unchanged - these only matter once a layout actually asks for one by name.
++            val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
++            val shuffleButtonBlock: @Composable () -> Unit = {
++                ResizableIconButton(
++                    icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
++                    modifier = Modifier.size(32.dp).padding(4.dp),
++                    color = onBackgroundColor,
++                    enabled = playerConnection.player.currentMediaItem != null,
++                    onClick = {
++                        playerConnection.triggerShuffle()
++                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
++                    }
++                )
++            }
++            val skipPreviousButtonBlock: @Composable () -> Unit = {
++                ResizableIconButton(
++                    icon = Icons.Rounded.SkipPrevious,
++                    enabled = canSkipPrevious,
++                    modifier = Modifier.size(32.dp),
++                    color = onBackgroundColor,
++                    onClick = {
++                        if (playerConnection.player.currentMediaItem == null) {
++                            queueBoard.setCurrQueue()
++                        }
++                        playerConnection.player.seekToPrevious()
++                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
++                    }
++                )
++            }
++            // Seek-backward/forward stay gated on the seek increment setting even when a layout
++            // explicitly asks for them - with the increment off there is no amount to jump by, so
++            // showing the button anyway would just be a control that does nothing.
++            val seekBackwardButtonBlock: @Composable () -> Unit = {
++                if (seekIncrement != SeekIncrement.OFF) {
++                    ResizableIconButton(
++                        icon = Icons.Rounded.FastRewind,
++                        modifier = Modifier.size(32.dp),
++                        color = onBackgroundColor,
++                        enabled = playerConnection.player.currentMediaItem != null,
++                        onClick = {
++                            playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
++                        }
++                    )
++                }
++            }
++            val playPauseButtonBlock: @Composable () -> Unit = {
++                Box(
++                    modifier = Modifier
++                        // Same size whether or not lyrics are showing: the controls should not
++                        // change shape just because the artwork was swapped for lyrics.
++                        .size(if (maxW >= 320.dp) 72.dp else 42.dp)
++                        .animateContentSize()
++                        .clip(RoundedCornerShape(playPauseRoundness))
++                        .background(MaterialTheme.colorScheme.primary)
++                        .clickable {
++                            if (playerConnection.player.currentMediaItem == null) {
++                                queueBoard.setCurrQueue()
++                                playerConnection.player.togglePlayPause()
++                            } else if (playbackState == STATE_ENDED) {
++                                playerConnection.player.seekTo(0, 0)
++                                playerConnection.player.playWhenReady = true
++                            } else {
++                                playerConnection.player.togglePlayPause()
++                            }
++                            // play/pause is slightly harder haptic
++                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
++                        }
++                ) {
++                    Image(
++                        imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
++                        contentDescription = null,
++                        colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
++                        modifier = Modifier
++                            .align(Alignment.Center)
++                            .size(36.dp)
++                    )
++                }
++            }
++            val seekForwardButtonBlock: @Composable () -> Unit = {
++                if (seekIncrement != SeekIncrement.OFF) {
++                    ResizableIconButton(
++                        icon = Icons.Rounded.FastForward,
++                        modifier = Modifier.size(32.dp),
++                        color = onBackgroundColor,
++                        enabled = playerConnection.player.currentMediaItem != null,
++                        onClick = {
++                            //ExoPlayer seek increment can only be set in builder
++                            //playerConnection.player.seekForward()
++                            playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
++                        }
++                    )
++                }
++            }
++            val skipNextButtonBlock: @Composable () -> Unit = {
++                ResizableIconButton(
++                    icon = Icons.Rounded.SkipNext,
++                    enabled = canSkipNext,
++                    modifier = Modifier.size(32.dp),
++                    color = onBackgroundColor,
++                    onClick = {
++                        playerConnection.player.seekToNext()
++                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
++                    }
++                )
++            }
++            val repeatButtonBlock: @Composable () -> Unit = {
++                ResizableIconButton(
++                    icon = when (repeatMode) {
++                        REPEAT_MODE_OFF -> R.drawable.repeat_off
++                        REPEAT_MODE_ALL -> R.drawable.repeat_on
++                        REPEAT_MODE_ONE -> R.drawable.repeat_one
++                        else -> throw IllegalStateException()
++                    },
++                    modifier = Modifier.size(32.dp).padding(4.dp),
++                    color = onBackgroundColor,
++                    enabled = playerConnection.player.currentMediaItem != null,
++                    onClick = {
++                        playerConnection.player.toggleRepeatMode()
++                        haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
++                    }
++                )
++            }
++
+             val controlsBlock: @Composable () -> Unit = {
+                 Row(
+                     verticalAlignment = Alignment.CenterVertically,
+@@ -1094,160 +1380,19 @@ fun ControlsContent(
+                         .fillMaxWidth()
+                         .padding(horizontal = PlayerHorizontalPadding)
+                 ) {
+-                    val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+-
+-                    Box(modifier = Modifier.weight(1f)) {
+-                        ResizableIconButton(
+-                            icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+-                            modifier = Modifier
+-                                .size(32.dp)
+-                                .padding(4.dp)
+-                                .align(Alignment.Center),
+-                            color = onBackgroundColor,
+-                            enabled = playerConnection.player.currentMediaItem != null,
+-                            onClick = {
+-                                playerConnection.triggerShuffle()
+-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                            }
+-                        )
+-                    }
+-
+-                    Box(modifier = Modifier.weight(1f)) {
+-                        ResizableIconButton(
+-                            icon = Icons.Rounded.SkipPrevious,
+-                            enabled = canSkipPrevious,
+-                            modifier = Modifier
+-                                .size(32.dp)
+-                                .align(Alignment.Center),
+-                            color = onBackgroundColor,
+-                            onClick = {
+-                                if (playerConnection.player.currentMediaItem == null) {
+-                                    queueBoard.setCurrQueue()
+-                                }
+-                                playerConnection.player.seekToPrevious()
+-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                            }
+-                        )
+-                    }
+-
++                    Box(modifier = Modifier.weight(1f)) { shuffleButtonBlock() }
++                    Box(modifier = Modifier.weight(1f)) { skipPreviousButtonBlock() }
+                     if (seekIncrement != SeekIncrement.OFF) {
+-                        Box(modifier = Modifier.weight(1f)) {
+-                            ResizableIconButton(
+-                                icon = Icons.Rounded.FastRewind,
+-                                modifier = Modifier
+-                                    .size(32.dp)
+-                                    .align(Alignment.Center),
+-                                color = onBackgroundColor,
+-                                enabled = playerConnection.player.currentMediaItem != null,
+-                                onClick = {
+-                                    playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
+-                                }
+-                            )
+-                        }
++                        Box(modifier = Modifier.weight(1f)) { seekBackwardButtonBlock() }
+                     }
+-
+                     Spacer(Modifier.width(8.dp))
+-
+-                    Box(
+-                        modifier = Modifier
+-                            // Same size whether or not lyrics are showing: the controls should not
+-                            // change shape just because the artwork was swapped for lyrics.
+-                            .size(if (maxW >= 320.dp) 72.dp else 42.dp)
+-                            .animateContentSize()
+-                            .clip(RoundedCornerShape(playPauseRoundness))
+-                            .background(MaterialTheme.colorScheme.primary)
+-                            .clickable {
+-                                if (playerConnection.player.currentMediaItem == null) {
+-                                    queueBoard.setCurrQueue()
+-                                    playerConnection.player.togglePlayPause()
+-                                } else if (playbackState == STATE_ENDED) {
+-                                    playerConnection.player.seekTo(0, 0)
+-                                    playerConnection.player.playWhenReady = true
+-                                } else {
+-                                    playerConnection.player.togglePlayPause()
+-                                }
+-                                // play/pause is slightly harder haptic
+-                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+-                            }
+-                    ) {
+-                        Image(
+-                            imageVector = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+-                            contentDescription = null,
+-                            colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onPrimary),
+-                            modifier = Modifier
+-                                .align(Alignment.Center)
+-                                .size(36.dp)
+-                        )
+-                    }
+-
++                    playPauseButtonBlock()
+                     Spacer(Modifier.width(8.dp))
+-
+                     if (seekIncrement != SeekIncrement.OFF) {
+-                        Box(modifier = Modifier.weight(1f)) {
+-                            ResizableIconButton(
+-                                icon = Icons.Rounded.FastForward,
+-                                modifier = Modifier
+-                                    .size(32.dp)
+-                                    .align(Alignment.Center),
+-                                color = onBackgroundColor,
+-                                enabled = playerConnection.player.currentMediaItem != null,
+-                                onClick = {
+-                                    //ExoPlayer seek increment can only be set in builder
+-                                    //playerConnection.player.seekForward()
+-                                    playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
+-                                }
+-                            )
+-                        }
+-                    }
+-
+-
+-
+-                    Box(modifier = Modifier.weight(1f)) {
+-                        ResizableIconButton(
+-                            icon = Icons.Rounded.SkipNext,
+-                            enabled = canSkipNext,
+-                            modifier = Modifier
+-                                .size(32.dp)
+-                                .align(Alignment.Center),
+-                            color = onBackgroundColor,
+-                            onClick = {
+-                                playerConnection.player.seekToNext()
+-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                            }
+-                        )
+-                    }
+-
+-                    Box(modifier = Modifier.weight(1f)) {
+-                        ResizableIconButton(
+-                            icon = when (repeatMode) {
+-                                REPEAT_MODE_OFF -> R.drawable.repeat_off
+-                                REPEAT_MODE_ALL -> R.drawable.repeat_on
+-                                REPEAT_MODE_ONE -> R.drawable.repeat_one
+-                                else -> throw IllegalStateException()
+-                            },
+-                            modifier = Modifier
+-                                .size(32.dp)
+-                                .padding(4.dp)
+-                                .align(Alignment.Center),
+-                            color = onBackgroundColor,
+-                            enabled = playerConnection.player.currentMediaItem != null,
+-                            onClick = {
+-                                playerConnection.player.toggleRepeatMode()
+-                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+-                            }
+-                        )
++                        Box(modifier = Modifier.weight(1f)) { seekForwardButtonBlock() }
+                     }
+-                }
+-
+-            }
+-
+-            val actionsBlock: @Composable () -> Unit = {
+-                Row(
+-                    horizontalArrangement = Arrangement.Center,
+-                    verticalAlignment = Alignment.CenterVertically,
+-                    modifier = Modifier.fillMaxWidth()
+-                ) {
+-                    ActionButtons(playerSheetState, navController)
++                    Box(modifier = Modifier.weight(1f)) { skipNextButtonBlock() }
++                    Box(modifier = Modifier.weight(1f)) { repeatButtonBlock() }
+                 }
+             }
+ 
+@@ -1261,45 +1406,105 @@ fun ControlsContent(
+                     PlayerLayout.BlockId.CONTROLS -> controlsBlock()
+                     PlayerLayout.BlockId.ACTIONS -> actionsBlock()
+                     PlayerLayout.BlockId.QUEUE -> Unit
++                    PlayerLayout.BlockId.SHUFFLE -> shuffleButtonBlock()
++                    PlayerLayout.BlockId.SEEK_BACKWARD -> seekBackwardButtonBlock()
++                    PlayerLayout.BlockId.SKIP_PREVIOUS -> skipPreviousButtonBlock()
++                    PlayerLayout.BlockId.PLAY_PAUSE -> playPauseButtonBlock()
++                    PlayerLayout.BlockId.SEEK_FORWARD -> seekForwardButtonBlock()
++                    PlayerLayout.BlockId.SKIP_NEXT -> skipNextButtonBlock()
++                    PlayerLayout.BlockId.REPEAT -> repeatButtonBlock()
++                    PlayerLayout.BlockId.SLEEP_TIMER -> sleepTimerButtonBlock()
++                    PlayerLayout.BlockId.LIKE -> likeButtonBlock()
++                    PlayerLayout.BlockId.EQUALIZER -> equalizerButtonBlock()
++                    PlayerLayout.BlockId.MENU -> menuButtonBlock()
+                 }
+             }
+ 
+-            // CONTROLS is emitted whatever the file says. Hiding the play button leaves a player
+-            // that cannot be paused from its own screen, and a layout file is not a good place to
+-            // discover that.
+-            fun shows(b: PlayerLayout.Block) = b.visible || b.id == PlayerLayout.BlockId.CONTROLS
++            // CONTROLS/PLAY_PAUSE are emitted whatever the file says. Hiding the play button
++            // leaves a player that cannot be paused from its own screen, and a layout file is not
++            // a good place to discover that - true for the legacy monolithic block and for its
++            // granular replacement alike.
++            fun shows(b: PlayerLayout.Block) =
++                b.visible || b.id == PlayerLayout.BlockId.CONTROLS || b.id == PlayerLayout.BlockId.PLAY_PAUSE
+ 
+             if (artwork != null) {
+                 // Free placement. Every block is drawn into one box the size of the player, each
+                 // one positioned by its own coordinates, in the order the file lists them - so a
+-                // block later in the list draws over an earlier one where they overlap.
++                // block later in the list draws over an earlier one where they overlap. The
++                // monolithic CONTROLS/ACTIONS blocks are skipped once granular members exist for
++                // them - both would otherwise draw at once, since a granular file still carries a
++                // backfilled-default CONTROLS/ACTIONS entry for round-trip compatibility.
+                 Box(modifier = Modifier.fillMaxSize()) {
+                     playerLayout.blocks.forEach { b ->
+-                        if (shows(b) && b.id != PlayerLayout.BlockId.QUEUE) {
++                        val supersededByGranular =
++                            (b.id == PlayerLayout.BlockId.CONTROLS && playerLayout.hasGranularControls) ||
++                                (b.id == PlayerLayout.BlockId.ACTIONS && playerLayout.hasGranularActions)
++                        if (shows(b) && b.id != PlayerLayout.BlockId.QUEUE && !supersededByGranular) {
+                             FreeBlock(b) { contentFor(b.id) }
+                         }
+                     }
+                 }
+             } else {
+                 // ARTWORK is drawn by the caller in its own box above these, the QUEUE is a
+-                // bottom sheet, and ACTIONS is drawn inline with the title - emitting it here as
+-                // well would put two action rows on screen.
+-                val stacked = playerLayout.blocks.filter {
+-                    shows(it) &&
+-                            it.id != PlayerLayout.BlockId.QUEUE &&
+-                            it.id != PlayerLayout.BlockId.ARTWORK &&
+-                            it.id != PlayerLayout.BlockId.ACTIONS
++                // bottom sheet, and ACTIONS (monolithic or granular) is drawn inline with the
++                // title - emitting it here as well would put two action rows on screen.
++                val stacked = playerLayout.blocks.filter { b ->
++                    shows(b) &&
++                        b.id != PlayerLayout.BlockId.QUEUE &&
++                        b.id != PlayerLayout.BlockId.ARTWORK &&
++                        b.id != PlayerLayout.BlockId.ACTIONS &&
++                        b.id !in PlayerLayout.BlockId.ACTION_MEMBERS &&
++                        !(b.id == PlayerLayout.BlockId.CONTROLS && playerLayout.hasGranularControls)
++                }
++                // Blocks sharing a group id render together as one row wherever the first member
++                // sits, the same clustering the layout editor's own preview does - so splitting
++                // "controls" into seven individually-hideable buttons doesn't turn them into seven
++                // separate stacked rows. PLAY_PAUSE keeps its fixed pill shape rather than being
++                // squeezed to an equal share of the row, matching controlsBlock()'s own layout.
++                val seenGroups = mutableSetOf<String>()
++                val units = stacked.mapNotNull { b ->
++                    val gid = b.groupId
++                    when {
++                        gid == null -> listOf(b)
++                        gid in seenGroups -> null
++                        else -> {
++                            seenGroups += gid
++                            stacked.filter { it.groupId == gid }
++                        }
++                    }
+                 }
+-                stacked.forEachIndexed { i, b ->
++                units.forEachIndexed { i, unit ->
+                     if (hasImportedLayout) {
+                         // Spacing and the size transform are things a file asked for. With no file
+                         // there is nothing to apply, and applying the defaults anyway would add gaps
+                         // and a wrapper the built-in layout never had - which is what "reset to
+                         // default" is supposed to take away, not introduce.
+                         if (i > 0) Spacer(Modifier.height(playerLayout.spacingDp.dp))
+-                        StackBlock(b) { contentFor(b.id) }
++                        if (unit.size == 1) {
++                            StackBlock(unit.single()) { contentFor(unit.single().id) }
++                        } else {
++                            Row(
++                                verticalAlignment = Alignment.CenterVertically,
++                                modifier = Modifier.fillMaxWidth().padding(horizontal = PlayerHorizontalPadding)
++                            ) {
++                                unit.forEach { b ->
++                                    // blockTransform (not StackBlock) - StackBlock forces
++                                    // fillMaxWidth, which is right for a block spanning the
++                                    // stack on its own but would push a Row child like this off
++                                    // its natural/weighted size. The transform is still applied,
++                                    // so a member's own scale/rotation works the same as it
++                                    // would rendering alone; grouping only changes whether it
++                                    // shares a row.
++                                    if (b.id == PlayerLayout.BlockId.PLAY_PAUSE) {
++                                        Box(modifier = Modifier.blockTransform(b)) { contentFor(b.id) }
++                                    } else {
++                                        Box(modifier = Modifier.weight(1f).blockTransform(b)) { contentFor(b.id) }
++                                    }
++                                }
++                            }
++                        }
+                     } else {
+-                        contentFor(b.id)
++                        unit.forEach { b -> contentFor(b.id) }
+                     }
+                 }
+             }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/PlayerLayoutBlock.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/PlayerLayoutBlock.kt
+index aa2ecafb..abbf50eb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/PlayerLayoutBlock.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/PlayerLayoutBlock.kt
+@@ -77,7 +77,7 @@ fun StackBlock(
+  * without reflowing the text inside it or shoving its neighbours around, which is what the editor's
+  * preview shows and what makes a scaled block land where its coordinates say it will.
+  */
+-private fun Modifier.blockTransform(block: PlayerLayout.Block): Modifier {
++internal fun Modifier.blockTransform(block: PlayerLayout.Block): Modifier {
+     val scale = (block.scalePercent / 100f).coerceAtLeast(0.05f)
+     if (scale == 1f && block.rotationDegrees == 0f) return this
+     return graphicsLayer {
 -- 
 2.45.1.windows.1
 
