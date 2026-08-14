@@ -82,9 +82,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: d1c557aa292e194c4349480d7b8b6b21a35ffb1562784cd9d4ed4d212ff28144"
-          echo "lines: $(wc -l < "$PATCH")  (expected 26875)   bytes: $(wc -c < "$PATCH")  (expected 1275303)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 80)"
+          echo "expected: d5f15fa73358d7a804b5247186a304493a0e2b88df6bfab8275a632b66a61370"
+          echo "lines: $(wc -l < "$PATCH")  (expected 27419)   bytes: $(wc -c < "$PATCH")  (expected 1301354)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 81)"
           echo "================"
 
           git config user.name "github-actions"
