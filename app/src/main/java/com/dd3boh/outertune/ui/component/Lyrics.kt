@@ -522,8 +522,15 @@ fun Lyrics(
  * Get current position in lyric line list
  */
 fun findCurrentLineIndex(lines: List<LyricLine>, position: Long): Int {
+    // ExoPlayer legitimately reports a transient negative position around seeks and track
+    // transitions. position.toUInt() on a negative Long wraps to a huge unsigned value, so every
+    // real line.start compares as smaller than it - the loop below never finds a "current" line
+    // and falls through to the *last* one, which is what made the highlighted line snap to the
+    // end of the song and stay there until the next real position update. Treat "before the song
+    // started" the same way position 0 is treated instead of letting it wrap.
+    val positionULong = position.coerceAtLeast(0L).toULong()
     for (index in lines.indices) {
-        if (lines[index].start > (position).toUInt()) {
+        if (lines[index].start > positionULong) {
             return if (index > 0 && lines[index - 1].isTranslated) index - 2 else index - 1
         }
     }

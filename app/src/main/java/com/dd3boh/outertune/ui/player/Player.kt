@@ -229,8 +229,14 @@ fun BottomSheetPlayer(
             )
         },
         collapsedBackgroundColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+        // A fling past the mini player used to tear the whole session down (clearMediaItems +
+        // deInitQueue) - from the user's side that reads as "swiping the mini player closed the
+        // app", since playback and every control vanish in the same motion. Bounce back to the
+        // mini player instead: nothing today calls softKillPlayer() from anywhere else, so this
+        // gesture was its only trigger, and there is no legitimate "the user asked to end the
+        // session" signal to preserve.
         onDismiss = {
-            playerConnection.softKillPlayer()
+            state.collapseSoft()
         },
         collapsedContent = {
             MiniPlayer()

@@ -13,6 +13,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -48,6 +49,7 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -248,7 +250,21 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
             .onFailure { importExportError = it.message ?: "That file isn't a valid equalizer profile." }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // This panel sits on top of the player's own draggable BottomSheet, but only
+            // EqualizerPanelHandle's strip used to intercept drags - everywhere else (padding,
+            // labels, the space between controls) let a vertical drag fall straight through to
+            // the sheet underneath, which read as "dragging inside the EQ panel minimises the
+            // player to the mini player". Swallowing unclaimed vertical drags here stops that:
+            // anything that actually wants the gesture (the scrollable column, a slider, a dial,
+            // the handle itself) is deeper in the tree and consumes it first, so this only catches
+            // drags nothing else wanted.
+            .pointerInput(Unit) {
+                detectVerticalDragGestures { change, _ -> change.consume() }
+            }
+    ) {
         PlayerBackground(
             playerConnection = playerConnection,
             playerBackground = playerBackground,
@@ -361,26 +377,38 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 if (activeProfileName != null) {
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(onClick = { activeProfileName?.let(::saveProfile) }) {
+                        TextButton(
+                            onClick = { activeProfileName?.let(::saveProfile) },
+                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                        ) {
                             Text("Save")
                         }
-                        TextButton(onClick = { activeProfileName?.let { loadProfile(it) } }) {
+                        TextButton(
+                            onClick = { activeProfileName?.let { loadProfile(it) } },
+                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                        ) {
                             Text("Revert to saved")
                         }
                         if (activeProfileName in builtInProfileNames) {
-                            TextButton(onClick = {
-                                activeProfileName?.let { name ->
-                                    EqualizerProfile.factoryDefault(name)?.settings?.let {
-                                        update(it.copy(enabled = settings.enabled))
+                            TextButton(
+                                onClick = {
+                                    activeProfileName?.let { name ->
+                                        EqualizerProfile.factoryDefault(name)?.settings?.let {
+                                            update(it.copy(enabled = settings.enabled))
+                                        }
                                     }
-                                }
-                            }) {
+                                },
+                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                            ) {
                                 Text("Revert to default")
                             }
                         }
                     }
                 }
-                TextButton(onClick = { showSaveAsDialog = true }) {
+                TextButton(
+                    onClick = { showSaveAsDialog = true },
+                    colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                ) {
                     Text("Save as new profile…")
                 }
 
@@ -425,7 +453,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                             enabled = settings.enabled,
                             selected = selectedBand == index,
                             color = eqColor,
-                            useDials = useDials,
                             useGradient = useValueGradient,
                             onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
                             onTapLabel = { selectedBand = if (selectedBand == index) null else index },
@@ -460,7 +487,10 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         style = MaterialTheme.typography.labelMedium,
                         color = eqColorVariant,
                     )
-                    TextButton(onClick = { balanceUseDial = !balanceUseDial }) {
+                    TextButton(
+                        onClick = { balanceUseDial = !balanceUseDial },
+                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                    ) {
                         Text(if (balanceUseDial) "Use slider" else "Use dial")
                     }
                 }
@@ -472,6 +502,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         onValueChange = { update(settings.copy(balance = it)) },
                         valueRange = balanceRange,
                         color = balanceColor,
+                        centeredAt = 0f,
                         modifier = Modifier.padding(top = 4.dp),
                     )
                 } else {
@@ -499,6 +530,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     onChange = { update(settings.copy(compressor = it)) },
                     color = eqColor,
                     colorVariant = eqColorVariant,
+                    useDials = useDials,
                     useGradient = useValueGradient,
                 )
 
@@ -512,10 +544,16 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     color = eqColorVariant,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = { exportLauncher.launch("equalizer-profile.json") }) {
+                    TextButton(
+                        onClick = { exportLauncher.launch("equalizer-profile.json") },
+                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                    ) {
                         Text("Export")
                     }
-                    TextButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
+                    TextButton(
+                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                    ) {
                         Text("Import")
                     }
                 }
@@ -555,10 +593,17 @@ private fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10
 private fun formatDb(db: Float): String =
     "${if (db > 0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", db)}"
 
-/** Green at the low end of [range], red at the high end - a VU-meter-style read of "how hot is this". */
+/** Blue at the low end of [range], green in the middle, yellow at the high end. */
 private fun valueGradientColor(value: Float, range: ClosedFloatingPointRange<Float>): Color {
     val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
-    return lerp(Color(0xFF4CAF50), Color(0xFFF44336), fraction)
+    val blue = Color(0xFF2196F3)
+    val green = Color(0xFF66DD44)
+    val yellow = Color(0xFFFFD500)
+    return if (fraction < 0.5f) {
+        lerp(blue, green, fraction / 0.5f)
+    } else {
+        lerp(green, yellow, (fraction - 0.5f) / 0.5f)
+    }
 }
 
 /**
@@ -630,6 +675,7 @@ private fun BassTrebleDials(
                 valueRange = range,
                 enabled = enabled,
                 color = bassColor,
+                centeredAt = 0f,
                 label = "Bass",
                 valueLabel = "${formatDb(bassGainDb)} dB",
             )
@@ -639,6 +685,7 @@ private fun BassTrebleDials(
                 valueRange = range,
                 enabled = enabled,
                 color = trebleColor,
+                centeredAt = 0f,
                 label = "Treble",
                 valueLabel = "${formatDb(trebleGainDb)} dB",
             )
@@ -675,6 +722,7 @@ private fun CompressorSection(
     onChange: (EqualizerSettings.CompressorSettings) -> Unit,
     color: Color,
     colorVariant: Color,
+    useDials: Boolean,
     useGradient: Boolean,
 ) {
     Column {
@@ -701,41 +749,96 @@ private fun CompressorSection(
             val attackRange = EqualizerSettings.MIN_ATTACK_MS..EqualizerSettings.MAX_ATTACK_MS
             val releaseRange = EqualizerSettings.MIN_RELEASE_MS..EqualizerSettings.MAX_RELEASE_MS
             val makeupRange = EqualizerSettings.MIN_MAKEUP_DB..EqualizerSettings.MAX_MAKEUP_DB
-            LabeledSlider(
-                label = "Threshold: ${formatDb(compressor.thresholdDb)} dB",
-                value = compressor.thresholdDb,
-                onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
-                valueRange = thresholdRange,
-                color = if (useGradient) valueGradientColor(compressor.thresholdDb, thresholdRange) else color,
-            )
-            LabeledSlider(
-                label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
-                value = compressor.ratio,
-                onValueChange = { onChange(compressor.copy(ratio = it)) },
-                valueRange = ratioRange,
-                color = if (useGradient) valueGradientColor(compressor.ratio, ratioRange) else color,
-            )
-            LabeledSlider(
-                label = "Attack: ${compressor.attackMs.roundToInt()} ms",
-                value = compressor.attackMs,
-                onValueChange = { onChange(compressor.copy(attackMs = it)) },
-                valueRange = attackRange,
-                color = if (useGradient) valueGradientColor(compressor.attackMs, attackRange) else color,
-            )
-            LabeledSlider(
-                label = "Release: ${compressor.releaseMs.roundToInt()} ms",
-                value = compressor.releaseMs,
-                onValueChange = { onChange(compressor.copy(releaseMs = it)) },
-                valueRange = releaseRange,
-                color = if (useGradient) valueGradientColor(compressor.releaseMs, releaseRange) else color,
-            )
-            LabeledSlider(
-                label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
-                value = compressor.makeupGainDb,
-                onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
-                valueRange = makeupRange,
-                color = if (useGradient) valueGradientColor(compressor.makeupGainDb, makeupRange) else color,
-            )
+
+            val thresholdColor = if (useGradient) valueGradientColor(compressor.thresholdDb, thresholdRange) else color
+            val ratioColor = if (useGradient) valueGradientColor(compressor.ratio, ratioRange) else color
+            val attackColor = if (useGradient) valueGradientColor(compressor.attackMs, attackRange) else color
+            val releaseColor = if (useGradient) valueGradientColor(compressor.releaseMs, releaseRange) else color
+            val makeupColor = if (useGradient) valueGradientColor(compressor.makeupGainDb, makeupRange) else color
+
+            if (useDials) {
+                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                    RotaryDial(
+                        value = compressor.attackMs,
+                        onValueChange = { onChange(compressor.copy(attackMs = it)) },
+                        valueRange = attackRange,
+                        color = attackColor,
+                        label = "Attack",
+                        valueLabel = "${compressor.attackMs.roundToInt()} ms",
+                    )
+                    RotaryDial(
+                        value = compressor.releaseMs,
+                        onValueChange = { onChange(compressor.copy(releaseMs = it)) },
+                        valueRange = releaseRange,
+                        color = releaseColor,
+                        label = "Release",
+                        valueLabel = "${compressor.releaseMs.roundToInt()} ms",
+                    )
+                    RotaryDial(
+                        value = compressor.ratio,
+                        onValueChange = { onChange(compressor.copy(ratio = it)) },
+                        valueRange = ratioRange,
+                        color = ratioColor,
+                        label = "Ratio",
+                        valueLabel = "${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                    RotaryDial(
+                        value = compressor.thresholdDb,
+                        onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
+                        valueRange = thresholdRange,
+                        color = thresholdColor,
+                        label = "Threshold",
+                        valueLabel = "${formatDb(compressor.thresholdDb)} dB",
+                    )
+                    RotaryDial(
+                        value = compressor.makeupGainDb,
+                        onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
+                        valueRange = makeupRange,
+                        color = makeupColor,
+                        label = "Makeup gain",
+                        valueLabel = "${formatDb(compressor.makeupGainDb)} dB",
+                    )
+                }
+            } else {
+                LabeledSlider(
+                    label = "Threshold: ${formatDb(compressor.thresholdDb)} dB",
+                    value = compressor.thresholdDb,
+                    onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
+                    valueRange = thresholdRange,
+                    color = thresholdColor,
+                )
+                LabeledSlider(
+                    label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
+                    value = compressor.ratio,
+                    onValueChange = { onChange(compressor.copy(ratio = it)) },
+                    valueRange = ratioRange,
+                    color = ratioColor,
+                )
+                LabeledSlider(
+                    label = "Attack: ${compressor.attackMs.roundToInt()} ms",
+                    value = compressor.attackMs,
+                    onValueChange = { onChange(compressor.copy(attackMs = it)) },
+                    valueRange = attackRange,
+                    color = attackColor,
+                )
+                LabeledSlider(
+                    label = "Release: ${compressor.releaseMs.roundToInt()} ms",
+                    value = compressor.releaseMs,
+                    onValueChange = { onChange(compressor.copy(releaseMs = it)) },
+                    valueRange = releaseRange,
+                    color = releaseColor,
+                )
+                LabeledSlider(
+                    label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
+                    value = compressor.makeupGainDb,
+                    onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
+                    valueRange = makeupRange,
+                    color = makeupColor,
+                )
+            }
         }
     }
 }
@@ -753,7 +856,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(48.dp)
+            .height(64.dp)
             .clickable(onClick = onDismiss)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -773,11 +876,11 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
         Box(
             modifier = Modifier
                 .align(Alignment.Center)
-                .width(48.dp)
-                .height(6.dp)
+                .width(64.dp)
+                .height(8.dp)
                 .background(
                     handleColor.copy(alpha = 0.6f),
-                    RoundedCornerShape(3.dp)
+                    RoundedCornerShape(4.dp)
                 )
         )
         IconButton(
@@ -796,7 +899,6 @@ private fun BandColumn(
     enabled: Boolean,
     selected: Boolean,
     color: Color,
-    useDials: Boolean,
     useGradient: Boolean,
     onGainChange: (Float) -> Unit,
     onTapLabel: () -> Unit,
@@ -808,54 +910,58 @@ private fun BandColumn(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.width(BandColumnWidth)
     ) {
-        if (useDials) {
-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                RotaryDial(
-                    value = band.gainDb,
-                    onValueChange = onGainChange,
-                    valueRange = gainRange,
-                    enabled = enabled && band.enabled,
-                    dialSize = 48.dp,
-                    color = gainColor,
-                    valueLabel = formatDb(band.gainDb),
-                )
-            }
-        } else {
-            Text(
-                text = formatDb(band.gainDb),
-                style = MaterialTheme.typography.labelSmall,
-                color = gainColor,
-                maxLines = 1,
-            )
-            VerticalSlider(
-                value = band.gainDb,
-                onValueChange = onGainChange,
-                valueRange = gainRange,
-                enabled = enabled && band.enabled,
-                track = { sliderState ->
-                    PowerampTrack(
-                        sliderState = sliderState,
-                        activeColor = gainColor,
-                        inactiveColor = gainColor.copy(alpha = 0.25f),
-                        trackThickness = 8.dp,
-                    )
-                },
-                thumb = { PowerampThumb(color = gainColor) },
-                modifier = Modifier
-                    .weight(1f)
-                    .width(36.dp),
-            )
-        }
+        // Twelve of these side by side, so each one stays a plain slider regardless of the
+        // panel-wide dial/slider setting - a strip of tiny 48dp dials read as fiddly rather than
+        // Poweramp-like, and the reference layout doesn't use them here either.
         Text(
-            text = formatFrequency(band.freqHz),
-            style = if (selected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelSmall,
-            color = if (selected) MaterialTheme.colorScheme.primary else color,
+            text = formatDb(band.gainDb),
+            style = MaterialTheme.typography.labelSmall,
+            color = gainColor,
             maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
+        )
+        VerticalSlider(
+            value = band.gainDb,
+            onValueChange = onGainChange,
+            valueRange = gainRange,
+            enabled = enabled && band.enabled,
+            track = { sliderState ->
+                PowerampTrack(
+                    sliderState = sliderState,
+                    activeColor = gainColor,
+                    inactiveColor = gainColor.copy(alpha = 0.25f),
+                    trackThickness = 8.dp,
+                )
+            },
+            thumb = { PowerampThumb(color = gainColor) },
+            modifier = Modifier
+                .weight(1f)
+                .width(36.dp),
+        )
+        // Selected reads as "this is the band the editor below belongs to" - a box around the
+        // frequency label makes that unambiguous at a glance; the older bold-and-recolor treatment
+        // was easy to miss next to eleven other labels the same size.
+        Box(
             modifier = Modifier
                 .padding(top = 4.dp)
+                .then(
+                    if (selected) {
+                        Modifier
+                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp)
+                    } else {
+                        Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                    }
+                )
                 .clickable(onClick = onTapLabel)
-        )
+        ) {
+            Text(
+                text = formatFrequency(band.freqHz),
+                style = MaterialTheme.typography.labelSmall,
+                color = if (selected) MaterialTheme.colorScheme.primary else color,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
     }
 }
 
@@ -871,7 +977,9 @@ private fun MiniPlaybackControls(color: Color?) {
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
     val repeatMode by playerConnection.repeatMode.collectAsState()
-    val iconColor = color ?: MaterialTheme.colorScheme.onSecondaryContainer
+    // The Material accent color (not a muted onSecondaryContainer neutral) so this row reads as
+    // an actively-colored control surface even when "use cover contrast color" is off.
+    val iconColor = color ?: MaterialTheme.colorScheme.primary
 
     Row(
         horizontalArrangement = Arrangement.SpaceEvenly,
@@ -881,25 +989,25 @@ private fun MiniPlaybackControls(color: Color?) {
         ResizableIconButton(
             icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
             color = iconColor,
-            modifier = Modifier.size(34.dp),
+            modifier = Modifier.size(42.dp),
             onClick = { playerConnection.triggerShuffle() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipPrevious,
             color = iconColor,
-            modifier = Modifier.size(38.dp),
+            modifier = Modifier.size(48.dp),
             onClick = { playerConnection.player.seekToPrevious() },
         )
         ResizableIconButton(
             icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
             color = iconColor,
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier.size(55.dp),
             onClick = { playerConnection.player.togglePlayPause() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipNext,
             color = iconColor,
-            modifier = Modifier.size(38.dp),
+            modifier = Modifier.size(48.dp),
             onClick = { playerConnection.player.seekToNext() },
         )
         ResizableIconButton(
@@ -910,7 +1018,7 @@ private fun MiniPlaybackControls(color: Color?) {
                 else -> R.drawable.repeat_off
             },
             color = iconColor,
-            modifier = Modifier.size(34.dp),
+            modifier = Modifier.size(42.dp),
             onClick = { playerConnection.player.toggleRepeatMode() },
         )
     }
@@ -978,6 +1086,7 @@ private fun BandEditor(
                     valueRange = gainRange,
                     enabled = band.enabled,
                     color = gainColor,
+                    centeredAt = 0f,
                     label = "Gain",
                     valueLabel = "${formatDb(band.gainDb)} dB",
                 )
@@ -1028,6 +1137,11 @@ private fun BandEditor(
                     shape = SegmentedButtonDefaults.itemShape(
                         index = i,
                         count = EqualizerSettings.FilterType.entries.size
+                    ),
+                    colors = SegmentedButtonDefaults.colors(
+                        activeContainerColor = color.copy(alpha = 0.18f),
+                        activeContentColor = color,
+                        activeBorderColor = color,
                     ),
                 ) {
                     Text(

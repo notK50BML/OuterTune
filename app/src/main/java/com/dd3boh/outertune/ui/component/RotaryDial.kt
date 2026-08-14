@@ -50,6 +50,12 @@ fun RotaryDial(
     enabled: Boolean = true,
     label: String? = null,
     valueLabel: String? = null,
+    /**
+     * For a boost/cut style control (balance, a shelf/band gain) where [valueRange] itself has no
+     * "off" reading worth showing - only distance from this point does. Null (the default) is a
+     * plain 0-to-max control, where the arc grows from the low end same as it always has.
+     */
+    centeredAt: Float? = null,
 ) {
     val density = LocalDensity.current
     // detectDragGestures runs in a coroutine that survives across separate physical drag
@@ -86,35 +92,51 @@ fun RotaryDial(
                     }
                 }
         ) {
-            val strokeWidthPx = size.minDimension * 0.14f
-            val radius = size.minDimension / 2f - strokeWidthPx / 2f
+            // A flat physical knob - dark disc, thin bezel, a colored progress arc hugging the
+            // rim, and a pointer line on the face showing exactly where that arc ends. The arc
+            // alone (the old design) read as "just another slider bent into a circle"; the disc
+            // is what makes it read as a knob you'd actually turn.
+            val strokeWidthPx = size.minDimension * 0.09f
             val center = Offset(size.width / 2f, size.height / 2f)
-            val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
+            val discRadius = size.minDimension / 2f - strokeWidthPx * 1.4f
+            val rangeSpan = valueRange.endInclusive - valueRange.start
+            val fraction = ((value - valueRange.start) / rangeSpan).coerceIn(0f, 1f)
+            val alphaScale = if (enabled) 1f else 0.4f
 
+            // Plain controls sweep the arc from the low end up to the current value, same as a
+            // normal progress indicator. A centered one instead sweeps from wherever "off" sits -
+            // usually the middle - out toward the value, in whichever direction that is, so 0
+            // shows no arc at all rather than a permanent half-full ring.
+            val originFraction = centeredAt?.let { ((it - valueRange.start) / rangeSpan).coerceIn(0f, 1f) } ?: 0f
             drawArc(
-                color = color.copy(alpha = if (enabled) 0.22f else 0.1f),
-                startAngle = StartAngleDeg,
-                sweepAngle = SweepAngleDeg,
+                color = color.copy(alpha = alphaScale),
+                startAngle = StartAngleDeg + SweepAngleDeg * minOf(originFraction, fraction),
+                sweepAngle = SweepAngleDeg * kotlin.math.abs(fraction - originFraction),
                 useCenter = false,
                 style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round),
             )
-            drawArc(
-                color = color.copy(alpha = if (enabled) 1f else 0.4f),
-                startAngle = StartAngleDeg,
-                sweepAngle = SweepAngleDeg * fraction,
-                useCenter = false,
-                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round),
-            )
 
-            val indicatorAngleRad = Math.toRadians((StartAngleDeg + SweepAngleDeg * fraction).toDouble())
-            val indicatorCenter = Offset(
-                x = center.x + radius * cos(indicatorAngleRad).toFloat(),
-                y = center.y + radius * sin(indicatorAngleRad).toFloat(),
+            drawCircle(
+                color = Color.Black.copy(alpha = 0.28f * alphaScale),
+                radius = discRadius,
+                center = center,
             )
             drawCircle(
-                color = color.copy(alpha = if (enabled) 1f else 0.4f),
-                radius = strokeWidthPx * 0.55f,
-                center = indicatorCenter,
+                color = color.copy(alpha = 0.3f * alphaScale),
+                radius = discRadius,
+                center = center,
+                style = Stroke(width = discRadius * 0.05f),
+            )
+
+            val pointerAngleRad = Math.toRadians((StartAngleDeg + SweepAngleDeg * fraction).toDouble())
+            val direction = Offset(cos(pointerAngleRad).toFloat(), sin(pointerAngleRad).toFloat())
+            val pointerWidthPx = discRadius * 0.16f
+            drawLine(
+                color = color.copy(alpha = alphaScale),
+                start = center + direction * (discRadius * 0.32f),
+                end = center + direction * (discRadius * 0.86f),
+                strokeWidth = pointerWidthPx,
+                cap = StrokeCap.Round,
             )
         }
 
