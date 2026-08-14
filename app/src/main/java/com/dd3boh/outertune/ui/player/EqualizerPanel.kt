@@ -110,6 +110,9 @@ import kotlin.math.roundToInt
 /** Width given to each band's column in the horizontally-scrolling strip, Poweramp-style. */
 private val BandColumnWidth = 56.dp
 
+/** How much of the panel's top the drag handle claims - most of the header area, not a slim strip. */
+private val EqualizerHandleHeight = 110.dp
+
 /**
  * A 12-band parametric equalizer, backed by [com.dd3boh.outertune.audio.EqualizerAudioProcessor]
  * in the playback audio pipeline.
@@ -282,7 +285,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 modifier = Modifier
                     .weight(1f, false)
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -470,7 +473,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                             enabled = settings.enabled,
                             selected = selectedBand == index,
                             color = eqColor,
-                            useGradient = useValueGradient,
                             onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
                             onTapLabel = { selectedBand = if (selectedBand == index) null else index },
                         )
@@ -561,6 +563,15 @@ private fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10
 private fun formatDb(db: Float): String =
     "${if (db > 0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", db)}"
 
+/** The slider track's "used" portion - fixed, not value- or contrast-tinted, so every slider in
+ *  the panel reads as the same kind of control regardless of the dial/gradient settings. */
+private val SliderActiveGreen = Color(0xFF4CAF50)
+
+/** The track's "not used yet" portion - a light neutral rather than a dim tint of the active
+ *  color, so it reads as "empty" against either a light or a dark panel background. */
+@Composable
+private fun sliderInactiveColor(): Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+
 /** Blue at the low end of [range], green in the middle, yellow at the high end. */
 private fun valueGradientColor(value: Float, range: ClosedFloatingPointRange<Float>): Color {
     val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
@@ -584,16 +595,23 @@ private fun PowerampSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
-    color: Color,
+    /** The label/value text's color - always the plain contrast color, never the value gradient,
+     *  since a small readout tinted the same hue as its own track is a legibility risk. */
+    textColor: Color,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
     label: String? = null,
     valueLabel: String? = null,
     width: Dp = 140.dp,
 ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = modifier) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .border(1.dp, textColor.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+            .padding(vertical = 8.dp, horizontal = 6.dp)
+    ) {
         label?.let {
-            Text(text = it, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.75f))
+            Text(text = it, style = MaterialTheme.typography.labelMedium, color = textColor.copy(alpha = 0.75f))
         }
         Slider(
             value = value,
@@ -602,12 +620,12 @@ private fun PowerampSlider(
             enabled = enabled,
             modifier = Modifier.width(width),
             track = { sliderState ->
-                PowerampTrack(sliderState = sliderState, activeColor = color, inactiveColor = color.copy(alpha = 0.25f))
+                PowerampTrack(sliderState = sliderState, activeColor = SliderActiveGreen, inactiveColor = sliderInactiveColor())
             },
-            thumb = { PowerampThumb(color = color) },
+            thumb = { PowerampThumb(color = SliderActiveGreen) },
         )
         valueLabel?.let {
-            Text(text = it, style = MaterialTheme.typography.titleSmall, color = color.copy(alpha = if (enabled) 1f else 0.5f))
+            Text(text = it, style = MaterialTheme.typography.titleSmall, color = textColor.copy(alpha = if (enabled) 1f else 0.5f))
         }
     }
 }
@@ -651,6 +669,7 @@ private fun ToneControlsRow(
                 enabled = enabled,
                 dialSize = 84.dp,
                 color = bassColor,
+                textColor = color,
                 centeredAt = 0f,
                 label = "Bass",
                 valueLabel = "${formatDb(bassGainDb)} dB",
@@ -662,6 +681,7 @@ private fun ToneControlsRow(
                 enabled = enabled,
                 dialSize = 84.dp,
                 color = balanceColor,
+                textColor = color,
                 centeredAt = 0f,
                 label = "Balance",
                 valueLabel = balanceReadout(balance),
@@ -673,6 +693,7 @@ private fun ToneControlsRow(
                 enabled = enabled,
                 dialSize = 84.dp,
                 color = trebleColor,
+                textColor = color,
                 centeredAt = 0f,
                 label = "Treble",
                 valueLabel = "${formatDb(trebleGainDb)} dB",
@@ -683,7 +704,7 @@ private fun ToneControlsRow(
                 onValueChange = onBassChange,
                 valueRange = gainRange,
                 enabled = enabled,
-                color = bassColor,
+                textColor = color,
                 label = "Bass",
                 valueLabel = "${formatDb(bassGainDb)} dB",
             )
@@ -692,7 +713,7 @@ private fun ToneControlsRow(
                 onValueChange = onBalanceChange,
                 valueRange = balanceRange,
                 enabled = enabled,
-                color = balanceColor,
+                textColor = color,
                 label = "Balance",
                 valueLabel = balanceReadout(balance),
             )
@@ -701,7 +722,7 @@ private fun ToneControlsRow(
                 onValueChange = onTrebleChange,
                 valueRange = gainRange,
                 enabled = enabled,
-                color = trebleColor,
+                textColor = color,
                 label = "Treble",
                 valueLabel = "${formatDb(trebleGainDb)} dB",
             )
@@ -760,6 +781,7 @@ private fun CompressorSection(
                         onValueChange = { onChange(compressor.copy(attackMs = it)) },
                         valueRange = attackRange,
                         color = attackColor,
+                        textColor = color,
                         label = "Attack",
                         valueLabel = "${compressor.attackMs.roundToInt()} ms",
                     )
@@ -768,6 +790,7 @@ private fun CompressorSection(
                         onValueChange = { onChange(compressor.copy(releaseMs = it)) },
                         valueRange = releaseRange,
                         color = releaseColor,
+                        textColor = color,
                         label = "Release",
                         valueLabel = "${compressor.releaseMs.roundToInt()} ms",
                     )
@@ -776,6 +799,7 @@ private fun CompressorSection(
                         onValueChange = { onChange(compressor.copy(ratio = it)) },
                         valueRange = ratioRange,
                         color = ratioColor,
+                        textColor = color,
                         label = "Ratio",
                         valueLabel = "${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
                     )
@@ -787,6 +811,7 @@ private fun CompressorSection(
                         onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
                         valueRange = thresholdRange,
                         color = thresholdColor,
+                        textColor = color,
                         label = "Threshold",
                         valueLabel = "${formatDb(compressor.thresholdDb)} dB",
                     )
@@ -795,6 +820,7 @@ private fun CompressorSection(
                         onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
                         valueRange = makeupRange,
                         color = makeupColor,
+                        textColor = color,
                         label = "Makeup gain",
                         valueLabel = "${formatDb(compressor.makeupGainDb)} dB",
                     )
@@ -805,35 +831,35 @@ private fun CompressorSection(
                     value = compressor.thresholdDb,
                     onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
                     valueRange = thresholdRange,
-                    color = thresholdColor,
+                    textColor = color,
                 )
                 LabeledSlider(
                     label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
                     value = compressor.ratio,
                     onValueChange = { onChange(compressor.copy(ratio = it)) },
                     valueRange = ratioRange,
-                    color = ratioColor,
+                    textColor = color,
                 )
                 LabeledSlider(
                     label = "Attack: ${compressor.attackMs.roundToInt()} ms",
                     value = compressor.attackMs,
                     onValueChange = { onChange(compressor.copy(attackMs = it)) },
                     valueRange = attackRange,
-                    color = attackColor,
+                    textColor = color,
                 )
                 LabeledSlider(
                     label = "Release: ${compressor.releaseMs.roundToInt()} ms",
                     value = compressor.releaseMs,
                     onValueChange = { onChange(compressor.copy(releaseMs = it)) },
                     valueRange = releaseRange,
-                    color = releaseColor,
+                    textColor = color,
                 )
                 LabeledSlider(
                     label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
                     value = compressor.makeupGainDb,
                     onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
                     valueRange = makeupRange,
-                    color = makeupColor,
+                    textColor = color,
                 )
             }
         }
@@ -850,10 +876,13 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
     var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
     val closeThresholdPx = with(LocalDensity.current) { 40.dp.toPx() }
 
+    // The whole top of the panel is the grab zone, not a slim strip - a small band was easy to
+    // miss and drag past, landing on content below that doesn't handle drags itself and so let
+    // the gesture fall through to the player underneath.
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(64.dp)
+            .height(EqualizerHandleHeight)
             .clickable(onClick = onDismiss)
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -872,7 +901,8 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
     ) {
         Box(
             modifier = Modifier
-                .align(Alignment.Center)
+                .align(Alignment.TopCenter)
+                .padding(top = 14.dp)
                 .width(64.dp)
                 .height(8.dp)
                 .background(
@@ -882,7 +912,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
         )
         IconButton(
             onClick = onDismiss,
-            modifier = Modifier.align(Alignment.CenterEnd)
+            modifier = Modifier.align(Alignment.TopEnd)
         ) {
             Icon(Icons.Rounded.Close, contentDescription = null, tint = handleColor)
         }
@@ -896,12 +926,10 @@ private fun BandColumn(
     enabled: Boolean,
     selected: Boolean,
     color: Color,
-    useGradient: Boolean,
     onGainChange: (Float) -> Unit,
     onTapLabel: () -> Unit,
 ) {
     val gainRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
-    val gainColor = if (useGradient) valueGradientColor(band.gainDb, gainRange) else color
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -909,11 +937,13 @@ private fun BandColumn(
     ) {
         // Twelve of these side by side, so each one stays a plain slider regardless of the
         // panel-wide dial/slider setting - a strip of tiny 48dp dials read as fiddly rather than
-        // Poweramp-like, and the reference layout doesn't use them here either.
+        // Poweramp-like, and the reference layout doesn't use them here either. The track is
+        // always green/light-grey and the label always the plain contrast color, same as every
+        // other slider in the panel - only dial arcs still follow the value gradient.
         Text(
             text = formatDb(band.gainDb),
             style = MaterialTheme.typography.labelSmall,
-            color = gainColor,
+            color = color,
             maxLines = 1,
         )
         VerticalSlider(
@@ -924,12 +954,12 @@ private fun BandColumn(
             track = { sliderState ->
                 PowerampTrack(
                     sliderState = sliderState,
-                    activeColor = gainColor,
-                    inactiveColor = gainColor.copy(alpha = 0.25f),
+                    activeColor = SliderActiveGreen,
+                    inactiveColor = sliderInactiveColor(),
                     trackThickness = 8.dp,
                 )
             },
-            thumb = { PowerampThumb(color = gainColor) },
+            thumb = { PowerampThumb(color = SliderActiveGreen) },
             modifier = Modifier
                 .weight(1f)
                 .width(36.dp),
@@ -1074,6 +1104,7 @@ private fun BandEditor(
                     valueRange = freqRange,
                     enabled = band.enabled,
                     color = freqColor,
+                    textColor = color,
                     label = "Frequency",
                     valueLabel = formatFrequency(band.freqHz),
                 )
@@ -1083,6 +1114,7 @@ private fun BandEditor(
                     valueRange = gainRange,
                     enabled = band.enabled,
                     color = gainColor,
+                    textColor = color,
                     centeredAt = 0f,
                     label = "Gain",
                     valueLabel = "${formatDb(band.gainDb)} dB",
@@ -1093,7 +1125,7 @@ private fun BandEditor(
                     onValueChange = { onChange(band.copy(freqHz = 10f.pow(it))) },
                     valueRange = freqRange,
                     enabled = band.enabled,
-                    color = freqColor,
+                    textColor = color,
                     label = "Frequency",
                     valueLabel = formatFrequency(band.freqHz),
                 )
@@ -1102,7 +1134,7 @@ private fun BandEditor(
                     onValueChange = { onChange(band.copy(gainDb = quantizeTenth(it))) },
                     valueRange = gainRange,
                     enabled = band.enabled,
-                    color = gainColor,
+                    textColor = color,
                     label = "Gain",
                     valueLabel = "${formatDb(band.gainDb)} dB",
                 )
@@ -1116,7 +1148,7 @@ private fun BandEditor(
             value = band.q,
             onValueChange = { onChange(band.copy(q = it)) },
             valueRange = qRange,
-            color = if (useGradient) valueGradientColor(band.q, qRange) else color,
+            textColor = color,
         )
 
         Spacer(Modifier.height(8.dp))
@@ -1160,18 +1192,24 @@ private fun LabeledSlider(
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
-    color: Color = Color.Unspecified,
+    textColor: Color,
 ) {
-    Text(text = label, style = MaterialTheme.typography.labelMedium, color = color)
-    Slider(
-        value = value,
-        onValueChange = onValueChange,
-        valueRange = valueRange,
-        track = { sliderState ->
-            PowerampTrack(sliderState = sliderState, activeColor = color, inactiveColor = color.copy(alpha = 0.25f))
-        },
-        thumb = { PowerampThumb(color = color) },
-    )
+    Column(
+        modifier = Modifier
+            .border(1.dp, textColor.copy(alpha = 0.18f), RoundedCornerShape(12.dp))
+            .padding(vertical = 8.dp, horizontal = 10.dp)
+    ) {
+        Text(text = label, style = MaterialTheme.typography.labelMedium, color = textColor)
+        Slider(
+            value = value,
+            onValueChange = onValueChange,
+            valueRange = valueRange,
+            track = { sliderState ->
+                PowerampTrack(sliderState = sliderState, activeColor = SliderActiveGreen, inactiveColor = sliderInactiveColor())
+            },
+            thumb = { PowerampThumb(color = SliderActiveGreen) },
+        )
+    }
 }
 
 private fun filterTypeLabel(type: EqualizerSettings.FilterType) = when (type) {

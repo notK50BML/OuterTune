@@ -56,6 +56,13 @@ fun RotaryDial(
      * plain 0-to-max control, where the arc grows from the low end same as it always has.
      */
     centeredAt: Float? = null,
+    /**
+     * The label/value text's own color, independent of [color] (which only drives the arc/pointer
+     * now) - readable text and a value-coded dial face are two different jobs, and tinting a small
+     * label the same hue as a green-blue-yellow gradient arc can make it hard to read against the
+     * panel's background. Defaults to [color] so callers that don't care keep the old look.
+     */
+    textColor: Color = color,
 ) {
     val density = LocalDensity.current
     // detectDragGestures runs in a coroutine that survives across separate physical drag
@@ -72,7 +79,7 @@ fun RotaryDial(
         modifier = modifier,
     ) {
         label?.let {
-            Text(text = it, style = MaterialTheme.typography.labelMedium, color = color.copy(alpha = 0.75f))
+            Text(text = it, style = MaterialTheme.typography.labelMedium, color = textColor.copy(alpha = 0.75f))
         }
 
         Canvas(
@@ -141,7 +148,7 @@ fun RotaryDial(
         }
 
         valueLabel?.let {
-            Text(text = it, style = MaterialTheme.typography.titleSmall, color = color.copy(alpha = if (enabled) 1f else 0.5f))
+            Text(text = it, style = MaterialTheme.typography.titleSmall, color = textColor.copy(alpha = if (enabled) 1f else 0.5f))
         }
     }
 }

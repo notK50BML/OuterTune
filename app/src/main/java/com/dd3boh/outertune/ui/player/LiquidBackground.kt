@@ -8,17 +8,17 @@
 
 package com.dd3boh.outertune.ui.player
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
@@ -87,21 +87,33 @@ fun LiquidBackground(
     // arrangement of the same three blobs instead of always starting from the same position.
     val seed = remember { Random.nextFloat() * 1000f }
 
-    val transition = rememberInfiniteTransition(label = "liquidFlow")
-    val clock = if (isActive) {
-        transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Restart),
-            label = "clock",
-        ).value
-    } else {
-        0f
-    }
-
     val bass = reactiveFrame?.bass ?: 0f
     val treble = reactiveFrame?.treble ?: 0f
     val transient = reactiveFrame?.transient ?: 0f
+
+    // A fixed-duration infiniteRepeatable, combined with alpha jumping on every transient, was
+    // the "blinking" the flow used to do: the loop's own rate never actually changed, so all that
+    // visibly reacted to the music was a flash of brightness. What "flows faster or slower" wants
+    // is the clock itself advancing at a rate that tracks the music - accumulated by hand here,
+    // frame by frame, rather than driven by a fixed-duration Animatable, so the rate can change
+    // moment to moment without restarting anything.
+    var flowTime by remember { mutableFloatStateOf(0f) }
+    val currentBass by rememberUpdatedState(bass)
+    val currentTreble by rememberUpdatedState(treble)
+    LaunchedEffect(isActive) {
+        if (!isActive) return@LaunchedEffect
+        var lastFrameNanos = 0L
+        while (true) {
+            withFrameNanos { nanos ->
+                if (lastFrameNanos != 0L) {
+                    val deltaSeconds = (nanos - lastFrameNanos) / 1_000_000_000f
+                    val energy = ((currentBass + currentTreble) / 2f).coerceIn(0f, 1f)
+                    flowTime += deltaSeconds * (0.24f + energy * 0.6f)
+                }
+                lastFrameNanos = nanos
+            }
+        }
+    }
 
     Box(
         modifier = modifier
@@ -111,12 +123,15 @@ fun LiquidBackground(
                 val h = size.height
                 val minDim = minOf(w, h)
                 val tau = (2 * PI).toFloat()
-                val t = clock * tau
+                val t = flowTime * tau
 
                 // A contained effect, not a shape that reads as covering the whole screen - the
                 // earlier ferrofluid version's problem was exactly this ratio being too large.
                 val baseRadius = minDim * 0.32f * (1f + bass * 0.6f + transient * 0.3f)
-                val dynamicAlpha = (alpha * (1f + transient * 0.5f)).coerceAtMost(0.98f)
+                // Alpha stays fixed - flashing brightness on every transient was the "blinking"
+                // complaint. What varies with the music now is only motion (flowTime's own rate,
+                // set above) and size, both of which read as flowing rather than flickering.
+                val dynamicAlpha = alpha
 
                 palette.forEachIndexed { i, color ->
                     // Two sine terms per axis at deliberately non-harmonic speeds, each blob on its
