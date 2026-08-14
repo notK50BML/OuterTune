@@ -144,6 +144,8 @@ import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
 import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+import com.dd3boh.outertune.constants.LiquidShapeStyle
+import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
 import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
 import com.dd3boh.outertune.constants.SliderStyleKey
@@ -1662,6 +1664,7 @@ fun PlayerBackground(
             val animatedTreble by animateFloatAsState(targetTreble, label = "liquidTreble")
             val animatedTransient by animateFloatAsState(targetTransient, label = "liquidTransient")
 
+            val liquidShapeStyle by rememberEnumPreference(key = LiquidShapeStyleKey, defaultValue = LiquidShapeStyle.PETAL)
             LiquidBackground(
                 colors = gradientColors,
                 // Stop the animation clock whenever it cannot be appreciated: paused playback or
@@ -1671,6 +1674,7 @@ fun PlayerBackground(
                 reactiveFrame = if (visualizerWanted) {
                     VisualizerFrame(bass = animatedBass, treble = animatedTreble, transient = animatedTransient)
                 } else null,
+                shapeStyle = liquidShapeStyle,
             )
         }
 

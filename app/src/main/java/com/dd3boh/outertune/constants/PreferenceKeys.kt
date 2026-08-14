@@ -27,6 +27,9 @@ val LiquidAudioReactiveKey = booleanPreferencesKey("liquidAudioReactive")
 /** What sits behind the Liquid style's colour blobs - a [com.dd3boh.outertune.constants.LiquidColorScheme]. */
 val LiquidColorSchemeKey = stringPreferencesKey("liquidColorScheme")
 
+/** The Liquid style's silhouette - a [com.dd3boh.outertune.constants.LiquidShapeStyle]. */
+val LiquidShapeStyleKey = stringPreferencesKey("liquidShapeStyle")
+
 /** Whether player/queue/lyrics text over the Liquid background follows its measured brightness. */
 val LiquidTextContrastKey = booleanPreferencesKey("liquidTextContrast")
 

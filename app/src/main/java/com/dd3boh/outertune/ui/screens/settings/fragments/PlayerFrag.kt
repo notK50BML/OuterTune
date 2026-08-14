@@ -12,6 +12,7 @@ import androidx.compose.material.icons.rounded.BlurOn
 import androidx.compose.material.icons.rounded.ClearAll
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.Grain
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Headset
@@ -46,6 +47,8 @@ import com.dd3boh.outertune.constants.KeepAliveKey
 import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
 import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+import com.dd3boh.outertune.constants.LiquidShapeStyle
+import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.LiquidTextContrastKey
 import com.dd3boh.outertune.constants.PersistentQueueKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
@@ -455,6 +458,24 @@ fun PlayerBackgroundFrag() {
             icon = { Icon(Icons.Rounded.GraphicEq, null) },
             checked = liquidAudioReactive,
             onCheckedChange = onLiquidAudioReactiveChange,
+        )
+    }
+
+    val (liquidShapeStyle, onLiquidShapeStyleChange) =
+        rememberEnumPreference(LiquidShapeStyleKey, defaultValue = LiquidShapeStyle.PETAL)
+    AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
+        EnumListPreference(
+            title = { Text("Liquid shape") },
+            icon = { Icon(Icons.Rounded.Grain, null) },
+            selectedValue = liquidShapeStyle,
+            onValueSelected = onLiquidShapeStyleChange,
+            valueText = {
+                when (it) {
+                    LiquidShapeStyle.PETAL -> "Petal"
+                    LiquidShapeStyle.SPHERES -> "Spheres"
+                }
+            },
+            values = LiquidShapeStyle.entries,
         )
     }
 

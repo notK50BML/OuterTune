@@ -27,6 +27,15 @@ enum class LiquidColorScheme {
     WHITE
 }
 
+/** The silhouette the Liquid style draws - people who like the softer look and people who like
+ *  the spikier one turned out to be two different audiences, not one right answer. */
+enum class LiquidShapeStyle {
+    /** A spiky, flower-like crown of petals. */
+    PETAL,
+    /** Several soft, overlapping circles. */
+    SPHERES
+}
+
 enum class SliderStyle {
     SQUIGGLY, DEFAULT, SLIM
 }
