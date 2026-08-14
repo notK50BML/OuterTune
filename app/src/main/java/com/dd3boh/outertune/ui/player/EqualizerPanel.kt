@@ -110,8 +110,10 @@ import kotlin.math.roundToInt
 /** Width given to each band's column in the horizontally-scrolling strip, Poweramp-style. */
 private val BandColumnWidth = 56.dp
 
-/** How much of the panel's top the drag handle claims - most of the header area, not a slim strip. */
-private val EqualizerHandleHeight = 110.dp
+/** How much of the panel's top the drag handle claims - bigger than a slim strip, but this one is
+ *  for the panel that's already open; the small pull-down on the player screen that opens it in
+ *  the first place is the one that actually needed to grow. */
+private val EqualizerHandleHeight = 56.dp
 
 /**
  * A 12-band parametric equalizer, backed by [com.dd3boh.outertune.audio.EqualizerAudioProcessor]
@@ -901,8 +903,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
     ) {
         Box(
             modifier = Modifier
-                .align(Alignment.TopCenter)
-                .padding(top = 14.dp)
+                .align(Alignment.Center)
                 .width(64.dp)
                 .height(8.dp)
                 .background(
@@ -912,7 +913,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
         )
         IconButton(
             onClick = onDismiss,
-            modifier = Modifier.align(Alignment.TopEnd)
+            modifier = Modifier.align(Alignment.CenterEnd)
         ) {
             Icon(Icons.Rounded.Close, contentDescription = null, tint = handleColor)
         }

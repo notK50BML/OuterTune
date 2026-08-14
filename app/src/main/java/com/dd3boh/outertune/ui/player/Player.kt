@@ -480,7 +480,7 @@ private fun EqualizerHandle() {
             // horizontal system bars - without its own top inset it rendered directly under the
             // status bar/clock/battery instead of below them.
             .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
-            .height(36.dp)
+            .height(64.dp)
             .clickable { equalizerPanelState.visible = true }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(
@@ -499,9 +499,9 @@ private fun EqualizerHandle() {
     ) {
         Box(
             modifier = Modifier
-                .width(48.dp)
-                .height(6.dp)
-                .clip(RoundedCornerShape(3.dp))
+                .width(64.dp)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
                 .background(handleColor.copy(alpha = 0.6f))
         )
     }
