@@ -1079,13 +1079,14 @@ class MusicService : MediaLibraryService(),
      * because onMediaItemTransition runs before currentMediaMetadata is updated in onEvents.
      */
     private fun updateLyricsFetchTargets() {
+        val mediaItemCount = player.mediaItemCount
         val currentIndex = player.currentMediaItemIndex
-        if (currentIndex == C.INDEX_UNSET) {
+        if (currentIndex !in 0 until mediaItemCount) {
             lyricsFetchTargets.value = LyricsFetchTargets(null, emptyList())
             return
         }
         val current = player.getMediaItemAt(currentIndex).metadata
-        val upcoming = ((currentIndex + 1) until player.mediaItemCount)
+        val upcoming = ((currentIndex + 1) until mediaItemCount)
             .mapNotNull { player.getMediaItemAt(it).metadata }
         lyricsFetchTargets.value = LyricsFetchTargets(current, upcoming)
     }
