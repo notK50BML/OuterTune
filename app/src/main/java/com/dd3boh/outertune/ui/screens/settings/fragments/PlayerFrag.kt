@@ -13,6 +13,7 @@ import androidx.compose.material.icons.rounded.ClearAll
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Headset
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.SkipNext
@@ -43,6 +44,9 @@ import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
 import com.dd3boh.outertune.constants.KeepAliveKey
 import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
+import com.dd3boh.outertune.constants.LiquidColorScheme
+import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+import com.dd3boh.outertune.constants.LiquidTextContrastKey
 import com.dd3boh.outertune.constants.PersistentQueueKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
@@ -451,6 +455,37 @@ fun PlayerBackgroundFrag() {
             icon = { Icon(Icons.Rounded.GraphicEq, null) },
             checked = liquidAudioReactive,
             onCheckedChange = onLiquidAudioReactiveChange,
+        )
+    }
+
+    val (liquidColorScheme, onLiquidColorSchemeChange) =
+        rememberEnumPreference(LiquidColorSchemeKey, defaultValue = LiquidColorScheme.SURFACE)
+    AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
+        EnumListPreference(
+            title = { Text("Liquid colour scheme") },
+            icon = { Icon(Icons.Rounded.Palette, null) },
+            selectedValue = liquidColorScheme,
+            onValueSelected = onLiquidColorSchemeChange,
+            valueText = {
+                when (it) {
+                    LiquidColorScheme.SURFACE -> "Theme surface"
+                    LiquidColorScheme.BLACK -> "Black"
+                    LiquidColorScheme.WHITE -> "White"
+                }
+            },
+            values = LiquidColorScheme.entries,
+        )
+    }
+
+    val (liquidTextContrast, onLiquidTextContrastChange) =
+        rememberPreference(LiquidTextContrastKey, defaultValue = true)
+    AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
+        SwitchPreference(
+            title = { Text("Auto text contrast") },
+            description = "Flip player/queue/lyrics text to the opposite of the liquid background's measured brightness",
+            icon = { Icon(Icons.Rounded.Contrast, null) },
+            checked = liquidTextContrast,
+            onCheckedChange = onLiquidTextContrastChange,
         )
     }
 }

@@ -19,6 +19,14 @@ enum class PlayerBackgroundStyle {
     FOLLOW_THEME, GRADIENT, BLUR, LIQUID, FROSTED
 }
 
+/** What sits behind the Liquid style's colour blobs. */
+enum class LiquidColorScheme {
+    /** The normal Material surface colour, same as every other style. */
+    SURFACE,
+    BLACK,
+    WHITE
+}
+
 enum class SliderStyle {
     SQUIGGLY, DEFAULT, SLIM
 }

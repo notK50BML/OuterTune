@@ -24,61 +24,75 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.lerp
 import com.dd3boh.outertune.audio.VisualizerFrame
 import kotlin.math.PI
-import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.random.Random
 
 /**
- * A ferrofluid-style silhouette - a dark, glossy blob with a crown of spikes that lengthen and
- * sharpen with the music, the way real ferrofluid spikes when a magnetic field ramps up - rather
- * than a soft wash of colour. Optionally driven by the actual audio; without it, the shape still
- * breathes on its own so it never reads as a static image.
+ * A slow-flowing wash of Material colour behind the player - a handful of large, soft-edged
+ * blobs drifting on layered sine terms (a cheap stand-in for the domain-warp distortion a real
+ * fluid shader computes, in the spirit of Apple Music's Now Playing background) rather than one
+ * hard-edged shape. Optionally driven by the actual audio.
  *
- * The previous version here was three large, mostly-transparent radial gradients - a deliberate
- * "ambient wash" look, but one that read as barely-there against a dark player background, which
- * is exactly the complaint this rewrite addresses: a near-black, high-contrast shape with a
- * coloured rim light is visible on both a dark and a light surface, the way an actual ferrofluid
- * demo is (black fluid on a plain background), instead of disappearing into it.
+ * Two rewrites happened here before this one, both worth recording so a third doesn't repeat the
+ * same mistakes:
  *
- * [reactiveFrame], when supplied, drives the actual spike geometry: bass swells a handful of big,
- * slow lobes (the classic ferrofluid "crown"), treble adds many small fast spikes on top, and a
- * transient gives the whole silhouette a brief uniform outward kick, reading as the shape
- * flinching on a beat rather than one spike spinning around it. Null keeps a gentle ambient wobble
- * so the shape is never fully still.
+ * 1. The original three-blob version drew every blob as a radial gradient fading straight to
+ *    [Color.Transparent] at a low alpha, over a large radius - soft, but so faint against a dark
+ *    player surface that it read as barely-there.
+ * 2. The follow-up replaced it with a single spiky, path-based silhouette (a "ferrofluid" crown)
+ *    lerped toward black - visible, but the wrong shape entirely (a sharp many-pointed petal
+ *    filling most of the screen) and the wrong colour family (near-black rather than the actual
+ *    Material/album colours).
  *
- * Cost is one ~64-point Path rebuilt per frame plus two gradient fills - cheap enough for
- * continuous animation, and [isActive] stops the clock entirely when the player is hidden,
- * paused, or the device is in power saving mode.
+ * This version keeps the first version's blob shape (soft radial gradients, several of them,
+ * still cheap) but fixes what made it hard to see: real Material colours at real opacity instead
+ * of a black-lerped tint, a smaller footprint so it reads as a contained effect rather than
+ * something filling the whole screen, a per-process-launch random phase so the arrangement is
+ * different every time the app starts rather than always the same three circles, and stronger
+ * weighting on the audio terms so it visibly tracks bass/treble/transients rather than mostly
+ * drifting on its own.
+ *
+ * Cost is a handful of radial gradients per frame, same as before. The animation is read inside
+ * [drawBehind], so a frame redraws without recomposing anything, and [isActive] stops the clock
+ * entirely when the player is hidden, paused, or the device is in power saving mode.
  */
 @Composable
 fun LiquidBackground(
     colors: List<Color>,
     isActive: Boolean,
     modifier: Modifier = Modifier,
-    alpha: Float = 0.9f,
+    alpha: Float = 0.8f,
     reactiveFrame: VisualizerFrame? = null,
 ) {
     // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
-    // real hue to tint the rim light with, so the theme's own primary is a guaranteed fallback
-    // rather than trusting the cover alone.
+    // guaranteed-vibrant fallback, and the theme's own colour roles are exactly that: real
+    // Material colours rather than a fixed extra hue.
     val themeAccent = MaterialTheme.colorScheme.primary
-    val dominant = remember(colors, themeAccent) { colors.firstOrNull() ?: themeAccent }
+    val themeSecondary = MaterialTheme.colorScheme.secondary
+    val themeTertiary = MaterialTheme.colorScheme.tertiary
 
-    // Ferrofluid reads as near-black with the cover's colour only as a tint, not a wash - the core
-    // stays dark even over a light theme's light surface, and the rim light is where the actual
-    // colour shows through, like light catching an oily, glossy surface.
-    val coreColor = remember(dominant) { lerp(Color.Black, dominant, 0.28f) }
-    val rimColor = remember(dominant) { lerp(dominant, Color.White, 0.2f) }
+    val palette = remember(colors, themeAccent, themeSecondary, themeTertiary) {
+        when (colors.size) {
+            0 -> listOf(themeAccent, themeSecondary, themeTertiary)
+            1 -> listOf(colors[0], themeSecondary, themeAccent)
+            2 -> listOf(colors[0], colors[1], themeAccent)
+            else -> colors.take(2) + themeAccent
+        }
+    }
 
-    val transition = rememberInfiniteTransition(label = "ferrofluid")
+    // A phase offset drawn once per composition (i.e. once per time the player background is
+    // actually created, which in practice means once per app process) - every launch gets its own
+    // arrangement of the same three blobs instead of always starting from the same position.
+    val seed = remember { Random.nextFloat() * 1000f }
+
+    val transition = rememberInfiniteTransition(label = "liquidFlow")
     val clock = if (isActive) {
         transition.animateFloat(
             initialValue = 0f,
             targetValue = 1f,
-            animationSpec = infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart),
+            animationSpec = infiniteRepeatable(tween(26_000, easing = LinearEasing), RepeatMode.Restart),
             label = "clock",
         ).value
     } else {
@@ -95,74 +109,47 @@ fun LiquidBackground(
             .drawBehind {
                 val w = size.width
                 val h = size.height
-                val cx = w * 0.5f
-                val cy = h * 0.42f
-                val baseRadius = maxOf(w, h) * 0.34f
+                val minDim = minOf(w, h)
                 val tau = (2 * PI).toFloat()
                 val t = clock * tau
 
-                // Sampled around the circle as a radius multiplier per angle, then walked through
-                // as a smooth closed contour rather than straight segments between the raw
-                // samples - a plain polygon through 64 points looks faceted, not fluid.
-                val sampleCount = 64
-                val radii = FloatArray(sampleCount) { i ->
-                    val angle = tau * i / sampleCount
-                    var r = 1f
-                    // Ambient wobble: present with no audio at all, so the shape is never static.
-                    r += 0.05f * sin(angle * 3 + t)
-                    // Bass: a few big, slow lobes - the crown a real ferrofluid forms as the field
-                    // ramps up.
-                    r += (0.08f + bass * 0.55f) * sin(angle * 5 + t * 0.4f)
-                    // Treble: many small, fast spikes layered on top of the bass lobes.
-                    r += (0.015f + treble * 0.22f) * sin(angle * 17 - t * 2.3f)
-                    // Transient: uniform across every angle, so a beat reads as the whole
-                    // silhouette kicking outward for a frame, not one spike moving.
-                    r += transient * 0.35f
-                    (baseRadius * r).coerceAtLeast(baseRadius * 0.4f)
-                }
+                // A contained effect, not a shape that reads as covering the whole screen - the
+                // earlier ferrofluid version's problem was exactly this ratio being too large.
+                val baseRadius = minDim * 0.32f * (1f + bass * 0.6f + transient * 0.3f)
+                val dynamicAlpha = (alpha * (1f + transient * 0.5f)).coerceAtMost(0.98f)
 
-                fun pointAt(i: Int): Offset {
-                    val index = ((i % sampleCount) + sampleCount) % sampleCount
-                    val angle = tau * index / sampleCount
-                    val r = radii[index]
-                    return Offset(cx + r * cos(angle), cy + r * sin(angle))
-                }
+                palette.forEachIndexed { i, color ->
+                    // Two sine terms per axis at deliberately non-harmonic speeds, each blob on its
+                    // own speed and phase - the closest a few lines of trig gets to real domain
+                    // warping: motion that never visibly loops on a cycle a listener would notice,
+                    // and where each blob's path looks unrelated to the others'.
+                    val phase = seed + i * 137f
+                    val speedX = 0.55f + i * 0.15f
+                    val speedY = 0.45f + i * 0.19f
+                    val driftX = 0.5f * sin(t * speedX + phase) + 0.5f * sin(t * speedX * 0.29f + phase * 1.7f)
+                    val driftY = 0.5f * sin(t * speedY + phase * 1.3f) + 0.5f * sin(t * speedY * 0.24f + phase * 2.1f)
+                    // Treble jitters the radius quickly rather than the position, which reads as
+                    // "shimmering" rather than "vibrating across the screen".
+                    val trebleJitter = 1f + treble * 0.3f * sin(t * 5.2f + phase)
 
-                val path = Path()
-                val first = pointAt(0)
-                path.moveTo(first.x, first.y)
-                for (i in 0 until sampleCount) {
-                    val current = pointAt(i)
-                    val next = pointAt(i + 1)
-                    val midpoint = Offset((current.x + next.x) / 2f, (current.y + next.y) / 2f)
-                    path.quadraticBezierTo(current.x, current.y, midpoint.x, midpoint.y)
-                }
-                path.close()
+                    val cx = w * (0.5f + 0.26f * driftX)
+                    val cy = h * (0.5f + 0.26f * driftY)
+                    val radius = baseRadius * trebleJitter * (0.82f + 0.16f * i)
 
-                drawPath(
-                    path = path,
-                    brush = Brush.radialGradient(
-                        colors = listOf(
-                            rimColor.copy(alpha = alpha),
-                            coreColor.copy(alpha = alpha),
-                            coreColor.copy(alpha = alpha * 0.85f),
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                color.copy(alpha = dynamicAlpha),
+                                color.copy(alpha = dynamicAlpha * 0.45f),
+                                Color.Transparent,
+                            ),
+                            center = Offset(cx, cy),
+                            radius = radius,
                         ),
-                        center = Offset(cx, cy - baseRadius * 0.25f),
-                        radius = baseRadius * 2.1f,
-                    ),
-                )
-
-                // A soft, mostly-transparent halo just outside the silhouette - the glow a dark
-                // glossy fluid picks up from whatever light is around it, and the last bit of
-                // "this is meant to look wet/reflective" rather than a flat cutout shape.
-                drawPath(
-                    path = path,
-                    brush = Brush.radialGradient(
-                        colors = listOf(Color.Transparent, rimColor.copy(alpha = alpha * 0.25f)),
+                        radius = radius,
                         center = Offset(cx, cy),
-                        radius = baseRadius * 1.35f,
-                    ),
-                )
+                    )
+                }
             }
     )
 }

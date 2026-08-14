@@ -117,6 +117,7 @@ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.CONTENT_TYPE_SONG
+import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.InsetsSafeE
 import com.dd3boh.outertune.constants.InsetsSafeS
 import com.dd3boh.outertune.constants.InsetsSafeSE
@@ -128,6 +129,7 @@ import com.dd3boh.outertune.constants.LockQueueKey
 import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
 import com.dd3boh.outertune.constants.MiniPlayerHeight
 import com.dd3boh.outertune.constants.PLAYER_DEBUG
+import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.PlayerHorizontalPadding
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
@@ -200,7 +202,8 @@ fun QueueSheet(
                 connection?.mediaMetadata ?: MutableStateFlow<MediaMetadata?>(null)
             }
             val mediaMetadata by metadataFlow.collectAsState()
-            val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata)
+            val playerBackgroundStyle by rememberEnumPreference(key = PlayerBackgroundStyleKey, defaultValue = DEFAULT_PLAYER_BACKGROUND)
+            val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle)
 
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,

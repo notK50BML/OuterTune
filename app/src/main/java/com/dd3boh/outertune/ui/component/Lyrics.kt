@@ -68,12 +68,14 @@ import androidx.compose.ui.unit.sp
 import com.dd3boh.outertune.LocalMenuState
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.LyricClickable
 import com.dd3boh.outertune.constants.LyricFontSizeKey
 import com.dd3boh.outertune.constants.LyricKaraokeEnable
 import com.dd3boh.outertune.constants.LyricUpdateSpeed
 import com.dd3boh.outertune.constants.LyricsPosition
 import com.dd3boh.outertune.constants.LyricsTextPositionKey
+import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.QueuePeekHeight
 import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.constants.Speed
@@ -169,7 +171,8 @@ fun Lyrics(
     // album cover it is close to invisible. With the background set to follow the theme this
     // resolves to secondary anyway, so nothing changes for anyone not using artwork behind the
     // player.
-    val textColor = rememberPlayerOnBackgroundColor(mediaMetadata)
+    val playerBackgroundStyle by rememberEnumPreference(key = PlayerBackgroundStyleKey, defaultValue = DEFAULT_PLAYER_BACKGROUND)
+    val textColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle)
     // Lines already sung keep their own shade of the same colour rather than the theme's primary,
     // which has the same problem: readable against the theme, arbitrary against an album cover.
     val prevTextColor = textColor.copy(alpha = CONSUMED_ALPHA)

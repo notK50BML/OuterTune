@@ -24,6 +24,12 @@ val PlayerAutoTextContrastKey = booleanPreferencesKey("playerAutoTextContrast")
 /** Drive the Liquid background's blobs from the actual audio instead of a fixed ambient drift. */
 val LiquidAudioReactiveKey = booleanPreferencesKey("liquidAudioReactive")
 
+/** What sits behind the Liquid style's colour blobs - a [com.dd3boh.outertune.constants.LiquidColorScheme]. */
+val LiquidColorSchemeKey = stringPreferencesKey("liquidColorScheme")
+
+/** Whether player/queue/lyrics text over the Liquid background follows its measured brightness. */
+val LiquidTextContrastKey = booleanPreferencesKey("liquidTextContrast")
+
 /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
 val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
 val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")
@@ -91,9 +97,8 @@ val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
 val EqContrastColorKey = booleanPreferencesKey("eqContrastColor")
 /** Dials vs sliders for band gain, the band editor's frequency/gain, and bass/treble. */
 val EqUseDialsKey = booleanPreferencesKey("eqUseDials")
-/** Colors slider tracks/thumbs and dial arcs green-to-red by how high/low the value is. */
+/** Colors slider tracks/thumbs and dial arcs blue-green-yellow by how low/mid/high the value is. */
 val EqValueColorGradientKey = booleanPreferencesKey("eqValueColorGradient")
-val EqBalanceUseDialKey = booleanPreferencesKey("eqBalanceUseDial")
 val PersistentQueueKey = booleanPreferencesKey("persistentQueue")
 
 val SeekIncrementKey = stringPreferencesKey("seekIncrement")

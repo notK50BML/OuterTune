@@ -83,7 +83,6 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
-import com.dd3boh.outertune.constants.EqBalanceUseDialKey
 import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.EqUseDialsKey
 import com.dd3boh.outertune.constants.EqValueColorGradientKey
@@ -142,7 +141,11 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
-    val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata)
+    val playerBackground by rememberEnumPreference(
+        key = PlayerBackgroundStyleKey,
+        defaultValue = DEFAULT_PLAYER_BACKGROUND
+    )
+    val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackground)
 
     // Whether to color the panel's own text/icons/dials/sliders (everything that isn't already a
     // Material3-themed widget like Switch/SegmentedButton, which already follows the app theme
@@ -161,10 +164,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
 
     BackHandler(onBack = onDismiss)
 
-    val playerBackground by rememberEnumPreference(
-        key = PlayerBackgroundStyleKey,
-        defaultValue = DEFAULT_PLAYER_BACKGROUND
-    )
     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
@@ -424,15 +423,33 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
 
                 Spacer(Modifier.height(20.dp))
 
-                BassTrebleDials(
-                    bassGainDb = settings.bands.first().gainDb,
-                    trebleGainDb = settings.bands.last().gainDb,
+                // "Bass"/"Treble" move the whole low/high end together, like a tone control on a
+                // real amp, rather than just nudging the single lowest/highest band - anything at
+                // or below 250Hz counts as bass and anything at or above 4kHz counts as treble,
+                // the same split VisualizerFrame already uses elsewhere in this app.
+                val bassBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz <= 250f }
+                val trebleBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz >= 4000f }
+                val bassGainDb = bassBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
+                val trebleGainDb = trebleBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
+
+                fun setRangeGain(indices: List<Int>, newGain: Float) {
+                    val quantized = quantizeTenth(newGain)
+                    update(settings.copy(bands = settings.bands.mapIndexed { i, b ->
+                        if (i in indices) b.copy(gainDb = quantized) else b
+                    }))
+                }
+
+                ToneControlsRow(
+                    bassGainDb = bassGainDb,
+                    trebleGainDb = trebleGainDb,
+                    balance = settings.balance,
                     enabled = settings.enabled,
                     color = eqColor,
                     useDials = useDials,
                     useGradient = useValueGradient,
-                    onBassChange = { updateBand(0, settings.bands.first().copy(gainDb = quantizeTenth(it))) },
-                    onTrebleChange = { updateBand(settings.bands.lastIndex, settings.bands.last().copy(gainDb = quantizeTenth(it))) },
+                    onBassChange = { setRangeGain(bassBandIndices, it) },
+                    onTrebleChange = { setRangeGain(trebleBandIndices, it) },
+                    onBalanceChange = { update(settings.copy(balance = it)) },
                 )
 
                 Spacer(Modifier.height(20.dp))
@@ -473,55 +490,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 }
 
                 Spacer(Modifier.height(20.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-
-                var balanceUseDial by rememberPreference(EqBalanceUseDialKey, defaultValue = false)
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = stringResource(R.string.equalizer_balance) + " (${balanceReadout(settings.balance)})",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = eqColorVariant,
-                    )
-                    TextButton(
-                        onClick = { balanceUseDial = !balanceUseDial },
-                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
-                    ) {
-                        Text(if (balanceUseDial) "Use slider" else "Use dial")
-                    }
-                }
-                val balanceRange = -1f..1f
-                val balanceColor = if (useValueGradient) valueGradientColor(settings.balance, balanceRange) else eqColor
-                if (balanceUseDial) {
-                    RotaryDial(
-                        value = settings.balance,
-                        onValueChange = { update(settings.copy(balance = it)) },
-                        valueRange = balanceRange,
-                        color = balanceColor,
-                        centeredAt = 0f,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
-                } else {
-                    Slider(
-                        value = settings.balance,
-                        onValueChange = { update(settings.copy(balance = it)) },
-                        valueRange = balanceRange,
-                        track = { sliderState ->
-                            PowerampTrack(
-                                sliderState = sliderState,
-                                activeColor = balanceColor,
-                                inactiveColor = balanceColor.copy(alpha = 0.25f),
-                            )
-                        },
-                        thumb = { PowerampThumb(color = balanceColor) },
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
                 HorizontalDivider()
                 Spacer(Modifier.height(12.dp))
 
@@ -650,40 +618,60 @@ private fun PowerampSlider(
  * there's exactly one thing controlling any given frequency.
  */
 @Composable
-private fun BassTrebleDials(
+private fun ToneControlsRow(
     bassGainDb: Float,
     trebleGainDb: Float,
+    balance: Float,
     enabled: Boolean,
     color: Color,
     useDials: Boolean,
     useGradient: Boolean,
     onBassChange: (Float) -> Unit,
     onTrebleChange: (Float) -> Unit,
+    onBalanceChange: (Float) -> Unit,
 ) {
-    val range = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
-    val bassColor = if (useGradient) valueGradientColor(bassGainDb, range) else color
-    val trebleColor = if (useGradient) valueGradientColor(trebleGainDb, range) else color
+    val gainRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
+    val balanceRange = -1f..1f
+    val bassColor = if (useGradient) valueGradientColor(bassGainDb, gainRange) else color
+    val trebleColor = if (useGradient) valueGradientColor(trebleGainDb, gainRange) else color
+    val balanceColor = if (useGradient) valueGradientColor(balance, balanceRange) else color
 
+    // Bass, balance and treble together, spread evenly across the full width rather than each
+    // getting its own row - three related "tone" controls read as one unit that way, and it's
+    // what leaves the balance section below unnecessary.
     Row(
-        horizontalArrangement = Arrangement.spacedBy(32.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
         modifier = Modifier.fillMaxWidth()
     ) {
         if (useDials) {
             RotaryDial(
                 value = bassGainDb,
                 onValueChange = onBassChange,
-                valueRange = range,
+                valueRange = gainRange,
                 enabled = enabled,
+                dialSize = 84.dp,
                 color = bassColor,
                 centeredAt = 0f,
                 label = "Bass",
                 valueLabel = "${formatDb(bassGainDb)} dB",
             )
             RotaryDial(
+                value = balance,
+                onValueChange = onBalanceChange,
+                valueRange = balanceRange,
+                enabled = enabled,
+                dialSize = 84.dp,
+                color = balanceColor,
+                centeredAt = 0f,
+                label = "Balance",
+                valueLabel = balanceReadout(balance),
+            )
+            RotaryDial(
                 value = trebleGainDb,
                 onValueChange = onTrebleChange,
-                valueRange = range,
+                valueRange = gainRange,
                 enabled = enabled,
+                dialSize = 84.dp,
                 color = trebleColor,
                 centeredAt = 0f,
                 label = "Treble",
@@ -693,16 +681,25 @@ private fun BassTrebleDials(
             PowerampSlider(
                 value = bassGainDb,
                 onValueChange = onBassChange,
-                valueRange = range,
+                valueRange = gainRange,
                 enabled = enabled,
                 color = bassColor,
                 label = "Bass",
                 valueLabel = "${formatDb(bassGainDb)} dB",
             )
             PowerampSlider(
+                value = balance,
+                onValueChange = onBalanceChange,
+                valueRange = balanceRange,
+                enabled = enabled,
+                color = balanceColor,
+                label = "Balance",
+                valueLabel = balanceReadout(balance),
+            )
+            PowerampSlider(
                 value = trebleGainDb,
                 onValueChange = onTrebleChange,
-                valueRange = range,
+                valueRange = gainRange,
                 enabled = enabled,
                 color = trebleColor,
                 label = "Treble",
@@ -989,25 +986,25 @@ private fun MiniPlaybackControls(color: Color?) {
         ResizableIconButton(
             icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
             color = iconColor,
-            modifier = Modifier.size(42.dp),
+            modifier = Modifier.size(34.dp),
             onClick = { playerConnection.triggerShuffle() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipPrevious,
             color = iconColor,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(38.dp),
             onClick = { playerConnection.player.seekToPrevious() },
         )
         ResizableIconButton(
             icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
             color = iconColor,
-            modifier = Modifier.size(55.dp),
+            modifier = Modifier.size(44.dp),
             onClick = { playerConnection.player.togglePlayPause() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipNext,
             color = iconColor,
-            modifier = Modifier.size(48.dp),
+            modifier = Modifier.size(38.dp),
             onClick = { playerConnection.player.seekToNext() },
         )
         ResizableIconButton(
@@ -1018,7 +1015,7 @@ private fun MiniPlaybackControls(color: Color?) {
                 else -> R.drawable.repeat_off
             },
             color = iconColor,
-            modifier = Modifier.size(42.dp),
+            modifier = Modifier.size(34.dp),
             onClick = { playerConnection.player.toggleRepeatMode() },
         )
     }

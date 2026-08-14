@@ -34,7 +34,9 @@ import coil3.request.allowHardware
 import coil3.toBitmap
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
+import com.dd3boh.outertune.constants.LiquidTextContrastKey
 import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
+import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.utils.coilCoroutine
 import com.dd3boh.outertune.utils.rememberEnumPreference
@@ -157,13 +159,22 @@ fun rememberCoverIsLight(mediaMetadata: MediaMetadata?, enabled: Boolean): Boole
  * image from memory to every caller, so asking from more than one place is not worth avoiding.
  */
 @Composable
-fun rememberPlayerOnBackgroundColor(mediaMetadata: MediaMetadata?): Color {
+fun rememberPlayerOnBackgroundColor(
+    mediaMetadata: MediaMetadata?,
+    /** Null when the caller doesn't know/care - falls back to the shared Frosted/Blur toggle. */
+    playerBackground: PlayerBackgroundStyle? = null,
+): Color {
     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val isSystemInDarkTheme = isSystemInDarkTheme()
     val useDarkTheme = remember(darkTheme, isSystemInDarkTheme) {
         if (darkTheme == DarkMode.AUTO) isSystemInDarkTheme else darkTheme == DarkMode.ON
     }
-    val autoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+    // Liquid gets its own toggle rather than sharing Frosted/Blur's: its "background" is a couple
+    // of colour blobs, not a blurred photo, so whether measuring the raw cover's brightness is the
+    // right call for it is a genuinely separate question from whether it's right for a blur.
+    val sharedAutoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+    val liquidTextContrast by rememberPreference(LiquidTextContrastKey, defaultValue = true)
+    val autoTextContrast = if (playerBackground == PlayerBackgroundStyle.LIQUID) liquidTextContrast else sharedAutoTextContrast
 
     // Every background style is artwork-derived now (FOLLOW_THEME and GRADIENT/LIQUID measure the
     // cover via extractGradientColors, FROSTED/BLUR via this same luminance check), so there is no

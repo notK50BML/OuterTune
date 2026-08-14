@@ -142,6 +142,8 @@ import com.dd3boh.outertune.constants.SeekIncrementKey
 import com.dd3boh.outertune.audio.VisualizerFrame
 import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
+import com.dd3boh.outertune.constants.LiquidColorScheme
+import com.dd3boh.outertune.constants.LiquidColorSchemeKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
 import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
 import com.dd3boh.outertune.constants.SliderStyleKey
@@ -463,7 +465,8 @@ private fun EqualizerHandle() {
     // a fixed theme colour that can all but disappear on some covers. Same toggle as the panel
     // itself, so turning contrast colour off is consistent everywhere the equalizer appears.
     val useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
-    val handleColor = if (useContrastColor) rememberPlayerOnBackgroundColor(mediaMetadata) else MaterialTheme.colorScheme.onSurface
+    val playerBackgroundStyle by rememberEnumPreference(key = PlayerBackgroundStyleKey, defaultValue = DEFAULT_PLAYER_BACKGROUND)
+    val handleColor = if (useContrastColor) rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle) else MaterialTheme.colorScheme.onSurface
 
     val equalizerPanelState = LocalEqualizerPanelState.current
     var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
@@ -906,7 +909,8 @@ fun ControlsContent(
 
     // The same decision the queue handle makes, so the two cannot disagree about what is readable
     // over this background.
-    val onBackgroundColor = rememberPlayerOnBackgroundColor(mediaMetadata)
+    val playerBackgroundStyle by rememberEnumPreference(key = PlayerBackgroundStyleKey, defaultValue = DEFAULT_PLAYER_BACKGROUND)
+    val onBackgroundColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle)
 
 
     val playbackState by playerConnection.playbackState.collectAsState()
@@ -1315,9 +1319,22 @@ fun PlayerBackground(
 
     val context = LocalContext.current
 
+    // Liquid's blobs are colour on top of a backdrop, and which backdrop reads best depends on
+    // the colours involved - every other style keeps the normal Material surface.
+    val liquidColorScheme by rememberEnumPreference(key = LiquidColorSchemeKey, defaultValue = LiquidColorScheme.SURFACE)
+    val backdropColor = if (playerBackground == PlayerBackgroundStyle.LIQUID) {
+        when (liquidColorScheme) {
+            LiquidColorScheme.BLACK -> Color.Black
+            LiquidColorScheme.WHITE -> Color.White
+            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+        }
+    } else {
+        MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+    }
+
     Box(
         modifier = Modifier
-            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation))
+            .background(backdropColor)
             .fillMaxSize()
     ) {
 
