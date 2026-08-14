@@ -1,7 +1,7 @@
 From ce6f7f799e2725b2420d65354b05d9b2932e9260 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/78] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/79] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 00000000..81d7f34c
 From 7f0e1fd0d2f68f9dd2ee974bba518e6de4c2aecb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/78] Add patch notes
+Subject: [PATCH 02/79] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 00000000..28c797a0
 From 14a0026fb47ca1dd0b4ffe318d936134ad3544c0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/78] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/79] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a89..27f97bf7 100644
 From ae6f8b0436d2b8f4c04775c6366e8408ca4bd77e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/78] Clarify build route in patch notes
+Subject: [PATCH 04/79] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f961..a43e5d3f 100644
 From a2a69476880e0932200a968cb2083100a7dd183e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/78] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/79] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b930..7d500840 100644
 From 3ae0c5459c9b78c1e45f534f61681fa4736c66ce Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/78] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/79] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac8..a848cde2 100644
 From 1bb5f2a86d88f1b6ea98d774f716ae0a456c3c61 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/78] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/79] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf7..580a4a9c 100644
 From b5cab04db270c6e3deef98d28a2ae287320eb62d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/78] Add Discord rich presence
+Subject: [PATCH 08/79] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b851593..575e5dee 100755
 From 155aa686f6c440d450880dab72e8a83ec7115232 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/78] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/79] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 83537f7a..113ca4e6 100644
 From a3a8ffb76d0f6fd2210f2a7bca654e5ab06ccaf7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/78] Add a Liquid player background
+Subject: [PATCH 10/79] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2e..9ce0f192 100644
 From dd43f1bd3ecfd1bf8579f6c98b52e9f936ca632b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/78] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/79] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f192..0afd9445 100644
 From aae3d59212eb43886ab8baf03a4b63f582810ea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/78] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/79] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd9445..8388e17e 100644
 From af8889f3b724566d259e89bfe01d6ed7950ccac4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/78] Fix Discord presence never appearing
+Subject: [PATCH 13/79] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fcc..d9eaf365 100644
 From d13be09e7bb19a5874f33c9849c00b4fb0e3735c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/78] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/79] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17e..25f56c21 100644
 From 28c032b66b173341a462e44b235f734937c60b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/78] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/79] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f5..90bac793 100644
 From 63c8d2f05745563c27dd450bc7c22bbe2cff4cf0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/78] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/79] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c0..92770533 100644
 From a1f9d093fc934f94eaa1fccb0ec3578c0e156fe8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/78] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/79] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 92770533..1fd386f5 100644
 From 93ac83ecb8abc1bd14dd35e6f83dd73a4cac165d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/78] Point in-app links at this fork
+Subject: [PATCH 18/79] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 3f52f92e..ea1302e1 160000
 From 1bc0166156cdc6ccdab97890f0a9737320e7d472 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 19/78] Fix the Discord presence freezing on a track change
+Subject: [PATCH 19/79] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6205,7 +6205,7 @@ index 227e9628..e843bb7d 100644
 From 1c459ecf189ebde4292f0ec027f3648a46a0c30f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 20/78] Explain where to find the Discord token
+Subject: [PATCH 20/79] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6235,7 +6235,7 @@ index 035206ed..93e4b92b 100644
 From 9ed0888d5759bafb731af62d30f8cec9c69d335c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 21/78] Ask Discord's module registry for the token
+Subject: [PATCH 21/79] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6422,7 +6422,7 @@ index 9244411c..4aea73d0 100644
 From 884c109ffd5bdf01594a4c3a126f809655ffca29 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 22/78] Add app icon customisation
+Subject: [PATCH 22/79] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7360,7 +7360,7 @@ index 93e4b92b..25673abe 100644
 From b33df24023f93249c3061e94b2d6420462df9857 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 23/78] Add a frosted glass player background
+Subject: [PATCH 23/79] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7741,7 +7741,7 @@ index 25673abe..d6c42efd 100644
 From 85bdabde5d107693e5404c7d37bfa9c90981ad93 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 24/78] Turn the home search into a field, and thin out the top
+Subject: [PATCH 24/79] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8029,7 +8029,7 @@ index d6c42efd..37748685 100644
 From 18916896604ef7934670495b3794d838b7963efd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 25/78] Add extended charts to Stats
+Subject: [PATCH 25/79] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8325,7 +8325,7 @@ index 37748685..10418352 100644
 From 29ddeed3e0ada034cb3501628a176ea241cb22b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 26/78] Import player layouts from the layout editor
+Subject: [PATCH 26/79] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9298,7 +9298,7 @@ index 10418352..20ed4dc7 100644
 From 99a3843c67380030057cfd7b5ef5ec256011704c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 27/78] Add song recognition
+Subject: [PATCH 27/79] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11356,7 +11356,7 @@ index 00000000..1c59e9ca
 From 82750b1199210b8cc04c3c75e0fa9eb568251585 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 28/78] Fix the stats charts
+Subject: [PATCH 28/79] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11755,7 +11755,7 @@ index f7096084..a26b3be5 100644
 From b305cfa3aebfc9f7df830ae6324f20bf328b5dc6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 29/78] Let the stats charts rank by plays or by time
+Subject: [PATCH 29/79] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -12002,7 +12002,7 @@ index a26b3be5..3bc88bf8 100644
 From 6af09d88c1916a8526a5842b2caf2bb622bf91c2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 30/78] Position layout blocks by their centre, and allow
+Subject: [PATCH 30/79] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12076,7 +12076,7 @@ index ee3a36c6..641eb5f5 100644
 From 5b8c3d0a9191c49c9824aca70cf10de20ec415ba Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 31/78] Keep word timings when the lenient TTML parser is used
+Subject: [PATCH 31/79] Keep word timings when the lenient TTML parser is used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
 those go through the lenient parser in the betterlyrics module instead. That
@@ -12416,7 +12416,7 @@ index 00000000..5d346a37
 From 40f68d78899f54767eb6c24be76a4588411f5e94 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 32/78] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 32/79] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13234,7 +13234,7 @@ index 00000000..c9a8384c
 From 328bdae8e63c63d7c3ae0ec9358b8a586ac1704c Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 33/78] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 33/79] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13288,7 +13288,7 @@ index 156d94ca..a909d4d5 100644
 From 36e7edfec22e65d65316f2713fa4a53530cb638e Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 34/78] Let the user choose which lyric provider is preferred
+Subject: [PATCH 34/79] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14112,7 +14112,7 @@ index 00000000..78961d0d
 From c0246f7046446a427bbcd0d558fce15ef6228dee Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 35/78] Document the lyrics work in the patch notes
+Subject: [PATCH 35/79] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14217,7 +14217,7 @@ index a43e5d3f..85917675 100644
 From 3ef61068af8b23d2d9c2a5eda00522e6c0444b54 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 36/78] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 36/79] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14273,7 +14273,7 @@ index 78bb0691..f7636ae1 100644
 From 65ed25bf4e9455c8cc5e40cd8308a8fba67dcb6f Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 37/78] Colour the queue handle to match the player background
+Subject: [PATCH 37/79] Colour the queue handle to match the player background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
 alpha - the fade only starts once the sheet is about a tenth of the way open.
@@ -14503,7 +14503,7 @@ index 86483840..338957b0 100644
 From b317322dff8bf8ae138edcf98fac49cbe133026a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:39:12 +0000
-Subject: [PATCH 38/78] Restore the artist queries the stats fix deleted
+Subject: [PATCH 38/79] Restore the artist queries the stats fix deleted
 
 :app:compileCoreReleaseKotlin failed with a page of unresolved references -
 artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
@@ -14620,7 +14620,7 @@ index 6a7034b5..5a8ef057 100644
 From 99658fa617f0c37b34d8a5538916bf0edfeed16a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 39/78] Let the identify-a-song button be moved or hidden
+Subject: [PATCH 39/79] Let the identify-a-song button be moved or hidden
 
 Settings -> Appearance -> Display -> Identify a song button, with three
 choices: the top of the home screen, where it has always been; inside the
@@ -14829,7 +14829,7 @@ index f7636ae1..45596e34 100644
 From fcbf211593695d397b2c0c43a646f7c875ace5c8 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 40/78] Colour the lyrics from the player background, not the
+Subject: [PATCH 40/79] Colour the lyrics from the player background, not the
  theme
 
 Lyrics are drawn on top of whatever the player is showing behind them, but they
@@ -14925,7 +14925,7 @@ index 1700c659..18a7575b 100644
 From 259253b40852aaf3a3e6a1a5ca8938acb4a1bf68 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:39:45 +0000
-Subject: [PATCH 41/78] Stop the word sweep from silently doing nothing
+Subject: [PATCH 41/79] Stop the word sweep from silently doing nothing
 
 Three ways it could look dead, all fixed, none of them confirmed as the one -
 this is written without a device to reproduce on.
@@ -15034,7 +15034,7 @@ index 18a7575b..5e9b45d5 100644
 From 6f7e373d0cbed0eea39930d085fd71ad420182aa Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 42/78] Prefer word-timed lyrics over whichever provider
+Subject: [PATCH 42/79] Prefer word-timed lyrics over whichever provider
  answers first
 
 The word-by-word sweep was never engaging, and the renderer was not the reason:
@@ -15242,7 +15242,7 @@ index ed96011c..cfd6e83e 100644
 From 60bc422126444523f64edaefebfdc2a1b763034a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 43/78] Start the chart queue at the song that was tapped
+Subject: [PATCH 43/79] Start the chart queue at the song that was tapped
 
 Tapping any song in Most played songs, or in the extended Top songs, played the
 number one track instead. Both built a queue from the whole chart and never said
@@ -15323,7 +15323,7 @@ index 48721417..3c284db3 100644
 From c6bdf7adbc5767e4b5d11435050af37e2d6482d6 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:28:52 +0000
-Subject: [PATCH 44/78] Actually place the blocks an imported layout asks for
+Subject: [PATCH 44/79] Actually place the blocks an imported layout asks for
 
 The importer read every field in the file, validated it, showed it back in the
 settings summary, and then the player used two of them: whether a block is
@@ -15619,7 +15619,7 @@ index 00000000..aa2ecafb
 From 72243f51268ca9f60a8e4b85fcf751e9cc47a811 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:58:53 +0000
-Subject: [PATCH 45/78] Stop the layout dispatch from changing the built-in
+Subject: [PATCH 45/79] Stop the layout dispatch from changing the built-in
  player
 
 Two faults, both mine, both from making the action row a block.
@@ -15763,7 +15763,7 @@ index b793cb19..291d13ee 100644
 From 2717fb2dd02bcd78bb2181af18a8593a4968164e Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 08:18:05 +0000
-Subject: [PATCH 46/78] Pause the Discord presence instead of removing it
+Subject: [PATCH 46/79] Pause the Discord presence instead of removing it
 
 Pausing a song cleared the activity outright, so the card vanished from your
 profile and came back on resume. It now stays up with its timestamps dropped.
@@ -15894,7 +15894,7 @@ index 45596e34..58bf36a5 100644
 From cd182e72c2ac2d400d9796ccca023f39578ddda5 Mon Sep 17 00:00:00 2001
 From: K50 <k50@example.com>
 Date: Mon, 10 Aug 2026 10:58:07 +0000
-Subject: [PATCH 47/78] Make landscape player full-width and hide navigation
+Subject: [PATCH 47/79] Make landscape player full-width and hide navigation
  rail
 
 ---
@@ -16005,7 +16005,7 @@ index d3568b6e..45152b97 100644
 From b874608ccc581de93b11a7c86ce882a9a2791a05 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:05 +0800
-Subject: [PATCH 48/78] Confirm nuke actions, and add a queue-beside-current
+Subject: [PATCH 48/79] Confirm nuke actions, and add a queue-beside-current
  toggle
 
 The debug nuke buttons deleted from the database immediately on click
@@ -16293,7 +16293,7 @@ index 58bf36a5..afc1ef7a 100644
 From bb162801acf301e6b67b3a32e40348a9bb21ac3a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:24 +0800
-Subject: [PATCH 49/78] Show the YTM view count in the song details dialog
+Subject: [PATCH 49/79] Show the YTM view count in the song details dialog
 
 PlayerResponse.VideoDetails.viewCount was already being fetched for
 playback but never surfaced anywhere. Thread it into the Details
@@ -16369,7 +16369,7 @@ index afc1ef7a..97586a2d 100644
 From acca28c373be043190acfd2ff98fe7e517978c95 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:38 +0800
-Subject: [PATCH 50/78] Keep the Discord card layout when paused, add an
+Subject: [PATCH 50/79] Keep the Discord card layout when paused, add an
  auto-clear timeout
 
 Pausing dropped both startTime and endTime, which also removes the
@@ -16588,7 +16588,7 @@ index e4422458..0c909c81 100644
 From b3bc081bf3f9d57366ec110dcd0f017b95479432 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:59 +0800
-Subject: [PATCH 51/78] Paginate remote history and stop swallowing fetch
+Subject: [PATCH 51/79] Paginate remote history and stop swallowing fetch
  failures
 
 musicHistory() only ever read the first page - there was no
@@ -16818,7 +16818,7 @@ index 5881062b..881ebce5 100644
 From 51e99817fb034ccbe6bc293255e1eb7d11d24a74 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:17:20 +0800
-Subject: [PATCH 52/78] Fix the top bar landing under the status bar, and the
+Subject: [PATCH 52/79] Fix the top bar landing under the status bar, and the
  tablet rail covering the search bar
 
 Two separate inset bugs in SearchBarContainer, both stemming from the
@@ -16942,7 +16942,7 @@ index b33a6b87..d34f96c1 100644
 From 4e86e4d03ac799fa5b804fc640ab0a262c3824a0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:06 +0800
-Subject: [PATCH 53/78] Center the landscape player and give it a full-width
+Subject: [PATCH 53/79] Center the landscape player and give it a full-width
  queue handle
 
 Three related fixes in LandscapePlayer:
@@ -17088,7 +17088,7 @@ index 45152b97..c27e51f0 100644
 From d9456e4abee862b293e459259d75493ccf0f9117 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 14:56:23 +0800
-Subject: [PATCH 54/78] Fix the black-screen player backgrounds, and give
+Subject: [PATCH 54/79] Fix the black-screen player backgrounds, and give
  FOLLOW_THEME a renderer
 
 Two bugs behind "the screens are all black":
@@ -17280,7 +17280,7 @@ index c27e51f0..095a91ff 100644
 From b5c4f66419daf1b043f249dc418df8b39961f96e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:26 +0800
-Subject: [PATCH 55/78] Add a 12-band parametric equalizer
+Subject: [PATCH 55/79] Add a 12-band parametric equalizer
 
 A cascaded-biquad IIR filter bank (Robert Bristow-Johnson cookbook
 coefficients, pure Kotlin - no native library, negligible size cost),
@@ -18336,7 +18336,7 @@ index 0c909c81..4e867ee5 100644
 From 09e10a7c4600c2e7c6f7d19f32f103ec0b28c26d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:10 +0800
-Subject: [PATCH 56/78] Rework the equalizer into a full-screen panel, and add
+Subject: [PATCH 56/79] Rework the equalizer into a full-screen panel, and add
  balance/more presets
 
 The EQ sheet's state used to live inside the transient 3-dot menu
@@ -19712,7 +19712,7 @@ index 4e867ee5..71024c63 100644
 From c6e9549793695456f8e38e953eb6768dc5a1f169 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:32 +0800
-Subject: [PATCH 57/78] Center the navigation rail and remove its logo header
+Subject: [PATCH 57/79] Center the navigation rail and remove its logo header
 
 The rail's own logo header anchored the item group to the top, and
 Modifier.verticalScroll() on the rail meant weight()-based centering
@@ -19808,7 +19808,7 @@ index 26330b96..703cac30 100644
 From b24abe296cb282d2e624c548da47053207e1b2ae Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:44 +0800
-Subject: [PATCH 58/78] Stop the Discord presence from still ticking forward
+Subject: [PATCH 58/79] Stop the Discord presence from still ticking forward
  while paused
 
 Kept timestamps set while paused so the progress-bar row stayed put
@@ -19862,7 +19862,7 @@ index 290d34fc..a6cf5a94 100644
 From 56043cf8fa7abd1a2c7505088dfb64ae958f457e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:40:07 +0800
-Subject: [PATCH 59/78] Show each song's own listen time/play count on the
+Subject: [PATCH 59/79] Show each song's own listen time/play count on the
  stats screen
 
 The stats screen already had a chip toggle to rank by time listened
@@ -20132,7 +20132,7 @@ index 71024c63..93e4840d 100644
 From 69741d9e84df31635bce725edd439b6a7786d523 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:43:17 +0800
-Subject: [PATCH 60/78] Add shuffle to the equalizer's mini transport
+Subject: [PATCH 60/79] Add shuffle to the equalizer's mini transport
 
 Missed from the prev/play-pause/next row - shuffle belongs in the
 same "basic playback controls" set.
@@ -20179,7 +20179,7 @@ index 62aabc08..4e5e33a0 100644
 From 71ae254af276ca0fdf6c5a0f55cb7dd0ee61e024 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:53:25 +0800
-Subject: [PATCH 61/78] Fix the app freezing when opening a song's details
+Subject: [PATCH 61/79] Fix the app freezing when opening a song's details
  dialog
 
 The view-count fetch added in the details dialog ran straight from
@@ -20234,7 +20234,7 @@ index 64586602..18f0ecda 100644
 From 5a314e56d26bb183ba3178e1b3fadf986c49b75d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:20 +0800
-Subject: [PATCH 62/78] Add a compressor to the equalizer's audio pipeline
+Subject: [PATCH 62/79] Add a compressor to the equalizer's audio pipeline
 
 A simple feed-forward dynamics compressor (threshold/ratio/attack/release/makeup gain), applied after the band cascade and gated by the same master enabled switch.
 ---
@@ -20523,7 +20523,7 @@ index e24b0e5b..1ecfc377 100644
 From d7d2843b1544bcda68152af268043ee8554f8b35 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:36 +0800
-Subject: [PATCH 63/78] Rework the equalizer panel: contrast color everywhere,
+Subject: [PATCH 63/79] Rework the equalizer panel: contrast color everywhere,
  rotary dials, compressor UI, matching transport
 
 - Add a rotary dial control and use it for per-band frequency/gain in the band editor, plus quick bass/treble dials and an optional balance dial with a left/right readout.
@@ -21407,7 +21407,7 @@ index 560f2441..7f41aec8 100644
 From 861c938125b3463fcf79d387914f1f08cf3e23b3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:24:27 +0800
-Subject: [PATCH 64/78] Remove the Discord presence entirely while paused
+Subject: [PATCH 64/79] Remove the Discord presence entirely while paused
  instead of showing a paused card
 
 Superseded the earlier omit-timestamps fix: a paused/stopped player now calls stopActivity() immediately (same as no media loaded), rather than sending a 'Paused' card with a frozen layout. Removes the now-meaningless auto-clear-after-pause timer and setting along with it, since there's nothing left for it to clear.
@@ -21645,7 +21645,7 @@ index a6cf5a94..49e2e224 100644
 From cdd2249d7db19222ccf3c49b8ea39cd812999a6d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:28:35 +0800
-Subject: [PATCH 65/78] Remove the remote history tab
+Subject: [PATCH 65/79] Remove the remote history tab
 
 Local history is the only option now that the remote tab is gone, so collapse the History screen to render it directly instead of behind a source selector. Drops the now-dead remote-history fetch/continuation/pagination code from the view model, the innertube client, and the HistoryPage model.
 ---
@@ -22230,7 +22230,7 @@ index 881ebce5..00000000
 From 82cf6eb32cb2379e2ea275c81a9e9d68a5a3d19f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:29:22 +0800
-Subject: [PATCH 66/78] Refine the equalizer's built-in presets to feel closer
+Subject: [PATCH 66/79] Refine the equalizer's built-in presets to feel closer
  to Poweramp's
 
 Loudness becomes a proper Fletcher-Munson smile curve, plus two more Poweramp-signature presets (Small Speakers, Full Bass & Treble).
@@ -22265,7 +22265,7 @@ index 1ecfc377..29258783 100644
 From e82f2f31535df2260f8b54a60ded4adfb01df950 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:41:37 +0800
-Subject: [PATCH 67/78] Simplify the EQ's slider styling, dock its transport
+Subject: [PATCH 67/79] Simplify the EQ's slider styling, dock its transport
  like the queue, fix landscape lyrics overlap
 
 - Drop the per-feature slim/default slider-style picker in the equalizer - it's slim everywhere now, no setting to maintain.
@@ -22442,7 +22442,7 @@ index a9cbaa3a..780b4e56 100644
 From 60ff3369ee6ded58cfb22481b5be0f9e9df5658d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:56:54 +0800
-Subject: [PATCH 68/78] Tweak equalizer gain values in 0.1 dB steps
+Subject: [PATCH 68/79] Tweak equalizer gain values in 0.1 dB steps
 
 Quantizes every gain-related dial/slider (band gain, bass/treble, compressor threshold/makeup) to 0.1 dB on change, and formats their labels to one decimal instead of rounding to a whole dB.
 ---
@@ -22559,7 +22559,7 @@ index 780b4e56..ae31fef8 100644
 From cefac396262a09030aeed0ebc57ff5ddd635f549 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:00:19 +0800
-Subject: [PATCH 69/78] Let equalizer presets remember custom edits as named
+Subject: [PATCH 69/79] Let equalizer presets remember custom edits as named
  profiles
 
 Adds EqualizerProfile: every preset name doubles as a profile, with a factory curve (from the existing PRESETS gains) and, once Saved, a persisted custom override. The preset row becomes a profile selector (FilterChip, built-ins undeletable, custom ones removable), with Save / Save as new / Revert to saved / Revert to default actions for whichever profile is active - so tweaking a band while a preset is selected has somewhere to persist instead of being overwritten the next time that preset is tapped.
@@ -22806,7 +22806,7 @@ index ae31fef8..9d8066a5 100644
 From f51bdafb9008f57e76f6a4ae506ac8833c81f172 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:18:05 +0800
-Subject: [PATCH 70/78] Make the Liquid player background audio-reactive
+Subject: [PATCH 70/79] Make the Liquid player background audio-reactive
 
 Adds VisualizerAnalyzer: cheap, no-FFT bass/mid/treble/transient extraction fed from the equalizer's existing audio tap (EqualizerAudioProcessor), published as a throttled ~30Hz StateFlow rather than per-sample. Gated by a visualizerEnabled flag so the extra sample decoding only happens while something's actually consuming it - the EQ's bypass path otherwise stays a cheap bulk buffer copy.
 
@@ -23282,7 +23282,7 @@ index f84b6af1..b0bd9449 100644
 From 5368302644eb3cebb03a118cb90a09eb2b3d327c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:19:25 +0800
-Subject: [PATCH 71/78] Fix missing WindowInsets.statusBars import breaking the
+Subject: [PATCH 71/79] Fix missing WindowInsets.statusBars import breaking the
  build
 
 ---
@@ -23308,7 +23308,7 @@ index 13ce963c..cd838c70 100644
 From 71db3ef7f5b461ad3c272a794230892a144775fb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:25:36 +0800
-Subject: [PATCH 72/78] Fix EQ crackle on boosted presets: automatic headroom
+Subject: [PATCH 72/79] Fix EQ crackle on boosted presets: automatic headroom
  pre-gain plus soft clipping
 
 Several adjacent bands boosted at once (Bass Boost, Loudness, Small Speakers) overlap enough that the summed signal clears 0dBFS well before any single band's own gain would suggest, and the previous hard coerceIn(-1f, 1f) turned that into audible crackle on transients.
@@ -23414,7 +23414,7 @@ index f2de06f8..cbf450a1 100644
 From de9fdca4c3a998caa785baf26471fd1b67ee7b32 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:41:57 +0800
-Subject: [PATCH 73/78] Bring back remote history
+Subject: [PATCH 73/79] Bring back remote history
 
 Reconsidered after removing it - the underlying fetch was already fixed (pagination, safe defaults instead of force-unwraps, failures surfaced via snackbar) before it got pulled entirely, so restoring the already-working version rather than rebuilding from scratch. Local/remote tab selector, HistoryPage/HistorySource, and YouTube.musicHistory()/musicHistoryContinuation() are all back exactly as they were right before removal.
 ---
@@ -23999,7 +23999,7 @@ index 00000000..881ebce5
 From 1a22012aedd29c113466d59d41b08b1c5f998610 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:43:44 +0800
-Subject: [PATCH 74/78] Remove orphaned strings left over from earlier removals
+Subject: [PATCH 74/79] Remove orphaned strings left over from earlier removals
 
 equalizer_slider_style, discord_rpc_clear_after_pause(_desc), never, and rpc_paused have had zero code references since the slider-style setting was dropped and the Discord paused-card behavior was removed - the resource shrinker already excludes them from the built APK, this is just source hygiene.
 ---
@@ -24048,7 +24048,7 @@ index 93e4840d..a2296ddb 100644
 From e265560790edda21e6cb8919f22d7c98cd15a51a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:58:57 +0800
-Subject: [PATCH 75/78] Fix the rotary dials not responding, and the liquid
+Subject: [PATCH 75/79] Fix the rotary dials not responding, and the liquid
  visualiser rendering grey
 
 - RotaryDial's drag handler closed over the value parameter directly, but detectDragGestures runs in a coroutine that survives across separate physical drags - so every drag after the first computed its delta against a stale value from whenever that coroutine started, not the value the previous drag actually landed on. Fixed with rememberUpdatedState on both the value and the callback.
@@ -24333,7 +24333,7 @@ index cd838c70..57eac864 100644
 From fb44b0dd0283478ea26793f8fa59e12fe1029e95 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:08:48 +0800
-Subject: [PATCH 76/78] Add dial/slider toggle, Poweramp-style flat sliders,
+Subject: [PATCH 76/79] Add dial/slider toggle, Poweramp-style flat sliders,
  and value color gradient to the equalizer
 
 - New 'Use dials instead of sliders' setting: band gain, the band editor's frequency/gain, and bass/treble all switch between the rotary dials and a slider depending on it, alongside the existing separate balance dial/slider toggle.
@@ -25091,7 +25091,7 @@ index 08e5f268..4ca41321 100644
 From f0ce97c1dc69cb998b8f88da7fe116fedb03877b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:52:17 +0800
-Subject: [PATCH 77/78] Fix RotaryDial compile error: missing getValue import
+Subject: [PATCH 77/79] Fix RotaryDial compile error: missing getValue import
  for by rememberUpdatedState
 
 State<T> needs the androidx.compose.runtime.getValue extension in scope to be
@@ -25121,7 +25121,7 @@ index e89d3b26..f2e16144 100644
 From c049e8447141ede6913e2086f7022f61613e8643 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 06:48:30 +0800
-Subject: [PATCH 78/78] Fix EqualizerPanel compile error: opt in to
+Subject: [PATCH 78/79] Fix EqualizerPanel compile error: opt in to
  ExperimentalMaterial3Api on PowerampSlider/LabeledSlider
 
 Both call the Slider(track=, thumb=) overload directly but weren't annotated,
@@ -25151,6 +25151,936 @@ index 4ca41321..e37fcebe 100644
  @Composable
  private fun LabeledSlider(
      label: String,
+-- 
+2.45.1.windows.1
+
+
+From ea63bd49d59fa8d0b42d28013244f6b721ad0aa9 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 14 Aug 2026 14:46:35 +0800
+Subject: [PATCH 79/79] EQ visual overhaul + lyrics sync fix + miniplayer
+ dismiss fix
+
+- Lyrics: findCurrentLineIndex no longer wraps a transient negative
+  playback position into a huge unsigned value, which was snapping the
+  highlighted line to the end of the song on some devices/timings.
+- Player: swiping the mini player away now collapses back to it instead
+  of calling softKillPlayer() (clearMediaItems + deInitQueue), which read
+  as the swipe closing the app.
+- EQ panel: bigger, full-width drag handle; the panel's own root now
+  consumes vertical drags so they no longer fall through to the player's
+  BottomSheet and collapse it to the mini player.
+- RotaryDial: redesigned as a flat disc with a progress arc and a face
+  pointer instead of a bare arc-fill ring; added a centeredAt option for
+  boost/cut controls (balance, bass/treble, per-band gain) so 0 shows no
+  arc instead of a permanent half-full ring.
+- Value-color gradient changed from green-to-red to blue-green-yellow.
+- Compressor section now respects the dial/slider toggle (previously
+  hardcoded to sliders); band strip now always uses sliders regardless of
+  the toggle, matching the reference layout.
+- Selected band now gets a bordered box around its frequency label
+  instead of just recoloring the text; mini transport uses the Material
+  accent color and is ~25% larger; export/import/save/revert buttons and
+  the filter-type segmented button now follow the panel's color scheme
+  instead of the default Material button colors.
+- LiquidBackground rewritten from three soft alpha blobs into a
+  ferrofluid-style silhouette (dark glossy blob with a spike crown that
+  grows with bass/treble/transients) so it's actually visible against the
+  player surface instead of blending into it.
+---
+ .../dd3boh/outertune/ui/component/Lyrics.kt   |   9 +-
+ .../outertune/ui/component/RotaryDial.kt      |  62 ++--
+ .../outertune/ui/player/EqualizerPanel.kt     | 322 ++++++++++++------
+ .../outertune/ui/player/LiquidBackground.kt   | 177 ++++++----
+ .../com/dd3boh/outertune/ui/player/Player.kt  |   8 +-
+ 5 files changed, 377 insertions(+), 201 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index 5efb3ef8..a1d95d3e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -522,8 +522,15 @@ fun Lyrics(
+  * Get current position in lyric line list
+  */
+ fun findCurrentLineIndex(lines: List<LyricLine>, position: Long): Int {
++    // ExoPlayer legitimately reports a transient negative position around seeks and track
++    // transitions. position.toUInt() on a negative Long wraps to a huge unsigned value, so every
++    // real line.start compares as smaller than it - the loop below never finds a "current" line
++    // and falls through to the *last* one, which is what made the highlighted line snap to the
++    // end of the song and stay there until the next real position update. Treat "before the song
++    // started" the same way position 0 is treated instead of letting it wrap.
++    val positionULong = position.coerceAtLeast(0L).toULong()
+     for (index in lines.indices) {
+-        if (lines[index].start > (position).toUInt()) {
++        if (lines[index].start > positionULong) {
+             return if (index > 0 && lines[index - 1].isTranslated) index - 2 else index - 1
+         }
+     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/RotaryDial.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/RotaryDial.kt
+index f2e16144..5b50b7c5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/RotaryDial.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/RotaryDial.kt
+@@ -50,6 +50,12 @@ fun RotaryDial(
+     enabled: Boolean = true,
+     label: String? = null,
+     valueLabel: String? = null,
++    /**
++     * For a boost/cut style control (balance, a shelf/band gain) where [valueRange] itself has no
++     * "off" reading worth showing - only distance from this point does. Null (the default) is a
++     * plain 0-to-max control, where the arc grows from the low end same as it always has.
++     */
++    centeredAt: Float? = null,
+ ) {
+     val density = LocalDensity.current
+     // detectDragGestures runs in a coroutine that survives across separate physical drag
+@@ -86,35 +92,51 @@ fun RotaryDial(
+                     }
+                 }
+         ) {
+-            val strokeWidthPx = size.minDimension * 0.14f
+-            val radius = size.minDimension / 2f - strokeWidthPx / 2f
++            // A flat physical knob - dark disc, thin bezel, a colored progress arc hugging the
++            // rim, and a pointer line on the face showing exactly where that arc ends. The arc
++            // alone (the old design) read as "just another slider bent into a circle"; the disc
++            // is what makes it read as a knob you'd actually turn.
++            val strokeWidthPx = size.minDimension * 0.09f
+             val center = Offset(size.width / 2f, size.height / 2f)
+-            val fraction = ((value - valueRange.start) / (valueRange.endInclusive - valueRange.start)).coerceIn(0f, 1f)
++            val discRadius = size.minDimension / 2f - strokeWidthPx * 1.4f
++            val rangeSpan = valueRange.endInclusive - valueRange.start
++            val fraction = ((value - valueRange.start) / rangeSpan).coerceIn(0f, 1f)
++            val alphaScale = if (enabled) 1f else 0.4f
+ 
++            // Plain controls sweep the arc from the low end up to the current value, same as a
++            // normal progress indicator. A centered one instead sweeps from wherever "off" sits -
++            // usually the middle - out toward the value, in whichever direction that is, so 0
++            // shows no arc at all rather than a permanent half-full ring.
++            val originFraction = centeredAt?.let { ((it - valueRange.start) / rangeSpan).coerceIn(0f, 1f) } ?: 0f
+             drawArc(
+-                color = color.copy(alpha = if (enabled) 0.22f else 0.1f),
+-                startAngle = StartAngleDeg,
+-                sweepAngle = SweepAngleDeg,
+-                useCenter = false,
+-                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round),
+-            )
+-            drawArc(
+-                color = color.copy(alpha = if (enabled) 1f else 0.4f),
+-                startAngle = StartAngleDeg,
+-                sweepAngle = SweepAngleDeg * fraction,
++                color = color.copy(alpha = alphaScale),
++                startAngle = StartAngleDeg + SweepAngleDeg * minOf(originFraction, fraction),
++                sweepAngle = SweepAngleDeg * kotlin.math.abs(fraction - originFraction),
+                 useCenter = false,
+                 style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round),
+             )
+ 
+-            val indicatorAngleRad = Math.toRadians((StartAngleDeg + SweepAngleDeg * fraction).toDouble())
+-            val indicatorCenter = Offset(
+-                x = center.x + radius * cos(indicatorAngleRad).toFloat(),
+-                y = center.y + radius * sin(indicatorAngleRad).toFloat(),
++            drawCircle(
++                color = Color.Black.copy(alpha = 0.28f * alphaScale),
++                radius = discRadius,
++                center = center,
+             )
+             drawCircle(
+-                color = color.copy(alpha = if (enabled) 1f else 0.4f),
+-                radius = strokeWidthPx * 0.55f,
+-                center = indicatorCenter,
++                color = color.copy(alpha = 0.3f * alphaScale),
++                radius = discRadius,
++                center = center,
++                style = Stroke(width = discRadius * 0.05f),
++            )
++
++            val pointerAngleRad = Math.toRadians((StartAngleDeg + SweepAngleDeg * fraction).toDouble())
++            val direction = Offset(cos(pointerAngleRad).toFloat(), sin(pointerAngleRad).toFloat())
++            val pointerWidthPx = discRadius * 0.16f
++            drawLine(
++                color = color.copy(alpha = alphaScale),
++                start = center + direction * (discRadius * 0.32f),
++                end = center + direction * (discRadius * 0.86f),
++                strokeWidth = pointerWidthPx,
++                cap = StrokeCap.Round,
+             )
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index e37fcebe..5cc21317 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -13,6 +13,7 @@ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.slideInVertically
+ import androidx.compose.animation.slideOutVertically
+ import androidx.compose.foundation.background
++import androidx.compose.foundation.border
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.gestures.detectVerticalDragGestures
+ import androidx.compose.foundation.isSystemInDarkTheme
+@@ -48,6 +49,7 @@ import androidx.compose.material3.FilterChip
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.ButtonDefaults
+ import androidx.compose.material3.SegmentedButton
+ import androidx.compose.material3.SegmentedButtonDefaults
+ import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+@@ -248,7 +250,21 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+             .onFailure { importExportError = it.message ?: "That file isn't a valid equalizer profile." }
+     }
+ 
+-    Box(modifier = Modifier.fillMaxSize()) {
++    Box(
++        modifier = Modifier
++            .fillMaxSize()
++            // This panel sits on top of the player's own draggable BottomSheet, but only
++            // EqualizerPanelHandle's strip used to intercept drags - everywhere else (padding,
++            // labels, the space between controls) let a vertical drag fall straight through to
++            // the sheet underneath, which read as "dragging inside the EQ panel minimises the
++            // player to the mini player". Swallowing unclaimed vertical drags here stops that:
++            // anything that actually wants the gesture (the scrollable column, a slider, a dial,
++            // the handle itself) is deeper in the tree and consumes it first, so this only catches
++            // drags nothing else wanted.
++            .pointerInput(Unit) {
++                detectVerticalDragGestures { change, _ -> change.consume() }
++            }
++    ) {
+         PlayerBackground(
+             playerConnection = playerConnection,
+             playerBackground = playerBackground,
+@@ -361,26 +377,38 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                 if (activeProfileName != null) {
+                     Spacer(Modifier.height(8.dp))
+                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+-                        TextButton(onClick = { activeProfileName?.let(::saveProfile) }) {
++                        TextButton(
++                            onClick = { activeProfileName?.let(::saveProfile) },
++                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                        ) {
+                             Text("Save")
+                         }
+-                        TextButton(onClick = { activeProfileName?.let { loadProfile(it) } }) {
++                        TextButton(
++                            onClick = { activeProfileName?.let { loadProfile(it) } },
++                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                        ) {
+                             Text("Revert to saved")
+                         }
+                         if (activeProfileName in builtInProfileNames) {
+-                            TextButton(onClick = {
+-                                activeProfileName?.let { name ->
+-                                    EqualizerProfile.factoryDefault(name)?.settings?.let {
+-                                        update(it.copy(enabled = settings.enabled))
++                            TextButton(
++                                onClick = {
++                                    activeProfileName?.let { name ->
++                                        EqualizerProfile.factoryDefault(name)?.settings?.let {
++                                            update(it.copy(enabled = settings.enabled))
++                                        }
+                                     }
+-                                }
+-                            }) {
++                                },
++                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                            ) {
+                                 Text("Revert to default")
+                             }
+                         }
+                     }
+                 }
+-                TextButton(onClick = { showSaveAsDialog = true }) {
++                TextButton(
++                    onClick = { showSaveAsDialog = true },
++                    colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                ) {
+                     Text("Save as new profile…")
+                 }
+ 
+@@ -425,7 +453,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                             enabled = settings.enabled,
+                             selected = selectedBand == index,
+                             color = eqColor,
+-                            useDials = useDials,
+                             useGradient = useValueGradient,
+                             onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
+                             onTapLabel = { selectedBand = if (selectedBand == index) null else index },
+@@ -460,7 +487,10 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                         style = MaterialTheme.typography.labelMedium,
+                         color = eqColorVariant,
+                     )
+-                    TextButton(onClick = { balanceUseDial = !balanceUseDial }) {
++                    TextButton(
++                        onClick = { balanceUseDial = !balanceUseDial },
++                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                    ) {
+                         Text(if (balanceUseDial) "Use slider" else "Use dial")
+                     }
+                 }
+@@ -472,6 +502,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                         onValueChange = { update(settings.copy(balance = it)) },
+                         valueRange = balanceRange,
+                         color = balanceColor,
++                        centeredAt = 0f,
+                         modifier = Modifier.padding(top = 4.dp),
+                     )
+                 } else {
+@@ -499,6 +530,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                     onChange = { update(settings.copy(compressor = it)) },
+                     color = eqColor,
+                     colorVariant = eqColorVariant,
++                    useDials = useDials,
+                     useGradient = useValueGradient,
+                 )
+ 
+@@ -512,10 +544,16 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                     color = eqColorVariant,
+                 )
+                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+-                    TextButton(onClick = { exportLauncher.launch("equalizer-profile.json") }) {
++                    TextButton(
++                        onClick = { exportLauncher.launch("equalizer-profile.json") },
++                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                    ) {
+                         Text("Export")
+                     }
+-                    TextButton(onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) }) {
++                    TextButton(
++                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
++                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                    ) {
+                         Text("Import")
+                     }
+                 }
+@@ -555,10 +593,17 @@ private fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10
+ private fun formatDb(db: Float): String =
+     "${if (db > 0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", db)}"
+ 
+-/** Green at the low end of [range], red at the high end - a VU-meter-style read of "how hot is this". */
++/** Blue at the low end of [range], green in the middle, yellow at the high end. */
+ private fun valueGradientColor(value: Float, range: ClosedFloatingPointRange<Float>): Color {
+     val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
+-    return lerp(Color(0xFF4CAF50), Color(0xFFF44336), fraction)
++    val blue = Color(0xFF2196F3)
++    val green = Color(0xFF66DD44)
++    val yellow = Color(0xFFFFD500)
++    return if (fraction < 0.5f) {
++        lerp(blue, green, fraction / 0.5f)
++    } else {
++        lerp(green, yellow, (fraction - 0.5f) / 0.5f)
++    }
+ }
+ 
+ /**
+@@ -630,6 +675,7 @@ private fun BassTrebleDials(
+                 valueRange = range,
+                 enabled = enabled,
+                 color = bassColor,
++                centeredAt = 0f,
+                 label = "Bass",
+                 valueLabel = "${formatDb(bassGainDb)} dB",
+             )
+@@ -639,6 +685,7 @@ private fun BassTrebleDials(
+                 valueRange = range,
+                 enabled = enabled,
+                 color = trebleColor,
++                centeredAt = 0f,
+                 label = "Treble",
+                 valueLabel = "${formatDb(trebleGainDb)} dB",
+             )
+@@ -675,6 +722,7 @@ private fun CompressorSection(
+     onChange: (EqualizerSettings.CompressorSettings) -> Unit,
+     color: Color,
+     colorVariant: Color,
++    useDials: Boolean,
+     useGradient: Boolean,
+ ) {
+     Column {
+@@ -701,41 +749,96 @@ private fun CompressorSection(
+             val attackRange = EqualizerSettings.MIN_ATTACK_MS..EqualizerSettings.MAX_ATTACK_MS
+             val releaseRange = EqualizerSettings.MIN_RELEASE_MS..EqualizerSettings.MAX_RELEASE_MS
+             val makeupRange = EqualizerSettings.MIN_MAKEUP_DB..EqualizerSettings.MAX_MAKEUP_DB
+-            LabeledSlider(
+-                label = "Threshold: ${formatDb(compressor.thresholdDb)} dB",
+-                value = compressor.thresholdDb,
+-                onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
+-                valueRange = thresholdRange,
+-                color = if (useGradient) valueGradientColor(compressor.thresholdDb, thresholdRange) else color,
+-            )
+-            LabeledSlider(
+-                label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
+-                value = compressor.ratio,
+-                onValueChange = { onChange(compressor.copy(ratio = it)) },
+-                valueRange = ratioRange,
+-                color = if (useGradient) valueGradientColor(compressor.ratio, ratioRange) else color,
+-            )
+-            LabeledSlider(
+-                label = "Attack: ${compressor.attackMs.roundToInt()} ms",
+-                value = compressor.attackMs,
+-                onValueChange = { onChange(compressor.copy(attackMs = it)) },
+-                valueRange = attackRange,
+-                color = if (useGradient) valueGradientColor(compressor.attackMs, attackRange) else color,
+-            )
+-            LabeledSlider(
+-                label = "Release: ${compressor.releaseMs.roundToInt()} ms",
+-                value = compressor.releaseMs,
+-                onValueChange = { onChange(compressor.copy(releaseMs = it)) },
+-                valueRange = releaseRange,
+-                color = if (useGradient) valueGradientColor(compressor.releaseMs, releaseRange) else color,
+-            )
+-            LabeledSlider(
+-                label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
+-                value = compressor.makeupGainDb,
+-                onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
+-                valueRange = makeupRange,
+-                color = if (useGradient) valueGradientColor(compressor.makeupGainDb, makeupRange) else color,
+-            )
++
++            val thresholdColor = if (useGradient) valueGradientColor(compressor.thresholdDb, thresholdRange) else color
++            val ratioColor = if (useGradient) valueGradientColor(compressor.ratio, ratioRange) else color
++            val attackColor = if (useGradient) valueGradientColor(compressor.attackMs, attackRange) else color
++            val releaseColor = if (useGradient) valueGradientColor(compressor.releaseMs, releaseRange) else color
++            val makeupColor = if (useGradient) valueGradientColor(compressor.makeupGainDb, makeupRange) else color
++
++            if (useDials) {
++                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
++                    RotaryDial(
++                        value = compressor.attackMs,
++                        onValueChange = { onChange(compressor.copy(attackMs = it)) },
++                        valueRange = attackRange,
++                        color = attackColor,
++                        label = "Attack",
++                        valueLabel = "${compressor.attackMs.roundToInt()} ms",
++                    )
++                    RotaryDial(
++                        value = compressor.releaseMs,
++                        onValueChange = { onChange(compressor.copy(releaseMs = it)) },
++                        valueRange = releaseRange,
++                        color = releaseColor,
++                        label = "Release",
++                        valueLabel = "${compressor.releaseMs.roundToInt()} ms",
++                    )
++                    RotaryDial(
++                        value = compressor.ratio,
++                        onValueChange = { onChange(compressor.copy(ratio = it)) },
++                        valueRange = ratioRange,
++                        color = ratioColor,
++                        label = "Ratio",
++                        valueLabel = "${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
++                    )
++                }
++                Spacer(Modifier.height(12.dp))
++                Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
++                    RotaryDial(
++                        value = compressor.thresholdDb,
++                        onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
++                        valueRange = thresholdRange,
++                        color = thresholdColor,
++                        label = "Threshold",
++                        valueLabel = "${formatDb(compressor.thresholdDb)} dB",
++                    )
++                    RotaryDial(
++                        value = compressor.makeupGainDb,
++                        onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
++                        valueRange = makeupRange,
++                        color = makeupColor,
++                        label = "Makeup gain",
++                        valueLabel = "${formatDb(compressor.makeupGainDb)} dB",
++                    )
++                }
++            } else {
++                LabeledSlider(
++                    label = "Threshold: ${formatDb(compressor.thresholdDb)} dB",
++                    value = compressor.thresholdDb,
++                    onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
++                    valueRange = thresholdRange,
++                    color = thresholdColor,
++                )
++                LabeledSlider(
++                    label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
++                    value = compressor.ratio,
++                    onValueChange = { onChange(compressor.copy(ratio = it)) },
++                    valueRange = ratioRange,
++                    color = ratioColor,
++                )
++                LabeledSlider(
++                    label = "Attack: ${compressor.attackMs.roundToInt()} ms",
++                    value = compressor.attackMs,
++                    onValueChange = { onChange(compressor.copy(attackMs = it)) },
++                    valueRange = attackRange,
++                    color = attackColor,
++                )
++                LabeledSlider(
++                    label = "Release: ${compressor.releaseMs.roundToInt()} ms",
++                    value = compressor.releaseMs,
++                    onValueChange = { onChange(compressor.copy(releaseMs = it)) },
++                    valueRange = releaseRange,
++                    color = releaseColor,
++                )
++                LabeledSlider(
++                    label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
++                    value = compressor.makeupGainDb,
++                    onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
++                    valueRange = makeupRange,
++                    color = makeupColor,
++                )
++            }
+         }
+     }
+ }
+@@ -753,7 +856,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
+     Box(
+         modifier = Modifier
+             .fillMaxWidth()
+-            .height(48.dp)
++            .height(64.dp)
+             .clickable(onClick = onDismiss)
+             .pointerInput(Unit) {
+                 detectVerticalDragGestures(
+@@ -773,11 +876,11 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
+         Box(
+             modifier = Modifier
+                 .align(Alignment.Center)
+-                .width(48.dp)
+-                .height(6.dp)
++                .width(64.dp)
++                .height(8.dp)
+                 .background(
+                     handleColor.copy(alpha = 0.6f),
+-                    RoundedCornerShape(3.dp)
++                    RoundedCornerShape(4.dp)
+                 )
+         )
+         IconButton(
+@@ -796,7 +899,6 @@ private fun BandColumn(
+     enabled: Boolean,
+     selected: Boolean,
+     color: Color,
+-    useDials: Boolean,
+     useGradient: Boolean,
+     onGainChange: (Float) -> Unit,
+     onTapLabel: () -> Unit,
+@@ -808,54 +910,58 @@ private fun BandColumn(
+         horizontalAlignment = Alignment.CenterHorizontally,
+         modifier = Modifier.width(BandColumnWidth)
+     ) {
+-        if (useDials) {
+-            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+-                RotaryDial(
+-                    value = band.gainDb,
+-                    onValueChange = onGainChange,
+-                    valueRange = gainRange,
+-                    enabled = enabled && band.enabled,
+-                    dialSize = 48.dp,
+-                    color = gainColor,
+-                    valueLabel = formatDb(band.gainDb),
++        // Twelve of these side by side, so each one stays a plain slider regardless of the
++        // panel-wide dial/slider setting - a strip of tiny 48dp dials read as fiddly rather than
++        // Poweramp-like, and the reference layout doesn't use them here either.
++        Text(
++            text = formatDb(band.gainDb),
++            style = MaterialTheme.typography.labelSmall,
++            color = gainColor,
++            maxLines = 1,
++        )
++        VerticalSlider(
++            value = band.gainDb,
++            onValueChange = onGainChange,
++            valueRange = gainRange,
++            enabled = enabled && band.enabled,
++            track = { sliderState ->
++                PowerampTrack(
++                    sliderState = sliderState,
++                    activeColor = gainColor,
++                    inactiveColor = gainColor.copy(alpha = 0.25f),
++                    trackThickness = 8.dp,
+                 )
+-            }
+-        } else {
++            },
++            thumb = { PowerampThumb(color = gainColor) },
++            modifier = Modifier
++                .weight(1f)
++                .width(36.dp),
++        )
++        // Selected reads as "this is the band the editor below belongs to" - a box around the
++        // frequency label makes that unambiguous at a glance; the older bold-and-recolor treatment
++        // was easy to miss next to eleven other labels the same size.
++        Box(
++            modifier = Modifier
++                .padding(top = 4.dp)
++                .then(
++                    if (selected) {
++                        Modifier
++                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
++                            .padding(horizontal = 6.dp, vertical = 2.dp)
++                    } else {
++                        Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
++                    }
++                )
++                .clickable(onClick = onTapLabel)
++        ) {
+             Text(
+-                text = formatDb(band.gainDb),
++                text = formatFrequency(band.freqHz),
+                 style = MaterialTheme.typography.labelSmall,
+-                color = gainColor,
++                color = if (selected) MaterialTheme.colorScheme.primary else color,
+                 maxLines = 1,
+-            )
+-            VerticalSlider(
+-                value = band.gainDb,
+-                onValueChange = onGainChange,
+-                valueRange = gainRange,
+-                enabled = enabled && band.enabled,
+-                track = { sliderState ->
+-                    PowerampTrack(
+-                        sliderState = sliderState,
+-                        activeColor = gainColor,
+-                        inactiveColor = gainColor.copy(alpha = 0.25f),
+-                        trackThickness = 8.dp,
+-                    )
+-                },
+-                thumb = { PowerampThumb(color = gainColor) },
+-                modifier = Modifier
+-                    .weight(1f)
+-                    .width(36.dp),
++                overflow = TextOverflow.Ellipsis,
+             )
+         }
+-        Text(
+-            text = formatFrequency(band.freqHz),
+-            style = if (selected) MaterialTheme.typography.labelMedium else MaterialTheme.typography.labelSmall,
+-            color = if (selected) MaterialTheme.colorScheme.primary else color,
+-            maxLines = 1,
+-            overflow = TextOverflow.Ellipsis,
+-            modifier = Modifier
+-                .padding(top = 4.dp)
+-                .clickable(onClick = onTapLabel)
+-        )
+     }
+ }
+ 
+@@ -871,7 +977,9 @@ private fun MiniPlaybackControls(color: Color?) {
+     val isPlaying by playerConnection.isPlaying.collectAsState()
+     val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
+     val repeatMode by playerConnection.repeatMode.collectAsState()
+-    val iconColor = color ?: MaterialTheme.colorScheme.onSecondaryContainer
++    // The Material accent color (not a muted onSecondaryContainer neutral) so this row reads as
++    // an actively-colored control surface even when "use cover contrast color" is off.
++    val iconColor = color ?: MaterialTheme.colorScheme.primary
+ 
+     Row(
+         horizontalArrangement = Arrangement.SpaceEvenly,
+@@ -881,25 +989,25 @@ private fun MiniPlaybackControls(color: Color?) {
+         ResizableIconButton(
+             icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+             color = iconColor,
+-            modifier = Modifier.size(34.dp),
++            modifier = Modifier.size(42.dp),
+             onClick = { playerConnection.triggerShuffle() },
+         )
+         ResizableIconButton(
+             icon = Icons.Rounded.SkipPrevious,
+             color = iconColor,
+-            modifier = Modifier.size(38.dp),
++            modifier = Modifier.size(48.dp),
+             onClick = { playerConnection.player.seekToPrevious() },
+         )
+         ResizableIconButton(
+             icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
+             color = iconColor,
+-            modifier = Modifier.size(44.dp),
++            modifier = Modifier.size(55.dp),
+             onClick = { playerConnection.player.togglePlayPause() },
+         )
+         ResizableIconButton(
+             icon = Icons.Rounded.SkipNext,
+             color = iconColor,
+-            modifier = Modifier.size(38.dp),
++            modifier = Modifier.size(48.dp),
+             onClick = { playerConnection.player.seekToNext() },
+         )
+         ResizableIconButton(
+@@ -910,7 +1018,7 @@ private fun MiniPlaybackControls(color: Color?) {
+                 else -> R.drawable.repeat_off
+             },
+             color = iconColor,
+-            modifier = Modifier.size(34.dp),
++            modifier = Modifier.size(42.dp),
+             onClick = { playerConnection.player.toggleRepeatMode() },
+         )
+     }
+@@ -978,6 +1086,7 @@ private fun BandEditor(
+                     valueRange = gainRange,
+                     enabled = band.enabled,
+                     color = gainColor,
++                    centeredAt = 0f,
+                     label = "Gain",
+                     valueLabel = "${formatDb(band.gainDb)} dB",
+                 )
+@@ -1029,6 +1138,11 @@ private fun BandEditor(
+                         index = i,
+                         count = EqualizerSettings.FilterType.entries.size
+                     ),
++                    colors = SegmentedButtonDefaults.colors(
++                        activeContainerColor = color.copy(alpha = 0.18f),
++                        activeContentColor = color,
++                        activeBorderColor = color,
++                    ),
+                 ) {
+                     Text(
+                         text = filterTypeLabel(type),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+index 8c54a938..603d14bc 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+@@ -18,91 +18,76 @@ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.material3.MaterialTheme
+ import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.remember
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.drawBehind
+ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.graphics.Brush
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.Path
++import androidx.compose.ui.graphics.lerp
+ import com.dd3boh.outertune.audio.VisualizerFrame
+ import kotlin.math.PI
++import kotlin.math.cos
+ import kotlin.math.sin
+ 
+ /**
+- * A slow, breathing wash of colour drawn from the current album art - optionally driven by the
+- * actual audio instead of just an ambient sine drift.
++ * A ferrofluid-style silhouette - a dark, glossy blob with a crown of spikes that lengthen and
++ * sharpen with the music, the way real ferrofluid spikes when a magnetic field ramps up - rather
++ * than a soft wash of colour. Optionally driven by the actual audio; without it, the shape still
++ * breathes on its own so it never reads as a static image.
+  *
+- * The ambient drift alone was a deliberate choice at first: reading the PCM stream needed an
+- * [androidx.media3.common.audio.AudioProcessor] in the sink chain, and there wasn't one yet to
+- * reuse. [EqualizerAudioProcessor][com.dd3boh.outertune.audio.EqualizerAudioProcessor] is now
+- * exactly that tap point (built for the equalizer, reused here), already publishing smoothed
+- * bass/mid/treble/transient energy - [reactiveFrame], when supplied, modulates the same blobs
+- * this always drew rather than replacing them with something spikier: bass swells their radius,
+- * treble adds a faster shimmer, and a transient gives everything a brief flash. Null keeps the
+- * original pure-ambient behaviour exactly as it was, since amplitude data really is spiky enough
+- * that a caller may reasonably want to skip it (battery saver, or just personal preference).
++ * The previous version here was three large, mostly-transparent radial gradients - a deliberate
++ * "ambient wash" look, but one that read as barely-there against a dark player background, which
++ * is exactly the complaint this rewrite addresses: a near-black, high-contrast shape with a
++ * coloured rim light is visible on both a dark and a light surface, the way an actual ferrofluid
++ * demo is (black fluid on a plain background), instead of disappearing into it.
+  *
+- * Cost is a handful of radial gradients per frame. The animation is read inside [drawBehind], so
+- * a frame redraws without recomposing anything, and [isActive] stops the clock entirely when the
+- * player is hidden, paused, or the device is in power saving mode.
++ * [reactiveFrame], when supplied, drives the actual spike geometry: bass swells a handful of big,
++ * slow lobes (the classic ferrofluid "crown"), treble adds many small fast spikes on top, and a
++ * transient gives the whole silhouette a brief uniform outward kick, reading as the shape
++ * flinching on a beat rather than one spike spinning around it. Null keeps a gentle ambient wobble
++ * so the shape is never fully still.
++ *
++ * Cost is one ~64-point Path rebuilt per frame plus two gradient fills - cheap enough for
++ * continuous animation, and [isActive] stops the clock entirely when the player is hidden,
++ * paused, or the device is in power saving mode.
+  */
+ @Composable
+ fun LiquidBackground(
+     colors: List<Color>,
+     isActive: Boolean,
+     modifier: Modifier = Modifier,
+-    alpha: Float = 0.45f,
++    alpha: Float = 0.9f,
+     reactiveFrame: VisualizerFrame? = null,
+ ) {
+-    // Extraction can come back empty (still loading), or with a real but dull/greyish palette for
+-    // some covers - either way, rendering nothing (or three grey blobs nobody can see against a
+-    // grey surface behind them) reads as "broken", not "ambient". The theme's own primary color
+-    // is mixed in as a guaranteed vibrant accent rather than trusting the cover alone.
++    // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
++    // real hue to tint the rim light with, so the theme's own primary is a guaranteed fallback
++    // rather than trusting the cover alone.
+     val themeAccent = MaterialTheme.colorScheme.primary
++    val dominant = remember(colors, themeAccent) { colors.firstOrNull() ?: themeAccent }
++
++    // Ferrofluid reads as near-black with the cover's colour only as a tint, not a wash - the core
++    // stays dark even over a light theme's light surface, and the rim light is where the actual
++    // colour shows through, like light catching an oily, glossy surface.
++    val coreColor = remember(dominant) { lerp(Color.Black, dominant, 0.28f) }
++    val rimColor = remember(dominant) { lerp(dominant, Color.White, 0.2f) }
+ 
+-    // Three blobs, each drifting on its own period so the pattern never visibly repeats.
+-    // Primes-ish durations keep them out of phase with one another.
+-    val transition = rememberInfiniteTransition(label = "liquid")
+-    val slow = if (isActive) {
++    val transition = rememberInfiniteTransition(label = "ferrofluid")
++    val clock = if (isActive) {
+         transition.animateFloat(
+             initialValue = 0f,
+             targetValue = 1f,
+-            animationSpec = infiniteRepeatable(tween(19_000, easing = LinearEasing), RepeatMode.Restart),
+-            label = "slow",
++            animationSpec = infiniteRepeatable(tween(14_000, easing = LinearEasing), RepeatMode.Restart),
++            label = "clock",
+         ).value
+     } else {
+         0f
+     }
+-    val breath = if (isActive) {
+-        transition.animateFloat(
+-            initialValue = 0f,
+-            targetValue = 1f,
+-            animationSpec = infiniteRepeatable(tween(7_000, easing = LinearEasing), RepeatMode.Restart),
+-            label = "breath",
+-        ).value
+-    } else {
+-        0.5f
+-    }
+-
+-    // themeAccent always gets one of the three slots - guaranteed vibrant regardless of what
+-    // extraction handed back, rather than trusting a possibly dull/grey cover to carry the whole
+-    // effect on its own.
+-    val palette = remember(colors, themeAccent) {
+-        when (colors.size) {
+-            0 -> listOf(themeAccent, themeAccent, themeAccent)
+-            1 -> listOf(colors[0], themeAccent, colors[0])
+-            2 -> listOf(colors[0], colors[1], themeAccent)
+-            else -> colors.take(2) + themeAccent
+-        }
+-    }
+ 
+-    // Additive on top of the ambient pulse/alpha rather than a replacement for them, so audio
+-    // reactivity reads as "the same breathing wash, now nudged by the music" instead of a
+-    // different-looking effect switching in and out as tracks get louder or quieter.
+-    val bassKick = reactiveFrame?.bass ?: 0f
+-    val trebleShimmer = reactiveFrame?.treble ?: 0f
+-    val transientFlash = reactiveFrame?.transient ?: 0f
++    val bass = reactiveFrame?.bass ?: 0f
++    val treble = reactiveFrame?.treble ?: 0f
++    val transient = reactiveFrame?.transient ?: 0f
+ 
+     Box(
+         modifier = modifier
+@@ -110,32 +95,74 @@ fun LiquidBackground(
+             .drawBehind {
+                 val w = size.width
+                 val h = size.height
+-                // A blob radius near the screen's larger dimension keeps edges off-screen, so the
+-                // result reads as a wash rather than as three discernible circles.
+-                val baseRadius = maxOf(w, h) * 0.85f
+-
+-                // sin() over the shared clock gives smooth, seamless looping motion: at t = 0 and
+-                // t = 1 every term returns to the same value, so the restart is invisible.
++                val cx = w * 0.5f
++                val cy = h * 0.42f
++                val baseRadius = maxOf(w, h) * 0.34f
+                 val tau = (2 * PI).toFloat()
+-                val pulse = 0.92f + 0.08f * sin(tau * breath) + bassKick * 0.6f + transientFlash * 0.35f
+-                val dynamicAlpha = (alpha * (1f + trebleShimmer * 0.6f + transientFlash * 1f)).coerceAtMost(0.95f)
++                val t = clock * tau
+ 
+-                palette.forEachIndexed { i, color ->
+-                    val phase = i * (tau / palette.size)
+-                    val cx = w * (0.5f + 0.28f * sin(tau * slow + phase))
+-                    val cy = h * (0.5f + 0.28f * sin(tau * slow * 0.73f + phase * 1.7f))
+-                    val radius = baseRadius * pulse * (0.75f + 0.12f * i)
++                // Sampled around the circle as a radius multiplier per angle, then walked through
++                // as a smooth closed contour rather than straight segments between the raw
++                // samples - a plain polygon through 64 points looks faceted, not fluid.
++                val sampleCount = 64
++                val radii = FloatArray(sampleCount) { i ->
++                    val angle = tau * i / sampleCount
++                    var r = 1f
++                    // Ambient wobble: present with no audio at all, so the shape is never static.
++                    r += 0.05f * sin(angle * 3 + t)
++                    // Bass: a few big, slow lobes - the crown a real ferrofluid forms as the field
++                    // ramps up.
++                    r += (0.08f + bass * 0.55f) * sin(angle * 5 + t * 0.4f)
++                    // Treble: many small, fast spikes layered on top of the bass lobes.
++                    r += (0.015f + treble * 0.22f) * sin(angle * 17 - t * 2.3f)
++                    // Transient: uniform across every angle, so a beat reads as the whole
++                    // silhouette kicking outward for a frame, not one spike moving.
++                    r += transient * 0.35f
++                    (baseRadius * r).coerceAtLeast(baseRadius * 0.4f)
++                }
++
++                fun pointAt(i: Int): Offset {
++                    val index = ((i % sampleCount) + sampleCount) % sampleCount
++                    val angle = tau * index / sampleCount
++                    val r = radii[index]
++                    return Offset(cx + r * cos(angle), cy + r * sin(angle))
++                }
+ 
+-                    drawCircle(
+-                        brush = Brush.radialGradient(
+-                            colors = listOf(color.copy(alpha = dynamicAlpha), Color.Transparent),
+-                            center = Offset(cx, cy),
+-                            radius = radius,
++                val path = Path()
++                val first = pointAt(0)
++                path.moveTo(first.x, first.y)
++                for (i in 0 until sampleCount) {
++                    val current = pointAt(i)
++                    val next = pointAt(i + 1)
++                    val midpoint = Offset((current.x + next.x) / 2f, (current.y + next.y) / 2f)
++                    path.quadraticBezierTo(current.x, current.y, midpoint.x, midpoint.y)
++                }
++                path.close()
++
++                drawPath(
++                    path = path,
++                    brush = Brush.radialGradient(
++                        colors = listOf(
++                            rimColor.copy(alpha = alpha),
++                            coreColor.copy(alpha = alpha),
++                            coreColor.copy(alpha = alpha * 0.85f),
+                         ),
+-                        radius = radius,
++                        center = Offset(cx, cy - baseRadius * 0.25f),
++                        radius = baseRadius * 2.1f,
++                    ),
++                )
++
++                // A soft, mostly-transparent halo just outside the silhouette - the glow a dark
++                // glossy fluid picks up from whatever light is around it, and the last bit of
++                // "this is meant to look wet/reflective" rather than a flat cutout shape.
++                drawPath(
++                    path = path,
++                    brush = Brush.radialGradient(
++                        colors = listOf(Color.Transparent, rimColor.copy(alpha = alpha * 0.25f)),
+                         center = Offset(cx, cy),
+-                    )
+-                }
++                        radius = baseRadius * 1.35f,
++                    ),
++                )
+             }
+     )
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 57eac864..430b1aa6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -229,8 +229,14 @@ fun BottomSheetPlayer(
+             )
+         },
+         collapsedBackgroundColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
++        // A fling past the mini player used to tear the whole session down (clearMediaItems +
++        // deInitQueue) - from the user's side that reads as "swiping the mini player closed the
++        // app", since playback and every control vanish in the same motion. Bounce back to the
++        // mini player instead: nothing today calls softKillPlayer() from anywhere else, so this
++        // gesture was its only trigger, and there is no legitimate "the user asked to end the
++        // session" signal to preserve.
+         onDismiss = {
+-            playerConnection.softKillPlayer()
++            state.collapseSoft()
+         },
+         collapsedContent = {
+             MiniPlayer()
 -- 
 2.45.1.windows.1
 
