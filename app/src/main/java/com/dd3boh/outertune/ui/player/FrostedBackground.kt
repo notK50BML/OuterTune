@@ -34,6 +34,8 @@ import coil3.request.allowHardware
 import coil3.toBitmap
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
+import com.dd3boh.outertune.constants.LiquidColorScheme
+import com.dd3boh.outertune.constants.LiquidColorSchemeKey
 import com.dd3boh.outertune.constants.LiquidTextContrastKey
 import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
@@ -174,10 +176,35 @@ fun rememberPlayerOnBackgroundColor(
     // right call for it is a genuinely separate question from whether it's right for a blur.
     val sharedAutoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
     val liquidTextContrast by rememberPreference(LiquidTextContrastKey, defaultValue = true)
-    val autoTextContrast = if (playerBackground == PlayerBackgroundStyle.LIQUID) liquidTextContrast else sharedAutoTextContrast
+    val isLiquid = playerBackground == PlayerBackgroundStyle.LIQUID
+    val autoTextContrast = if (isLiquid) liquidTextContrast else sharedAutoTextContrast
 
-    // Every background style is artwork-derived now (FOLLOW_THEME and GRADIENT/LIQUID measure the
-    // cover via extractGradientColors, FROSTED/BLUR via this same luminance check), so there is no
+    // The one theme-only answer, used whenever there is nothing more specific to go on: dark
+    // theme's surface is dark, so its own text colour is already light, and vice versa.
+    val themeFallback = if (useDarkTheme) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        val c = MaterialTheme.colorScheme.secondary
+        c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
+    }
+
+    // Liquid's backdrop is a flat, known colour (surface/black/white - see LiquidColorScheme),
+    // never the cover art itself: the blobs drawn over it are coloured from the theme/cover, but
+    // the backdrop they sit on is what text actually needs to read against, so contrast follows
+    // *that* rather than measuring the cover's brightness (which could easily disagree with a
+    // backdrop the user explicitly chose to be black or white) or the blobs' own colour.
+    if (isLiquid) {
+        val liquidColorScheme by rememberEnumPreference(LiquidColorSchemeKey, defaultValue = LiquidColorScheme.SURFACE)
+        if (!autoTextContrast) return themeFallback
+        return when (liquidColorScheme) {
+            LiquidColorScheme.BLACK -> Color.White
+            LiquidColorScheme.WHITE -> Color(0xFF16161A)
+            LiquidColorScheme.SURFACE -> themeFallback
+        }
+    }
+
+    // Every other background style is artwork-derived (FOLLOW_THEME measures the cover via
+    // extractGradientColors, FROSTED/BLUR via this same luminance check), so there is no other
     // style left where the cover is beside the point.
     val coverIsLight = rememberCoverIsLight(
         mediaMetadata = mediaMetadata,
@@ -186,11 +213,7 @@ fun rememberPlayerOnBackgroundColor(
 
     return when {
         coverIsLight != null -> if (coverIsLight) Color(0xFF16161A) else Color.White
-        useDarkTheme -> MaterialTheme.colorScheme.onSurface
-        else -> {
-            val c = MaterialTheme.colorScheme.secondary
-            c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
-        }
+        else -> themeFallback
     }
 }
 
