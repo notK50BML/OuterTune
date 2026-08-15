@@ -1514,6 +1514,15 @@ fun ControlsContent(
     }
 }
 
+/**
+ * A clearly-visible primary tint for Liquid's Theme-surface backdrop - see the call site.
+ *
+ * Not private: [rememberPlayerOnBackgroundColor] (FrostedBackground.kt, same package) has to
+ * measure the exact colour this produces to decide contrast text, and a second, drifted copy of
+ * "how elevated is Liquid's surface backdrop" would be worse than one shared constant.
+ */
+val LiquidSurfaceElevation = 16.dp
+
 @Composable
 fun PlayerBackground(
     playerConnection: PlayerConnection,
@@ -1533,7 +1542,14 @@ fun PlayerBackground(
         when (liquidColorScheme) {
             LiquidColorScheme.BLACK -> Color.Black
             LiquidColorScheme.WHITE -> Color.White
-            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+            // NavigationBarDefaults.Elevation (3dp) is the same subtle tint every other style's
+            // backdrop uses, but Material3's dark-theme surface tone is already very close to
+            // black on its own - at that low an elevation the primary tint blended in is too
+            // faint to read as "themed" rather than flat black, which is exactly what made
+            // "Theme surface" look like a black/pure-black backdrop even without Pure Black on.
+            // A clearly higher elevation here (only here - every other style keeps the subtle
+            // one) makes the tint actually visible.
+            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.surfaceColorAtElevation(LiquidSurfaceElevation)
         }
     } else {
         MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
