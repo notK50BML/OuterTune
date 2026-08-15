@@ -14,7 +14,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -204,16 +203,18 @@ fun rememberPlayerOnBackgroundColor(
             // This used to just return themeFallback again - identical to the toggle-off branch
             // right above, so switching "auto text contrast" on and off did nothing at all
             // whenever the backdrop was Theme surface (the default). Surface has a real, known
-            // colour just like black/white do, so there is something to actually measure here:
-            // the elevated surface tone Player.kt paints as the backdrop, not a guess from
-            // "dark theme implies dark surface" that dynamic per-song theming isn't guaranteed
-            // to agree with.
+            // colour just like black/white do (Player.kt paints it as colorScheme.primary, not a
+            // tinted-elevated-surface, so that the backdrop reads as clearly themed rather than
+            // flat black on a dark theme) - measuring that directly is the same kind of "there is
+            // something to actually check here" this branch already does for black/white, not a
+            // guess from "dark theme implies dark surface" that dynamic per-song theming isn't
+            // guaranteed to agree with.
             LiquidColorScheme.SURFACE -> {
-                // Same elevation Player.kt actually paints the backdrop with (LiquidSurfaceElevation,
-                // not the plain NavigationBarDefaults.Elevation every other style uses) - measuring
-                // the wrong one would just be a different way to disagree with what's on screen.
-                val surfaceColor = MaterialTheme.colorScheme.surfaceColorAtElevation(LiquidSurfaceElevation)
-                if (surfaceColor.luminance() > LIGHT_BACKGROUND_THRESHOLD) Color(0xFF16161A) else Color.White
+                if (MaterialTheme.colorScheme.primary.luminance() > LIGHT_BACKGROUND_THRESHOLD) {
+                    Color(0xFF16161A)
+                } else {
+                    Color.White
+                }
             }
         }
     }

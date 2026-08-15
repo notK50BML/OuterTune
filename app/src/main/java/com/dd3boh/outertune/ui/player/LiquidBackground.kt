@@ -76,16 +76,23 @@ fun LiquidBackground(
     alpha: Float = 0.85f,
     reactiveFrame: VisualizerFrame? = null,
     shapeStyle: LiquidShapeStyle = LiquidShapeStyle.PETAL,
+    /**
+     * The petal's fill colour - primary by default (the same colour as the play/pause pill and
+     * every other playback control), but the caller picks something else when the backdrop
+     * behind it is already primary at full area (Theme surface): the blobs then use the
+     * smaller-area secondary role instead of repeating the colour the whole screen is already.
+     */
+    accentColor: Color = MaterialTheme.colorScheme.primary,
 ) {
     // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
     // guaranteed-vibrant fallback, and the theme's own colour roles are exactly that.
     val themeAccent = MaterialTheme.colorScheme.primary
     val themeSecondary = MaterialTheme.colorScheme.secondary
     val themeTertiary = MaterialTheme.colorScheme.tertiary
-    // The petal is filled with the same colour as the play/pause pill and every other playback
-    // control (colorScheme.primary), not the album-art extraction SPHERES uses below - the two
-    // silhouettes read as belonging to two different parts of the player otherwise.
-    val petalColor = themeAccent
+    // The petal is filled with whatever accentColor resolves to - see its own doc - not the
+    // album-art extraction SPHERES uses below; the two silhouettes read as belonging to two
+    // different parts of the player otherwise.
+    val petalColor = accentColor
     val petalRimColor = remember(petalColor, themeSecondary) { lerp(petalColor, themeSecondary, 0.35f) }
     val spherePalette = remember(colors, themeAccent, themeSecondary, themeTertiary) {
         when (colors.size) {

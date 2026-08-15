@@ -1514,15 +1514,6 @@ fun ControlsContent(
     }
 }
 
-/**
- * A clearly-visible primary tint for Liquid's Theme-surface backdrop - see the call site.
- *
- * Not private: [rememberPlayerOnBackgroundColor] (FrostedBackground.kt, same package) has to
- * measure the exact colour this produces to decide contrast text, and a second, drifted copy of
- * "how elevated is Liquid's surface backdrop" would be worse than one shared constant.
- */
-val LiquidSurfaceElevation = 16.dp
-
 @Composable
 fun PlayerBackground(
     playerConnection: PlayerConnection,
@@ -1542,17 +1533,28 @@ fun PlayerBackground(
         when (liquidColorScheme) {
             LiquidColorScheme.BLACK -> Color.Black
             LiquidColorScheme.WHITE -> Color.White
-            // NavigationBarDefaults.Elevation (3dp) is the same subtle tint every other style's
-            // backdrop uses, but Material3's dark-theme surface tone is already very close to
-            // black on its own - at that low an elevation the primary tint blended in is too
-            // faint to read as "themed" rather than flat black, which is exactly what made
-            // "Theme surface" look like a black/pure-black backdrop even without Pure Black on.
-            // A clearly higher elevation here (only here - every other style keeps the subtle
-            // one) makes the tint actually visible.
-            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.surfaceColorAtElevation(LiquidSurfaceElevation)
+            // A tinted-elevated-surface read as flat black regardless of how high the elevation
+            // went, because Material3's own dark-theme surface tone is already close to black -
+            // there was no way to tint that into looking clearly "themed". The theme's primary
+            // is the one colour guaranteed not to have that problem, and it's the large-area
+            // role here on purpose: the blobs use the smaller-area secondary instead (see
+            // LiquidBackground's accentColor), so the backdrop and the shapes drawn over it read
+            // as two different weights of the same theme rather than competing for the same one.
+            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.primary
         }
     } else {
         MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+    }
+
+    // Petal's fill colour: primary for Black/White (unchanged - a vivid colour against a neutral
+    // backdrop), secondary for Theme surface (the backdrop above is already primary at full
+    // area, so the shape uses the smaller-area role instead of repeating the same one). Spheres
+    // keeps its own existing album/theme palette unchanged - it was never single-colour to begin
+    // with, so "smaller area, different role" doesn't map onto it the same way.
+    val liquidAccentColor = if (liquidColorScheme == LiquidColorScheme.SURFACE) {
+        MaterialTheme.colorScheme.secondary
+    } else {
+        MaterialTheme.colorScheme.primary
     }
 
     Box(
@@ -1691,6 +1693,7 @@ fun PlayerBackground(
                     VisualizerFrame(bass = animatedBass, treble = animatedTreble, transient = animatedTransient)
                 } else null,
                 shapeStyle = liquidShapeStyle,
+                accentColor = liquidAccentColor,
             )
         }
 
