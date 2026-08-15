@@ -62,9 +62,12 @@ import kotlin.random.Random
  * [RenderEffect][androidx.compose.ui.graphics.RenderEffect], unlike
  * [com.dd3boh.outertune.ui.player.FrostedBackground]'s blur on a static pre-shrunk image - this is
  * genuinely more expensive since it runs on a moving shape every frame, not once on a still image.
- * Kept modest (18dp) for that reason. [LiquidShapeStyle.SPHERES] skips it - the soft radial
- * gradients already fade out on their own, so a second blur pass would cost more than it changes.
+ * Kept modest ([PETAL_BLUR_RADIUS]) for that reason. [LiquidShapeStyle.SPHERES] skips it - the
+ * soft radial gradients already fade out on their own, so a second blur pass would cost more than
+ * it changes.
  */
+private val PETAL_BLUR_RADIUS = 26.dp
+
 @Composable
 fun LiquidBackground(
     colors: List<Color>,
@@ -79,8 +82,11 @@ fun LiquidBackground(
     val themeAccent = MaterialTheme.colorScheme.primary
     val themeSecondary = MaterialTheme.colorScheme.secondary
     val themeTertiary = MaterialTheme.colorScheme.tertiary
-    val dominant = remember(colors, themeAccent) { colors.firstOrNull() ?: themeAccent }
-    val rimColor = remember(dominant, themeSecondary) { lerp(dominant, themeSecondary, 0.35f) }
+    // The petal is filled with the same colour as the play/pause pill and every other playback
+    // control (colorScheme.primary), not the album-art extraction SPHERES uses below - the two
+    // silhouettes read as belonging to two different parts of the player otherwise.
+    val petalColor = themeAccent
+    val petalRimColor = remember(petalColor, themeSecondary) { lerp(petalColor, themeSecondary, 0.35f) }
     val spherePalette = remember(colors, themeAccent, themeSecondary, themeTertiary) {
         when (colors.size) {
             0 -> listOf(themeAccent, themeSecondary, themeTertiary)
@@ -124,7 +130,7 @@ fun LiquidBackground(
     when (shapeStyle) {
         LiquidShapeStyle.PETAL -> Box(
             modifier = baseModifier
-                .blur(18.dp)
+                .blur(PETAL_BLUR_RADIUS)
                 .drawBehind {
                     val w = size.width
                     val h = size.height
@@ -193,12 +199,17 @@ fun LiquidBackground(
                         path = path,
                         brush = Brush.radialGradient(
                             colors = listOf(
-                                rimColor.copy(alpha = alpha),
-                                dominant.copy(alpha = alpha),
-                                dominant.copy(alpha = alpha * 0.75f),
+                                petalRimColor.copy(alpha = alpha),
+                                petalColor.copy(alpha = alpha),
+                                petalColor.copy(alpha = alpha * 0.75f),
+                                // Fading to fully transparent before the path's own edge gives the
+                                // blur pass a soft gradient to spread instead of a hard alpha
+                                // cutoff to soften - the difference between a fuzzy cloud and a
+                                // blurred sticker.
+                                petalColor.copy(alpha = 0f),
                             ),
                             center = Offset(cx, cy - baseRadius * 0.2f),
-                            radius = baseRadius * 1.8f,
+                            radius = baseRadius * 2.2f,
                         ),
                     )
                 }
