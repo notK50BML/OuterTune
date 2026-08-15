@@ -450,7 +450,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     balance = settings.balance,
                     enabled = settings.enabled,
                     color = eqColor,
-                    useDials = useDials,
                     useGradient = useValueGradient,
                     onBassChange = { setRangeGain(bassBandIndices, it) },
                     onTrebleChange = { setRangeGain(trebleBandIndices, it) },
@@ -644,7 +643,6 @@ private fun ToneControlsRow(
     balance: Float,
     enabled: Boolean,
     color: Color,
-    useDials: Boolean,
     useGradient: Boolean,
     onBassChange: (Float) -> Unit,
     onTrebleChange: (Float) -> Unit,
@@ -659,76 +657,52 @@ private fun ToneControlsRow(
     // Bass, balance and treble together, spread evenly across the full width rather than each
     // getting its own row - three related "tone" controls read as one unit that way, and it's
     // what leaves the balance section below unnecessary.
+    //
+    // Always dials, regardless of the panel-wide "use dials instead of sliders" setting - the
+    // same exemption the 12-band strip below takes in the other direction (always sliders,
+    // never dials, because a row of tiny dials is fiddly). Three PowerampSliders read as more
+    // band-gain controls and got lost among the 12 actual bands right below them; a knob is what
+    // marks these as the different, amp-style tone controls they are.
     Row(
         horizontalArrangement = Arrangement.SpaceEvenly,
         modifier = Modifier.fillMaxWidth()
     ) {
-        if (useDials) {
-            RotaryDial(
-                value = bassGainDb,
-                onValueChange = onBassChange,
-                valueRange = gainRange,
-                enabled = enabled,
-                dialSize = 84.dp,
-                color = bassColor,
-                textColor = color,
-                centeredAt = 0f,
-                label = "Bass",
-                valueLabel = "${formatDb(bassGainDb)} dB",
-            )
-            RotaryDial(
-                value = balance,
-                onValueChange = onBalanceChange,
-                valueRange = balanceRange,
-                enabled = enabled,
-                dialSize = 84.dp,
-                color = balanceColor,
-                textColor = color,
-                centeredAt = 0f,
-                label = "Balance",
-                valueLabel = balanceReadout(balance),
-            )
-            RotaryDial(
-                value = trebleGainDb,
-                onValueChange = onTrebleChange,
-                valueRange = gainRange,
-                enabled = enabled,
-                dialSize = 84.dp,
-                color = trebleColor,
-                textColor = color,
-                centeredAt = 0f,
-                label = "Treble",
-                valueLabel = "${formatDb(trebleGainDb)} dB",
-            )
-        } else {
-            PowerampSlider(
-                value = bassGainDb,
-                onValueChange = onBassChange,
-                valueRange = gainRange,
-                enabled = enabled,
-                textColor = color,
-                label = "Bass",
-                valueLabel = "${formatDb(bassGainDb)} dB",
-            )
-            PowerampSlider(
-                value = balance,
-                onValueChange = onBalanceChange,
-                valueRange = balanceRange,
-                enabled = enabled,
-                textColor = color,
-                label = "Balance",
-                valueLabel = balanceReadout(balance),
-            )
-            PowerampSlider(
-                value = trebleGainDb,
-                onValueChange = onTrebleChange,
-                valueRange = gainRange,
-                enabled = enabled,
-                textColor = color,
-                label = "Treble",
-                valueLabel = "${formatDb(trebleGainDb)} dB",
-            )
-        }
+        RotaryDial(
+            value = bassGainDb,
+            onValueChange = onBassChange,
+            valueRange = gainRange,
+            enabled = enabled,
+            dialSize = 84.dp,
+            color = bassColor,
+            textColor = color,
+            centeredAt = 0f,
+            label = "Bass",
+            valueLabel = "${formatDb(bassGainDb)} dB",
+        )
+        RotaryDial(
+            value = balance,
+            onValueChange = onBalanceChange,
+            valueRange = balanceRange,
+            enabled = enabled,
+            dialSize = 84.dp,
+            color = balanceColor,
+            textColor = color,
+            centeredAt = 0f,
+            label = "Balance",
+            valueLabel = balanceReadout(balance),
+        )
+        RotaryDial(
+            value = trebleGainDb,
+            onValueChange = onTrebleChange,
+            valueRange = gainRange,
+            enabled = enabled,
+            dialSize = 84.dp,
+            color = trebleColor,
+            textColor = color,
+            centeredAt = 0f,
+            label = "Treble",
+            valueLabel = "${formatDb(trebleGainDb)} dB",
+        )
     }
 }
 
