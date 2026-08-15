@@ -1,4 +1,4 @@
-name: Build patched APKs
+name: Build update APKs
 
 # Applies outertune-backlog.patch on top of the checked-out source and builds
 # the variant you choose. Nothing needs to be cloned locally: the runner does the checkout,
@@ -82,9 +82,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: 3fdbe8e12515309ed3912f69b8981b6cccf43fe547d99eb150a5128937ed55c8"
-          echo "lines: $(wc -l < "$PATCH")  (expected 28940)   bytes: $(wc -c < "$PATCH")  (expected 1385713)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 84)"
+          echo "expected: c5d63d7112b9886666a4bc9721aebce3ced5339267a1f18d120f17ab71688bd5"
+          echo "lines: $(wc -l < "$PATCH")  (expected 29705)   bytes: $(wc -c < "$PATCH")  (expected 1437142)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 92)"
           echo "================"
 
           git config user.name "github-actions"
