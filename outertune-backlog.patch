@@ -1,7 +1,7 @@
 From ce6f7f799e2725b2420d65354b05d9b2932e9260 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 01/84] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 01/89] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 00000000..81d7f34c
 From 7f0e1fd0d2f68f9dd2ee974bba518e6de4c2aecb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 02/84] Add patch notes
+Subject: [PATCH 02/89] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 00000000..28c797a0
 From 14a0026fb47ca1dd0b4ffe318d936134ad3544c0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 03/84] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 03/89] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a89..27f97bf7 100644
 From ae6f8b0436d2b8f4c04775c6366e8408ca4bd77e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 04/84] Clarify build route in patch notes
+Subject: [PATCH 04/89] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f961..a43e5d3f 100644
 From a2a69476880e0932200a968cb2083100a7dd183e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 05/84] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 05/89] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b930..7d500840 100644
 From 3ae0c5459c9b78c1e45f534f61681fa4736c66ce Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 06/84] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 06/89] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac8..a848cde2 100644
 From 1bb5f2a86d88f1b6ea98d774f716ae0a456c3c61 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 07/84] Report the liked-songs sync outcome instead of failing
+Subject: [PATCH 07/89] Report the liked-songs sync outcome instead of failing
  silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf7..580a4a9c 100644
 From b5cab04db270c6e3deef98d28a2ae287320eb62d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 08/84] Add Discord rich presence
+Subject: [PATCH 08/89] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b851593..575e5dee 100755
 From 155aa686f6c440d450880dab72e8a83ec7115232 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 09/84] Keep the play button the same size when lyrics are
+Subject: [PATCH 09/89] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 83537f7a..113ca4e6 100644
 From a3a8ffb76d0f6fd2210f2a7bca654e5ab06ccaf7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 10/84] Add a Liquid player background
+Subject: [PATCH 10/89] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2e..9ce0f192 100644
 From dd43f1bd3ecfd1bf8579f6c98b52e9f936ca632b Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 11/84] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 11/89] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f192..0afd9445 100644
 From aae3d59212eb43886ab8baf03a4b63f582810ea6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 12/84] Tell the user when the Discord login cannot read a
+Subject: [PATCH 12/89] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd9445..8388e17e 100644
 From af8889f3b724566d259e89bfe01d6ed7950ccac4 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 13/84] Fix Discord presence never appearing
+Subject: [PATCH 13/89] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fcc..d9eaf365 100644
 From d13be09e7bb19a5874f33c9849c00b4fb0e3735c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 14/84] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 14/89] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17e..25f56c21 100644
 From 28c032b66b173341a462e44b235f734937c60b36 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 15/84] Make Discord connection failures visible, and stop the
+Subject: [PATCH 15/89] Make Discord connection failures visible, and stop the
  infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f5..90bac793 100644
 From 63c8d2f05745563c27dd450bc7c22bbe2cff4cf0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 16/84] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 16/89] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c0..92770533 100644
 From a1f9d093fc934f94eaa1fccb0ec3578c0e156fe8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 17/84] Stop reporting the previous track's position to Discord
+Subject: [PATCH 17/89] Stop reporting the previous track's position to Discord
 
 player.currentPosition can still refer to the outgoing item while a track
 transition settles, so the presence was published with an elapsed time
@@ -5829,7 +5829,7 @@ index 92770533..1fd386f5 100644
 From 93ac83ecb8abc1bd14dd35e6f83dd73a4cac165d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 18/84] Point in-app links at this fork
+Subject: [PATCH 18/89] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5964,7 +5964,7 @@ index 3f52f92e..ea1302e1 160000
 From 1bc0166156cdc6ccdab97890f0a9737320e7d472 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 19/84] Fix the Discord presence freezing on a track change
+Subject: [PATCH 19/89] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6205,7 +6205,7 @@ index 227e9628..e843bb7d 100644
 From 1c459ecf189ebde4292f0ec027f3648a46a0c30f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 20/84] Explain where to find the Discord token
+Subject: [PATCH 20/89] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6235,7 +6235,7 @@ index 035206ed..93e4b92b 100644
 From 9ed0888d5759bafb731af62d30f8cec9c69d335c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 21/84] Ask Discord's module registry for the token
+Subject: [PATCH 21/89] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6422,7 +6422,7 @@ index 9244411c..4aea73d0 100644
 From 884c109ffd5bdf01594a4c3a126f809655ffca29 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 22/84] Add app icon customisation
+Subject: [PATCH 22/89] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7360,7 +7360,7 @@ index 93e4b92b..25673abe 100644
 From b33df24023f93249c3061e94b2d6420462df9857 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 23/84] Add a frosted glass player background
+Subject: [PATCH 23/89] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7741,7 +7741,7 @@ index 25673abe..d6c42efd 100644
 From 85bdabde5d107693e5404c7d37bfa9c90981ad93 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 24/84] Turn the home search into a field, and thin out the top
+Subject: [PATCH 24/89] Turn the home search into a field, and thin out the top
  bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8029,7 +8029,7 @@ index d6c42efd..37748685 100644
 From 18916896604ef7934670495b3794d838b7963efd Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 25/84] Add extended charts to Stats
+Subject: [PATCH 25/89] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8325,7 +8325,7 @@ index 37748685..10418352 100644
 From 29ddeed3e0ada034cb3501628a176ea241cb22b3 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 26/84] Import player layouts from the layout editor
+Subject: [PATCH 26/89] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9298,7 +9298,7 @@ index 10418352..20ed4dc7 100644
 From 99a3843c67380030057cfd7b5ef5ec256011704c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 27/84] Add song recognition
+Subject: [PATCH 27/89] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11356,7 +11356,7 @@ index 00000000..1c59e9ca
 From 82750b1199210b8cc04c3c75e0fa9eb568251585 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 28/84] Fix the stats charts
+Subject: [PATCH 28/89] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11755,7 +11755,7 @@ index f7096084..a26b3be5 100644
 From b305cfa3aebfc9f7df830ae6324f20bf328b5dc6 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 29/84] Let the stats charts rank by plays or by time
+Subject: [PATCH 29/89] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -12002,7 +12002,7 @@ index a26b3be5..3bc88bf8 100644
 From 6af09d88c1916a8526a5842b2caf2bb622bf91c2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 30/84] Position layout blocks by their centre, and allow
+Subject: [PATCH 30/89] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12076,7 +12076,7 @@ index ee3a36c6..641eb5f5 100644
 From 5b8c3d0a9191c49c9824aca70cf10de20ec415ba Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 31/84] Keep word timings when the lenient TTML parser is used
+Subject: [PATCH 31/89] Keep word timings when the lenient TTML parser is used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
 those go through the lenient parser in the betterlyrics module instead. That
@@ -12416,7 +12416,7 @@ index 00000000..5d346a37
 From 40f68d78899f54767eb6c24be76a4588411f5e94 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 32/84] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 32/89] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13234,7 +13234,7 @@ index 00000000..c9a8384c
 From 328bdae8e63c63d7c3ae0ec9358b8a586ac1704c Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 33/84] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 33/89] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13288,7 +13288,7 @@ index 156d94ca..a909d4d5 100644
 From 36e7edfec22e65d65316f2713fa4a53530cb638e Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 34/84] Let the user choose which lyric provider is preferred
+Subject: [PATCH 34/89] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14112,7 +14112,7 @@ index 00000000..78961d0d
 From c0246f7046446a427bbcd0d558fce15ef6228dee Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 35/84] Document the lyrics work in the patch notes
+Subject: [PATCH 35/89] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14217,7 +14217,7 @@ index a43e5d3f..85917675 100644
 From 3ef61068af8b23d2d9c2a5eda00522e6c0444b54 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 36/84] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 36/89] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14273,7 +14273,7 @@ index 78bb0691..f7636ae1 100644
 From 65ed25bf4e9455c8cc5e40cd8308a8fba67dcb6f Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 37/84] Colour the queue handle to match the player background
+Subject: [PATCH 37/89] Colour the queue handle to match the player background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
 alpha - the fade only starts once the sheet is about a tenth of the way open.
@@ -14503,7 +14503,7 @@ index 86483840..338957b0 100644
 From b317322dff8bf8ae138edcf98fac49cbe133026a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:39:12 +0000
-Subject: [PATCH 38/84] Restore the artist queries the stats fix deleted
+Subject: [PATCH 38/89] Restore the artist queries the stats fix deleted
 
 :app:compileCoreReleaseKotlin failed with a page of unresolved references -
 artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
@@ -14620,7 +14620,7 @@ index 6a7034b5..5a8ef057 100644
 From 99658fa617f0c37b34d8a5538916bf0edfeed16a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 39/84] Let the identify-a-song button be moved or hidden
+Subject: [PATCH 39/89] Let the identify-a-song button be moved or hidden
 
 Settings -> Appearance -> Display -> Identify a song button, with three
 choices: the top of the home screen, where it has always been; inside the
@@ -14829,7 +14829,7 @@ index f7636ae1..45596e34 100644
 From fcbf211593695d397b2c0c43a646f7c875ace5c8 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 40/84] Colour the lyrics from the player background, not the
+Subject: [PATCH 40/89] Colour the lyrics from the player background, not the
  theme
 
 Lyrics are drawn on top of whatever the player is showing behind them, but they
@@ -14925,7 +14925,7 @@ index 1700c659..18a7575b 100644
 From 259253b40852aaf3a3e6a1a5ca8938acb4a1bf68 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:39:45 +0000
-Subject: [PATCH 41/84] Stop the word sweep from silently doing nothing
+Subject: [PATCH 41/89] Stop the word sweep from silently doing nothing
 
 Three ways it could look dead, all fixed, none of them confirmed as the one -
 this is written without a device to reproduce on.
@@ -15034,7 +15034,7 @@ index 18a7575b..5e9b45d5 100644
 From 6f7e373d0cbed0eea39930d085fd71ad420182aa Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 42/84] Prefer word-timed lyrics over whichever provider
+Subject: [PATCH 42/89] Prefer word-timed lyrics over whichever provider
  answers first
 
 The word-by-word sweep was never engaging, and the renderer was not the reason:
@@ -15242,7 +15242,7 @@ index ed96011c..cfd6e83e 100644
 From 60bc422126444523f64edaefebfdc2a1b763034a Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 43/84] Start the chart queue at the song that was tapped
+Subject: [PATCH 43/89] Start the chart queue at the song that was tapped
 
 Tapping any song in Most played songs, or in the extended Top songs, played the
 number one track instead. Both built a queue from the whole chart and never said
@@ -15323,7 +15323,7 @@ index 48721417..3c284db3 100644
 From c6bdf7adbc5767e4b5d11435050af37e2d6482d6 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:28:52 +0000
-Subject: [PATCH 44/84] Actually place the blocks an imported layout asks for
+Subject: [PATCH 44/89] Actually place the blocks an imported layout asks for
 
 The importer read every field in the file, validated it, showed it back in the
 settings summary, and then the player used two of them: whether a block is
@@ -15619,7 +15619,7 @@ index 00000000..aa2ecafb
 From 72243f51268ca9f60a8e4b85fcf751e9cc47a811 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:58:53 +0000
-Subject: [PATCH 45/84] Stop the layout dispatch from changing the built-in
+Subject: [PATCH 45/89] Stop the layout dispatch from changing the built-in
  player
 
 Two faults, both mine, both from making the action row a block.
@@ -15763,7 +15763,7 @@ index b793cb19..291d13ee 100644
 From 2717fb2dd02bcd78bb2181af18a8593a4968164e Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 08:18:05 +0000
-Subject: [PATCH 46/84] Pause the Discord presence instead of removing it
+Subject: [PATCH 46/89] Pause the Discord presence instead of removing it
 
 Pausing a song cleared the activity outright, so the card vanished from your
 profile and came back on resume. It now stays up with its timestamps dropped.
@@ -15894,7 +15894,7 @@ index 45596e34..58bf36a5 100644
 From cd182e72c2ac2d400d9796ccca023f39578ddda5 Mon Sep 17 00:00:00 2001
 From: K50 <k50@example.com>
 Date: Mon, 10 Aug 2026 10:58:07 +0000
-Subject: [PATCH 47/84] Make landscape player full-width and hide navigation
+Subject: [PATCH 47/89] Make landscape player full-width and hide navigation
  rail
 
 ---
@@ -16005,7 +16005,7 @@ index d3568b6e..45152b97 100644
 From b874608ccc581de93b11a7c86ce882a9a2791a05 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:05 +0800
-Subject: [PATCH 48/84] Confirm nuke actions, and add a queue-beside-current
+Subject: [PATCH 48/89] Confirm nuke actions, and add a queue-beside-current
  toggle
 
 The debug nuke buttons deleted from the database immediately on click
@@ -16293,7 +16293,7 @@ index 58bf36a5..afc1ef7a 100644
 From bb162801acf301e6b67b3a32e40348a9bb21ac3a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:24 +0800
-Subject: [PATCH 49/84] Show the YTM view count in the song details dialog
+Subject: [PATCH 49/89] Show the YTM view count in the song details dialog
 
 PlayerResponse.VideoDetails.viewCount was already being fetched for
 playback but never surfaced anywhere. Thread it into the Details
@@ -16369,7 +16369,7 @@ index afc1ef7a..97586a2d 100644
 From acca28c373be043190acfd2ff98fe7e517978c95 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:38 +0800
-Subject: [PATCH 50/84] Keep the Discord card layout when paused, add an
+Subject: [PATCH 50/89] Keep the Discord card layout when paused, add an
  auto-clear timeout
 
 Pausing dropped both startTime and endTime, which also removes the
@@ -16588,7 +16588,7 @@ index e4422458..0c909c81 100644
 From b3bc081bf3f9d57366ec110dcd0f017b95479432 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:59 +0800
-Subject: [PATCH 51/84] Paginate remote history and stop swallowing fetch
+Subject: [PATCH 51/89] Paginate remote history and stop swallowing fetch
  failures
 
 musicHistory() only ever read the first page - there was no
@@ -16818,7 +16818,7 @@ index 5881062b..881ebce5 100644
 From 51e99817fb034ccbe6bc293255e1eb7d11d24a74 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:17:20 +0800
-Subject: [PATCH 52/84] Fix the top bar landing under the status bar, and the
+Subject: [PATCH 52/89] Fix the top bar landing under the status bar, and the
  tablet rail covering the search bar
 
 Two separate inset bugs in SearchBarContainer, both stemming from the
@@ -16942,7 +16942,7 @@ index b33a6b87..d34f96c1 100644
 From 4e86e4d03ac799fa5b804fc640ab0a262c3824a0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:06 +0800
-Subject: [PATCH 53/84] Center the landscape player and give it a full-width
+Subject: [PATCH 53/89] Center the landscape player and give it a full-width
  queue handle
 
 Three related fixes in LandscapePlayer:
@@ -17088,7 +17088,7 @@ index 45152b97..c27e51f0 100644
 From d9456e4abee862b293e459259d75493ccf0f9117 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 14:56:23 +0800
-Subject: [PATCH 54/84] Fix the black-screen player backgrounds, and give
+Subject: [PATCH 54/89] Fix the black-screen player backgrounds, and give
  FOLLOW_THEME a renderer
 
 Two bugs behind "the screens are all black":
@@ -17280,7 +17280,7 @@ index c27e51f0..095a91ff 100644
 From b5c4f66419daf1b043f249dc418df8b39961f96e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:26 +0800
-Subject: [PATCH 55/84] Add a 12-band parametric equalizer
+Subject: [PATCH 55/89] Add a 12-band parametric equalizer
 
 A cascaded-biquad IIR filter bank (Robert Bristow-Johnson cookbook
 coefficients, pure Kotlin - no native library, negligible size cost),
@@ -18336,7 +18336,7 @@ index 0c909c81..4e867ee5 100644
 From 09e10a7c4600c2e7c6f7d19f32f103ec0b28c26d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:10 +0800
-Subject: [PATCH 56/84] Rework the equalizer into a full-screen panel, and add
+Subject: [PATCH 56/89] Rework the equalizer into a full-screen panel, and add
  balance/more presets
 
 The EQ sheet's state used to live inside the transient 3-dot menu
@@ -19712,7 +19712,7 @@ index 4e867ee5..71024c63 100644
 From c6e9549793695456f8e38e953eb6768dc5a1f169 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:32 +0800
-Subject: [PATCH 57/84] Center the navigation rail and remove its logo header
+Subject: [PATCH 57/89] Center the navigation rail and remove its logo header
 
 The rail's own logo header anchored the item group to the top, and
 Modifier.verticalScroll() on the rail meant weight()-based centering
@@ -19808,7 +19808,7 @@ index 26330b96..703cac30 100644
 From b24abe296cb282d2e624c548da47053207e1b2ae Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:44 +0800
-Subject: [PATCH 58/84] Stop the Discord presence from still ticking forward
+Subject: [PATCH 58/89] Stop the Discord presence from still ticking forward
  while paused
 
 Kept timestamps set while paused so the progress-bar row stayed put
@@ -19862,7 +19862,7 @@ index 290d34fc..a6cf5a94 100644
 From 56043cf8fa7abd1a2c7505088dfb64ae958f457e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:40:07 +0800
-Subject: [PATCH 59/84] Show each song's own listen time/play count on the
+Subject: [PATCH 59/89] Show each song's own listen time/play count on the
  stats screen
 
 The stats screen already had a chip toggle to rank by time listened
@@ -20132,7 +20132,7 @@ index 71024c63..93e4840d 100644
 From 69741d9e84df31635bce725edd439b6a7786d523 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:43:17 +0800
-Subject: [PATCH 60/84] Add shuffle to the equalizer's mini transport
+Subject: [PATCH 60/89] Add shuffle to the equalizer's mini transport
 
 Missed from the prev/play-pause/next row - shuffle belongs in the
 same "basic playback controls" set.
@@ -20179,7 +20179,7 @@ index 62aabc08..4e5e33a0 100644
 From 71ae254af276ca0fdf6c5a0f55cb7dd0ee61e024 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:53:25 +0800
-Subject: [PATCH 61/84] Fix the app freezing when opening a song's details
+Subject: [PATCH 61/89] Fix the app freezing when opening a song's details
  dialog
 
 The view-count fetch added in the details dialog ran straight from
@@ -20234,7 +20234,7 @@ index 64586602..18f0ecda 100644
 From 5a314e56d26bb183ba3178e1b3fadf986c49b75d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:20 +0800
-Subject: [PATCH 62/84] Add a compressor to the equalizer's audio pipeline
+Subject: [PATCH 62/89] Add a compressor to the equalizer's audio pipeline
 
 A simple feed-forward dynamics compressor (threshold/ratio/attack/release/makeup gain), applied after the band cascade and gated by the same master enabled switch.
 ---
@@ -20523,7 +20523,7 @@ index e24b0e5b..1ecfc377 100644
 From d7d2843b1544bcda68152af268043ee8554f8b35 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:36 +0800
-Subject: [PATCH 63/84] Rework the equalizer panel: contrast color everywhere,
+Subject: [PATCH 63/89] Rework the equalizer panel: contrast color everywhere,
  rotary dials, compressor UI, matching transport
 
 - Add a rotary dial control and use it for per-band frequency/gain in the band editor, plus quick bass/treble dials and an optional balance dial with a left/right readout.
@@ -21407,7 +21407,7 @@ index 560f2441..7f41aec8 100644
 From 861c938125b3463fcf79d387914f1f08cf3e23b3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:24:27 +0800
-Subject: [PATCH 64/84] Remove the Discord presence entirely while paused
+Subject: [PATCH 64/89] Remove the Discord presence entirely while paused
  instead of showing a paused card
 
 Superseded the earlier omit-timestamps fix: a paused/stopped player now calls stopActivity() immediately (same as no media loaded), rather than sending a 'Paused' card with a frozen layout. Removes the now-meaningless auto-clear-after-pause timer and setting along with it, since there's nothing left for it to clear.
@@ -21645,7 +21645,7 @@ index a6cf5a94..49e2e224 100644
 From cdd2249d7db19222ccf3c49b8ea39cd812999a6d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:28:35 +0800
-Subject: [PATCH 65/84] Remove the remote history tab
+Subject: [PATCH 65/89] Remove the remote history tab
 
 Local history is the only option now that the remote tab is gone, so collapse the History screen to render it directly instead of behind a source selector. Drops the now-dead remote-history fetch/continuation/pagination code from the view model, the innertube client, and the HistoryPage model.
 ---
@@ -22230,7 +22230,7 @@ index 881ebce5..00000000
 From 82cf6eb32cb2379e2ea275c81a9e9d68a5a3d19f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:29:22 +0800
-Subject: [PATCH 66/84] Refine the equalizer's built-in presets to feel closer
+Subject: [PATCH 66/89] Refine the equalizer's built-in presets to feel closer
  to Poweramp's
 
 Loudness becomes a proper Fletcher-Munson smile curve, plus two more Poweramp-signature presets (Small Speakers, Full Bass & Treble).
@@ -22265,7 +22265,7 @@ index 1ecfc377..29258783 100644
 From e82f2f31535df2260f8b54a60ded4adfb01df950 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:41:37 +0800
-Subject: [PATCH 67/84] Simplify the EQ's slider styling, dock its transport
+Subject: [PATCH 67/89] Simplify the EQ's slider styling, dock its transport
  like the queue, fix landscape lyrics overlap
 
 - Drop the per-feature slim/default slider-style picker in the equalizer - it's slim everywhere now, no setting to maintain.
@@ -22442,7 +22442,7 @@ index a9cbaa3a..780b4e56 100644
 From 60ff3369ee6ded58cfb22481b5be0f9e9df5658d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:56:54 +0800
-Subject: [PATCH 68/84] Tweak equalizer gain values in 0.1 dB steps
+Subject: [PATCH 68/89] Tweak equalizer gain values in 0.1 dB steps
 
 Quantizes every gain-related dial/slider (band gain, bass/treble, compressor threshold/makeup) to 0.1 dB on change, and formats their labels to one decimal instead of rounding to a whole dB.
 ---
@@ -22559,7 +22559,7 @@ index 780b4e56..ae31fef8 100644
 From cefac396262a09030aeed0ebc57ff5ddd635f549 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:00:19 +0800
-Subject: [PATCH 69/84] Let equalizer presets remember custom edits as named
+Subject: [PATCH 69/89] Let equalizer presets remember custom edits as named
  profiles
 
 Adds EqualizerProfile: every preset name doubles as a profile, with a factory curve (from the existing PRESETS gains) and, once Saved, a persisted custom override. The preset row becomes a profile selector (FilterChip, built-ins undeletable, custom ones removable), with Save / Save as new / Revert to saved / Revert to default actions for whichever profile is active - so tweaking a band while a preset is selected has somewhere to persist instead of being overwritten the next time that preset is tapped.
@@ -22806,7 +22806,7 @@ index ae31fef8..9d8066a5 100644
 From f51bdafb9008f57e76f6a4ae506ac8833c81f172 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:18:05 +0800
-Subject: [PATCH 70/84] Make the Liquid player background audio-reactive
+Subject: [PATCH 70/89] Make the Liquid player background audio-reactive
 
 Adds VisualizerAnalyzer: cheap, no-FFT bass/mid/treble/transient extraction fed from the equalizer's existing audio tap (EqualizerAudioProcessor), published as a throttled ~30Hz StateFlow rather than per-sample. Gated by a visualizerEnabled flag so the extra sample decoding only happens while something's actually consuming it - the EQ's bypass path otherwise stays a cheap bulk buffer copy.
 
@@ -23282,7 +23282,7 @@ index f84b6af1..b0bd9449 100644
 From 5368302644eb3cebb03a118cb90a09eb2b3d327c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:19:25 +0800
-Subject: [PATCH 71/84] Fix missing WindowInsets.statusBars import breaking the
+Subject: [PATCH 71/89] Fix missing WindowInsets.statusBars import breaking the
  build
 
 ---
@@ -23308,7 +23308,7 @@ index 13ce963c..cd838c70 100644
 From 71db3ef7f5b461ad3c272a794230892a144775fb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:25:36 +0800
-Subject: [PATCH 72/84] Fix EQ crackle on boosted presets: automatic headroom
+Subject: [PATCH 72/89] Fix EQ crackle on boosted presets: automatic headroom
  pre-gain plus soft clipping
 
 Several adjacent bands boosted at once (Bass Boost, Loudness, Small Speakers) overlap enough that the summed signal clears 0dBFS well before any single band's own gain would suggest, and the previous hard coerceIn(-1f, 1f) turned that into audible crackle on transients.
@@ -23414,7 +23414,7 @@ index f2de06f8..cbf450a1 100644
 From de9fdca4c3a998caa785baf26471fd1b67ee7b32 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:41:57 +0800
-Subject: [PATCH 73/84] Bring back remote history
+Subject: [PATCH 73/89] Bring back remote history
 
 Reconsidered after removing it - the underlying fetch was already fixed (pagination, safe defaults instead of force-unwraps, failures surfaced via snackbar) before it got pulled entirely, so restoring the already-working version rather than rebuilding from scratch. Local/remote tab selector, HistoryPage/HistorySource, and YouTube.musicHistory()/musicHistoryContinuation() are all back exactly as they were right before removal.
 ---
@@ -23999,7 +23999,7 @@ index 00000000..881ebce5
 From 1a22012aedd29c113466d59d41b08b1c5f998610 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:43:44 +0800
-Subject: [PATCH 74/84] Remove orphaned strings left over from earlier removals
+Subject: [PATCH 74/89] Remove orphaned strings left over from earlier removals
 
 equalizer_slider_style, discord_rpc_clear_after_pause(_desc), never, and rpc_paused have had zero code references since the slider-style setting was dropped and the Discord paused-card behavior was removed - the resource shrinker already excludes them from the built APK, this is just source hygiene.
 ---
@@ -24048,7 +24048,7 @@ index 93e4840d..a2296ddb 100644
 From e265560790edda21e6cb8919f22d7c98cd15a51a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:58:57 +0800
-Subject: [PATCH 75/84] Fix the rotary dials not responding, and the liquid
+Subject: [PATCH 75/89] Fix the rotary dials not responding, and the liquid
  visualiser rendering grey
 
 - RotaryDial's drag handler closed over the value parameter directly, but detectDragGestures runs in a coroutine that survives across separate physical drags - so every drag after the first computed its delta against a stale value from whenever that coroutine started, not the value the previous drag actually landed on. Fixed with rememberUpdatedState on both the value and the callback.
@@ -24333,7 +24333,7 @@ index cd838c70..57eac864 100644
 From fb44b0dd0283478ea26793f8fa59e12fe1029e95 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:08:48 +0800
-Subject: [PATCH 76/84] Add dial/slider toggle, Poweramp-style flat sliders,
+Subject: [PATCH 76/89] Add dial/slider toggle, Poweramp-style flat sliders,
  and value color gradient to the equalizer
 
 - New 'Use dials instead of sliders' setting: band gain, the band editor's frequency/gain, and bass/treble all switch between the rotary dials and a slider depending on it, alongside the existing separate balance dial/slider toggle.
@@ -25091,7 +25091,7 @@ index 08e5f268..4ca41321 100644
 From f0ce97c1dc69cb998b8f88da7fe116fedb03877b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:52:17 +0800
-Subject: [PATCH 77/84] Fix RotaryDial compile error: missing getValue import
+Subject: [PATCH 77/89] Fix RotaryDial compile error: missing getValue import
  for by rememberUpdatedState
 
 State<T> needs the androidx.compose.runtime.getValue extension in scope to be
@@ -25121,7 +25121,7 @@ index e89d3b26..f2e16144 100644
 From c049e8447141ede6913e2086f7022f61613e8643 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 06:48:30 +0800
-Subject: [PATCH 78/84] Fix EqualizerPanel compile error: opt in to
+Subject: [PATCH 78/89] Fix EqualizerPanel compile error: opt in to
  ExperimentalMaterial3Api on PowerampSlider/LabeledSlider
 
 Both call the Slider(track=, thumb=) overload directly but weren't annotated,
@@ -25158,7 +25158,7 @@ index 4ca41321..e37fcebe 100644
 From ea63bd49d59fa8d0b42d28013244f6b721ad0aa9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 14:46:35 +0800
-Subject: [PATCH 79/84] EQ visual overhaul + lyrics sync fix + miniplayer
+Subject: [PATCH 79/89] EQ visual overhaul + lyrics sync fix + miniplayer
  dismiss fix
 
 - Lyrics: findCurrentLineIndex no longer wraps a transient negative
@@ -26088,7 +26088,7 @@ index 57eac864..430b1aa6 100644
 From b40ddc22e87a8f93cfcee19ad319680024ddb8b4 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:38:42 +0800
-Subject: [PATCH 80/84] EQ tone controls rework, Liquid background v3,
+Subject: [PATCH 80/89] EQ tone controls rework, Liquid background v3,
  per-style text contrast
 
 - Bass/Treble dials now move every band at/below 250Hz or at/above
@@ -26877,7 +26877,7 @@ index b0bd9449..5d63ed4a 100644
 From 5f0c662652148fe210c80d5163eddd49f166b090 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:33:54 +0800
-Subject: [PATCH 81/84] EQ color scheme rework, bigger handle, fix Liquid
+Subject: [PATCH 81/89] EQ color scheme rework, bigger handle, fix Liquid
  alpha-flash
 
 - Sliders: track fill is always a fixed green, unfilled portion a
@@ -27421,7 +27421,7 @@ index 8a31b1e2..d9f55c41 100644
 From 1d5972c1d752a9fab59744f05acc518af8adea4a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:03:07 +0800
-Subject: [PATCH 82/84] Layout editor schema v4: render individual
+Subject: [PATCH 82/89] Layout editor schema v4: render individual
  transport/action buttons
 
 - PlayerLayout.kt: bumped to SCHEMA_VERSION 4, fixed two bugs in the
@@ -28204,7 +28204,7 @@ index aa2ecafb..abbf50eb 100644
 From 61917f2dd628acd1ea9a3557273f3c19e04c7c30 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:29:09 +0800
-Subject: [PATCH 83/84] Fix the actual EQ handle, restore Liquid's flower shape
+Subject: [PATCH 83/89] Fix the actual EQ handle, restore Liquid's flower shape
  smaller and blurred
 
 - The player-screen handle that opens the EQ (EqualizerHandle in
@@ -28532,7 +28532,7 @@ index 1b5f123b..a430aaf5 100644
 From 452cc28bf2e3a25b7e91084f39af3993c8446a59 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:13:28 +0800
-Subject: [PATCH 84/84] Add a Liquid shape setting: petal (spiky) or spheres
+Subject: [PATCH 84/89] Add a Liquid shape setting: petal (spiky) or spheres
  (soft)
 
 Rather than keep flip-flopping between the spiky "flower" and the soft
@@ -28935,6 +28935,771 @@ index 5d63ed4a..4f69ef2e 100644
      val (liquidColorScheme, onLiquidColorSchemeChange) =
          rememberEnumPreference(LiquidColorSchemeKey, defaultValue = LiquidColorScheme.SURFACE)
      AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
+-- 
+2.45.1.windows.1
+
+
+From e696262fef1428abff787d9e8864f194d9e11468 Mon Sep 17 00:00:00 2001
+From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
+Date: Thu, 13 Aug 2026 17:37:53 +0900
+Subject: [PATCH 85/89] fix: prevent concurrent home pagination requests
+
+Set the loading flag only when no home pagination request is already running. Perform the check and update as a single operation so that simultaneous load-more requests start only one network call.
+
+Always clear the loading flag when the request finishes or is cancelled so that later load-more requests can proceed.
+
+(cherry picked from commit 84b4fd4f7c4439bfd1f2ac1d5d7c245a08b79784)
+---
+ .../outertune/viewmodels/HomeViewModel.kt     | 19 ++++++++++---------
+ 1 file changed, 10 insertions(+), 9 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+index 14d91ba2..22af1f35 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+@@ -155,19 +155,20 @@ class HomeViewModel @Inject constructor(
+ 
+     private val _isLoadingMore = MutableStateFlow(false)
+     fun loadMoreYouTubeItems(continuation: String?) {
+-        if (continuation == null || _isLoadingMore.value) return
++        if (continuation == null) return
+ 
+         viewModelScope.launch(Dispatchers.IO) {
+-            _isLoadingMore.value = true
+-            val nextSections = YouTube.home(continuation).getOrNull() ?: run {
++            if (!_isLoadingMore.compareAndSet(false, true)) return@launch
++
++            try {
++                val nextSections = YouTube.home(continuation).getOrNull() ?: return@launch
++                homePage.value = nextSections.copy(
++                    chips = homePage.value?.chips,
++                    sections = homePage.value?.sections.orEmpty() + nextSections.sections
++                )
++            } finally {
+                 _isLoadingMore.value = false
+-                return@launch
+             }
+-            homePage.value = nextSections.copy(
+-                chips = homePage.value?.chips,
+-                sections = homePage.value?.sections.orEmpty() + nextSections.sections
+-            )
+-            _isLoadingMore.value = false
+         }
+     }
+ 
+-- 
+2.45.1.windows.1
+
+
+From 8a7130a91004ecbf983e7a8ac09095926fed33b1 Mon Sep 17 00:00:00 2001
+From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
+Date: Thu, 13 Aug 2026 19:24:49 +0900
+Subject: [PATCH 86/89] fix: discard stale home load-more results
+
+A home load-more request can finish after a refresh or category change and append its sections to the newly displayed content.
+
+Track the home content for which the request was made, and append the result only while that content remains current.
+This prevents results for different home content from being combined.
+
+(cherry picked from commit 476a6e2127a01fca376edda6d3a7a190c40d6266)
+---
+ .../outertune/viewmodels/HomeViewModel.kt      | 18 ++++++++++++++----
+ 1 file changed, 14 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+index 22af1f35..5fb5e467 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.drop
+ import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.stateIn
++import kotlinx.coroutines.flow.update
+ import kotlinx.coroutines.launch
+ import javax.inject.Inject
+ 
+@@ -156,16 +157,25 @@ class HomeViewModel @Inject constructor(
+     private val _isLoadingMore = MutableStateFlow(false)
+     fun loadMoreYouTubeItems(continuation: String?) {
+         if (continuation == null) return
++        val requestedHomePage = homePage.value?.takeIf { it.continuation == continuation } ?: return
+ 
+         viewModelScope.launch(Dispatchers.IO) {
+             if (!_isLoadingMore.compareAndSet(false, true)) return@launch
+ 
+             try {
++                if (homePage.value !== requestedHomePage) return@launch
++
+                 val nextSections = YouTube.home(continuation).getOrNull() ?: return@launch
+-                homePage.value = nextSections.copy(
+-                    chips = homePage.value?.chips,
+-                    sections = homePage.value?.sections.orEmpty() + nextSections.sections
+-                )
++                homePage.update { currentHomePage ->
++                    if (currentHomePage !== requestedHomePage) {
++                        currentHomePage
++                    } else {
++                        nextSections.copy(
++                            chips = currentHomePage.chips,
++                            sections = currentHomePage.sections + nextSections.sections
++                        )
++                    }
++                }
+             } finally {
+                 _isLoadingMore.value = false
+             }
+-- 
+2.45.1.windows.1
+
+
+From cb1a846fd30fb6fd160a349f10708049979e701c Mon Sep 17 00:00:00 2001
+From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
+Date: Fri, 14 Aug 2026 11:23:00 +0900
+Subject: [PATCH 87/89] fix: prevent crash when clearing the final queue
+
+ExoPlayer can report a prospective media item index when its timeline is empty.
+The lyrics target update treated that index as a valid item after the final queue was cleared and tried to read a nonexistent window.
+
+Validate the index against the media item count before reading the current and upcoming items.
+Clear the lyrics targets when no valid item exists so empty-player transitions remain safe.
+
+(cherry picked from commit 2348a4971dd172738c89ec69c434fc001a2cc878)
+---
+ .../java/com/dd3boh/outertune/playback/MusicService.kt     | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 801f1567..1a72918c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -1079,13 +1079,14 @@ class MusicService : MediaLibraryService(),
+      * because onMediaItemTransition runs before currentMediaMetadata is updated in onEvents.
+      */
+     private fun updateLyricsFetchTargets() {
++        val mediaItemCount = player.mediaItemCount
+         val currentIndex = player.currentMediaItemIndex
+-        if (currentIndex == C.INDEX_UNSET) {
++        if (currentIndex !in 0 until mediaItemCount) {
+             lyricsFetchTargets.value = LyricsFetchTargets(null, emptyList())
+             return
+         }
+         val current = player.getMediaItemAt(currentIndex).metadata
+-        val upcoming = ((currentIndex + 1) until player.mediaItemCount)
++        val upcoming = ((currentIndex + 1) until mediaItemCount)
+             .mapNotNull { player.getMediaItemAt(it).metadata }
+         lyricsFetchTargets.value = LyricsFetchTargets(current, upcoming)
+     }
+@@ -1392,4 +1393,4 @@ class MyAudioOffloadSupportProvider(
+             .setIsSpeedChangeSupported(defaultResult.isSpeedChangeSupported)
+             .build()
+     }
+-}
+\ No newline at end of file
++}
+-- 
+2.45.1.windows.1
+
+
+From 9fdbd0aa56cff8d0449f8344f28485c7f0e05232 Mon Sep 17 00:00:00 2001
+From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
+Date: Sat, 15 Aug 2026 13:43:21 +0900
+Subject: [PATCH 88/89] fix: add cipher configs for current YouTube players
+
+Refresh the bundled player_configs.json from ZemerTeam/zemer-cipher.
+
+(cherry picked from commit 4123d499ab0585940941283223b0aa4a061b2cfa)
+---
+ app/src/main/assets/player_configs.json | 203 +++++++++++++++++++++++-
+ 1 file changed, 202 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/assets/player_configs.json b/app/src/main/assets/player_configs.json
+index 80bcd9d7..f7e95cf6 100644
+--- a/app/src/main/assets/player_configs.json
++++ b/app/src/main/assets/player_configs.json
+@@ -57,6 +57,207 @@
+     "7a37f05b": { "sig": "fA(27,4578,INPUT)", "nClass": "yF", "sts": 20628, "aliases": ["65a16e87"] },
+     "edf92b2c": { "sig": "Re(18,3515,INPUT)", "nClass": "Fs", "sts": 20629, "aliases": ["651cb74c"] },
+     "e2b516fb": { "sig": "dV(18,3515,INPUT)", "nClass": "$x", "sts": 20629, "aliases": ["8a064c1f"] },
+-    "a66f5a13": { "sig": "Re(18,3515,INPUT)", "nClass": "Fs", "sts": 20629, "aliases": ["35116500"] }
++    "a66f5a13": { "sig": "Re(18,3515,INPUT)", "nClass": "Fs", "sts": 20629, "aliases": ["35116500"] },
++    "9adea8e3": { "sig": "Re(18,3515,INPUT)", "nClass": "Fs", "sts": 20629, "aliases": ["1a7c09f2"] },
++    "a85504a6": { "sig": "WE(1,878,INPUT)", "nClass": "TR", "sts": 20630, "aliases": ["f1fcf242"] },
++    "030cd809": { "sig": "WE(1,878,INPUT)", "nClass": "TR", "sts": 20630, "aliases": ["a52293fb"] },
++    "5d75c2e1": { "sig": "ci(21,5350,INPUT)", "nClass": "of", "sts": 20632, "aliases": ["74472930"] },
++    "4918c89a": { "sig": "ci(21,5350,INPUT)", "nClass": "of", "sts": 20632, "aliases": ["a31e029d"] },
++    "5728051c": { "sig": "ci(21,5350,INPUT)", "nClass": "of", "sts": 20632, "aliases": ["c983821c"] },
++    "6dc2ce7c": { "sig": "oU(3,4568,INPUT)", "nClass": "kr", "sts": 20633, "aliases": ["494c3813"] },
++    "a152cbd5": { "sig": "oU(3,4568,INPUT)", "nClass": "kr", "sts": 20633, "aliases": ["90141e95"] },
++    "8b4164f6": { "sig": "oU(3,4568,INPUT)", "nClass": "kr", "sts": 20633, "aliases": ["aebab366"] },
++    "0053e6c9": { "sig": "zf(3,4568,INPUT)", "nClass": "B3", "sts": 20633, "aliases": ["24933d5f"] },
++    "1e84899c": { "sig": "b$(1,8150,INPUT)", "nClass": "ee", "sts": 20634, "aliases": ["78e065bd"] },
++    "6ec31678": { "sig": "ST(1,8150,INPUT)", "nClass": "oO", "sts": 20634, "aliases": ["9ee35aff"] },
++    "f5fbaad8": { "sig": "ST(1,8150,INPUT)", "nClass": "oO", "sts": 20634, "aliases": ["91dcbffc"] },
++    "a9fe4815": { "sig": "ST(1,8150,INPUT)", "nClass": "oO", "sts": 20634, "aliases": ["6a33e5c2"] },
++    "13792696": { "sig": "ST(1,8150,INPUT)", "nClass": "oO", "sts": 20634, "aliases": ["5ff90ebf"] },
++    "6009b507": { "sig": "ST(1,8150,INPUT)", "nClass": "oO", "sts": 20634, "aliases": ["4eab840f"] },
++    "f551602d": { "sig": "vR(5,6110,INPUT)", "nClass": "Vg", "sts": 20639, "aliases": ["f474e1c9"] },
++    "74ac8690": { "sig": "vR(5,6110,INPUT)", "nClass": "Vg", "sts": 20639, "aliases": ["42275f80"] },
++    "5fa5b166": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["605c82cc"] },
++    "e43c0a19": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["b889c248"] },
++    "f74306f1": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["02b9c756"] },
++    "ecd4b80a": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["287c3986"] },
++    "63173e4a": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["9a6963a1"] },
++    "72d9c776": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["6088fc9a"] },
++    "636ed5b5": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["08285b84"] },
++    "04b89b89": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["52d279e1"] },
++    "71b152e7": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["6b406097"] },
++    "e2701c55": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["4244ab07"] },
++    "80760a82": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["a896e611"] },
++    "e30d74e3": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["5ae55ea6"] },
++    "d79fb9f8": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["90aa6fe4"] },
++    "66a6ea83": { "sig": "C3(15,933,INPUT)", "nClass": "WM", "sts": 20640, "aliases": ["2afc9693"] },
++    "b2466c24": { "sig": "Pj(5,7018,INPUT)", "nClass": "nI", "sts": 20642, "aliases": ["5b205b4d"] },
++    "dd53c628": { "sig": "xz(5,7018,INPUT)", "nClass": "cY", "sts": 20642, "aliases": ["82a3b15e"] },
++    "0d93e75f": { "sig": "xz(5,7018,INPUT)", "nClass": "cY", "sts": 20642, "aliases": ["7e5f9340"] },
++    "1278453b": { "sig": "CV(56,1770,INPUT)", "nClass": "WD", "sts": 20643, "aliases": ["f7f1818c"] },
++    "16f87be2": { "sig": "CV(56,1770,INPUT)", "nClass": "WD", "sts": 20643, "aliases": ["e37f3d16"] },
++    "fdc0bdd6": { "sig": "CV(56,1770,INPUT)", "nClass": "WD", "sts": 20643, "aliases": ["543aa2f8"] },
++    "5003a06d": { "sig": "CV(56,1770,INPUT)", "nClass": "WD", "sts": 20643, "aliases": ["713a30d3"] },
++    "1d4961ef": { "sig": "CV(56,1770,INPUT)", "nClass": "WD", "sts": 20643, "aliases": ["f71ad451"] },
++    "7f3e53c7": { "sig": "CV(56,1770,INPUT)", "nClass": "WD", "sts": 20643, "aliases": ["8f93b000"] },
++    "2182a2cc": { "sig": "ZP(4,7936,INPUT)", "nClass": "SZ", "sts": 20644, "aliases": ["90ed594f"] },
++    "1def3fc2": { "sig": "ZP(4,7936,INPUT)", "nClass": "SZ", "sts": 20644, "aliases": ["7ee616e0"] },
++    "4748923e": { "sig": "ZP(4,7936,INPUT)", "nClass": "SZ", "sts": 20644, "aliases": ["44e6afe5"] },
++    "c37d60f8": { "sig": "ZP(4,7936,INPUT)", "nClass": "SZ", "sts": 20644, "aliases": ["8ac68a3a"] },
++    "1cd369c2": { "sig": "xX(47,2728,INPUT)", "nClass": "tA", "sts": 20646, "aliases": ["8ae55efa"] },
++    "9b33d56a": { "sig": "xX(47,2728,INPUT)", "nClass": "tA", "sts": 20646, "aliases": ["a1969a1e"] },
++    "1274d073": { "sig": "xX(47,2728,INPUT)", "nClass": "tA", "sts": 20646, "aliases": ["e1038253"] },
++    "acfff5b9": { "sig": "AV(31,1870,INPUT)", "nClass": "p_", "sts": 20647, "aliases": ["3c484617"] },
++    "143198d7": { "sig": "AV(31,1870,INPUT)", "nClass": "p_", "sts": 20647, "aliases": ["be894515"] },
++    "ddef8357": { "sig": "qL(31,1870,INPUT)", "nClass": "i5", "sts": 20647, "aliases": ["73629366"] },
++    "d0343706": { "sig": "Ch(31,1870,INPUT)", "nClass": "zH", "sts": 20647, "aliases": ["05e6a7d6"] },
++    "73913e73": { "sig": "Ch(31,1870,INPUT)", "nClass": "zH", "sts": 20647, "aliases": ["318f426f"] },
++    "3da2b377": { "sig": "Ch(31,1870,INPUT)", "nClass": "zH", "sts": 20647, "aliases": ["1794a138"] },
++    "e2a80f06": { "sig": "WB(26,5331,INPUT)", "nClass": "yk", "sts": 20648, "aliases": ["2236f184"] },
++    "b1291d97": { "sig": "WB(26,5331,INPUT)", "nClass": "yk", "sts": 20648, "aliases": ["9fef21d9"] },
++    "0756e657": { "sig": "WB(26,5331,INPUT)", "nClass": "yk", "sts": 20648, "aliases": ["cd84bd67"] },
++    "cf382d84": { "sig": "WB(26,5331,INPUT)", "nClass": "yk", "sts": 20648, "aliases": ["1d097e6e"] },
++    "5633eddb": { "sig": "WB(26,5331,INPUT)", "nClass": "yk", "sts": 20648, "aliases": ["97005e82"] },
++    "882a803a": { "sig": "WB(26,5331,INPUT)", "nClass": "yk", "sts": 20648, "aliases": ["be92932e"] },
++    "6b9be5bf": { "sig": "iX(26,5331,INPUT)", "nClass": "HB", "sts": 20648, "aliases": ["65e7e465"] },
++    "a0ea272e": { "sig": "vQ(34,7320,INPUT)", "nClass": "pY", "sts": 20649, "aliases": ["f355dfc7"] },
++    "6c1879cc": { "sig": "Jf(34,7320,INPUT)", "nClass": "XU", "sts": 20649, "aliases": ["f885f976"] },
++    "82d09d56": { "sig": "XP(34,7320,INPUT)", "nClass": "vF", "sts": 20649, "aliases": ["86c52fcf"] },
++    "2de960cb": { "sig": "FL(34,7320,INPUT)", "nClass": "c3", "sts": 20649, "aliases": ["d9c6fb40"] },
++    "3241c7eb": { "sig": "OI(34,7320,INPUT)", "nClass": "uS", "sts": 20649, "aliases": ["98083e42"] },
++    "dfc3d2b2": { "sig": "OI(34,7320,INPUT)", "nClass": "uS", "sts": 20649, "aliases": ["99640c8c"] },
++    "a0f7b619": { "sig": "OI(34,7320,INPUT)", "nClass": "uS", "sts": 20649, "aliases": ["bac3220b"] },
++    "b6dcbf7c": { "sig": "E4(7,246,INPUT)", "nClass": "yG", "sts": 20650, "aliases": ["4fead933"] },
++    "3bd821dc": { "sig": "E4(7,246,INPUT)", "nClass": "yG", "sts": 20650, "aliases": ["1ca31b1d"] },
++    "45cd3ae0": { "sig": "E4(7,246,INPUT)", "nClass": "yG", "sts": 20650, "aliases": ["2825e433"] },
++    "01fad9fb": { "sig": "fr(7,246,INPUT)", "nClass": "DU", "sts": 20650, "aliases": ["49d0e879"] },
++    "8f6bc5bc": { "sig": "fr(7,246,INPUT)", "nClass": "DU", "sts": 20650, "aliases": ["0d8666ae"] },
++    "e7fdae96": { "sig": "fr(7,246,INPUT)", "nClass": "DU", "sts": 20650, "aliases": ["462573b7"] },
++    "2837ca40": { "sig": "aR(1,886,INPUT)", "nClass": "PM", "sts": 20651, "aliases": ["e9689def"] },
++    "590b67f5": { "sig": "aR(1,886,INPUT)", "nClass": "PM", "sts": 20651, "aliases": ["398d62ae"] },
++    "95a2d00d": { "sig": "aR(1,886,INPUT)", "nClass": "PM", "sts": 20651, "aliases": ["1b381bac"] },
++    "ef1080e1": { "sig": "aR(1,886,INPUT)", "nClass": "PM", "sts": 20651, "aliases": ["3fbc5aa6"] },
++    "2471f939": { "sig": "RO(2,8691,INPUT)", "nClass": "qY", "sts": 20653, "aliases": ["d715020f"] },
++    "093b19ed": { "sig": "RO(2,8691,INPUT)", "nClass": "qY", "sts": 20653, "aliases": ["0dec3929"] },
++    "2886e0fc": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["1008a871"] },
++    "6a539b89": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["75911402"] },
++    "87ce2079": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["c2b4eca1"] },
++    "98299efd": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["b0f5d01e"] },
++    "c80bf7e2": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["cfd61de5"] },
++    "5a7a8be5": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["de0aa60e"] },
++    "5f3e6d9d": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["62bd36c3"] },
++    "1c6d279f": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["c322cde7"] },
++    "e1f01fa7": { "sig": "rD(32,8384,INPUT)", "nClass": "ei", "sts": 20654, "aliases": ["efdd1392"] },
++    "5121b595": { "sig": "LV(22,571,INPUT)", "nClass": "az", "sts": 20655, "aliases": ["bf88d680"] },
++    "f23073e8": { "sig": "Zr(22,571,INPUT)", "nClass": "A_", "sts": 20655, "aliases": ["6b2839a5"] },
++    "7a7969c2": { "sig": "Zr(22,571,INPUT)", "nClass": "A_", "sts": 20655, "aliases": ["c3d8efcb"] },
++    "ce9835fa": { "sig": "Zr(22,571,INPUT)", "nClass": "A_", "sts": 20655, "aliases": ["b425cddc"] },
++    "4b5d9fa9": { "sig": "Zi(72,5647,INPUT)", "nClass": "on", "sts": 20656, "aliases": ["e5c30810"] },
++    "00fd7bc3": { "sig": "Zi(72,5647,INPUT)", "nClass": "on", "sts": 20656, "aliases": ["27b238f4"] },
++    "3de89404": { "sig": "Zi(72,5647,INPUT)", "nClass": "on", "sts": 20656, "aliases": ["b15d6678"] },
++    "86f09c9d": { "sig": "Zi(72,5647,INPUT)", "nClass": "on", "sts": 20656, "aliases": ["e87d8b22"] },
++    "f522c59a": { "sig": "Zi(72,5647,INPUT)", "nClass": "on", "sts": 20656, "aliases": ["cd870207"] },
++    "b9770a0d": { "sig": "lI(72,5647,INPUT)", "nClass": "$f", "sts": 20656, "aliases": ["71cfa29b"] },
++    "15147aab": { "sig": "Zi(72,5647,INPUT)", "nClass": "on", "sts": 20656, "aliases": ["1ac78d37"] },
++    "7c99d670": { "sig": "NQ(2,5969,INPUT)", "nClass": "MJ", "sts": 20657, "aliases": ["44c494d5"] },
++    "bc3ac2f2": { "sig": "NQ(2,5969,INPUT)", "nClass": "MJ", "sts": 20657, "aliases": ["3f920062"] },
++    "88917196": { "sig": "NQ(2,5969,INPUT)", "nClass": "MJ", "sts": 20657, "aliases": ["b6bf6417"] },
++    "ee854768": { "sig": "Yh(2,5969,INPUT)", "nClass": "IG", "sts": 20657, "aliases": ["5a8cd67f"] },
++    "7006a6db": { "sig": "Z1(12,8334,INPUT)", "nClass": "cY", "sts": 20658, "aliases": ["510a8c9f"] },
++    "ff8caf21": { "sig": "Z1(12,8334,INPUT)", "nClass": "cY", "sts": 20658, "aliases": ["59cb4156"] },
++    "13ae533c": { "sig": "xd(12,8334,INPUT)", "nClass": "Ai", "sts": 20658, "aliases": ["6c17c229"] },
++    "a401a70f": { "sig": "yq(12,8334,INPUT)", "nClass": "qC", "sts": 20658, "aliases": ["7332be13"] },
++    "7d64b153": { "sig": "Rh(43,5938,INPUT)", "nClass": "Gx", "sts": 20660, "aliases": ["246ec987"] },
++    "7afa3fbe": { "sig": "Rh(43,5938,INPUT)", "nClass": "Gx", "sts": 20660, "aliases": ["1250ef67"] },
++    "b81a9a58": { "sig": "Rh(43,5938,INPUT)", "nClass": "Gx", "sts": 20660, "aliases": ["4a4108ca"] },
++    "016aac24": { "sig": "OX(20,7707,INPUT)", "nClass": "eH", "sts": 20661, "aliases": ["d675461f"] },
++    "59bb7746": { "sig": "KF(20,7707,INPUT)", "nClass": "Vp", "sts": 20661, "aliases": ["0fece123"] },
++    "7ad2d820": { "sig": "OX(20,7707,INPUT)", "nClass": "eH", "sts": 20661, "aliases": ["f70c8146"] },
++    "02fa8099": { "sig": "cE(20,7707,INPUT)", "nClass": "qU", "sts": 20661, "aliases": ["a152c009"] },
++    "9be8a24f": { "sig": "cE(20,7707,INPUT)", "nClass": "qU", "sts": 20661, "aliases": ["e06464e1"] },
++    "5d46e517": { "sig": "cE(20,7707,INPUT)", "nClass": "qU", "sts": 20661, "aliases": ["e8b3e594"] },
++    "1e82c721": { "sig": "tT(11,6026,INPUT)", "nClass": "DV", "sts": 20662, "aliases": ["ea0930f3"] },
++    "e3deca0e": { "sig": "tT(11,6026,INPUT)", "nClass": "DV", "sts": 20662, "aliases": ["431c8085"] },
++    "9d93f99e": { "sig": "tT(11,6026,INPUT)", "nClass": "DV", "sts": 20662, "aliases": ["f118eb3e"] },
++    "7be702ab": { "sig": "tT(11,6026,INPUT)", "nClass": "DV", "sts": 20662, "aliases": ["91f1c9d8"] },
++    "bed7a914": { "sig": "wzh(11,6026,INPUT)", "nClass": "Nk", "sts": 20662, "aliases": ["cc9084d4"] },
++    "d4919386": { "sig": "tT(11,6026,INPUT)", "nClass": "DV", "sts": 20662, "aliases": ["05e33c7e"] },
++    "67d54db7": { "sig": "gs(12,3157,INPUT)", "nClass": "J$", "sts": 20663, "aliases": ["1a6475b8"] },
++    "9d46652d": { "sig": "hS(12,3157,INPUT)", "nClass": "Qt", "sts": 20663, "aliases": ["f2f7feec"] },
++    "292d23a7": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["50de74dc"] },
++    "7f1636e3": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["9f4fea42"] },
++    "ce48a839": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["48e075e2"] },
++    "ca042962": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["353e258e"] },
++    "946a9db2": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["ac2c865d"] },
++    "dc5384b1": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["813b0579"] },
++    "bb09e5fd": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["347e990a"] },
++    "c954e338": { "sig": "KZ(12,3157,INPUT)", "nClass": "m$", "sts": 20663, "aliases": ["f796c0d3"] },
++    "9c0e7329": { "sig": "bk(2,4672,INPUT)", "nClass": "Q6", "sts": 20664, "aliases": ["ebaa5341"] },
++    "2c20326e": { "sig": "bk(2,4672,INPUT)", "nClass": "Q6", "sts": 20664, "aliases": ["c092ad00"] },
++    "7d66da07": { "sig": "bk(2,4672,INPUT)", "nClass": "Q6", "sts": 20664, "aliases": ["3bc8a232"] },
++    "fbf778eb": { "sig": "R4(18,1616,INPUT)", "nClass": "eq", "sts": 20665, "aliases": ["8473a5de"] },
++    "9fca0d35": { "sig": "R4(18,1616,INPUT)", "nClass": "eq", "sts": 20665, "aliases": ["bedf149a"] },
++    "844b3c48": { "sig": "R4(18,1616,INPUT)", "nClass": "eq", "sts": 20665, "aliases": ["330202c8"] },
++    "72cfecc1": { "sig": "R4(18,1616,INPUT)", "nClass": "eq", "sts": 20665, "aliases": ["a43e3caa"] },
++    "ea6f527e": { "sig": "kG(3,7009,INPUT)", "nClass": "mv", "sts": 20667, "aliases": ["416ea554"] },
++    "b39ad138": { "sig": "kG(3,7009,INPUT)", "nClass": "mv", "sts": 20667, "aliases": ["74da8987"] },
++    "2c847785": { "sig": "kG(3,7009,INPUT)", "nClass": "mv", "sts": 20667, "aliases": ["28515da4"] },
++    "1e55892c": { "sig": "kG(3,7009,INPUT)", "nClass": "mv", "sts": 20667, "aliases": ["5282a853"] },
++    "8e1320b6": { "sig": "DN(3,1780,INPUT)", "nClass": "tL", "sts": 20668, "aliases": ["6606c4ec"] },
++    "bb44c5fe": { "sig": "DN(3,1780,INPUT)", "nClass": "tL", "sts": 20668, "aliases": ["9d7bd3a4"] },
++    "aeef9bae": { "sig": "DN(3,1780,INPUT)", "nClass": "tL", "sts": 20668, "aliases": ["e2e54548"] },
++    "72bd52e6": { "sig": "DN(3,1780,INPUT)", "nClass": "tL", "sts": 20668, "aliases": ["1cc0ab92"] },
++    "854a788e": { "sig": "DN(3,1780,INPUT)", "nClass": "tL", "sts": 20668, "aliases": ["084cb2c3"] },
++    "7ca87de3": { "sig": "eA(18,3262,INPUT)", "nClass": "MF", "sts": 20669, "aliases": ["9ea4ef8e"] },
++    "e0eecb93": { "sig": "eA(18,3262,INPUT)", "nClass": "MF", "sts": 20669, "aliases": ["8b206407"] },
++    "a7fa0486": { "sig": "N3(18,3262,INPUT)", "nClass": "gV", "sts": 20669, "aliases": ["cc390a78"] },
++    "4c5c9743": { "sig": "IQ(18,3262,INPUT)", "nClass": "Dp", "sts": 20669, "aliases": ["91800f43"] },
++    "bc79a29c": { "sig": "N3(18,3262,INPUT)", "nClass": "gV", "sts": 20669, "aliases": ["7e8234b1"] },
++    "4d8c79a5": { "sig": "IQ(18,3262,INPUT)", "nClass": "Dp", "sts": 20669, "aliases": ["ad948f90"] },
++    "9a134ead": { "sig": "Ii(25,558,INPUT)", "nClass": "as", "sts": 20670, "aliases": ["3b014dc3"] },
++    "6b32b3d1": { "sig": "Ii(25,558,INPUT)", "nClass": "as", "sts": 20670, "aliases": ["e4b41675"] },
++    "4c6b06b8": { "sig": "Ii(25,558,INPUT)", "nClass": "as", "sts": 20670, "aliases": ["c08d2707"] },
++    "341562bc": { "sig": "Ii(25,558,INPUT)", "nClass": "as", "sts": 20670, "aliases": ["a3fe4c92"] },
++    "17554f56": { "sig": "$S(25,558,INPUT)", "nClass": "b6", "sts": 20670, "aliases": ["deddecbb"] },
++    "92b88e4d": { "sig": "EX(1,5539,INPUT)", "nClass": "Xz", "sts": 20671, "aliases": ["314cc4c1"] },
++    "3e6aa434": { "sig": "EX(1,5539,INPUT)", "nClass": "Xz", "sts": 20671, "aliases": ["857521e1"] },
++    "95daa498": { "sig": "EX(1,5539,INPUT)", "nClass": "Xz", "sts": 20671, "aliases": ["ffb8bf19"] },
++    "879f7172": { "sig": "js(1,5539,INPUT)", "nClass": "dN", "sts": 20671, "aliases": ["f33061ae"] },
++    "fac48bea": { "sig": "nw(1,5539,INPUT)", "nClass": "dN", "sts": 20671, "aliases": ["2c7cdea2"] },
++    "54bf3cd6": { "sig": "nw(1,5539,INPUT)", "nClass": "dN", "sts": 20671, "aliases": ["4d8c14f8"] },
++    "a8f2635e": { "sig": "nw(1,5539,INPUT)", "nClass": "dN", "sts": 20671, "aliases": ["f1c305f4"] },
++    "93bcc957": { "sig": "nw(1,5539,INPUT)", "nClass": "dN", "sts": 20671, "aliases": ["952f4ff0"] },
++    "b658980f": { "sig": "P_(5,4885,INPUT)", "nClass": "ti", "sts": 20672, "aliases": ["088026c9"] },
++    "5f90346b": { "sig": "P_(5,4885,INPUT)", "nClass": "ti", "sts": 20672, "aliases": ["9647f34f"] },
++    "8d2a370b": { "sig": "P_(5,4885,INPUT)", "nClass": "ti", "sts": 20672, "aliases": ["abf24eb6"] },
++    "28b37ef2": { "sig": "P_(5,4885,INPUT)", "nClass": "ti", "sts": 20672, "aliases": ["66ee5cc2"] },
++    "03572262": { "sig": "P_(5,4885,INPUT)", "nClass": "ti", "sts": 20672, "aliases": ["98b14bc0"] },
++    "d59a879c": { "sig": "P_(5,4885,INPUT)", "nClass": "ti", "sts": 20672, "aliases": ["c98e4bf5"] },
++    "3c1318b4": { "sig": "P_(5,4885,INPUT)", "nClass": "ti", "sts": 20672, "aliases": ["f118316b"] },
++    "39e52c11": { "sig": "oT(71,3101,INPUT)", "nClass": "tn", "sts": 20675, "aliases": ["79141762"] },
++    "1eb2d46d": { "sig": "oT(71,3101,INPUT)", "nClass": "tn", "sts": 20675, "aliases": ["09db4ce9"] },
++    "b1558f06": { "sig": "oT(71,3101,INPUT)", "nClass": "tn", "sts": 20675, "aliases": ["5610d012"] },
++    "4753318d": { "sig": "oT(71,3101,INPUT)", "nClass": "tn", "sts": 20675, "aliases": ["6e43d3cb"] },
++    "6d735396": { "sig": "EP(3,4223,INPUT)", "nClass": "eg", "sts": 20676, "aliases": ["72478764"] },
++    "80368126": { "sig": "EP(3,4223,INPUT)", "nClass": "eg", "sts": 20676, "aliases": ["f9cf1321"] },
++    "ad2f1dc5": { "sig": "EP(3,4223,INPUT)", "nClass": "eg", "sts": 20676, "aliases": ["b3c022ad"] },
++    "56f45058": { "sig": "EP(3,4223,INPUT)", "nClass": "eg", "sts": 20676, "aliases": ["bf52c88d"] },
++    "ef8452cf": { "sig": "EP(3,4223,INPUT)", "nClass": "eg", "sts": 20676, "aliases": ["9c22ed27"] },
++    "b0d2d49a": { "sig": "EP(3,4223,INPUT)", "nClass": "eg", "sts": 20676, "aliases": ["6fd8f6f9"] },
++    "5b3f454c": { "sig": "JM(3,4223,INPUT)", "nClass": "Nc", "sts": 20676, "aliases": ["84487573"] },
++    "0ffea8e4": { "sig": "h4(26,6906,INPUT)", "nClass": "He", "sts": 20677, "aliases": ["68c1c685"] },
++    "40e2f4f3": { "sig": "h4(26,6906,INPUT)", "nClass": "He", "sts": 20677, "aliases": ["e1b69981"] },
++    "d5378f3e": { "sig": "h4(26,6906,INPUT)", "nClass": "He", "sts": 20677, "aliases": ["b00128fd"] },
++    "1e5fa36f": { "sig": "FJ(26,6906,INPUT)", "nClass": "kw", "sts": 20677, "aliases": ["e40b54c1"] },
++    "627778fa": { "sig": "nx(26,6906,INPUT)", "nClass": "U$", "sts": 20677, "aliases": ["cb835b53"] },
++    "03d0c0e0": { "sig": "nx(26,6906,INPUT)", "nClass": "U$", "sts": 20677, "aliases": ["787cac18"] },
++    "1812d523": { "sig": "FJ(26,6906,INPUT)", "nClass": "kw", "sts": 20677, "aliases": ["3a5b267d"] },
++    "65f75815": { "sig": "bz(1,8417,INPUT)", "nClass": "c$", "sts": 20678, "aliases": ["9371b9c6"] },
++    "8312f9a8": { "sig": "bz(1,8417,INPUT)", "nClass": "c$", "sts": 20678, "aliases": ["a13964e3"] },
++    "094af033": { "sig": "bz(1,8417,INPUT)", "nClass": "c$", "sts": 20678, "aliases": ["27bc31b8"] },
++    "d16e5875": { "sig": "bz(1,8417,INPUT)", "nClass": "c$", "sts": 20678, "aliases": ["92afb7b6"] },
++    "a3cd9b00": { "sig": "bz(1,8417,INPUT)", "nClass": "c$", "sts": 20678, "aliases": ["601671e6"] },
++    "813b15a0": { "sig": "bz(1,8417,INPUT)", "nClass": "mp", "sts": 20678, "aliases": ["240681c5"] },
++    "385b0585": { "sig": "JS(26,4464,INPUT)", "nClass": "iu", "sts": 20679, "aliases": ["cc740105"] },
++    "3d1aff5b": { "sig": "JS(26,4464,INPUT)", "nClass": "iu", "sts": 20679, "aliases": ["5ea20417"] }
+   }
+ }
+-- 
+2.45.1.windows.1
+
+
+From fb24f8e540a5fa83462dad820fbf4d9306c7a8b1 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 13:36:42 +0800
+Subject: [PATCH 89/89] Fix garbled unsynced lyrics, make Liquid's idle motion
+ actually visible
+
+Unsynced lyrics were joined with joinToString { "${it.first}\n" } -
+the default ", " separator plus a manual trailing newline per element
+produced "line one\n, line two\n, line three\n" instead of clean line
+breaks, so any song whose lyrics come back unsynced rendered as a
+garbled comma-joined blob regardless of the karaoke setting.
+
+The Liquid petal shape's ambient wobble (present with no audio so the
+shape is never static) only ever perturbed the outline around a fixed
+centre point, at a small amplitude, under an 18dp blur - on a real
+screen that reads as barely-there or fully static, "not moving" is a
+reasonable thing to conclude by eye even though the clock was ticking.
+Doubled the wobble/petal amplitude, added a slow drift of the centre
+itself (same two-non-harmonic-sines trick SPHERES already uses) so the
+whole shape visibly travels rather than only breathing in place, and
+added a slow rotation of the petal pattern. Audio-reactive terms are
+unchanged and layer on top exactly as before.
+---
+ .../dd3boh/outertune/ui/component/Lyrics.kt   |  5 +++-
+ .../outertune/ui/player/LiquidBackground.kt   | 25 ++++++++++++++-----
+ 2 files changed, 23 insertions(+), 7 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index e52198bc..2affc5a4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -158,7 +158,10 @@ fun Lyrics(
+             } else {
+                 lines.add(
+                     LyricLine(
+-                        model.unsyncedText.joinToString { "${it.first}\n" }, 0L.toULong(), 0L.toULong(),
++                        // joinToString's default separator is ", " - combined with the manual
++                        // trailing "\n" per element that made every line show up as
++                        // "line one\n, line two\n, ..." instead of clean line breaks.
++                        model.unsyncedText.joinToString("\n") { it.first }, 0L.toULong(), 0L.toULong(),
+                         null, null, false
+                     )
+                 )
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+index ffec9482..4ab79472 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+@@ -129,14 +129,26 @@ fun LiquidBackground(
+                     val w = size.width
+                     val h = size.height
+                     val minDim = minOf(w, h)
+-                    val cx = w * 0.5f
+-                    val cy = h * 0.42f
+                     val tau = (2 * PI).toFloat()
+                     val t = flowTime * tau
+ 
++                    // The contour wobble below moves the *outline*, but a fixed centre meant the
++                    // shape as a whole just sat there pulsing in place - at a glance, especially
++                    // blurred, that read as barely moving at all. A slow, small drift of the centre
++                    // itself (two non-harmonic sines, same trick SPHERES uses) makes the shape
++                    // visibly travel rather than only breathe.
++                    val driftX = 0.5f * sin(t * 0.13f + seed) + 0.5f * sin(t * 0.05f + seed * 1.7f)
++                    val driftY = 0.5f * sin(t * 0.11f + seed * 1.3f) + 0.5f * sin(t * 0.04f + seed * 2.1f)
++                    val cx = w * (0.5f + 0.05f * driftX)
++                    val cy = h * (0.42f + 0.04f * driftY)
++
+                     // A contained effect, not a shape that reads as covering the screen.
+                     val baseRadius = minDim * 0.20f * (1f + bass * 0.5f + transient * 0.25f)
+ 
++                    // The whole petal pattern also slowly rotates, on top of pulsing in place -
++                    // rotation reads as motion even where the pulse amplitude alone would not.
++                    val spin = t * 0.06f
++
+                     // Sampled around the circle as a radius multiplier per angle, then walked as a
+                     // smooth closed contour - a plain polygon through the raw samples looks
+                     // faceted, not like a flower's petals.
+@@ -145,11 +157,12 @@ fun LiquidBackground(
+                         val angle = tau * i / sampleCount
+                         var r = 1f
+                         // Ambient wobble: present with no audio at all, so the shape is never
+-                        // static.
+-                        r += 0.05f * sin(angle * 3 + t)
++                        // static. Large enough on its own to read as movement rather than a
++                        // near-imperceptible shimmer under the blur.
++                        r += 0.12f * sin(angle * 3 + t)
+                         // Bass: a few big, slow lobes - the "petals" the shape reads as a flower
+                         // from.
+-                        r += (0.08f + bass * 0.5f) * sin(angle * 5 + t * 0.4f + seed)
++                        r += (0.12f + bass * 0.5f) * sin(angle * 5 + t * 0.4f + seed)
+                         // Treble: many small, fast spikes layered on top of the petals.
+                         r += (0.015f + treble * 0.2f) * sin(angle * 17 - t * 2.1f + seed * 1.3f)
+                         // Transient: uniform across every angle, so a beat reads as the whole
+@@ -160,7 +173,7 @@ fun LiquidBackground(
+ 
+                     fun pointAt(i: Int): Offset {
+                         val index = ((i % sampleCount) + sampleCount) % sampleCount
+-                        val angle = tau * index / sampleCount
++                        val angle = tau * index / sampleCount + spin
+                         val r = radii[index]
+                         return Offset(cx + r * cos(angle), cy + r * sin(angle))
+                     }
+-- 
+2.45.1.windows.1
+
+From 347a9869af77ddc2ae8ea524d6bec9055c547c9f Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 13:43:44 +0800
+Subject: [PATCH] Match the petal's colour to the playback controls, soften its
+ edges
+
+The petal was filled from the album-art extraction (falling back to
+theme primary only when that came back empty), which reads as
+unrelated to the rest of the player - the play/pause pill and every
+other control button are colorScheme.primary regardless of the cover.
+Petal now always uses that same primary colour, independent of
+gradientColors. Spheres is unchanged; it's meant to echo the artwork.
+
+Edges: the fill's outer gradient stop stayed at 75% alpha right up to
+the path boundary, so the 18dp blur had a hard cutoff to soften rather
+than a gradient to spread - blurring a sticker's edge, not a cloud.
+Added a fully-transparent outer stop and widened the blur to 26dp.
+---
+ .../outertune/ui/player/LiquidBackground.kt   | 29 +++++++++++++------
+ 1 file changed, 20 insertions(+), 9 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+index 4ab79472..94974ded 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+@@ -62,9 +62,12 @@ import kotlin.random.Random
+  * [RenderEffect][androidx.compose.ui.graphics.RenderEffect], unlike
+  * [com.dd3boh.outertune.ui.player.FrostedBackground]'s blur on a static pre-shrunk image - this is
+  * genuinely more expensive since it runs on a moving shape every frame, not once on a still image.
+- * Kept modest (18dp) for that reason. [LiquidShapeStyle.SPHERES] skips it - the soft radial
+- * gradients already fade out on their own, so a second blur pass would cost more than it changes.
++ * Kept modest ([PETAL_BLUR_RADIUS]) for that reason. [LiquidShapeStyle.SPHERES] skips it - the
++ * soft radial gradients already fade out on their own, so a second blur pass would cost more than
++ * it changes.
+  */
++private val PETAL_BLUR_RADIUS = 26.dp
++
+ @Composable
+ fun LiquidBackground(
+     colors: List<Color>,
+@@ -79,8 +82,11 @@ fun LiquidBackground(
+     val themeAccent = MaterialTheme.colorScheme.primary
+     val themeSecondary = MaterialTheme.colorScheme.secondary
+     val themeTertiary = MaterialTheme.colorScheme.tertiary
+-    val dominant = remember(colors, themeAccent) { colors.firstOrNull() ?: themeAccent }
+-    val rimColor = remember(dominant, themeSecondary) { lerp(dominant, themeSecondary, 0.35f) }
++    // The petal is filled with the same colour as the play/pause pill and every other playback
++    // control (colorScheme.primary), not the album-art extraction SPHERES uses below - the two
++    // silhouettes read as belonging to two different parts of the player otherwise.
++    val petalColor = themeAccent
++    val petalRimColor = remember(petalColor, themeSecondary) { lerp(petalColor, themeSecondary, 0.35f) }
+     val spherePalette = remember(colors, themeAccent, themeSecondary, themeTertiary) {
+         when (colors.size) {
+             0 -> listOf(themeAccent, themeSecondary, themeTertiary)
+@@ -124,7 +130,7 @@ fun LiquidBackground(
+     when (shapeStyle) {
+         LiquidShapeStyle.PETAL -> Box(
+             modifier = baseModifier
+-                .blur(18.dp)
++                .blur(PETAL_BLUR_RADIUS)
+                 .drawBehind {
+                     val w = size.width
+                     val h = size.height
+@@ -193,12 +199,17 @@ fun LiquidBackground(
+                         path = path,
+                         brush = Brush.radialGradient(
+                             colors = listOf(
+-                                rimColor.copy(alpha = alpha),
+-                                dominant.copy(alpha = alpha),
+-                                dominant.copy(alpha = alpha * 0.75f),
++                                petalRimColor.copy(alpha = alpha),
++                                petalColor.copy(alpha = alpha),
++                                petalColor.copy(alpha = alpha * 0.75f),
++                                // Fading to fully transparent before the path's own edge gives the
++                                // blur pass a soft gradient to spread instead of a hard alpha
++                                // cutoff to soften - the difference between a fuzzy cloud and a
++                                // blurred sticker.
++                                petalColor.copy(alpha = 0f),
+                             ),
+                             center = Offset(cx, cy - baseRadius * 0.2f),
+-                            radius = baseRadius * 1.8f,
++                            radius = baseRadius * 2.2f,
+                         ),
+                     )
+                 }
+-- 
+2.45.1.windows.1
+
+From 0d7d148e65ff7493396c6dc8c0cadc1bb4f189e7 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 13:59:46 +0800
+Subject: [PATCH 1/2] Make Liquid's text contrast follow the backdrop, not the
+ cover art
+
+rememberPlayerOnBackgroundColor measured the raw album cover's
+brightness for every style including Liquid, but Liquid's actual
+backdrop is a flat, known colour - LiquidColorScheme's surface/black/
+white choice - which the cover's brightness has no particular relation
+to. Choosing "black background -> dark text" this way was possible
+whenever the cover happened to be light, even with the backdrop set to
+black. Liquid now decides contrast directly from LiquidColorScheme
+(black -> light text, white -> dark text, surface -> the same
+theme-based fallback every other style already uses when it has
+nothing better to measure), skipping the cover-luminance pass
+entirely - there's nothing to measure when the answer is already known.
+---
+ .../outertune/ui/player/FrostedBackground.kt  | 39 +++++++++++++++----
+ 1 file changed, 31 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+index 91703cd9..8847cc88 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+@@ -34,6 +34,8 @@ import coil3.request.allowHardware
+ import coil3.toBitmap
+ import com.dd3boh.outertune.constants.DarkMode
+ import com.dd3boh.outertune.constants.DarkModeKey
++import com.dd3boh.outertune.constants.LiquidColorScheme
++import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+ import com.dd3boh.outertune.constants.LiquidTextContrastKey
+ import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+@@ -174,10 +176,35 @@ fun rememberPlayerOnBackgroundColor(
+     // right call for it is a genuinely separate question from whether it's right for a blur.
+     val sharedAutoTextContrast by rememberPreference(PlayerAutoTextContrastKey, defaultValue = true)
+     val liquidTextContrast by rememberPreference(LiquidTextContrastKey, defaultValue = true)
+-    val autoTextContrast = if (playerBackground == PlayerBackgroundStyle.LIQUID) liquidTextContrast else sharedAutoTextContrast
++    val isLiquid = playerBackground == PlayerBackgroundStyle.LIQUID
++    val autoTextContrast = if (isLiquid) liquidTextContrast else sharedAutoTextContrast
++
++    // The one theme-only answer, used whenever there is nothing more specific to go on: dark
++    // theme's surface is dark, so its own text colour is already light, and vice versa.
++    val themeFallback = if (useDarkTheme) {
++        MaterialTheme.colorScheme.onSurface
++    } else {
++        val c = MaterialTheme.colorScheme.secondary
++        c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
++    }
+ 
+-    // Every background style is artwork-derived now (FOLLOW_THEME and GRADIENT/LIQUID measure the
+-    // cover via extractGradientColors, FROSTED/BLUR via this same luminance check), so there is no
++    // Liquid's backdrop is a flat, known colour (surface/black/white - see LiquidColorScheme),
++    // never the cover art itself: the blobs drawn over it are coloured from the theme/cover, but
++    // the backdrop they sit on is what text actually needs to read against, so contrast follows
++    // *that* rather than measuring the cover's brightness (which could easily disagree with a
++    // backdrop the user explicitly chose to be black or white) or the blobs' own colour.
++    if (isLiquid) {
++        val liquidColorScheme by rememberEnumPreference(LiquidColorSchemeKey, defaultValue = LiquidColorScheme.SURFACE)
++        if (!autoTextContrast) return themeFallback
++        return when (liquidColorScheme) {
++            LiquidColorScheme.BLACK -> Color.White
++            LiquidColorScheme.WHITE -> Color(0xFF16161A)
++            LiquidColorScheme.SURFACE -> themeFallback
++        }
++    }
++
++    // Every other background style is artwork-derived (FOLLOW_THEME measures the cover via
++    // extractGradientColors, FROSTED/BLUR via this same luminance check), so there is no other
+     // style left where the cover is beside the point.
+     val coverIsLight = rememberCoverIsLight(
+         mediaMetadata = mediaMetadata,
+@@ -186,11 +213,7 @@ fun rememberPlayerOnBackgroundColor(
+ 
+     return when {
+         coverIsLight != null -> if (coverIsLight) Color(0xFF16161A) else Color.White
+-        useDarkTheme -> MaterialTheme.colorScheme.onSurface
+-        else -> {
+-            val c = MaterialTheme.colorScheme.secondary
+-            c.copy(alpha = 1f, red = c.red - 0.2f, green = c.green - 0.2f, blue = c.blue - 0.2f)
+-        }
++        else -> themeFallback
+     }
+ }
+ 
+-- 
+2.45.1.windows.1
+
+
+From 62006aaa19f8fcbc032755fc23be51de939018d6 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 13:59:58 +0800
+Subject: [PATCH 2/2] Fix two crashes that could abort playback/downloads
+ mid-stream
+
+format.contentLength!! in both MusicService's playback data source and
+DownloadUtil's download data source crashed outright whenever YouTube
+returned a format without a Content-Length - which happens for some
+formats/streams, not all, so this reads as "sometimes, on some songs"
+rather than a steady failure. Both sites already sit next to code that
+treats the same field as nullable (DownloadUtil's own range-request
+line two below uses `?: 10000000`); the FormatEntity inserts just
+hadn't been updated to match. Applied the same fallback in both places
+- it's stored metadata only, not depended on for the actual fetch
+range, so a placeholder value costs nothing downstream.
+
+Also bounded EqualizerAudioProcessor's per-band loop by the smaller of
+the coefficients/states array sizes: bands and coefficients are two
+separate @Volatile fields written one after the other by setSettings()
+on the UI thread, so a profile switch that changes the band count
+(e.g. importing a custom profile saved with a different band count)
+could be read mid-write on the audio thread and index past whichever
+array is still the old size - crashing ExoPlayer's playback thread
+directly. Lower-probability trigger than the contentLength crashes,
+but a real one worth closing defensively.
+---
+ .../dd3boh/outertune/audio/EqualizerAudioProcessor.kt | 11 ++++++++++-
+ .../com/dd3boh/outertune/playback/DownloadUtil.kt     |  5 ++++-
+ .../com/dd3boh/outertune/playback/MusicService.kt     |  8 +++++++-
+ 3 files changed, 21 insertions(+), 3 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+index cbf450a1..e42d15ef 100644
+--- a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
++++ b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+@@ -202,7 +202,16 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
+                 sample *= preGain
+ 
+                 val channelStates = states[ch]
+-                for (b in coeffs.indices) {
++                // bands/coefficients are two separate @Volatile fields, written one after the
++                // other by setSettings() on the UI thread while this reads them mid-write from the
++                // audio thread - a profile switch that changes the band count (importing a custom
++                // profile saved with a different band count than the one currently loaded) can be
++                // caught between the two writes, so channelStates (sized off the newer bands) and
++                // coeffs (still the older size) briefly disagree. Bounding by the smaller of the
++                // two degrades that one buffer's worth of processing instead of indexing past
++                // whichever array is still short and crashing the playback thread outright.
++                val bandCount = minOf(coeffs.size, channelStates.size)
++                for (b in 0 until bandCount) {
+                     sample = channelStates[b].process(sample, coeffs[b])
+                 }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index 99d2dc71..90b263ef 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -124,7 +124,10 @@ class DownloadUtil @Inject constructor(
+                     codecs = format.mimeType.split("codecs=")[1].removeSurrounding("\""),
+                     bitrate = format.bitrate,
+                     sampleRate = format.audioSampleRate,
+-                    contentLength = format.contentLength!!,
++                    // YouTube omits Content-Length for some formats/streams; !! here crashed the
++                    // download's data source resolution outright for exactly those. Same fallback
++                    // the range request two lines down already uses for the same nullable field.
++                    contentLength = format.contentLength ?: 10000000,
+                     loudnessDb = playbackData.audioConfig?.loudnessDb,
+                     playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
+                 )
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 1a72918c..31e070b6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -917,7 +917,13 @@ class MusicService : MediaLibraryService(),
+                         codecs = format.mimeType.split("codecs=")[1].removeSurrounding("\""),
+                         bitrate = format.bitrate,
+                         sampleRate = format.audioSampleRate,
+-                        contentLength = format.contentLength!!,
++                        // YouTube omits Content-Length for some formats/streams; !! here crashed
++                        // playback's own data source resolution outright for exactly those songs -
++                        // intermittent and song-specific, not a steady failure. contentLength is
++                        // stored metadata only (the actual fetch below uses a fixed CHUNK_LENGTH),
++                        // so an unknown length is a reasonable placeholder, not a lie anything
++                        // downstream depends on being exact.
++                        contentLength = format.contentLength ?: 10000000,
+                         loudnessDb = playbackData.audioConfig?.loudnessDb,
+                         playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
+                     )
 -- 
 2.45.1.windows.1
 
