@@ -105,6 +105,7 @@ import com.dd3boh.outertune.ui.menu.YouTubePlaylistMenu
 import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.ui.utils.fadingEdge
+import com.dd3boh.outertune.ui.utils.naturalAspectRatioOrNull
 import com.dd3boh.outertune.ui.utils.resize
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.ArtistViewModel
@@ -159,17 +160,31 @@ fun ArtistScreen(
             val thumbnail = artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
             val artistName = artistPage?.artist?.title ?: libraryArtist?.artist?.name
 
+            // Requesting a fixed 4:3 crop regardless of the source's own shape cost the old
+            // square channel avatars their top and bottom and newer wide banner photos their
+            // sides - both are real artist-image shapes, not artifacts to crop away. The box now
+            // takes on whichever shape the source actually has (old square avatars render at
+            // roughly their own square-ish size instead of being squeezed into a wide slot; newer
+            // wide/letterboxed photos render at their own width, "normally"), clamped so a stray
+            // unusual source can't blow the header out to something absurd.
+            val naturalAspect = remember(thumbnail) { thumbnail?.naturalAspectRatioOrNull() }
+            val headerAspect = (naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
+
             Column {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(
-                            if (thumbnail != null) Modifier.aspectRatio(4f / 3) else Modifier
+                            if (thumbnail != null) Modifier.aspectRatio(headerAspect) else Modifier
                         )
                 ) {
                     if (thumbnail != null) {
                         AsyncImage(
-                            model = thumbnail.resize(1200, 900),
+                            // Width only, not a fixed width+height: the latter is what forced the
+                            // crop above. resize() fills in a height that preserves the source's
+                            // own aspect ratio when it knows one (googleusercontent), and every
+                            // other scheme here ignores the height argument anyway.
+                            model = thumbnail.resize(width = 1200),
                             contentDescription = null,
                             modifier = Modifier
                                 .align(Alignment.Center)
