@@ -20,6 +20,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -46,6 +47,7 @@ import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -66,6 +68,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
@@ -114,6 +117,28 @@ private val BandColumnWidth = 56.dp
  *  for the panel that's already open; the small pull-down on the player screen that opens it in
  *  the first place is the one that actually needed to grow. */
 private val EqualizerHandleHeight = 56.dp
+
+/**
+ * One section of the panel (top settings, tone controls/profiles, frequency bands, compressor),
+ * set apart as its own rounded card rather than divided from its neighbours by a thin line -
+ * against a busy Liquid/Blur background especially, a hairline divider is easy to miss while a
+ * whole panel is not. Translucent rather than a flat opaque surface, so the panel still reads as
+ * floating over the player background instead of paving over it entirely.
+ */
+@Composable
+private fun EqualizerCard(
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f))
+            .padding(16.dp),
+        content = content,
+    )
+}
 
 /**
  * A 12-band parametric equalizer, backed by [com.dd3boh.outertune.audio.EqualizerAudioProcessor]
@@ -287,146 +312,78 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 modifier = Modifier
                     .weight(1f, false)
                     .verticalScroll(rememberScrollState())
-                    .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp)
+                    .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = stringResource(R.string.equalizer),
-                        style = MaterialTheme.typography.titleLarge,
-                        color = eqColor,
-                    )
-                    Switch(
-                        checked = settings.enabled,
-                        onCheckedChange = { update(settings.copy(enabled = it)) },
-                    )
-                }
+                // Top settings: master enable, and the three toggles that decide how everything
+                // in every other card below looks.
+                EqualizerCard {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = stringResource(R.string.equalizer),
+                            style = MaterialTheme.typography.titleLarge,
+                            color = eqColor,
+                        )
+                        Switch(
+                            checked = settings.enabled,
+                            onCheckedChange = { update(settings.copy(enabled = it)) },
+                        )
+                    }
 
-                Spacer(Modifier.height(4.dp))
+                    Spacer(Modifier.height(4.dp))
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Use cover contrast color",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = eqColorVariant,
-                    )
-                    Switch(
-                        checked = useContrastColor,
-                        onCheckedChange = { useContrastColor = it },
-                    )
-                }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Use cover contrast color",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = eqColorVariant,
+                        )
+                        Switch(
+                            checked = useContrastColor,
+                            onCheckedChange = { useContrastColor = it },
+                        )
+                    }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Use dials instead of sliders",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = eqColorVariant,
-                    )
-                    Switch(
-                        checked = useDials,
-                        onCheckedChange = { useDials = it },
-                    )
-                }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Use dials instead of sliders",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = eqColorVariant,
+                        )
+                        Switch(
+                            checked = useDials,
+                            onCheckedChange = { useDials = it },
+                        )
+                    }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(
-                        text = "Color by value (green to red)",
-                        style = MaterialTheme.typography.labelMedium,
-                        color = eqColorVariant,
-                    )
-                    Switch(
-                        checked = useValueGradient,
-                        onCheckedChange = { useValueGradient = it },
-                    )
-                }
-
-                Spacer(Modifier.height(12.dp))
-
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(profileNames) { name ->
-                        FilterChip(
-                            selected = activeProfileName == name,
-                            onClick = { loadProfile(name) },
-                            label = { Text(name) },
-                            trailingIcon = if (name !in builtInProfileNames) {
-                                {
-                                    Icon(
-                                        Icons.Rounded.Close,
-                                        contentDescription = null,
-                                        modifier = Modifier
-                                            .size(16.dp)
-                                            .clickable { deleteProfile(name) },
-                                    )
-                                }
-                            } else null,
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = "Color by value (green to red)",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = eqColorVariant,
+                        )
+                        Switch(
+                            checked = useValueGradient,
+                            onCheckedChange = { useValueGradient = it },
                         )
                     }
                 }
-
-                if (activeProfileName != null) {
-                    Spacer(Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        TextButton(
-                            onClick = { activeProfileName?.let(::saveProfile) },
-                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
-                        ) {
-                            Text("Save")
-                        }
-                        TextButton(
-                            onClick = { activeProfileName?.let { loadProfile(it) } },
-                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
-                        ) {
-                            Text("Revert to saved")
-                        }
-                        if (activeProfileName in builtInProfileNames) {
-                            TextButton(
-                                onClick = {
-                                    activeProfileName?.let { name ->
-                                        EqualizerProfile.factoryDefault(name)?.settings?.let {
-                                            update(it.copy(enabled = settings.enabled))
-                                        }
-                                    }
-                                },
-                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
-                            ) {
-                                Text("Revert to default")
-                            }
-                        }
-                    }
-                }
-                TextButton(
-                    onClick = { showSaveAsDialog = true },
-                    colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
-                ) {
-                    Text("Save as new profile…")
-                }
-
-                if (showSaveAsDialog) {
-                    TextFieldDialog(
-                        title = { Text("Save as new profile") },
-                        placeholder = { Text("Profile name") },
-                        isInputValid = { it.isNotBlank() },
-                        onDone = { name -> saveProfile(name.trim()) },
-                        onDismiss = { showSaveAsDialog = false },
-                    )
-                }
-
-                Spacer(Modifier.height(20.dp))
 
                 // "Bass"/"Treble" move the whole low/high end together, like a tone control on a
                 // real amp, rather than just nudging the single lowest/highest band - anything at
@@ -444,95 +401,186 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     }))
                 }
 
-                ToneControlsRow(
-                    bassGainDb = bassGainDb,
-                    trebleGainDb = trebleGainDb,
-                    balance = settings.balance,
-                    enabled = settings.enabled,
-                    color = eqColor,
-                    useGradient = useValueGradient,
-                    onBassChange = { setRangeGain(bassBandIndices, it) },
-                    onTrebleChange = { setRangeGain(trebleBandIndices, it) },
-                    onBalanceChange = { update(settings.copy(balance = it)) },
-                )
+                // Tone controls and profiles share a card - a profile is a whole-curve preset,
+                // Bass/Balance/Treble a quick nudge on top of one, so both are "how the curve gets
+                // shaped" rather than "the curve itself" (that's the frequency-band card below).
+                EqualizerCard {
+                    ToneControlsRow(
+                        bassGainDb = bassGainDb,
+                        trebleGainDb = trebleGainDb,
+                        balance = settings.balance,
+                        enabled = settings.enabled,
+                        color = eqColor,
+                        useGradient = useValueGradient,
+                        onBassChange = { setRangeGain(bassBandIndices, it) },
+                        onTrebleChange = { setRangeGain(trebleBandIndices, it) },
+                        onBalanceChange = { update(settings.copy(balance = it)) },
+                    )
 
-                Spacer(Modifier.height(20.dp))
+                    Spacer(Modifier.height(16.dp))
 
-                // A plain Row of 12 columns squeezes every band into whatever width the screen
-                // has; a LazyRow at a fixed per-band width instead gives each one real room to
-                // drag in and lets the strip run wider than the screen, Poweramp-style, with the
-                // rest reached by scrolling sideways.
-                LazyRow(
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(220.dp)
-                ) {
-                    itemsIndexed(settings.bands) { index, band ->
-                        BandColumn(
-                            band = band,
-                            enabled = settings.enabled,
-                            selected = selectedBand == index,
+                    Text(
+                        text = "Equalizer profile",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = eqColorVariant,
+                    )
+                    Spacer(Modifier.height(8.dp))
+
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(profileNames) { name ->
+                            FilterChip(
+                                selected = activeProfileName == name,
+                                onClick = { loadProfile(name) },
+                                label = { Text(name) },
+                                trailingIcon = if (name !in builtInProfileNames) {
+                                    {
+                                        Icon(
+                                            Icons.Rounded.Close,
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(16.dp)
+                                                .clickable { deleteProfile(name) },
+                                        )
+                                    }
+                                } else null,
+                                colors = FilterChipDefaults.filterChipColors(
+                                    labelColor = eqColorVariant,
+                                    iconColor = eqColorVariant,
+                                    selectedContainerColor = eqColor.copy(alpha = 0.2f),
+                                    selectedLabelColor = eqColor,
+                                    selectedLeadingIconColor = eqColor,
+                                ),
+                                border = FilterChipDefaults.filterChipBorder(
+                                    enabled = true,
+                                    selected = activeProfileName == name,
+                                    borderColor = eqColorVariant.copy(alpha = 0.4f),
+                                    selectedBorderColor = eqColor,
+                                ),
+                            )
+                        }
+                    }
+
+                    if (activeProfileName != null) {
+                        Spacer(Modifier.height(8.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(
+                                onClick = { activeProfileName?.let(::saveProfile) },
+                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                            ) {
+                                Text("Save")
+                            }
+                            TextButton(
+                                onClick = { activeProfileName?.let { loadProfile(it) } },
+                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                            ) {
+                                Text("Revert to saved")
+                            }
+                            if (activeProfileName in builtInProfileNames) {
+                                TextButton(
+                                    onClick = {
+                                        activeProfileName?.let { name ->
+                                            EqualizerProfile.factoryDefault(name)?.settings?.let {
+                                                update(it.copy(enabled = settings.enabled))
+                                            }
+                                        }
+                                    },
+                                    colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                                ) {
+                                    Text("Revert to default")
+                                }
+                            }
+                        }
+                    }
+                    TextButton(
+                        onClick = { showSaveAsDialog = true },
+                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                    ) {
+                        Text("Save as new profile…")
+                    }
+
+                    if (showSaveAsDialog) {
+                        TextFieldDialog(
+                            title = { Text("Save as new profile") },
+                            placeholder = { Text("Profile name") },
+                            isInputValid = { it.isNotBlank() },
+                            onDone = { name -> saveProfile(name.trim()) },
+                            onDismiss = { showSaveAsDialog = false },
+                        )
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        TextButton(
+                            onClick = { exportLauncher.launch("equalizer-profile.json") },
+                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                        ) {
+                            Text("Export")
+                        }
+                        TextButton(
+                            onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                            colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                        ) {
+                            Text("Import")
+                        }
+                    }
+                    importExportError?.let {
+                        Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+
+                // The curve itself: each band's own gain, and the selected one's full frequency/Q/
+                // filter-type editor - kept apart from the tone controls and profiles above, which
+                // shape the curve rather than being it.
+                EqualizerCard {
+                    // A plain Row of 12 columns squeezes every band into whatever width the screen
+                    // has; a LazyRow at a fixed per-band width instead gives each one real room to
+                    // drag in and lets the strip run wider than the screen, Poweramp-style, with
+                    // the rest reached by scrolling sideways.
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(220.dp)
+                    ) {
+                        itemsIndexed(settings.bands) { index, band ->
+                            BandColumn(
+                                band = band,
+                                enabled = settings.enabled,
+                                selected = selectedBand == index,
+                                color = eqColor,
+                                onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
+                                onTapLabel = { selectedBand = if (selectedBand == index) null else index },
+                            )
+                        }
+                    }
+
+                    selectedBand?.let { index ->
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 12.dp),
+                            color = eqColorVariant.copy(alpha = 0.3f),
+                        )
+                        BandEditor(
+                            band = settings.bands[index],
+                            onChange = { updateBand(index, it) },
                             color = eqColor,
-                            onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
-                            onTapLabel = { selectedBand = if (selectedBand == index) null else index },
+                            colorVariant = eqColorVariant,
+                            useDials = useDials,
+                            useGradient = useValueGradient,
                         )
                     }
                 }
 
-                selectedBand?.let { index ->
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-                    BandEditor(
-                        band = settings.bands[index],
-                        onChange = { updateBand(index, it) },
+                EqualizerCard {
+                    CompressorSection(
+                        compressor = settings.compressor,
+                        onChange = { update(settings.copy(compressor = it)) },
                         color = eqColor,
                         colorVariant = eqColorVariant,
                         useDials = useDials,
                         useGradient = useValueGradient,
                     )
                 }
-
-                Spacer(Modifier.height(20.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-
-                CompressorSection(
-                    compressor = settings.compressor,
-                    onChange = { update(settings.copy(compressor = it)) },
-                    color = eqColor,
-                    colorVariant = eqColorVariant,
-                    useDials = useDials,
-                    useGradient = useValueGradient,
-                )
-
-                Spacer(Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(Modifier.height(12.dp))
-
-                Text(
-                    text = "Equalizer profile",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = eqColorVariant,
-                )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(
-                        onClick = { exportLauncher.launch("equalizer-profile.json") },
-                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
-                    ) {
-                        Text("Export")
-                    }
-                    TextButton(
-                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
-                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
-                    ) {
-                        Text("Import")
-                    }
-                }
-                importExportError?.let {
-                    Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
-                }
-
-                Spacer(Modifier.height(16.dp))
             }
 
             // Docked below the scrollable content, not inside it - the same treatment the queue's
@@ -941,14 +989,18 @@ private fun BandColumn(
         )
         // Selected reads as "this is the band the editor below belongs to" - a box around the
         // frequency label makes that unambiguous at a glance; the older bold-and-recolor treatment
-        // was easy to miss next to eleven other labels the same size.
+        // was easy to miss next to eleven other labels the same size. A fixed theme primary here
+        // meant this one box ignored the contrast setting everything else in the panel follows -
+        // [color] already resolves to the plain theme color when that setting is off, so using it
+        // instead of a hardcoded primary makes the highlight track the same setting as everything
+        // else, not a separate exception.
         Box(
             modifier = Modifier
                 .padding(top = 4.dp)
                 .then(
                     if (selected) {
                         Modifier
-                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
+                            .border(1.dp, color, RoundedCornerShape(6.dp))
                             .padding(horizontal = 6.dp, vertical = 2.dp)
                     } else {
                         Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -959,7 +1011,7 @@ private fun BandColumn(
             Text(
                 text = formatFrequency(band.freqHz),
                 style = MaterialTheme.typography.labelSmall,
-                color = if (selected) MaterialTheme.colorScheme.primary else color,
+                color = color,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -1146,6 +1198,10 @@ private fun BandEditor(
                         activeContainerColor = color.copy(alpha = 0.18f),
                         activeContentColor = color,
                         activeBorderColor = color,
+                        // Only the active state was set, so the other four types' labels always
+                        // used Material3's default onSurface regardless of the contrast setting.
+                        inactiveContentColor = colorVariant,
+                        inactiveBorderColor = colorVariant.copy(alpha = 0.4f),
                     ),
                 ) {
                     Text(
