@@ -124,7 +124,10 @@ class DownloadUtil @Inject constructor(
                     codecs = format.mimeType.split("codecs=")[1].removeSurrounding("\""),
                     bitrate = format.bitrate,
                     sampleRate = format.audioSampleRate,
-                    contentLength = format.contentLength!!,
+                    // YouTube omits Content-Length for some formats/streams; !! here crashed the
+                    // download's data source resolution outright for exactly those. Same fallback
+                    // the range request two lines down already uses for the same nullable field.
+                    contentLength = format.contentLength ?: 10000000,
                     loudnessDb = playbackData.audioConfig?.loudnessDb,
                     playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
                 )

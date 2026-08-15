@@ -917,7 +917,13 @@ class MusicService : MediaLibraryService(),
                         codecs = format.mimeType.split("codecs=")[1].removeSurrounding("\""),
                         bitrate = format.bitrate,
                         sampleRate = format.audioSampleRate,
-                        contentLength = format.contentLength!!,
+                        // YouTube omits Content-Length for some formats/streams; !! here crashed
+                        // playback's own data source resolution outright for exactly those songs -
+                        // intermittent and song-specific, not a steady failure. contentLength is
+                        // stored metadata only (the actual fetch below uses a fixed CHUNK_LENGTH),
+                        // so an unknown length is a reasonable placeholder, not a lie anything
+                        // downstream depends on being exact.
+                        contentLength = format.contentLength ?: 10000000,
                         loudnessDb = playbackData.audioConfig?.loudnessDb,
                         playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
                     )

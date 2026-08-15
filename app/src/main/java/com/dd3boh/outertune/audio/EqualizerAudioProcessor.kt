@@ -202,7 +202,16 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                 sample *= preGain
 
                 val channelStates = states[ch]
-                for (b in coeffs.indices) {
+                // bands/coefficients are two separate @Volatile fields, written one after the
+                // other by setSettings() on the UI thread while this reads them mid-write from the
+                // audio thread - a profile switch that changes the band count (importing a custom
+                // profile saved with a different band count than the one currently loaded) can be
+                // caught between the two writes, so channelStates (sized off the newer bands) and
+                // coeffs (still the older size) briefly disagree. Bounding by the smaller of the
+                // two degrades that one buffer's worth of processing instead of indexing past
+                // whichever array is still short and crashing the playback thread outright.
+                val bandCount = minOf(coeffs.size, channelStates.size)
+                for (b in 0 until bandCount) {
                     sample = channelStates[b].process(sample, coeffs[b])
                 }
 
