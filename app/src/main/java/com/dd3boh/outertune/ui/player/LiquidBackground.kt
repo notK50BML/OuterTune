@@ -129,13 +129,25 @@ fun LiquidBackground(
                     val w = size.width
                     val h = size.height
                     val minDim = minOf(w, h)
-                    val cx = w * 0.5f
-                    val cy = h * 0.42f
                     val tau = (2 * PI).toFloat()
                     val t = flowTime * tau
 
+                    // The contour wobble below moves the *outline*, but a fixed centre meant the
+                    // shape as a whole just sat there pulsing in place - at a glance, especially
+                    // blurred, that read as barely moving at all. A slow, small drift of the centre
+                    // itself (two non-harmonic sines, same trick SPHERES uses) makes the shape
+                    // visibly travel rather than only breathe.
+                    val driftX = 0.5f * sin(t * 0.13f + seed) + 0.5f * sin(t * 0.05f + seed * 1.7f)
+                    val driftY = 0.5f * sin(t * 0.11f + seed * 1.3f) + 0.5f * sin(t * 0.04f + seed * 2.1f)
+                    val cx = w * (0.5f + 0.05f * driftX)
+                    val cy = h * (0.42f + 0.04f * driftY)
+
                     // A contained effect, not a shape that reads as covering the screen.
                     val baseRadius = minDim * 0.20f * (1f + bass * 0.5f + transient * 0.25f)
+
+                    // The whole petal pattern also slowly rotates, on top of pulsing in place -
+                    // rotation reads as motion even where the pulse amplitude alone would not.
+                    val spin = t * 0.06f
 
                     // Sampled around the circle as a radius multiplier per angle, then walked as a
                     // smooth closed contour - a plain polygon through the raw samples looks
@@ -145,11 +157,12 @@ fun LiquidBackground(
                         val angle = tau * i / sampleCount
                         var r = 1f
                         // Ambient wobble: present with no audio at all, so the shape is never
-                        // static.
-                        r += 0.05f * sin(angle * 3 + t)
+                        // static. Large enough on its own to read as movement rather than a
+                        // near-imperceptible shimmer under the blur.
+                        r += 0.12f * sin(angle * 3 + t)
                         // Bass: a few big, slow lobes - the "petals" the shape reads as a flower
                         // from.
-                        r += (0.08f + bass * 0.5f) * sin(angle * 5 + t * 0.4f + seed)
+                        r += (0.12f + bass * 0.5f) * sin(angle * 5 + t * 0.4f + seed)
                         // Treble: many small, fast spikes layered on top of the petals.
                         r += (0.015f + treble * 0.2f) * sin(angle * 17 - t * 2.1f + seed * 1.3f)
                         // Transient: uniform across every angle, so a beat reads as the whole
@@ -160,7 +173,7 @@ fun LiquidBackground(
 
                     fun pointAt(i: Int): Offset {
                         val index = ((i % sampleCount) + sampleCount) % sampleCount
-                        val angle = tau * index / sampleCount
+                        val angle = tau * index / sampleCount + spin
                         val r = radii[index]
                         return Offset(cx + r * cos(angle), cy + r * sin(angle))
                     }

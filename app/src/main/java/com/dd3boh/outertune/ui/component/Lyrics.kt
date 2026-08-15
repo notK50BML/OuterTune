@@ -158,7 +158,10 @@ fun Lyrics(
             } else {
                 lines.add(
                     LyricLine(
-                        model.unsyncedText.joinToString { "${it.first}\n" }, 0L.toULong(), 0L.toULong(),
+                        // joinToString's default separator is ", " - combined with the manual
+                        // trailing "\n" per element that made every line show up as
+                        // "line one\n, line two\n, ..." instead of clean line breaks.
+                        model.unsyncedText.joinToString("\n") { it.first }, 0L.toULong(), 0L.toULong(),
                         null, null, false
                     )
                 )
