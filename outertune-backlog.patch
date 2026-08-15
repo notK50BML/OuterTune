@@ -29703,3 +29703,1116 @@ index 1a72918c..31e070b6 100644
 -- 
 2.45.1.windows.1
 
+From a53a2db7bbf2591b367750abdcbd5dc77d4b0fdd Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:01:56 +0800
+Subject: [PATCH] Size the artist header to the image's own shape, not a forced
+ 4:3 crop
+
+Artist images come in two real shapes: older channels have a square
+avatar, newer ones a wide banner-style photo (sometimes letterboxed
+with black bars baked into the picture itself). Requesting a fixed
+1200x900 (4:3) crop regardless cost the square ones their top and
+bottom and the wide ones their sides - both were being cropped to fit
+a shape neither of them actually is.
+
+naturalAspectRatioOrNull() (YouTubeUtils.kt) reads the true aspect
+ratio straight off the CDN URL's own embedded size before any image is
+requested or decoded - googleusercontent URLs embed real w/h, and
+yt3.ggpht.com's =sSIZE scheme only ever serves square crops, which is
+exactly the old-avatar case. The artist header box now takes on that
+ratio (clamped to 0.9-2.2 so a stray unusual source can't blow the
+header out), and requests the image at a fixed *width* only instead of
+a fixed width+height, so resize() fills in a height that preserves
+whatever shape the source actually has instead of cropping to one that
+doesn't match it.
+
+Fixed a real bug in resize() along the way: its single-dimension
+branch computed the matching dimension as (requested / source) * source
+- integer division truncated this to zero whenever the requested size
+was smaller than the source's, and gave the wrong value otherwise
+(e.g. asking for 1200 against a 544-wide source produced 1088, not
+1200). Multiplying before dividing fixes it. Dead code until this
+change, since every other resize() call already asked for both
+dimensions explicitly.
+---
+ .../ui/screens/artist/ArtistScreen.kt         | 19 +++++++++--
+ .../dd3boh/outertune/ui/utils/YouTubeUtils.kt | 32 +++++++++++++++++--
+ 2 files changed, 47 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+index 3a456f18..dffd3ead 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+@@ -105,6 +105,7 @@ import com.dd3boh.outertune.ui.menu.YouTubePlaylistMenu
+ import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.ui.utils.fadingEdge
++import com.dd3boh.outertune.ui.utils.naturalAspectRatioOrNull
+ import com.dd3boh.outertune.ui.utils.resize
+ import com.dd3boh.outertune.utils.rememberPreference
+ import com.dd3boh.outertune.viewmodels.ArtistViewModel
+@@ -159,17 +160,31 @@ fun ArtistScreen(
+             val thumbnail = artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
+             val artistName = artistPage?.artist?.title ?: libraryArtist?.artist?.name
+ 
++            // Requesting a fixed 4:3 crop regardless of the source's own shape cost the old
++            // square channel avatars their top and bottom and newer wide banner photos their
++            // sides - both are real artist-image shapes, not artifacts to crop away. The box now
++            // takes on whichever shape the source actually has (old square avatars render at
++            // roughly their own square-ish size instead of being squeezed into a wide slot; newer
++            // wide/letterboxed photos render at their own width, "normally"), clamped so a stray
++            // unusual source can't blow the header out to something absurd.
++            val naturalAspect = remember(thumbnail) { thumbnail?.naturalAspectRatioOrNull() }
++            val headerAspect = (naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
++
+             Column {
+                 Box(
+                     modifier = Modifier
+                         .fillMaxWidth()
+                         .then(
+-                            if (thumbnail != null) Modifier.aspectRatio(4f / 3) else Modifier
++                            if (thumbnail != null) Modifier.aspectRatio(headerAspect) else Modifier
+                         )
+                 ) {
+                     if (thumbnail != null) {
+                         AsyncImage(
+-                            model = thumbnail.resize(1200, 900),
++                            // Width only, not a fixed width+height: the latter is what forced the
++                            // crop above. resize() fills in a height that preserves the source's
++                            // own aspect ratio when it knows one (googleusercontent), and every
++                            // other scheme here ignores the height argument anyway.
++                            model = thumbnail.resize(width = 1200),
+                             contentDescription = null,
+                             modifier = Modifier
+                                 .align(Alignment.Center)
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
+index a848cde2..1511ea7e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
+@@ -18,8 +18,14 @@ fun String.resize(
+         val (W, H) = group.drop(1).map { it.toInt() }
+         var w = width
+         var h = height
+-        if (w != null && h == null) h = (w / W) * H
+-        if (w == null && h != null) w = (h / H) * W
++        // Multiply before dividing - the reverse order truncated to zero whenever the
++        // requested dimension was smaller than the source's own, and was wrong by a rounding
++        // error otherwise (e.g. w=1200 against a 544-wide source produced 1088, not the
++        // proportional 1200, because 1200/544 truncated to 2 before the *544). Dead until
++        // naturalAspectRatioOrNull()'s caller below, since every other call site here passes
++        // both dimensions.
++        if (w != null && h == null) h = (w.toLong() * H / W).toInt()
++        if (w == null && h != null) w = (h.toLong() * W / H).toInt()
+         return "${split("=w")[0]}=w$w-h$h-p-l90-rj"
+     }
+     if (this matches YT3_GGPHT_SIZED) {
+@@ -39,3 +45,25 @@ fun String.resize(
+     }
+     return this
+ }
++
++/**
++ * This image's own aspect ratio (width / height), read from the size its CDN URL already embeds -
++ * null when the scheme gives no such hint (i.ytimg.com's fixed-name thumbnails, mainly).
++ *
++ * Every existing caller of [resize] asks for a fixed width *and* height - a square thumbnail, or
++ * a size matching a fixed-shape layout slot - which is right for uniformly-shaped artwork like
++ * album covers, but forces a crop on artist images: some are old square channel avatars, some are
++ * newer wide banner-style photos, and asking for a fixed shape regardless discards whichever
++ * dimension that shape didn't ask for. A caller that wants to lay out around the source's real
++ * shape instead of cropping it needs to know that shape before it requests any size at all.
++ */
++fun String.naturalAspectRatioOrNull(): Float? {
++    GOOGLE_USERCONTENT_SIZED.matchEntire(this)?.groupValues?.let { group ->
++        val (w, h) = group.drop(1).map { it.toInt() }
++        if (w > 0 && h > 0) return w.toFloat() / h
++    }
++    // This scheme (yt3.ggpht.com's =sSIZE) has no separate width/height parameter - it only ever
++    // serves a square crop, which is exactly the "old square avatar" case.
++    if (this matches YT3_GGPHT_SIZED) return 1f
++    return null
++}
+-- 
+2.45.1.windows.1
+
+From f19ef78bde9a7df461e72b862c29b405d83a9c52 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:10:40 +0800
+Subject: [PATCH] Keep Bass/Balance/Treble as dials regardless of the slider
+ toggle
+
+ToneControlsRow followed the panel-wide "use dials instead of
+sliders" setting like everything else, so switching to sliders turned
+these three into PowerampSliders too - visually indistinguishable from
+the 12 actual per-band gain sliders sitting right below them, losing
+the one thing that marked them as the different, amp-style tone
+controls they are.
+
+Same exemption the 12-band strip already takes in the other direction
+(always sliders, never dials, per its own comment a few lines down) -
+these three now always render as RotaryDials, independent of
+EqUseDialsKey. Every other dial/slider section (band editor,
+compressor, EQ curve controls) still follows the panel-wide toggle.
+---
+ .../outertune/ui/player/EqualizerPanel.kt     | 110 +++++++-----------
+ 1 file changed, 42 insertions(+), 68 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index ff04effa..a506385a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -450,7 +450,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                     balance = settings.balance,
+                     enabled = settings.enabled,
+                     color = eqColor,
+-                    useDials = useDials,
+                     useGradient = useValueGradient,
+                     onBassChange = { setRangeGain(bassBandIndices, it) },
+                     onTrebleChange = { setRangeGain(trebleBandIndices, it) },
+@@ -644,7 +643,6 @@ private fun ToneControlsRow(
+     balance: Float,
+     enabled: Boolean,
+     color: Color,
+-    useDials: Boolean,
+     useGradient: Boolean,
+     onBassChange: (Float) -> Unit,
+     onTrebleChange: (Float) -> Unit,
+@@ -659,76 +657,52 @@ private fun ToneControlsRow(
+     // Bass, balance and treble together, spread evenly across the full width rather than each
+     // getting its own row - three related "tone" controls read as one unit that way, and it's
+     // what leaves the balance section below unnecessary.
++    //
++    // Always dials, regardless of the panel-wide "use dials instead of sliders" setting - the
++    // same exemption the 12-band strip below takes in the other direction (always sliders,
++    // never dials, because a row of tiny dials is fiddly). Three PowerampSliders read as more
++    // band-gain controls and got lost among the 12 actual bands right below them; a knob is what
++    // marks these as the different, amp-style tone controls they are.
+     Row(
+         horizontalArrangement = Arrangement.SpaceEvenly,
+         modifier = Modifier.fillMaxWidth()
+     ) {
+-        if (useDials) {
+-            RotaryDial(
+-                value = bassGainDb,
+-                onValueChange = onBassChange,
+-                valueRange = gainRange,
+-                enabled = enabled,
+-                dialSize = 84.dp,
+-                color = bassColor,
+-                textColor = color,
+-                centeredAt = 0f,
+-                label = "Bass",
+-                valueLabel = "${formatDb(bassGainDb)} dB",
+-            )
+-            RotaryDial(
+-                value = balance,
+-                onValueChange = onBalanceChange,
+-                valueRange = balanceRange,
+-                enabled = enabled,
+-                dialSize = 84.dp,
+-                color = balanceColor,
+-                textColor = color,
+-                centeredAt = 0f,
+-                label = "Balance",
+-                valueLabel = balanceReadout(balance),
+-            )
+-            RotaryDial(
+-                value = trebleGainDb,
+-                onValueChange = onTrebleChange,
+-                valueRange = gainRange,
+-                enabled = enabled,
+-                dialSize = 84.dp,
+-                color = trebleColor,
+-                textColor = color,
+-                centeredAt = 0f,
+-                label = "Treble",
+-                valueLabel = "${formatDb(trebleGainDb)} dB",
+-            )
+-        } else {
+-            PowerampSlider(
+-                value = bassGainDb,
+-                onValueChange = onBassChange,
+-                valueRange = gainRange,
+-                enabled = enabled,
+-                textColor = color,
+-                label = "Bass",
+-                valueLabel = "${formatDb(bassGainDb)} dB",
+-            )
+-            PowerampSlider(
+-                value = balance,
+-                onValueChange = onBalanceChange,
+-                valueRange = balanceRange,
+-                enabled = enabled,
+-                textColor = color,
+-                label = "Balance",
+-                valueLabel = balanceReadout(balance),
+-            )
+-            PowerampSlider(
+-                value = trebleGainDb,
+-                onValueChange = onTrebleChange,
+-                valueRange = gainRange,
+-                enabled = enabled,
+-                textColor = color,
+-                label = "Treble",
+-                valueLabel = "${formatDb(trebleGainDb)} dB",
+-            )
+-        }
++        RotaryDial(
++            value = bassGainDb,
++            onValueChange = onBassChange,
++            valueRange = gainRange,
++            enabled = enabled,
++            dialSize = 84.dp,
++            color = bassColor,
++            textColor = color,
++            centeredAt = 0f,
++            label = "Bass",
++            valueLabel = "${formatDb(bassGainDb)} dB",
++        )
++        RotaryDial(
++            value = balance,
++            onValueChange = onBalanceChange,
++            valueRange = balanceRange,
++            enabled = enabled,
++            dialSize = 84.dp,
++            color = balanceColor,
++            textColor = color,
++            centeredAt = 0f,
++            label = "Balance",
++            valueLabel = balanceReadout(balance),
++        )
++        RotaryDial(
++            value = trebleGainDb,
++            onValueChange = onTrebleChange,
++            valueRange = gainRange,
++            enabled = enabled,
++            dialSize = 84.dp,
++            color = trebleColor,
++            textColor = color,
++            centeredAt = 0f,
++            label = "Treble",
++            valueLabel = "${formatDb(trebleGainDb)} dB",
++        )
+     }
+ }
+ 
+-- 
+2.45.1.windows.1
+
+From 9f7b6defc9d60324349b998d9c3a9c0d37bc59d0 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:21:03 +0800
+Subject: [PATCH 1/2] Fix Follow-theme's grey/black fallback, and a
+ settings/behaviour mismatch
+
+extractGradientColors() routed through Score.score(), which is tuned
+for picking a good *theme seed* colour and filters out anything
+low-chroma - near-grey, near-black, near-white. A lot of real album
+art is exactly that (muted, sepia, black-and-white photography), so
+this fell through to the hardcoded grey/near-black pair far more often
+than the "genuinely colourless cover" case it was meant for, which is
+what made FOLLOW_THEME read as "always black" regardless of the
+playing song. Now ranks Palette's own swatches by population directly,
+with no chroma filter - a background wash wants the two colours the
+cover actually shows most, not two "good enough for a whole app theme"
+ones.
+
+Also: PlayerFrag's "Stop music on task clear" switch defaulted to off,
+but MusicService.onTaskRemoved's own read of the same key defaults to
+on - so the switch showed as off for anyone who had never touched it
+while the app was actually behaving as if it were on. Matched the
+switch's default to the one that's actually enforced.
+---
+ .../screens/settings/fragments/PlayerFrag.kt  |  5 +++-
+ .../com/dd3boh/outertune/ui/theme/Theme.kt    | 24 ++++++++++++-------
+ 2 files changed, 19 insertions(+), 10 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index 4f69ef2e..6241781d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -226,9 +226,12 @@ fun PlaybackBehaviourFrag() {
+     val (persistentQueue, onPersistentQueueChange) = rememberPreference(key = PersistentQueueKey, defaultValue = true)
+     val (minPlaybackDur, onMinPlaybackDurChange) = rememberPreference(minPlaybackDurKey, defaultValue = 30)
+     val (skipOnErrorKey, onSkipOnErrorChange) = rememberPreference(key = SkipOnErrorKey, defaultValue = false)
++    // Matches MusicService.onTaskRemoved's own default (true) - shown as off here while actually
++    // on there made the switch lie about the app's real behaviour for anyone who had never
++    // touched it.
+     val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(
+         key = StopMusicOnTaskClearKey,
+-        defaultValue = false
++        defaultValue = true
+     )
+     val (ignoreAudioFocus, onIgnoreAudioFocusChange) = rememberPreference(key = IgnoreAudioFocusKey, defaultValue = false)
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/theme/Theme.kt b/app/src/main/java/com/dd3boh/outertune/ui/theme/Theme.kt
+index 588b965e..8de5a1ec 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/theme/Theme.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/theme/Theme.kt
+@@ -203,19 +203,25 @@ fun Bitmap.extractThemeColor(): Color {
+ }
+ 
+ fun Bitmap.extractGradientColors(): List<Color> {
+-    val extractedColors = Palette.from(this)
++    val swatches = Palette.from(this)
+         .maximumColorCount(16)
+         .generate()
+         .swatches
+-        .associate { it.rgb to it.population }
+-
+-    val orderedColors = Score.score(extractedColors, 2, 0xff4285f4.toInt(), true)
+-        .sortedByDescending { Color(it).luminance() }
++    if (swatches.isEmpty()) return listOf(Color(0xFF595959), Color(0xFF0D0D0D))
+ 
+-    return if (orderedColors.size >= 2)
+-        listOf(Color(orderedColors[0]), Color(orderedColors[1]))
+-    else
+-        listOf(Color(0xFF595959), Color(0xFF0D0D0D))
++    // Score.score() is tuned for picking a good *theme seed* colour - it filters out anything
++    // low-chroma (near-grey, near-black, near-white), which is exactly what a lot of real album
++    // art is (muted, sepia, black-and-white photography). That made this fall through to the
++    // grey/near-black pair below on plenty of covers that do have real, visible dominant
++    // colours - not just the rare genuinely colourless one the fallback is meant for. A
++    // background wash doesn't need "theme-worthy" colours, only the two the cover actually shows
++    // most, so this ranks Palette's own swatches by population directly, with no chroma filter.
++    val byPopulation = swatches.sortedByDescending { it.population }.map { Color(it.rgb) }
++    return if (byPopulation.size >= 2) {
++        byPopulation.take(2).sortedByDescending { it.luminance() }
++    } else {
++        listOf(byPopulation[0], byPopulation[0])
++    }
+ }
+ 
+ fun DynamicScheme.toColorScheme() = ColorScheme(
+-- 
+2.45.1.windows.1
+
+
+From 03c1b2b68e25bc1d79183ab080ca471e46ae01db Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:26:55 +0800
+Subject: [PATCH 2/2] Restructure the EQ panel into rounded cards, fix contrast
+ gaps
+
+Split the flat, divider-separated column into four rounded cards -
+top settings, tone controls + profiles, frequency bands (strip and the
+selected band's editor), and the compressor. Against a busy Liquid/
+Blur background especially, a hairline HorizontalDivider was easy to
+miss; a whole card is not. Cards are translucent
+(surfaceContainer at 0.6 alpha), so the panel still reads as floating
+over the player background rather than paving over it.
+
+Profiles (the built-in/saved preset chips, plus export/import) moved
+into the tone-controls card rather than sitting between the top
+toggles and the tone controls: both are "how the curve gets shaped",
+which is a different question from the curve itself (the frequency-
+band card).
+
+Also closed three places that ignored the "use cover contrast color"
+setting and used a fixed theme color regardless:
+- BandColumn's selected-band highlight (border + label) used
+  MaterialTheme.colorScheme.primary unconditionally - the one part of
+  the panel that didn't follow the toggle everything else does.
+- The profile FilterChips had no colors override at all, so they used
+  Material3's stock (theme-only) chip colors.
+- SegmentedButton's inactive filter-type labels only had an active-
+  state color set, so the three non-selected options stayed onSurface
+  regardless of the toggle.
+---
+ .../outertune/ui/player/EqualizerPanel.kt     | 470 ++++++++++--------
+ 1 file changed, 263 insertions(+), 207 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index a506385a..42e8eee2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -20,6 +20,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.ColumnScope
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.WindowInsets
+@@ -46,6 +47,7 @@ import androidx.compose.material.icons.rounded.SkipNext
+ import androidx.compose.material.icons.rounded.SkipPrevious
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.FilterChip
++import androidx.compose.material3.FilterChipDefaults
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+@@ -66,6 +68,7 @@ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.lerp
+ import androidx.compose.ui.input.pointer.pointerInput
+@@ -115,6 +118,28 @@ private val BandColumnWidth = 56.dp
+  *  the first place is the one that actually needed to grow. */
+ private val EqualizerHandleHeight = 56.dp
+ 
++/**
++ * One section of the panel (top settings, tone controls/profiles, frequency bands, compressor),
++ * set apart as its own rounded card rather than divided from its neighbours by a thin line -
++ * against a busy Liquid/Blur background especially, a hairline divider is easy to miss while a
++ * whole panel is not. Translucent rather than a flat opaque surface, so the panel still reads as
++ * floating over the player background instead of paving over it entirely.
++ */
++@Composable
++private fun EqualizerCard(
++    modifier: Modifier = Modifier,
++    content: @Composable ColumnScope.() -> Unit,
++) {
++    Column(
++        modifier = modifier
++            .fillMaxWidth()
++            .clip(RoundedCornerShape(20.dp))
++            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f))
++            .padding(16.dp),
++        content = content,
++    )
++}
++
+ /**
+  * A 12-band parametric equalizer, backed by [com.dd3boh.outertune.audio.EqualizerAudioProcessor]
+  * in the playback audio pipeline.
+@@ -287,252 +312,275 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+                 modifier = Modifier
+                     .weight(1f, false)
+                     .verticalScroll(rememberScrollState())
+-                    .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp)
++                    .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp),
++                verticalArrangement = Arrangement.spacedBy(16.dp),
+             ) {
+-                Row(
+-                    verticalAlignment = Alignment.CenterVertically,
+-                    horizontalArrangement = Arrangement.SpaceBetween,
+-                    modifier = Modifier.fillMaxWidth()
+-                ) {
+-                    Text(
+-                        text = stringResource(R.string.equalizer),
+-                        style = MaterialTheme.typography.titleLarge,
+-                        color = eqColor,
+-                    )
+-                    Switch(
+-                        checked = settings.enabled,
+-                        onCheckedChange = { update(settings.copy(enabled = it)) },
+-                    )
++                // Top settings: master enable, and the three toggles that decide how everything
++                // in every other card below looks.
++                EqualizerCard {
++                    Row(
++                        verticalAlignment = Alignment.CenterVertically,
++                        horizontalArrangement = Arrangement.SpaceBetween,
++                        modifier = Modifier.fillMaxWidth()
++                    ) {
++                        Text(
++                            text = stringResource(R.string.equalizer),
++                            style = MaterialTheme.typography.titleLarge,
++                            color = eqColor,
++                        )
++                        Switch(
++                            checked = settings.enabled,
++                            onCheckedChange = { update(settings.copy(enabled = it)) },
++                        )
++                    }
++
++                    Spacer(Modifier.height(4.dp))
++
++                    Row(
++                        verticalAlignment = Alignment.CenterVertically,
++                        horizontalArrangement = Arrangement.SpaceBetween,
++                        modifier = Modifier.fillMaxWidth()
++                    ) {
++                        Text(
++                            text = "Use cover contrast color",
++                            style = MaterialTheme.typography.labelMedium,
++                            color = eqColorVariant,
++                        )
++                        Switch(
++                            checked = useContrastColor,
++                            onCheckedChange = { useContrastColor = it },
++                        )
++                    }
++
++                    Row(
++                        verticalAlignment = Alignment.CenterVertically,
++                        horizontalArrangement = Arrangement.SpaceBetween,
++                        modifier = Modifier.fillMaxWidth()
++                    ) {
++                        Text(
++                            text = "Use dials instead of sliders",
++                            style = MaterialTheme.typography.labelMedium,
++                            color = eqColorVariant,
++                        )
++                        Switch(
++                            checked = useDials,
++                            onCheckedChange = { useDials = it },
++                        )
++                    }
++
++                    Row(
++                        verticalAlignment = Alignment.CenterVertically,
++                        horizontalArrangement = Arrangement.SpaceBetween,
++                        modifier = Modifier.fillMaxWidth()
++                    ) {
++                        Text(
++                            text = "Color by value (green to red)",
++                            style = MaterialTheme.typography.labelMedium,
++                            color = eqColorVariant,
++                        )
++                        Switch(
++                            checked = useValueGradient,
++                            onCheckedChange = { useValueGradient = it },
++                        )
++                    }
+                 }
+ 
+-                Spacer(Modifier.height(4.dp))
++                // "Bass"/"Treble" move the whole low/high end together, like a tone control on a
++                // real amp, rather than just nudging the single lowest/highest band - anything at
++                // or below 250Hz counts as bass and anything at or above 4kHz counts as treble,
++                // the same split VisualizerFrame already uses elsewhere in this app.
++                val bassBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz <= 250f }
++                val trebleBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz >= 4000f }
++                val bassGainDb = bassBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
++                val trebleGainDb = trebleBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
+ 
+-                Row(
+-                    verticalAlignment = Alignment.CenterVertically,
+-                    horizontalArrangement = Arrangement.SpaceBetween,
+-                    modifier = Modifier.fillMaxWidth()
+-                ) {
+-                    Text(
+-                        text = "Use cover contrast color",
+-                        style = MaterialTheme.typography.labelMedium,
+-                        color = eqColorVariant,
+-                    )
+-                    Switch(
+-                        checked = useContrastColor,
+-                        onCheckedChange = { useContrastColor = it },
+-                    )
++                fun setRangeGain(indices: List<Int>, newGain: Float) {
++                    val quantized = quantizeTenth(newGain)
++                    update(settings.copy(bands = settings.bands.mapIndexed { i, b ->
++                        if (i in indices) b.copy(gainDb = quantized) else b
++                    }))
+                 }
+ 
+-                Row(
+-                    verticalAlignment = Alignment.CenterVertically,
+-                    horizontalArrangement = Arrangement.SpaceBetween,
+-                    modifier = Modifier.fillMaxWidth()
+-                ) {
+-                    Text(
+-                        text = "Use dials instead of sliders",
+-                        style = MaterialTheme.typography.labelMedium,
+-                        color = eqColorVariant,
+-                    )
+-                    Switch(
+-                        checked = useDials,
+-                        onCheckedChange = { useDials = it },
++                // Tone controls and profiles share a card - a profile is a whole-curve preset,
++                // Bass/Balance/Treble a quick nudge on top of one, so both are "how the curve gets
++                // shaped" rather than "the curve itself" (that's the frequency-band card below).
++                EqualizerCard {
++                    ToneControlsRow(
++                        bassGainDb = bassGainDb,
++                        trebleGainDb = trebleGainDb,
++                        balance = settings.balance,
++                        enabled = settings.enabled,
++                        color = eqColor,
++                        useGradient = useValueGradient,
++                        onBassChange = { setRangeGain(bassBandIndices, it) },
++                        onTrebleChange = { setRangeGain(trebleBandIndices, it) },
++                        onBalanceChange = { update(settings.copy(balance = it)) },
+                     )
+-                }
+ 
+-                Row(
+-                    verticalAlignment = Alignment.CenterVertically,
+-                    horizontalArrangement = Arrangement.SpaceBetween,
+-                    modifier = Modifier.fillMaxWidth()
+-                ) {
++                    Spacer(Modifier.height(16.dp))
++
+                     Text(
+-                        text = "Color by value (green to red)",
++                        text = "Equalizer profile",
+                         style = MaterialTheme.typography.labelMedium,
+                         color = eqColorVariant,
+                     )
+-                    Switch(
+-                        checked = useValueGradient,
+-                        onCheckedChange = { useValueGradient = it },
+-                    )
+-                }
++                    Spacer(Modifier.height(8.dp))
+ 
+-                Spacer(Modifier.height(12.dp))
++                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                        items(profileNames) { name ->
++                            FilterChip(
++                                selected = activeProfileName == name,
++                                onClick = { loadProfile(name) },
++                                label = { Text(name) },
++                                trailingIcon = if (name !in builtInProfileNames) {
++                                    {
++                                        Icon(
++                                            Icons.Rounded.Close,
++                                            contentDescription = null,
++                                            modifier = Modifier
++                                                .size(16.dp)
++                                                .clickable { deleteProfile(name) },
++                                        )
++                                    }
++                                } else null,
++                                colors = FilterChipDefaults.filterChipColors(
++                                    labelColor = eqColorVariant,
++                                    iconColor = eqColorVariant,
++                                    selectedContainerColor = eqColor.copy(alpha = 0.2f),
++                                    selectedLabelColor = eqColor,
++                                    selectedLeadingIconColor = eqColor,
++                                ),
++                                border = FilterChipDefaults.filterChipBorder(
++                                    enabled = true,
++                                    selected = activeProfileName == name,
++                                    borderColor = eqColorVariant.copy(alpha = 0.4f),
++                                    selectedBorderColor = eqColor,
++                                ),
++                            )
++                        }
++                    }
+ 
+-                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+-                    items(profileNames) { name ->
+-                        FilterChip(
+-                            selected = activeProfileName == name,
+-                            onClick = { loadProfile(name) },
+-                            label = { Text(name) },
+-                            trailingIcon = if (name !in builtInProfileNames) {
+-                                {
+-                                    Icon(
+-                                        Icons.Rounded.Close,
+-                                        contentDescription = null,
+-                                        modifier = Modifier
+-                                            .size(16.dp)
+-                                            .clickable { deleteProfile(name) },
+-                                    )
++                    if (activeProfileName != null) {
++                        Spacer(Modifier.height(8.dp))
++                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
++                            TextButton(
++                                onClick = { activeProfileName?.let(::saveProfile) },
++                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                            ) {
++                                Text("Save")
++                            }
++                            TextButton(
++                                onClick = { activeProfileName?.let { loadProfile(it) } },
++                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                            ) {
++                                Text("Revert to saved")
++                            }
++                            if (activeProfileName in builtInProfileNames) {
++                                TextButton(
++                                    onClick = {
++                                        activeProfileName?.let { name ->
++                                            EqualizerProfile.factoryDefault(name)?.settings?.let {
++                                                update(it.copy(enabled = settings.enabled))
++                                            }
++                                        }
++                                    },
++                                    colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                                ) {
++                                    Text("Revert to default")
+                                 }
+-                            } else null,
++                            }
++                        }
++                    }
++                    TextButton(
++                        onClick = { showSaveAsDialog = true },
++                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
++                    ) {
++                        Text("Save as new profile…")
++                    }
++
++                    if (showSaveAsDialog) {
++                        TextFieldDialog(
++                            title = { Text("Save as new profile") },
++                            placeholder = { Text("Profile name") },
++                            isInputValid = { it.isNotBlank() },
++                            onDone = { name -> saveProfile(name.trim()) },
++                            onDismiss = { showSaveAsDialog = false },
+                         )
+                     }
+-                }
+ 
+-                if (activeProfileName != null) {
+                     Spacer(Modifier.height(8.dp))
+-                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
++
++                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                         TextButton(
+-                            onClick = { activeProfileName?.let(::saveProfile) },
++                            onClick = { exportLauncher.launch("equalizer-profile.json") },
+                             colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                         ) {
+-                            Text("Save")
++                            Text("Export")
+                         }
+                         TextButton(
+-                            onClick = { activeProfileName?.let { loadProfile(it) } },
++                            onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+                             colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+                         ) {
+-                            Text("Revert to saved")
+-                        }
+-                        if (activeProfileName in builtInProfileNames) {
+-                            TextButton(
+-                                onClick = {
+-                                    activeProfileName?.let { name ->
+-                                        EqualizerProfile.factoryDefault(name)?.settings?.let {
+-                                            update(it.copy(enabled = settings.enabled))
+-                                        }
+-                                    }
+-                                },
+-                                colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+-                            ) {
+-                                Text("Revert to default")
+-                            }
++                            Text("Import")
+                         }
+                     }
+-                }
+-                TextButton(
+-                    onClick = { showSaveAsDialog = true },
+-                    colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+-                ) {
+-                    Text("Save as new profile…")
+-                }
+-
+-                if (showSaveAsDialog) {
+-                    TextFieldDialog(
+-                        title = { Text("Save as new profile") },
+-                        placeholder = { Text("Profile name") },
+-                        isInputValid = { it.isNotBlank() },
+-                        onDone = { name -> saveProfile(name.trim()) },
+-                        onDismiss = { showSaveAsDialog = false },
+-                    )
+-                }
+-
+-                Spacer(Modifier.height(20.dp))
+-
+-                // "Bass"/"Treble" move the whole low/high end together, like a tone control on a
+-                // real amp, rather than just nudging the single lowest/highest band - anything at
+-                // or below 250Hz counts as bass and anything at or above 4kHz counts as treble,
+-                // the same split VisualizerFrame already uses elsewhere in this app.
+-                val bassBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz <= 250f }
+-                val trebleBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz >= 4000f }
+-                val bassGainDb = bassBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
+-                val trebleGainDb = trebleBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
+-
+-                fun setRangeGain(indices: List<Int>, newGain: Float) {
+-                    val quantized = quantizeTenth(newGain)
+-                    update(settings.copy(bands = settings.bands.mapIndexed { i, b ->
+-                        if (i in indices) b.copy(gainDb = quantized) else b
+-                    }))
++                    importExportError?.let {
++                        Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
++                    }
+                 }
+ 
+-                ToneControlsRow(
+-                    bassGainDb = bassGainDb,
+-                    trebleGainDb = trebleGainDb,
+-                    balance = settings.balance,
+-                    enabled = settings.enabled,
+-                    color = eqColor,
+-                    useGradient = useValueGradient,
+-                    onBassChange = { setRangeGain(bassBandIndices, it) },
+-                    onTrebleChange = { setRangeGain(trebleBandIndices, it) },
+-                    onBalanceChange = { update(settings.copy(balance = it)) },
+-                )
++                // The curve itself: each band's own gain, and the selected one's full frequency/Q/
++                // filter-type editor - kept apart from the tone controls and profiles above, which
++                // shape the curve rather than being it.
++                EqualizerCard {
++                    // A plain Row of 12 columns squeezes every band into whatever width the screen
++                    // has; a LazyRow at a fixed per-band width instead gives each one real room to
++                    // drag in and lets the strip run wider than the screen, Poweramp-style, with
++                    // the rest reached by scrolling sideways.
++                    LazyRow(
++                        horizontalArrangement = Arrangement.spacedBy(4.dp),
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .height(220.dp)
++                    ) {
++                        itemsIndexed(settings.bands) { index, band ->
++                            BandColumn(
++                                band = band,
++                                enabled = settings.enabled,
++                                selected = selectedBand == index,
++                                color = eqColor,
++                                onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
++                                onTapLabel = { selectedBand = if (selectedBand == index) null else index },
++                            )
++                        }
++                    }
+ 
+-                Spacer(Modifier.height(20.dp))
+-
+-                // A plain Row of 12 columns squeezes every band into whatever width the screen
+-                // has; a LazyRow at a fixed per-band width instead gives each one real room to
+-                // drag in and lets the strip run wider than the screen, Poweramp-style, with the
+-                // rest reached by scrolling sideways.
+-                LazyRow(
+-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+-                    modifier = Modifier
+-                        .fillMaxWidth()
+-                        .height(220.dp)
+-                ) {
+-                    itemsIndexed(settings.bands) { index, band ->
+-                        BandColumn(
+-                            band = band,
+-                            enabled = settings.enabled,
+-                            selected = selectedBand == index,
++                    selectedBand?.let { index ->
++                        HorizontalDivider(
++                            modifier = Modifier.padding(vertical = 12.dp),
++                            color = eqColorVariant.copy(alpha = 0.3f),
++                        )
++                        BandEditor(
++                            band = settings.bands[index],
++                            onChange = { updateBand(index, it) },
+                             color = eqColor,
+-                            onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
+-                            onTapLabel = { selectedBand = if (selectedBand == index) null else index },
++                            colorVariant = eqColorVariant,
++                            useDials = useDials,
++                            useGradient = useValueGradient,
+                         )
+                     }
+                 }
+ 
+-                selectedBand?.let { index ->
+-                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+-                    BandEditor(
+-                        band = settings.bands[index],
+-                        onChange = { updateBand(index, it) },
++                EqualizerCard {
++                    CompressorSection(
++                        compressor = settings.compressor,
++                        onChange = { update(settings.copy(compressor = it)) },
+                         color = eqColor,
+                         colorVariant = eqColorVariant,
+                         useDials = useDials,
+                         useGradient = useValueGradient,
+                     )
+                 }
+-
+-                Spacer(Modifier.height(20.dp))
+-                HorizontalDivider()
+-                Spacer(Modifier.height(12.dp))
+-
+-                CompressorSection(
+-                    compressor = settings.compressor,
+-                    onChange = { update(settings.copy(compressor = it)) },
+-                    color = eqColor,
+-                    colorVariant = eqColorVariant,
+-                    useDials = useDials,
+-                    useGradient = useValueGradient,
+-                )
+-
+-                Spacer(Modifier.height(12.dp))
+-                HorizontalDivider()
+-                Spacer(Modifier.height(12.dp))
+-
+-                Text(
+-                    text = "Equalizer profile",
+-                    style = MaterialTheme.typography.labelMedium,
+-                    color = eqColorVariant,
+-                )
+-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+-                    TextButton(
+-                        onClick = { exportLauncher.launch("equalizer-profile.json") },
+-                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+-                    ) {
+-                        Text("Export")
+-                    }
+-                    TextButton(
+-                        onClick = { importLauncher.launch(arrayOf("application/json", "text/plain", "*/*")) },
+-                        colors = ButtonDefaults.textButtonColors(contentColor = eqColorVariant),
+-                    ) {
+-                        Text("Import")
+-                    }
+-                }
+-                importExportError?.let {
+-                    Text(text = it, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
+-                }
+-
+-                Spacer(Modifier.height(16.dp))
+             }
+ 
+             // Docked below the scrollable content, not inside it - the same treatment the queue's
+@@ -941,14 +989,18 @@ private fun BandColumn(
+         )
+         // Selected reads as "this is the band the editor below belongs to" - a box around the
+         // frequency label makes that unambiguous at a glance; the older bold-and-recolor treatment
+-        // was easy to miss next to eleven other labels the same size.
++        // was easy to miss next to eleven other labels the same size. A fixed theme primary here
++        // meant this one box ignored the contrast setting everything else in the panel follows -
++        // [color] already resolves to the plain theme color when that setting is off, so using it
++        // instead of a hardcoded primary makes the highlight track the same setting as everything
++        // else, not a separate exception.
+         Box(
+             modifier = Modifier
+                 .padding(top = 4.dp)
+                 .then(
+                     if (selected) {
+                         Modifier
+-                            .border(1.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(6.dp))
++                            .border(1.dp, color, RoundedCornerShape(6.dp))
+                             .padding(horizontal = 6.dp, vertical = 2.dp)
+                     } else {
+                         Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+@@ -959,7 +1011,7 @@ private fun BandColumn(
+             Text(
+                 text = formatFrequency(band.freqHz),
+                 style = MaterialTheme.typography.labelSmall,
+-                color = if (selected) MaterialTheme.colorScheme.primary else color,
++                color = color,
+                 maxLines = 1,
+                 overflow = TextOverflow.Ellipsis,
+             )
+@@ -1146,6 +1198,10 @@ private fun BandEditor(
+                         activeContainerColor = color.copy(alpha = 0.18f),
+                         activeContentColor = color,
+                         activeBorderColor = color,
++                        // Only the active state was set, so the other four types' labels always
++                        // used Material3's default onSurface regardless of the contrast setting.
++                        inactiveContentColor = colorVariant,
++                        inactiveBorderColor = colorVariant.copy(alpha = 0.4f),
+                     ),
+                 ) {
+                     Text(
+-- 
+2.45.1.windows.1
+
+From 663b712fc3de01ffce37ce56973b5346298cdde9 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:35:51 +0800
+Subject: [PATCH] Fix Liquid's Theme-surface contrast being a no-op, and its
+ flat-black look
+
+rememberPlayerOnBackgroundColor's SURFACE branch returned themeFallback
+- the exact same value the toggle-off branch two lines above it
+already returns - so switching "Auto text contrast" on and off did
+nothing whenever Liquid's backdrop was Theme surface, which is the
+default. Surface has a real, known colour just like black/white do:
+now measures the actual elevated surface tone Player.kt paints and
+picks light/dark text from its measured luminance, instead of guessing
+from "dark theme implies dark surface" - a guess dynamic per-song
+theming isn't guaranteed to agree with.
+
+Separately: that elevated tone was computed at NavigationBarDefaults.
+Elevation (3dp), the same subtle tint used everywhere else - but
+Material3's dark-theme surface is already close to black on its own,
+so at 3dp the primary tint blended in was too faint to read as
+"themed" rather than flat black. That's what made Theme surface look
+like a plain black/pure-black backdrop even with Pure Black off.
+Raised to a dedicated, clearly-visible elevation (LiquidSurfaceElevation,
+16dp) for Liquid's surface backdrop specifically - every other style
+keeps the original subtle one. The contrast measurement above reads
+this same constant, not a second copy, so the two can't drift apart.
+---
+ .../outertune/ui/player/FrostedBackground.kt   | 17 ++++++++++++++++-
+ .../com/dd3boh/outertune/ui/player/Player.kt   | 18 +++++++++++++++++-
+ 2 files changed, 33 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+index 8847cc88..e96ec6c1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+@@ -14,6 +14,7 @@ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.surfaceColorAtElevation
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+@@ -24,6 +25,7 @@ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.blur
+ import androidx.compose.ui.graphics.Brush
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.luminance
+ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.unit.dp
+@@ -199,7 +201,20 @@ fun rememberPlayerOnBackgroundColor(
+         return when (liquidColorScheme) {
+             LiquidColorScheme.BLACK -> Color.White
+             LiquidColorScheme.WHITE -> Color(0xFF16161A)
+-            LiquidColorScheme.SURFACE -> themeFallback
++            // This used to just return themeFallback again - identical to the toggle-off branch
++            // right above, so switching "auto text contrast" on and off did nothing at all
++            // whenever the backdrop was Theme surface (the default). Surface has a real, known
++            // colour just like black/white do, so there is something to actually measure here:
++            // the elevated surface tone Player.kt paints as the backdrop, not a guess from
++            // "dark theme implies dark surface" that dynamic per-song theming isn't guaranteed
++            // to agree with.
++            LiquidColorScheme.SURFACE -> {
++                // Same elevation Player.kt actually paints the backdrop with (LiquidSurfaceElevation,
++                // not the plain NavigationBarDefaults.Elevation every other style uses) - measuring
++                // the wrong one would just be a different way to disagree with what's on screen.
++                val surfaceColor = MaterialTheme.colorScheme.surfaceColorAtElevation(LiquidSurfaceElevation)
++                if (surfaceColor.luminance() > LIGHT_BACKGROUND_THRESHOLD) Color(0xFF16161A) else Color.White
++            }
+         }
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index b17bbf17..41d1df99 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -1514,6 +1514,15 @@ fun ControlsContent(
+     }
+ }
+ 
++/**
++ * A clearly-visible primary tint for Liquid's Theme-surface backdrop - see the call site.
++ *
++ * Not private: [rememberPlayerOnBackgroundColor] (FrostedBackground.kt, same package) has to
++ * measure the exact colour this produces to decide contrast text, and a second, drifted copy of
++ * "how elevated is Liquid's surface backdrop" would be worse than one shared constant.
++ */
++val LiquidSurfaceElevation = 16.dp
++
+ @Composable
+ fun PlayerBackground(
+     playerConnection: PlayerConnection,
+@@ -1533,7 +1542,14 @@ fun PlayerBackground(
+         when (liquidColorScheme) {
+             LiquidColorScheme.BLACK -> Color.Black
+             LiquidColorScheme.WHITE -> Color.White
+-            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
++            // NavigationBarDefaults.Elevation (3dp) is the same subtle tint every other style's
++            // backdrop uses, but Material3's dark-theme surface tone is already very close to
++            // black on its own - at that low an elevation the primary tint blended in is too
++            // faint to read as "themed" rather than flat black, which is exactly what made
++            // "Theme surface" look like a black/pure-black backdrop even without Pure Black on.
++            // A clearly higher elevation here (only here - every other style keeps the subtle
++            // one) makes the tint actually visible.
++            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.surfaceColorAtElevation(LiquidSurfaceElevation)
+         }
+     } else {
+         MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+-- 
+2.45.1.windows.1
+
