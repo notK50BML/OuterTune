@@ -203,19 +203,25 @@ fun Bitmap.extractThemeColor(): Color {
 }
 
 fun Bitmap.extractGradientColors(): List<Color> {
-    val extractedColors = Palette.from(this)
+    val swatches = Palette.from(this)
         .maximumColorCount(16)
         .generate()
         .swatches
-        .associate { it.rgb to it.population }
+    if (swatches.isEmpty()) return listOf(Color(0xFF595959), Color(0xFF0D0D0D))
 
-    val orderedColors = Score.score(extractedColors, 2, 0xff4285f4.toInt(), true)
-        .sortedByDescending { Color(it).luminance() }
-
-    return if (orderedColors.size >= 2)
-        listOf(Color(orderedColors[0]), Color(orderedColors[1]))
-    else
-        listOf(Color(0xFF595959), Color(0xFF0D0D0D))
+    // Score.score() is tuned for picking a good *theme seed* colour - it filters out anything
+    // low-chroma (near-grey, near-black, near-white), which is exactly what a lot of real album
+    // art is (muted, sepia, black-and-white photography). That made this fall through to the
+    // grey/near-black pair below on plenty of covers that do have real, visible dominant
+    // colours - not just the rare genuinely colourless one the fallback is meant for. A
+    // background wash doesn't need "theme-worthy" colours, only the two the cover actually shows
+    // most, so this ranks Palette's own swatches by population directly, with no chroma filter.
+    val byPopulation = swatches.sortedByDescending { it.population }.map { Color(it.rgb) }
+    return if (byPopulation.size >= 2) {
+        byPopulation.take(2).sortedByDescending { it.luminance() }
+    } else {
+        listOf(byPopulation[0], byPopulation[0])
+    }
 }
 
 fun DynamicScheme.toColorScheme() = ColorScheme(

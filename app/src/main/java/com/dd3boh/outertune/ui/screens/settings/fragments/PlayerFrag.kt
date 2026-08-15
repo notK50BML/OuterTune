@@ -226,9 +226,12 @@ fun PlaybackBehaviourFrag() {
     val (persistentQueue, onPersistentQueueChange) = rememberPreference(key = PersistentQueueKey, defaultValue = true)
     val (minPlaybackDur, onMinPlaybackDurChange) = rememberPreference(minPlaybackDurKey, defaultValue = 30)
     val (skipOnErrorKey, onSkipOnErrorChange) = rememberPreference(key = SkipOnErrorKey, defaultValue = false)
+    // Matches MusicService.onTaskRemoved's own default (true) - shown as off here while actually
+    // on there made the switch lie about the app's real behaviour for anyone who had never
+    // touched it.
     val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(
         key = StopMusicOnTaskClearKey,
-        defaultValue = false
+        defaultValue = true
     )
     val (ignoreAudioFocus, onIgnoreAudioFocusChange) = rememberPreference(key = IgnoreAudioFocusKey, defaultValue = false)
 
