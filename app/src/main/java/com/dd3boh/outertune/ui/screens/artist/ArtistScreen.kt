@@ -1,7 +1,9 @@
 package com.dd3boh.outertune.ui.screens.artist
 
 import android.content.Intent
+import android.graphics.Bitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +60,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -70,6 +73,10 @@ import androidx.compose.ui.util.fastForEach
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
+import coil3.imageLoader
+import coil3.request.ImageRequest
+import coil3.request.allowHardware
+import coil3.toBitmap
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalMenuState
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
@@ -104,15 +111,18 @@ import com.dd3boh.outertune.ui.menu.YouTubeArtistMenu
 import com.dd3boh.outertune.ui.menu.YouTubePlaylistMenu
 import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
 import com.dd3boh.outertune.ui.utils.backToMain
+import com.dd3boh.outertune.ui.utils.detectLetterboxContentBounds
 import com.dd3boh.outertune.ui.utils.fadingEdge
 import com.dd3boh.outertune.ui.utils.naturalAspectRatioOrNull
 import com.dd3boh.outertune.ui.utils.resize
+import com.dd3boh.outertune.utils.coilCoroutine
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.ArtistViewModel
 import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.ArtistItem
 import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.SongItem
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
@@ -168,7 +178,33 @@ fun ArtistScreen(
             // wide/letterboxed photos render at their own width, "normally"), clamped so a stray
             // unusual source can't blow the header out to something absurd.
             val naturalAspect = remember(thumbnail) { thumbnail?.naturalAspectRatioOrNull() }
-            val headerAspect = (naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
+
+            // The URL's own aspect ratio only describes the *file's* shape, not necessarily the
+            // photo's - some square avatars are a non-square picture letterboxed onto a square
+            // canvas, black bars baked into the pixels rather than anything a resize parameter
+            // can see or remove. Decoding the thumbnail once and looking for those bars is the
+            // only way to find that content region; null means either it's still loading or there
+            // genuinely isn't a bar to trim, and the URL-based aspect ratio is used meanwhile/instead.
+            var croppedThumbnail by remember(thumbnail) { mutableStateOf<Bitmap?>(null) }
+            LaunchedEffect(thumbnail) {
+                croppedThumbnail = null
+                val url = thumbnail ?: return@LaunchedEffect
+                withContext(coilCoroutine) {
+                    val bitmap = runCatching {
+                        context.imageLoader.execute(
+                            ImageRequest.Builder(context)
+                                .data(url.resize(width = 900))
+                                .allowHardware(false)
+                                .build()
+                        ).image?.toBitmap()
+                    }.getOrNull() ?: return@withContext
+                    val bounds = bitmap.detectLetterboxContentBounds() ?: return@withContext
+                    croppedThumbnail = Bitmap.createBitmap(bitmap, bounds.left, bounds.top, bounds.width(), bounds.height())
+                }
+            }
+
+            val detectedAspect = croppedThumbnail?.let { it.width.toFloat() / it.height }
+            val headerAspect = (detectedAspect ?: naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
 
             Column {
                 Box(
@@ -179,22 +215,32 @@ fun ArtistScreen(
                         )
                 ) {
                     if (thumbnail != null) {
-                        AsyncImage(
-                            // Width only, not a fixed width+height: the latter is what forced the
-                            // crop above. resize() fills in a height that preserves the source's
-                            // own aspect ratio when it knows one (googleusercontent), and every
-                            // other scheme here ignores the height argument anyway.
-                            model = thumbnail.resize(width = 1200),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .align(Alignment.Center)
-                                .fadingEdge(
-                                    top = WindowInsets.systemBars
-                                        .asPaddingValues()
-                                        .calculateTopPadding() + AppBarHeight,
-                                    bottom = 64.dp
-                                )
-                        )
+                        val fadeModifier = Modifier
+                            .align(Alignment.Center)
+                            .fadingEdge(
+                                top = WindowInsets.systemBars
+                                    .asPaddingValues()
+                                    .calculateTopPadding() + AppBarHeight,
+                                bottom = 64.dp
+                            )
+                        val cropped = croppedThumbnail
+                        if (cropped != null) {
+                            Image(
+                                bitmap = cropped.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = fadeModifier,
+                            )
+                        } else {
+                            AsyncImage(
+                                // Width only, not a fixed width+height: the latter is what forced
+                                // the crop above. resize() fills in a height that preserves the
+                                // source's own aspect ratio when it knows one (googleusercontent),
+                                // and every other scheme here ignores the height argument anyway.
+                                model = thumbnail.resize(width = 1200),
+                                contentDescription = null,
+                                modifier = fadeModifier,
+                            )
+                        }
                     }
                     AutoResizeText(
                         text = artistName
