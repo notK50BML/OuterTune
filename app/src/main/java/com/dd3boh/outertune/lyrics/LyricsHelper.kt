@@ -64,6 +64,14 @@ class LyricsHelper @Inject constructor(
         fetchMutexesGuard.withLock { fetchMutexes.getOrPut(videoId) { Mutex() } }
 
     /**
+     * VideoIds already given one automatic refetch after their stored lyrics failed to parse for
+     * display (see [resolveForDisplay]). One extra attempt per song per process lifetime is enough
+     * to recover from a transient bad response; without this guard, a provider that keeps returning
+     * content nothing here can read would be retried on every single recomposition instead of once.
+     */
+    private val autoRefetchedOnParseFailure = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /**
      * Resolve lyrics for a song from the stored database row, the local .lrc file and the remote
      * providers, in an order controlled by the source preference (LyricSourcePrefKey): when local
      * lyrics are preferred the local file is tried first; otherwise the stored row wins and
@@ -218,6 +226,33 @@ class LyricsHelper @Inject constructor(
 
         // Nothing could read it. Fall back to the original call so callers that asked for an error
         // placeholder still get one.
+        return runCatching { LrcUtils.parseLyrics(raw, null, parserOptions, null) }.getOrNull()
+    }
+
+    /**
+     * Resolve a stored lyrics row for display via [parseResilient] - the same lenient recovery a
+     * fetch already used to decide this content was WORD_SYNCED/SYNCED in the first place (the
+     * classifyFound check inside getRemoteLyrics). The display path used to call the strict-only
+     * parser directly instead, so content a fetch had just judged usable could still show "Unable
+     * to parse lyrics" the moment it was actually displayed - the fetch and the display were
+     * reading the exact same string with two different levels of leniency.
+     *
+     * When even [parseResilient] can't read it, this kicks off exactly one automatic refetch for
+     * [mediaMetadata]'s id per process lifetime (see [autoRefetchedOnParseFailure]) before falling
+     * back to the error placeholder - a different provider, or the same one on a second attempt,
+     * may well succeed where the stored content didn't. The refetch runs to completion here rather
+     * than being fired in the background: its own DB write, if any, reaches the caller through the
+     * normal reactive flow this is already invoked from (a new emission re-runs this function with
+     * the fresh row), not through this call's return value.
+     */
+    suspend fun resolveForDisplay(mediaMetadata: MediaMetadata, raw: String): SemanticLyrics? {
+        val parserOptions = getParserOptions()
+        parseResilient(raw, parserOptions.copy(errorText = null))?.let { return it }
+
+        if (autoRefetchedOnParseFailure.add(mediaMetadata.id)) {
+            Log.w(TAG, "unparseable, forcing one refetch: videoId=${mediaMetadata.id}")
+            fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.CURRENT, forceRefresh = true)
+        }
         return runCatching { LrcUtils.parseLyrics(raw, null, parserOptions, null) }.getOrNull()
     }
 
