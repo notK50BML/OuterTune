@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.material.icons.rounded.Autorenew
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BlurOn
+import androidx.compose.material.icons.rounded.Bolt
 import androidx.compose.material.icons.rounded.ClearAll
 import androidx.compose.material.icons.rounded.Contrast
 import androidx.compose.material.icons.rounded.FastForward
@@ -17,6 +18,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Headset
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Swipe
 import androidx.compose.material.icons.rounded.Sync
@@ -45,8 +47,10 @@ import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
 import com.dd3boh.outertune.constants.KeepAliveKey
 import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
+import com.dd3boh.outertune.constants.LiquidChromaticShockKey
 import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+import com.dd3boh.outertune.constants.LiquidFerrofluidGpuKey
 import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.LiquidTextContrastKey
@@ -511,6 +515,33 @@ fun PlayerBackgroundFrag() {
             icon = { Icon(Icons.Rounded.Contrast, null) },
             checked = liquidTextContrast,
             onCheckedChange = onLiquidTextContrastChange,
+        )
+    }
+
+    val (liquidChromaticShock, onLiquidChromaticShockChange) =
+        rememberPreference(LiquidChromaticShockKey, defaultValue = true)
+    AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
+        SwitchPreference(
+            title = { Text("Chromatic shock") },
+            description = "A GPU shader ripple that launches on a beat and splits colour outward across the liquid. Needs Android 13+; silently does nothing on older devices",
+            icon = { Icon(Icons.Rounded.Bolt, null) },
+            checked = liquidChromaticShock,
+            onCheckedChange = onLiquidChromaticShockChange,
+        )
+    }
+
+    val (liquidFerrofluidGpu, onLiquidFerrofluidGpuChange) =
+        rememberPreference(LiquidFerrofluidGpuKey, defaultValue = false)
+    AnimatedVisibility(
+        visible = playerBackground == PlayerBackgroundStyle.LIQUID &&
+            liquidShapeStyle == LiquidShapeStyle.FERROFLUID
+    ) {
+        SwitchPreference(
+            title = { Text("GPU ferrofluid (experimental)") },
+            description = "Replace the lightweight ferrofluid with a real raymarched GPU scene, for comparing battery drain against the version above. Noticeably heavier on the GPU by design; needs Android 13+, falls back automatically otherwise",
+            icon = { Icon(Icons.Rounded.Memory, null) },
+            checked = liquidFerrofluidGpu,
+            onCheckedChange = onLiquidFerrofluidGpuChange,
         )
     }
 }

@@ -92,6 +92,11 @@ fun LiquidBackground(
      * smaller-area secondary role instead of repeating the colour the whole screen is already.
      */
     accentColor: Color = MaterialTheme.colorScheme.primary,
+    /** See [ChromaticShockEffect] - a real AGSL GPU shader, only actually runs on Android 13+. */
+    chromaticShockEnabled: Boolean = true,
+    /** See [FerrofluidGpuOrFallback] - only meaningful when [shapeStyle] is
+     *  [LiquidShapeStyle.FERROFLUID]; ignored otherwise. */
+    useGpuFerrofluid: Boolean = false,
 ) {
     // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
     // guaranteed-vibrant fallback, and the theme's own colour roles are exactly that.
@@ -141,8 +146,14 @@ fun LiquidBackground(
         }
     }
 
-    val baseModifier = modifier.fillMaxSize()
+    val baseModifier = Modifier.fillMaxSize()
 
+    ChromaticShockEffect(
+        enabled = chromaticShockEnabled,
+        isActive = isActive,
+        transient = transient,
+        modifier = modifier.fillMaxSize(),
+    ) {
     when (shapeStyle) {
         LiquidShapeStyle.PETAL -> Box(
             modifier = baseModifier
@@ -296,8 +307,36 @@ fun LiquidBackground(
         // modest blur) is closer to the real geometry than a rounded one would be. Bass drives
         // spike height hard and fast rather than PETAL's gentle organic breathing, matching how
         // a magnetic response actually looks: snappy, not organic.
-        LiquidShapeStyle.FERROFLUID -> Box(
-            modifier = baseModifier
+        LiquidShapeStyle.FERROFLUID -> if (useGpuFerrofluid) {
+            // The heavier alternative - see FerrofluidGpuOrFallback's own doc. Falls back to the
+            // exact Canvas rendering below automatically when unsupported.
+            FerrofluidGpuOrFallback(
+                isActive = isActive,
+                reactiveFrame = reactiveFrame,
+                modifier = baseModifier,
+                fallback = { FerrofluidCanvasShape(baseModifier, flowTime, seed, bass, treble, transient, alpha) },
+            )
+        } else {
+            FerrofluidCanvasShape(baseModifier, flowTime, seed, bass, treble, transient, alpha)
+        }
+    }
+    }
+}
+
+/** The lightweight Canvas-drawn Ferrofluid crown - pulled out to its own function so
+ *  [LiquidShapeStyle.FERROFLUID]'s GPU variant can fall back to exactly this, not a duplicate. */
+@Composable
+private fun FerrofluidCanvasShape(
+    modifier: Modifier,
+    flowTime: Float,
+    seed: Float,
+    bass: Float,
+    treble: Float,
+    transient: Float,
+    alpha: Float,
+) {
+    Box(
+            modifier = modifier
                 .blur(FERROFLUID_BLUR_RADIUS)
                 .drawBehind {
                     val w = size.width
@@ -383,6 +422,5 @@ fun LiquidBackground(
                         )
                     }
                 }
-        )
-    }
+    )
 }

@@ -33,6 +33,15 @@ val LiquidShapeStyleKey = stringPreferencesKey("liquidShapeStyle")
 /** Whether player/queue/lyrics text over the Liquid background follows its measured brightness. */
 val LiquidTextContrastKey = booleanPreferencesKey("liquidTextContrast")
 
+/** A real-time AGSL GPU shader ripple that launches on a beat, over whichever Liquid shape is
+ *  drawn - only actually runs on Android 13+; a no-op below that regardless of this setting. */
+val LiquidChromaticShockKey = booleanPreferencesKey("liquidChromaticShock")
+
+/** Renders [com.dd3boh.outertune.constants.LiquidShapeStyle.FERROFLUID] as a raymarched AGSL GPU
+ *  scene instead of the lightweight Canvas polygon - only actually runs on Android 13+, and is
+ *  meaningfully heavier on the GPU/battery by design; opt-in and off by default for that reason. */
+val LiquidFerrofluidGpuKey = booleanPreferencesKey("liquidFerrofluidGpu")
+
 /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
 val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
 val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")
