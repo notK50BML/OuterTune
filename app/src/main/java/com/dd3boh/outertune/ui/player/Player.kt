@@ -1281,21 +1281,28 @@ fun ControlsContent(
                     }
                 )
             }
-            // Seek-backward/forward stay gated on the seek increment setting even when a layout
-            // explicitly asks for them - with the increment off there is no amount to jump by, so
-            // showing the button anyway would just be a control that does nothing.
+            // The stock controlsBlock() below still hides these entirely when the seek increment
+            // setting is off (its own "if" wrapper around each Box, further down) - that default
+            // layout has always shown a fixed five-button row, and there is no reason for anyone
+            // who has never touched a custom layout to suddenly see two new buttons appear.
+            //
+            // A layout that explicitly asks for one of these by name (contentFor(), for the
+            // granular BlockId.SEEK_BACKWARD/SEEK_FORWARD path) is a different situation: the user
+            // deliberately placed this button, so hiding it because of an unrelated, easy-to-miss
+            // setting elsewhere just made it look broken - "the button I added isn't there" rather
+            // than "seeking is configured off". Falls back to a plain 10s jump instead of hiding,
+            // so it's never a no-op button once someone has gone to the trouble of adding it.
             val seekBackwardButtonBlock: @Composable () -> Unit = {
-                if (seekIncrement != SeekIncrement.OFF) {
-                    ResizableIconButton(
-                        icon = Icons.Rounded.FastRewind,
-                        modifier = Modifier.size(32.dp),
-                        color = onBackgroundColor,
-                        enabled = playerConnection.player.currentMediaItem != null,
-                        onClick = {
-                            playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
-                        }
-                    )
-                }
+                val incrementMs = if (seekIncrement != SeekIncrement.OFF) seekIncrement.millisec else SeekIncrement.TEN.millisec
+                ResizableIconButton(
+                    icon = Icons.Rounded.FastRewind,
+                    modifier = Modifier.size(32.dp),
+                    color = onBackgroundColor,
+                    enabled = playerConnection.player.currentMediaItem != null,
+                    onClick = {
+                        playerConnection.player.seekTo(playerConnection.player.currentPosition - incrementMs)
+                    }
+                )
             }
             val playPauseButtonBlock: @Composable () -> Unit = {
                 Box(
@@ -1331,19 +1338,18 @@ fun ControlsContent(
                 }
             }
             val seekForwardButtonBlock: @Composable () -> Unit = {
-                if (seekIncrement != SeekIncrement.OFF) {
-                    ResizableIconButton(
-                        icon = Icons.Rounded.FastForward,
-                        modifier = Modifier.size(32.dp),
-                        color = onBackgroundColor,
-                        enabled = playerConnection.player.currentMediaItem != null,
-                        onClick = {
-                            //ExoPlayer seek increment can only be set in builder
-                            //playerConnection.player.seekForward()
-                            playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
-                        }
-                    )
-                }
+                val incrementMs = if (seekIncrement != SeekIncrement.OFF) seekIncrement.millisec else SeekIncrement.TEN.millisec
+                ResizableIconButton(
+                    icon = Icons.Rounded.FastForward,
+                    modifier = Modifier.size(32.dp),
+                    color = onBackgroundColor,
+                    enabled = playerConnection.player.currentMediaItem != null,
+                    onClick = {
+                        //ExoPlayer seek increment can only be set in builder
+                        //playerConnection.player.seekForward()
+                        playerConnection.player.seekTo(playerConnection.player.currentPosition + incrementMs)
+                    }
+                )
             }
             val skipNextButtonBlock: @Composable () -> Unit = {
                 ResizableIconButton(
