@@ -31740,3 +31740,64 @@ index 0aa39aac..1f6e26cd 100644
 -- 
 2.45.1.windows.1
 
+From dd7f09a1fb216be665d22d03302a75461f2104e4 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 11:16:41 +0800
+Subject: [PATCH] Give the artist header more height, especially for
+ wide/landscape photos
+
+Sizing the header box to the image's exact aspect ratio was correct in
+that nothing got cropped, but a wide banner photo's own ratio (16:9 or
+wider) made for a shallow, cramped-looking strip rather than a proper
+header - a real shape, not a bug, but too thin to read as a header.
+
+HEADER_HEIGHT_BOOST (0.78) scales every computed ratio down by the
+same amount before the clamp, so a landscape photo, a square avatar
+and the no-thumbnail fallback all get noticeably more height than
+their bare aspect ratio alone would give - not just the extreme ends
+the clamp already caught. The image itself is unaffected: still Fit,
+still shown at its own true shape (or the letterbox-trimmed one), just
+with more room around it instead of being cropped or stretched to
+fill the taller box.
+---
+ .../outertune/ui/screens/artist/ArtistScreen.kt | 17 ++++++++++++++++-
+ 1 file changed, 16 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+index 39848100..b72ecf8e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+@@ -125,6 +125,13 @@ import com.zionhuang.innertube.models.SongItem
+ import kotlinx.coroutines.withContext
+ import kotlin.math.roundToInt
+ 
++/**
++ * Scales the artist header's aspect ratio down (taller box for the same width) before it's
++ * clamped - see the call site for why a header sized to the image's bare aspect ratio alone
++ * still needed this.
++ */
++private const val HEADER_HEIGHT_BOOST = 0.78f
++
+ @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+ @Composable
+ fun ArtistScreen(
+@@ -204,7 +211,15 @@ fun ArtistScreen(
+             }
+ 
+             val detectedAspect = croppedThumbnail?.let { it.width.toFloat() / it.height }
+-            val headerAspect = (detectedAspect ?: naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
++            // Displaying the image at its exact own ratio made a wide banner photo's header
++            // shallow - a real shape, not a bug, but a strip that thin read as cramped rather than
++            // a proper header. HEADER_HEIGHT_BOOST scales every ratio down by the same amount
++            // before the clamp, so a landscape photo, a square avatar and the no-thumbnail
++            // fallback all get a taller box than their bare aspect ratio implies, not just the
++            // extreme ends the clamp alone would catch - the image itself still renders at its own
++            // true shape (Fit, not cropped to fill), just with a bit more room around it.
++            val headerAspect = ((detectedAspect ?: naturalAspect ?: (4f / 3)) * HEADER_HEIGHT_BOOST)
++                .coerceIn(0.7f, 1.6f)
+ 
+             Column {
+                 Box(
+-- 
+2.45.1.windows.1
+
