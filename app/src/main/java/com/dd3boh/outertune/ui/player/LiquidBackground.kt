@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import com.dd3boh.outertune.audio.VisualizerFrame
@@ -36,11 +37,14 @@ import kotlin.math.sin
 import kotlin.random.Random
 
 /**
- * A soft wash of Material colour behind the player, in one of two silhouettes - people who liked
- * the spikier "flower" and people who preferred the softer overlapping circles turned out to be
- * two different audiences, not a question with one right answer, so [shapeStyle] picks between
- * them rather than this settling on either permanently. Both are optionally driven by the actual
- * audio; without it, either shape still breathes on its own so it never reads as a static image.
+ * A soft wash of Material colour behind the player, in one of three silhouettes - people who liked
+ * the spikier "flower", people who preferred the softer overlapping circles, and people who wanted
+ * something closer to a real ferrofluid audio visualiser turned out to be different audiences, not
+ * a question with one right answer, so [shapeStyle] picks between them rather than this settling
+ * on any one permanently. All three are optionally driven by the actual audio; without it, each
+ * still breathes on its own so it never reads as a static image. [LiquidShapeStyle.FERROFLUID] is
+ * the one exception to "Material colour" in that first sentence - see its own section below for
+ * why.
  *
  * Earlier versions here, worth recording so a future one doesn't repeat their mistakes:
  *
@@ -67,6 +71,11 @@ import kotlin.random.Random
  * it changes.
  */
 private val PETAL_BLUR_RADIUS = 26.dp
+
+/** Kept low, unlike [PETAL_BLUR_RADIUS] - this shape's whole point is sharp spikes and a glossy
+ *  edge; heavy blur would turn it back into a soft cloud. Just enough to take the hard edge off
+ *  the polygon's straight segments. */
+private val FERROFLUID_BLUR_RADIUS = 5.dp
 
 @Composable
 fun LiquidBackground(
@@ -263,6 +272,114 @@ fun LiquidBackground(
                             ),
                             radius = radius,
                             center = Offset(cx, cy),
+                        )
+                    }
+                }
+        )
+
+        // A dark, glossy magnetic-fluid crown, styled after real ferrofluid audio visualisers
+        // (e.g. the FAV-LE22): a pool with sharp spikes standing up around its rim under a
+        // magnetic field, not a soft flower. Two things make this read as ferrofluid rather than
+        // just "a spiky dark blob":
+        //
+        // 1. Genuinely dark, not theme-coloured. Every other shape/style here deliberately uses
+        //    real Material or album colour - this is the one exception, because actual ferrofluid
+        //    is black regardless of what's lighting it, and tinting it with the theme's accent
+        //    would stop it looking like the reference at all.
+        // 2. A clipped specular highlight - a soft white glow confined to the crown's own
+        //    silhouette (clipPath), standing in for the wet, reflective sheen a flat dark fill on
+        //    its own can't suggest. Without it this is just a dark polygon, not a liquid.
+        //
+        // Straight lineTo segments between peak and valley vertices, not PETAL's smoothed
+        // quadratic contour - actual ferrofluid spikes come to sharp points and the pool between
+        // them pulls into sharp cusps too, so a faceted polygon (softened only by the shape's own
+        // modest blur) is closer to the real geometry than a rounded one would be. Bass drives
+        // spike height hard and fast rather than PETAL's gentle organic breathing, matching how
+        // a magnetic response actually looks: snappy, not organic.
+        LiquidShapeStyle.FERROFLUID -> Box(
+            modifier = baseModifier
+                .blur(FERROFLUID_BLUR_RADIUS)
+                .drawBehind {
+                    val w = size.width
+                    val h = size.height
+                    val minDim = minOf(w, h)
+                    val tau = (2 * PI).toFloat()
+                    val t = flowTime * tau
+
+                    val driftX = 0.5f * sin(t * 0.09f + seed) + 0.5f * sin(t * 0.035f + seed * 1.9f)
+                    val driftY = 0.5f * sin(t * 0.08f + seed * 1.4f) + 0.5f * sin(t * 0.03f + seed * 2.4f)
+                    val cx = w * (0.5f + 0.04f * driftX)
+                    val cy = h * (0.45f + 0.03f * driftY)
+
+                    val poolRadius = minDim * 0.15f * (1f + transient * 0.2f)
+                    val spin = t * 0.045f
+                    val spikeCount = 16
+
+                    // Cheap, stable per-spike pseudo-randomness (a fixed function of i and seed,
+                    // not of time) - real ferrofluid spikes are never perfectly uniform in height.
+                    fun spikeVariance(i: Int) = 0.75f + 0.5f * (0.5f + 0.5f * sin(i * 12.9898f + seed * 78.233f))
+
+                    fun peakPoint(i: Int): Offset {
+                        val angle = tau * i / spikeCount + spin
+                        val variance = spikeVariance(i)
+                        // Snappy, not organic: bass punches spikes taller directly rather than
+                        // easing them, the way an actual magnetic field response looks.
+                        val bassHeight = 1f + bass * 2.2f
+                        val trebleFlicker = 1f + treble * 0.18f * sin(t * 11f + i * 4.1f + seed)
+                        val ambient = 1f + 0.08f * sin(t * 0.7f + i * 2.3f + seed)
+                        val height = poolRadius * (1.6f + 2.2f * variance) * bassHeight * trebleFlicker * ambient
+                        return Offset(cx + height * cos(angle), cy + height * sin(angle))
+                    }
+
+                    fun valleyPoint(i: Int): Offset {
+                        val angle = tau * (i + 0.5f) / spikeCount + spin
+                        val r = poolRadius * (0.9f + 0.05f * sin(t * 1.3f + i * 3.7f + seed))
+                        return Offset(cx + r * cos(angle), cy + r * sin(angle))
+                    }
+
+                    val path = Path()
+                    val startValley = valleyPoint(spikeCount - 1)
+                    path.moveTo(startValley.x, startValley.y)
+                    for (i in 0 until spikeCount) {
+                        val peak = peakPoint(i)
+                        val valley = valleyPoint(i)
+                        path.lineTo(peak.x, peak.y)
+                        path.lineTo(valley.x, valley.y)
+                    }
+                    path.close()
+
+                    drawPath(
+                        path = path,
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF232326).copy(alpha = alpha),
+                                Color(0xFF0A0A0C).copy(alpha = alpha),
+                                Color(0xFF000000).copy(alpha = alpha * 0.9f),
+                            ),
+                            center = Offset(cx, cy - poolRadius * 0.3f),
+                            radius = poolRadius * 5f,
+                        ),
+                    )
+
+                    // The wet highlight - clipped to the crown's own outline so the glow never
+                    // spills past its edge onto the backdrop behind it. Orbits slowly around the
+                    // pool rather than sitting fixed, as if catching a moving light source, and
+                    // flares slightly on a transient (a beat catching the light off a fresh spike).
+                    clipPath(path) {
+                        val glowAngle = t * 0.15f + seed
+                        val glowCx = cx + poolRadius * 1.1f * cos(glowAngle)
+                        val glowCy = cy + poolRadius * 1.1f * sin(glowAngle) - poolRadius * 0.6f
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color.White.copy(alpha = 0.35f + transient * 0.25f),
+                                    Color.White.copy(alpha = 0f),
+                                ),
+                                center = Offset(glowCx, glowCy),
+                                radius = poolRadius * 2.2f,
+                            ),
+                            radius = poolRadius * 2.2f,
+                            center = Offset(glowCx, glowCy),
                         )
                     }
                 }

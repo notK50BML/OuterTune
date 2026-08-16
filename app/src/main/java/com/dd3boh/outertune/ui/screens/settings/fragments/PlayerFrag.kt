@@ -476,6 +476,7 @@ fun PlayerBackgroundFrag() {
                 when (it) {
                     LiquidShapeStyle.PETAL -> "Petal"
                     LiquidShapeStyle.SPHERES -> "Spheres"
+                    LiquidShapeStyle.FERROFLUID -> "Ferrofluid"
                 }
             },
             values = LiquidShapeStyle.entries,

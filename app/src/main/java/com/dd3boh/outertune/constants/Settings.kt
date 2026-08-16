@@ -33,7 +33,11 @@ enum class LiquidShapeStyle {
     /** A spiky, flower-like crown of petals. */
     PETAL,
     /** Several soft, overlapping circles. */
-    SPHERES
+    SPHERES,
+    /** A dark, glossy magnetic-fluid crown - sharp jagged spikes rather than soft petals, and
+     *  genuinely black rather than a theme colour, the way real ferrofluid always reads regardless
+     *  of what's lighting it. */
+    FERROFLUID
 }
 
 enum class SliderStyle {
