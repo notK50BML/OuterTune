@@ -22,9 +22,22 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import com.dd3boh.outertune.audio.VisualizerFrame
+import kotlin.math.roundToInt
 
 private const val TAG = "LiquidFerrofluidGpu"
+
+/**
+ * Linear fraction of the real pixel size this actually renders at, before [placeWithLayer][
+ * androidx.compose.ui.layout.Placeable.PlacementScope.placeWithLayer] scales the result back up
+ * to fill the space it was asked for. Raymarch cost is per-pixel, so this is the single biggest
+ * lever available - bigger than trimming [SPIKES]/[MAX_STEPS] further would be - and a softened,
+ * background-only crown loses little to the resulting blur; it already reads as "underwater".
+ */
+private const val RENDER_SCALE = 0.5f
 
 /**
  * Experimental, opt-in alternative to [LiquidShapeStyle.FERROFLUID]'s Canvas polygon: a genuine
@@ -35,12 +48,14 @@ private const val TAG = "LiquidFerrofluidGpu"
  * "genuinely black, sold by the highlight, not the fill" idea the lightweight version uses, just
  * with a real surface normal instead of a 2D gradient standing in for one.
  *
- * This is real, sustained per-pixel GPU work every frame - up to [RAYMARCH_STEPS] scene
- * evaluations per pixel, each evaluating [SPIKE_COUNT] blended distance fields, plus a further six
- * for the normal at the hit point. Deliberately kept separate from and opt-in alongside the
- * lightweight Canvas version (never replacing it) specifically so battery/thermal impact can be
- * compared directly on a real device - which the lightweight polygon was written to avoid needing
- * in the first place.
+ * This is real, sustained per-pixel GPU work every frame - up to [MAX_STEPS] scene evaluations
+ * per pixel, each evaluating [SPIKES] blended distance fields, plus a further four for the normal
+ * at the hit point (the tetrahedron technique, not six paired samples). Rendered at
+ * [RENDER_SCALE] of the real pixel size and scaled back up, since raymarch cost scales directly
+ * with pixel count and that alone matters more than trimming steps or spikes further would.
+ * Deliberately kept separate from and opt-in alongside the lightweight Canvas version (never
+ * replacing it) specifically so battery/thermal impact can be compared directly on a real device -
+ * which the lightweight polygon was written to avoid needing in the first place.
  */
 private const val FERROFLUID_GPU_SHADER_SRC = """
     uniform float2 resolution;
@@ -49,10 +64,10 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
     uniform float treble;
     uniform float transient;
 
-    const int SPIKES = 8;
-    const int MAX_STEPS = 40;
+    const int SPIKES = 5;
+    const int MAX_STEPS = 24;
     const float MAX_DIST = 6.0;
-    const float SURF_DIST = 0.006;
+    const float SURF_DIST = 0.008;
 
     float sminCubic(float a, float b, float k) {
         float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
@@ -61,10 +76,10 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
 
     float spikeDist(float3 p, int i, float t) {
         float fi = float(i);
-        float angle = fi * 6.2831853 / float(SPIKES) + t * 0.12;
-        float wobble = sin(t * 0.9 + fi * 1.7) * 0.07;
+        float angle = fi * 6.2831853 / float(SPIKES) + t * 0.18;
+        float wobble = sin(t * 0.9 + fi * 1.7) * 0.1;
         float2 basePos = float2(cos(angle), sin(angle)) * (0.5 + wobble);
-        float height = 0.3 + bass * 0.8 + 0.05 * sin(t * 2.1 + fi * 2.3) + transient * 0.25;
+        float height = 0.26 + bass * 1.3 + 0.07 * sin(t * 2.1 + fi * 2.3) + transient * 0.5;
         float3 center = float3(basePos.x, -0.2 + height * 0.42, basePos.y);
         float radius = 0.3 - height * 0.07;
         return length(p - center) - radius;
@@ -80,12 +95,17 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
     }
 
     float3 estimateNormal(float3 p, float t) {
-        float2 h = float2(0.01, 0.0);
-        return normalize(float3(
-            sceneDist(p + h.xyy, t) - sceneDist(p - h.xyy, t),
-            sceneDist(p + h.yxy, t) - sceneDist(p - h.yxy, t),
-            sceneDist(p + h.yyx, t) - sceneDist(p - h.yyx, t)
-        ));
+        // Tetrahedron technique: four corner samples instead of six paired +/- ones - each
+        // corner's signed offset already carries the difference a paired sample would have
+        // given, so this reaches the same gradient direction for a third less cost, which
+        // matters when it runs once per step, [MAX_STEPS] times, once per pixel.
+        float2 e = float2(1.0, -1.0) * 0.01;
+        return normalize(
+            e.xyy * sceneDist(p + e.xyy, t) +
+            e.yyx * sceneDist(p + e.yyx, t) +
+            e.yxy * sceneDist(p + e.yxy, t) +
+            e.xxx * sceneDist(p + e.xxx, t)
+        );
     }
 
     half4 main(float2 fragCoord) {
@@ -191,7 +211,26 @@ fun FerrofluidGpuOrFallback(
         }
     }
 
-    Canvas(modifier = modifier.fillMaxSize()) {
+    Canvas(
+        modifier = modifier
+            .fillMaxSize()
+            // Measure and draw this Canvas at RENDER_SCALE of the constraints it was actually
+            // given, then stretch the finished layer back up to fill them - the shader inside
+            // only ever runs over the smaller size, cutting its pixel count to a quarter at the
+            // default 0.5 scale.
+            .layout { measurable, constraints ->
+                val scaledWidth = (constraints.maxWidth * RENDER_SCALE).roundToInt().coerceAtLeast(1)
+                val scaledHeight = (constraints.maxHeight * RENDER_SCALE).roundToInt().coerceAtLeast(1)
+                val placeable = measurable.measure(Constraints.fixed(scaledWidth, scaledHeight))
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    placeable.placeWithLayer(0, 0) {
+                        scaleX = 1f / RENDER_SCALE
+                        scaleY = 1f / RENDER_SCALE
+                        transformOrigin = TransformOrigin(0f, 0f)
+                    }
+                }
+            }
+    ) {
         shader.setFloatUniform("resolution", size.width, size.height)
         shader.setFloatUniform("time", elapsedSeconds)
         shader.setFloatUniform("bass", currentBass)

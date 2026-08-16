@@ -362,11 +362,16 @@ private fun FerrofluidCanvasShape(
                         val angle = tau * i / spikeCount + spin
                         val variance = spikeVariance(i)
                         // Snappy, not organic: bass punches spikes taller directly rather than
-                        // easing them, the way an actual magnetic field response looks.
-                        val bassHeight = 1f + bass * 2.2f
+                        // easing them, the way an actual magnetic field response looks. The
+                        // resting multiplier (no bass at all) has to stay close to 1x the valley
+                        // radius below - anything past about 1.5-2x reads as a spiky star outline
+                        // rather than a crown, since it's the peak-to-valley *ratio* that sells
+                        // "ferrofluid" versus "sea urchin", not how tall a single spike gets in
+                        // isolation. Bass is still allowed to push well past that on a hit.
+                        val bassHeight = 1f + bass * 1.1f
                         val trebleFlicker = 1f + treble * 0.18f * sin(t * 11f + i * 4.1f + seed)
                         val ambient = 1f + 0.08f * sin(t * 0.7f + i * 2.3f + seed)
-                        val height = poolRadius * (1.6f + 2.2f * variance) * bassHeight * trebleFlicker * ambient
+                        val height = poolRadius * (1.15f + 0.4f * variance) * bassHeight * trebleFlicker * ambient
                         return Offset(cx + height * cos(angle), cy + height * sin(angle))
                     }
 
