@@ -62,6 +62,14 @@ object YTPlayerUtils {
         val format: PlayerResponse.StreamingData.Format,
         val streamUrl: String,
         val streamExpiresInSeconds: Int,
+        /**
+         * User-Agent of whichever client (MAIN_CLIENT or a STREAM_FALLBACK_CLIENTS entry) actually
+         * produced [streamUrl]. googlevideo.com's CDN has been observed rejecting a fetch whose
+         * User-Agent doesn't match the client the URL was signed for, so this has to travel with
+         * the URL to wherever it's actually GETed from - the request that resolved it isn't the
+         * same request that plays it.
+         */
+        val streamUserAgent: String,
     )
 
     /**
@@ -112,6 +120,7 @@ object YTPlayerUtils {
         var format: PlayerResponse.StreamingData.Format? = null
         var streamUrl: String? = null
         var streamExpiresInSeconds: Int? = null
+        var streamClient: YouTubeClient = MAIN_CLIENT
 
         var streamPlayerResponse: PlayerResponse? = null
         for (clientIndex in (-1 until STREAM_FALLBACK_CLIENTS.size)) {
@@ -167,6 +176,7 @@ object YTPlayerUtils {
                     Log.w(TAG, "[$videoId] [${client.clientName}] OK but missing expiresInSeconds")
                     continue
                 }
+                streamClient = client
 
                 if (client.useWebPoTokens && webStreamingPot != null) {
                     streamUrl += "&pot=$webStreamingPot";
@@ -176,7 +186,7 @@ object YTPlayerUtils {
                     // skip validateStatus for the last client
                     break
                 }
-                if (validateStatus(streamUrl)) {
+                if (validateStatus(streamUrl, client.userAgent)) {
                     // working stream found
                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
                     break
@@ -215,6 +225,7 @@ object YTPlayerUtils {
             format,
             streamUrl,
             streamExpiresInSeconds,
+            streamClient.userAgent,
         )
     }
 
@@ -256,11 +267,17 @@ object YTPlayerUtils {
      * Checks if the stream url returns a successful status.
      * If this returns true the url is likely to work.
      * If this returns false the url might cause an error during playback.
+     *
+     * [userAgent] must match the client the URL was signed for - googlevideo.com has been
+     * observed rejecting requests whose User-Agent doesn't match, so probing without it risked
+     * this validation itself failing (or wrongly passing) independent of whether the URL is
+     * actually good.
      */
-    private fun validateStatus(url: String): Boolean {
+    private fun validateStatus(url: String, userAgent: String): Boolean {
         try {
             val requestBuilder = okhttp3.Request.Builder()
                 .head()
+                .header("User-Agent", userAgent)
                 .url(url)
             val response = httpClient.newCall(requestBuilder.build()).execute()
             return response.isSuccessful

@@ -84,7 +84,11 @@ class DownloadUtil @Inject constructor(
 
     private val connectivityManager = context.getSystemService<ConnectivityManager>()!!
     private val audioQuality by enumPreference(context, AudioQualityKey, AudioQuality.AUTO)
-    private val songUrlCache = HashMap<String, Pair<String, Long>>()
+    /** Same shape as MusicService's - see that one's doc for why the User-Agent has to travel
+     *  with the URL. */
+    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
+
+    private val songUrlCache = HashMap<String, CachedStreamUrl>()
     private val dataSourceFactory = ResolvingDataSource.Factory(
         CacheDataSource.Factory()
             .setCache(playerCache)
@@ -102,8 +106,9 @@ class DownloadUtil @Inject constructor(
             return@Factory dataSpec
         }
 
-        songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
-            return@Factory dataSpec.withUri(it.first.toUri())
+        songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+            return@Factory dataSpec.withUri(it.url.toUri())
+                .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
         }
 
         val playbackData = runBlocking(Dispatchers.IO) {
@@ -139,8 +144,13 @@ class DownloadUtil @Inject constructor(
             "${it}&range=0-${format.contentLength ?: 10000000}"
         }
 
-        songUrlCache[mediaId] = streamUrl to System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L)
+        songUrlCache[mediaId] = CachedStreamUrl(
+            url = streamUrl,
+            expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
+            userAgent = playbackData.streamUserAgent,
+        )
         dataSpec.withUri(streamUrl.toUri())
+            .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
     }
     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
     val downloadManager: DownloadManager =

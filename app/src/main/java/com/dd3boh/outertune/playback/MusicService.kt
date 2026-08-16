@@ -280,6 +280,33 @@ class MusicService : MediaLibraryService(),
 
     var consecutivePlaybackErr = 0
 
+    /**
+     * A resolved stream URL, its expiry time, and the User-Agent of the client it was resolved
+     * from - googlevideo.com has been observed rejecting a fetch whose User-Agent doesn't match
+     * the client the URL was signed for, so the UA has to be replayed alongside the URL itself
+     * wherever it's actually GETed from, not just at the request that originally resolved it.
+     */
+    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
+
+    /**
+     * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
+     * createDataSourceFactory() before - fine for the resolver itself, but onPlayerError needs to
+     * be able to invalidate an entry after a bad HTTP status, which it can't do to a variable it
+     * has no reference to).
+     */
+    private val songUrlCache = HashMap<String, CachedStreamUrl>()
+
+    /**
+     * MediaIds already given one automatic retry - cache entry dropped, player re-prepared - after
+     * a source/HTTP error this process lifetime. A bad HTTP status (ExoPlayer's 2004, almost
+     * always a 403 from an expired or otherwise rejected stream URL) is frequently just a stale
+     * URL rather than a genuinely unplayable video: re-resolving from scratch, possibly landing on
+     * a different fallback client than the one that just failed, can well succeed where the cached
+     * URL didn't. Capped at one attempt per song so a video that's actually broken/removed doesn't
+     * retry forever and instead falls through to the normal skip/stop handling.
+     */
+    private val retriedAfterSourceError = mutableSetOf<String>()
+
     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
     // track transition. A data class so the StateFlow deduplicates identical updates.
     private data class LyricsFetchTargets(
@@ -823,7 +850,6 @@ class MusicService : MediaLibraryService(),
     }
 
     private fun createDataSourceFactory(): DataSource.Factory {
-        val songUrlCache = HashMap<String, Pair<String, Long>>()
         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
             val mediaId = dataSpec.key ?: error("No media id")
             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: song id = $mediaId")
@@ -864,10 +890,11 @@ class MusicService : MediaLibraryService(),
                 return@Factory dataSpec
             }
 
-            songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
+            songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
                 offloadScope.launch { recoverSong(mediaId) }
-                return@Factory dataSpec.withUri(it.first.toUri())
+                return@Factory dataSpec.withUri(it.url.toUri())
+                    .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
             }
 
             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
@@ -933,9 +960,14 @@ class MusicService : MediaLibraryService(),
 
             val streamUrl = playbackData.streamUrl
 
-            songUrlCache[mediaId] =
-                streamUrl to System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L)
-            dataSpec.withUri(streamUrl.toUri()).subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+            songUrlCache[mediaId] = CachedStreamUrl(
+                url = streamUrl,
+                expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
+                userAgent = playbackData.streamUserAgent,
+            )
+            dataSpec.withUri(streamUrl.toUri())
+                .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
+                .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
         }
     }
 
@@ -1108,6 +1140,24 @@ class MusicService : MediaLibraryService(),
                 && (error.cause?.cause as PlaybackException).errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED
         if (!isNetworkConnected.value || isConnectionError) {
             waitOnNetworkError()
+            return
+        }
+
+        // A bad HTTP status (2004, almost always a 403 YouTube handed back for a stream URL that
+        // expired or was otherwise rejected) is frequently just a stale resolution, not a
+        // genuinely unplayable video - re-resolving from scratch can land on a fresh URL, or on a
+        // different fallback client than whichever one just failed. Drop the cached URL and
+        // re-prepare once before falling through to skip/stop; see retriedAfterSourceError's own
+        // doc for why this is capped at one attempt per song.
+        val isRetryableSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
+            error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+        val failedMediaId = player.currentMediaItem?.mediaId
+        if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
+            songUrlCache.remove(failedMediaId)
+            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL: mediaId=$failedMediaId")
+            player.prepare()
+            player.play()
             return
         }
 
