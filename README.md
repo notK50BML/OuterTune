@@ -2,21 +2,21 @@
 
 [![OuterTune app icon](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/outertune.webp)](https://github.com/yuuichi-s/OuterTune/blob/dev/assets/outertune.webp)
 
-[![Release](https://img.shields.io/badge/release-v0.16-orange)](https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
+[![Release](https://img.shields.io/badge/release-v0.17-orange)](https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
-A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. In contrast, Spotify and Youtube Music's APKs are all 60MB or more. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a special UI editor (still WIP), and much more. It has a dynamic Material 3 theme and multiple player styles. 
+A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a dynamic audio visualiser, a free-position UI editor (still WIP), and much more. This player features extensive Material 3 customisation options and player styles for dynamic theming. 
 
-Currently, we are working on movable UI elements and a visualiser. Both of these are still in the WIP stage, so some features may be introduced in part.  Although an alpha release of the app with these functions is not going to be here any time soon, you can still try out the latest beta features by compiling the APK yourself.
-
-I NEED A CAT! 
+I really, really need a cat.
 
 > [!NOTE]
-> This is a fork based on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune).
+> This is a fork based on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune), a fork of the original OuterTune repository.
 >
-> Occasionally, release APKs would be uploaded, but to test the latest release, please compile the APK yourself, please read the wiki (https://github.com/notK50BML/OuterTune/wiki/Getting-started).>
+> While APKs would be uploaded, beta or nightly releases are rare in APK form. If you want to get a fix for a problem as soon as possible or try out new features, please read the wiki (https://github.com/notK50BML/OuterTune/wiki/Getting-started) for instructions on how to compile the APK yourself.
+
+
 ## What This Fork Improves
 
-This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune) with a focus on personalisation, YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
+This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune) with a focus on personalisation, YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
 
 ### Movable UI Elements
 - Added ability to configure UI elements
@@ -24,6 +24,8 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Added multiple preset configurations to choose from
 - Easily revertible to the original layout
 - Simple and intuitive UI which lets you quickly export the current configuration
+- Added ability to group and ungroup elements
+- Improved presets
 - Note: As mentioned above, this project is still a work-in-progress, with known bugs and issues. This feature is working, but it is definitely nowhere near an alpha release.
 
 ### Discord Rich Presence
@@ -33,6 +35,7 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Added a working progress bar
 - Added token login along with normal login
 - Added connection tester to diagnose any connection issues
+- Improved normal login authentication process
 
 ### YouTube Music playback and display
 
@@ -54,6 +57,9 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 - Queries enabled providers in parallel with timeouts
 - Fetches lyrics in the playback service even while the lyrics panel is closed
 - Added word-by-word lyrics, rendered in the normal word-highlight style
+- Improved lyrics pipeline
+- Fixed "cannot parse lyrics" errors
+- Fixed word-by-word lyrics rendering breaking (now can be enabled under Lyrics > Advanced > Karaoke style lyrics)
 
 ### Navigation and menus
 
@@ -72,19 +78,22 @@ This fork builds on [OuterTune/OuterTune](https://github.com/OuterTune/OuterTune
 
 - Improved the tablet UI
 - Automatically detects the system contrast setting on Android 14 and later
-- Added custom accent colors
+- Added custom accent colours
 - Added a "keep audio focus" player setting
 - Added a home screen grid showing your recent YouTube Music activity when signed in
 - Added the current queue's name to the player's queue handle
 - Replaced the account icon with the signed-in account's profile image
 - Reorganised the settings screens, merging Appearance and Interface into "Appearance and controls" and adding a top-level Privacy screen
-- Added Frosted Glass and Liquid player themes, along with a toggle for contrasting text for accessibility. 
+- Added Frosted Glass and Liquid player themes, along with a toggle for contrasting text for accessibility.
+- Significantly revamped Liquid player theme by adding audio-reactive features
+- Note: some features require Android 13+ support, and will be marked as such in settings
 
 ### Playback and downloads
 
 - Added a sleep timer that fades out and fully stops playback
 - Added a Wi-Fi-only download toggle
 - Improved fetch time for uncached songs
+- Added an inbuilt parametric equaliser and compressor
 
 ### Internal libraries and build tooling
 
