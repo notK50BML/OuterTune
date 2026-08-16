@@ -32769,3 +32769,126 @@ index c95aea58..75ea979d 100644
 -- 
 2.45.1.windows.1
 
+From 2b503b6ee2a0ec6e2bac867fcbd9f274fd4c2b5a Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 12:18:29 +0800
+Subject: [PATCH] Fix compile error: missing getValue/setValue imports in the
+ new shader files
+
+CI failed on LiquidChromaticShock.kt and LiquidFerrofluidGpu.kt: their
+`by remember { mutableFloatStateOf(...) }` and `by rememberUpdatedState(...)`
+delegates need Compose's getValue/setValue operator functions imported, the
+same way every other file in this package already does it (see
+LiquidBackground.kt) - these two just missed it when they were written.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt | 2 ++
+ .../java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt  | 1 +
+ 2 files changed, 3 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt
+index b264440e..fe78695c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt
+@@ -13,9 +13,11 @@ import android.util.Log
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.withFrameNanos
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.asComposeRenderEffect
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
+index 5154d04d..d45bf04f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
+@@ -13,6 +13,7 @@ import androidx.compose.foundation.Canvas
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.rememberUpdatedState
+-- 
+2.45.1.windows.1
+
+From 467cd718e37da1690f26189f5d4ecc8d366c1792 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 12:38:39 +0800
+Subject: [PATCH] Fix repeat button drifting from the right edge when seek
+ buttons toggle
+
+Each control-row icon (shuffle, skip, seek, repeat) sat in its own
+Modifier.weight(1f) Box with no contentAlignment, defaulting to TopStart -
+so every icon was flush against the *left* edge of its own slot rather than
+centered. Shuffle's slot is the row's first, so that flush-left default
+happens to put it right at the row's true left edge either way. Repeat's
+isn't: it's flush-left within the *last* slot, leaving a (slot width - icon
+width) gap between it and the row's true right edge - and that gap's size
+depends on how many slots there are, so it visibly changes size (making
+repeat look like it's slid) whenever seek forward/back are toggled on or
+off, since that changes the slot count from 4 to 6 and back.
+
+Centering each icon in its slot, matching the pattern Queue.kt's own
+transport row already uses, makes the left and right margins mirror each
+other regardless of how many buttons are currently shown - so toggling seek
+increment no longer moves repeat relative to the edge. Applied the same fix
+to the granular custom-layout grouped-row case, which had the identical Box
+without contentAlignment.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../com/dd3boh/outertune/ui/player/Player.kt    | 17 ++++++++++-------
+ 1 file changed, 10 insertions(+), 7 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 9f0de090..43047355 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -1390,19 +1390,19 @@ fun ControlsContent(
+                         .fillMaxWidth()
+                         .padding(horizontal = PlayerHorizontalPadding)
+                 ) {
+-                    Box(modifier = Modifier.weight(1f)) { shuffleButtonBlock() }
+-                    Box(modifier = Modifier.weight(1f)) { skipPreviousButtonBlock() }
++                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { shuffleButtonBlock() }
++                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { skipPreviousButtonBlock() }
+                     if (seekIncrement != SeekIncrement.OFF) {
+-                        Box(modifier = Modifier.weight(1f)) { seekBackwardButtonBlock() }
++                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { seekBackwardButtonBlock() }
+                     }
+                     Spacer(Modifier.width(8.dp))
+                     playPauseButtonBlock()
+                     Spacer(Modifier.width(8.dp))
+                     if (seekIncrement != SeekIncrement.OFF) {
+-                        Box(modifier = Modifier.weight(1f)) { seekForwardButtonBlock() }
++                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { seekForwardButtonBlock() }
+                     }
+-                    Box(modifier = Modifier.weight(1f)) { skipNextButtonBlock() }
+-                    Box(modifier = Modifier.weight(1f)) { repeatButtonBlock() }
++                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { skipNextButtonBlock() }
++                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { repeatButtonBlock() }
+                 }
+             }
+ 
+@@ -1508,7 +1508,10 @@ fun ControlsContent(
+                                     if (b.id == PlayerLayout.BlockId.PLAY_PAUSE) {
+                                         Box(modifier = Modifier.blockTransform(b)) { contentFor(b.id) }
+                                     } else {
+-                                        Box(modifier = Modifier.weight(1f).blockTransform(b)) { contentFor(b.id) }
++                                        Box(
++                                            modifier = Modifier.weight(1f).blockTransform(b),
++                                            contentAlignment = Alignment.Center,
++                                        ) { contentFor(b.id) }
+                                     }
+                                 }
+                             }
+-- 
+2.45.1.windows.1
+
