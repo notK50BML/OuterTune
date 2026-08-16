@@ -31801,3 +31801,971 @@ index 39848100..b72ecf8e 100644
 -- 
 2.45.1.windows.1
 
+From e7ffd73c610d1b58f451e54b3f4a4a2294428cb8 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 11:29:19 +0800
+Subject: [PATCH] Fix artist header image floating away from its title text
+
+The previous commit made the header box deliberately taller than the
+image's own shape (HEADER_HEIGHT_BOOST), but the image stayed centred
+in it - splitting the new extra height evenly above *and* below the
+image instead of only above. That pulled the image's bottom edge away
+from the artist-name text, which is pinned to the box's own bottom
+edge: the name ended up floating over bare background with a visible
+gap, instead of overlaying the photo's faded bottom the way it always
+had.
+
+Bottom-aligning the image instead keeps it flush with the text overlay
+exactly as before adding any extra height - the added room now shows
+up only above the image, which is the one place it doesn't disturb
+anything (already just the area behind the transparent status bar/app
+bar).
+---
+ .../outertune/ui/screens/artist/ArtistScreen.kt      | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+index b72ecf8e..e46407a3 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+@@ -230,8 +230,18 @@ fun ArtistScreen(
+                         )
+                 ) {
+                     if (thumbnail != null) {
++                        // Bottom-aligned, not centred: the box is now deliberately taller than the
++                        // image's own shape (HEADER_HEIGHT_BOOST), and centring a same-size image
++                        // in a taller box split that extra room evenly above *and* below it -
++                        // pulling the image's bottom edge away from the artist-name text pinned to
++                        // the box's own bottom, so the name ended up floating over bare background
++                        // instead of over the photo's (faded) bottom edge. Anchoring the image to
++                        // the bottom keeps it flush with the text overlay exactly as before; the
++                        // extra height shows up above the image instead, which is the one place
++                        // adding it doesn't disturb anything (that's already just the area behind
++                        // the transparent status bar/app bar).
+                         val fadeModifier = Modifier
+-                            .align(Alignment.Center)
++                            .align(Alignment.BottomCenter)
+                             .fadingEdge(
+                                 top = WindowInsets.systemBars
+                                     .asPaddingValues()
+-- 
+2.45.1.windows.1
+
+From 5e5d73f0c880bdad643def46e049edb9373829b7 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 11:34:44 +0800
+Subject: [PATCH 1/2] Fix Theme-surface backdrop blending into the player's own
+ controls
+
+The last fix made the backdrop plain colorScheme.primary to stop it
+reading as flat black - but the play/pause pill and every other
+control button are *also* filled with primary, so with a vivid
+dynamic-theme colour the backdrop and the controls became the exact
+same colour at full area each. The controls didn't disappear, they
+were just painted the same colour as the thing behind them.
+
+primaryContainer is the semantically-correct Material3 role here:
+still visibly related to primary (reads as themed, not neutral), but
+a distinctly different tone - dark theme's primaryContainer sits far
+lower on the tonal scale than primary itself. A primary-coloured
+control drawn over it is never fighting its own backdrop. Contrast
+text measurement updated to match what's actually painted.
+---
+ .../outertune/ui/player/FrostedBackground.kt     | 13 ++++++-------
+ .../com/dd3boh/outertune/ui/player/Player.kt     | 16 ++++++++++------
+ 2 files changed, 16 insertions(+), 13 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+index c01b030d..40323f4c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+@@ -203,14 +203,13 @@ fun rememberPlayerOnBackgroundColor(
+             // This used to just return themeFallback again - identical to the toggle-off branch
+             // right above, so switching "auto text contrast" on and off did nothing at all
+             // whenever the backdrop was Theme surface (the default). Surface has a real, known
+-            // colour just like black/white do (Player.kt paints it as colorScheme.primary, not a
+-            // tinted-elevated-surface, so that the backdrop reads as clearly themed rather than
+-            // flat black on a dark theme) - measuring that directly is the same kind of "there is
+-            // something to actually check here" this branch already does for black/white, not a
+-            // guess from "dark theme implies dark surface" that dynamic per-song theming isn't
+-            // guaranteed to agree with.
++            // colour just like black/white do (Player.kt paints it as colorScheme.primaryContainer,
++            // not a tinted-elevated-surface or plain primary - see that file for why) - measuring
++            // that directly is the same kind of "there is something to actually check here" this
++            // branch already does for black/white, not a guess from "dark theme implies dark
++            // surface" that dynamic per-song theming isn't guaranteed to agree with.
+             LiquidColorScheme.SURFACE -> {
+-                if (MaterialTheme.colorScheme.primary.luminance() > LIGHT_BACKGROUND_THRESHOLD) {
++                if (MaterialTheme.colorScheme.primaryContainer.luminance() > LIGHT_BACKGROUND_THRESHOLD) {
+                     Color(0xFF16161A)
+                 } else {
+                     Color.White
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 1f6e26cd..aba77ec9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -1541,12 +1541,16 @@ fun PlayerBackground(
+             LiquidColorScheme.WHITE -> Color.White
+             // A tinted-elevated-surface read as flat black regardless of how high the elevation
+             // went, because Material3's own dark-theme surface tone is already close to black -
+-            // there was no way to tint that into looking clearly "themed". The theme's primary
+-            // is the one colour guaranteed not to have that problem, and it's the large-area
+-            // role here on purpose: the blobs use the smaller-area secondary instead (see
+-            // LiquidBackground's accentColor), so the backdrop and the shapes drawn over it read
+-            // as two different weights of the same theme rather than competing for the same one.
+-            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.primary
++            // there was no way to tint that into looking clearly "themed". Plain colorScheme.primary
++            // fixed that but created a worse problem: the play/pause pill and every other control
++            // button are *also* filled with primary, so with a vivid dynamic-theme colour the
++            // backdrop and the controls became the same colour at full area each - the buttons
++            // read as invisible, blended straight into the background behind them. primaryContainer
++            // is the semantically-correct Material3 role for exactly this: still visibly related to
++            // primary (so it reads as "themed", not neutral grey), but a distinctly different tone
++            // (dark theme's primaryContainer sits far lower on the tonal scale than primary does) -
++            // so a primary-coloured control drawn over it is never fighting its own backdrop.
++            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.primaryContainer
+         }
+     } else {
+         MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+-- 
+2.45.1.windows.1
+
+
+From 9902c97353e6a32d99ce54d431b844061dff12f1 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 11:38:43 +0800
+Subject: [PATCH 2/2] Add a Ferrofluid Liquid shape: a dark, glossy spiked
+ crown
+
+A third LiquidShapeStyle alongside Petal and Spheres, styled after
+real ferrofluid audio visualisers (the FAV-LE22 and similar) rather
+than the theme-coloured flower/circles the other two are: a pool with
+sharp spikes standing around its rim, snapping taller on bass rather
+than breathing organically, plus a soft specular highlight (clipped to
+the crown's own silhouette) that orbits slowly to suggest a wet,
+reflective surface. Deliberately not theme-coloured - genuine
+ferrofluid is black regardless of what's lighting it, and tinting it
+with the accent colour would stop it looking like the reference at
+all; this is the one shape/style in LiquidBackground that breaks from
+"always real Material/album colour" on purpose.
+
+Straight lineTo segments between peak/valley vertices rather than
+Petal's smoothed quadratic contour - actual ferrofluid comes to sharp
+points at the spikes and sharp cusps in the pool between them, so a
+faceted polygon (softened only by a light blur, much less than
+Petal's) is closer to the real geometry. Per-spike height variance is
+a stable function of index and the composition's own seed, not of
+time, so spikes read as naturally uneven rather than flickering.
+---
+ .../dd3boh/outertune/constants/Settings.kt    |   6 +-
+ .../outertune/ui/player/LiquidBackground.kt   | 127 +++++++++++++++++-
+ .../screens/settings/fragments/PlayerFrag.kt  |   1 +
+ 3 files changed, 128 insertions(+), 6 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index 5b259056..8c6a1e1b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -33,7 +33,11 @@ enum class LiquidShapeStyle {
+     /** A spiky, flower-like crown of petals. */
+     PETAL,
+     /** Several soft, overlapping circles. */
+-    SPHERES
++    SPHERES,
++    /** A dark, glossy magnetic-fluid crown - sharp jagged spikes rather than soft petals, and
++     *  genuinely black rather than a theme colour, the way real ferrofluid always reads regardless
++     *  of what's lighting it. */
++    FERROFLUID
+ }
+ 
+ enum class SliderStyle {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+index 1c921cdf..15fc4d66 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+@@ -26,6 +26,7 @@ import androidx.compose.ui.geometry.Offset
+ import androidx.compose.ui.graphics.Brush
+ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.Path
++import androidx.compose.ui.graphics.drawscope.clipPath
+ import androidx.compose.ui.graphics.lerp
+ import androidx.compose.ui.unit.dp
+ import com.dd3boh.outertune.audio.VisualizerFrame
+@@ -36,11 +37,14 @@ import kotlin.math.sin
+ import kotlin.random.Random
+ 
+ /**
+- * A soft wash of Material colour behind the player, in one of two silhouettes - people who liked
+- * the spikier "flower" and people who preferred the softer overlapping circles turned out to be
+- * two different audiences, not a question with one right answer, so [shapeStyle] picks between
+- * them rather than this settling on either permanently. Both are optionally driven by the actual
+- * audio; without it, either shape still breathes on its own so it never reads as a static image.
++ * A soft wash of Material colour behind the player, in one of three silhouettes - people who liked
++ * the spikier "flower", people who preferred the softer overlapping circles, and people who wanted
++ * something closer to a real ferrofluid audio visualiser turned out to be different audiences, not
++ * a question with one right answer, so [shapeStyle] picks between them rather than this settling
++ * on any one permanently. All three are optionally driven by the actual audio; without it, each
++ * still breathes on its own so it never reads as a static image. [LiquidShapeStyle.FERROFLUID] is
++ * the one exception to "Material colour" in that first sentence - see its own section below for
++ * why.
+  *
+  * Earlier versions here, worth recording so a future one doesn't repeat their mistakes:
+  *
+@@ -68,6 +72,11 @@ import kotlin.random.Random
+  */
+ private val PETAL_BLUR_RADIUS = 26.dp
+ 
++/** Kept low, unlike [PETAL_BLUR_RADIUS] - this shape's whole point is sharp spikes and a glossy
++ *  edge; heavy blur would turn it back into a soft cloud. Just enough to take the hard edge off
++ *  the polygon's straight segments. */
++private val FERROFLUID_BLUR_RADIUS = 5.dp
++
+ @Composable
+ fun LiquidBackground(
+     colors: List<Color>,
+@@ -267,5 +276,113 @@ fun LiquidBackground(
+                     }
+                 }
+         )
++
++        // A dark, glossy magnetic-fluid crown, styled after real ferrofluid audio visualisers
++        // (e.g. the FAV-LE22): a pool with sharp spikes standing up around its rim under a
++        // magnetic field, not a soft flower. Two things make this read as ferrofluid rather than
++        // just "a spiky dark blob":
++        //
++        // 1. Genuinely dark, not theme-coloured. Every other shape/style here deliberately uses
++        //    real Material or album colour - this is the one exception, because actual ferrofluid
++        //    is black regardless of what's lighting it, and tinting it with the theme's accent
++        //    would stop it looking like the reference at all.
++        // 2. A clipped specular highlight - a soft white glow confined to the crown's own
++        //    silhouette (clipPath), standing in for the wet, reflective sheen a flat dark fill on
++        //    its own can't suggest. Without it this is just a dark polygon, not a liquid.
++        //
++        // Straight lineTo segments between peak and valley vertices, not PETAL's smoothed
++        // quadratic contour - actual ferrofluid spikes come to sharp points and the pool between
++        // them pulls into sharp cusps too, so a faceted polygon (softened only by the shape's own
++        // modest blur) is closer to the real geometry than a rounded one would be. Bass drives
++        // spike height hard and fast rather than PETAL's gentle organic breathing, matching how
++        // a magnetic response actually looks: snappy, not organic.
++        LiquidShapeStyle.FERROFLUID -> Box(
++            modifier = baseModifier
++                .blur(FERROFLUID_BLUR_RADIUS)
++                .drawBehind {
++                    val w = size.width
++                    val h = size.height
++                    val minDim = minOf(w, h)
++                    val tau = (2 * PI).toFloat()
++                    val t = flowTime * tau
++
++                    val driftX = 0.5f * sin(t * 0.09f + seed) + 0.5f * sin(t * 0.035f + seed * 1.9f)
++                    val driftY = 0.5f * sin(t * 0.08f + seed * 1.4f) + 0.5f * sin(t * 0.03f + seed * 2.4f)
++                    val cx = w * (0.5f + 0.04f * driftX)
++                    val cy = h * (0.45f + 0.03f * driftY)
++
++                    val poolRadius = minDim * 0.15f * (1f + transient * 0.2f)
++                    val spin = t * 0.045f
++                    val spikeCount = 16
++
++                    // Cheap, stable per-spike pseudo-randomness (a fixed function of i and seed,
++                    // not of time) - real ferrofluid spikes are never perfectly uniform in height.
++                    fun spikeVariance(i: Int) = 0.75f + 0.5f * (0.5f + 0.5f * sin(i * 12.9898f + seed * 78.233f))
++
++                    fun peakPoint(i: Int): Offset {
++                        val angle = tau * i / spikeCount + spin
++                        val variance = spikeVariance(i)
++                        // Snappy, not organic: bass punches spikes taller directly rather than
++                        // easing them, the way an actual magnetic field response looks.
++                        val bassHeight = 1f + bass * 2.2f
++                        val trebleFlicker = 1f + treble * 0.18f * sin(t * 11f + i * 4.1f + seed)
++                        val ambient = 1f + 0.08f * sin(t * 0.7f + i * 2.3f + seed)
++                        val height = poolRadius * (1.6f + 2.2f * variance) * bassHeight * trebleFlicker * ambient
++                        return Offset(cx + height * cos(angle), cy + height * sin(angle))
++                    }
++
++                    fun valleyPoint(i: Int): Offset {
++                        val angle = tau * (i + 0.5f) / spikeCount + spin
++                        val r = poolRadius * (0.9f + 0.05f * sin(t * 1.3f + i * 3.7f + seed))
++                        return Offset(cx + r * cos(angle), cy + r * sin(angle))
++                    }
++
++                    val path = Path()
++                    val startValley = valleyPoint(spikeCount - 1)
++                    path.moveTo(startValley.x, startValley.y)
++                    for (i in 0 until spikeCount) {
++                        val peak = peakPoint(i)
++                        val valley = valleyPoint(i)
++                        path.lineTo(peak.x, peak.y)
++                        path.lineTo(valley.x, valley.y)
++                    }
++                    path.close()
++
++                    drawPath(
++                        path = path,
++                        brush = Brush.radialGradient(
++                            colors = listOf(
++                                Color(0xFF232326).copy(alpha = alpha),
++                                Color(0xFF0A0A0C).copy(alpha = alpha),
++                                Color(0xFF000000).copy(alpha = alpha * 0.9f),
++                            ),
++                            center = Offset(cx, cy - poolRadius * 0.3f),
++                            radius = poolRadius * 5f,
++                        ),
++                    )
++
++                    // The wet highlight - clipped to the crown's own outline so the glow never
++                    // spills past its edge onto the backdrop behind it. Orbits slowly around the
++                    // pool rather than sitting fixed, as if catching a moving light source, and
++                    // flares slightly on a transient (a beat catching the light off a fresh spike).
++                    clipPath(path) {
++                        val glowAngle = t * 0.15f + seed
++                        val glowCx = cx + poolRadius * 1.1f * cos(glowAngle)
++                        val glowCy = cy + poolRadius * 1.1f * sin(glowAngle) - poolRadius * 0.6f
++                        drawCircle(
++                            brush = Brush.radialGradient(
++                                colors = listOf(
++                                    Color.White.copy(alpha = 0.35f + transient * 0.25f),
++                                    Color.White.copy(alpha = 0f),
++                                ),
++                                center = Offset(glowCx, glowCy),
++                                radius = poolRadius * 2.2f,
++                            ),
++                            radius = poolRadius * 2.2f,
++                            center = Offset(glowCx, glowCy),
++                        )
++                    }
++                }
++        )
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index 6241781d..c95aea58 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -476,6 +476,7 @@ fun PlayerBackgroundFrag() {
+                 when (it) {
+                     LiquidShapeStyle.PETAL -> "Petal"
+                     LiquidShapeStyle.SPHERES -> "Spheres"
++                    LiquidShapeStyle.FERROFLUID -> "Ferrofluid"
+                 }
+             },
+             values = LiquidShapeStyle.entries,
+-- 
+2.45.1.windows.1
+
+From 9583de7e15bba7c31b0e38868788f3278ac30b4a Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 11:58:18 +0800
+Subject: [PATCH] Add opt-in AGSL GPU shaders: chromatic shock ripple and
+ raymarched Ferrofluid
+
+The lightweight Canvas Liquid renderer can't do real refraction or a lit
+3D surface - both need a per-pixel shader, not a 2D draw call. AGSL
+(RuntimeShader) gets that without pulling in a WebGL/Three.js-style engine:
+it's a framework API on Android 13+, so the cost is just the shader source
+text, not a bundled library.
+
+Chromatic shock wraps the existing Liquid content and, on a beat, launches
+a radial band that samples each colour channel at a different offset along
+its own direction from centre - a refraction-driven chromatic split rather
+than a flat overlay, narrowing as it travels outward. On by default
+whenever Liquid is active; falls back to plain content below API 33 or if
+the shader fails to compile on a given device.
+
+GPU ferrofluid is a separate, heavier alternative to the Canvas Ferrofluid
+shape: several metaball spikes raymarched and smooth-min blended into one
+crown SDF, lit with a real per-pixel surface normal instead of a 2D
+gradient standing in for one. Deliberately kept opt-in and off by default,
+alongside (not replacing) the lightweight version, so battery/thermal cost
+can be compared directly on a real device - which the lightweight version
+exists specifically to avoid needing.
+
+Both are gated behind Build.VERSION_CODES.TIRAMISU with runCatching around
+shader compilation, so a hand-written AGSL source failing on some device's
+Skia build degrades silently instead of crashing the player.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../outertune/constants/PreferenceKeys.kt     |   9 +
+ .../outertune/ui/player/LiquidBackground.kt   |  48 ++++-
+ .../ui/player/LiquidChromaticShock.kt         | 163 ++++++++++++++
+ .../ui/player/LiquidFerrofluidGpu.kt          | 201 ++++++++++++++++++
+ .../com/dd3boh/outertune/ui/player/Player.kt  |   6 +
+ .../screens/settings/fragments/PlayerFrag.kt  |  31 +++
+ 6 files changed, 453 insertions(+), 5 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index c3b594d8..2d20e1c5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -33,6 +33,15 @@ val LiquidShapeStyleKey = stringPreferencesKey("liquidShapeStyle")
+ /** Whether player/queue/lyrics text over the Liquid background follows its measured brightness. */
+ val LiquidTextContrastKey = booleanPreferencesKey("liquidTextContrast")
+ 
++/** A real-time AGSL GPU shader ripple that launches on a beat, over whichever Liquid shape is
++ *  drawn - only actually runs on Android 13+; a no-op below that regardless of this setting. */
++val LiquidChromaticShockKey = booleanPreferencesKey("liquidChromaticShock")
++
++/** Renders [com.dd3boh.outertune.constants.LiquidShapeStyle.FERROFLUID] as a raymarched AGSL GPU
++ *  scene instead of the lightweight Canvas polygon - only actually runs on Android 13+, and is
++ *  meaningfully heavier on the GPU/battery by design; opt-in and off by default for that reason. */
++val LiquidFerrofluidGpuKey = booleanPreferencesKey("liquidFerrofluidGpu")
++
+ /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
+ val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
+ val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+index 15fc4d66..569ddd41 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+@@ -92,6 +92,11 @@ fun LiquidBackground(
+      * smaller-area secondary role instead of repeating the colour the whole screen is already.
+      */
+     accentColor: Color = MaterialTheme.colorScheme.primary,
++    /** See [ChromaticShockEffect] - a real AGSL GPU shader, only actually runs on Android 13+. */
++    chromaticShockEnabled: Boolean = true,
++    /** See [FerrofluidGpuOrFallback] - only meaningful when [shapeStyle] is
++     *  [LiquidShapeStyle.FERROFLUID]; ignored otherwise. */
++    useGpuFerrofluid: Boolean = false,
+ ) {
+     // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
+     // guaranteed-vibrant fallback, and the theme's own colour roles are exactly that.
+@@ -141,8 +146,14 @@ fun LiquidBackground(
+         }
+     }
+ 
+-    val baseModifier = modifier.fillMaxSize()
++    val baseModifier = Modifier.fillMaxSize()
+ 
++    ChromaticShockEffect(
++        enabled = chromaticShockEnabled,
++        isActive = isActive,
++        transient = transient,
++        modifier = modifier.fillMaxSize(),
++    ) {
+     when (shapeStyle) {
+         LiquidShapeStyle.PETAL -> Box(
+             modifier = baseModifier
+@@ -296,8 +307,36 @@ fun LiquidBackground(
+         // modest blur) is closer to the real geometry than a rounded one would be. Bass drives
+         // spike height hard and fast rather than PETAL's gentle organic breathing, matching how
+         // a magnetic response actually looks: snappy, not organic.
+-        LiquidShapeStyle.FERROFLUID -> Box(
+-            modifier = baseModifier
++        LiquidShapeStyle.FERROFLUID -> if (useGpuFerrofluid) {
++            // The heavier alternative - see FerrofluidGpuOrFallback's own doc. Falls back to the
++            // exact Canvas rendering below automatically when unsupported.
++            FerrofluidGpuOrFallback(
++                isActive = isActive,
++                reactiveFrame = reactiveFrame,
++                modifier = baseModifier,
++                fallback = { FerrofluidCanvasShape(baseModifier, flowTime, seed, bass, treble, transient, alpha) },
++            )
++        } else {
++            FerrofluidCanvasShape(baseModifier, flowTime, seed, bass, treble, transient, alpha)
++        }
++    }
++    }
++}
++
++/** The lightweight Canvas-drawn Ferrofluid crown - pulled out to its own function so
++ *  [LiquidShapeStyle.FERROFLUID]'s GPU variant can fall back to exactly this, not a duplicate. */
++@Composable
++private fun FerrofluidCanvasShape(
++    modifier: Modifier,
++    flowTime: Float,
++    seed: Float,
++    bass: Float,
++    treble: Float,
++    transient: Float,
++    alpha: Float,
++) {
++    Box(
++            modifier = modifier
+                 .blur(FERROFLUID_BLUR_RADIUS)
+                 .drawBehind {
+                     val w = size.width
+@@ -383,6 +422,5 @@ fun LiquidBackground(
+                         )
+                     }
+                 }
+-        )
+-    }
++    )
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt
+new file mode 100644
+index 00000000..b264440e
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidChromaticShock.kt
+@@ -0,0 +1,163 @@
++/*
++ * Copyright (C) 2026 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.player
++
++import android.graphics.RenderEffect
++import android.graphics.RuntimeShader
++import android.os.Build
++import android.util.Log
++import androidx.compose.foundation.layout.Box
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.mutableFloatStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.runtime.withFrameNanos
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.asComposeRenderEffect
++import androidx.compose.ui.graphics.graphicsLayer
++
++private const val TAG = "LiquidChromaticShock"
++
++/**
++ * AGSL (Android Graphics Shading Language). A real per-pixel GPU shader, not a Canvas draw call -
++ * this is what "GPU-light WebGL-shader-style" actually means on Android: RuntimeShader compiles
++ * this text to a Skia pipeline shader at runtime and runs it entirely on the GPU, the same
++ * category of work a WebGL fragment shader does, just through Android's own graphics stack
++ * instead of a browser's. There is no bundled engine and nothing added to the APK beyond this
++ * string - AGSL is a framework API (API 33+), not a library.
++ *
++ * What it does, matching the brief: a "kick" (a transient/beat) launches a ring outward from the
++ * shape's centre. The ring is a *refraction*, not a colour overlay - pixels near it are sampled
++ * from further along the radial direction they sit on, as if light bent around a real pressure
++ * front, and each colour channel is offset by a different amount (chromatic aberration), which is
++ * what "splitting and dragging colour" turns into in shader terms. The ring starts broad and soft
++ * and narrows as it travels outward ("compressing"), then the whole thing fades. "composable" is
++ * whatever was drawn before this shader ran - the existing Petal/Spheres/Ferrofluid Canvas
++ * animation, which is already continuously moving on its own ("a living ... surface") - not a
++ * separate multi-frame accumulation buffer. A true video-feedback loop (each frame sampling the
++ * *previous* frame's own rendered output, not just this frame's content) is a materially bigger,
++ * riskier piece of plumbing (an offscreen ping-pong render target) that isn't attempted here.
++ */
++private const val CHROMATIC_SHOCK_SHADER_SRC = """
++    uniform shader composable;
++    uniform float2 resolution;
++    uniform float shockAge;
++    uniform float shockStrength;
++
++    half4 main(float2 fragCoord) {
++        if (shockAge > 1.4 || shockStrength <= 0.001) {
++            return composable.eval(fragCoord);
++        }
++
++        float2 center = resolution * float2(0.5, 0.42);
++        float2 delta = fragCoord - center;
++        float dist = length(delta);
++        float2 dir = dist > 0.5 ? delta / dist : float2(0.0, 0.0);
++
++        float minDim = min(resolution.x, resolution.y);
++        float speed = minDim * 1.15;
++        float front = shockAge * speed;
++        float bandWidth = max(minDim * 0.16 - shockAge * minDim * 0.11, minDim * 0.012);
++        float diff = dist - front;
++        float band = exp(-(diff * diff) / (bandWidth * bandWidth));
++
++        float life = clamp(1.0 - shockAge / 1.4, 0.0, 1.0);
++        float amount = band * shockStrength * life;
++
++        float push = amount * minDim * 0.045;
++        half4 rSample = composable.eval(fragCoord + dir * (push * 1.35));
++        half4 gSample = composable.eval(fragCoord + dir * push);
++        half4 bSample = composable.eval(fragCoord + dir * (push * 0.65));
++
++        half4 col = half4(rSample.r, gSample.g, bSample.b, gSample.a);
++        col.rgb += half3(amount * 0.55);
++        return col;
++    }
++"""
++
++/** How large a [com.dd3boh.outertune.audio.VisualizerFrame.transient] spike has to be to count as
++ *  a fresh "kick" worth launching a wavefront for. */
++private const val KICK_TRIGGER_THRESHOLD = 0.45f
++
++/** Shortest gap between two kicks - without this, a sustained loud passage would relaunch a new
++ *  wavefront on every single frame the transient stayed above the threshold, never letting one
++ *  finish before the next started. */
++private const val MIN_KICK_INTERVAL_SECONDS = 0.35f
++
++/**
++ * Wraps [content] with the chromatic-shock ripple, or passes it through untouched when the effect
++ * can't run: below Android 13 (RuntimeShader doesn't exist), when [enabled] is false, or if this
++ * device's Skia build rejects the AGSL source for any reason - a hand-written shader failing to
++ * compile should never be the reason the rest of the player breaks, so that failure is caught once
++ * (not per-frame) and treated the same as "not supported".
++ */
++@Composable
++fun ChromaticShockEffect(
++    enabled: Boolean,
++    isActive: Boolean,
++    transient: Float,
++    modifier: Modifier = Modifier,
++    content: @Composable () -> Unit,
++) {
++    if (!enabled || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
++        Box(modifier) { content() }
++        return
++    }
++
++    val shader = remember {
++        runCatching { RuntimeShader(CHROMATIC_SHOCK_SHADER_SRC) }
++            .onFailure { Log.e(TAG, "AGSL shader failed to compile, disabling chromatic shock", it) }
++            .getOrNull()
++    }
++    if (shader == null) {
++        Box(modifier) { content() }
++        return
++    }
++
++    var elapsedSeconds by remember { mutableFloatStateOf(0f) }
++    var lastKickStartSeconds by remember { mutableFloatStateOf(-999f) }
++    var kickStrength by remember { mutableFloatStateOf(0f) }
++    val currentTransient by rememberUpdatedState(transient)
++
++    LaunchedEffect(isActive) {
++        if (!isActive) return@LaunchedEffect
++        var lastFrameNanos = 0L
++        while (true) {
++            withFrameNanos { nanos ->
++                if (lastFrameNanos != 0L) {
++                    val deltaSeconds = (nanos - lastFrameNanos) / 1_000_000_000f
++                    elapsedSeconds += deltaSeconds
++                    if (currentTransient > KICK_TRIGGER_THRESHOLD &&
++                        elapsedSeconds - lastKickStartSeconds > MIN_KICK_INTERVAL_SECONDS
++                    ) {
++                        lastKickStartSeconds = elapsedSeconds
++                        kickStrength = currentTransient.coerceIn(0f, 1f)
++                    }
++                }
++                lastFrameNanos = nanos
++            }
++        }
++    }
++
++    Box(
++        modifier = modifier.graphicsLayer {
++            // Reading these mutable-state values here, in the layer's own draw-invalidation
++            // block, is what makes the layer redraw every frame the effect is live - the same
++            // mechanism LiquidBackground's own drawBehind blocks already rely on for flowTime.
++            val age = elapsedSeconds - lastKickStartSeconds
++            shader.setFloatUniform("resolution", size.width, size.height)
++            shader.setFloatUniform("shockAge", age)
++            shader.setFloatUniform("shockStrength", kickStrength)
++            renderEffect = RenderEffect
++                .createRuntimeShaderEffect(shader, "composable")
++                .asComposeRenderEffect()
++        }
++    ) {
++        content()
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
+new file mode 100644
+index 00000000..5154d04d
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
+@@ -0,0 +1,201 @@
++/*
++ * Copyright (C) 2026 O‌ute‌rTu‌ne Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.player
++
++import android.graphics.RuntimeShader
++import android.os.Build
++import android.util.Log
++import androidx.compose.foundation.Canvas
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.mutableFloatStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
++import androidx.compose.runtime.setValue
++import androidx.compose.runtime.withFrameNanos
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.geometry.Size
++import androidx.compose.ui.graphics.ShaderBrush
++import com.dd3boh.outertune.audio.VisualizerFrame
++
++private const val TAG = "LiquidFerrofluidGpu"
++
++/**
++ * Experimental, opt-in alternative to [LiquidShapeStyle.FERROFLUID]'s Canvas polygon: a genuine
++ * raymarched scene, the same technique Shadertoy-style GPU ferrofluid/metaball demos and
++ * WebGL references like artef4kt use, running as a single AGSL fragment shader rather than a
++ * flat 2D shape. Several blobby "spike" spheres are smooth-min blended into one connected crown
++ * SDF, marched per pixel, lit with a Fresnel/specular model against a dark base - the same
++ * "genuinely black, sold by the highlight, not the fill" idea the lightweight version uses, just
++ * with a real surface normal instead of a 2D gradient standing in for one.
++ *
++ * This is real, sustained per-pixel GPU work every frame - up to [RAYMARCH_STEPS] scene
++ * evaluations per pixel, each evaluating [SPIKE_COUNT] blended distance fields, plus a further six
++ * for the normal at the hit point. Deliberately kept separate from and opt-in alongside the
++ * lightweight Canvas version (never replacing it) specifically so battery/thermal impact can be
++ * compared directly on a real device - which the lightweight polygon was written to avoid needing
++ * in the first place.
++ */
++private const val FERROFLUID_GPU_SHADER_SRC = """
++    uniform float2 resolution;
++    uniform float time;
++    uniform float bass;
++    uniform float treble;
++    uniform float transient;
++
++    const int SPIKES = 8;
++    const int MAX_STEPS = 40;
++    const float MAX_DIST = 6.0;
++    const float SURF_DIST = 0.006;
++
++    float sminCubic(float a, float b, float k) {
++        float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
++        return mix(b, a, h) - k * h * (1.0 - h);
++    }
++
++    float spikeDist(float3 p, int i, float t) {
++        float fi = float(i);
++        float angle = fi * 6.2831853 / float(SPIKES) + t * 0.12;
++        float wobble = sin(t * 0.9 + fi * 1.7) * 0.07;
++        float2 basePos = float2(cos(angle), sin(angle)) * (0.5 + wobble);
++        float height = 0.3 + bass * 0.8 + 0.05 * sin(t * 2.1 + fi * 2.3) + transient * 0.25;
++        float3 center = float3(basePos.x, -0.2 + height * 0.42, basePos.y);
++        float radius = 0.3 - height * 0.07;
++        return length(p - center) - radius;
++    }
++
++    float sceneDist(float3 p, float t) {
++        float pool = length(float3(p.x, (p.y + 0.6) * 2.6, p.z)) - 0.58;
++        float d = pool;
++        for (int i = 0; i < SPIKES; i++) {
++            d = sminCubic(d, spikeDist(p, i, t), 0.32);
++        }
++        return d;
++    }
++
++    float3 estimateNormal(float3 p, float t) {
++        float2 h = float2(0.01, 0.0);
++        return normalize(float3(
++            sceneDist(p + h.xyy, t) - sceneDist(p - h.xyy, t),
++            sceneDist(p + h.yxy, t) - sceneDist(p - h.yxy, t),
++            sceneDist(p + h.yyx, t) - sceneDist(p - h.yyx, t)
++        ));
++    }
++
++    half4 main(float2 fragCoord) {
++        float2 uv = (fragCoord - resolution * 0.5) / min(resolution.x, resolution.y);
++        if (length(uv) > 0.9) {
++            return half4(0.0, 0.0, 0.0, 0.0);
++        }
++
++        float3 rayOrigin = float3(0.0, 0.25, -2.2);
++        float3 rayDir = normalize(float3(uv.x, -uv.y, 1.0));
++
++        float dist = 0.0;
++        bool didHit = false;
++        float3 hitPos = rayOrigin;
++        for (int i = 0; i < MAX_STEPS; i++) {
++            hitPos = rayOrigin + rayDir * dist;
++            float d = sceneDist(hitPos, time);
++            if (d < SURF_DIST) {
++                didHit = true;
++                break;
++            }
++            dist += d;
++            if (dist > MAX_DIST) {
++                break;
++            }
++        }
++
++        if (!didHit) {
++            return half4(0.0, 0.0, 0.0, 0.0);
++        }
++
++        float3 normal = estimateNormal(hitPos, time);
++        float3 lightDir = normalize(float3(0.5, 0.8, -0.6));
++        float diffuse = max(dot(normal, lightDir), 0.0);
++        float3 viewDir = normalize(rayOrigin - hitPos);
++        float3 halfDir = normalize(lightDir + viewDir);
++        float specular = pow(max(dot(normal, halfDir), 0.0), 46.0);
++        float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
++
++        float3 base = float3(0.035, 0.035, 0.04);
++        float3 col = base * (0.3 + diffuse * 0.7)
++            + float3(1.0) * specular * 0.9
++            + float3(0.6, 0.65, 0.78) * fresnel * 0.4
++            + treble * 0.06 * float3(1.0, 0.3, 0.65);
++
++        return half4(col, 1.0);
++    }
++"""
++
++/**
++ * Attempts to create the raymarched ferrofluid [RuntimeShader], or null when it can't run: below
++ * Android 13, or if this device's Skia build rejects the AGSL source for any reason. Compilation
++ * is attempted once (not per-frame); a hand-written shader failing to compile should fall back to
++ * the lightweight version, never crash the player.
++ */
++@Composable
++private fun rememberFerrofluidGpuShader(): RuntimeShader? {
++    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return null
++    return remember {
++        runCatching { RuntimeShader(FERROFLUID_GPU_SHADER_SRC) }
++            .onFailure { Log.e(TAG, "AGSL ferrofluid shader failed to compile, falling back", it) }
++            .getOrNull()
++    }
++}
++
++/**
++ * Renders the raymarched ferrofluid via [content] when supported, or calls [fallback] instead
++ * (the existing Canvas polygon) when it isn't - so a caller never has to duplicate the
++ * support-check logic itself.
++ */
++@Composable
++fun FerrofluidGpuOrFallback(
++    isActive: Boolean,
++    reactiveFrame: VisualizerFrame?,
++    modifier: Modifier = Modifier,
++    fallback: @Composable () -> Unit,
++) {
++    val shader = rememberFerrofluidGpuShader()
++    if (shader == null) {
++        fallback()
++        return
++    }
++
++    var elapsedSeconds by remember { mutableFloatStateOf(0f) }
++    val bass = reactiveFrame?.bass ?: 0f
++    val treble = reactiveFrame?.treble ?: 0f
++    val transient = reactiveFrame?.transient ?: 0f
++    val currentBass by rememberUpdatedState(bass)
++    val currentTreble by rememberUpdatedState(treble)
++    val currentTransient by rememberUpdatedState(transient)
++
++    LaunchedEffect(isActive) {
++        if (!isActive) return@LaunchedEffect
++        var lastFrameNanos = 0L
++        while (true) {
++            withFrameNanos { nanos ->
++                if (lastFrameNanos != 0L) {
++                    val deltaSeconds = (nanos - lastFrameNanos) / 1_000_000_000f
++                    elapsedSeconds += deltaSeconds
++                }
++                lastFrameNanos = nanos
++            }
++        }
++    }
++
++    Canvas(modifier = modifier.fillMaxSize()) {
++        shader.setFloatUniform("resolution", size.width, size.height)
++        shader.setFloatUniform("time", elapsedSeconds)
++        shader.setFloatUniform("bass", currentBass)
++        shader.setFloatUniform("treble", currentTreble)
++        shader.setFloatUniform("transient", currentTransient)
++        drawRect(brush = ShaderBrush(shader), size = Size(size.width, size.height))
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index aba77ec9..9f0de090 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -142,8 +142,10 @@ import com.dd3boh.outertune.constants.SeekIncrementKey
+ import com.dd3boh.outertune.audio.VisualizerFrame
+ import com.dd3boh.outertune.constants.EqContrastColorKey
+ import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
++import com.dd3boh.outertune.constants.LiquidChromaticShockKey
+ import com.dd3boh.outertune.constants.LiquidColorScheme
+ import com.dd3boh.outertune.constants.LiquidColorSchemeKey
++import com.dd3boh.outertune.constants.LiquidFerrofluidGpuKey
+ import com.dd3boh.outertune.constants.LiquidShapeStyle
+ import com.dd3boh.outertune.constants.LiquidShapeStyleKey
+ import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
+@@ -1693,6 +1695,8 @@ fun PlayerBackground(
+             val animatedTransient by animateFloatAsState(targetTransient, label = "liquidTransient")
+ 
+             val liquidShapeStyle by rememberEnumPreference(key = LiquidShapeStyleKey, defaultValue = LiquidShapeStyle.PETAL)
++            val liquidChromaticShock by rememberPreference(LiquidChromaticShockKey, defaultValue = true)
++            val liquidFerrofluidGpu by rememberPreference(LiquidFerrofluidGpuKey, defaultValue = false)
+             LiquidBackground(
+                 colors = gradientColors,
+                 // Stop the animation clock whenever it cannot be appreciated: paused playback or
+@@ -1704,6 +1708,8 @@ fun PlayerBackground(
+                 } else null,
+                 shapeStyle = liquidShapeStyle,
+                 accentColor = liquidAccentColor,
++                chromaticShockEnabled = liquidChromaticShock,
++                useGpuFerrofluid = liquidFerrofluidGpu,
+             )
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index c95aea58..75ea979d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -9,6 +9,7 @@ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.material.icons.rounded.Autorenew
+ import androidx.compose.material.icons.rounded.Bedtime
+ import androidx.compose.material.icons.rounded.BlurOn
++import androidx.compose.material.icons.rounded.Bolt
+ import androidx.compose.material.icons.rounded.ClearAll
+ import androidx.compose.material.icons.rounded.Contrast
+ import androidx.compose.material.icons.rounded.FastForward
+@@ -17,6 +18,7 @@ import androidx.compose.material.icons.rounded.GraphicEq
+ import androidx.compose.material.icons.rounded.Palette
+ import androidx.compose.material.icons.rounded.Headset
+ import androidx.compose.material.icons.rounded.Lyrics
++import androidx.compose.material.icons.rounded.Memory
+ import androidx.compose.material.icons.rounded.SkipNext
+ import androidx.compose.material.icons.rounded.Swipe
+ import androidx.compose.material.icons.rounded.Sync
+@@ -45,8 +47,10 @@ import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
+ import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
+ import com.dd3boh.outertune.constants.KeepAliveKey
+ import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
++import com.dd3boh.outertune.constants.LiquidChromaticShockKey
+ import com.dd3boh.outertune.constants.LiquidColorScheme
+ import com.dd3boh.outertune.constants.LiquidColorSchemeKey
++import com.dd3boh.outertune.constants.LiquidFerrofluidGpuKey
+ import com.dd3boh.outertune.constants.LiquidShapeStyle
+ import com.dd3boh.outertune.constants.LiquidShapeStyleKey
+ import com.dd3boh.outertune.constants.LiquidTextContrastKey
+@@ -513,4 +517,31 @@ fun PlayerBackgroundFrag() {
+             onCheckedChange = onLiquidTextContrastChange,
+         )
+     }
++
++    val (liquidChromaticShock, onLiquidChromaticShockChange) =
++        rememberPreference(LiquidChromaticShockKey, defaultValue = true)
++    AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
++        SwitchPreference(
++            title = { Text("Chromatic shock") },
++            description = "A GPU shader ripple that launches on a beat and splits colour outward across the liquid. Needs Android 13+; silently does nothing on older devices",
++            icon = { Icon(Icons.Rounded.Bolt, null) },
++            checked = liquidChromaticShock,
++            onCheckedChange = onLiquidChromaticShockChange,
++        )
++    }
++
++    val (liquidFerrofluidGpu, onLiquidFerrofluidGpuChange) =
++        rememberPreference(LiquidFerrofluidGpuKey, defaultValue = false)
++    AnimatedVisibility(
++        visible = playerBackground == PlayerBackgroundStyle.LIQUID &&
++            liquidShapeStyle == LiquidShapeStyle.FERROFLUID
++    ) {
++        SwitchPreference(
++            title = { Text("GPU ferrofluid (experimental)") },
++            description = "Replace the lightweight ferrofluid with a real raymarched GPU scene, for comparing battery drain against the version above. Noticeably heavier on the GPU by design; needs Android 13+, falls back automatically otherwise",
++            icon = { Icon(Icons.Rounded.Memory, null) },
++            checked = liquidFerrofluidGpu,
++            onCheckedChange = onLiquidFerrofluidGpuChange,
++        )
++    }
+ }
+-- 
+2.45.1.windows.1
+
