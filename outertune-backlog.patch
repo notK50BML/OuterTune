@@ -30816,3 +30816,927 @@ index b17bbf17..41d1df99 100644
 -- 
 2.45.1.windows.1
 
+From 5677e5ffe0b91510443cde6336e2bb8de9f0339f Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:32:14 +0800
+Subject: [PATCH] Recover unparseable lyrics on display, refetch once if they
+ still fail
+
+PlayerConnection.resolveLyrics (the actual live display path) called
+the strict-only LrcUtils.parseLyrics directly on the stored row,
+bypassing LyricsHelper's parseResilient() entirely - the lenient TTML
+recovery that a fetch already uses to decide a result is usable in the
+first place (classifyFound, in getRemoteLyrics). So content a fetch
+had just classified as WORD_SYNCED or SYNCED could still show "Unable
+to parse lyrics" the instant it was actually displayed: the fetch and
+the display were reading the identical string with two different
+levels of leniency, and only the fetch's was forgiving enough.
+
+resolveForDisplay() (LyricsHelper) is the new entry point: try
+parseResilient() first, same as a fetch would. Only when even that
+can't read it does it fall through to a real failure - and now, rather
+than leaving that as a dead end, it kicks off exactly one automatic
+forceRefresh fetch for that song before returning the error
+placeholder. autoRefetchedOnParseFailure caps this at one attempt per
+videoId per process lifetime, so a provider that keeps returning
+content nothing can parse gets retried once, not on every
+recomposition. The refetch's DB write (if any) reaches the screen
+through the existing reactive currentLyrics flow, not through this
+call's return value.
+---
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   | 35 +++++++++++++++++++
+ .../outertune/playback/PlayerConnection.kt    |  3 +-
+ 2 files changed, 36 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 05de3998..d914c0e8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -63,6 +63,14 @@ class LyricsHelper @Inject constructor(
+     private suspend fun fetchMutexFor(videoId: String): Mutex =
+         fetchMutexesGuard.withLock { fetchMutexes.getOrPut(videoId) { Mutex() } }
+ 
++    /**
++     * VideoIds already given one automatic refetch after their stored lyrics failed to parse for
++     * display (see [resolveForDisplay]). One extra attempt per song per process lifetime is enough
++     * to recover from a transient bad response; without this guard, a provider that keeps returning
++     * content nothing here can read would be retried on every single recomposition instead of once.
++     */
++    private val autoRefetchedOnParseFailure = java.util.Collections.synchronizedSet(mutableSetOf<String>())
++
+     /**
+      * Resolve lyrics for a song from the stored database row, the local .lrc file and the remote
+      * providers, in an order controlled by the source preference (LyricSourcePrefKey): when local
+@@ -221,6 +229,33 @@ class LyricsHelper @Inject constructor(
+         return runCatching { LrcUtils.parseLyrics(raw, null, parserOptions, null) }.getOrNull()
+     }
+ 
++    /**
++     * Resolve a stored lyrics row for display via [parseResilient] - the same lenient recovery a
++     * fetch already used to decide this content was WORD_SYNCED/SYNCED in the first place (the
++     * classifyFound check inside getRemoteLyrics). The display path used to call the strict-only
++     * parser directly instead, so content a fetch had just judged usable could still show "Unable
++     * to parse lyrics" the moment it was actually displayed - the fetch and the display were
++     * reading the exact same string with two different levels of leniency.
++     *
++     * When even [parseResilient] can't read it, this kicks off exactly one automatic refetch for
++     * [mediaMetadata]'s id per process lifetime (see [autoRefetchedOnParseFailure]) before falling
++     * back to the error placeholder - a different provider, or the same one on a second attempt,
++     * may well succeed where the stored content didn't. The refetch runs to completion here rather
++     * than being fired in the background: its own DB write, if any, reaches the caller through the
++     * normal reactive flow this is already invoked from (a new emission re-runs this function with
++     * the fresh row), not through this call's return value.
++     */
++    suspend fun resolveForDisplay(mediaMetadata: MediaMetadata, raw: String): SemanticLyrics? {
++        val parserOptions = getParserOptions()
++        parseResilient(raw, parserOptions.copy(errorText = null))?.let { return it }
++
++        if (autoRefetchedOnParseFailure.add(mediaMetadata.id)) {
++            Log.w(TAG, "unparseable, forcing one refetch: videoId=${mediaMetadata.id}")
++            fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.CURRENT, forceRefresh = true)
++        }
++        return runCatching { LrcUtils.parseLyrics(raw, null, parserOptions, null) }.getOrNull()
++    }
++
+     /**
+      * Read the lyric parsing preferences (trim / multiline) shared by all resolution paths
+      */
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
+index 31f4381a..16bcf669 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
+@@ -45,7 +45,6 @@ import kotlinx.coroutines.flow.map
+ import kotlinx.coroutines.flow.stateIn
+ import kotlinx.coroutines.launch
+ import kotlinx.coroutines.withContext
+-import org.akanework.gramophone.logic.utils.LrcUtils
+ import org.akanework.gramophone.logic.utils.SemanticLyrics
+ 
+ @OptIn(ExperimentalCoroutinesApi::class)
+@@ -101,7 +100,7 @@ class PlayerConnection(
+             prefLocal && localLyrics != null -> localLyrics
+             dbLyrics == null -> null
+             dbLyrics.lyrics == LYRICS_NOT_FOUND -> localLyrics ?: uninitializedLyric
+-            else -> LrcUtils.parseLyrics(dbLyrics.lyrics, null, parserOptions, null)
++            else -> lyricsHelper.resolveForDisplay(mediaMetadata, dbLyrics.lyrics)
+         }
+     }
+ 
+-- 
+2.45.1.windows.1
+
+From 8fb96695aaa23c136fce5965924b01a6119348cc Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:45:03 +0800
+Subject: [PATCH 1/2] Detect letterboxing baked into artist photos, not just
+ file shape
+
+The previous fix (sizing the header to the URL's own aspect ratio)
+only knew the file's shape - it couldn't see a square avatar that's
+actually a non-square photo pillarboxed onto a square canvas, black
+bars baked directly into the pixels. No CDN resize parameter can
+reveal or remove that, since it isn't a shape the file has, only the
+picture within it does.
+
+Bitmap.detectLetterboxContentBounds() (YouTubeUtils.kt) decodes the
+thumbnail once and samples inward from each edge for solid near-black
+bars (not just a dark scene - nearly every sampled pixel across a row/
+column has to clear the threshold), capped at 40% trim per edge so a
+photo that's simply dark near a border isn't mistaken for one that's
+mostly letterboxing. When it finds real bars, the artist header now
+crops to that content region and sizes itself to the cropped image's
+own aspect ratio; when it doesn't (most images), the existing
+URL-aspect-ratio path is unchanged.
+---
+ .../ui/screens/artist/ArtistScreen.kt         | 80 +++++++++++----
+ .../dd3boh/outertune/ui/utils/YouTubeUtils.kt | 97 +++++++++++++++++++
+ 2 files changed, 160 insertions(+), 17 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+index dffd3ead..39848100 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/artist/ArtistScreen.kt
+@@ -1,7 +1,9 @@
+ package com.dd3boh.outertune.ui.screens.artist
+ 
+ import android.content.Intent
++import android.graphics.Bitmap
+ import androidx.compose.foundation.ExperimentalFoundationApi
++import androidx.compose.foundation.Image
+ import androidx.compose.foundation.combinedClickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+@@ -58,6 +60,7 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.graphics.asImageBitmap
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
+@@ -70,6 +73,10 @@ import androidx.compose.ui.util.fastForEach
+ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+ import androidx.navigation.NavController
+ import coil3.compose.AsyncImage
++import coil3.imageLoader
++import coil3.request.ImageRequest
++import coil3.request.allowHardware
++import coil3.toBitmap
+ import com.dd3boh.outertune.LocalDatabase
+ import com.dd3boh.outertune.LocalMenuState
+ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
+@@ -104,15 +111,18 @@ import com.dd3boh.outertune.ui.menu.YouTubeArtistMenu
+ import com.dd3boh.outertune.ui.menu.YouTubePlaylistMenu
+ import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
+ import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.ui.utils.detectLetterboxContentBounds
+ import com.dd3boh.outertune.ui.utils.fadingEdge
+ import com.dd3boh.outertune.ui.utils.naturalAspectRatioOrNull
+ import com.dd3boh.outertune.ui.utils.resize
++import com.dd3boh.outertune.utils.coilCoroutine
+ import com.dd3boh.outertune.utils.rememberPreference
+ import com.dd3boh.outertune.viewmodels.ArtistViewModel
+ import com.zionhuang.innertube.models.AlbumItem
+ import com.zionhuang.innertube.models.ArtistItem
+ import com.zionhuang.innertube.models.PlaylistItem
+ import com.zionhuang.innertube.models.SongItem
++import kotlinx.coroutines.withContext
+ import kotlin.math.roundToInt
+ 
+ @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
+@@ -168,7 +178,33 @@ fun ArtistScreen(
+             // wide/letterboxed photos render at their own width, "normally"), clamped so a stray
+             // unusual source can't blow the header out to something absurd.
+             val naturalAspect = remember(thumbnail) { thumbnail?.naturalAspectRatioOrNull() }
+-            val headerAspect = (naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
++
++            // The URL's own aspect ratio only describes the *file's* shape, not necessarily the
++            // photo's - some square avatars are a non-square picture letterboxed onto a square
++            // canvas, black bars baked into the pixels rather than anything a resize parameter
++            // can see or remove. Decoding the thumbnail once and looking for those bars is the
++            // only way to find that content region; null means either it's still loading or there
++            // genuinely isn't a bar to trim, and the URL-based aspect ratio is used meanwhile/instead.
++            var croppedThumbnail by remember(thumbnail) { mutableStateOf<Bitmap?>(null) }
++            LaunchedEffect(thumbnail) {
++                croppedThumbnail = null
++                val url = thumbnail ?: return@LaunchedEffect
++                withContext(coilCoroutine) {
++                    val bitmap = runCatching {
++                        context.imageLoader.execute(
++                            ImageRequest.Builder(context)
++                                .data(url.resize(width = 900))
++                                .allowHardware(false)
++                                .build()
++                        ).image?.toBitmap()
++                    }.getOrNull() ?: return@withContext
++                    val bounds = bitmap.detectLetterboxContentBounds() ?: return@withContext
++                    croppedThumbnail = Bitmap.createBitmap(bitmap, bounds.left, bounds.top, bounds.width(), bounds.height())
++                }
++            }
++
++            val detectedAspect = croppedThumbnail?.let { it.width.toFloat() / it.height }
++            val headerAspect = (detectedAspect ?: naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
+ 
+             Column {
+                 Box(
+@@ -179,22 +215,32 @@ fun ArtistScreen(
+                         )
+                 ) {
+                     if (thumbnail != null) {
+-                        AsyncImage(
+-                            // Width only, not a fixed width+height: the latter is what forced the
+-                            // crop above. resize() fills in a height that preserves the source's
+-                            // own aspect ratio when it knows one (googleusercontent), and every
+-                            // other scheme here ignores the height argument anyway.
+-                            model = thumbnail.resize(width = 1200),
+-                            contentDescription = null,
+-                            modifier = Modifier
+-                                .align(Alignment.Center)
+-                                .fadingEdge(
+-                                    top = WindowInsets.systemBars
+-                                        .asPaddingValues()
+-                                        .calculateTopPadding() + AppBarHeight,
+-                                    bottom = 64.dp
+-                                )
+-                        )
++                        val fadeModifier = Modifier
++                            .align(Alignment.Center)
++                            .fadingEdge(
++                                top = WindowInsets.systemBars
++                                    .asPaddingValues()
++                                    .calculateTopPadding() + AppBarHeight,
++                                bottom = 64.dp
++                            )
++                        val cropped = croppedThumbnail
++                        if (cropped != null) {
++                            Image(
++                                bitmap = cropped.asImageBitmap(),
++                                contentDescription = null,
++                                modifier = fadeModifier,
++                            )
++                        } else {
++                            AsyncImage(
++                                // Width only, not a fixed width+height: the latter is what forced
++                                // the crop above. resize() fills in a height that preserves the
++                                // source's own aspect ratio when it knows one (googleusercontent),
++                                // and every other scheme here ignores the height argument anyway.
++                                model = thumbnail.resize(width = 1200),
++                                contentDescription = null,
++                                modifier = fadeModifier,
++                            )
++                        }
+                     }
+                     AutoResizeText(
+                         text = artistName
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
+index 1511ea7e..907e9c32 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/utils/YouTubeUtils.kt
+@@ -1,5 +1,8 @@
+ package com.dd3boh.outertune.ui.utils
+ 
++import android.graphics.Bitmap
++import android.graphics.Rect
++
+ /**
+  * Compiled once rather than on every call. [resize] is now invoked from list item composables,
+  * so it runs on every artwork bind while scrolling; rebuilding these patterns each time was
+@@ -67,3 +70,97 @@ fun String.naturalAspectRatioOrNull(): Float? {
+     if (this matches YT3_GGPHT_SIZED) return 1f
+     return null
+ }
++
++/** Below this relative luminance a sampled pixel counts as "black bar", not just a dark scene. */
++private const val LETTERBOX_LUMINANCE_THRESHOLD = 0.06f
++
++/** How much of a sampled row/column has to clear that threshold for the whole row/column to
++ *  count as bar - not 100%, so a stray bright pixel (noise, a faint watermark) doesn't stop the
++ *  scan one row early. */
++private const val LETTERBOX_ROW_DARK_FRACTION = 0.96f
++
++/** Never trim more than this fraction of a dimension from a single edge - a real photo with a
++ *  dark border, or one that's just genuinely dark near an edge, shouldn't be mistaken for an
++ *  almost-entirely-letterboxed image. */
++private const val LETTERBOX_MAX_TRIM_FRACTION = 0.4f
++
++/** Below this, on both axes, there's nothing worth cropping for - a pixel or two of compression
++ *  ringing at the edge shouldn't trigger a crop and a different layout. */
++private const val LETTERBOX_MIN_TRIM_FRACTION = 0.03f
++
++/**
++ * The sub-rectangle of [this] bitmap that excludes solid near-black bars along its edges - the
++ * letterboxing/pillarboxing some artist photos have baked directly into their pixels (a
++ * non-square photo centred on a square canvas with the gaps filled in black, say), which no CDN
++ * resize parameter can see or remove because it isn't a shape the *file* has, only the *picture*
++ * within it does.
++ *
++ * Returns null when there is nothing worth trimming: no bar was found on any edge, or what was
++ * found doesn't clear [LETTERBOX_MIN_TRIM_FRACTION] on either axis. Each edge is capped at
++ * [LETTERBOX_MAX_TRIM_FRACTION] of its dimension, so a photo that's simply dark near one edge
++ * can't be mistaken for one that's almost entirely bars.
++ */
++fun Bitmap.detectLetterboxContentBounds(): Rect? {
++    val w = width
++    val h = height
++    if (w <= 1 || h <= 1) return null
++
++    fun luminanceAt(x: Int, y: Int): Float {
++        val pixel = getPixel(x, y)
++        val r = (pixel shr 16) and 0xFF
++        val g = (pixel shr 8) and 0xFF
++        val b = pixel and 0xFF
++        return (0.2126f * r + 0.7152f * g + 0.0722f * b) / 255f
++    }
++
++    // Sampled, not scanned pixel-by-pixel along the row/column - plenty of resolution to tell a
++    // deliberate bar from a busy photo without costing more than a handful of pixel reads per
++    // row/column checked.
++    val sampleCols = minOf(w, 32)
++    val sampleRows = minOf(h, 32)
++
++    fun rowIsBar(y: Int): Boolean {
++        var dark = 0
++        for (i in 0 until sampleCols) {
++            val x = (i * (w - 1)) / (sampleCols - 1).coerceAtLeast(1)
++            if (luminanceAt(x, y) < LETTERBOX_LUMINANCE_THRESHOLD) dark++
++        }
++        return dark >= sampleCols * LETTERBOX_ROW_DARK_FRACTION
++    }
++
++    fun colIsBar(x: Int): Boolean {
++        var dark = 0
++        for (i in 0 until sampleRows) {
++            val y = (i * (h - 1)) / (sampleRows - 1).coerceAtLeast(1)
++            if (luminanceAt(x, y) < LETTERBOX_LUMINANCE_THRESHOLD) dark++
++        }
++        return dark >= sampleRows * LETTERBOX_ROW_DARK_FRACTION
++    }
++
++    val maxVerticalTrim = (h * LETTERBOX_MAX_TRIM_FRACTION).toInt()
++    val maxHorizontalTrim = (w * LETTERBOX_MAX_TRIM_FRACTION).toInt()
++
++    var top = 0
++    while (top < maxVerticalTrim && rowIsBar(top)) top++
++    var bottom = h - 1
++    while (bottom > (h - 1 - maxVerticalTrim) && rowIsBar(bottom)) bottom--
++    var left = 0
++    while (left < maxHorizontalTrim && colIsBar(left)) left++
++    var right = w - 1
++    while (right > (w - 1 - maxHorizontalTrim) && colIsBar(right)) right--
++
++    if (top == 0 && bottom == h - 1 && left == 0 && right == w - 1) return null
++
++    val trimmedVerticalFraction = (top + (h - 1 - bottom)).toFloat() / h
++    val trimmedHorizontalFraction = (left + (w - 1 - right)).toFloat() / w
++    if (trimmedVerticalFraction < LETTERBOX_MIN_TRIM_FRACTION &&
++        trimmedHorizontalFraction < LETTERBOX_MIN_TRIM_FRACTION
++    ) {
++        return null
++    }
++
++    if (right <= left || bottom <= top) return null
++    // Rect's right/bottom are exclusive; top/left/right/bottom above are the last bar-free row/
++    // column index on each side, inclusive.
++    return Rect(left, top, right + 1, bottom + 1)
++}
+-- 
+2.45.1.windows.1
+
+
+From 638a107cf846e56ac2eacb440c0084cd843cb43c Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 15 Aug 2026 14:45:14 +0800
+Subject: [PATCH 2/2] Give Liquid's Theme-surface backdrop and blobs distinct
+ colour roles
+
+Theme surface's backdrop was a tinted elevated surface, which read as
+flat black regardless of elevation because Material3's dark-theme
+surface tone is already close to black on its own - no amount of
+primary tint blended into it looked clearly "themed". Switched the
+backdrop itself to colorScheme.primary: a colour guaranteed not to
+have that problem, and the large-area role by design here.
+
+The petal's own fill would otherwise repeat that same primary over
+its whole visible area, so it now uses colorScheme.secondary instead
+for Theme surface specifically (LiquidBackground's new accentColor
+parameter) - backdrop and shape read as two different weights of the
+theme rather than the same colour twice. Black/White keep the petal
+on primary, unchanged - a vivid colour against a neutral backdrop
+that was never competing with itself. Spheres' own multi-colour
+palette is untouched.
+
+Contrast text for Theme surface now measures colorScheme.primary
+directly (what's actually painted) instead of a since-removed tinted-
+surface constant.
+---
+ .../outertune/ui/player/FrostedBackground.kt  | 21 ++++++-----
+ .../outertune/ui/player/LiquidBackground.kt   | 15 ++++++--
+ .../com/dd3boh/outertune/ui/player/Player.kt  | 37 ++++++++++---------
+ 3 files changed, 42 insertions(+), 31 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+index e96ec6c1..c01b030d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/FrostedBackground.kt
+@@ -14,7 +14,6 @@ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.surfaceColorAtElevation
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
+@@ -204,16 +203,18 @@ fun rememberPlayerOnBackgroundColor(
+             // This used to just return themeFallback again - identical to the toggle-off branch
+             // right above, so switching "auto text contrast" on and off did nothing at all
+             // whenever the backdrop was Theme surface (the default). Surface has a real, known
+-            // colour just like black/white do, so there is something to actually measure here:
+-            // the elevated surface tone Player.kt paints as the backdrop, not a guess from
+-            // "dark theme implies dark surface" that dynamic per-song theming isn't guaranteed
+-            // to agree with.
++            // colour just like black/white do (Player.kt paints it as colorScheme.primary, not a
++            // tinted-elevated-surface, so that the backdrop reads as clearly themed rather than
++            // flat black on a dark theme) - measuring that directly is the same kind of "there is
++            // something to actually check here" this branch already does for black/white, not a
++            // guess from "dark theme implies dark surface" that dynamic per-song theming isn't
++            // guaranteed to agree with.
+             LiquidColorScheme.SURFACE -> {
+-                // Same elevation Player.kt actually paints the backdrop with (LiquidSurfaceElevation,
+-                // not the plain NavigationBarDefaults.Elevation every other style uses) - measuring
+-                // the wrong one would just be a different way to disagree with what's on screen.
+-                val surfaceColor = MaterialTheme.colorScheme.surfaceColorAtElevation(LiquidSurfaceElevation)
+-                if (surfaceColor.luminance() > LIGHT_BACKGROUND_THRESHOLD) Color(0xFF16161A) else Color.White
++                if (MaterialTheme.colorScheme.primary.luminance() > LIGHT_BACKGROUND_THRESHOLD) {
++                    Color(0xFF16161A)
++                } else {
++                    Color.White
++                }
+             }
+         }
+     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+index 94974ded..1c921cdf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidBackground.kt
+@@ -76,16 +76,23 @@ fun LiquidBackground(
+     alpha: Float = 0.85f,
+     reactiveFrame: VisualizerFrame? = null,
+     shapeStyle: LiquidShapeStyle = LiquidShapeStyle.PETAL,
++    /**
++     * The petal's fill colour - primary by default (the same colour as the play/pause pill and
++     * every other playback control), but the caller picks something else when the backdrop
++     * behind it is already primary at full area (Theme surface): the blobs then use the
++     * smaller-area secondary role instead of repeating the colour the whole screen is already.
++     */
++    accentColor: Color = MaterialTheme.colorScheme.primary,
+ ) {
+     // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
+     // guaranteed-vibrant fallback, and the theme's own colour roles are exactly that.
+     val themeAccent = MaterialTheme.colorScheme.primary
+     val themeSecondary = MaterialTheme.colorScheme.secondary
+     val themeTertiary = MaterialTheme.colorScheme.tertiary
+-    // The petal is filled with the same colour as the play/pause pill and every other playback
+-    // control (colorScheme.primary), not the album-art extraction SPHERES uses below - the two
+-    // silhouettes read as belonging to two different parts of the player otherwise.
+-    val petalColor = themeAccent
++    // The petal is filled with whatever accentColor resolves to - see its own doc - not the
++    // album-art extraction SPHERES uses below; the two silhouettes read as belonging to two
++    // different parts of the player otherwise.
++    val petalColor = accentColor
+     val petalRimColor = remember(petalColor, themeSecondary) { lerp(petalColor, themeSecondary, 0.35f) }
+     val spherePalette = remember(colors, themeAccent, themeSecondary, themeTertiary) {
+         when (colors.size) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 41d1df99..0aa39aac 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -1514,15 +1514,6 @@ fun ControlsContent(
+     }
+ }
+ 
+-/**
+- * A clearly-visible primary tint for Liquid's Theme-surface backdrop - see the call site.
+- *
+- * Not private: [rememberPlayerOnBackgroundColor] (FrostedBackground.kt, same package) has to
+- * measure the exact colour this produces to decide contrast text, and a second, drifted copy of
+- * "how elevated is Liquid's surface backdrop" would be worse than one shared constant.
+- */
+-val LiquidSurfaceElevation = 16.dp
+-
+ @Composable
+ fun PlayerBackground(
+     playerConnection: PlayerConnection,
+@@ -1542,19 +1533,30 @@ fun PlayerBackground(
+         when (liquidColorScheme) {
+             LiquidColorScheme.BLACK -> Color.Black
+             LiquidColorScheme.WHITE -> Color.White
+-            // NavigationBarDefaults.Elevation (3dp) is the same subtle tint every other style's
+-            // backdrop uses, but Material3's dark-theme surface tone is already very close to
+-            // black on its own - at that low an elevation the primary tint blended in is too
+-            // faint to read as "themed" rather than flat black, which is exactly what made
+-            // "Theme surface" look like a black/pure-black backdrop even without Pure Black on.
+-            // A clearly higher elevation here (only here - every other style keeps the subtle
+-            // one) makes the tint actually visible.
+-            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.surfaceColorAtElevation(LiquidSurfaceElevation)
++            // A tinted-elevated-surface read as flat black regardless of how high the elevation
++            // went, because Material3's own dark-theme surface tone is already close to black -
++            // there was no way to tint that into looking clearly "themed". The theme's primary
++            // is the one colour guaranteed not to have that problem, and it's the large-area
++            // role here on purpose: the blobs use the smaller-area secondary instead (see
++            // LiquidBackground's accentColor), so the backdrop and the shapes drawn over it read
++            // as two different weights of the same theme rather than competing for the same one.
++            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.primary
+         }
+     } else {
+         MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
+     }
+ 
++    // Petal's fill colour: primary for Black/White (unchanged - a vivid colour against a neutral
++    // backdrop), secondary for Theme surface (the backdrop above is already primary at full
++    // area, so the shape uses the smaller-area role instead of repeating the same one). Spheres
++    // keeps its own existing album/theme palette unchanged - it was never single-colour to begin
++    // with, so "smaller area, different role" doesn't map onto it the same way.
++    val liquidAccentColor = if (liquidColorScheme == LiquidColorScheme.SURFACE) {
++        MaterialTheme.colorScheme.secondary
++    } else {
++        MaterialTheme.colorScheme.primary
++    }
++
+     Box(
+         modifier = Modifier
+             .background(backdropColor)
+@@ -1691,6 +1693,7 @@ fun PlayerBackground(
+                     VisualizerFrame(bass = animatedBass, treble = animatedTreble, transient = animatedTransient)
+                 } else null,
+                 shapeStyle = liquidShapeStyle,
++                accentColor = liquidAccentColor,
+             )
+         }
+ 
+-- 
+2.45.1.windows.1
+
+From 78055f5dbc6350fda13d11f46d655cf3cfd73a93 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 10:41:18 +0800
+Subject: [PATCH] Two more defenses against error 2004 (bad HTTP status from
+ googlevideo)
+
+Beyond the cipher-config refresh already in place:
+
+1. Retry once with a freshly-resolved URL instead of failing outright.
+   A bad HTTP status (2004, almost always a 403) is frequently just a
+   stale or otherwise-rejected stream URL, not a genuinely unplayable
+   video - re-resolving from scratch, possibly landing on a different
+   fallback client than the one that just failed, can well succeed
+   where the cached URL didn't. onPlayerError now drops the cached URL
+   for the failed song and re-prepares once
+   (retriedAfterSourceError caps this at one attempt per song per
+   process lifetime, so an actually-broken video still falls through
+   to the normal skip/stop handling instead of retrying forever).
+   songUrlCache moved from a local inside createDataSourceFactory() to
+   a class field so onPlayerError can reach it to invalidate an entry.
+
+2. Match the User-Agent to whichever client actually resolved the
+   stream URL. YTPlayerUtils tries MAIN_CLIENT then STREAM_FALLBACK_
+   CLIENTS in turn, each with its own real User-Agent (from
+   YouTubeClient.userAgent) - but the actual media fetch, and the
+   validateStatus() pre-flight HEAD check, both used a bare OkHttpClient
+   with no header at all, so googlevideo.com saw a UA that didn't match
+   the client the URL was signed for. PlaybackData now carries
+   streamUserAgent (whichever client's stream actually got used), which
+   flows through to validateStatus()'s HEAD probe and to the real
+   fetch's DataSpec.withRequestHeaders() in both MusicService and
+   DownloadUtil - the same fix in both places, since downloads hit the
+   exact same CDN behaviour.
+---
+ .../dd3boh/outertune/playback/DownloadUtil.kt | 18 ++++--
+ .../dd3boh/outertune/playback/MusicService.kt | 62 +++++++++++++++++--
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 21 ++++++-
+ 3 files changed, 89 insertions(+), 12 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index 90b263ef..0e138111 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -84,7 +84,11 @@ class DownloadUtil @Inject constructor(
+ 
+     private val connectivityManager = context.getSystemService<ConnectivityManager>()!!
+     private val audioQuality by enumPreference(context, AudioQualityKey, AudioQuality.AUTO)
+-    private val songUrlCache = HashMap<String, Pair<String, Long>>()
++    /** Same shape as MusicService's - see that one's doc for why the User-Agent has to travel
++     *  with the URL. */
++    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
++
++    private val songUrlCache = HashMap<String, CachedStreamUrl>()
+     private val dataSourceFactory = ResolvingDataSource.Factory(
+         CacheDataSource.Factory()
+             .setCache(playerCache)
+@@ -102,8 +106,9 @@ class DownloadUtil @Inject constructor(
+             return@Factory dataSpec
+         }
+ 
+-        songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
+-            return@Factory dataSpec.withUri(it.first.toUri())
++        songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
++            return@Factory dataSpec.withUri(it.url.toUri())
++                .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
+         }
+ 
+         val playbackData = runBlocking(Dispatchers.IO) {
+@@ -139,8 +144,13 @@ class DownloadUtil @Inject constructor(
+             "${it}&range=0-${format.contentLength ?: 10000000}"
+         }
+ 
+-        songUrlCache[mediaId] = streamUrl to System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L)
++        songUrlCache[mediaId] = CachedStreamUrl(
++            url = streamUrl,
++            expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
++            userAgent = playbackData.streamUserAgent,
++        )
+         dataSpec.withUri(streamUrl.toUri())
++            .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
+     }
+     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
+     val downloadManager: DownloadManager =
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 31e070b6..19d8115b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -280,6 +280,33 @@ class MusicService : MediaLibraryService(),
+ 
+     var consecutivePlaybackErr = 0
+ 
++    /**
++     * A resolved stream URL, its expiry time, and the User-Agent of the client it was resolved
++     * from - googlevideo.com has been observed rejecting a fetch whose User-Agent doesn't match
++     * the client the URL was signed for, so the UA has to be replayed alongside the URL itself
++     * wherever it's actually GETed from, not just at the request that originally resolved it.
++     */
++    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
++
++    /**
++     * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
++     * createDataSourceFactory() before - fine for the resolver itself, but onPlayerError needs to
++     * be able to invalidate an entry after a bad HTTP status, which it can't do to a variable it
++     * has no reference to).
++     */
++    private val songUrlCache = HashMap<String, CachedStreamUrl>()
++
++    /**
++     * MediaIds already given one automatic retry - cache entry dropped, player re-prepared - after
++     * a source/HTTP error this process lifetime. A bad HTTP status (ExoPlayer's 2004, almost
++     * always a 403 from an expired or otherwise rejected stream URL) is frequently just a stale
++     * URL rather than a genuinely unplayable video: re-resolving from scratch, possibly landing on
++     * a different fallback client than the one that just failed, can well succeed where the cached
++     * URL didn't. Capped at one attempt per song so a video that's actually broken/removed doesn't
++     * retry forever and instead falls through to the normal skip/stop handling.
++     */
++    private val retriedAfterSourceError = mutableSetOf<String>()
++
+     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
+     // track transition. A data class so the StateFlow deduplicates identical updates.
+     private data class LyricsFetchTargets(
+@@ -823,7 +850,6 @@ class MusicService : MediaLibraryService(),
+     }
+ 
+     private fun createDataSourceFactory(): DataSource.Factory {
+-        val songUrlCache = HashMap<String, Pair<String, Long>>()
+         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
+             val mediaId = dataSpec.key ?: error("No media id")
+             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: song id = $mediaId")
+@@ -864,10 +890,11 @@ class MusicService : MediaLibraryService(),
+                 return@Factory dataSpec
+             }
+ 
+-            songUrlCache[mediaId]?.takeIf { it.second > System.currentTimeMillis() }?.let {
++            songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
+                 offloadScope.launch { recoverSong(mediaId) }
+-                return@Factory dataSpec.withUri(it.first.toUri())
++                return@Factory dataSpec.withUri(it.url.toUri())
++                    .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
+             }
+ 
+             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
+@@ -933,9 +960,14 @@ class MusicService : MediaLibraryService(),
+ 
+             val streamUrl = playbackData.streamUrl
+ 
+-            songUrlCache[mediaId] =
+-                streamUrl to System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L)
+-            dataSpec.withUri(streamUrl.toUri()).subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
++            songUrlCache[mediaId] = CachedStreamUrl(
++                url = streamUrl,
++                expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
++                userAgent = playbackData.streamUserAgent,
++            )
++            dataSpec.withUri(streamUrl.toUri())
++                .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
++                .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+         }
+     }
+ 
+@@ -1111,6 +1143,24 @@ class MusicService : MediaLibraryService(),
+             return
+         }
+ 
++        // A bad HTTP status (2004, almost always a 403 YouTube handed back for a stream URL that
++        // expired or was otherwise rejected) is frequently just a stale resolution, not a
++        // genuinely unplayable video - re-resolving from scratch can land on a fresh URL, or on a
++        // different fallback client than whichever one just failed. Drop the cached URL and
++        // re-prepare once before falling through to skip/stop; see retriedAfterSourceError's own
++        // doc for why this is capped at one attempt per song.
++        val isRetryableSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
++            error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
++            error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
++        val failedMediaId = player.currentMediaItem?.mediaId
++        if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
++            songUrlCache.remove(failedMediaId)
++            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL: mediaId=$failedMediaId")
++            player.prepare()
++            player.play()
++            return
++        }
++
+         if (dataStore.get(SkipOnErrorKey, false)) {
+             skipOnError()
+         } else {
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index fd6be5d8..ee3fd0a0 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -62,6 +62,14 @@ object YTPlayerUtils {
+         val format: PlayerResponse.StreamingData.Format,
+         val streamUrl: String,
+         val streamExpiresInSeconds: Int,
++        /**
++         * User-Agent of whichever client (MAIN_CLIENT or a STREAM_FALLBACK_CLIENTS entry) actually
++         * produced [streamUrl]. googlevideo.com's CDN has been observed rejecting a fetch whose
++         * User-Agent doesn't match the client the URL was signed for, so this has to travel with
++         * the URL to wherever it's actually GETed from - the request that resolved it isn't the
++         * same request that plays it.
++         */
++        val streamUserAgent: String,
+     )
+ 
+     /**
+@@ -112,6 +120,7 @@ object YTPlayerUtils {
+         var format: PlayerResponse.StreamingData.Format? = null
+         var streamUrl: String? = null
+         var streamExpiresInSeconds: Int? = null
++        var streamClient: YouTubeClient = MAIN_CLIENT
+ 
+         var streamPlayerResponse: PlayerResponse? = null
+         for (clientIndex in (-1 until STREAM_FALLBACK_CLIENTS.size)) {
+@@ -167,6 +176,7 @@ object YTPlayerUtils {
+                     Log.w(TAG, "[$videoId] [${client.clientName}] OK but missing expiresInSeconds")
+                     continue
+                 }
++                streamClient = client
+ 
+                 if (client.useWebPoTokens && webStreamingPot != null) {
+                     streamUrl += "&pot=$webStreamingPot";
+@@ -176,7 +186,7 @@ object YTPlayerUtils {
+                     // skip validateStatus for the last client
+                     break
+                 }
+-                if (validateStatus(streamUrl)) {
++                if (validateStatus(streamUrl, client.userAgent)) {
+                     // working stream found
+                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
+                     break
+@@ -215,6 +225,7 @@ object YTPlayerUtils {
+             format,
+             streamUrl,
+             streamExpiresInSeconds,
++            streamClient.userAgent,
+         )
+     }
+ 
+@@ -256,11 +267,17 @@ object YTPlayerUtils {
+      * Checks if the stream url returns a successful status.
+      * If this returns true the url is likely to work.
+      * If this returns false the url might cause an error during playback.
++     *
++     * [userAgent] must match the client the URL was signed for - googlevideo.com has been
++     * observed rejecting requests whose User-Agent doesn't match, so probing without it risked
++     * this validation itself failing (or wrongly passing) independent of whether the URL is
++     * actually good.
+      */
+-    private fun validateStatus(url: String): Boolean {
++    private fun validateStatus(url: String, userAgent: String): Boolean {
+         try {
+             val requestBuilder = okhttp3.Request.Builder()
+                 .head()
++                .header("User-Agent", userAgent)
+                 .url(url)
+             val response = httpClient.newCall(requestBuilder.build()).execute()
+             return response.isSuccessful
+-- 
+2.45.1.windows.1
+
+From 16024a9fc8859ea7307ce50080af57ae7d2f3e99 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sun, 16 Aug 2026 10:44:36 +0800
+Subject: [PATCH] Show seek back/forward in a custom layout even with the
+ setting off
+
+A custom layout that explicitly asks for BlockId.SEEK_BACKWARD/
+SEEK_FORWARD by name was still hidden if the unrelated "seek increment"
+setting (Settings -> Player, defaults off) hadn't also been turned on -
+so a button deliberately placed via the layout editor just silently
+didn't appear, reading as "the layout doesn't work" rather than
+"seeking needs its own separate setting enabled too". Falls back to a
+plain 10s jump instead of hiding, so it's never a no-op button once
+someone has gone to the trouble of adding it.
+
+The stock, unmodified five-button controls row is untouched: it still
+hides these two entirely when the setting is off, exactly as before -
+this only changes the granular per-block path a custom layout uses.
+---
+ .../com/dd3boh/outertune/ui/player/Player.kt  | 60 ++++++++++---------
+ 1 file changed, 33 insertions(+), 27 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 0aa39aac..1f6e26cd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -1281,21 +1281,28 @@ fun ControlsContent(
+                     }
+                 )
+             }
+-            // Seek-backward/forward stay gated on the seek increment setting even when a layout
+-            // explicitly asks for them - with the increment off there is no amount to jump by, so
+-            // showing the button anyway would just be a control that does nothing.
++            // The stock controlsBlock() below still hides these entirely when the seek increment
++            // setting is off (its own "if" wrapper around each Box, further down) - that default
++            // layout has always shown a fixed five-button row, and there is no reason for anyone
++            // who has never touched a custom layout to suddenly see two new buttons appear.
++            //
++            // A layout that explicitly asks for one of these by name (contentFor(), for the
++            // granular BlockId.SEEK_BACKWARD/SEEK_FORWARD path) is a different situation: the user
++            // deliberately placed this button, so hiding it because of an unrelated, easy-to-miss
++            // setting elsewhere just made it look broken - "the button I added isn't there" rather
++            // than "seeking is configured off". Falls back to a plain 10s jump instead of hiding,
++            // so it's never a no-op button once someone has gone to the trouble of adding it.
+             val seekBackwardButtonBlock: @Composable () -> Unit = {
+-                if (seekIncrement != SeekIncrement.OFF) {
+-                    ResizableIconButton(
+-                        icon = Icons.Rounded.FastRewind,
+-                        modifier = Modifier.size(32.dp),
+-                        color = onBackgroundColor,
+-                        enabled = playerConnection.player.currentMediaItem != null,
+-                        onClick = {
+-                            playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
+-                        }
+-                    )
+-                }
++                val incrementMs = if (seekIncrement != SeekIncrement.OFF) seekIncrement.millisec else SeekIncrement.TEN.millisec
++                ResizableIconButton(
++                    icon = Icons.Rounded.FastRewind,
++                    modifier = Modifier.size(32.dp),
++                    color = onBackgroundColor,
++                    enabled = playerConnection.player.currentMediaItem != null,
++                    onClick = {
++                        playerConnection.player.seekTo(playerConnection.player.currentPosition - incrementMs)
++                    }
++                )
+             }
+             val playPauseButtonBlock: @Composable () -> Unit = {
+                 Box(
+@@ -1331,19 +1338,18 @@ fun ControlsContent(
+                 }
+             }
+             val seekForwardButtonBlock: @Composable () -> Unit = {
+-                if (seekIncrement != SeekIncrement.OFF) {
+-                    ResizableIconButton(
+-                        icon = Icons.Rounded.FastForward,
+-                        modifier = Modifier.size(32.dp),
+-                        color = onBackgroundColor,
+-                        enabled = playerConnection.player.currentMediaItem != null,
+-                        onClick = {
+-                            //ExoPlayer seek increment can only be set in builder
+-                            //playerConnection.player.seekForward()
+-                            playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
+-                        }
+-                    )
+-                }
++                val incrementMs = if (seekIncrement != SeekIncrement.OFF) seekIncrement.millisec else SeekIncrement.TEN.millisec
++                ResizableIconButton(
++                    icon = Icons.Rounded.FastForward,
++                    modifier = Modifier.size(32.dp),
++                    color = onBackgroundColor,
++                    enabled = playerConnection.player.currentMediaItem != null,
++                    onClick = {
++                        //ExoPlayer seek increment can only be set in builder
++                        //playerConnection.player.seekForward()
++                        playerConnection.player.seekTo(playerConnection.player.currentPosition + incrementMs)
++                    }
++                )
+             }
+             val skipNextButtonBlock: @Composable () -> Unit = {
+                 ResizableIconButton(
+-- 
+2.45.1.windows.1
+
