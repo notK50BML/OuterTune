@@ -1390,19 +1390,19 @@ fun ControlsContent(
                         .fillMaxWidth()
                         .padding(horizontal = PlayerHorizontalPadding)
                 ) {
-                    Box(modifier = Modifier.weight(1f)) { shuffleButtonBlock() }
-                    Box(modifier = Modifier.weight(1f)) { skipPreviousButtonBlock() }
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { shuffleButtonBlock() }
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { skipPreviousButtonBlock() }
                     if (seekIncrement != SeekIncrement.OFF) {
-                        Box(modifier = Modifier.weight(1f)) { seekBackwardButtonBlock() }
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { seekBackwardButtonBlock() }
                     }
                     Spacer(Modifier.width(8.dp))
                     playPauseButtonBlock()
                     Spacer(Modifier.width(8.dp))
                     if (seekIncrement != SeekIncrement.OFF) {
-                        Box(modifier = Modifier.weight(1f)) { seekForwardButtonBlock() }
+                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { seekForwardButtonBlock() }
                     }
-                    Box(modifier = Modifier.weight(1f)) { skipNextButtonBlock() }
-                    Box(modifier = Modifier.weight(1f)) { repeatButtonBlock() }
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { skipNextButtonBlock() }
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { repeatButtonBlock() }
                 }
             }
 
@@ -1508,7 +1508,10 @@ fun ControlsContent(
                                     if (b.id == PlayerLayout.BlockId.PLAY_PAUSE) {
                                         Box(modifier = Modifier.blockTransform(b)) { contentFor(b.id) }
                                     } else {
-                                        Box(modifier = Modifier.weight(1f).blockTransform(b)) { contentFor(b.id) }
+                                        Box(
+                                            modifier = Modifier.weight(1f).blockTransform(b),
+                                            contentAlignment = Alignment.Center,
+                                        ) { contentFor(b.id) }
                                     }
                                 }
                             }
