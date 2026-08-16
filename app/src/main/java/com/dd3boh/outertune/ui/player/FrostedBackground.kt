@@ -203,14 +203,13 @@ fun rememberPlayerOnBackgroundColor(
             // This used to just return themeFallback again - identical to the toggle-off branch
             // right above, so switching "auto text contrast" on and off did nothing at all
             // whenever the backdrop was Theme surface (the default). Surface has a real, known
-            // colour just like black/white do (Player.kt paints it as colorScheme.primary, not a
-            // tinted-elevated-surface, so that the backdrop reads as clearly themed rather than
-            // flat black on a dark theme) - measuring that directly is the same kind of "there is
-            // something to actually check here" this branch already does for black/white, not a
-            // guess from "dark theme implies dark surface" that dynamic per-song theming isn't
-            // guaranteed to agree with.
+            // colour just like black/white do (Player.kt paints it as colorScheme.primaryContainer,
+            // not a tinted-elevated-surface or plain primary - see that file for why) - measuring
+            // that directly is the same kind of "there is something to actually check here" this
+            // branch already does for black/white, not a guess from "dark theme implies dark
+            // surface" that dynamic per-song theming isn't guaranteed to agree with.
             LiquidColorScheme.SURFACE -> {
-                if (MaterialTheme.colorScheme.primary.luminance() > LIGHT_BACKGROUND_THRESHOLD) {
+                if (MaterialTheme.colorScheme.primaryContainer.luminance() > LIGHT_BACKGROUND_THRESHOLD) {
                     Color(0xFF16161A)
                 } else {
                     Color.White

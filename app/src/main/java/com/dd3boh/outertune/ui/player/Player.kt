@@ -1541,12 +1541,16 @@ fun PlayerBackground(
             LiquidColorScheme.WHITE -> Color.White
             // A tinted-elevated-surface read as flat black regardless of how high the elevation
             // went, because Material3's own dark-theme surface tone is already close to black -
-            // there was no way to tint that into looking clearly "themed". The theme's primary
-            // is the one colour guaranteed not to have that problem, and it's the large-area
-            // role here on purpose: the blobs use the smaller-area secondary instead (see
-            // LiquidBackground's accentColor), so the backdrop and the shapes drawn over it read
-            // as two different weights of the same theme rather than competing for the same one.
-            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.primary
+            // there was no way to tint that into looking clearly "themed". Plain colorScheme.primary
+            // fixed that but created a worse problem: the play/pause pill and every other control
+            // button are *also* filled with primary, so with a vivid dynamic-theme colour the
+            // backdrop and the controls became the same colour at full area each - the buttons
+            // read as invisible, blended straight into the background behind them. primaryContainer
+            // is the semantically-correct Material3 role for exactly this: still visibly related to
+            // primary (so it reads as "themed", not neutral grey), but a distinctly different tone
+            // (dark theme's primaryContainer sits far lower on the tonal scale than primary does) -
+            // so a primary-coloured control drawn over it is never fighting its own backdrop.
+            LiquidColorScheme.SURFACE -> MaterialTheme.colorScheme.primaryContainer
         }
     } else {
         MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
