@@ -125,6 +125,13 @@ import com.zionhuang.innertube.models.SongItem
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
+/**
+ * Scales the artist header's aspect ratio down (taller box for the same width) before it's
+ * clamped - see the call site for why a header sized to the image's bare aspect ratio alone
+ * still needed this.
+ */
+private const val HEADER_HEIGHT_BOOST = 0.78f
+
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ArtistScreen(
@@ -204,7 +211,15 @@ fun ArtistScreen(
             }
 
             val detectedAspect = croppedThumbnail?.let { it.width.toFloat() / it.height }
-            val headerAspect = (detectedAspect ?: naturalAspect ?: (4f / 3)).coerceIn(0.9f, 2.2f)
+            // Displaying the image at its exact own ratio made a wide banner photo's header
+            // shallow - a real shape, not a bug, but a strip that thin read as cramped rather than
+            // a proper header. HEADER_HEIGHT_BOOST scales every ratio down by the same amount
+            // before the clamp, so a landscape photo, a square avatar and the no-thumbnail
+            // fallback all get a taller box than their bare aspect ratio implies, not just the
+            // extreme ends the clamp alone would catch - the image itself still renders at its own
+            // true shape (Fit, not cropped to fill), just with a bit more room around it.
+            val headerAspect = ((detectedAspect ?: naturalAspect ?: (4f / 3)) * HEADER_HEIGHT_BOOST)
+                .coerceIn(0.7f, 1.6f)
 
             Column {
                 Box(
