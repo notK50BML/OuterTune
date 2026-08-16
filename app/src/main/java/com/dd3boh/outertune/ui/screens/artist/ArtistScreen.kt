@@ -230,8 +230,18 @@ fun ArtistScreen(
                         )
                 ) {
                     if (thumbnail != null) {
+                        // Bottom-aligned, not centred: the box is now deliberately taller than the
+                        // image's own shape (HEADER_HEIGHT_BOOST), and centring a same-size image
+                        // in a taller box split that extra room evenly above *and* below it -
+                        // pulling the image's bottom edge away from the artist-name text pinned to
+                        // the box's own bottom, so the name ended up floating over bare background
+                        // instead of over the photo's (faded) bottom edge. Anchoring the image to
+                        // the bottom keeps it flush with the text overlay exactly as before; the
+                        // extra height shows up above the image instead, which is the one place
+                        // adding it doesn't disturb anything (that's already just the area behind
+                        // the transparent status bar/app bar).
                         val fadeModifier = Modifier
-                            .align(Alignment.Center)
+                            .align(Alignment.BottomCenter)
                             .fadingEdge(
                                 top = WindowInsets.systemBars
                                     .asPaddingValues()
