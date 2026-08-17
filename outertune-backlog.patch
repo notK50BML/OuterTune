@@ -33086,3 +33086,100 @@ index d45bf04f..7a67a1b6 100644
 -- 
 2.45.1.windows.1
 
+From df3b70d9d86a71a85e168fbef60fababda792857 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Mon, 17 Aug 2026 21:50:53 +0800
+Subject: [PATCH] Fix lyrics rendering silently dying partway through a song
+
+Two separate LaunchedEffects, both keyed on lyricsModel, own two different
+sources of truth: one populates the `lines` snapshot list, the other (the
+refresh loop driving currentLineIndex) only checks lyricsModel's own .text
+before entering its while(isActive) loop. If `lines` was ever momentarily
+out of step with that check - e.g. a fast song change - findCurrentLineIndex
+indexed into an empty list (lines[lines.lastIndex] on lastIndex == -1) and
+threw, which killed that loop's coroutine for good. Nothing restarts a
+LaunchedEffect keyed only on lyricsModel until the model itself changes
+again, so from the user's side lyrics just stopped advancing mid-song and
+no setting could bring it back - toggling settings doesn't touch this key.
+
+Three defenses, cheapest first: findCurrentLineIndex returns -1 for an
+empty list instead of indexing into it; the refresh loop's body runs inside
+runCatching so any other future edge case can't kill the loop for the rest
+of the song either; and the scroll effect's calculateOffset() uses
+lines.getOrNull(currentLineIndex) instead of a hard index, since a stale
+currentLineIndex against a shorter list right after a song change hit the
+exact same crash pattern.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/ui/component/Lyrics.kt   | 39 +++++++++++++------
+ 1 file changed, 27 insertions(+), 12 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index 2affc5a4..9233fa89 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -211,12 +211,19 @@ fun Lyrics(
+         while (isActive) {
+             // TODO: likely can improve power usage by disabling lyric refresh
+             delay(lyricRefreshRate)
+-            val sliderPosition = sliderPositionProvider()
+-            isSeeking = sliderPosition != null
+-            // Scrubbing has to move the highlight even while paused, which is why this no longer
+-            // skips the whole tick when the player is stopped.
+-            if (!playerConnection.isPlaying.value && !isSeeking) continue
+-            currentLineIndex = findCurrentLineIndex(lines, sliderPosition ?: playerConnection.player.currentPosition)
++            // A single bad tick must not kill this loop for the rest of the song - this is what
++            // "rendering breaks after a while and no setting brings it back" turned out to be:
++            // an uncaught exception here (e.g. `lines` momentarily out of step with lyricsModel
++            // across a fast song change) ends the coroutine for good, and no setting can restart
++            // a LaunchedEffect that's only keyed on lyricsModel.
++            runCatching {
++                val sliderPosition = sliderPositionProvider()
++                isSeeking = sliderPosition != null
++                // Scrubbing has to move the highlight even while paused, which is why this no
++                // longer skips the whole tick when the player is stopped.
++                if (!playerConnection.isPlaying.value && !isSeeking) return@runCatching
++                currentLineIndex = findCurrentLineIndex(lines, sliderPosition ?: playerConnection.player.currentPosition)
++            }
+         }
+     }
+ 
+@@ -279,13 +286,16 @@ fun Lyrics(
+         fun countNewLine(str: String) = str.count { it == '\n' }
+ 
+         /**
+-         * Calculate the lyric offset Based on how many lines (\n chars)
++         * Calculate the lyric offset based on how many lines (\n chars). currentLineIndex can be
++         * momentarily stale against a shorter `lines` list right after a song change - a hard
++         * index into `lines` here crashed this effect and stalled scrolling until the next index
++         * change happened to be in range again.
+          */
+-        fun calculateOffset() = with(density) {
+-            if (landscapeOffset) {
+-                16.dp.toPx().toInt() * countNewLine(lines[currentLineIndex].text) // landscape sits higher by default
+-            } else {
+-                20.dp.toPx().toInt() * countNewLine(lines[currentLineIndex].text)
++        fun calculateOffset(): Int {
++            val line = lines.getOrNull(currentLineIndex) ?: return 0
++            return with(density) {
++                val perLine = if (landscapeOffset) 16.dp else 20.dp // landscape sits higher by default
++                perLine.toPx().toInt() * countNewLine(line.text)
+             }
+         }
+ 
+@@ -528,6 +538,11 @@ fun Lyrics(
+  * Get current position in lyric line list
+  */
+ fun findCurrentLineIndex(lines: List<LyricLine>, position: Long): Int {
++    // lyricsModel (checked by the caller) and this `lines` snapshot are populated by two separate
++    // effects keyed on the same model - a `lines[lines.lastIndex]` below on a momentarily-empty
++    // list threw and killed the caller's refresh loop for good. -1 is the same "nothing current
++    // yet" value the caller already uses before any lyrics have loaded.
++    if (lines.isEmpty()) return -1
+     // ExoPlayer legitimately reports a transient negative position around seeks and track
+     // transitions. position.toUInt() on a negative Long wraps to a huge unsigned value, so every
+     // real line.start compares as smaller than it - the loop below never finds a "current" line
+-- 
+2.45.1.windows.1
+
