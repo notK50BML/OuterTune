@@ -33437,3 +33437,161 @@ index cf7d973c..e6d55e74 100644
 -- 
 2.43.0
 
+From 828a138fcac300d2ba73fab8542c22fb088904a0 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 12:26:34 +0000
+Subject: [PATCH] Keep every stream request under googlevideo's
+ connection-duration cutoff
+
+Confirmed independently of any auth/URL-freshness issue: temporarily
+raising CHUNK_LENGTH far beyond what any real song needs still failed with
+the same source error, at roughly the same wall-clock point regardless of
+the extra bytes available - a single long-lived connection to googlevideo
+gets cut at around a minute, full stop, no matter how it's authenticated
+or how fresh the URL is.
+
+The fresh-resolve path already bounded its own request to CHUNK_LENGTH,
+but the cache-hit path - which serves every request after the first -
+didn't bound anything at all, so playback settled into exactly the kind of
+long-lived single connection the CDN kills once the first small chunk ran
+out. Bounds it the same way the fresh-resolve path already does.
+
+Also adds a 45s OkHttp callTimeout as a second, independent line of
+defense: if the chunk-boundary continuation doesn't trigger the way
+expected on some device/ExoPlayer version, this forces a reconnect anyway,
+comfortably before the ~60s point where the CDN itself cuts the connection,
+rather than depending on one single mechanism always working.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/MusicService.kt  | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 8723ca66..cf101cc5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -172,6 +172,7 @@ import java.net.ConnectException
+ import java.net.SocketTimeoutException
+ import java.net.UnknownHostException
+ import java.time.LocalDateTime
++import java.util.concurrent.TimeUnit
+ import javax.inject.Inject
+ import kotlin.math.min
+ import kotlin.math.pow
+@@ -832,6 +833,15 @@ class MusicService : MediaLibraryService(),
+                             OkHttpDataSource.Factory(
+                                 OkHttpClient.Builder()
+                                     .proxy(YouTube.proxy)
++                                    // Belt-and-suspenders alongside the dataSpec-level chunk bound
++                                    // in createDataSourceFactory(): if a single call somehow runs
++                                    // longer than this regardless of that bound (a device/ExoPlayer
++                                    // version where the chunk continuation doesn't kick in the way
++                                    // expected, for instance), this forces OkHttp itself to abort
++                                    // and reconnect before reaching googlevideo's own connection
++                                    // cutoff (confirmed at roughly a minute), rather than depending
++                                    // on a single mechanism to always work.
++                                    .callTimeout(45, TimeUnit.SECONDS)
+                                     .build()
+                             )
+                         )
+@@ -893,8 +903,16 @@ class MusicService : MediaLibraryService(),
+             songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
+                 offloadScope.launch { recoverSong(mediaId) }
++                // Bounded the same as the fresh-resolve path below, and for the same reason: left
++                // unbounded (as this was before), this is the request that turns into one
++                // long-lived connection past whatever duration googlevideo's CDN cuts a stream at -
++                // confirmed independently of any auth/URL-freshness issue, since a much larger
++                // CHUNK_LENGTH still failed with the same source error at roughly the same wall-clock
++                // point regardless of the extra bytes available. Every read has to keep reconnecting
++                // under that ceiling, not just the very first one.
+                 return@Factory dataSpec.withUri(it.url.toUri())
+                     .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
++                    .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+             }
+ 
+             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
+-- 
+2.43.0
+
+From c0795ece15826619389401ded757e1ebb2a3ce92 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 12:19:59 +0000
+Subject: [PATCH] Stop the 'Failed to parse proxy url' toast on every launch
+ with no proxy set
+
+toInetSocketAddress() destructured split(":") with no length check, so a
+blank or malformed ProxyUrlKey threw on every single app start whenever
+ProxyEnabledKey was true - which happens whenever that toggle is on but no
+URL was ever actually saved, not just for a genuine typo. Guards the blank
+case before attempting to parse at all, and makes the parser itself throw
+a clear IllegalArgumentException instead of an unrelated destructuring/
+NumberFormatException for an actually-malformed non-blank URL.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ app/src/main/java/com/dd3boh/outertune/App.kt | 22 ++++++++++++-------
+ .../dd3boh/outertune/extensions/StringExt.kt  | 13 +++++++++--
+ 2 files changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
+index 682edec7..a55d1baf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/App.kt
++++ b/app/src/main/java/com/dd3boh/outertune/App.kt
+@@ -97,14 +97,20 @@ class App : Application(), SingletonImageLoader.Factory {
+         }
+ 
+         if (dataStore[ProxyEnabledKey] == true) {
+-            try {
+-                YouTube.proxy = Proxy(
+-                    dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
+-                    dataStore[ProxyUrlKey]!!.toInetSocketAddress()
+-                )
+-            } catch (e: Exception) {
+-                Toast.makeText(this, "Failed to parse proxy url.", LENGTH_SHORT).show()
+-                reportException(e)
++            val proxyUrl = dataStore[ProxyUrlKey]
++            // Blank/missing is "the toggle is on but nothing was ever saved" - not an error worth a
++            // toast on every single launch. A non-blank string that still fails to parse is a real
++            // misconfiguration and should still surface.
++            if (!proxyUrl.isNullOrBlank()) {
++                try {
++                    YouTube.proxy = Proxy(
++                        dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
++                        proxyUrl.toInetSocketAddress()
++                    )
++                } catch (e: Exception) {
++                    Toast.makeText(this, "Failed to parse proxy url.", LENGTH_SHORT).show()
++                    reportException(e)
++                }
+             }
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt b/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt
+index 148dda53..dc67714d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt
++++ b/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt
+@@ -14,7 +14,16 @@ inline fun <reified T : Enum<T>> String?.toEnum(defaultValue: T): T =
+ 
+ fun String.toSQLiteQuery(): SimpleSQLiteQuery = SimpleSQLiteQuery(this)
+ 
++/**
++ * @throws IllegalArgumentException if this string isn't exactly "host:port" - callers that show
++ * this to the person (rather than letting it crash) should catch that specifically, not just
++ * Exception, since a bare Exception catch also swallows the very host/port bugs this is meant to
++ * surface during development.
++ */
+ fun String.toInetSocketAddress(): InetSocketAddress {
+-    val (host, port) = split(":")
+-    return createUnresolved(host, port.toInt())
++    val parts = split(":")
++    require(parts.size == 2) { "Expected \"host:port\", got \"$this\"" }
++    val port = parts[1].toIntOrNull()
++    require(port != null) { "Port isn't a number: \"${parts[1]}\"" }
++    return createUnresolved(parts[0], port)
+ }
+\ No newline at end of file
+-- 
+2.43.0
+
