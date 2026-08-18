@@ -917,7 +917,17 @@ class MusicService : MediaLibraryService(),
 
             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
 
+            // A cache entry existing (even an expired one) means this song was already resolved
+            // once before - the aging streaming PoToken embedded in that URL is exactly what's
+            // being worked around here, so force a fresh mint rather than risk PoTokenGenerator's
+            // own session-level cache handing back the same one. Skipped for a genuinely first-time
+            // resolve so the very first song of a session doesn't pay this cost for no reason.
+            val isRefresh = songUrlCache.containsKey(mediaId)
+
             val playbackData = runBlocking(Dispatchers.IO) {
+                if (isRefresh) {
+                    YTPlayerUtils.invalidatePoTokenSession()
+                }
                 val audioQuality by enumPreference(this@MusicService, AudioQualityKey, AudioQuality.AUTO)
                 YTPlayerUtils.playerResponseForPlayback(
                     mediaId,
@@ -980,7 +990,14 @@ class MusicService : MediaLibraryService(),
 
             songUrlCache[mediaId] = CachedStreamUrl(
                 url = streamUrl,
-                expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
+                // streamExpiresInSeconds is YouTube's own claimed validity (routinely hours), but
+                // the embedded streaming PoToken has been observed to actually stop working after
+                // roughly a minute regardless of connection count or chunk size (both were tightened
+                // independently with zero effect on the failure point, which time-since-minting
+                // explains and connection-duration doesn't). Capping our own trust well under that
+                // forces the proactive refresh above - fresh PoToken included - before the CDN ever
+                // gets a chance to reject the old one.
+                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds.toLong(), 40L) * 1000L,
                 userAgent = playbackData.streamUserAgent,
             )
             dataSpec.withUri(streamUrl.toUri())
@@ -1478,7 +1495,11 @@ class MusicService : MediaLibraryService(),
         const val CHANNEL_NAME = "fgs_workaround"
         const val NOTIFICATION_ID = 888
         const val ERROR_CODE_NO_STREAM = 1000001
-        const val CHUNK_LENGTH = 512 * 1024L
+        // Bounds every stream request (see createDataSourceFactory()) so no single one can still be
+        // mid-transfer when the cached URL's credentials go stale - see songUrlCache's 40s trust cap
+        // for why that matters. Comfortably covers even a low-bitrate song within that window; a
+        // higher-bitrate one just means more frequent, still-small requests.
+        const val CHUNK_LENGTH = 256 * 1024L
 
         const val COMMAND_GET_BINDER = "GET_BINDER"
     }

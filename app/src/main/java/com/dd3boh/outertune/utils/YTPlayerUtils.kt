@@ -253,6 +253,21 @@ object YTPlayerUtils {
     }
 
     /**
+     * Invalidates just the cached streaming PoToken session, without also rotating visitorData
+     * (that's [rotateSessionIdentity], which additionally costs a network round-trip). The
+     * streaming PoToken embedded in a resolved stream URL has a real-world validity far shorter
+     * than streamExpiresInSeconds claims - confirmed independently of connection duration or chunk
+     * size, since tightening both made no difference to a fixed ~60s cutoff. PoTokenGenerator
+     * caches the streaming pot at the session level and has no reason to know to mint a new one
+     * just because playerResponseForPlayback is called again, so a proactive refresh of an aging
+     * cached URL needs to force this explicitly rather than hoping its own internal expiry check
+     * happens to line up.
+     */
+    fun invalidatePoTokenSession() {
+        poTokenGenerator.invalidate()
+    }
+
+    /**
      * Fetches a WEB_REMIX player response for non-streaming data, including
      * video metadata and playback tracking.
      *
