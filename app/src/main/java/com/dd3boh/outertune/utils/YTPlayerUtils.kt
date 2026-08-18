@@ -40,6 +40,12 @@ object YTPlayerUtils {
 
     private val poTokenGenerator = PoTokenGenerator()
 
+    /**
+     * Byte offset used by [validateStatus]. Must stay at or beyond MusicService.CHUNK_LENGTH so the
+     * probe exercises a continuation request rather than the first chunk.
+     */
+    private const val PROBE_OFFSET = 256 * 1024L
+
 
     /**
      * Client used for metadata and the initial stream response. Other clients are not used here
@@ -186,10 +192,6 @@ object YTPlayerUtils {
                     streamUrl += "&pot=$webStreamingPot";
                 }
 
-                if (clientIndex == STREAM_FALLBACK_CLIENTS.size - 1) {
-                    // skip validateStatus for the last client
-                    break
-                }
                 if (validateStatus(streamUrl, client.userAgent)) {
                     // working stream found
                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
@@ -315,11 +317,15 @@ object YTPlayerUtils {
     private fun validateStatus(url: String, userAgent: String): Boolean {
         try {
             val requestBuilder = okhttp3.Request.Builder()
-                .head()
                 .header("User-Agent", userAgent)
+                // Deliberately past the first chunk. A HEAD - or any probe landing inside the
+                // first chunk - succeeds on URLs whose *continuation* requests are rejected, which
+                // is precisely the failure this is meant to screen for: playback that starts
+                // cleanly and dies the moment the first chunk runs out.
+                .header("Range", "bytes=$PROBE_OFFSET-${PROBE_OFFSET + 1}")
                 .url(url)
             val response = httpClient.newCall(requestBuilder.build()).execute()
-            return response.isSuccessful
+            return response.use { it.code in 200..299 }
         } catch (e: Exception) {
             reportException(e)
         }
