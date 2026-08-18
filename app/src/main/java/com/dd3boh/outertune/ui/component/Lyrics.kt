@@ -122,12 +122,10 @@ fun Lyrics(
     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
 
-    // Asking the power manager costs a binder call, so it is asked once per song rather than once
-    // per lyric line per recomposition. Keyed rather than cached outright: caching it for the life
-    // of the composable meant that turning battery saver off never brought the sweep back.
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
-    val powerSaver = remember(mediaMetadata) { context.isPowerSaver() }
-    val karaokeEnabled = lyricsFancy && !powerSaver
+    // Word-by-word sync used to also require !context.isPowerSaver(); that override is gone, so
+    // the Karaoke lyrics setting alone decides now, battery saver or not.
+    val karaokeEnabled = lyricsFancy
 
     // How often the *current line* is recomputed, which is what drives highlighting and scrolling.
     // The word sweep does not go through here: it redraws itself every frame.
