@@ -184,6 +184,16 @@ class PlayerConnection(
         service.toggleLibrary()
     }
 
+    /**
+     * Rotates the YouTube session identity, clears every cached stream URL, and retries whatever
+     * is currently loaded. Backs the "Reset YouTube session" settings action - see
+     * [MusicService.resetYouTubeSessionAndRetry] for why this is more than just deleting
+     * visitorData.
+     */
+    fun resetYouTubeSessionAndRetry() {
+        service.resetYouTubeSessionAndRetry()
+    }
+
     override fun onPlaybackStateChanged(state: Int) {
         playbackState.value = state
         error.value = player.playerError

@@ -73,7 +73,6 @@ import com.dd3boh.outertune.constants.OobeStatusKey
 import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
 import com.dd3boh.outertune.constants.TabletUiKey
 import com.dd3boh.outertune.constants.TopBarInsets
-import com.dd3boh.outertune.constants.VisitorDataKey
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
@@ -231,13 +230,9 @@ fun ExperimentalSettings(
             Spacer(Modifier.height(20.dp))
 
             PreferenceEntry(
-                title = { Text("Delete VisitorData: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues. Not recommended for logged in users.") },
+                title = { Text("Reset YouTube session: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues, or stream URLs that stop working partway through a song. Not recommended for logged in users.") },
                 onClick = {
-                    runBlocking {
-                        context.dataStore.edit { settings ->
-                            settings.remove(VisitorDataKey)
-                        }
-                    }
+                    playerConnection?.resetYouTubeSessionAndRetry()
                 }
             )
 

@@ -1082,6 +1082,35 @@ class MusicService : MediaLibraryService(),
         Toast.makeText(this@MusicService, getString(R.string.wait_to_reconnect), Toast.LENGTH_LONG).show()
     }
 
+    /**
+     * Rotates the YouTube session identity, then re-prepares and resumes whatever is currently
+     * loaded so the rotation actually takes effect immediately rather than on the next thing the
+     * person happens to play. Shared by the automatic source-error retry in [onPlayerError] and
+     * [resetYouTubeSessionAndRetry].
+     */
+    private fun retryCurrentItemWithFreshIdentity() {
+        scope.launch {
+            withContext(Dispatchers.IO) {
+                YTPlayerUtils.rotateSessionIdentity()
+            }
+            player.prepare()
+            player.play()
+        }
+    }
+
+    /**
+     * Manual escape hatch backing the "Reset YouTube session" settings action. Unlike the
+     * automatic retry in [onPlayerError] - which only evicts and retries the one track that just
+     * failed - this clears every cached stream URL and every song already given its one automatic
+     * retry, since a person reaching for a manual reset usually suspects the problem isn't limited
+     * to a single song.
+     */
+    fun resetYouTubeSessionAndRetry() {
+        songUrlCache.clear()
+        retriedAfterSourceError.clear()
+        retryCurrentItemWithFreshIdentity()
+    }
+
     fun skipOnError() {
         /**
          * Auto skip to the next media item on error.
@@ -1149,15 +1178,19 @@ class MusicService : MediaLibraryService(),
         // different fallback client than whichever one just failed. Drop the cached URL and
         // re-prepare once before falling through to skip/stop; see retriedAfterSourceError's own
         // doc for why this is capped at one attempt per song.
+        //
+        // Also rotates the YouTube session identity before retrying: a rejected URL and a
+        // bot-detection-flagged identity produce the identical symptom from here, and re-resolving
+        // under the *same* identity does nothing for the latter. Rotating is cheap enough to just
+        // always do alongside the retry rather than trying to tell the two cases apart first.
         val isRetryableSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
         val failedMediaId = player.currentMediaItem?.mediaId
         if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
             songUrlCache.remove(failedMediaId)
-            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL: mediaId=$failedMediaId")
-            player.prepare()
-            player.play()
+            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL and identity: mediaId=$failedMediaId")
+            retryCurrentItemWithFreshIdentity()
             return
         }
 

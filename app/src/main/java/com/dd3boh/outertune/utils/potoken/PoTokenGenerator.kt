@@ -21,6 +21,17 @@ class PoTokenGenerator {
     private var webPoTokenStreamingPot: String? = null
     private var webPoTokenGenerator: PoTokenWebView? = null
 
+    /**
+     * Forces the next [getWebClientPoToken] call to mint a fresh streaming token and, if needed,
+     * recreate the WebView generator from scratch - instead of reusing state that may be exactly
+     * why the last request was rejected. [webPoTokenSessionId] is what [getWebClientPoToken]
+     * already checks to decide whether to recreate, so invalidating it here is enough; no session
+     * id a real caller passes will ever equal null.
+     */
+    fun invalidate() {
+        webPoTokenSessionId = null
+    }
+
     fun getWebClientPoToken(videoId: String, sessionId: String): PoTokenResult? {
         if (!webViewSupported || webViewBadImpl) {
             return null

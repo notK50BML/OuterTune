@@ -10,8 +10,11 @@ package com.dd3boh.outertune.utils
 
 import android.net.ConnectivityManager
 import android.util.Log
+import androidx.datastore.preferences.core.edit
 import androidx.media3.common.PlaybackException
+import com.dd3boh.outertune.App
 import com.dd3boh.outertune.constants.AudioQuality
+import com.dd3boh.outertune.constants.VisitorDataKey
 import com.dd3boh.outertune.utils.YTPlayerUtils.MAIN_CLIENT
 import com.dd3boh.outertune.utils.YTPlayerUtils.STREAM_FALLBACK_CLIENTS
 import com.dd3boh.outertune.utils.YTPlayerUtils.validateStatus
@@ -227,6 +230,26 @@ object YTPlayerUtils {
             streamExpiresInSeconds,
             streamClient.userAgent,
         )
+    }
+
+    /**
+     * Mints a fresh visitorData and invalidates the cached WebView PoToken session - the same pair
+     * of things Settings > Experimental > "Delete VisitorData" does by hand. This is complementary
+     * to the retry in onPlayerError: that retry re-resolves the URL and matches the User-Agent to
+     * whichever client answers (fixing a rejected/expired URL or a UA mismatch), while this
+     * targets a third, distinct cause - YouTube's bot-detection having flagged this client's
+     * identity, which a differently-resolved URL under the *same* identity would not fix. Logged-in
+     * sessions are identified by dataSyncId instead, which isn't something this can rotate, so this
+     * only does anything useful when signed out.
+     */
+    suspend fun rotateSessionIdentity() {
+        poTokenGenerator.invalidate()
+        if (YouTube.cookie == null) {
+            YouTube.visitorData().onSuccess { newVisitorData ->
+                YouTube.visitorData = newVisitorData
+                App.instance.dataStore.edit { it[VisitorDataKey] = newVisitorData }
+            }
+        }
     }
 
     /**
