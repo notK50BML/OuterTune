@@ -97,14 +97,20 @@ class App : Application(), SingletonImageLoader.Factory {
         }
 
         if (dataStore[ProxyEnabledKey] == true) {
-            try {
-                YouTube.proxy = Proxy(
-                    dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
-                    dataStore[ProxyUrlKey]!!.toInetSocketAddress()
-                )
-            } catch (e: Exception) {
-                Toast.makeText(this, "Failed to parse proxy url.", LENGTH_SHORT).show()
-                reportException(e)
+            val proxyUrl = dataStore[ProxyUrlKey]
+            // Blank/missing is "the toggle is on but nothing was ever saved" - not an error worth a
+            // toast on every single launch. A non-blank string that still fails to parse is a real
+            // misconfiguration and should still surface.
+            if (!proxyUrl.isNullOrBlank()) {
+                try {
+                    YouTube.proxy = Proxy(
+                        dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
+                        proxyUrl.toInetSocketAddress()
+                    )
+                } catch (e: Exception) {
+                    Toast.makeText(this, "Failed to parse proxy url.", LENGTH_SHORT).show()
+                    reportException(e)
+                }
             }
         }
 
