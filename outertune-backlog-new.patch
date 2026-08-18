@@ -33515,6 +33515,118 @@ index 8723ca66..cf101cc5 100644
 -- 
 2.43.0
 
+From fe6368e88f9db728fbce25b559c64236f4a5d375 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 13:11:06 +0000
+Subject: [PATCH] Proactively refresh the streaming PoToken before it actually
+ goes stale
+
+Confirmed the CDN-connection-duration theory wrong: tightening chunk size
+and adding an OkHttp callTimeout, independently, both left the failure at
+exactly the same ~60-64s wall-clock point with the same 403. Since neither
+touched connection duration and the timing didn't move, duration was never
+the actual variable - time since the credentials were minted is.
+
+songUrlCache trusted a cached URL for streamExpiresInSeconds (YouTube's own
+claim, routinely hours), but the streaming PoToken embedded in that URL
+has a real-world validity far shorter. Worse, PoTokenGenerator caches the
+streaming pot at the session level, so simply calling
+playerResponseForPlayback again on refresh had no guarantee of minting a
+new one - it could easily hand back the same one that's about to expire.
+
+Caps the cache's effective trust at 40s regardless of what
+streamExpiresInSeconds claims, and forces invalidatePoTokenSession() before
+any refresh (skipped on a song's genuinely first resolve, so that one
+doesn't pay for a rotation it doesn't need). CHUNK_LENGTH tightened to
+256KB so no single request - even for a low-bitrate song - is likely to
+still be mid-transfer when the old credentials actually go bad.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 25 +++++++++++++++++--
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 15 +++++++++++
+ 2 files changed, 38 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index cf101cc5..9f8056cd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -917,7 +917,17 @@ class MusicService : MediaLibraryService(),
+ 
+             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
+ 
++            // A cache entry existing (even an expired one) means this song was already resolved
++            // once before - the aging streaming PoToken embedded in that URL is exactly what's
++            // being worked around here, so force a fresh mint rather than risk PoTokenGenerator's
++            // own session-level cache handing back the same one. Skipped for a genuinely first-time
++            // resolve so the very first song of a session doesn't pay this cost for no reason.
++            val isRefresh = songUrlCache.containsKey(mediaId)
++
+             val playbackData = runBlocking(Dispatchers.IO) {
++                if (isRefresh) {
++                    YTPlayerUtils.invalidatePoTokenSession()
++                }
+                 val audioQuality by enumPreference(this@MusicService, AudioQualityKey, AudioQuality.AUTO)
+                 YTPlayerUtils.playerResponseForPlayback(
+                     mediaId,
+@@ -980,7 +990,14 @@ class MusicService : MediaLibraryService(),
+ 
+             songUrlCache[mediaId] = CachedStreamUrl(
+                 url = streamUrl,
+-                expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
++                // streamExpiresInSeconds is YouTube's own claimed validity (routinely hours), but
++                // the embedded streaming PoToken has been observed to actually stop working after
++                // roughly a minute regardless of connection count or chunk size (both were tightened
++                // independently with zero effect on the failure point, which time-since-minting
++                // explains and connection-duration doesn't). Capping our own trust well under that
++                // forces the proactive refresh above - fresh PoToken included - before the CDN ever
++                // gets a chance to reject the old one.
++                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds.toLong(), 40L) * 1000L,
+                 userAgent = playbackData.streamUserAgent,
+             )
+             dataSpec.withUri(streamUrl.toUri())
+@@ -1478,7 +1495,11 @@ class MusicService : MediaLibraryService(),
+         const val CHANNEL_NAME = "fgs_workaround"
+         const val NOTIFICATION_ID = 888
+         const val ERROR_CODE_NO_STREAM = 1000001
+-        const val CHUNK_LENGTH = 512 * 1024L
++        // Bounds every stream request (see createDataSourceFactory()) so no single one can still be
++        // mid-transfer when the cached URL's credentials go stale - see songUrlCache's 40s trust cap
++        // for why that matters. Comfortably covers even a low-bitrate song within that window; a
++        // higher-bitrate one just means more frequent, still-small requests.
++        const val CHUNK_LENGTH = 256 * 1024L
+ 
+         const val COMMAND_GET_BINDER = "GET_BINDER"
+     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index 460ca782..aac787ba 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -252,6 +252,21 @@ object YTPlayerUtils {
+         }
+     }
+ 
++    /**
++     * Invalidates just the cached streaming PoToken session, without also rotating visitorData
++     * (that's [rotateSessionIdentity], which additionally costs a network round-trip). The
++     * streaming PoToken embedded in a resolved stream URL has a real-world validity far shorter
++     * than streamExpiresInSeconds claims - confirmed independently of connection duration or chunk
++     * size, since tightening both made no difference to a fixed ~60s cutoff. PoTokenGenerator
++     * caches the streaming pot at the session level and has no reason to know to mint a new one
++     * just because playerResponseForPlayback is called again, so a proactive refresh of an aging
++     * cached URL needs to force this explicitly rather than hoping its own internal expiry check
++     * happens to line up.
++     */
++    fun invalidatePoTokenSession() {
++        poTokenGenerator.invalidate()
++    }
++
+     /**
+      * Fetches a WEB_REMIX player response for non-streaming data, including
+      * video metadata and playback tracking.
+-- 
+2.43.0
+
 From c0795ece15826619389401ded757e1ebb2a3ce92 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 12:19:59 +0000
