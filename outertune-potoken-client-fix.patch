@@ -1,0 +1,102 @@
+From aa11111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Wed, 19 Aug 2026 00:00:00 +0000
+Subject: [PATCH 1/2] Use a PoToken-bearing client for playback streams
+
+Every PoToken fix in this series so far - session rotation, the 40s cache
+cap, invalidate()-before-refresh - operated on a token that was never in
+the URL being played. MAIN_CLIENT is ANDROID_VR_NO_AUTH, which leaves
+useWebPoTokens at its false default, so the
+
+    if (client.useWebPoTokens && webStreamingPot != null)
+
+guard never fired for the client that actually won selection. That is why
+the failure point was invariant to chunk size, to connection duration, and
+to every token-freshness change: none of them touched the wire.
+
+Promotes WEB_REMIX (useWebPoTokens = true) to MAIN_CLIENT and keeps
+ANDROID_VR as a fallback. Metadata now comes from WEB_REMIX too, which is
+the client whose loudnessDb normalization the rest of the app already
+assumes.
+
+---
+ .../java/com/dd3boh/outertune/utils/YTPlayerUtils.kt | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@
+-    private val MAIN_CLIENT: YouTubeClient = ANDROID_VR_NO_AUTH
++    private val MAIN_CLIENT: YouTubeClient = WEB_REMIX
+ 
+     /**
+      * Clients used for fallback streams in case the streams of the main client do not work.
+      */
+     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
+-        WEB_REMIX, // premium formats and correct metadata; requires working signature deobfuscation
++        ANDROID_VR_NO_AUTH,
+         IOS,
+     )
+-- 
+2.43.0
+
+From bb22222222222222222222222222222222222222 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Wed, 19 Aug 2026 00:00:01 +0000
+Subject: [PATCH 2/2] Validate streams with a ranged GET past the first chunk
+
+validateStatus() issued a HEAD. googlevideo answers HEAD with 200 on URLs
+whose ranged GET continuations return 403, so the check was a false
+positive: the first client tried always "passed" and broke out of the
+fallback loop, leaving the later clients unreachable no matter how broken
+the winning stream was.
+
+Probes past CHUNK_LENGTH instead, which is the exact request that fails
+during playback, and sends the client's own User-Agent so the probe
+matches the conditions of the real fetch.
+
+Also drops the unconditional break for the last fallback client: with a
+probe that reflects reality there is no reason to accept an unvalidated
+stream, and doing so re-introduces the same false pass.
+
+---
+ .../java/com/dd3boh/outertune/utils/YTPlayerUtils.kt | 18 ++++++++++--------
+ 1 file changed, 10 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@
+-                if (clientIndex == STREAM_FALLBACK_CLIENTS.size - 1) {
+-                    // skip validateStatus for the last client
+-                    break
+-                }
+-                if (validateStatus(streamUrl)) {
++                if (validateStatus(streamUrl, client.userAgent)) {
+                     // working stream found
+                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
+                     break
+@@
+-    private fun validateStatus(url: String): Boolean {
++    private fun validateStatus(url: String, userAgent: String): Boolean {
+         try {
+             val requestBuilder = okhttp3.Request.Builder()
+-                .head()
++                .header("User-Agent", userAgent)
++                // Past the first chunk on purpose: a HEAD, or any probe inside the first chunk,
++                // succeeds on URLs whose continuation requests are rejected - which is the exact
++                // failure being screened for here.
++                .header("Range", "bytes=$CHUNK_LENGTH-${CHUNK_LENGTH + 1}")
+                 .url(url)
+             val response = httpClient.newCall(requestBuilder.build()).execute()
+-            return response.isSuccessful
++            response.close()
++            return response.code in 200..299
+         } catch (e: Exception) {
+             reportException(e)
+         }
+         return false
+     }
+-- 
+2.43.0

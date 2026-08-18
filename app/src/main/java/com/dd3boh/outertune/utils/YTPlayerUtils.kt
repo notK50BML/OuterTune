@@ -40,17 +40,18 @@ object YTPlayerUtils {
 
     private val poTokenGenerator = PoTokenGenerator()
 
+
     /**
      * Client used for metadata and the initial stream response. Other clients are not used here
      * because their metadata can differ (e.g. different loudnessDb normalization targets).
      */
-    private val MAIN_CLIENT: YouTubeClient = ANDROID_VR_NO_AUTH
+    private val MAIN_CLIENT: YouTubeClient = WEB_REMIX
 
     /**
      * Clients used for fallback streams in case the streams of the main client do not work.
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
-        WEB_REMIX, // premium formats and correct metadata; requires working signature deobfuscation
+        ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
 //        ANDROID,
 //        TVHTML5,
 //        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
