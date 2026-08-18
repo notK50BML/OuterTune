@@ -33224,100 +33224,153 @@ index 5e9b45d5..8b1c02f7 100644
      // The word sweep does not go through here: it redraws itself every frame.
 -- 
 2.45.1.windows.1
-From 620ff471a828b50a99bfd66596682e0e90120872 Mon Sep 17 00:00:00 2001
+From 221151f7ad46d6b3eed89879002129240d2af25e Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
-Date: Tue, 18 Aug 2026 10:12:32 +0000
-Subject: [PATCH] Retry once with a rotated identity on a bad-HTTP-status
- playback error
+Date: Tue, 18 Aug 2026 10:59:31 +0000
+Subject: [PATCH] Rotate the YouTube session identity as part of the existing
+ source-error retry
 
-A stream URL that resolves fine and even plays for a while before hard
-403ing is the signature of YouTube's bot-detection having flagged this
-client's visitorData, not of the video being unavailable - every request
-tagged with that identity keeps getting the same treatment. Settings >
-Experimental already has a manual "Delete VisitorData" entry for exactly
-this; onPlayerError now does the equivalent automatically the first time a
-track hits ERROR_CODE_IO_BAD_HTTP_STATUS (2004), then retries that same
-track once before falling back to skip/stop.
+The retry in onPlayerError (from the earlier 'Two more defenses against
+error 2004' commit) re-resolves the stream URL and matches the User-Agent
+to whichever client answers - which fixes a rejected/expired URL or a UA
+mismatch, but does nothing if the real problem is YouTube's bot-detection
+having flagged this client's identity: a differently-resolved URL under
+the *same* identity gets the same treatment. rotateSessionIdentity() mints
+a fresh visitorData (mirroring Settings > Experimental > "Delete
+VisitorData") and invalidates the cached WebView PoToken session, and now
+runs alongside the existing retry rather than instead of it.
 
-songUrlCache moves from a local val in createDataSourceFactory() to a class
-property so the retry can evict the just-rejected URL - left as a local, a
-retry would resolve straight back to the same cached URL and 403 again
-immediately, since the cache is keyed on YouTube's own expiresInSeconds and
-has no idea the URL it's holding just failed.
-
-rotateSessionIdentity() only helps signed-out sessions: logged-in ones are
-identified by dataSyncId, which this doesn't touch.
+Also adds resetYouTubeSessionAndRetry() as a manual escape hatch, wired to
+a renamed "Reset YouTube session" entry in Experimental Settings (previously
+just deleted the VisitorData preference key and relied on App's reactive
+collector to notice - which left songUrlCache/retriedAfterSourceError
+completely untouched, so a retry could still resolve straight back to a
+cached, already-rejected URL). This clears both, rotates identity, and
+retries whatever is currently loaded immediately.
 
 Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
 ---
- .../dd3boh/outertune/playback/MusicService.kt | 36 ++++++++++++++++++-
- .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 23 ++++++++++++
+ .../dd3boh/outertune/playback/MusicService.kt | 39 +++++++++++++++++--
+ .../outertune/playback/PlayerConnection.kt    | 10 +++++
+ .../screens/settings/ExperimentalSettings.kt  |  9 +----
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 23 +++++++++++
  .../utils/potoken/PoTokenGenerator.kt         | 11 ++++++
- 3 files changed, 69 insertions(+), 1 deletion(-)
+ 5 files changed, 82 insertions(+), 10 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-index b905290..1966761 100644
+index 19d8115b..8723ca66 100644
 --- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-@@ -185,6 +185,18 @@ class MusicService : MediaLibraryService(),
-     // player, which must run on the application thread; the SupervisorJob binds it to the service lifecycle.
-     private val queueLoadScope = CoroutineScope(SupervisorJob(serviceJob) + Dispatchers.Main)
- 
-+    // Resolved stream URL per media id, valid until YouTube's own expiresInSeconds. A class
-+    // property rather than local to createDataSourceFactory() so onPlayerError can evict an entry
-+    // that just got a bad HTTP status - otherwise a retry would resolve straight back to the same
-+    // cached (and apparently now-rejected) URL instead of asking YTPlayerUtils for a fresh one.
-+    private val songUrlCache = HashMap<String, Pair<String, Long>>()
-+
-+    // The one mediaId this session has already retried once after a bad HTTP status. Sized at one
-+    // rather than a per-item counter or TTL: it exists purely to stop onPlayerError from retrying
-+    // the exact same failure forever if the retry itself also gets rejected, not to rate-limit
-+    // retries across a whole session.
-+    private var lastBadHttpStatusRetryId: String? = null
-+
-     // Critical player components
-     @Inject
-     lateinit var downloadUtil: DownloadUtil
-@@ -723,7 +735,6 @@ class MusicService : MediaLibraryService(),
+@@ -1082,6 +1082,35 @@ class MusicService : MediaLibraryService(),
+         Toast.makeText(this@MusicService, getString(R.string.wait_to_reconnect), Toast.LENGTH_LONG).show()
      }
  
-     private fun createDataSourceFactory(): DataSource.Factory {
--        val songUrlCache = HashMap<String, Pair<String, Long>>()
-         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
-             val mediaId = dataSpec.key ?: error("No media id")
-             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: song id = $mediaId")
-@@ -1004,6 +1015,29 @@ class MusicService : MediaLibraryService(),
++    /**
++     * Rotates the YouTube session identity, then re-prepares and resumes whatever is currently
++     * loaded so the rotation actually takes effect immediately rather than on the next thing the
++     * person happens to play. Shared by the automatic source-error retry in [onPlayerError] and
++     * [resetYouTubeSessionAndRetry].
++     */
++    private fun retryCurrentItemWithFreshIdentity() {
++        scope.launch {
++            withContext(Dispatchers.IO) {
++                YTPlayerUtils.rotateSessionIdentity()
++            }
++            player.prepare()
++            player.play()
++        }
++    }
++
++    /**
++     * Manual escape hatch backing the "Reset YouTube session" settings action. Unlike the
++     * automatic retry in [onPlayerError] - which only evicts and retries the one track that just
++     * failed - this clears every cached stream URL and every song already given its one automatic
++     * retry, since a person reaching for a manual reset usually suspects the problem isn't limited
++     * to a single song.
++     */
++    fun resetYouTubeSessionAndRetry() {
++        songUrlCache.clear()
++        retriedAfterSourceError.clear()
++        retryCurrentItemWithFreshIdentity()
++    }
++
+     fun skipOnError() {
+         /**
+          * Auto skip to the next media item on error.
+@@ -1149,15 +1178,19 @@ class MusicService : MediaLibraryService(),
+         // different fallback client than whichever one just failed. Drop the cached URL and
+         // re-prepare once before falling through to skip/stop; see retriedAfterSourceError's own
+         // doc for why this is capped at one attempt per song.
++        //
++        // Also rotates the YouTube session identity before retrying: a rejected URL and a
++        // bot-detection-flagged identity produce the identical symptom from here, and re-resolving
++        // under the *same* identity does nothing for the latter. Rotating is cheap enough to just
++        // always do alongside the retry rather than trying to tell the two cases apart first.
+         val isRetryableSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+             error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
+             error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+         val failedMediaId = player.currentMediaItem?.mediaId
+         if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
+             songUrlCache.remove(failedMediaId)
+-            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL: mediaId=$failedMediaId")
+-            player.prepare()
+-            player.play()
++            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL and identity: mediaId=$failedMediaId")
++            retryCurrentItemWithFreshIdentity()
              return
          }
  
-+        // A bad HTTP status - almost always a 403 - on a stream URL that resolved fine and may
-+        // even have played for a while usually means YouTube's bot-detection has flagged this
-+        // client's identity, not that the song is actually unavailable: the same failure the
-+        // "Delete VisitorData" entry in Experimental Settings works around by hand. Retried once,
-+        // automatically, with a freshly minted identity, before falling back to skip/stop below -
-+        // lastBadHttpStatusRetryId stops this from looping if the retry fails the same way.
-+        val currentMediaId = player.currentMediaItem?.mediaId
-+        if (error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
-+            && currentMediaId != null
-+            && currentMediaId != lastBadHttpStatusRetryId
-+        ) {
-+            lastBadHttpStatusRetryId = currentMediaId
-+            songUrlCache.remove(currentMediaId)
-+            scope.launch {
-+                withContext(Dispatchers.IO) {
-+                    YTPlayerUtils.rotateSessionIdentity()
-+                }
-+                player.prepare()
-+                player.play()
-+            }
-+            return
-+        }
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
+index 16bcf669..2c59ab09 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
+@@ -184,6 +184,16 @@ class PlayerConnection(
+         service.toggleLibrary()
+     }
+ 
++    /**
++     * Rotates the YouTube session identity, clears every cached stream URL, and retries whatever
++     * is currently loaded. Backs the "Reset YouTube session" settings action - see
++     * [MusicService.resetYouTubeSessionAndRetry] for why this is more than just deleting
++     * visitorData.
++     */
++    fun resetYouTubeSessionAndRetry() {
++        service.resetYouTubeSessionAndRetry()
++    }
 +
-         if (dataStore.get(SkipOnErrorKey, false)) {
-             skipOnError()
-         } else {
+     override fun onPlaybackStateChanged(state: Int) {
+         playbackState.value = state
+         error.value = player.playerError
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+index 06facaab..2b2c837c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+@@ -73,7 +73,6 @@ import com.dd3boh.outertune.constants.OobeStatusKey
+ import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
+ import com.dd3boh.outertune.constants.TabletUiKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+-import com.dd3boh.outertune.constants.VisitorDataKey
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
+@@ -231,13 +230,9 @@ fun ExperimentalSettings(
+             Spacer(Modifier.height(20.dp))
+ 
+             PreferenceEntry(
+-                title = { Text("Delete VisitorData: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues. Not recommended for logged in users.") },
++                title = { Text("Reset YouTube session: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues, or stream URLs that stop working partway through a song. Not recommended for logged in users.") },
+                 onClick = {
+-                    runBlocking {
+-                        context.dataStore.edit { settings ->
+-                            settings.remove(VisitorDataKey)
+-                        }
+-                    }
++                    playerConnection?.resetYouTubeSessionAndRetry()
+                 }
+             )
+ 
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
-index fd6be5d..02e18db 100644
+index ee3fd0a0..460ca782 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
 @@ -10,8 +10,11 @@ package com.dd3boh.outertune.utils
@@ -33332,19 +33385,19 @@ index fd6be5d..02e18db 100644
  import com.dd3boh.outertune.utils.YTPlayerUtils.MAIN_CLIENT
  import com.dd3boh.outertune.utils.YTPlayerUtils.STREAM_FALLBACK_CLIENTS
  import com.dd3boh.outertune.utils.YTPlayerUtils.validateStatus
-@@ -218,6 +221,26 @@ object YTPlayerUtils {
+@@ -229,6 +232,26 @@ object YTPlayerUtils {
          )
      }
  
 +    /**
 +     * Mints a fresh visitorData and invalidates the cached WebView PoToken session - the same pair
-+     * of things Settings > Experimental > "Delete VisitorData" does by hand. A bad HTTP status
-+     * (usually 403) on an already-resolved stream URL, especially one that plays for a while
-+     * before cutting off, tends to mean this client's identity has been flagged by YouTube's
-+     * bot-detection rather than that the video itself is unavailable; every subsequent request
-+     * tagged with the same identity keeps getting the same treatment until it changes. Logged-in
-+     * sessions are identified by dataSyncId instead, which isn't something this can rotate, so
-+     * this only does anything useful when signed out.
++     * of things Settings > Experimental > "Delete VisitorData" does by hand. This is complementary
++     * to the retry in onPlayerError: that retry re-resolves the URL and matches the User-Agent to
++     * whichever client answers (fixing a rejected/expired URL or a UA mismatch), while this
++     * targets a third, distinct cause - YouTube's bot-detection having flagged this client's
++     * identity, which a differently-resolved URL under the *same* identity would not fix. Logged-in
++     * sessions are identified by dataSyncId instead, which isn't something this can rotate, so this
++     * only does anything useful when signed out.
 +     */
 +    suspend fun rotateSessionIdentity() {
 +        poTokenGenerator.invalidate()
@@ -33360,7 +33413,7 @@ index fd6be5d..02e18db 100644
       * Fetches a WEB_REMIX player response for non-streaming data, including
       * video metadata and playback tracking.
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt b/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
-index cf7d973..e6d55e7 100644
+index cf7d973c..e6d55e74 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
 @@ -21,6 +21,17 @@ class PoTokenGenerator {
@@ -33381,149 +33434,6 @@ index cf7d973..e6d55e7 100644
      fun getWebClientPoToken(videoId: String, sessionId: String): PoTokenResult? {
          if (!webViewSupported || webViewBadImpl) {
              return null
--- 
-2.43.0
-
-From 3265f23bacac79990d75b18d9340463dbe67c437 Mon Sep 17 00:00:00 2001
-From: claude <c@example.com>
-Date: Tue, 18 Aug 2026 10:17:53 +0000
-Subject: [PATCH] Make the manual bot-check reset actually take effect
- immediately
-
-The old "Delete VisitorData" entry only edited a DataStore key and relied
-on App's reactive collector to notice and fetch a replacement - which does
-work, but leaves songUrlCache (in-memory, keyed on YouTube's own
-expiresInSeconds, with no idea a cached URL just got rejected) completely
-untouched. Pressing play again on a song that was already cached resolved
-straight back to the same rejected URL, making the setting look like it
-had done nothing - which is presumably why clearing all app data was the
-thing that seemed to actually work: killing the process throws that cache
-away along with everything else, this button did not.
-
-Renamed to "Reset YouTube session" and wired to
-PlayerConnection/MusicService.resetYouTubeSessionAndRetry(), which clears
-every cached URL, rotates the identity via the same rotateSessionIdentity()
-the automatic retry in onPlayerError already uses, and re-prepares +
-resumes whatever is currently loaded - so the person sees the result
-immediately instead of having to background the app and come back.
-
-Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
----
- .../dd3boh/outertune/playback/MusicService.kt | 43 ++++++++++++++++---
- .../outertune/playback/PlayerConnection.kt    | 10 +++++
- .../screens/settings/ExperimentalSettings.kt  |  9 +---
- 3 files changed, 48 insertions(+), 14 deletions(-)
-
-diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-index 1966761..687059e 100644
---- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-+++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
-@@ -955,6 +955,41 @@ class MusicService : MediaLibraryService(),
-         Toast.makeText(this@MusicService, getString(R.string.wait_to_reconnect), Toast.LENGTH_LONG).show()
-     }
- 
-+    /**
-+     * Rotates the YouTube session identity, then re-prepares and resumes whatever is currently
-+     * loaded so the rotation actually takes effect immediately rather than on the next thing the
-+     * person happens to play. Shared by the automatic bad-HTTP-status retry in [onPlayerError] and
-+     * [resetYouTubeSessionAndRetry].
-+     */
-+    private fun retryCurrentItemWithFreshIdentity() {
-+        scope.launch {
-+            withContext(Dispatchers.IO) {
-+                YTPlayerUtils.rotateSessionIdentity()
-+            }
-+            player.prepare()
-+            player.play()
-+        }
-+    }
-+
-+    /**
-+     * Manual escape hatch backing the "Reset YouTube session" settings action. Unlike the
-+     * automatic retry in [onPlayerError] - which only evicts and retries the one track that just
-+     * failed - this clears every cached stream URL, since a person reaching for a manual reset
-+     * usually suspects the problem isn't limited to a single song. Editing VisitorDataKey alone
-+     * (the old behaviour of that settings entry) was not enough to fix a stuck session on its
-+     * own: [songUrlCache] is in-memory and keyed on YouTube's expiresInSeconds, not on whether a
-+     * cached URL actually still works, so pressing play again after only rotating the identity
-+     * could still resolve straight back to the same rejected URL - indistinguishable, from the
-+     * person's side, from the setting having done nothing. A full app data clear "worked" for the
-+     * same failure for an unrelated reason: it kills the process, which throws this cache away
-+     * along with everything else.
-+     */
-+    fun resetYouTubeSessionAndRetry() {
-+        songUrlCache.clear()
-+        lastBadHttpStatusRetryId = null
-+        retryCurrentItemWithFreshIdentity()
-+    }
-+
-     fun skipOnError() {
-         /**
-          * Auto skip to the next media item on error.
-@@ -1028,13 +1063,7 @@ class MusicService : MediaLibraryService(),
-         ) {
-             lastBadHttpStatusRetryId = currentMediaId
-             songUrlCache.remove(currentMediaId)
--            scope.launch {
--                withContext(Dispatchers.IO) {
--                    YTPlayerUtils.rotateSessionIdentity()
--                }
--                player.prepare()
--                player.play()
--            }
-+            retryCurrentItemWithFreshIdentity()
-             return
-         }
- 
-diff --git a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
-index 31f4381..27cb7d1 100644
---- a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
-+++ b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
-@@ -185,6 +185,16 @@ class PlayerConnection(
-         service.toggleLibrary()
-     }
- 
-+    /**
-+     * Rotates the YouTube session identity, clears every cached stream URL, and retries whatever
-+     * is currently loaded. Backs the "Reset YouTube session" settings action - see
-+     * [MusicService.resetYouTubeSessionAndRetry] for why this is more than just deleting
-+     * visitorData.
-+     */
-+    fun resetYouTubeSessionAndRetry() {
-+        service.resetYouTubeSessionAndRetry()
-+    }
-+
-     override fun onPlaybackStateChanged(state: Int) {
-         playbackState.value = state
-         error.value = player.playerError
-diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
-index 151d36e..20c3a4c 100644
---- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
-+++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
-@@ -71,7 +71,6 @@ import com.dd3boh.outertune.constants.MaxQueuesKey
- import com.dd3boh.outertune.constants.OobeStatusKey
- import com.dd3boh.outertune.constants.TabletUiKey
- import com.dd3boh.outertune.constants.TopBarInsets
--import com.dd3boh.outertune.constants.VisitorDataKey
- import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
- import com.dd3boh.outertune.ui.component.PreferenceEntry
- import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
-@@ -212,13 +211,9 @@ fun ExperimentalSettings(
-             Spacer(Modifier.height(20.dp))
- 
-             PreferenceEntry(
--                title = { Text("Delete VisitorData: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues. Not recommended for logged in users.") },
-+                title = { Text("Reset YouTube session: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues, or stream URLs that stop working partway through a song. Not recommended for logged in users.") },
-                 onClick = {
--                    runBlocking {
--                        context.dataStore.edit { settings ->
--                            settings.remove(VisitorDataKey)
--                        }
--                    }
-+                    playerConnection?.resetYouTubeSessionAndRetry()
-                 }
-             )
- 
 -- 
 2.43.0
 
