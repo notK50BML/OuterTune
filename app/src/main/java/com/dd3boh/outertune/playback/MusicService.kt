@@ -172,6 +172,7 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.time.LocalDateTime
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.min
 import kotlin.math.pow
@@ -832,6 +833,15 @@ class MusicService : MediaLibraryService(),
                             OkHttpDataSource.Factory(
                                 OkHttpClient.Builder()
                                     .proxy(YouTube.proxy)
+                                    // Belt-and-suspenders alongside the dataSpec-level chunk bound
+                                    // in createDataSourceFactory(): if a single call somehow runs
+                                    // longer than this regardless of that bound (a device/ExoPlayer
+                                    // version where the chunk continuation doesn't kick in the way
+                                    // expected, for instance), this forces OkHttp itself to abort
+                                    // and reconnect before reaching googlevideo's own connection
+                                    // cutoff (confirmed at roughly a minute), rather than depending
+                                    // on a single mechanism to always work.
+                                    .callTimeout(45, TimeUnit.SECONDS)
                                     .build()
                             )
                         )
@@ -893,8 +903,16 @@ class MusicService : MediaLibraryService(),
             songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
                 offloadScope.launch { recoverSong(mediaId) }
+                // Bounded the same as the fresh-resolve path below, and for the same reason: left
+                // unbounded (as this was before), this is the request that turns into one
+                // long-lived connection past whatever duration googlevideo's CDN cuts a stream at -
+                // confirmed independently of any auth/URL-freshness issue, since a much larger
+                // CHUNK_LENGTH still failed with the same source error at roughly the same wall-clock
+                // point regardless of the extra bytes available. Every read has to keep reconnecting
+                // under that ceiling, not just the very first one.
                 return@Factory dataSpec.withUri(it.url.toUri())
                     .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
+                    .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
             }
 
             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
