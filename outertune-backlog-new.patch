@@ -34205,4 +34205,257 @@ index 9a2be23..a8e4cdd 100644
      }
 -- 
 2.43.0
+From cca05e8af2b1ac9e3cb972fa03ef5539d2803991 Mon Sep 17 00:00:00 2001
+From: a <a@a.com>
+Date: Wed, 19 Aug 2026 06:42:05 +0000
+Subject: [PATCH] 120 Clear the login WebView's own session on logout, not just
+ DataStore
 
+forgetAccount() cleared OuterTune's stored copy of the cookie/visitorData/
+dataSyncId, but LoginScreen's WebView keeps Google's actual session cookie
+in its own CookieManager/WebStorage, entirely independent of DataStore.
+Left alone, the next login attempt silently single-sign-ons back into that
+same underlying session - the WebView finds its own still-valid cookie and
+re-authenticates with no prompt - rather than presenting a real login. That
+also means a session-level flag, if that's ever what's actually wrong,
+never gets a chance to reset by logging out and back in: the person is
+never actually issued a new session, just a re-saved copy of the old one.
+
+Logout now also clears the WebView's cookies and local storage, forcing
+the next login to be a genuine one. Dispatched onto the main thread since
+CookieManager requires it and one of forgetAccount()'s two call sites is a
+background DataStore collector.
+
+Updates the logout tooltip, which used to tell people to sign out of the
+web portal manually first - no longer necessary now that logout does it
+for them.
+---
+ app/src/main/java/com/dd3boh/outertune/App.kt |  22 +++
+ app/src/main/res/values/strings-ot.xml        |   2 +-
+ autoeq/build.gradle.kts                       |  14 ++
+ .../src/main/java/com/dd3boh/autoeq/AutoEq.kt | 125 ++++++++++++++++++
+ settings.gradle.kts                           |   1 +
+ 5 files changed, 163 insertions(+), 1 deletion(-)
+ create mode 100644 autoeq/build.gradle.kts
+ create mode 100644 autoeq/src/main/java/com/dd3boh/autoeq/AutoEq.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
+index a55d1ba..d962d6a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/App.kt
++++ b/app/src/main/java/com/dd3boh/outertune/App.kt
+@@ -11,7 +11,11 @@ package com.dd3boh.outertune
+ 
+ import android.app.Application
+ import android.content.Context
++import android.os.Handler
++import android.os.Looper
+ import android.util.Log
++import android.webkit.CookieManager
++import android.webkit.WebStorage
+ import android.widget.Toast
+ import android.widget.Toast.LENGTH_SHORT
+ import androidx.datastore.preferences.core.edit
+@@ -231,6 +235,24 @@ class App : Application(), SingletonImageLoader.Factory {
+                     settings.remove(AccountImageFetchedKey)
+                 }
+             }
++
++            // Clearing the settings above only forgets OuterTune's own copy of the session.
++            // LoginScreen's WebView keeps Google's actual session cookie in its own CookieManager/
++            // WebStorage, entirely independent of DataStore - left alone, the next login attempt
++            // silently single-sign-ons back into that same underlying session (the WebView finds
++            // its own still-valid cookie and re-authenticates with no prompt) rather than
++            // presenting a real login. That also means a session-level flag, if that's ever what's
++            // actually wrong, never gets a chance to reset by logging out and back in. CookieManager
++            // requires the main thread, and this is called from a background DataStore collector in
++            // one place (see the cookie-parse failure handler above), so this can't assume it's
++            // already on it.
++            Handler(Looper.getMainLooper()).post {
++                CookieManager.getInstance().apply {
++                    removeAllCookies(null)
++                    flush()
++                }
++                WebStorage.getInstance().deleteAllData()
++            }
+         }
+     }
+ }
+\ No newline at end of file
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 153e3e2..3e337bd 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -168,7 +168,7 @@ while also allowing users to translate our app as well. New, specific strings to
+ 
+ <!-- Content settings -->
+     <string name="like_autodownload">Automatically download your liked songs</string>
+-    <string name="action_logout_tooltip">To fully log out, please sign out of your YouTube account in the web portal before using this logout button</string>
++    <string name="action_logout_tooltip">This also clears the sign-in page\'s saved session, so logging back in will ask for your credentials again instead of silently resuming the old one</string>
+     <string name="token_adv_login_description">This is an ADVANCED login method. As an alternative to the web portal, you may directly enter or update your login token here. For example, this can speed up logging in on multiple devices. Please note that any invalid token formats the app fails to parse will not be accepted</string>
+     <string name="token_hidden">Tap to show token</string>
+     <string name="token_shown">Tap again to copy or edit</string>
+diff --git a/autoeq/build.gradle.kts b/autoeq/build.gradle.kts
+new file mode 100644
+index 0000000..019ad74
+--- /dev/null
++++ b/autoeq/build.gradle.kts
+@@ -0,0 +1,14 @@
++plugins {
++    kotlin("jvm")
++}
++
++kotlin {
++    jvmToolchain(21)
++}
++
++dependencies {
++    implementation(libs.ktor.client.core)
++    implementation(libs.ktor.client.okhttp)
++    implementation(libs.ktor.client.encoding)
++    testImplementation(libs.junit)
++}
+diff --git a/autoeq/src/main/java/com/dd3boh/autoeq/AutoEq.kt b/autoeq/src/main/java/com/dd3boh/autoeq/AutoEq.kt
+new file mode 100644
+index 0000000..ef50372
+--- /dev/null
++++ b/autoeq/src/main/java/com/dd3boh/autoeq/AutoEq.kt
+@@ -0,0 +1,125 @@
++package com.dd3boh.autoeq
++
++import io.ktor.client.HttpClient
++import io.ktor.client.plugins.HttpTimeout
++import io.ktor.client.plugins.compression.ContentEncoding
++import io.ktor.client.request.get
++import io.ktor.client.statement.bodyAsText
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++
++/**
++ * A single headphone/IEM correction profile, as listed in AutoEQ's results/INDEX.md
++ * (https://github.com/jaakkopasanen/AutoEq).
++ *
++ * [path] is the URL-encoded directory path INDEX.md's link pointed at, relative to results/ -
++ * reused verbatim to build the raw-content URL for the actual ParametricEQ.txt, rather than
++ * re-deriving a folder name from [name] and risking a mismatch (measurement folders sometimes
++ * differ slightly from the display name, e.g. a trailing "(CIEM)" or database-specific suffix).
++ */
++data class AutoEqEntry(
++    val name: String,
++    val path: String,
++    val source: String,
++    val rig: String?,
++) {
++    /** What a search result list should show under the headphone name. */
++    val subtitle: String get() = if (rig != null) "$source on $rig" else source
++}
++
++/**
++ * Fetches and searches AutoEQ's headphone/IEM correction database directly off GitHub. AutoEQ
++ * has no search API of its own - results/INDEX.md is a single ~800KB Markdown file listing every
++ * profile it has ever published, one line each:
++ *
++ *   - [1MORE Aero (ANC Off)](./HypetheSonics/GRAS%20RA0045%20in-ear/1MORE%20Aero%20(ANC%20Off)) by HypetheSonics on GRAS RA0045
++ *
++ * That file is fetched once and cached in memory, then filtered locally per keystroke rather than
++ * re-downloading it on every search - it only changes when AutoEQ publishes new measurements, so
++ * a session-lifetime cache (explicitly bustable via [search]'s forceRefresh) is enough.
++ */
++object AutoEq {
++    private const val RAW_BASE = "https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/results"
++
++    private val client by lazy {
++        HttpClient {
++            install(HttpTimeout) {
++                // The index is a single large file on a raw-content CDN with no auth handshake;
++                // a generous timeout only matters on a genuinely bad connection.
++                requestTimeoutMillis = 20_000
++                connectTimeoutMillis = 10_000
++            }
++            install(ContentEncoding) {
++                gzip()
++                deflate()
++            }
++            expectSuccess = true
++        }
++    }
++
++    // Guards the index fetch/parse so two searches issued before the first one lands don't each
++    // kick off their own ~800KB download.
++    private val mutex = Mutex()
++    private var cachedIndex: List<AutoEqEntry>? = null
++
++    // "- [Name](path) by Source" or "- [Name](path) by Source on Rig". Name/path are taken
++    // non-greedily up to the first "](" / ")"; the "by ... [on ...]" tail is taken greedily so an
++    // unescaped ")" inside the Markdown link (AutoEQ does not escape parentheses in headphone
++    // names) can't get mistaken for the link's own closing paren.
++    private val INDEX_LINE = Regex("""^-\s*\[(.+?)]\((.+)\)\s*by\s*(.+)$""")
++
++    private fun parseIndexLine(line: String): AutoEqEntry? {
++        val match = INDEX_LINE.find(line) ?: return null
++        val (name, path, tail) = match.destructured
++        val onIndex = tail.indexOf(" on ")
++        val (source, rig) = if (onIndex >= 0) {
++            tail.substring(0, onIndex).trim() to tail.substring(onIndex + 4).trim()
++        } else {
++            tail.trim() to null
++        }
++        if (name.isBlank() || path.isBlank() || source.isBlank()) return null
++        return AutoEqEntry(name = name.trim(), path = path.trim(), source = source, rig = rig)
++    }
++
++    private suspend fun index(): List<AutoEqEntry> = mutex.withLock {
++        cachedIndex?.let { return it }
++        val text = client.get("$RAW_BASE/INDEX.md").bodyAsText()
++        val parsed = text.lineSequence().mapNotNull(::parseIndexLine).toList()
++        // Never cache an empty parse as if it were the real index - a transient bad response
++        // shouldn't poison every search for the rest of the session.
++        if (parsed.isNotEmpty()) cachedIndex = parsed
++        parsed
++    }
++
++    /**
++     * @param forceRefresh re-downloads the index even if one is already cached, for a person who
++     * suspects it's stale (AutoEQ published something new) rather than search just not finding it.
++     */
++    suspend fun search(
++        query: String,
++        limit: Int = 50,
++        forceRefresh: Boolean = false,
++    ): Result<List<AutoEqEntry>> = runCatching {
++        if (forceRefresh) mutex.withLock { cachedIndex = null }
++        val q = query.trim()
++        if (q.isEmpty()) return@runCatching emptyList()
++        index()
++            .filter { it.name.contains(q, ignoreCase = true) }
++            // A query that's a prefix of, or close in length to, the match is probably the exact
++            // model being searched for; a long name that merely contains the query somewhere in
++            // the middle is probably a less relevant hit.
++            .sortedBy { it.name.length }
++            .take(limit)
++    }
++
++    /**
++     * Fetches one entry's raw "<name> ParametricEQ.txt" contents. Only the filename's spaces are
++     * percent-encoded to match how [entry]'s own path segment (copied from INDEX.md) is encoded -
++     * AutoEQ's generator does not escape any other character, and GitHub's raw-content endpoint
++     * accepts literal parentheses/brackets in the path unencoded regardless.
++     */
++    suspend fun fetchParametricEq(entry: AutoEqEntry): Result<String> = runCatching {
++        val fileName = "${entry.name} ParametricEQ.txt".replace(" ", "%20")
++        client.get("$RAW_BASE/${entry.path}/$fileName").bodyAsText()
++    }
++}
+diff --git a/settings.gradle.kts b/settings.gradle.kts
+index 464cd0a..1b26ed7 100755
+--- a/settings.gradle.kts
++++ b/settings.gradle.kts
+@@ -14,6 +14,7 @@ include(":app")
+ include(":innertube")
+ include(":kugou")
+ include(":lrclib")
++include(":autoeq")
+ include(":betterlyrics")
+ include(":simpmusic")
+ include(":kizzy")
+-- 
+2.43.0
