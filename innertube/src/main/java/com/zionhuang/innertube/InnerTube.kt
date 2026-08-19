@@ -93,6 +93,10 @@ class InnerTube {
             append("X-YouTube-Client-Version", client.clientVersion)
             append("X-Origin", YouTubeClient.ORIGIN_YOUTUBE_MUSIC)
             append("Referer", YouTubeClient.REFERER_YOUTUBE_MUSIC)
+            // Real clients send this alongside the same value already in the request body's
+            // context.client.visitorData - Metrolist and SimpMusic (siblings sharing this API
+            // client's lineage) both set it explicitly rather than relying on the body alone.
+            visitorData?.let { append("X-Goog-Visitor-Id", it) }
             if (setLogin && client.loginSupported) {
                 cookie?.let { cookie ->
                     val cookieMap = parseCookieString(cookie)
