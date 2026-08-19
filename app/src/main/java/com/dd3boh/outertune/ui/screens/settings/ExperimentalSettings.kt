@@ -68,6 +68,7 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AudioGaplessOffloadKey
 import com.dd3boh.outertune.constants.AudioOffloadKey
 import com.dd3boh.outertune.constants.DevSettingsKey
+import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
 import com.dd3boh.outertune.constants.MaxQueuesKey
 import com.dd3boh.outertune.constants.OobeStatusKey
 import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
@@ -115,6 +116,7 @@ fun ExperimentalSettings(
     val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
 
     val (devSettings, onDevSettingsChange) = rememberPreference(DevSettingsKey, defaultValue = false)
+    val (enableStreamPrecache, onEnableStreamPrecacheChange) = rememberPreference(EnableStreamPrecacheKey, defaultValue = true)
     val (oobeStatus, onOobeStatusChange) = rememberPreference(OobeStatusKey, defaultValue = 0)
 
     var nukeEnabled by remember {
@@ -234,6 +236,14 @@ fun ExperimentalSettings(
                 onClick = {
                     playerConnection?.resetYouTubeSessionAndRetry()
                 }
+            )
+
+            SwitchPreference(
+                title = { Text("Precache next song") },
+                description = "Resolves the next song's stream shortly before the current one ends, timed automatically to stay inside the ~40s window before it goes stale, instead of resolving right at the track change. Spreads requests out over time rather than clustering them.",
+                icon = { Icon(Icons.Rounded.Queue, null) },
+                checked = enableStreamPrecache,
+                onCheckedChange = onEnableStreamPrecacheChange
             )
 
 

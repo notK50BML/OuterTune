@@ -150,6 +150,17 @@ val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
 val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")
 
 /**
+ * Precaches the next song's stream URL shortly before the current one ends, instead of resolving it
+ * at the track transition. Timed automatically (not a fixed delay): a resolved stream URL's PoToken
+ * has been observed to go stale after roughly a minute regardless of when it's used, so this fires
+ * only once the current song is close enough to ending that the precached URL will still be fresh
+ * when playback actually reaches it. Naturally spreads resolution timing across the whole queue
+ * instead of clustering every request at each transition. On by default: at most one extra request
+ * per song, timed to land within the freshness window it needs to.
+ */
+val EnableStreamPrecacheKey = booleanPreferencesKey("enableStreamPrecache")
+
+/**
  * How the remote lyric providers are consulted, and in what order.
  *
  * The order is a comma-joined list of provider ids. Ids that are not recognised are ignored and

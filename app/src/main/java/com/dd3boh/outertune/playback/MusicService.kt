@@ -83,6 +83,7 @@ import com.dd3boh.outertune.constants.EnableDiscordRPCKey
 import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
 import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
 import com.dd3boh.outertune.constants.EnableLyricsPrefetchKey
+import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
 import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
 import com.dd3boh.outertune.constants.KeepAliveKey
 import com.dd3boh.outertune.constants.LyricsPrefetchCountKey
@@ -282,12 +283,13 @@ class MusicService : MediaLibraryService(),
     var consecutivePlaybackErr = 0
 
     /**
-     * A resolved stream URL, its expiry time, and the User-Agent of the client it was resolved
-     * from - googlevideo.com has been observed rejecting a fetch whose User-Agent doesn't match
-     * the client the URL was signed for, so the UA has to be replayed alongside the URL itself
-     * wherever it's actually GETed from, not just at the request that originally resolved it.
+     * A resolved stream URL, its expiry time, and the headers (User-Agent, and for a
+     * browser-origin client like WEB_REMIX, Referer/Origin) of the client it was resolved from -
+     * googlevideo.com has been observed rejecting a fetch whose headers don't match the client
+     * the URL was signed for, so they have to be replayed alongside the URL itself wherever it's
+     * actually GETed from, not just at the request that originally resolved it.
      */
-    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
+    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
 
     /**
      * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
@@ -307,6 +309,13 @@ class MusicService : MediaLibraryService(),
      * retry forever and instead falls through to the normal skip/stop handling.
      */
     private val retriedAfterSourceError = mutableSetOf<String>()
+
+    /**
+     * mediaId of the next song already precached (or currently being precached) for the playback
+     * in progress, so [precacheNextSongStream] doesn't redo it on every tick while the lead window
+     * is open. Reset on every track transition.
+     */
+    private var precachedForMediaId: String? = null
 
     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
     // track transition. A data class so the StateFlow deduplicates identical updates.
@@ -536,6 +545,24 @@ class MusicService : MediaLibraryService(),
                     }
                 }
 
+            // Precache the next song's stream shortly before the current one ends, instead of
+            // resolving it at the track transition (see precacheNextSongStream() for why this is
+            // timed rather than just delayed by a fixed amount). A plain poll rather than a
+            // position-change listener: this only needs roughly-once-a-few-seconds resolution, not
+            // every frame, and a listener would fire far more often than it needs to for this.
+            offloadScope.launch {
+                while (isActive) {
+                    delay(5000)
+                    if (!dataStore.get(EnableStreamPrecacheKey, true)) continue
+                    val (isPlaying, duration, position) = withContext(Dispatchers.Main) {
+                        Triple(player.isPlaying, player.duration, player.currentPosition)
+                    }
+                    if (isPlaying && duration > 0 && duration - position in 0..PRECACHE_LEAD_MS) {
+                        precacheNextSongStream()
+                    }
+                }
+            }
+
 
             // network connectivity
             try {
@@ -558,6 +585,68 @@ class MusicService : MediaLibraryService(),
                     }
                 }
             }
+        }
+    }
+
+
+    /**
+     * Resolves and caches the next song's stream, timed by the poller in the init block to land
+     * inside [STREAM_URL_TRUST_WINDOW_MS] of when it'll actually be needed. Best-effort: any
+     * failure here just leaves nothing cached, so createDataSourceFactory()'s own resolve-on-
+     * transition path runs at that point exactly as if this had never fired.
+     */
+    private suspend fun precacheNextSongStream() {
+        val nextMediaId = withContext(Dispatchers.Main) {
+            player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }
+                ?.let { player.getMediaItemAt(it) }
+                ?.mediaId
+        } ?: return
+        if (nextMediaId == precachedForMediaId) return
+        if (songUrlCache[nextMediaId]?.expiresAt?.let { it > System.currentTimeMillis() } == true) return
+
+        var song = queueBoard.value.getCurrentQueue()?.findSong(nextMediaId)
+        if (song == null) {
+            song = database.song(nextMediaId).first()?.toMediaMetadata()
+        }
+        if (song?.localPath != null) return // local/downloaded song, nothing to precache
+        if (downloadCache.isCached(nextMediaId, 0, 1) || playerCache.isCached(nextMediaId, 0, CHUNK_LENGTH)) return
+
+        precachedForMediaId = nextMediaId
+        runCatching {
+            val audioQuality by enumPreference(this@MusicService, AudioQualityKey, AudioQuality.AUTO)
+            val playbackData = YTPlayerUtils.playerResponseForPlayback(
+                nextMediaId,
+                audioQuality = audioQuality,
+                connectivityManager = connectivityManager,
+            ).getOrThrow()
+            val format = playbackData.format
+
+            database.query {
+                upsert(
+                    FormatEntity(
+                        id = nextMediaId,
+                        itag = format.itag,
+                        mimeType = format.mimeType.split(";")[0],
+                        codecs = format.mimeType.split("codecs=")[1].removeSurrounding("\""),
+                        bitrate = format.bitrate,
+                        sampleRate = format.audioSampleRate,
+                        contentLength = format.contentLength ?: 10000000,
+                        loudnessDb = playbackData.audioConfig?.loudnessDb,
+                        playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
+                    )
+                )
+            }
+
+            songUrlCache[nextMediaId] = CachedStreamUrl(
+                url = playbackData.streamUrl,
+                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
+                headers = playbackData.streamHeaders,
+            )
+            if (SERVICE_DEBUG) Log.d(TAG, "Precached stream for upcoming song: mediaId=$nextMediaId")
+        }.onFailure {
+            if (SERVICE_DEBUG) Log.w(TAG, "Precache failed for mediaId=$nextMediaId, will resolve normally on transition", it)
+            // Not genuinely unplayable - just let the normal path retry it at the transition.
+            precachedForMediaId = null
         }
     }
 
@@ -911,7 +1000,7 @@ class MusicService : MediaLibraryService(),
                 // point regardless of the extra bytes available. Every read has to keep reconnecting
                 // under that ceiling, not just the very first one.
                 return@Factory dataSpec.withUri(it.url.toUri())
-                    .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
+                    .withRequestHeaders(it.headers)
                     .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
             }
 
@@ -997,11 +1086,11 @@ class MusicService : MediaLibraryService(),
                 // explains and connection-duration doesn't). Capping our own trust well under that
                 // forces the proactive refresh above - fresh PoToken included - before the CDN ever
                 // gets a chance to reject the old one.
-                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds.toLong(), 40L) * 1000L,
-                userAgent = playbackData.streamUserAgent,
+                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
+                headers = playbackData.streamHeaders,
             )
             dataSpec.withUri(streamUrl.toUri())
-                .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
+                .withRequestHeaders(playbackData.streamHeaders)
                 .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
         }
     }
@@ -1258,6 +1347,7 @@ class MusicService : MediaLibraryService(),
             consecutivePlaybackErr--
         }
 
+        precachedForMediaId = null
         updateLyricsFetchTargets()
 
         if (player.isPlaying && reason == MEDIA_ITEM_TRANSITION_REASON_SEEK) {
@@ -1500,6 +1590,14 @@ class MusicService : MediaLibraryService(),
         // for why that matters. Comfortably covers even a low-bitrate song within that window; a
         // higher-bitrate one just means more frequent, still-small requests.
         const val CHUNK_LENGTH = 256 * 1024L
+
+        // How long a freshly-resolved stream URL is trusted for before a proactive refresh is
+        // forced - see songUrlCache's own doc for why 40s. Precaching (see precacheNextSongStream())
+        // fires this many ms before the current song ends, comfortably inside that window so the
+        // precached URL is still fresh when playback actually reaches the next song, with a few
+        // seconds of margin for the resolve itself to complete.
+        const val STREAM_URL_TRUST_WINDOW_MS = 40_000L
+        const val PRECACHE_LEAD_MS = 35_000L
 
         const val COMMAND_GET_BINDER = "GET_BINDER"
     }

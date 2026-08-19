@@ -73,13 +73,14 @@ object YTPlayerUtils {
         val streamUrl: String,
         val streamExpiresInSeconds: Int,
         /**
-         * User-Agent of whichever client (MAIN_CLIENT or a STREAM_FALLBACK_CLIENTS entry) actually
+         * Headers of whichever client (MAIN_CLIENT or a STREAM_FALLBACK_CLIENTS entry) actually
          * produced [streamUrl]. googlevideo.com's CDN has been observed rejecting a fetch whose
-         * User-Agent doesn't match the client the URL was signed for, so this has to travel with
-         * the URL to wherever it's actually GETed from - the request that resolved it isn't the
-         * same request that plays it.
+         * User-Agent doesn't match the client the URL was signed for - and, for WEB_REMIX
+         * specifically, one lacking a matching Referer/Origin, since that URL was signed for a
+         * browser-origin client - so these have to travel with the URL to wherever it's actually
+         * GETed from - the request that resolved it isn't the same request that plays it.
          */
-        val streamUserAgent: String,
+        val streamHeaders: Map<String, String>,
     )
 
     /**
@@ -192,7 +193,7 @@ object YTPlayerUtils {
                     streamUrl += "&pot=$webStreamingPot";
                 }
 
-                if (validateStatus(streamUrl, client.userAgent)) {
+                if (validateStatus(streamUrl, client.streamHeaders())) {
                     // working stream found
                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
                     break
@@ -231,7 +232,7 @@ object YTPlayerUtils {
             format,
             streamUrl,
             streamExpiresInSeconds,
-            streamClient.userAgent,
+            streamClient.streamHeaders(),
         )
     }
 
@@ -309,27 +310,47 @@ object YTPlayerUtils {
      * If this returns true the url is likely to work.
      * If this returns false the url might cause an error during playback.
      *
-     * [userAgent] must match the client the URL was signed for - googlevideo.com has been
-     * observed rejecting requests whose User-Agent doesn't match, so probing without it risked
-     * this validation itself failing (or wrongly passing) independent of whether the URL is
-     * actually good.
+     * [headers] must match the client the URL was signed for - googlevideo.com has been
+     * observed rejecting requests whose User-Agent (or, for a browser-origin client like
+     * WEB_REMIX, Referer/Origin) doesn't match, so probing without them risked this validation
+     * itself failing (or wrongly passing) independent of whether the URL is actually good.
      */
-    private fun validateStatus(url: String, userAgent: String): Boolean {
+    private fun validateStatus(url: String, headers: Map<String, String>): Boolean {
         try {
             val requestBuilder = okhttp3.Request.Builder()
-                .header("User-Agent", userAgent)
                 // Deliberately past the first chunk. A HEAD - or any probe landing inside the
                 // first chunk - succeeds on URLs whose *continuation* requests are rejected, which
                 // is precisely the failure this is meant to screen for: playback that starts
                 // cleanly and dies the moment the first chunk runs out.
                 .header("Range", "bytes=$PROBE_OFFSET-${PROBE_OFFSET + 1}")
                 .url(url)
+            headers.forEach { (name, value) -> requestBuilder.header(name, value) }
             val response = httpClient.newCall(requestBuilder.build()).execute()
             return response.use { it.code in 200..299 }
         } catch (e: Exception) {
             reportException(e)
         }
         return false
+    }
+
+    /**
+     * Headers a stream request needs beyond the URL itself. googlevideo.com has been observed
+     * checking Referer/Origin against the client the URL was signed for, not just User-Agent -
+     * relevant now that WEB_REMIX (a browser-origin client) is MAIN_CLIENT. Mirrors what an
+     * actual browser/app request for that client would send.
+     */
+    private fun YouTubeClient.streamHeaders(): Map<String, String> = buildMap {
+        put("User-Agent", userAgent)
+        when (clientName) {
+            "WEB_REMIX" -> {
+                put("Referer", "https://music.youtube.com/")
+                put("Origin", "https://music.youtube.com")
+            }
+            else -> {
+                put("Referer", "https://www.youtube.com/")
+                put("Origin", "https://www.youtube.com")
+            }
+        }
     }
 
     // Reports exceptions; returns null on failure.

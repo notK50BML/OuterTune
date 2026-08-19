@@ -84,9 +84,9 @@ class DownloadUtil @Inject constructor(
 
     private val connectivityManager = context.getSystemService<ConnectivityManager>()!!
     private val audioQuality by enumPreference(context, AudioQualityKey, AudioQuality.AUTO)
-    /** Same shape as MusicService's - see that one's doc for why the User-Agent has to travel
+    /** Same shape as MusicService's - see that one's doc for why the headers have to travel
      *  with the URL. */
-    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
+    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
 
     private val songUrlCache = HashMap<String, CachedStreamUrl>()
     private val dataSourceFactory = ResolvingDataSource.Factory(
@@ -108,7 +108,7 @@ class DownloadUtil @Inject constructor(
 
         songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
             return@Factory dataSpec.withUri(it.url.toUri())
-                .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
+                .withRequestHeaders(it.headers)
         }
 
         val playbackData = runBlocking(Dispatchers.IO) {
@@ -147,10 +147,10 @@ class DownloadUtil @Inject constructor(
         songUrlCache[mediaId] = CachedStreamUrl(
             url = streamUrl,
             expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
-            userAgent = playbackData.streamUserAgent,
+            headers = playbackData.streamHeaders,
         )
         dataSpec.withUri(streamUrl.toUri())
-            .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
+            .withRequestHeaders(playbackData.streamHeaders)
     }
     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
     val downloadManager: DownloadManager =
