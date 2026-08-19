@@ -140,6 +140,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.WatchEndpoint
+import com.zionhuang.innertube.models.response.PlayerResponse
 import dagger.hilt.android.AndroidEntryPoint
 import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
 import kotlinx.coroutines.CancellationException
@@ -289,7 +290,14 @@ class MusicService : MediaLibraryService(),
      * the URL was signed for, so they have to be replayed alongside the URL itself wherever it's
      * actually GETed from, not just at the request that originally resolved it.
      */
-    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
+    private data class CachedStreamUrl(
+        val url: String,
+        val expiresAt: Long,
+        val headers: Map<String, String>,
+        /** Carried through to [maybeSendPlaybackTelemetry] - see its own doc. */
+        val cpn: String,
+        val playbackTracking: PlayerResponse.PlaybackTracking?,
+    )
 
     /**
      * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
@@ -316,6 +324,14 @@ class MusicService : MediaLibraryService(),
      * is open. Reset on every track transition.
      */
     private var precachedForMediaId: String? = null
+
+    /**
+     * mediaId of the song [maybeSendPlaybackTelemetry] last fired its ping sequence for, so a
+     * mid-song URL refresh (or a precached entry being reused) doesn't refire it - only the first
+     * time a song's stream is actually handed to the player counts as "playback started". Reset on
+     * every track transition.
+     */
+    private var telemetrySentForMediaId: String? = null
 
     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
     // track transition. A data class so the StateFlow deduplicates identical updates.
@@ -590,6 +606,21 @@ class MusicService : MediaLibraryService(),
 
 
     /**
+     * Fires the playback-start telemetry sequence (see [YouTube.initPlayback]) the first time
+     * [cached]'s song is actually handed to the player - whether that's a fresh resolve or a
+     * precached/cached entry being reused - but never again for the same song after that, since a
+     * mid-song URL refresh or repeated chunk requests replaying the cache aren't a new playback.
+     * Fire-and-forget on [offloadScope]: this is telemetry, not something playback waits on.
+     */
+    private fun maybeSendPlaybackTelemetry(mediaId: String, cached: CachedStreamUrl) {
+        if (mediaId == telemetrySentForMediaId) return
+        telemetrySentForMediaId = mediaId
+        offloadScope.launch {
+            YouTube.initPlayback(null, cached.playbackTracking, cached.cpn)
+        }
+    }
+
+    /**
      * Resolves and caches the next song's stream, timed by the poller in the init block to land
      * inside [STREAM_URL_TRUST_WINDOW_MS] of when it'll actually be needed. Best-effort: any
      * failure here just leaves nothing cached, so createDataSourceFactory()'s own resolve-on-
@@ -641,7 +672,13 @@ class MusicService : MediaLibraryService(),
                 url = playbackData.streamUrl,
                 expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
                 headers = playbackData.streamHeaders,
+                cpn = playbackData.cpn,
+                playbackTracking = playbackData.playbackTracking,
             )
+            // Telemetry deliberately NOT fired here - this runs up to PRECACHE_LEAD_MS before the
+            // song actually starts, and the ping sequence's timing only makes sense measured from
+            // real playback start. createDataSourceFactory() fires it once this cached entry is
+            // actually handed to the player.
             if (SERVICE_DEBUG) Log.d(TAG, "Precached stream for upcoming song: mediaId=$nextMediaId")
         }.onFailure {
             if (SERVICE_DEBUG) Log.w(TAG, "Precache failed for mediaId=$nextMediaId, will resolve normally on transition", it)
@@ -992,6 +1029,7 @@ class MusicService : MediaLibraryService(),
             songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
                 offloadScope.launch { recoverSong(mediaId) }
+                maybeSendPlaybackTelemetry(mediaId, it)
                 // Bounded the same as the fresh-resolve path below, and for the same reason: left
                 // unbounded (as this was before), this is the request that turns into one
                 // long-lived connection past whatever duration googlevideo's CDN cuts a stream at -
@@ -1077,7 +1115,7 @@ class MusicService : MediaLibraryService(),
 
             val streamUrl = playbackData.streamUrl
 
-            songUrlCache[mediaId] = CachedStreamUrl(
+            val cachedStreamUrl = CachedStreamUrl(
                 url = streamUrl,
                 // streamExpiresInSeconds is YouTube's own claimed validity (routinely hours), but
                 // the embedded streaming PoToken has been observed to actually stop working after
@@ -1088,7 +1126,11 @@ class MusicService : MediaLibraryService(),
                 // gets a chance to reject the old one.
                 expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
                 headers = playbackData.streamHeaders,
+                cpn = playbackData.cpn,
+                playbackTracking = playbackData.playbackTracking,
             )
+            songUrlCache[mediaId] = cachedStreamUrl
+            maybeSendPlaybackTelemetry(mediaId, cachedStreamUrl)
             dataSpec.withUri(streamUrl.toUri())
                 .withRequestHeaders(playbackData.streamHeaders)
                 .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
@@ -1348,6 +1390,7 @@ class MusicService : MediaLibraryService(),
         }
 
         precachedForMediaId = null
+        telemetrySentForMediaId = null
         updateLyricsFetchTargets()
 
         if (player.isPlaying && reason == MEDIA_ITEM_TRANSITION_REASON_SEEK) {

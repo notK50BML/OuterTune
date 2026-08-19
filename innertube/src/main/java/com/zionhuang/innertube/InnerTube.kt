@@ -186,6 +186,49 @@ class InnerTube {
         }
     }
 
+    /**
+     * A watch-time checkpoint. [startSeconds]/[endSeconds] are the "st"/"et" parameters real
+     * clients send - comma-separated lists of seconds-into-playback for multiple checkpoints in
+     * one call, or single values for the first one.
+     */
+    suspend fun registerWatchtime(
+        url: String,
+        cpn: String,
+        startSeconds: String,
+        endSeconds: String,
+        playlistId: String?,
+        client: YouTubeClient = YouTubeClient.WEB_REMIX,
+    ) = httpClient.get(url) {
+        ytClient(client, true)
+        parameter("ver", "2")
+        parameter("c", client.clientName)
+        parameter("cpn", cpn)
+        parameter("st", startSeconds)
+        parameter("et", endSeconds)
+
+        if (playlistId != null) {
+            parameter("list", playlistId)
+            parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
+        }
+    }
+
+    /** An "active this response" ping - real clients send this partway into playback, between
+     *  the first and second watch-time checkpoints. */
+    suspend fun registerAtr(
+        url: String,
+        cpn: String,
+        playlistId: String?,
+        client: YouTubeClient = YouTubeClient.WEB_REMIX,
+    ) = httpClient.post(url) {
+        ytClient(client, true)
+        parameter("cpn", cpn)
+
+        if (playlistId != null) {
+            parameter("list", playlistId)
+            parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
+        }
+    }
+
     suspend fun browse(
         client: YouTubeClient,
         browseId: String? = null,

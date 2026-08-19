@@ -56,6 +56,7 @@ import com.zionhuang.innertube.pages.SearchSummaryPage
 import io.ktor.client.call.body
 import io.ktor.client.request.parameter
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonPrimitive
@@ -741,23 +742,58 @@ object YouTube {
         innerTube.player(client, videoId, playlistId, signatureTimestamp, webPlayerPot).body<PlayerResponse>()
     }
 
+    /**
+     * The "cpn" (client playback nonce) a real client generates once per playback and reuses on
+     * every tracking ping for that playback, plus (see [YTPlayerUtils] in the app module) as a
+     * query param on the stream URL itself - the same value tying the audio fetch to its own
+     * telemetry is part of what a real client's traffic looks like.
+     */
+    fun generateCpn(): String = (1..16).map {
+        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[Random.nextInt(0, 64)]
+    }.joinToString("")
+
+    private fun String.toMusicHost() = replace("https://s.youtube.com", "https://music.youtube.com")
+
     suspend fun registerPlayback(playlistId: String? = null, playbackTracking: String) = runCatching {
-        val cpn = (1..16).map {
-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[Random.nextInt(
-                0,
-                64
-            )]
-        }.joinToString("")
-
-        val playbackUrl = playbackTracking.replace(
-            "https://s.youtube.com",
-            "https://music.youtube.com",
-        )
-
         innerTube.registerPlayback(
-            url = playbackUrl,
+            url = playbackTracking.toMusicHost(),
             playlistId = playlistId,
-            cpn = cpn
+            cpn = generateCpn()
+        )
+    }
+
+    /**
+     * Replays the short burst of playback-start telemetry a real YouTube Music client sends,
+     * timed the way it's been observed in sibling YTM clients: an initial "playback" hit, a first
+     * watch-time checkpoint at ~5.54s, an "atr" ping 5s after that, then a second checkpoint
+     * covering both intervals. [cpn] must be the same nonce already embedded in the stream URL
+     * this playback is using, so the ping traffic and the audio fetch correlate the way a real
+     * client's do. Best-effort and fire-and-forget: a failure here doesn't affect playback itself,
+     * only how much this playback resembles a real client's traffic.
+     */
+    suspend fun initPlayback(
+        playlistId: String?,
+        playbackTracking: PlayerResponse.PlaybackTracking?,
+        cpn: String,
+    ) = runCatching {
+        val playbackUrl = playbackTracking?.videostatsPlaybackUrl?.baseUrl?.toMusicHost() ?: return@runCatching
+        val watchtimeUrl = playbackTracking.videostatsWatchtimeUrl?.baseUrl?.toMusicHost()
+        val atrUrl = playbackTracking.atrUrl?.baseUrl?.toMusicHost()
+
+        innerTube.registerPlayback(url = playbackUrl, playlistId = playlistId, cpn = cpn)
+        if (watchtimeUrl == null) return@runCatching
+
+        innerTube.registerWatchtime(watchtimeUrl, cpn, startSeconds = "0", endSeconds = "5.54", playlistId = playlistId)
+        if (atrUrl == null) return@runCatching
+
+        delay(5000)
+        innerTube.registerAtr(atrUrl, cpn, playlistId)
+        delay(500)
+        val secondCheckpoint = 5.54f + Random.nextInt(0, 100) / 100f
+        innerTube.registerWatchtime(
+            watchtimeUrl, cpn,
+            startSeconds = "0,5.54", endSeconds = "5.54,$secondCheckpoint",
+            playlistId = playlistId
         )
     }
 

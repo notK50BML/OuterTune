@@ -81,6 +81,13 @@ object YTPlayerUtils {
          * GETed from - the request that resolved it isn't the same request that plays it.
          */
         val streamHeaders: Map<String, String>,
+        /**
+         * The nonce tying this stream fetch to its own playback telemetry (see
+         * [com.zionhuang.innertube.YouTube.initPlayback]) - a real client's audio request and its
+         * tracking pings for the same playback share one cpn; embedding it here too rather than
+         * generating a throwaway one only for the pings keeps that correlation intact.
+         */
+        val cpn: String,
     )
 
     /**
@@ -95,6 +102,10 @@ object YTPlayerUtils {
         connectivityManager: ConnectivityManager,
     ): Result<PlaybackData> = runCatching {
         Log.d(TAG, "Playback info requested: $videoId")
+
+        // Generated once per resolve and carried on both the stream URL and the playback
+        // telemetry pings fired later from this data - see PlaybackData.cpn's own doc.
+        val cpn = YouTube.generateCpn()
 
         // Required for some clients to get working streams, but not forced for MAIN_CLIENT: its
         // response is needed even when its streams won't work, so this is allowed to be null.
@@ -192,6 +203,7 @@ object YTPlayerUtils {
                 if (client.useWebPoTokens && webStreamingPot != null) {
                     streamUrl += "&pot=$webStreamingPot";
                 }
+                streamUrl += "&cpn=$cpn"
 
                 if (validateStatus(streamUrl, client.streamHeaders())) {
                     // working stream found
@@ -233,6 +245,7 @@ object YTPlayerUtils {
             streamUrl,
             streamExpiresInSeconds,
             streamClient.streamHeaders(),
+            cpn,
         )
     }
 
