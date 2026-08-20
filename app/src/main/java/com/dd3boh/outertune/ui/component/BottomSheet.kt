@@ -100,6 +100,9 @@ fun BottomSheet(
                 val velocityTracker = VelocityTracker()
 
                 detectVerticalDragGestures(
+                    onDragStart = {
+                        state.dragStartedCollapsed = state.value <= state.collapsedBound
+                    },
                     onVerticalDrag = { change, dragAmount ->
                         velocityTracker.addPointerInputChange(change)
                         state.dispatchRawDelta(dragAmount)
@@ -196,6 +199,15 @@ class BottomSheetState(
     val isExpanded by derivedStateOf {
         progress >= 1.0f
     }
+
+    /**
+     * Whether the drag gesture currently in progress (or the one that just ended) started from
+     * the collapsed - mini player - height, set once per gesture in [BottomSheet]'s onDragStart.
+     * Lets [performFling]'s onDismiss caller tell "swiped the mini player away" apart from "flung
+     * the full player shut hard enough to overshoot into dismissed territory" - both land on the
+     * same dismissed state, but only the former is a legitimate "stop playback" signal.
+     */
+    var dragStartedCollapsed = false
 
     val progress by derivedStateOf {
         1f - (animatable.upperBound!! - animatable.value) / (animatable.upperBound!! - collapsedBound)
