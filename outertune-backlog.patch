@@ -33183,3 +33183,1778 @@ index 2affc5a4..9233fa89 100644
 -- 
 2.45.1.windows.1
 
+From 7a9f2c4e1b3d68a0c5e2f4d9b1a7c3e08f61d2a4 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 09:14:22 +0000
+Subject: [PATCH] Stop battery saver from overriding word-by-word lyrics sync
+
+LyricKaraokeEnable is the person's own choice to turn word-by-word sync on;
+karaokeEnabled additionally required !context.isPowerSaver(), so battery
+saver silently dropped the display back to line-by-line highlighting
+regardless of that choice, with nothing in the UI to say why. The word
+sweep just redraws an already-decoded line every frame - no extra network
+or decode work over the line-by-line highlighter it replaces - so there
+isn't a real battery cost distinct from the fallback it was being swapped
+for. The setting alone decides now.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/ui/component/Lyrics.kt   |  8 +++-----
+ 1 file changed, 3 insertions(+), 5 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index 5e9b45d5..8b1c02f7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -117,12 +117,10 @@ fun Lyrics(
+     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
+     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+ 
+-    // Asking the power manager costs a binder call, so it is asked once per song rather than once
+-    // per lyric line per recomposition. Keyed rather than cached outright: caching it for the life
+-    // of the composable meant that turning battery saver off never brought the sweep back.
+     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+-    val powerSaver = remember(mediaMetadata) { context.isPowerSaver() }
+-    val karaokeEnabled = lyricsFancy && !powerSaver
++    // Word-by-word sync used to also require !context.isPowerSaver(); that override is gone, so
++    // the Karaoke lyrics setting alone decides now, battery saver or not.
++    val karaokeEnabled = lyricsFancy
+ 
+     // How often the *current line* is recomputed, which is what drives highlighting and scrolling.
+     // The word sweep does not go through here: it redraws itself every frame.
+-- 
+2.45.1.windows.1
+From 221151f7ad46d6b3eed89879002129240d2af25e Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 10:59:31 +0000
+Subject: [PATCH] Rotate the YouTube session identity as part of the existing
+ source-error retry
+
+The retry in onPlayerError (from the earlier 'Two more defenses against
+error 2004' commit) re-resolves the stream URL and matches the User-Agent
+to whichever client answers - which fixes a rejected/expired URL or a UA
+mismatch, but does nothing if the real problem is YouTube's bot-detection
+having flagged this client's identity: a differently-resolved URL under
+the *same* identity gets the same treatment. rotateSessionIdentity() mints
+a fresh visitorData (mirroring Settings > Experimental > "Delete
+VisitorData") and invalidates the cached WebView PoToken session, and now
+runs alongside the existing retry rather than instead of it.
+
+Also adds resetYouTubeSessionAndRetry() as a manual escape hatch, wired to
+a renamed "Reset YouTube session" entry in Experimental Settings (previously
+just deleted the VisitorData preference key and relied on App's reactive
+collector to notice - which left songUrlCache/retriedAfterSourceError
+completely untouched, so a retry could still resolve straight back to a
+cached, already-rejected URL). This clears both, rotates identity, and
+retries whatever is currently loaded immediately.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 39 +++++++++++++++++--
+ .../outertune/playback/PlayerConnection.kt    | 10 +++++
+ .../screens/settings/ExperimentalSettings.kt  |  9 +----
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 23 +++++++++++
+ .../utils/potoken/PoTokenGenerator.kt         | 11 ++++++
+ 5 files changed, 82 insertions(+), 10 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 19d8115b..8723ca66 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -1082,6 +1082,35 @@ class MusicService : MediaLibraryService(),
+         Toast.makeText(this@MusicService, getString(R.string.wait_to_reconnect), Toast.LENGTH_LONG).show()
+     }
+ 
++    /**
++     * Rotates the YouTube session identity, then re-prepares and resumes whatever is currently
++     * loaded so the rotation actually takes effect immediately rather than on the next thing the
++     * person happens to play. Shared by the automatic source-error retry in [onPlayerError] and
++     * [resetYouTubeSessionAndRetry].
++     */
++    private fun retryCurrentItemWithFreshIdentity() {
++        scope.launch {
++            withContext(Dispatchers.IO) {
++                YTPlayerUtils.rotateSessionIdentity()
++            }
++            player.prepare()
++            player.play()
++        }
++    }
++
++    /**
++     * Manual escape hatch backing the "Reset YouTube session" settings action. Unlike the
++     * automatic retry in [onPlayerError] - which only evicts and retries the one track that just
++     * failed - this clears every cached stream URL and every song already given its one automatic
++     * retry, since a person reaching for a manual reset usually suspects the problem isn't limited
++     * to a single song.
++     */
++    fun resetYouTubeSessionAndRetry() {
++        songUrlCache.clear()
++        retriedAfterSourceError.clear()
++        retryCurrentItemWithFreshIdentity()
++    }
++
+     fun skipOnError() {
+         /**
+          * Auto skip to the next media item on error.
+@@ -1149,15 +1178,19 @@ class MusicService : MediaLibraryService(),
+         // different fallback client than whichever one just failed. Drop the cached URL and
+         // re-prepare once before falling through to skip/stop; see retriedAfterSourceError's own
+         // doc for why this is capped at one attempt per song.
++        //
++        // Also rotates the YouTube session identity before retrying: a rejected URL and a
++        // bot-detection-flagged identity produce the identical symptom from here, and re-resolving
++        // under the *same* identity does nothing for the latter. Rotating is cheap enough to just
++        // always do alongside the retry rather than trying to tell the two cases apart first.
+         val isRetryableSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
+             error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
+             error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+         val failedMediaId = player.currentMediaItem?.mediaId
+         if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
+             songUrlCache.remove(failedMediaId)
+-            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL: mediaId=$failedMediaId")
+-            player.prepare()
+-            player.play()
++            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL and identity: mediaId=$failedMediaId")
++            retryCurrentItemWithFreshIdentity()
+             return
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
+index 16bcf669..2c59ab09 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/PlayerConnection.kt
+@@ -184,6 +184,16 @@ class PlayerConnection(
+         service.toggleLibrary()
+     }
+ 
++    /**
++     * Rotates the YouTube session identity, clears every cached stream URL, and retries whatever
++     * is currently loaded. Backs the "Reset YouTube session" settings action - see
++     * [MusicService.resetYouTubeSessionAndRetry] for why this is more than just deleting
++     * visitorData.
++     */
++    fun resetYouTubeSessionAndRetry() {
++        service.resetYouTubeSessionAndRetry()
++    }
++
+     override fun onPlaybackStateChanged(state: Int) {
+         playbackState.value = state
+         error.value = player.playerError
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+index 06facaab..2b2c837c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+@@ -73,7 +73,6 @@ import com.dd3boh.outertune.constants.OobeStatusKey
+ import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
+ import com.dd3boh.outertune.constants.TabletUiKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+-import com.dd3boh.outertune.constants.VisitorDataKey
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
+@@ -231,13 +230,9 @@ fun ExperimentalSettings(
+             Spacer(Modifier.height(20.dp))
+ 
+             PreferenceEntry(
+-                title = { Text("Delete VisitorData: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues. Not recommended for logged in users.") },
++                title = { Text("Reset YouTube session: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues, or stream URLs that stop working partway through a song. Not recommended for logged in users.") },
+                 onClick = {
+-                    runBlocking {
+-                        context.dataStore.edit { settings ->
+-                            settings.remove(VisitorDataKey)
+-                        }
+-                    }
++                    playerConnection?.resetYouTubeSessionAndRetry()
+                 }
+             )
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index ee3fd0a0..460ca782 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -10,8 +10,11 @@ package com.dd3boh.outertune.utils
+ 
+ import android.net.ConnectivityManager
+ import android.util.Log
++import androidx.datastore.preferences.core.edit
+ import androidx.media3.common.PlaybackException
++import com.dd3boh.outertune.App
+ import com.dd3boh.outertune.constants.AudioQuality
++import com.dd3boh.outertune.constants.VisitorDataKey
+ import com.dd3boh.outertune.utils.YTPlayerUtils.MAIN_CLIENT
+ import com.dd3boh.outertune.utils.YTPlayerUtils.STREAM_FALLBACK_CLIENTS
+ import com.dd3boh.outertune.utils.YTPlayerUtils.validateStatus
+@@ -229,6 +232,26 @@ object YTPlayerUtils {
+         )
+     }
+ 
++    /**
++     * Mints a fresh visitorData and invalidates the cached WebView PoToken session - the same pair
++     * of things Settings > Experimental > "Delete VisitorData" does by hand. This is complementary
++     * to the retry in onPlayerError: that retry re-resolves the URL and matches the User-Agent to
++     * whichever client answers (fixing a rejected/expired URL or a UA mismatch), while this
++     * targets a third, distinct cause - YouTube's bot-detection having flagged this client's
++     * identity, which a differently-resolved URL under the *same* identity would not fix. Logged-in
++     * sessions are identified by dataSyncId instead, which isn't something this can rotate, so this
++     * only does anything useful when signed out.
++     */
++    suspend fun rotateSessionIdentity() {
++        poTokenGenerator.invalidate()
++        if (YouTube.cookie == null) {
++            YouTube.visitorData().onSuccess { newVisitorData ->
++                YouTube.visitorData = newVisitorData
++                App.instance.dataStore.edit { it[VisitorDataKey] = newVisitorData }
++            }
++        }
++    }
++
+     /**
+      * Fetches a WEB_REMIX player response for non-streaming data, including
+      * video metadata and playback tracking.
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt b/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
+index cf7d973c..e6d55e74 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
+@@ -21,6 +21,17 @@ class PoTokenGenerator {
+     private var webPoTokenStreamingPot: String? = null
+     private var webPoTokenGenerator: PoTokenWebView? = null
+ 
++    /**
++     * Forces the next [getWebClientPoToken] call to mint a fresh streaming token and, if needed,
++     * recreate the WebView generator from scratch - instead of reusing state that may be exactly
++     * why the last request was rejected. [webPoTokenSessionId] is what [getWebClientPoToken]
++     * already checks to decide whether to recreate, so invalidating it here is enough; no session
++     * id a real caller passes will ever equal null.
++     */
++    fun invalidate() {
++        webPoTokenSessionId = null
++    }
++
+     fun getWebClientPoToken(videoId: String, sessionId: String): PoTokenResult? {
+         if (!webViewSupported || webViewBadImpl) {
+             return null
+-- 
+2.43.0
+
+From 828a138fcac300d2ba73fab8542c22fb088904a0 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 12:26:34 +0000
+Subject: [PATCH] Keep every stream request under googlevideo's
+ connection-duration cutoff
+
+Confirmed independently of any auth/URL-freshness issue: temporarily
+raising CHUNK_LENGTH far beyond what any real song needs still failed with
+the same source error, at roughly the same wall-clock point regardless of
+the extra bytes available - a single long-lived connection to googlevideo
+gets cut at around a minute, full stop, no matter how it's authenticated
+or how fresh the URL is.
+
+The fresh-resolve path already bounded its own request to CHUNK_LENGTH,
+but the cache-hit path - which serves every request after the first -
+didn't bound anything at all, so playback settled into exactly the kind of
+long-lived single connection the CDN kills once the first small chunk ran
+out. Bounds it the same way the fresh-resolve path already does.
+
+Also adds a 45s OkHttp callTimeout as a second, independent line of
+defense: if the chunk-boundary continuation doesn't trigger the way
+expected on some device/ExoPlayer version, this forces a reconnect anyway,
+comfortably before the ~60s point where the CDN itself cuts the connection,
+rather than depending on one single mechanism always working.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/MusicService.kt  | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 8723ca66..cf101cc5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -172,6 +172,7 @@ import java.net.ConnectException
+ import java.net.SocketTimeoutException
+ import java.net.UnknownHostException
+ import java.time.LocalDateTime
++import java.util.concurrent.TimeUnit
+ import javax.inject.Inject
+ import kotlin.math.min
+ import kotlin.math.pow
+@@ -832,6 +833,15 @@ class MusicService : MediaLibraryService(),
+                             OkHttpDataSource.Factory(
+                                 OkHttpClient.Builder()
+                                     .proxy(YouTube.proxy)
++                                    // Belt-and-suspenders alongside the dataSpec-level chunk bound
++                                    // in createDataSourceFactory(): if a single call somehow runs
++                                    // longer than this regardless of that bound (a device/ExoPlayer
++                                    // version where the chunk continuation doesn't kick in the way
++                                    // expected, for instance), this forces OkHttp itself to abort
++                                    // and reconnect before reaching googlevideo's own connection
++                                    // cutoff (confirmed at roughly a minute), rather than depending
++                                    // on a single mechanism to always work.
++                                    .callTimeout(45, TimeUnit.SECONDS)
+                                     .build()
+                             )
+                         )
+@@ -893,8 +903,16 @@ class MusicService : MediaLibraryService(),
+             songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
+                 offloadScope.launch { recoverSong(mediaId) }
++                // Bounded the same as the fresh-resolve path below, and for the same reason: left
++                // unbounded (as this was before), this is the request that turns into one
++                // long-lived connection past whatever duration googlevideo's CDN cuts a stream at -
++                // confirmed independently of any auth/URL-freshness issue, since a much larger
++                // CHUNK_LENGTH still failed with the same source error at roughly the same wall-clock
++                // point regardless of the extra bytes available. Every read has to keep reconnecting
++                // under that ceiling, not just the very first one.
+                 return@Factory dataSpec.withUri(it.url.toUri())
+                     .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
++                    .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+             }
+ 
+             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
+-- 
+2.43.0
+
+From fe6368e88f9db728fbce25b559c64236f4a5d375 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 13:11:06 +0000
+Subject: [PATCH] Proactively refresh the streaming PoToken before it actually
+ goes stale
+
+Confirmed the CDN-connection-duration theory wrong: tightening chunk size
+and adding an OkHttp callTimeout, independently, both left the failure at
+exactly the same ~60-64s wall-clock point with the same 403. Since neither
+touched connection duration and the timing didn't move, duration was never
+the actual variable - time since the credentials were minted is.
+
+songUrlCache trusted a cached URL for streamExpiresInSeconds (YouTube's own
+claim, routinely hours), but the streaming PoToken embedded in that URL
+has a real-world validity far shorter. Worse, PoTokenGenerator caches the
+streaming pot at the session level, so simply calling
+playerResponseForPlayback again on refresh had no guarantee of minting a
+new one - it could easily hand back the same one that's about to expire.
+
+Caps the cache's effective trust at 40s regardless of what
+streamExpiresInSeconds claims, and forces invalidatePoTokenSession() before
+any refresh (skipped on a song's genuinely first resolve, so that one
+doesn't pay for a rotation it doesn't need). CHUNK_LENGTH tightened to
+256KB so no single request - even for a low-bitrate song - is likely to
+still be mid-transfer when the old credentials actually go bad.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 25 +++++++++++++++++--
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 15 +++++++++++
+ 2 files changed, 38 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index cf101cc5..9f8056cd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -917,7 +917,17 @@ class MusicService : MediaLibraryService(),
+ 
+             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
+ 
++            // A cache entry existing (even an expired one) means this song was already resolved
++            // once before - the aging streaming PoToken embedded in that URL is exactly what's
++            // being worked around here, so force a fresh mint rather than risk PoTokenGenerator's
++            // own session-level cache handing back the same one. Skipped for a genuinely first-time
++            // resolve so the very first song of a session doesn't pay this cost for no reason.
++            val isRefresh = songUrlCache.containsKey(mediaId)
++
+             val playbackData = runBlocking(Dispatchers.IO) {
++                if (isRefresh) {
++                    YTPlayerUtils.invalidatePoTokenSession()
++                }
+                 val audioQuality by enumPreference(this@MusicService, AudioQualityKey, AudioQuality.AUTO)
+                 YTPlayerUtils.playerResponseForPlayback(
+                     mediaId,
+@@ -980,7 +990,14 @@ class MusicService : MediaLibraryService(),
+ 
+             songUrlCache[mediaId] = CachedStreamUrl(
+                 url = streamUrl,
+-                expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
++                // streamExpiresInSeconds is YouTube's own claimed validity (routinely hours), but
++                // the embedded streaming PoToken has been observed to actually stop working after
++                // roughly a minute regardless of connection count or chunk size (both were tightened
++                // independently with zero effect on the failure point, which time-since-minting
++                // explains and connection-duration doesn't). Capping our own trust well under that
++                // forces the proactive refresh above - fresh PoToken included - before the CDN ever
++                // gets a chance to reject the old one.
++                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds.toLong(), 40L) * 1000L,
+                 userAgent = playbackData.streamUserAgent,
+             )
+             dataSpec.withUri(streamUrl.toUri())
+@@ -1478,7 +1495,11 @@ class MusicService : MediaLibraryService(),
+         const val CHANNEL_NAME = "fgs_workaround"
+         const val NOTIFICATION_ID = 888
+         const val ERROR_CODE_NO_STREAM = 1000001
+-        const val CHUNK_LENGTH = 512 * 1024L
++        // Bounds every stream request (see createDataSourceFactory()) so no single one can still be
++        // mid-transfer when the cached URL's credentials go stale - see songUrlCache's 40s trust cap
++        // for why that matters. Comfortably covers even a low-bitrate song within that window; a
++        // higher-bitrate one just means more frequent, still-small requests.
++        const val CHUNK_LENGTH = 256 * 1024L
+ 
+         const val COMMAND_GET_BINDER = "GET_BINDER"
+     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index 460ca782..aac787ba 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -252,6 +252,21 @@ object YTPlayerUtils {
+         }
+     }
+ 
++    /**
++     * Invalidates just the cached streaming PoToken session, without also rotating visitorData
++     * (that's [rotateSessionIdentity], which additionally costs a network round-trip). The
++     * streaming PoToken embedded in a resolved stream URL has a real-world validity far shorter
++     * than streamExpiresInSeconds claims - confirmed independently of connection duration or chunk
++     * size, since tightening both made no difference to a fixed ~60s cutoff. PoTokenGenerator
++     * caches the streaming pot at the session level and has no reason to know to mint a new one
++     * just because playerResponseForPlayback is called again, so a proactive refresh of an aging
++     * cached URL needs to force this explicitly rather than hoping its own internal expiry check
++     * happens to line up.
++     */
++    fun invalidatePoTokenSession() {
++        poTokenGenerator.invalidate()
++    }
++
+     /**
+      * Fetches a WEB_REMIX player response for non-streaming data, including
+      * video metadata and playback tracking.
+-- 
+2.43.0
+
+From c0795ece15826619389401ded757e1ebb2a3ce92 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 12:19:59 +0000
+Subject: [PATCH] Stop the 'Failed to parse proxy url' toast on every launch
+ with no proxy set
+
+toInetSocketAddress() destructured split(":") with no length check, so a
+blank or malformed ProxyUrlKey threw on every single app start whenever
+ProxyEnabledKey was true - which happens whenever that toggle is on but no
+URL was ever actually saved, not just for a genuine typo. Guards the blank
+case before attempting to parse at all, and makes the parser itself throw
+a clear IllegalArgumentException instead of an unrelated destructuring/
+NumberFormatException for an actually-malformed non-blank URL.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ app/src/main/java/com/dd3boh/outertune/App.kt | 22 ++++++++++++-------
+ .../dd3boh/outertune/extensions/StringExt.kt  | 13 +++++++++--
+ 2 files changed, 25 insertions(+), 10 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
+index 682edec7..a55d1baf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/App.kt
++++ b/app/src/main/java/com/dd3boh/outertune/App.kt
+@@ -97,14 +97,20 @@ class App : Application(), SingletonImageLoader.Factory {
+         }
+ 
+         if (dataStore[ProxyEnabledKey] == true) {
+-            try {
+-                YouTube.proxy = Proxy(
+-                    dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
+-                    dataStore[ProxyUrlKey]!!.toInetSocketAddress()
+-                )
+-            } catch (e: Exception) {
+-                Toast.makeText(this, "Failed to parse proxy url.", LENGTH_SHORT).show()
+-                reportException(e)
++            val proxyUrl = dataStore[ProxyUrlKey]
++            // Blank/missing is "the toggle is on but nothing was ever saved" - not an error worth a
++            // toast on every single launch. A non-blank string that still fails to parse is a real
++            // misconfiguration and should still surface.
++            if (!proxyUrl.isNullOrBlank()) {
++                try {
++                    YouTube.proxy = Proxy(
++                        dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
++                        proxyUrl.toInetSocketAddress()
++                    )
++                } catch (e: Exception) {
++                    Toast.makeText(this, "Failed to parse proxy url.", LENGTH_SHORT).show()
++                    reportException(e)
++                }
+             }
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt b/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt
+index 148dda53..dc67714d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt
++++ b/app/src/main/java/com/dd3boh/outertune/extensions/StringExt.kt
+@@ -14,7 +14,16 @@ inline fun <reified T : Enum<T>> String?.toEnum(defaultValue: T): T =
+ 
+ fun String.toSQLiteQuery(): SimpleSQLiteQuery = SimpleSQLiteQuery(this)
+ 
++/**
++ * @throws IllegalArgumentException if this string isn't exactly "host:port" - callers that show
++ * this to the person (rather than letting it crash) should catch that specifically, not just
++ * Exception, since a bare Exception catch also swallows the very host/port bugs this is meant to
++ * surface during development.
++ */
+ fun String.toInetSocketAddress(): InetSocketAddress {
+-    val (host, port) = split(":")
+-    return createUnresolved(host, port.toInt())
++    val parts = split(":")
++    require(parts.size == 2) { "Expected \"host:port\", got \"$this\"" }
++    val port = parts[1].toIntOrNull()
++    require(port != null) { "Port isn't a number: \"${parts[1]}\"" }
++    return createUnresolved(parts[0], port)
+ }
+\ No newline at end of file
+-- 
+2.43.0
+
+From fbdcd0b96c75852d134f91b38a1cf3aef9348549 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 23:27:54 +0000
+Subject: [PATCH 1/2] Use a PoToken-bearing client for playback streams
+
+Every PoToken fix in this series so far - the session rotation, the 40s
+cache cap, invalidate()-before-refresh - operated on a token that was
+never in the URL being played. MAIN_CLIENT was ANDROID_VR_NO_AUTH, which
+leaves useWebPoTokens at its false default, so
+
+    if (client.useWebPoTokens && webStreamingPot != null)
+
+never fired for the client that actually won selection.
+
+That is the missing piece behind the invariance those commits kept
+running into: the failure point didn't move for chunk size, for
+connection duration, or for token freshness because none of those
+touched what was on the wire. The stream being played carried no pot at
+all, and googlevideo cuts such a stream at the first continuation
+request - which is why playback consistently started clean and died the
+moment the first chunk ran out.
+
+Promotes WEB_REMIX (useWebPoTokens = true) to MAIN_CLIENT and demotes
+ANDROID_VR_NO_AUTH to a fallback. WEB_REMIX also requires working
+signature deobfuscation, which SignatureCipherManager already provides
+via the WebView path in findUrlOrNull().
+---
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   |   5 +-
+ outertune-potoken-client-fix.patch            | 102 ++++++++++++++++++
+ 2 files changed, 105 insertions(+), 2 deletions(-)
+ create mode 100644 outertune-potoken-client-fix.patch
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index aac787b..5135fcd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -40,17 +40,18 @@ object YTPlayerUtils {
+ 
+     private val poTokenGenerator = PoTokenGenerator()
+ 
++
+     /**
+      * Client used for metadata and the initial stream response. Other clients are not used here
+      * because their metadata can differ (e.g. different loudnessDb normalization targets).
+      */
+-    private val MAIN_CLIENT: YouTubeClient = ANDROID_VR_NO_AUTH
++    private val MAIN_CLIENT: YouTubeClient = WEB_REMIX
+ 
+     /**
+      * Clients used for fallback streams in case the streams of the main client do not work.
+      */
+     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
+-        WEB_REMIX, // premium formats and correct metadata; requires working signature deobfuscation
++        ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
+ //        ANDROID,
+ //        TVHTML5,
+ //        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+diff --git a/outertune-potoken-client-fix.patch b/outertune-potoken-client-fix.patch
+new file mode 100644
+index 0000000..5b91bee
+--- /dev/null
++++ b/outertune-potoken-client-fix.patch
+@@ -0,0 +1,102 @@
++From aa11111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
++From: claude <c@example.com>
++Date: Wed, 19 Aug 2026 00:00:00 +0000
++Subject: [PATCH 1/2] Use a PoToken-bearing client for playback streams
++
++Every PoToken fix in this series so far - session rotation, the 40s cache
++cap, invalidate()-before-refresh - operated on a token that was never in
++the URL being played. MAIN_CLIENT is ANDROID_VR_NO_AUTH, which leaves
++useWebPoTokens at its false default, so the
++
++    if (client.useWebPoTokens && webStreamingPot != null)
++
++guard never fired for the client that actually won selection. That is why
++the failure point was invariant to chunk size, to connection duration, and
++to every token-freshness change: none of them touched the wire.
++
++Promotes WEB_REMIX (useWebPoTokens = true) to MAIN_CLIENT and keeps
++ANDROID_VR as a fallback. Metadata now comes from WEB_REMIX too, which is
++the client whose loudnessDb normalization the rest of the app already
++assumes.
++
++---
++ .../java/com/dd3boh/outertune/utils/YTPlayerUtils.kt | 9 +++++----
++ 1 file changed, 5 insertions(+), 4 deletions(-)
++
++diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++@@
++-    private val MAIN_CLIENT: YouTubeClient = ANDROID_VR_NO_AUTH
+++    private val MAIN_CLIENT: YouTubeClient = WEB_REMIX
++ 
++     /**
++      * Clients used for fallback streams in case the streams of the main client do not work.
++      */
++     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
++-        WEB_REMIX, // premium formats and correct metadata; requires working signature deobfuscation
+++        ANDROID_VR_NO_AUTH,
++         IOS,
++     )
++-- 
++2.43.0
++
++From bb22222222222222222222222222222222222222 Mon Sep 17 00:00:00 2001
++From: claude <c@example.com>
++Date: Wed, 19 Aug 2026 00:00:01 +0000
++Subject: [PATCH 2/2] Validate streams with a ranged GET past the first chunk
++
++validateStatus() issued a HEAD. googlevideo answers HEAD with 200 on URLs
++whose ranged GET continuations return 403, so the check was a false
++positive: the first client tried always "passed" and broke out of the
++fallback loop, leaving the later clients unreachable no matter how broken
++the winning stream was.
++
++Probes past CHUNK_LENGTH instead, which is the exact request that fails
++during playback, and sends the client's own User-Agent so the probe
++matches the conditions of the real fetch.
++
++Also drops the unconditional break for the last fallback client: with a
++probe that reflects reality there is no reason to accept an unvalidated
++stream, and doing so re-introduces the same false pass.
++
++---
++ .../java/com/dd3boh/outertune/utils/YTPlayerUtils.kt | 18 ++++++++++--------
++ 1 file changed, 10 insertions(+), 8 deletions(-)
++
++diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++@@
++-                if (clientIndex == STREAM_FALLBACK_CLIENTS.size - 1) {
++-                    // skip validateStatus for the last client
++-                    break
++-                }
++-                if (validateStatus(streamUrl)) {
+++                if (validateStatus(streamUrl, client.userAgent)) {
++                     // working stream found
++                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
++                     break
++@@
++-    private fun validateStatus(url: String): Boolean {
+++    private fun validateStatus(url: String, userAgent: String): Boolean {
++         try {
++             val requestBuilder = okhttp3.Request.Builder()
++-                .head()
+++                .header("User-Agent", userAgent)
+++                // Past the first chunk on purpose: a HEAD, or any probe inside the first chunk,
+++                // succeeds on URLs whose continuation requests are rejected - which is the exact
+++                // failure being screened for here.
+++                .header("Range", "bytes=$CHUNK_LENGTH-${CHUNK_LENGTH + 1}")
++                 .url(url)
++             val response = httpClient.newCall(requestBuilder.build()).execute()
++-            return response.isSuccessful
+++            response.close()
+++            return response.code in 200..299
++         } catch (e: Exception) {
++             reportException(e)
++         }
++         return false
++     }
++-- 
++2.43.0
+-- 
+2.43.0
+
+
+From 95bc3cf23e5a391df9619f0463f9e2ea8a73b119 Mon Sep 17 00:00:00 2001
+From: claude <c@example.com>
+Date: Tue, 18 Aug 2026 23:28:07 +0000
+Subject: [PATCH 2/2] Validate streams with a ranged GET past the first chunk
+
+validateStatus() issued a HEAD. googlevideo answers HEAD with 200 on
+URLs whose ranged GET continuations return 403, so the check was a false
+positive: whichever client was tried first always "passed" and broke out
+of the fallback loop, leaving the remaining clients unreachable no
+matter how broken the winning stream was. Matching the User-Agent (added
+earlier in this series) narrowed that, but did not fix it - a HEAD with
+the right UA still doesn't exercise a continuation request.
+
+Probes at PROBE_OFFSET instead, which is the request that actually
+fails during playback.
+
+Also drops the unconditional break for the last fallback client. With a
+probe that reflects reality there is no reason to accept an unvalidated
+stream, and doing so reintroduces exactly the false pass this removes.
+---
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   |  18 ++--
+ outertune-potoken-client-fix.patch            | 102 ------------------
+ 2 files changed, 12 insertions(+), 108 deletions(-)
+ delete mode 100644 outertune-potoken-client-fix.patch
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index 5135fcd..9a2be23 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -40,6 +40,12 @@ object YTPlayerUtils {
+ 
+     private val poTokenGenerator = PoTokenGenerator()
+ 
++    /**
++     * Byte offset used by [validateStatus]. Must stay at or beyond MusicService.CHUNK_LENGTH so the
++     * probe exercises a continuation request rather than the first chunk.
++     */
++    private const val PROBE_OFFSET = 256 * 1024L
++
+ 
+     /**
+      * Client used for metadata and the initial stream response. Other clients are not used here
+@@ -186,10 +192,6 @@ object YTPlayerUtils {
+                     streamUrl += "&pot=$webStreamingPot";
+                 }
+ 
+-                if (clientIndex == STREAM_FALLBACK_CLIENTS.size - 1) {
+-                    // skip validateStatus for the last client
+-                    break
+-                }
+                 if (validateStatus(streamUrl, client.userAgent)) {
+                     // working stream found
+                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
+@@ -315,11 +317,15 @@ object YTPlayerUtils {
+     private fun validateStatus(url: String, userAgent: String): Boolean {
+         try {
+             val requestBuilder = okhttp3.Request.Builder()
+-                .head()
+                 .header("User-Agent", userAgent)
++                // Deliberately past the first chunk. A HEAD - or any probe landing inside the
++                // first chunk - succeeds on URLs whose *continuation* requests are rejected, which
++                // is precisely the failure this is meant to screen for: playback that starts
++                // cleanly and dies the moment the first chunk runs out.
++                .header("Range", "bytes=$PROBE_OFFSET-${PROBE_OFFSET + 1}")
+                 .url(url)
+             val response = httpClient.newCall(requestBuilder.build()).execute()
+-            return response.isSuccessful
++            return response.use { it.code in 200..299 }
+         } catch (e: Exception) {
+             reportException(e)
+         }
+diff --git a/outertune-potoken-client-fix.patch b/outertune-potoken-client-fix.patch
+deleted file mode 100644
+index 5b91bee..0000000
+--- a/outertune-potoken-client-fix.patch
++++ /dev/null
+@@ -1,102 +0,0 @@
+-From aa11111111111111111111111111111111111111 Mon Sep 17 00:00:00 2001
+-From: claude <c@example.com>
+-Date: Wed, 19 Aug 2026 00:00:00 +0000
+-Subject: [PATCH 1/2] Use a PoToken-bearing client for playback streams
+-
+-Every PoToken fix in this series so far - session rotation, the 40s cache
+-cap, invalidate()-before-refresh - operated on a token that was never in
+-the URL being played. MAIN_CLIENT is ANDROID_VR_NO_AUTH, which leaves
+-useWebPoTokens at its false default, so the
+-
+-    if (client.useWebPoTokens && webStreamingPot != null)
+-
+-guard never fired for the client that actually won selection. That is why
+-the failure point was invariant to chunk size, to connection duration, and
+-to every token-freshness change: none of them touched the wire.
+-
+-Promotes WEB_REMIX (useWebPoTokens = true) to MAIN_CLIENT and keeps
+-ANDROID_VR as a fallback. Metadata now comes from WEB_REMIX too, which is
+-the client whose loudnessDb normalization the rest of the app already
+-assumes.
+-
+----
+- .../java/com/dd3boh/outertune/utils/YTPlayerUtils.kt | 9 +++++----
+- 1 file changed, 5 insertions(+), 4 deletions(-)
+-
+-diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+---- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+-+++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+-@@
+--    private val MAIN_CLIENT: YouTubeClient = ANDROID_VR_NO_AUTH
+-+    private val MAIN_CLIENT: YouTubeClient = WEB_REMIX
+- 
+-     /**
+-      * Clients used for fallback streams in case the streams of the main client do not work.
+-      */
+-     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
+--        WEB_REMIX, // premium formats and correct metadata; requires working signature deobfuscation
+-+        ANDROID_VR_NO_AUTH,
+-         IOS,
+-     )
+--- 
+-2.43.0
+-
+-From bb22222222222222222222222222222222222222 Mon Sep 17 00:00:00 2001
+-From: claude <c@example.com>
+-Date: Wed, 19 Aug 2026 00:00:01 +0000
+-Subject: [PATCH 2/2] Validate streams with a ranged GET past the first chunk
+-
+-validateStatus() issued a HEAD. googlevideo answers HEAD with 200 on URLs
+-whose ranged GET continuations return 403, so the check was a false
+-positive: the first client tried always "passed" and broke out of the
+-fallback loop, leaving the later clients unreachable no matter how broken
+-the winning stream was.
+-
+-Probes past CHUNK_LENGTH instead, which is the exact request that fails
+-during playback, and sends the client's own User-Agent so the probe
+-matches the conditions of the real fetch.
+-
+-Also drops the unconditional break for the last fallback client: with a
+-probe that reflects reality there is no reason to accept an unvalidated
+-stream, and doing so re-introduces the same false pass.
+-
+----
+- .../java/com/dd3boh/outertune/utils/YTPlayerUtils.kt | 18 ++++++++++--------
+- 1 file changed, 10 insertions(+), 8 deletions(-)
+-
+-diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+---- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+-+++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+-@@
+--                if (clientIndex == STREAM_FALLBACK_CLIENTS.size - 1) {
+--                    // skip validateStatus for the last client
+--                    break
+--                }
+--                if (validateStatus(streamUrl)) {
+-+                if (validateStatus(streamUrl, client.userAgent)) {
+-                     // working stream found
+-                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
+-                     break
+-@@
+--    private fun validateStatus(url: String): Boolean {
+-+    private fun validateStatus(url: String, userAgent: String): Boolean {
+-         try {
+-             val requestBuilder = okhttp3.Request.Builder()
+--                .head()
+-+                .header("User-Agent", userAgent)
+-+                // Past the first chunk on purpose: a HEAD, or any probe inside the first chunk,
+-+                // succeeds on URLs whose continuation requests are rejected - which is the exact
+-+                // failure being screened for here.
+-+                .header("Range", "bytes=$CHUNK_LENGTH-${CHUNK_LENGTH + 1}")
+-                 .url(url)
+-             val response = httpClient.newCall(requestBuilder.build()).execute()
+--            return response.isSuccessful
+-+            response.close()
+-+            return response.code in 200..299
+-         } catch (e: Exception) {
+-             reportException(e)
+-         }
+-         return false
+-     }
+--- 
+-2.43.0
+-- 
+2.43.0
+
+From c9cc7fdf0549ba93cf79e94e2ca3951853b1806b Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 19 Aug 2026 21:34:05 +0800
+Subject: [PATCH] Send Referer/Origin on stream requests, precache the next
+ song's URL
+
+Every stream request only ever carried a User-Agent. googlevideo.com has
+also been observed checking Referer/Origin against the client a URL was
+signed for - relevant now that WEB_REMIX (a browser-origin client, not a
+native app one) is MAIN_CLIENT. PlaybackData/CachedStreamUrl now carry a
+full per-client header map (User-Agent + Referer + Origin) instead of
+just a User-Agent string, built by a new YTPlayerUtils.streamHeaders()
+matched to the resolved client (music.youtube.com for WEB_REMIX,
+www.youtube.com otherwise) and threaded through both MusicService and
+DownloadUtil.
+
+Also adds an Experimental toggle (on by default) that precaches the next
+song's stream shortly before the current one ends, timed to land inside
+the existing 40s PoToken freshness window rather than resolving at the
+track transition - one extra request per song, spread out over the
+queue instead of clustered at each change.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../outertune/constants/PreferenceKeys.kt     |  11 ++
+ .../dd3boh/outertune/playback/DownloadUtil.kt |  10 +-
+ .../dd3boh/outertune/playback/MusicService.kt | 116 ++++++++++++++++--
+ .../screens/settings/ExperimentalSettings.kt  |  10 ++
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   |  47 +++++--
+ 5 files changed, 167 insertions(+), 27 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 2d20e1c5..c6850177 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -149,6 +149,17 @@ val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
+ val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
+ val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")
+ 
++/**
++ * Precaches the next song's stream URL shortly before the current one ends, instead of resolving it
++ * at the track transition. Timed automatically (not a fixed delay): a resolved stream URL's PoToken
++ * has been observed to go stale after roughly a minute regardless of when it's used, so this fires
++ * only once the current song is close enough to ending that the precached URL will still be fresh
++ * when playback actually reaches it. Naturally spreads resolution timing across the whole queue
++ * instead of clustering every request at each transition. On by default: at most one extra request
++ * per song, timed to land within the freshness window it needs to.
++ */
++val EnableStreamPrecacheKey = booleanPreferencesKey("enableStreamPrecache")
++
+ /**
+  * How the remote lyric providers are consulted, and in what order.
+  *
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index 0e138111..fa901d5d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -84,9 +84,9 @@ class DownloadUtil @Inject constructor(
+ 
+     private val connectivityManager = context.getSystemService<ConnectivityManager>()!!
+     private val audioQuality by enumPreference(context, AudioQualityKey, AudioQuality.AUTO)
+-    /** Same shape as MusicService's - see that one's doc for why the User-Agent has to travel
++    /** Same shape as MusicService's - see that one's doc for why the headers have to travel
+      *  with the URL. */
+-    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
++    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
+ 
+     private val songUrlCache = HashMap<String, CachedStreamUrl>()
+     private val dataSourceFactory = ResolvingDataSource.Factory(
+@@ -108,7 +108,7 @@ class DownloadUtil @Inject constructor(
+ 
+         songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+             return@Factory dataSpec.withUri(it.url.toUri())
+-                .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
++                .withRequestHeaders(it.headers)
+         }
+ 
+         val playbackData = runBlocking(Dispatchers.IO) {
+@@ -147,10 +147,10 @@ class DownloadUtil @Inject constructor(
+         songUrlCache[mediaId] = CachedStreamUrl(
+             url = streamUrl,
+             expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
+-            userAgent = playbackData.streamUserAgent,
++            headers = playbackData.streamHeaders,
+         )
+         dataSpec.withUri(streamUrl.toUri())
+-            .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
++            .withRequestHeaders(playbackData.streamHeaders)
+     }
+     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
+     val downloadManager: DownloadManager =
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 9f8056cd..c4289829 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -83,6 +83,7 @@ import com.dd3boh.outertune.constants.EnableDiscordRPCKey
+ import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
+ import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
+ import com.dd3boh.outertune.constants.EnableLyricsPrefetchKey
++import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
+ import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
+ import com.dd3boh.outertune.constants.KeepAliveKey
+ import com.dd3boh.outertune.constants.LyricsPrefetchCountKey
+@@ -282,12 +283,13 @@ class MusicService : MediaLibraryService(),
+     var consecutivePlaybackErr = 0
+ 
+     /**
+-     * A resolved stream URL, its expiry time, and the User-Agent of the client it was resolved
+-     * from - googlevideo.com has been observed rejecting a fetch whose User-Agent doesn't match
+-     * the client the URL was signed for, so the UA has to be replayed alongside the URL itself
+-     * wherever it's actually GETed from, not just at the request that originally resolved it.
++     * A resolved stream URL, its expiry time, and the headers (User-Agent, and for a
++     * browser-origin client like WEB_REMIX, Referer/Origin) of the client it was resolved from -
++     * googlevideo.com has been observed rejecting a fetch whose headers don't match the client
++     * the URL was signed for, so they have to be replayed alongside the URL itself wherever it's
++     * actually GETed from, not just at the request that originally resolved it.
+      */
+-    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val userAgent: String)
++    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
+ 
+     /**
+      * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
+@@ -308,6 +310,13 @@ class MusicService : MediaLibraryService(),
+      */
+     private val retriedAfterSourceError = mutableSetOf<String>()
+ 
++    /**
++     * mediaId of the next song already precached (or currently being precached) for the playback
++     * in progress, so [precacheNextSongStream] doesn't redo it on every tick while the lead window
++     * is open. Reset on every track transition.
++     */
++    private var precachedForMediaId: String? = null
++
+     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
+     // track transition. A data class so the StateFlow deduplicates identical updates.
+     private data class LyricsFetchTargets(
+@@ -536,6 +545,24 @@ class MusicService : MediaLibraryService(),
+                     }
+                 }
+ 
++            // Precache the next song's stream shortly before the current one ends, instead of
++            // resolving it at the track transition (see precacheNextSongStream() for why this is
++            // timed rather than just delayed by a fixed amount). A plain poll rather than a
++            // position-change listener: this only needs roughly-once-a-few-seconds resolution, not
++            // every frame, and a listener would fire far more often than it needs to for this.
++            offloadScope.launch {
++                while (isActive) {
++                    delay(5000)
++                    if (!dataStore.get(EnableStreamPrecacheKey, true)) continue
++                    val (isPlaying, duration, position) = withContext(Dispatchers.Main) {
++                        Triple(player.isPlaying, player.duration, player.currentPosition)
++                    }
++                    if (isPlaying && duration > 0 && duration - position in 0..PRECACHE_LEAD_MS) {
++                        precacheNextSongStream()
++                    }
++                }
++            }
++
+ 
+             // network connectivity
+             try {
+@@ -562,6 +589,68 @@ class MusicService : MediaLibraryService(),
+     }
+ 
+ 
++    /**
++     * Resolves and caches the next song's stream, timed by the poller in the init block to land
++     * inside [STREAM_URL_TRUST_WINDOW_MS] of when it'll actually be needed. Best-effort: any
++     * failure here just leaves nothing cached, so createDataSourceFactory()'s own resolve-on-
++     * transition path runs at that point exactly as if this had never fired.
++     */
++    private suspend fun precacheNextSongStream() {
++        val nextMediaId = withContext(Dispatchers.Main) {
++            player.nextMediaItemIndex.takeIf { it != C.INDEX_UNSET }
++                ?.let { player.getMediaItemAt(it) }
++                ?.mediaId
++        } ?: return
++        if (nextMediaId == precachedForMediaId) return
++        if (songUrlCache[nextMediaId]?.expiresAt?.let { it > System.currentTimeMillis() } == true) return
++
++        var song = queueBoard.value.getCurrentQueue()?.findSong(nextMediaId)
++        if (song == null) {
++            song = database.song(nextMediaId).first()?.toMediaMetadata()
++        }
++        if (song?.localPath != null) return // local/downloaded song, nothing to precache
++        if (downloadCache.isCached(nextMediaId, 0, 1) || playerCache.isCached(nextMediaId, 0, CHUNK_LENGTH)) return
++
++        precachedForMediaId = nextMediaId
++        runCatching {
++            val audioQuality by enumPreference(this@MusicService, AudioQualityKey, AudioQuality.AUTO)
++            val playbackData = YTPlayerUtils.playerResponseForPlayback(
++                nextMediaId,
++                audioQuality = audioQuality,
++                connectivityManager = connectivityManager,
++            ).getOrThrow()
++            val format = playbackData.format
++
++            database.query {
++                upsert(
++                    FormatEntity(
++                        id = nextMediaId,
++                        itag = format.itag,
++                        mimeType = format.mimeType.split(";")[0],
++                        codecs = format.mimeType.split("codecs=")[1].removeSurrounding("\""),
++                        bitrate = format.bitrate,
++                        sampleRate = format.audioSampleRate,
++                        contentLength = format.contentLength ?: 10000000,
++                        loudnessDb = playbackData.audioConfig?.loudnessDb,
++                        playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
++                    )
++                )
++            }
++
++            songUrlCache[nextMediaId] = CachedStreamUrl(
++                url = playbackData.streamUrl,
++                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
++                headers = playbackData.streamHeaders,
++            )
++            if (SERVICE_DEBUG) Log.d(TAG, "Precached stream for upcoming song: mediaId=$nextMediaId")
++        }.onFailure {
++            if (SERVICE_DEBUG) Log.w(TAG, "Precache failed for mediaId=$nextMediaId, will resolve normally on transition", it)
++            // Not genuinely unplayable - just let the normal path retry it at the transition.
++            precachedForMediaId = null
++        }
++    }
++
++
+ // Library functions
+ 
+     private suspend fun recoverSong(mediaId: String, playbackData: YTPlayerUtils.PlaybackData? = null) {
+@@ -911,7 +1000,7 @@ class MusicService : MediaLibraryService(),
+                 // point regardless of the extra bytes available. Every read has to keep reconnecting
+                 // under that ceiling, not just the very first one.
+                 return@Factory dataSpec.withUri(it.url.toUri())
+-                    .withRequestHeaders(mapOf("User-Agent" to it.userAgent))
++                    .withRequestHeaders(it.headers)
+                     .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+             }
+ 
+@@ -997,11 +1086,11 @@ class MusicService : MediaLibraryService(),
+                 // explains and connection-duration doesn't). Capping our own trust well under that
+                 // forces the proactive refresh above - fresh PoToken included - before the CDN ever
+                 // gets a chance to reject the old one.
+-                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds.toLong(), 40L) * 1000L,
+-                userAgent = playbackData.streamUserAgent,
++                expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
++                headers = playbackData.streamHeaders,
+             )
+             dataSpec.withUri(streamUrl.toUri())
+-                .withRequestHeaders(mapOf("User-Agent" to playbackData.streamUserAgent))
++                .withRequestHeaders(playbackData.streamHeaders)
+                 .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+         }
+     }
+@@ -1258,6 +1347,7 @@ class MusicService : MediaLibraryService(),
+             consecutivePlaybackErr--
+         }
+ 
++        precachedForMediaId = null
+         updateLyricsFetchTargets()
+ 
+         if (player.isPlaying && reason == MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+@@ -1501,6 +1591,14 @@ class MusicService : MediaLibraryService(),
+         // higher-bitrate one just means more frequent, still-small requests.
+         const val CHUNK_LENGTH = 256 * 1024L
+ 
++        // How long a freshly-resolved stream URL is trusted for before a proactive refresh is
++        // forced - see songUrlCache's own doc for why 40s. Precaching (see precacheNextSongStream())
++        // fires this many ms before the current song ends, comfortably inside that window so the
++        // precached URL is still fresh when playback actually reaches the next song, with a few
++        // seconds of margin for the resolve itself to complete.
++        const val STREAM_URL_TRUST_WINDOW_MS = 40_000L
++        const val PRECACHE_LEAD_MS = 35_000L
++
+         const val COMMAND_GET_BINDER = "GET_BINDER"
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+index 2b2c837c..0afd36b6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+@@ -68,6 +68,7 @@ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.AudioGaplessOffloadKey
+ import com.dd3boh.outertune.constants.AudioOffloadKey
+ import com.dd3boh.outertune.constants.DevSettingsKey
++import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
+ import com.dd3boh.outertune.constants.MaxQueuesKey
+ import com.dd3boh.outertune.constants.OobeStatusKey
+ import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
+@@ -115,6 +116,7 @@ fun ExperimentalSettings(
+     val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
+ 
+     val (devSettings, onDevSettingsChange) = rememberPreference(DevSettingsKey, defaultValue = false)
++    val (enableStreamPrecache, onEnableStreamPrecacheChange) = rememberPreference(EnableStreamPrecacheKey, defaultValue = true)
+     val (oobeStatus, onOobeStatusChange) = rememberPreference(OobeStatusKey, defaultValue = 0)
+ 
+     var nukeEnabled by remember {
+@@ -236,6 +238,14 @@ fun ExperimentalSettings(
+                 }
+             )
+ 
++            SwitchPreference(
++                title = { Text("Precache next song") },
++                description = "Resolves the next song's stream shortly before the current one ends, timed automatically to stay inside the ~40s window before it goes stale, instead of resolving right at the track change. Spreads requests out over time rather than clustering them.",
++                icon = { Icon(Icons.Rounded.Queue, null) },
++                checked = enableStreamPrecache,
++                onCheckedChange = onEnableStreamPrecacheChange
++            )
++
+ 
+             PreferenceEntry(
+                 title = { Text("Enter configurator") },
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index 9a2be236..cbe76e1c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -73,13 +73,14 @@ object YTPlayerUtils {
+         val streamUrl: String,
+         val streamExpiresInSeconds: Int,
+         /**
+-         * User-Agent of whichever client (MAIN_CLIENT or a STREAM_FALLBACK_CLIENTS entry) actually
++         * Headers of whichever client (MAIN_CLIENT or a STREAM_FALLBACK_CLIENTS entry) actually
+          * produced [streamUrl]. googlevideo.com's CDN has been observed rejecting a fetch whose
+-         * User-Agent doesn't match the client the URL was signed for, so this has to travel with
+-         * the URL to wherever it's actually GETed from - the request that resolved it isn't the
+-         * same request that plays it.
++         * User-Agent doesn't match the client the URL was signed for - and, for WEB_REMIX
++         * specifically, one lacking a matching Referer/Origin, since that URL was signed for a
++         * browser-origin client - so these have to travel with the URL to wherever it's actually
++         * GETed from - the request that resolved it isn't the same request that plays it.
+          */
+-        val streamUserAgent: String,
++        val streamHeaders: Map<String, String>,
+     )
+ 
+     /**
+@@ -192,7 +193,7 @@ object YTPlayerUtils {
+                     streamUrl += "&pot=$webStreamingPot";
+                 }
+ 
+-                if (validateStatus(streamUrl, client.userAgent)) {
++                if (validateStatus(streamUrl, client.streamHeaders())) {
+                     // working stream found
+                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
+                     break
+@@ -231,7 +232,7 @@ object YTPlayerUtils {
+             format,
+             streamUrl,
+             streamExpiresInSeconds,
+-            streamClient.userAgent,
++            streamClient.streamHeaders(),
+         )
+     }
+ 
+@@ -309,21 +310,21 @@ object YTPlayerUtils {
+      * If this returns true the url is likely to work.
+      * If this returns false the url might cause an error during playback.
+      *
+-     * [userAgent] must match the client the URL was signed for - googlevideo.com has been
+-     * observed rejecting requests whose User-Agent doesn't match, so probing without it risked
+-     * this validation itself failing (or wrongly passing) independent of whether the URL is
+-     * actually good.
++     * [headers] must match the client the URL was signed for - googlevideo.com has been
++     * observed rejecting requests whose User-Agent (or, for a browser-origin client like
++     * WEB_REMIX, Referer/Origin) doesn't match, so probing without them risked this validation
++     * itself failing (or wrongly passing) independent of whether the URL is actually good.
+      */
+-    private fun validateStatus(url: String, userAgent: String): Boolean {
++    private fun validateStatus(url: String, headers: Map<String, String>): Boolean {
+         try {
+             val requestBuilder = okhttp3.Request.Builder()
+-                .header("User-Agent", userAgent)
+                 // Deliberately past the first chunk. A HEAD - or any probe landing inside the
+                 // first chunk - succeeds on URLs whose *continuation* requests are rejected, which
+                 // is precisely the failure this is meant to screen for: playback that starts
+                 // cleanly and dies the moment the first chunk runs out.
+                 .header("Range", "bytes=$PROBE_OFFSET-${PROBE_OFFSET + 1}")
+                 .url(url)
++            headers.forEach { (name, value) -> requestBuilder.header(name, value) }
+             val response = httpClient.newCall(requestBuilder.build()).execute()
+             return response.use { it.code in 200..299 }
+         } catch (e: Exception) {
+@@ -332,6 +333,26 @@ object YTPlayerUtils {
+         return false
+     }
+ 
++    /**
++     * Headers a stream request needs beyond the URL itself. googlevideo.com has been observed
++     * checking Referer/Origin against the client the URL was signed for, not just User-Agent -
++     * relevant now that WEB_REMIX (a browser-origin client) is MAIN_CLIENT. Mirrors what an
++     * actual browser/app request for that client would send.
++     */
++    private fun YouTubeClient.streamHeaders(): Map<String, String> = buildMap {
++        put("User-Agent", userAgent)
++        when (clientName) {
++            "WEB_REMIX" -> {
++                put("Referer", "https://music.youtube.com/")
++                put("Origin", "https://music.youtube.com")
++            }
++            else -> {
++                put("Referer", "https://www.youtube.com/")
++                put("Origin", "https://www.youtube.com")
++            }
++        }
++    }
++
+     // Reports exceptions; returns null on failure.
+     private fun getSignatureTimestampOrNull(
+         videoId: String
+-- 
+2.45.1.windows.1
+
+From 107eb6751aa0d114a6c02b1014be192692ee622e Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 19 Aug 2026 21:42:23 +0800
+Subject: [PATCH] Send X-Goog-Visitor-Id header on every innertube API request
+
+visitorData was already in every request body's context.client field, but
+never as its own header. Metrolist and SimpMusic - sibling YTM clients
+built on the same lineage of this API client - both set X-Goog-Visitor-Id
+explicitly rather than relying on the body alone; matching that keeps the
+header/body identity consistent with what a real client sends.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+index 49051c7d..d2dd5d7f 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+@@ -93,6 +93,10 @@ class InnerTube {
+             append("X-YouTube-Client-Version", client.clientVersion)
+             append("X-Origin", YouTubeClient.ORIGIN_YOUTUBE_MUSIC)
+             append("Referer", YouTubeClient.REFERER_YOUTUBE_MUSIC)
++            // Real clients send this alongside the same value already in the request body's
++            // context.client.visitorData - Metrolist and SimpMusic (siblings sharing this API
++            // client's lineage) both set it explicitly rather than relying on the body alone.
++            visitorData?.let { append("X-Goog-Visitor-Id", it) }
+             if (setLogin && client.loginSupported) {
+                 cookie?.let { cookie ->
+                     val cookieMap = parseCookieString(cookie)
+-- 
+2.45.1.windows.1
+
+From 5b883942045350af42d5ade9acf989568b85b72c Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 19 Aug 2026 21:49:35 +0800
+Subject: [PATCH] Replay real playback-start telemetry: cpn + watchtime/atr
+ pings
+
+OuterTune's only playback ping fired at a song's END for local history
+purposes, and the resolved stream URL never carried a cpn at all -
+decoupled from the telemetry a real YouTube Music client sends the
+moment a song actually starts (an initial "playback" hit, a watchtime
+checkpoint at ~5.54s, an "atr" ping 5s later, then a second checkpoint),
+all tied together by one cpn shared with the audio request itself.
+SimpMusic (a sibling YTM client) replays this exact sequence; Metrolist
+doesn't, so this is unconfirmed as a bot-check fix, but it's a real gap
+between our traffic and a real client's.
+
+YTPlayerUtils now mints one cpn per resolve, embeds it in the stream URL
+(matching how SimpMusic does it), and carries it plus the playbackTracking
+URLs through PlaybackData/CachedStreamUrl. MusicService fires the sequence
+exactly once per song - whether the stream came from a fresh resolve, a
+precached entry, or a cache hit - via a new maybeSendPlaybackTelemetry(),
+gated by telemetrySentForMediaId so a mid-song PoToken refresh doesn't
+refire it. The existing end-of-song history-registration ping is
+untouched; this is additive.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 47 +++++++++++++-
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 13 ++++
+ .../java/com/zionhuang/innertube/InnerTube.kt | 43 +++++++++++++
+ .../java/com/zionhuang/innertube/YouTube.kt   | 64 +++++++++++++++----
+ 4 files changed, 151 insertions(+), 16 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index c4289829..43f611e8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -140,6 +140,7 @@ import com.google.common.util.concurrent.MoreExecutors
+ import com.zionhuang.innertube.YouTube
+ import com.zionhuang.innertube.models.SongItem
+ import com.zionhuang.innertube.models.WatchEndpoint
++import com.zionhuang.innertube.models.response.PlayerResponse
+ import dagger.hilt.android.AndroidEntryPoint
+ import io.github.anilbeesetti.nextlib.media3ext.ffdecoder.NextRenderersFactory
+ import kotlinx.coroutines.CancellationException
+@@ -289,7 +290,14 @@ class MusicService : MediaLibraryService(),
+      * the URL was signed for, so they have to be replayed alongside the URL itself wherever it's
+      * actually GETed from, not just at the request that originally resolved it.
+      */
+-    private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
++    private data class CachedStreamUrl(
++        val url: String,
++        val expiresAt: Long,
++        val headers: Map<String, String>,
++        /** Carried through to [maybeSendPlaybackTelemetry] - see its own doc. */
++        val cpn: String,
++        val playbackTracking: PlayerResponse.PlaybackTracking?,
++    )
+ 
+     /**
+      * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
+@@ -317,6 +325,14 @@ class MusicService : MediaLibraryService(),
+      */
+     private var precachedForMediaId: String? = null
+ 
++    /**
++     * mediaId of the song [maybeSendPlaybackTelemetry] last fired its ping sequence for, so a
++     * mid-song URL refresh (or a precached entry being reused) doesn't refire it - only the first
++     * time a song's stream is actually handed to the player counts as "playback started". Reset on
++     * every track transition.
++     */
++    private var telemetrySentForMediaId: String? = null
++
+     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
+     // track transition. A data class so the StateFlow deduplicates identical updates.
+     private data class LyricsFetchTargets(
+@@ -589,6 +605,21 @@ class MusicService : MediaLibraryService(),
+     }
+ 
+ 
++    /**
++     * Fires the playback-start telemetry sequence (see [YouTube.initPlayback]) the first time
++     * [cached]'s song is actually handed to the player - whether that's a fresh resolve or a
++     * precached/cached entry being reused - but never again for the same song after that, since a
++     * mid-song URL refresh or repeated chunk requests replaying the cache aren't a new playback.
++     * Fire-and-forget on [offloadScope]: this is telemetry, not something playback waits on.
++     */
++    private fun maybeSendPlaybackTelemetry(mediaId: String, cached: CachedStreamUrl) {
++        if (mediaId == telemetrySentForMediaId) return
++        telemetrySentForMediaId = mediaId
++        offloadScope.launch {
++            YouTube.initPlayback(null, cached.playbackTracking, cached.cpn)
++        }
++    }
++
+     /**
+      * Resolves and caches the next song's stream, timed by the poller in the init block to land
+      * inside [STREAM_URL_TRUST_WINDOW_MS] of when it'll actually be needed. Best-effort: any
+@@ -641,7 +672,13 @@ class MusicService : MediaLibraryService(),
+                 url = playbackData.streamUrl,
+                 expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
+                 headers = playbackData.streamHeaders,
++                cpn = playbackData.cpn,
++                playbackTracking = playbackData.playbackTracking,
+             )
++            // Telemetry deliberately NOT fired here - this runs up to PRECACHE_LEAD_MS before the
++            // song actually starts, and the ping sequence's timing only makes sense measured from
++            // real playback start. createDataSourceFactory() fires it once this cached entry is
++            // actually handed to the player.
+             if (SERVICE_DEBUG) Log.d(TAG, "Precached stream for upcoming song: mediaId=$nextMediaId")
+         }.onFailure {
+             if (SERVICE_DEBUG) Log.w(TAG, "Precache failed for mediaId=$nextMediaId, will resolve normally on transition", it)
+@@ -992,6 +1029,7 @@ class MusicService : MediaLibraryService(),
+             songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
+                 offloadScope.launch { recoverSong(mediaId) }
++                maybeSendPlaybackTelemetry(mediaId, it)
+                 // Bounded the same as the fresh-resolve path below, and for the same reason: left
+                 // unbounded (as this was before), this is the request that turns into one
+                 // long-lived connection past whatever duration googlevideo's CDN cuts a stream at -
+@@ -1077,7 +1115,7 @@ class MusicService : MediaLibraryService(),
+ 
+             val streamUrl = playbackData.streamUrl
+ 
+-            songUrlCache[mediaId] = CachedStreamUrl(
++            val cachedStreamUrl = CachedStreamUrl(
+                 url = streamUrl,
+                 // streamExpiresInSeconds is YouTube's own claimed validity (routinely hours), but
+                 // the embedded streaming PoToken has been observed to actually stop working after
+@@ -1088,7 +1126,11 @@ class MusicService : MediaLibraryService(),
+                 // gets a chance to reject the old one.
+                 expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
+                 headers = playbackData.streamHeaders,
++                cpn = playbackData.cpn,
++                playbackTracking = playbackData.playbackTracking,
+             )
++            songUrlCache[mediaId] = cachedStreamUrl
++            maybeSendPlaybackTelemetry(mediaId, cachedStreamUrl)
+             dataSpec.withUri(streamUrl.toUri())
+                 .withRequestHeaders(playbackData.streamHeaders)
+                 .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+@@ -1348,6 +1390,7 @@ class MusicService : MediaLibraryService(),
+         }
+ 
+         precachedForMediaId = null
++        telemetrySentForMediaId = null
+         updateLyricsFetchTargets()
+ 
+         if (player.isPlaying && reason == MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index cbe76e1c..fd2b0ffb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -81,6 +81,13 @@ object YTPlayerUtils {
+          * GETed from - the request that resolved it isn't the same request that plays it.
+          */
+         val streamHeaders: Map<String, String>,
++        /**
++         * The nonce tying this stream fetch to its own playback telemetry (see
++         * [com.zionhuang.innertube.YouTube.initPlayback]) - a real client's audio request and its
++         * tracking pings for the same playback share one cpn; embedding it here too rather than
++         * generating a throwaway one only for the pings keeps that correlation intact.
++         */
++        val cpn: String,
+     )
+ 
+     /**
+@@ -96,6 +103,10 @@ object YTPlayerUtils {
+     ): Result<PlaybackData> = runCatching {
+         Log.d(TAG, "Playback info requested: $videoId")
+ 
++        // Generated once per resolve and carried on both the stream URL and the playback
++        // telemetry pings fired later from this data - see PlaybackData.cpn's own doc.
++        val cpn = YouTube.generateCpn()
++
+         // Required for some clients to get working streams, but not forced for MAIN_CLIENT: its
+         // response is needed even when its streams won't work, so this is allowed to be null.
+         val signatureTimestamp = getSignatureTimestampOrNull(videoId)
+@@ -192,6 +203,7 @@ object YTPlayerUtils {
+                 if (client.useWebPoTokens && webStreamingPot != null) {
+                     streamUrl += "&pot=$webStreamingPot";
+                 }
++                streamUrl += "&cpn=$cpn"
+ 
+                 if (validateStatus(streamUrl, client.streamHeaders())) {
+                     // working stream found
+@@ -233,6 +245,7 @@ object YTPlayerUtils {
+             streamUrl,
+             streamExpiresInSeconds,
+             streamClient.streamHeaders(),
++            cpn,
+         )
+     }
+ 
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+index d2dd5d7f..42d46e2c 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+@@ -186,6 +186,49 @@ class InnerTube {
+         }
+     }
+ 
++    /**
++     * A watch-time checkpoint. [startSeconds]/[endSeconds] are the "st"/"et" parameters real
++     * clients send - comma-separated lists of seconds-into-playback for multiple checkpoints in
++     * one call, or single values for the first one.
++     */
++    suspend fun registerWatchtime(
++        url: String,
++        cpn: String,
++        startSeconds: String,
++        endSeconds: String,
++        playlistId: String?,
++        client: YouTubeClient = YouTubeClient.WEB_REMIX,
++    ) = httpClient.get(url) {
++        ytClient(client, true)
++        parameter("ver", "2")
++        parameter("c", client.clientName)
++        parameter("cpn", cpn)
++        parameter("st", startSeconds)
++        parameter("et", endSeconds)
++
++        if (playlistId != null) {
++            parameter("list", playlistId)
++            parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
++        }
++    }
++
++    /** An "active this response" ping - real clients send this partway into playback, between
++     *  the first and second watch-time checkpoints. */
++    suspend fun registerAtr(
++        url: String,
++        cpn: String,
++        playlistId: String?,
++        client: YouTubeClient = YouTubeClient.WEB_REMIX,
++    ) = httpClient.post(url) {
++        ytClient(client, true)
++        parameter("cpn", cpn)
++
++        if (playlistId != null) {
++            parameter("list", playlistId)
++            parameter("referrer", "https://music.youtube.com/playlist?list=$playlistId")
++        }
++    }
++
+     suspend fun browse(
+         client: YouTubeClient,
+         browseId: String? = null,
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/YouTube.kt b/innertube/src/main/java/com/zionhuang/innertube/YouTube.kt
+index ecdc8cde..54814a01 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/YouTube.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/YouTube.kt
+@@ -56,6 +56,7 @@ import com.zionhuang.innertube.pages.SearchSummaryPage
+ import io.ktor.client.call.body
+ import io.ktor.client.request.parameter
+ import io.ktor.client.statement.bodyAsText
++import kotlinx.coroutines.delay
+ import kotlinx.coroutines.runBlocking
+ import kotlinx.serialization.json.Json
+ import kotlinx.serialization.json.JsonPrimitive
+@@ -741,23 +742,58 @@ object YouTube {
+         innerTube.player(client, videoId, playlistId, signatureTimestamp, webPlayerPot).body<PlayerResponse>()
+     }
+ 
+-    suspend fun registerPlayback(playlistId: String? = null, playbackTracking: String) = runCatching {
+-        val cpn = (1..16).map {
+-            "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[Random.nextInt(
+-                0,
+-                64
+-            )]
+-        }.joinToString("")
+-
+-        val playbackUrl = playbackTracking.replace(
+-            "https://s.youtube.com",
+-            "https://music.youtube.com",
+-        )
++    /**
++     * The "cpn" (client playback nonce) a real client generates once per playback and reuses on
++     * every tracking ping for that playback, plus (see [YTPlayerUtils] in the app module) as a
++     * query param on the stream URL itself - the same value tying the audio fetch to its own
++     * telemetry is part of what a real client's traffic looks like.
++     */
++    fun generateCpn(): String = (1..16).map {
++        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-_"[Random.nextInt(0, 64)]
++    }.joinToString("")
++
++    private fun String.toMusicHost() = replace("https://s.youtube.com", "https://music.youtube.com")
+ 
++    suspend fun registerPlayback(playlistId: String? = null, playbackTracking: String) = runCatching {
+         innerTube.registerPlayback(
+-            url = playbackUrl,
++            url = playbackTracking.toMusicHost(),
+             playlistId = playlistId,
+-            cpn = cpn
++            cpn = generateCpn()
++        )
++    }
++
++    /**
++     * Replays the short burst of playback-start telemetry a real YouTube Music client sends,
++     * timed the way it's been observed in sibling YTM clients: an initial "playback" hit, a first
++     * watch-time checkpoint at ~5.54s, an "atr" ping 5s after that, then a second checkpoint
++     * covering both intervals. [cpn] must be the same nonce already embedded in the stream URL
++     * this playback is using, so the ping traffic and the audio fetch correlate the way a real
++     * client's do. Best-effort and fire-and-forget: a failure here doesn't affect playback itself,
++     * only how much this playback resembles a real client's traffic.
++     */
++    suspend fun initPlayback(
++        playlistId: String?,
++        playbackTracking: PlayerResponse.PlaybackTracking?,
++        cpn: String,
++    ) = runCatching {
++        val playbackUrl = playbackTracking?.videostatsPlaybackUrl?.baseUrl?.toMusicHost() ?: return@runCatching
++        val watchtimeUrl = playbackTracking.videostatsWatchtimeUrl?.baseUrl?.toMusicHost()
++        val atrUrl = playbackTracking.atrUrl?.baseUrl?.toMusicHost()
++
++        innerTube.registerPlayback(url = playbackUrl, playlistId = playlistId, cpn = cpn)
++        if (watchtimeUrl == null) return@runCatching
++
++        innerTube.registerWatchtime(watchtimeUrl, cpn, startSeconds = "0", endSeconds = "5.54", playlistId = playlistId)
++        if (atrUrl == null) return@runCatching
++
++        delay(5000)
++        innerTube.registerAtr(atrUrl, cpn, playlistId)
++        delay(500)
++        val secondCheckpoint = 5.54f + Random.nextInt(0, 100) / 100f
++        innerTube.registerWatchtime(
++            watchtimeUrl, cpn,
++            startSeconds = "0,5.54", endSeconds = "5.54,$secondCheckpoint",
++            playlistId = playlistId
+         )
+     }
+ 
+-- 
+2.45.1.windows.1
+
+From 9982fe0d79948bb56e60e0b230305d4c755e8f3f Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Thu, 20 Aug 2026 21:20:47 +0800
+Subject: [PATCH] Swiping the mini player down stops playback and dismisses it
+
+The mini player and the full player share one dismiss gesture (drag past
+the mini player height), which used to always just collapse back to the
+mini player - added after a hard fling from the FULL player could
+overshoot into dismissed territory and tear down playback when the user
+only meant to collapse it.
+
+BottomSheetState now records whether the drag that's ending started from
+the collapsed (mini player) height. Only that case - an actual swipe
+starting on the mini player itself - calls softKillPlayer(); a dismiss
+reached from the expanded player still just collapses, unchanged.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../outertune/ui/component/BottomSheet.kt     | 12 ++++++++++++
+ .../com/dd3boh/outertune/ui/player/Player.kt  | 19 ++++++++++++-------
+ 2 files changed, 24 insertions(+), 7 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+index e89f28ee..31c7ad65 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+@@ -100,6 +100,9 @@ fun BottomSheet(
+                 val velocityTracker = VelocityTracker()
+ 
+                 detectVerticalDragGestures(
++                    onDragStart = {
++                        state.dragStartedCollapsed = state.value <= state.collapsedBound
++                    },
+                     onVerticalDrag = { change, dragAmount ->
+                         velocityTracker.addPointerInputChange(change)
+                         state.dispatchRawDelta(dragAmount)
+@@ -197,6 +200,15 @@ class BottomSheetState(
+         progress >= 1.0f
+     }
+ 
++    /**
++     * Whether the drag gesture currently in progress (or the one that just ended) started from
++     * the collapsed - mini player - height, set once per gesture in [BottomSheet]'s onDragStart.
++     * Lets [performFling]'s onDismiss caller tell "swiped the mini player away" apart from "flung
++     * the full player shut hard enough to overshoot into dismissed territory" - both land on the
++     * same dismissed state, but only the former is a legitimate "stop playback" signal.
++     */
++    var dragStartedCollapsed = false
++
+     val progress by derivedStateOf {
+         1f - (animatable.upperBound!! - animatable.value) / (animatable.upperBound!! - collapsedBound)
+     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 43047355..fecb5c13 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -235,14 +235,19 @@ fun BottomSheetPlayer(
+             )
+         },
+         collapsedBackgroundColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+-        // A fling past the mini player used to tear the whole session down (clearMediaItems +
+-        // deInitQueue) - from the user's side that reads as "swiping the mini player closed the
+-        // app", since playback and every control vanish in the same motion. Bounce back to the
+-        // mini player instead: nothing today calls softKillPlayer() from anywhere else, so this
+-        // gesture was its only trigger, and there is no legitimate "the user asked to end the
+-        // session" signal to preserve.
++        // A fling past the mini player used to unconditionally tear the whole session down
++        // (clearMediaItems + deInitQueue), including when it was reached by flinging the FULL
++        // player shut hard enough to overshoot past the mini player height - from the user's side
++        // that read as "collapsing the player closed the app", since playback and every control
++        // vanished in a gesture meant only to collapse it. dragStartedCollapsed tells that case
++        // apart from an actual swipe-down starting on the mini player itself, which is a
++        // legitimate, deliberate "stop playback and dismiss" gesture.
+         onDismiss = {
+-            state.collapseSoft()
++            if (state.dragStartedCollapsed) {
++                playerConnection.softKillPlayer()
++            } else {
++                state.collapseSoft()
++            }
+         },
+         collapsedContent = {
+             MiniPlayer()
+-- 
+2.45.1.windows.1
+
+From 7b52729c8e6d819afbe028bd4593cafe6d5296bb Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Thu, 20 Aug 2026 21:28:07 +0800
+Subject: [PATCH] Bump NewPipeExtractor v0.26.3 -> v0.26.5
+
+Two releases (and ~2 months) behind. Neither release's changelog calls
+out a targeted signature/throttling-parameter fix, so this isn't a
+confirmed fix for the ongoing 403s - just closing a gap in the one
+dependency responsible for staying in sync with YouTube's frequently-
+changing player.js, which is worth keeping current regardless.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ gradle/libs.versions.toml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/gradle/libs.versions.toml b/gradle/libs.versions.toml
+index f12ff0c0..fe38293f 100644
+--- a/gradle/libs.versions.toml
++++ b/gradle/libs.versions.toml
+@@ -84,7 +84,7 @@ desugaring = { group = "com.android.tools", name = "desugar_jdk_libs", version =
+ 
+ junit = { group = "junit", name = "junit", version = "4.13.2" }
+ 
+-newpipe-extractor = { group = "com.github.TeamNewPipe", name = "NewPipeExtractor", version = "v0.26.3" }
++newpipe-extractor = { group = "com.github.TeamNewPipe", name = "NewPipeExtractor", version = "v0.26.5" }
+ 
+ [plugins]
+ aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutLibraries" }
+-- 
+2.45.1.windows.1
+
