@@ -296,7 +296,12 @@ fun PortraitPlayer(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
-            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
+            // Free-placement blocks (see PlayerLayoutBlock's FreeBlock) treat this Column's content
+            // area as the 0-100% "player area" a layout's xPercent/yPercent are measured against.
+            // The top system bar has to be excluded here alongside the horizontal ones - left out
+            // before, so yPercent=0 landed under the status bar/notch rather than at the actual top
+            // of the visible player area a layout editor would reasonably assume it means.
+            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
             .padding(bottom = queueSheetState.collapsedBound)
     ) {
         if (freePlacement) {

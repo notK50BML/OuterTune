@@ -48,6 +48,14 @@ data class PlayerLayout(
          * From schema 3 these are the block's *centre*, not its top-left corner: sliding a block
          * across the screen should not depend on how wide it happens to be, and a centred block
          * should stay centred when it is resized.
+         *
+         * The "player area" this is measured against is the screen width/height minus the system
+         * bars (status bar, nav bar, notch) on all sides, further reduced at the bottom by the
+         * collapsed queue sheet's peek height. An editor rendering a preview against anything else
+         * (the full physical screen, a fixed mock resolution, insets on only some sides) will
+         * disagree with where the real player actually places a block - this was previously true of
+         * the top inset specifically, which the app excluded from the horizontal calculation but not
+         * this one, so yPercent=0 landed under the status bar rather than at the visible top edge.
          */
         val xPercent: Float = 50f,
         val yPercent: Float = 0f,
