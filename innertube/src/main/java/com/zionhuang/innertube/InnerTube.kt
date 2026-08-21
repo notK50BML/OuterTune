@@ -16,8 +16,12 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
+import okhttp3.ConnectionPool
+import okhttp3.Protocol
+import java.io.IOException
 import java.net.Proxy
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 /**
  * Provide access to InnerTube endpoints.
@@ -65,8 +69,37 @@ class InnerTube {
             deflate(0.8F)
         }
 
-        if (proxy != null) {
-            engine {
+        // Ktor's own defaults have no request timeout at all, so a stalled connection on a bad
+        // mobile network would otherwise hang indefinitely instead of failing fast enough for
+        // the app's own retry/fallback logic (e.g. the client-fallback loop in
+        // YTPlayerUtils.playerResponseForPlayback) to get a turn.
+        install(HttpTimeout) {
+            requestTimeoutMillis = 60_000
+            connectTimeoutMillis = 30_000
+            socketTimeoutMillis = 60_000
+        }
+
+        // Transient I/O only (timeouts, connection resets, 5xx) - deliberately NOT retrying 4xx
+        // here, since a 403/429 is handled by this app's own PoToken-refresh/session-rotation
+        // logic already, and retrying it blindly at this layer would just be redundant requests.
+        install(HttpRequestRetry) {
+            maxRetries = 3
+            retryIf { _, response -> response.status.value in 500..599 }
+            retryOnExceptionIf { _, cause -> cause is IOException }
+            exponentialDelay(baseDelayMs = 500)
+        }
+
+        engine {
+            config {
+                connectTimeout(30, TimeUnit.SECONDS)
+                readTimeout(60, TimeUnit.SECONDS)
+                writeTimeout(60, TimeUnit.SECONDS)
+                retryOnConnectionFailure(true)
+                connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
+                protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
+            }
+
+            if (proxy != null) {
                 proxy = this@InnerTube.proxy
             }
         }

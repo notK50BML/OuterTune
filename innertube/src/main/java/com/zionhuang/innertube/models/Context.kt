@@ -13,7 +13,15 @@ data class Context(
     data class Client(
         val clientName: String,
         val clientVersion: String,
+        // Real TV/VR clients embed their User-Agent and device identity in the JSON body itself,
+        // not just the HTTP header - a client whose body is missing these looks less like the
+        // genuine app it's impersonating. Null (omitted) for clients that don't send them.
+        val userAgent: String? = null,
+        val osName: String? = null,
         val osVersion: String?,
+        val deviceMake: String? = null,
+        val deviceModel: String? = null,
+        val androidSdkVersion: String? = null,
         val gl: String,
         val hl: String,
         val visitorData: String?,
