@@ -35378,3 +35378,1932 @@ index fd2b0ffb..c494707b 100644
 -- 
 2.45.1.windows.1
 
+From 00b629a6cfe119cec45dcf0b7f7d0964b7e32e6e Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 20:35:27 +0800
+Subject: [PATCH 1/2] Exclude the top system bar from the free-placement player
+ area
+
+Free-placement blocks (PlayerLayoutBlock's FreeBlock) measure
+xPercent/yPercent against whatever size the player's content Column
+reports. That Column excluded the horizontal system bar insets but not
+the top one, so yPercent=0 landed under the status bar/notch instead of
+at the actual top of the visible player area - a layout produced by the
+standalone editor (which has no way to know this app-specific offset)
+would then render everything shifted down from where it was placed.
+
+Documented the full "player area" convention (system bars on every side,
+further trimmed at the bottom by the queue peek) on PlayerLayout.Block's
+xPercent/yPercent so the editor can match it.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../main/java/com/dd3boh/outertune/models/PlayerLayout.kt | 8 ++++++++
+ .../main/java/com/dd3boh/outertune/ui/player/Player.kt    | 7 ++++++-
+ 2 files changed, 14 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+index 901ae083..e6d4828b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
++++ b/app/src/main/java/com/dd3boh/outertune/models/PlayerLayout.kt
+@@ -48,6 +48,14 @@ data class PlayerLayout(
+          * From schema 3 these are the block's *centre*, not its top-left corner: sliding a block
+          * across the screen should not depend on how wide it happens to be, and a centred block
+          * should stay centred when it is resized.
++         *
++         * The "player area" this is measured against is the screen width/height minus the system
++         * bars (status bar, nav bar, notch) on all sides, further reduced at the bottom by the
++         * collapsed queue sheet's peek height. An editor rendering a preview against anything else
++         * (the full physical screen, a fixed mock resolution, insets on only some sides) will
++         * disagree with where the real player actually places a block - this was previously true of
++         * the top inset specifically, which the app excluded from the horizontal calculation but not
++         * this one, so yPercent=0 landed under the status bar rather than at the visible top edge.
+          */
+         val xPercent: Float = 50f,
+         val yPercent: Float = 0f,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index fecb5c13..064c350f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -296,7 +296,12 @@ fun PortraitPlayer(
+     Column(
+         horizontalAlignment = Alignment.CenterHorizontally,
+         modifier = Modifier
+-            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal))
++            // Free-placement blocks (see PlayerLayoutBlock's FreeBlock) treat this Column's content
++            // area as the 0-100% "player area" a layout's xPercent/yPercent are measured against.
++            // The top system bar has to be excluded here alongside the horizontal ones - left out
++            // before, so yPercent=0 landed under the status bar/notch rather than at the actual top
++            // of the visible player area a layout editor would reasonably assume it means.
++            .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Top))
+             .padding(bottom = queueSheetState.collapsedBound)
+     ) {
+         if (freePlacement) {
+-- 
+2.45.1.windows.1
+
+
+From 56558a33abddeb37bbbf0a9d7877cd2cdac8c80d Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 20:46:10 +0800
+Subject: [PATCH 2/2] Download full-res thumbnails independently, fall back on
+ load failure
+
+Adds SongEntity.thumbnailPath (DB v21->22, additive nullable column) for
+a downloaded full-res thumbnail kept in app-managed storage, entirely
+independent of the song's own audio download - it survives deleting the
+download and vice versa. DownloadUtil.downloadThumbnail/removeThumbnail
+are the two operations, exposed as: an auto-download-with-song toggle
+(DownloadThumbnailsKey, off by default) in Storage settings, and a
+per-song "Download thumbnail"/"Remove thumbnail" menu action so it's
+also usable one-off without downloading the song's audio at all.
+SongEntity/MediaMetadata.getThumbnailModel() prefer the downloaded file
+over any remote URL once one exists.
+
+Also adds ArtworkFallbackToLowResKey: a Coil interceptor that retries a
+failed high-res artwork request at a smaller size instead of showing
+nothing, since the CDN occasionally rejects a very large size that
+loads fine smaller.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ app/src/main/java/com/dd3boh/outertune/App.kt | 11 ++++
+ .../outertune/ArtworkFallbackInterceptor.kt   | 40 ++++++++++++
+ .../outertune/constants/PreferenceKeys.kt     | 14 +++++
+ .../com/dd3boh/outertune/db/MusicDatabase.kt  |  3 +-
+ .../outertune/db/entities/SongEntity.kt       |  6 ++
+ .../dd3boh/outertune/models/MediaMetadata.kt  |  4 ++
+ .../dd3boh/outertune/playback/DownloadUtil.kt | 61 ++++++++++++++++++-
+ .../com/dd3boh/outertune/ui/menu/SongMenu.kt  | 23 +++++++
+ .../ui/screens/settings/AppearanceSettings.kt | 11 ++++
+ .../screens/settings/fragments/StorageFrag.kt | 11 ++++
+ .../java/com/dd3boh/outertune/utils/Utils.kt  |  7 +++
+ app/src/main/res/values/strings-ot.xml        |  6 ++
+ 12 files changed, 195 insertions(+), 2 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
+index a55d1baf..e2daf153 100644
+--- a/app/src/main/java/com/dd3boh/outertune/App.kt
++++ b/app/src/main/java/com/dd3boh/outertune/App.kt
+@@ -29,6 +29,7 @@ import com.dd3boh.outertune.constants.AccountEmailKey
+ import com.dd3boh.outertune.constants.AccountImageFetchedKey
+ import com.dd3boh.outertune.constants.AccountImageUrlKey
+ import com.dd3boh.outertune.constants.AccountNameKey
++import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
+ import com.dd3boh.outertune.constants.ContentCountryKey
+ import com.dd3boh.outertune.constants.ContentLanguageKey
+ import com.dd3boh.outertune.constants.CountryCodeToName
+@@ -49,6 +50,7 @@ import com.dd3boh.outertune.utils.CoilBitmapLoader
+ import com.dd3boh.outertune.utils.LocalArtworkPathKeyer
+ import com.dd3boh.outertune.utils.dataStore
+ import com.dd3boh.outertune.utils.get
++import com.dd3boh.outertune.utils.artworkFallbackToLowRes
+ import com.dd3boh.outertune.utils.highResArtwork
+ import com.dd3boh.outertune.utils.normalizeDataSyncId
+ import com.dd3boh.outertune.utils.reportException
+@@ -155,6 +157,14 @@ class App : Application(), SingletonImageLoader.Factory {
+                     highResArtwork = enabled
+                 }
+         }
++        GlobalScope.launch {
++            dataStore.data
++                .map { it[ArtworkFallbackToLowResKey] ?: true }
++                .distinctUntilChanged()
++                .collect { enabled ->
++                    artworkFallbackToLowRes = enabled
++                }
++        }
+         GlobalScope.launch {
+             dataStore.data
+                 .map { it[InnerTubeCookieKey] }
+@@ -180,6 +190,7 @@ class App : Application(), SingletonImageLoader.Factory {
+                 .components {
+                     add(CoilBitmapLoader.Factory(this@App))
+                     add(LocalArtworkPathKeyer())
++                    add(ArtworkFallbackInterceptor())
+                 }
+                 .crossfade(true)
+                 .allowHardware(false)
+diff --git a/app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt b/app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt
+new file mode 100644
+index 00000000..a65839a5
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (C) 2025 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune
++
++import coil3.intercept.Interceptor
++import coil3.request.ErrorResult
++import coil3.request.ImageResult
++import com.dd3boh.outertune.ui.utils.resize
++import com.dd3boh.outertune.utils.artworkFallbackToLowRes
++
++/**
++ * A high-res artwork request (see [com.dd3boh.outertune.utils.remoteArtwork]) occasionally gets
++ * rejected or times out on a size the CDN would have served fine at something smaller - retries
++ * once at a conservative fallback size rather than showing nothing. Only retries String-URL
++ * requests recognized by [resize] as already being a resized artwork URL, so a genuinely broken
++ * URL or an unrelated network image fails normally instead of silently retrying forever.
++ */
++private const val FALLBACK_SIZE = 320
++
++class ArtworkFallbackInterceptor : Interceptor {
++    override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
++        val result = chain.proceed(chain.request)
++        if (result !is ErrorResult || !artworkFallbackToLowRes) return result
++
++        val data = chain.request.data as? String ?: return result
++        val fallbackUrl = data.resize(FALLBACK_SIZE, FALLBACK_SIZE)
++        if (fallbackUrl == data) return result // not a recognized resizable artwork URL
++
++        val fallbackRequest = chain.request.newBuilder()
++            .data(fallbackUrl)
++            .build()
++        return chain.proceed(fallbackRequest)
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index c6850177..7e9c31ba 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -188,6 +188,20 @@ val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
+  */
+ val HighResArtworkKey = booleanPreferencesKey("highResArtwork")
+ 
++/**
++ * When the high-res request in [HighResArtworkKey] fails to load, fall back to a lower-resolution
++ * request instead of showing nothing - the CDN occasionally rejects a very large size (or times out
++ * on it) for art that loads fine at a smaller one.
++ */
++val ArtworkFallbackToLowResKey = booleanPreferencesKey("artworkFallbackToLowRes")
++
++/**
++ * Downloads a song's full-resolution thumbnail into app-managed storage alongside its audio, kept
++ * independently of the audio download (see DownloadUtil.downloadThumbnail/removeThumbnail) so it
++ * can be fetched or removed on its own without touching the downloaded song itself.
++ */
++val DownloadThumbnailsKey = booleanPreferencesKey("downloadThumbnails")
++
+ /**
+  * Discord Integration
+  */
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+index 879a0391..8903dbb4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+@@ -68,7 +68,7 @@ class MusicDatabase(
+     fun close() = delegate.close()
+ 
+     companion object {
+-        const val MUSIC_DATABASE_VERSION = 21
++        const val MUSIC_DATABASE_VERSION = 22
+     }
+ }
+ 
+@@ -118,6 +118,7 @@ class MusicDatabase(
+         AutoMigration(from = 18, to = 19), // Recent activity
+         AutoMigration(from = 19, to = 20, spec = Migration19To20::class), // Db optimization, remove totalplaytime, local media fields
+         AutoMigration(from = 20, to = 21), // Lyrics provider column
++        AutoMigration(from = 21, to = 22), // Downloaded full-res thumbnail path
+     ]
+ )
+ @TypeConverters(Converters::class)
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
+index 488e23c3..46123a65 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
+@@ -37,6 +37,9 @@ data class SongEntity(
+     @ColumnInfo(index = true)
+     val localPath: String?,
+     val dateDownload: LocalDateTime? = null, // doubles as "isDownloaded" for new downloader system
++    // Full-res thumbnail downloaded into app-managed storage, independent of dateDownload/localPath -
++    // see DownloadUtil.downloadThumbnail/removeThumbnail. Null means not downloaded.
++    val thumbnailPath: String? = null,
+     val liked: Boolean = false,
+     val likedDate: LocalDateTime? = null,
+ 
+@@ -104,6 +107,9 @@ data class SongEntity(
+     fun getDateModifiedLong(): Long? = dateModified?.toEpochSecond(ZoneOffset.UTC)
+ 
+     fun getThumbnailModel(sizeX: Int = -1, sizeY: Int = -1): Any? {
++        // A downloaded full-res thumbnail always wins over a remote fetch: it's already the
++        // largest size this song will ever have, and using it works offline.
++        thumbnailPath?.let { return LocalArtworkPath(it, sizeX, sizeY) }
+         return if (isLocal) {
+             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
+         } else {
+diff --git a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
+index 04cad18c..07ee491b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
++++ b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
+@@ -18,6 +18,8 @@ data class MediaMetadata(
+     val artists: List<Artist>,
+     val duration: Int,
+     val thumbnailUrl: String? = null,
++    /** Downloaded full-res thumbnail path - see SongEntity.thumbnailPath's own doc. */
++    val thumbnailPath: String? = null,
+     val trackNumber: Int? = null,
+     val discNumber: Int? = null,
+     val album: Album? = null,
+@@ -101,6 +103,7 @@ data class MediaMetadata(
+     fun getDateModifiedLong(): Long? = dateModified?.toEpochSecond(ZoneOffset.UTC)
+ 
+     fun getThumbnailModel(sizeX: Int = -1, sizeY: Int = -1): Any? {
++        thumbnailPath?.let { return LocalArtworkPath(it, sizeX, sizeY) }
+         return if (isLocal) {
+             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
+         } else {
+@@ -121,6 +124,7 @@ fun Song.toMediaMetadata() = MediaMetadata(
+     },
+     duration = song.duration,
+     thumbnailUrl = song.thumbnailUrl,
++    thumbnailPath = song.thumbnailPath,
+     trackNumber = song.trackNumber,
+     discNumber = song.discNumber,
+     album = album?.let {
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index fa901d5d..0d0d7090 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -26,6 +26,8 @@ import com.dd3boh.outertune.constants.DOWNLOAD_DEBUG
+ import com.dd3boh.outertune.constants.DownloadExtraPathKey
+ import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
+ import com.dd3boh.outertune.constants.DownloadPathKey
++import com.dd3boh.outertune.constants.DownloadThumbnailsKey
++import com.dd3boh.outertune.ui.utils.resize
+ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.db.entities.FormatEntity
+ import com.dd3boh.outertune.db.entities.PlaylistSong
+@@ -89,6 +91,13 @@ class DownloadUtil @Inject constructor(
+     private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
+ 
+     private val songUrlCache = HashMap<String, CachedStreamUrl>()
++    private val thumbnailHttpClient = OkHttpClient.Builder()
++        .proxy(YouTube.proxy)
++        .build()
++
++    /** Where downloadThumbnail/removeThumbnail keep full-res thumbnails - app-managed storage,
++     *  independent of the user-chosen audio download directory. */
++    private val thumbnailDir = File(context.filesDir, "thumbnails").apply { mkdirs() }
+     private val dataSourceFactory = ResolvingDataSource.Factory(
+         CacheDataSource.Factory()
+             .setCache(playerCache)
+@@ -179,17 +188,67 @@ class DownloadUtil @Inject constructor(
+ 
+     fun download(songs: List<MediaMetadata>) {
+         if (songs.any { downloads.value[it.id] == null }) notifyIfWaitingForWifi()
+-        songs.forEach { song -> downloadSong(song.id, song.title) }
++        songs.forEach { song ->
++            downloadSong(song.id, song.title)
++            maybeDownloadThumbnail(song.id, song.thumbnailUrl)
++        }
+     }
+ 
+     fun download(song: MediaMetadata) {
+         if (downloads.value[song.id] == null) notifyIfWaitingForWifi()
+         downloadSong(song.id, song.title)
++        maybeDownloadThumbnail(song.id, song.thumbnailUrl)
+     }
+ 
+     fun download(song: SongEntity) {
+         if (downloads.value[song.id] == null) notifyIfWaitingForWifi()
+         downloadSong(song.id, song.title)
++        maybeDownloadThumbnail(song.id, song.thumbnailUrl)
++    }
++
++    private fun maybeDownloadThumbnail(songId: String, thumbnailUrl: String?) {
++        if (thumbnailUrl == null || !context.dataStore.get(DownloadThumbnailsKey, false)) return
++        CoroutineScope(dlCoroutine).launch { downloadThumbnail(songId, thumbnailUrl) }
++    }
++
++    /**
++     * Downloads [songId]'s full-res thumbnail into app-managed storage, independent of its audio
++     * download (see SongEntity.thumbnailPath's own doc) - called automatically from download()
++     * when [DownloadThumbnailsKey] is on, or directly as a per-song "download thumbnail" action.
++     * Overwrites any thumbnail already downloaded for this song, so re-running it also serves as
++     * a refresh. [thumbnailUrl] is looked up from the database when not already known to the
++     * caller.
++     */
++    suspend fun downloadThumbnail(songId: String, thumbnailUrl: String? = null) {
++        val url = (thumbnailUrl ?: database.song(songId).first()?.song?.thumbnailUrl)
++            ?.resize(1080, 1080) ?: return
++        val file = File(thumbnailDir, "$songId.jpg")
++        try {
++            val request = okhttp3.Request.Builder().url(url).build()
++            withContext(Dispatchers.IO) {
++                thumbnailHttpClient.newCall(request).execute().use { response ->
++                    val body = response.body
++                    if (!response.isSuccessful || body == null) {
++                        Log.w(TAG, "Thumbnail download failed for $songId: HTTP ${response.code}")
++                        return@withContext
++                    }
++                    file.outputStream().use { out -> body.byteStream().copyTo(out) }
++                }
++            }
++            if (!file.exists()) return
++            database.song(songId).first()?.song?.copy(thumbnailPath = file.absolutePath)
++                ?.let { database.update(it) }
++        } catch (e: IOException) {
++            reportException(e)
++            file.delete()
++        }
++    }
++
++    /** Removes a downloaded full-res thumbnail without touching the song's own audio download. */
++    suspend fun removeThumbnail(songId: String) {
++        File(thumbnailDir, "$songId.jpg").delete()
++        database.song(songId).first()?.song?.takeIf { it.thumbnailPath != null }
++            ?.copy(thumbnailPath = null)?.let { database.update(it) }
+     }
+ 
+     /**
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt
+index 56894b03..f59451f4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt
+@@ -14,6 +14,8 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+ import androidx.compose.material.icons.rounded.Album
+ import androidx.compose.material.icons.rounded.Delete
+ import androidx.compose.material.icons.rounded.Edit
++import androidx.compose.material.icons.rounded.HideImage
++import androidx.compose.material.icons.rounded.Image
+ import androidx.compose.material.icons.rounded.Info
+ import androidx.compose.material.icons.rounded.LibraryAdd
+ import androidx.compose.material.icons.rounded.LibraryAddCheck
+@@ -265,6 +267,27 @@ fun SongMenu(
+                 }
+             )
+ 
++        // Independent of the song's own audio download - see SongEntity.thumbnailPath's own doc.
++        if (!song.song.isLocal) {
++            if (song.song.thumbnailPath == null) {
++                GridMenuItem(
++                    icon = Icons.Rounded.Image,
++                    title = R.string.download_thumbnail
++                ) {
++                    coroutineScope.launch { downloadUtil.downloadThumbnail(song.id) }
++                    onDismiss()
++                }
++            } else {
++                GridMenuItem(
++                    icon = Icons.Rounded.HideImage,
++                    title = R.string.remove_thumbnail
++                ) {
++                    coroutineScope.launch { downloadUtil.removeThumbnail(song.id) }
++                    onDismiss()
++                }
++            }
++        }
++
+ 
+         GridMenuItem(
+             icon = R.drawable.artist,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index c0d7c4a5..48aaec58 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
+ import com.dd3boh.outertune.constants.HighResArtworkKey
+ import com.dd3boh.outertune.constants.ShowTopBarLogoKey
+ import com.dd3boh.outertune.constants.SlimNavBarKey
+@@ -70,6 +71,8 @@ fun AppearanceSettings(
+         rememberPreference(ShowTopBarLogoKey, defaultValue = true)
+     val (highResArtworkPref, onHighResArtworkChange) =
+         rememberPreference(HighResArtworkKey, defaultValue = true)
++    val (artworkFallbackToLowResPref, onArtworkFallbackToLowResChange) =
++        rememberPreference(ArtworkFallbackToLowResKey, defaultValue = true)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+@@ -118,6 +121,14 @@ fun AppearanceSettings(
+                 checked = highResArtworkPref,
+                 onCheckedChange = onHighResArtworkChange
+             )
++            SwitchPreference(
++                title = { Text(stringResource(R.string.artwork_fallback_low_res_title)) },
++                description = stringResource(R.string.artwork_fallback_low_res_description),
++                icon = { Icon(Icons.Rounded.HighQuality, null) },
++                checked = artworkFallbackToLowResPref,
++                onCheckedChange = onArtworkFallbackToLowResChange,
++                isEnabled = highResArtworkPref
++            )
+             SwitchPreference(
+                 title = { Text(stringResource(R.string.show_top_bar_logo_title)) },
+                 description = stringResource(R.string.show_top_bar_logo_description),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+index e7b732e6..eb36d898 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Backup
+ import androidx.compose.material.icons.rounded.Close
+ import androidx.compose.material.icons.rounded.Downloading
+ import androidx.compose.material.icons.rounded.FolderCopy
++import androidx.compose.material.icons.rounded.Image
+ import androidx.compose.material.icons.rounded.Restore
+ import androidx.compose.material.icons.rounded.Sync
+ import androidx.compose.material.icons.rounded.Wifi
+@@ -62,6 +63,7 @@ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.DownloadExtraPathKey
+ import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
++import com.dd3boh.outertune.constants.DownloadThumbnailsKey
+ import com.dd3boh.outertune.constants.DownloadPathKey
+ import com.dd3boh.outertune.constants.MaxImageCacheSizeKey
+ import com.dd3boh.outertune.constants.MaxSongCacheSizeKey
+@@ -150,6 +152,7 @@ fun ColumnScope.DownloadsFrag() {
+     val (downloadPath, onDownloadPathChange) = rememberPreference(DownloadPathKey, "")
+     val (scanPaths, onScanPathsChange) = rememberPreference(ScanPathsKey, defaultValue = "")
+     val (downloadOnWifiOnly, onDownloadOnWifiOnlyChange) = rememberPreference(DownloadOnWifiOnlyKey, defaultValue = true)
++    val (downloadThumbnails, onDownloadThumbnailsChange) = rememberPreference(DownloadThumbnailsKey, defaultValue = false)
+ 
+     // size stats
+     var downloadCacheSize by remember {
+@@ -204,6 +207,14 @@ fun ColumnScope.DownloadsFrag() {
+         }
+     )
+ 
++    SwitchPreference(
++        title = { Text(stringResource(R.string.download_thumbnails_title)) },
++        description = stringResource(R.string.download_thumbnails_description),
++        icon = { Icon(Icons.Rounded.Image, null) },
++        checked = downloadThumbnails,
++        onCheckedChange = onDownloadThumbnailsChange
++    )
++
+     PreferenceEntry(
+         title = { Text(stringResource(R.string.dl_main_path_title)) },
+         description = if (downloadPath != "") uriListFromString(downloadPath).firstOrNull()
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt b/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
+index be9ca681..6378869e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/Utils.kt
+@@ -94,6 +94,13 @@ fun getDownloadState(localDateTimes: List<LocalDateTime?>): Int {
+ @Volatile
+ var highResArtwork: Boolean = true
+ 
++/**
++ * Mirrors [com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey] for
++ * [com.dd3boh.outertune.ArtworkFallbackInterceptor], which runs outside any Context.
++ */
++@Volatile
++var artworkFallbackToLowRes: Boolean = true
++
+ /**
+  * Ask the CDN for artwork at the size it will actually be drawn at.
+  *
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 153e3e2e..c6f197d3 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -140,6 +140,12 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="slim_navbar_description">Remove text labels to reduce navbar height</string>
+     <string name="high_res_artwork_title">High resolution artwork</string>
+     <string name="high_res_artwork_description">Request album art at the size it is displayed instead of using the small thumbnail YouTube returns. Turn off to save data.</string>
++    <string name="artwork_fallback_low_res_title">Fall back to lower resolution artwork</string>
++    <string name="artwork_fallback_low_res_description">If a high resolution image fails to load, retry at a smaller size instead of showing nothing.</string>
++    <string name="download_thumbnails_title">Download full resolution thumbnails</string>
++    <string name="download_thumbnails_description">Save a song\'s full resolution thumbnail alongside its download. Kept separately from the song itself - download or remove it independently from a song\'s menu.</string>
++    <string name="download_thumbnail">Download thumbnail</string>
++    <string name="remove_thumbnail">Remove thumbnail</string>
+ 
+ <!-- Discord integration -->
+     <string name="settings_discord_description">Show your listening activity as your Discord status</string>
+-- 
+2.45.1.windows.1
+
+From 1f072685b341d6c92259b1b344efc6efc7ea5893 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 20:51:31 +0800
+Subject: [PATCH] Enrich an existing song's artists/genres instead of
+ discarding them
+
+insert(mediaMetadata) returned immediately whenever the SongEntity insert
+hit its OnConflictStrategy.IGNORE (song already in the DB) - meaning a
+song first cached sparsely from search/queue/related results stayed
+stuck with that artist list forever, even when later viewed via its own
+album's track listing, whose API response can credit more artists for
+the exact same song. AlbumPage parsing already builds each track's own
+artist list straight from the album's renderer data independently of
+whatever a prior sparse fetch stored, but that richer list never got
+past the early return to reach the artist/genre insert loops.
+
+Those loops are already OnConflictStrategy.IGNORE on [songId, artistId]/
+[songId, genreId], so running them for an existing song only ever adds a
+mapping that was missing - it can't duplicate or remove one that's
+already there. The album-linking block below them stayed gated to the
+song's actual first insert, since unlike the mappings it isn't
+idempotent (it adds to the album's running duration every time it runs).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../java/com/dd3boh/outertune/db/DatabaseDao.kt    | 14 +++++++++++++-
+ 1 file changed, 13 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+index ff43ce9d..62be8457 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+@@ -165,7 +165,15 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+ 
+     @Transaction
+     fun insert(mediaMetadata: MediaMetadata, block: (SongEntity) -> SongEntity = { it }) {
+-        if (insert(mediaMetadata.toSongEntity().let(block)) == -1L) return
++        val isNewSong = insert(mediaMetadata.toSongEntity().let(block)) != -1L
++        // Artist/genre mappings run even for a song that already existed: one first cached from a
++        // sparse source (search, queue, related) can be missing artists a richer source - e.g. the
++        // very album this call came from - actually credits it with, and previously this whole
++        // function returned immediately on the SongEntity insert's OnConflictStrategy.IGNORE,
++        // silently discarding that richer artist list. The inserts below are already
++        // OnConflictStrategy.IGNORE on [songId, artistId]/[songId, genreId], so re-running this for
++        // an existing song only ever adds a mapping that was missing, never duplicates or removes
++        // one that's already there.
+         mediaMetadata.artists.forEachIndexed { index, artist ->
+             val artistId = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId()
+             insert( // TODO: use upsert???
+@@ -201,6 +209,10 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+             )
+         }
+ 
++        // Unlike the mappings above, this isn't idempotent - it adds mediaMetadata.duration to the
++        // album's running total every time it runs, so it must stay gated to the song's actual
++        // first insert or a re-view of an already-known song would keep inflating that total.
++        if (!isNewSong) return
+         mediaMetadata.album?.let {
+             val album = albumsByName(it.title)
+             val albumId = album?.id ?: GenreEntity.generateGenreId()
+-- 
+2.45.1.windows.1
+
+From 5f96f94d76055e63a1c412353960aeb53822ae5c Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 20:57:01 +0800
+Subject: [PATCH] Add an Equalizer settings sub-page
+
+The dials-vs-sliders, contrast-color, and color-by-value toggles - and
+profile save/load/delete - previously only existed inside the in-player
+EQ panel, with no persistent Settings home. New settings/player/equalizer
+screen (linked from Player settings) reads/writes the exact same
+preference keys the panel does, so a change from either place stays in
+sync; profile management is a separate implementation from the panel's
+because the panel pushes changes live to a bound player service, which
+this screen may be opened without.
+
+Also adds an AutoEQ entry point (search field + a real dialog) as a
+framework for later - actually fetching AutoEq's results database and
+mapping its curve format onto this app's bands is left as a TODO, noted
+in the dialog's own doc comment.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../java/com/dd3boh/outertune/MainActivity.kt |   4 +
+ .../ui/screens/settings/EqualizerSettings.kt  | 237 ++++++++++++++++++
+ .../ui/screens/settings/PlayerSettings.kt     |   7 +
+ app/src/main/res/values/strings-ot.xml        |  17 ++
+ 4 files changed, 265 insertions(+)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 703cac30..504b1f8f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -175,6 +175,7 @@ import com.dd3boh.outertune.ui.screens.settings.AttributionScreen
+ import com.dd3boh.outertune.ui.screens.settings.BackupAndRestore
+ import com.dd3boh.outertune.ui.screens.settings.DiscordLoginScreen
+ import com.dd3boh.outertune.ui.screens.settings.DiscordSettings
++import com.dd3boh.outertune.ui.screens.settings.EqualizerSettingsScreen
+ import com.dd3boh.outertune.ui.screens.settings.ExperimentalSettings
+ import com.dd3boh.outertune.ui.screens.settings.LibrariesScreen
+ import com.dd3boh.outertune.ui.screens.settings.LibrarySettings
+@@ -741,6 +742,9 @@ class MainActivity : ComponentActivity() {
+                                     composable("settings/player") {
+                                         PlayerSettings(navController, scrollBehavior)
+                                     }
++                                    composable("settings/player/equalizer") {
++                                        EqualizerSettingsScreen(navController, scrollBehavior)
++                                    }
+                                     composable("settings/storage") {
+                                         StorageSettings(navController, scrollBehavior)
+                                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+new file mode 100644
+index 00000000..6742ea48
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -0,0 +1,237 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.ui.screens.settings
++
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.text.KeyboardOptions
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.Add
++import androidx.compose.material.icons.rounded.Delete
++import androidx.compose.material.icons.rounded.Equalizer
++import androidx.compose.material.icons.rounded.Palette
++import androidx.compose.material.icons.rounded.Search
++import androidx.compose.material.icons.rounded.Tune
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.Icon
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarScrollBehavior
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.input.ImeAction
++import androidx.navigation.NavController
++import com.dd3boh.outertune.LocalPlayerConnection
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.EqContrastColorKey
++import com.dd3boh.outertune.constants.EqUseDialsKey
++import com.dd3boh.outertune.constants.EqValueColorGradientKey
++import com.dd3boh.outertune.constants.EqualizerProfilesKey
++import com.dd3boh.outertune.constants.EqualizerSettingsKey
++import com.dd3boh.outertune.constants.TopBarInsets
++import com.dd3boh.outertune.models.EqualizerProfile
++import com.dd3boh.outertune.models.EqualizerSettings
++import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
++import com.dd3boh.outertune.ui.component.PreferenceEntry
++import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
++import com.dd3boh.outertune.ui.component.SwitchPreference
++import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.ui.dialog.TextFieldDialog
++import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.rememberPreference
++
++/**
++ * A persistent Settings home for the equalizer options that otherwise only live inside the
++ * in-player panel (EqualizerPanel.kt) - same preference keys either way, so a change here or
++ * there stays in sync. Profile management is duplicated here rather than shared with the panel
++ * because the panel's version pushes changes live to a bound player service, while this screen may
++ * be opened with no active playback session at all.
++ */
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++fun EqualizerSettingsScreen(
++    navController: NavController,
++    scrollBehavior: TopAppBarScrollBehavior,
++) {
++    val playerConnection = LocalPlayerConnection.current
++
++    var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
++    var useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
++    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
++
++    var settingsJson by rememberPreference(EqualizerSettingsKey, "")
++    val settings = remember(settingsJson) {
++        EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT)
++    }
++
++    var profilesJson by rememberPreference(EqualizerProfilesKey, "")
++    val savedProfiles = remember(profilesJson) { EqualizerProfile.listFromJson(profilesJson) }
++    val savedProfileNames = remember(savedProfiles) { savedProfiles.map { it.name }.toSet() }
++    val builtInProfileNames = remember { EqualizerSettings.PRESETS.keys.toList() }
++    val profileNames = remember(savedProfiles, builtInProfileNames) {
++        builtInProfileNames + savedProfiles.map { it.name }.filter { it !in builtInProfileNames }
++    }
++
++    fun loadProfile(name: String) {
++        val toApply = savedProfiles.find { it.name == name }?.settings
++            ?: EqualizerProfile.factoryDefault(name)?.settings
++            ?: return
++        val newSettings = toApply.copy(enabled = settings.enabled)
++        settingsJson = newSettings.toJson()
++        playerConnection?.service?.equalizerAudioProcessor?.setSettings(newSettings)
++    }
++
++    fun saveProfile(name: String) {
++        val newList = savedProfiles.filterNot { it.name == name } + EqualizerProfile(name, settings)
++        profilesJson = EqualizerProfile.listToJson(newList)
++    }
++
++    fun deleteProfile(name: String) {
++        profilesJson = EqualizerProfile.listToJson(savedProfiles.filterNot { it.name == name })
++    }
++
++    var showSaveAsDialog by remember { mutableStateOf(false) }
++    var showAutoEqDialog by remember { mutableStateOf(false) }
++
++    ColumnWithContentPadding(
++        modifier = Modifier.fillMaxHeight(),
++        columnModifier = Modifier
++            .verticalScroll(rememberScrollState())
++    ) {
++        PreferenceGroupTitle(title = stringResource(R.string.eq_settings_appearance))
++
++        SwitchPreference(
++            title = { Text(stringResource(R.string.eq_settings_use_dials_title)) },
++            description = stringResource(R.string.eq_settings_use_dials_description),
++            icon = { Icon(Icons.Rounded.Tune, null) },
++            checked = useDials,
++            onCheckedChange = { useDials = it }
++        )
++        SwitchPreference(
++            title = { Text(stringResource(R.string.eq_settings_contrast_color_title)) },
++            description = stringResource(R.string.eq_settings_contrast_color_description),
++            icon = { Icon(Icons.Rounded.Palette, null) },
++            checked = useContrastColor,
++            onCheckedChange = { useContrastColor = it }
++        )
++        SwitchPreference(
++            title = { Text(stringResource(R.string.eq_settings_value_gradient_title)) },
++            description = stringResource(R.string.eq_settings_value_gradient_description),
++            icon = { Icon(Icons.Rounded.Palette, null) },
++            checked = useValueGradient,
++            onCheckedChange = { useValueGradient = it }
++        )
++
++        PreferenceGroupTitle(title = stringResource(R.string.eq_settings_profiles))
++
++        profileNames.forEach { name ->
++            PreferenceEntry(
++                title = { Text(name) },
++                icon = { Icon(Icons.Rounded.Equalizer, null) },
++                onClick = { loadProfile(name) },
++                trailingContent = if (name in savedProfileNames) {
++                    {
++                        IconButton(onClick = { deleteProfile(name) }) {
++                            Icon(Icons.Rounded.Delete, contentDescription = null)
++                        }
++                    }
++                } else null
++            )
++        }
++        PreferenceEntry(
++            title = { Text(stringResource(R.string.eq_settings_save_as_profile)) },
++            icon = { Icon(Icons.Rounded.Add, null) },
++            onClick = { showSaveAsDialog = true }
++        )
++
++        PreferenceGroupTitle(title = "AutoEQ")
++
++        PreferenceEntry(
++            title = { Text(stringResource(R.string.eq_settings_autoeq_title)) },
++            description = stringResource(R.string.eq_settings_autoeq_description),
++            icon = { Icon(Icons.Rounded.Search, null) },
++            onClick = { showAutoEqDialog = true }
++        )
++    }
++
++    if (showSaveAsDialog) {
++        TextFieldDialog(
++            title = { Text(stringResource(R.string.eq_settings_save_as_profile)) },
++            placeholder = { Text(stringResource(R.string.eq_settings_profile_name)) },
++            isInputValid = { it.isNotBlank() },
++            onDone = { name -> saveProfile(name.trim()) },
++            onDismiss = { showSaveAsDialog = false },
++        )
++    }
++
++    if (showAutoEqDialog) {
++        AutoEqSearchDialog(onDismiss = { showAutoEqDialog = false })
++    }
++
++    TopAppBar(
++        title = { Text(stringResource(R.string.eq_settings_title)) },
++        navigationIcon = {
++            IconButton(
++                onClick = navController::navigateUp,
++                onLongClick = navController::backToMain
++            ) {
++                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
++            }
++        },
++        windowInsets = TopBarInsets,
++        scrollBehavior = scrollBehavior
++    )
++}
++
++/**
++ * Framework only - AutoEQ (https://github.com/jaakkopasanen/AutoEq) publishes measured correction
++ * curves for thousands of headphone models, keyed by model name. Wiring an actual result up to
++ * [EqualizerSettings] means picking a data source (a bundled snapshot vs. fetching AutoEq's
++ * results database live) and mapping its parametric-EQ format onto this app's band model - left as
++ * a later step; this just gives the feature a real entry point and search UI to build that behind.
++ */
++@Composable
++private fun AutoEqSearchDialog(onDismiss: () -> Unit) {
++    var query by remember { mutableStateOf("") }
++
++    DefaultDialog(
++        onDismiss = onDismiss,
++        icon = { Icon(Icons.Rounded.Search, null) },
++        title = { Text(stringResource(R.string.eq_settings_autoeq_title)) },
++        buttons = {
++            TextButton(onClick = onDismiss) {
++                Text(text = stringResource(android.R.string.cancel))
++            }
++        }
++    ) {
++        OutlinedTextField(
++            value = query,
++            onValueChange = { query = it },
++            modifier = Modifier.fillMaxWidth(),
++            label = { Text(stringResource(R.string.eq_settings_autoeq_search_hint)) },
++            singleLine = true,
++            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
++        )
++        Text(
++            text = stringResource(R.string.eq_settings_autoeq_coming_soon),
++            modifier = Modifier.fillMaxWidth(),
++        )
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt
+index c05047e4..758c0f57 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt
+@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.AudioFile
++import androidx.compose.material.icons.rounded.Equalizer
+ import androidx.compose.material.icons.rounded.NoCell
+ import androidx.compose.material3.ElevatedCard
+ import androidx.compose.material3.ExperimentalMaterial3Api
+@@ -41,6 +42,7 @@ import com.dd3boh.outertune.constants.StopMusicOnTaskClearKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+ import com.dd3boh.outertune.ui.component.ListPreference
++import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
+ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.component.button.IconButton
+@@ -98,6 +100,11 @@ fun PlayerSettings(
+             modifier = Modifier.fillMaxWidth()
+         ) {
+             AudioQualityFrag()
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.eq_settings_title)) },
++                icon = { Icon(Icons.Rounded.Equalizer, null) },
++                onClick = { navController.navigate("settings/player/equalizer") }
++            )
+         }
+         Spacer(modifier = Modifier.height(16.dp))
+ 
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index c6f197d3..dd8790fb 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -147,6 +147,23 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="download_thumbnail">Download thumbnail</string>
+     <string name="remove_thumbnail">Remove thumbnail</string>
+ 
++<!-- Equalizer settings -->
++    <string name="eq_settings_title">Equalizer</string>
++    <string name="eq_settings_appearance">Appearance</string>
++    <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
++    <string name="eq_settings_use_dials_description">Applies to band gain, frequency, and bass/treble controls everywhere the equalizer appears.</string>
++    <string name="eq_settings_contrast_color_title">Color from cover art</string>
++    <string name="eq_settings_contrast_color_description">Color the equalizer\'s controls to contrast with the current song\'s cover art instead of the app theme.</string>
++    <string name="eq_settings_value_gradient_title">Color by value</string>
++    <string name="eq_settings_value_gradient_description">Color dials and slider tracks blue-green-yellow by how low, mid, or high their value is.</string>
++    <string name="eq_settings_profiles">Profiles</string>
++    <string name="eq_settings_save_as_profile">Save current as new profile</string>
++    <string name="eq_settings_profile_name">Profile name</string>
++    <string name="eq_settings_autoeq_title">Search AutoEQ profiles</string>
++    <string name="eq_settings_autoeq_description">Apply a measured correction curve for your headphones.</string>
++    <string name="eq_settings_autoeq_search_hint">Headphone model</string>
++    <string name="eq_settings_autoeq_coming_soon">Fetching AutoEQ\'s results database isn\'t wired up yet - this is a placeholder for that.</string>
++
+ <!-- Discord integration -->
+     <string name="settings_discord_description">Show your listening activity as your Discord status</string>
+     <string name="rpc_listen_ytm">Listen on YouTube Music</string>
+-- 
+2.45.1.windows.1
+
+From fbbed2676f4daec6e14a961e89815ea8963e1561 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 21:09:23 +0800
+Subject: [PATCH] Split combined "X & Y" credits and add featured artists, once
+ verified
+
+Two cases where a song's credited artists were less complete than YTM
+actually knows: a single combined credit like "X & Y" that isn't a real
+channel (no navigationEndpoint - stored with a generated local id, see
+ArtistEntity.isYouTubeArtist), and an artist named in the title's
+"(feat. X, Y)"/"(ft. X)" text but missing from the credited list.
+
+New ArtistCreditEnricher.enrich(): splits a combined credit on "&" and
+searches each half; only rewrites the credit into separate artists if
+every half resolves to a real channel, so a genuine single-name act
+whose real channel name happens to contain "&" is never incorrectly
+split. Separately parses feat./ft. text out of the title and adds any
+named artist not already credited, again only once a search confirms
+it's real. Both checks are cheap no-ops for a song with neither pattern
+- no network calls happen unless there's actually something to check.
+
+Wired into MusicService.recoverSong() (runs once per playback, alongside
+the existing related-songs/duration enrichment already there) and
+DownloadUtil.scanDownloads() (a fire-and-forget batch pass over every
+downloaded song, so re-running "refresh downloads" also re-checks these).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    |   9 ++
+ .../dd3boh/outertune/playback/DownloadUtil.kt |   6 +
+ .../dd3boh/outertune/playback/MusicService.kt |   2 +
+ .../outertune/utils/ArtistCreditEnricher.kt   | 119 ++++++++++++++++++
+ 4 files changed, 136 insertions(+)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index 5a8ef057..d6bbf336 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -288,6 +288,15 @@ interface ArtistsDao {
+     """)
+     fun safeDeleteArtist(artistId: String)
+ 
++    /**
++     * Used by ArtistCreditEnricher to replace a single combined credit (e.g. one ArtistEntity
++     * literally named "X & Y", with no real channel behind it) with the separate, verified
++     * artists it was standing in for - the ArtistEntity itself is left alone (safeDeleteArtist
++     * afterward if it's now unused by anything else).
++     */
++    @Query("DELETE FROM song_artist_map WHERE songId = :songId AND artistId = :artistId")
++    fun deleteSongArtistMap(songId: String, artistId: String)
++
+     @Transaction
+     @Query("DELETE FROM artist WHERE isLocal = 1")
+     fun nukeLocalArtists()
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index 0d0d7090..27a8592c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -28,6 +28,7 @@ import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
+ import com.dd3boh.outertune.constants.DownloadPathKey
+ import com.dd3boh.outertune.constants.DownloadThumbnailsKey
+ import com.dd3boh.outertune.ui.utils.resize
++import com.dd3boh.outertune.utils.ArtistCreditEnricher
+ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.db.entities.FormatEntity
+ import com.dd3boh.outertune.db.entities.PlaylistSong
+@@ -521,6 +522,11 @@ class DownloadUtil @Inject constructor(
+         isProcessingDownloads.value = false
+         if (DOWNLOAD_DEBUG) Log.d(TAG, "Database registration complete, triggering map registry rebuild")
+         rescanDownloads()
++        // Fire-and-forget: a batch of searches (one per song that actually has something to check
++        // - see ArtistCreditEnricher's own doc) shouldn't hold up this scan finishing.
++        CoroutineScope(dlCoroutine).launch {
++            downloads.value.keys.forEach { songId -> ArtistCreditEnricher.enrich(database, songId) }
++        }
+         if (DOWNLOAD_DEBUG) Log.i(TAG, "-scanDownloads()")
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 3fee55fa..b7499dbf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -126,6 +126,7 @@ import com.dd3boh.outertune.models.toMediaMetadata
+ import com.dd3boh.outertune.playback.queues.ListQueue
+ import com.dd3boh.outertune.playback.queues.Queue
+ import com.dd3boh.outertune.playback.queues.YouTubeQueue
++import com.dd3boh.outertune.utils.ArtistCreditEnricher
+ import com.dd3boh.outertune.utils.CoilBitmapLoader
+ import com.dd3boh.outertune.utils.DiscordRPC
+ import com.dd3boh.outertune.utils.NetworkConnectivityObserver
+@@ -708,6 +709,7 @@ class MusicService : MediaLibraryService(),
+             if (song == null) insert(mediaMetadata.copy(duration = duration))
+             else if (song.song.duration == -1) update(song.song.copy(duration = duration))
+         }
++        ArtistCreditEnricher.enrich(database, mediaId)
+         if (!database.hasRelatedSongs(mediaId)) {
+             val relatedEndpoint = YouTube.next(WatchEndpoint(videoId = mediaId)).getOrNull()?.relatedEndpoint ?: return
+             val relatedPage = YouTube.related(relatedEndpoint).getOrNull() ?: return
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+new file mode 100644
+index 00000000..8347a5ee
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+@@ -0,0 +1,119 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.utils
++
++import android.util.Log
++import com.dd3boh.outertune.db.MusicDatabase
++import com.dd3boh.outertune.db.entities.ArtistEntity
++import com.dd3boh.outertune.db.entities.SongArtistMap
++import com.zionhuang.innertube.YouTube
++import com.zionhuang.innertube.models.ArtistItem
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.flow.first
++import kotlinx.coroutines.withContext
++
++/**
++ * Fixes two cases where a song's credited artists are less complete than what YouTube Music
++ * itself actually knows about it:
++ *
++ * - A single combined credit like "X & Y" that isn't a real channel - YTM sometimes returns this
++ *   as one Run with no navigationEndpoint rather than crediting X and Y separately, which lands in
++ *   the database as one ArtistEntity with a generated local id (see [ArtistEntity.isYouTubeArtist])
++ *   - gets split into its own artists once searching each half actually turns up a real one.
++ * - An artist named in the title's "(feat. X, Y)"/"(ft. X)" text but missing from the credited
++ *   list gets added, once a search confirms the name is a real artist.
++ *
++ * Deliberately conservative: nothing here changes a song's credits unless the corresponding
++ * search actually resolves to a real channel, so a genuine single-name act whose real channel
++ * name happens to contain "&" is never incorrectly split, and title text that merely looks like a
++ * feature credit but isn't a real artist is never added.
++ */
++object ArtistCreditEnricher {
++    private const val TAG = "ArtistCreditEnricher"
++
++    private val AMPERSAND_SPLIT = Regex("\\s*&\\s*")
++    private val FEATURED_ARTISTS = Regex(
++        """[(\[]?\s*(?:feat\.?|ft\.?)\s+([^)\]]+)[)\]]?""",
++        RegexOption.IGNORE_CASE
++    )
++    private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
++
++    /**
++     * Runs both checks for one song - called once per playback ([com.dd3boh.outertune.playback.MusicService.recoverSong])
++     * and once per song when downloads are rescanned ([com.dd3boh.outertune.playback.DownloadUtil.scanDownloads]).
++     * Network calls only happen when there's actually a combined credit or featured-artist text to
++     * check - a song whose credits are already fully split and complete does nothing here beyond
++     * the one initial database read.
++     */
++    suspend fun enrich(database: MusicDatabase, songId: String): Unit = withContext(Dispatchers.IO) {
++        val song = database.song(songId).first() ?: return@withContext
++
++        // Split a combined "X & Y" credit once both halves resolve to real artists. Position is
++        // preserved: the split-out names replace the combined one at its own index rather than
++        // being appended, so ordering among the OTHER credited artists doesn't shift.
++        for ((index, artist) in song.artists.withIndex()) {
++            if (artist.isYouTubeArtist) continue
++            val candidates = splitAmpersandCandidates(artist.name) ?: continue
++            val resolved = candidates.map { resolveArtist(it) }
++            if (resolved.any { it == null }) continue
++
++            database.deleteSongArtistMap(songId, artist.id)
++            database.safeDeleteArtist(artist.id)
++            resolved.forEachIndexed { offset, item ->
++                item!!
++                database.insert(ArtistEntity(id = item.id, name = item.title))
++                database.insert(SongArtistMap(songId = songId, artistId = item.id, position = index + offset))
++            }
++            Log.d(TAG, "[$songId] split combined credit \"${artist.name}\" into ${resolved.map { it?.title }}")
++        }
++
++        // Add any featured artist named in the title but missing from the credited list. Read
++        // fresh rather than reusing `song.artists`: the split above may have just changed it.
++        val currentNames = database.song(songId).first()?.artists?.map { it.name.lowercase() }?.toSet()
++            ?: return@withContext
++        val featured = parseFeaturedArtistNames(song.song.title).filter { it.lowercase() !in currentNames }
++        if (featured.isEmpty()) return@withContext
++
++        var nextPosition = database.song(songId).first()?.artists?.size ?: return@withContext
++        for (name in featured) {
++            val resolved = resolveArtist(name) ?: continue
++            database.insert(ArtistEntity(id = resolved.id, name = resolved.title))
++            database.insert(SongArtistMap(songId = songId, artistId = resolved.id, position = nextPosition))
++            nextPosition++
++            Log.d(TAG, "[$songId] added featured artist \"${resolved.title}\"")
++        }
++    }
++
++    /**
++     * Splits a combined credit's name on "&" - null when there's nothing to split (no "&", or
++     * splitting would leave a blank half).
++     */
++    private fun splitAmpersandCandidates(name: String): List<String>? {
++        if ("&" !in name) return null
++        val parts = name.split(AMPERSAND_SPLIT).map { it.trim() }.filter { it.isNotEmpty() }
++        return parts.takeIf { it.size >= 2 }
++    }
++
++    /** Names mentioned in a "(feat. X, Y)"/"(ft. X)" segment of [title], if any. */
++    private fun parseFeaturedArtistNames(title: String): List<String> {
++        val match = FEATURED_ARTISTS.find(title) ?: return emptyList()
++        return match.groupValues[1]
++            .split(FEATURED_NAME_SPLIT)
++            .map { it.trim() }
++            .filter { it.isNotEmpty() }
++    }
++
++    /** The real artist channel [name] resolves to, or null if search finds no matching one. */
++    private suspend fun resolveArtist(name: String): ArtistItem? {
++        val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()?.items
++            ?: return null
++        return results.filterIsInstance<ArtistItem>()
++            .firstOrNull { it.title.equals(name, ignoreCase = true) }
++    }
++}
+-- 
+2.45.1.windows.1
+
+From a8d6548865130eef67636f1bf202f9807dcee72d Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 21:17:23 +0800
+Subject: [PATCH] Put the real equalizer controls in Settings, not just its
+ meta-settings
+
+The Equalizer settings page previously only exposed the dials/contrast-
+color/color-by-value toggles and profile management - the actual bands,
+tone controls, and compressor still only existed inside the in-player
+panel, unusable without an active playback session. Widened five of the
+panel's composables (EqualizerCard, ToneControlsRow, CompressorSection,
+BandColumn, BandEditor) plus quantizeTenth from private to internal and
+mounted them a second time in the Settings screen, wired to the exact
+same preference keys and update()/updateBand() logic the panel uses -
+this is not a second implementation of the controls, just a second place
+the same ones are mounted, so a change from either place is the same
+change. Added the "Enable equalizer" master switch too, which previously
+had no Settings-page home at all.
+
+Also fixes an inaccurate doc comment on EqUseDialsKey found while wiring
+this: the setting only affects the band editor's frequency/gain dials,
+not the band-gain strip or bass/treble tone controls, both of which stay
+fixed (sliders and dials respectively) regardless of it - ToneControlsRow
+and BandColumn's own comments already said as much, but the preference
+key's comment and this settings page's description text both overstated
+its scope until now.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../outertune/constants/PreferenceKeys.kt     |   7 +-
+ .../outertune/ui/player/EqualizerPanel.kt     |  12 +-
+ .../ui/screens/settings/EqualizerSettings.kt  | 142 ++++++++++++++++--
+ app/src/main/res/values/strings-ot.xml        |   3 +-
+ 4 files changed, 145 insertions(+), 19 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 7e9c31ba..42122582 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -107,7 +107,12 @@ val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
+ val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
+ val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
+ val EqContrastColorKey = booleanPreferencesKey("eqContrastColor")
+-/** Dials vs sliders for band gain, the band editor's frequency/gain, and bass/treble. */
++/**
++ * Dials vs sliders for the selected band's frequency/gain in the band editor - not the 12-band
++ * gain strip above it or the bass/treble tone controls, both of which stay fixed (sliders and
++ * dials respectively) regardless of this setting; see BandColumn's and ToneControlsRow's own docs
++ * for why.
++ */
+ val EqUseDialsKey = booleanPreferencesKey("eqUseDials")
+ /** Colors slider tracks/thumbs and dial arcs blue-green-yellow by how low/mid/high the value is. */
+ val EqValueColorGradientKey = booleanPreferencesKey("eqValueColorGradient")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index 42e8eee2..6a816348 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -126,7 +126,7 @@ private val EqualizerHandleHeight = 56.dp
+  * floating over the player background instead of paving over it entirely.
+  */
+ @Composable
+-private fun EqualizerCard(
++internal fun EqualizerCard(
+     modifier: Modifier = Modifier,
+     content: @Composable ColumnScope.() -> Unit,
+ ) {
+@@ -607,7 +607,7 @@ private fun balanceReadout(balance: Float): String {
+ }
+ 
+ /** Snaps a dial/slider's continuous drag output to a clean 0.1 step, e.g. "3.2" rather than "3.187456". */
+-private fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10f
++internal fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10f
+ 
+ private fun formatDb(db: Float): String =
+     "${if (db > 0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", db)}"
+@@ -685,7 +685,7 @@ private fun PowerampSlider(
+  * there's exactly one thing controlling any given frequency.
+  */
+ @Composable
+-private fun ToneControlsRow(
++internal fun ToneControlsRow(
+     bassGainDb: Float,
+     trebleGainDb: Float,
+     balance: Float,
+@@ -759,7 +759,7 @@ private fun ToneControlsRow(
+  * is already louder than the threshold, then makes the result back up again.
+  */
+ @Composable
+-private fun CompressorSection(
++internal fun CompressorSection(
+     compressor: EqualizerSettings.CompressorSettings,
+     onChange: (EqualizerSettings.CompressorSettings) -> Unit,
+     color: Color,
+@@ -944,7 +944,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+-private fun BandColumn(
++internal fun BandColumn(
+     band: EqualizerSettings.EqBand,
+     enabled: Boolean,
+     selected: Boolean,
+@@ -1080,7 +1080,7 @@ private fun MiniPlaybackControls(color: Color?) {
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+-private fun BandEditor(
++internal fun BandEditor(
+     band: EqualizerSettings.EqBand,
+     onChange: (EqualizerSettings.EqBand) -> Unit,
+     color: Color,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index 6742ea48..401c2dbf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -8,8 +8,12 @@
+ 
+ package com.dd3boh.outertune.ui.screens.settings
+ 
++import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.lazy.LazyRow
++import androidx.compose.foundation.lazy.itemsIndexed
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.text.KeyboardOptions
+ import androidx.compose.foundation.verticalScroll
+@@ -22,13 +26,16 @@ import androidx.compose.material.icons.rounded.Palette
+ import androidx.compose.material.icons.rounded.Search
+ import androidx.compose.material.icons.rounded.Tune
+ import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.OutlinedTextField
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TextButton
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+@@ -36,14 +43,17 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+ import com.dd3boh.outertune.constants.EqContrastColorKey
+ import com.dd3boh.outertune.constants.EqUseDialsKey
+ import com.dd3boh.outertune.constants.EqValueColorGradientKey
+ import com.dd3boh.outertune.constants.EqualizerProfilesKey
+ import com.dd3boh.outertune.constants.EqualizerSettingsKey
++import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.models.EqualizerProfile
+ import com.dd3boh.outertune.models.EqualizerSettings
+@@ -54,15 +64,24 @@ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
+ import com.dd3boh.outertune.ui.dialog.TextFieldDialog
++import com.dd3boh.outertune.ui.player.BandColumn
++import com.dd3boh.outertune.ui.player.BandEditor
++import com.dd3boh.outertune.ui.player.CompressorSection
++import com.dd3boh.outertune.ui.player.EqualizerCard
++import com.dd3boh.outertune.ui.player.ToneControlsRow
++import com.dd3boh.outertune.ui.player.quantizeTenth
++import com.dd3boh.outertune.ui.player.rememberPlayerOnBackgroundColor
+ import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
+ 
+ /**
+- * A persistent Settings home for the equalizer options that otherwise only live inside the
+- * in-player panel (EqualizerPanel.kt) - same preference keys either way, so a change here or
+- * there stays in sync. Profile management is duplicated here rather than shared with the panel
+- * because the panel's version pushes changes live to a bound player service, while this screen may
+- * be opened with no active playback session at all.
++ * A persistent Settings home for the equalizer - the actual bands/tone/compressor controls, not
++ * just a settings-about-settings page, so the curve can be shaped without needing an active
++ * playback session open. Reuses the same control composables (BandColumn, BandEditor,
++ * ToneControlsRow, CompressorSection) and preference keys as the in-player panel
++ * (EqualizerPanel.kt) - a change from either place is the same change, and this screen is not a
++ * second implementation of the controls themselves, only a second place they're mounted.
+  */
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+@@ -71,16 +90,50 @@ fun EqualizerSettingsScreen(
+     scrollBehavior: TopAppBarScrollBehavior,
+ ) {
+     val playerConnection = LocalPlayerConnection.current
++    val mediaMetadata by playerConnection?.mediaMetadata?.collectAsState(initial = null)
++        ?: remember { mutableStateOf(null) }
++    val playerBackground by rememberEnumPreference(
++        key = PlayerBackgroundStyleKey,
++        defaultValue = DEFAULT_PLAYER_BACKGROUND
++    )
++    val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackground)
+ 
+-    var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+     var useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
++    val eqColor = if (useContrastColor) handleColor else MaterialTheme.colorScheme.onSurface
++    val eqColorVariant = if (useContrastColor) handleColor.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
++
++    var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+     var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
+ 
+     var settingsJson by rememberPreference(EqualizerSettingsKey, "")
+-    val settings = remember(settingsJson) {
+-        EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT)
++    var settings by remember {
++        mutableStateOf(EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT))
++    }
++
++    fun update(newSettings: EqualizerSettings) {
++        settings = newSettings
++        settingsJson = newSettings.toJson()
++        playerConnection?.service?.equalizerAudioProcessor?.setSettings(newSettings)
+     }
+ 
++    fun updateBand(index: Int, band: EqualizerSettings.EqBand) {
++        update(settings.copy(bands = settings.bands.toMutableList().apply { this[index] = band }))
++    }
++
++    val bassBandIndices = remember(settings.bands) { settings.bands.indices.filter { settings.bands[it].freqHz <= 250f } }
++    val trebleBandIndices = remember(settings.bands) { settings.bands.indices.filter { settings.bands[it].freqHz >= 4000f } }
++    val bassGainDb = remember(settings.bands) { bassBandIndices.map { settings.bands[it].gainDb }.average().toFloat() }
++    val trebleGainDb = remember(settings.bands) { trebleBandIndices.map { settings.bands[it].gainDb }.average().toFloat() }
++
++    fun setRangeGain(indices: List<Int>, newGain: Float) {
++        val quantized = quantizeTenth(newGain)
++        update(settings.copy(bands = settings.bands.mapIndexed { i, b ->
++            if (i in indices) b.copy(gainDb = quantized) else b
++        }))
++    }
++
++    var selectedBand by remember { mutableStateOf<Int?>(null) }
++
+     var profilesJson by rememberPreference(EqualizerProfilesKey, "")
+     val savedProfiles = remember(profilesJson) { EqualizerProfile.listFromJson(profilesJson) }
+     val savedProfileNames = remember(savedProfiles) { savedProfiles.map { it.name }.toSet() }
+@@ -93,9 +146,7 @@ fun EqualizerSettingsScreen(
+         val toApply = savedProfiles.find { it.name == name }?.settings
+             ?: EqualizerProfile.factoryDefault(name)?.settings
+             ?: return
+-        val newSettings = toApply.copy(enabled = settings.enabled)
+-        settingsJson = newSettings.toJson()
+-        playerConnection?.service?.equalizerAudioProcessor?.setSettings(newSettings)
++        update(toApply.copy(enabled = settings.enabled))
+     }
+ 
+     fun saveProfile(name: String) {
+@@ -115,6 +166,75 @@ fun EqualizerSettingsScreen(
+         columnModifier = Modifier
+             .verticalScroll(rememberScrollState())
+     ) {
++        PreferenceGroupTitle(title = stringResource(R.string.eq_settings_title))
++
++        SwitchPreference(
++            title = { Text(stringResource(R.string.eq_settings_enabled_title)) },
++            icon = { Icon(Icons.Rounded.Equalizer, null) },
++            checked = settings.enabled,
++            onCheckedChange = { update(settings.copy(enabled = it)) }
++        )
++
++        EqualizerCard {
++            ToneControlsRow(
++                bassGainDb = bassGainDb,
++                trebleGainDb = trebleGainDb,
++                balance = settings.balance,
++                enabled = settings.enabled,
++                color = eqColor,
++                useGradient = useValueGradient,
++                onBassChange = { setRangeGain(bassBandIndices, it) },
++                onTrebleChange = { setRangeGain(trebleBandIndices, it) },
++                onBalanceChange = { update(settings.copy(balance = it)) },
++            )
++        }
++
++        EqualizerCard {
++            LazyRow(
++                horizontalArrangement = Arrangement.spacedBy(4.dp),
++                modifier = Modifier
++                    .fillMaxWidth()
++                    .height(220.dp)
++            ) {
++                itemsIndexed(settings.bands) { index, band ->
++                    BandColumn(
++                        band = band,
++                        enabled = settings.enabled,
++                        selected = selectedBand == index,
++                        color = eqColor,
++                        onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
++                        onTapLabel = { selectedBand = if (selectedBand == index) null else index },
++                    )
++                }
++            }
++
++            selectedBand?.let { index ->
++                HorizontalDivider(
++                    modifier = Modifier.fillMaxWidth(),
++                    color = eqColorVariant.copy(alpha = 0.3f),
++                )
++                BandEditor(
++                    band = settings.bands[index],
++                    onChange = { updateBand(index, it) },
++                    color = eqColor,
++                    colorVariant = eqColorVariant,
++                    useDials = useDials,
++                    useGradient = useValueGradient,
++                )
++            }
++        }
++
++        EqualizerCard {
++            CompressorSection(
++                compressor = settings.compressor,
++                onChange = { update(settings.copy(compressor = it)) },
++                color = eqColor,
++                colorVariant = eqColorVariant,
++                useDials = useDials,
++                useGradient = useValueGradient,
++            )
++        }
++
+         PreferenceGroupTitle(title = stringResource(R.string.eq_settings_appearance))
+ 
+         SwitchPreference(
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index dd8790fb..406577bd 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -149,9 +149,10 @@ while also allowing users to translate our app as well. New, specific strings to
+ 
+ <!-- Equalizer settings -->
+     <string name="eq_settings_title">Equalizer</string>
++    <string name="eq_settings_enabled_title">Enable equalizer</string>
+     <string name="eq_settings_appearance">Appearance</string>
+     <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
+-    <string name="eq_settings_use_dials_description">Applies to band gain, frequency, and bass/treble controls everywhere the equalizer appears.</string>
++    <string name="eq_settings_use_dials_description">Applies to the selected band\'s frequency/gain editor. The band strip and bass/treble controls stay sliders and dials respectively either way.</string>
+     <string name="eq_settings_contrast_color_title">Color from cover art</string>
+     <string name="eq_settings_contrast_color_description">Color the equalizer\'s controls to contrast with the current song\'s cover art instead of the app theme.</string>
+     <string name="eq_settings_value_gradient_title">Color by value</string>
+-- 
+2.45.1.windows.1
+
+From 0fc665646166eadf33eb8dd7d179b756c91abb66 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 21:27:30 +0800
+Subject: [PATCH] Make AutoEQ search actually search and apply real curves
+
+Replaces the AutoEQ placeholder with a working implementation: searches
+oratory1990's measurements (AutoEQ's most consistently-referenced single
+source) live against GitHub's own API rather than bundling a snapshot of
+AutoEQ's 8000+-entry, ~20-source database or standing up infrastructure
+to serve it - no bundled data to go stale, no APK size cost, at the cost
+of covering one source instead of all of them and needing a network
+connection.
+
+New AutoEqRepository: search() lists oratory1990's over-ear/in-ear/earbud
+folders via GitHub's contents API and filters client-side; fetchCurve()
+downloads and parses the chosen headphone's ParametricEQ.txt (the same
+"Preamp: X dB" / "Filter N: ON <type> Fc <freq> Hz Gain <gain> dB Q <q>"
+format Equalizer APO and similar tools already use) into an
+EqualizerSettings curve, folding AutoEQ's preamp into each band's own
+gain since this app's model has no separate preamp field.
+
+The search dialog is now live: debounced search-as-you-type, a results
+list grouped by category, and tapping a result fetches, parses, and
+applies it in place (keeping the current balance/compressor settings).
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../ui/screens/settings/EqualizerSettings.kt  | 123 ++++++++++++++--
+ .../outertune/utils/AutoEqRepository.kt       | 131 ++++++++++++++++++
+ app/src/main/res/values/strings-ot.xml        |   6 +-
+ 3 files changed, 247 insertions(+), 13 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index 401c2dbf..2fd56a59 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -8,11 +8,21 @@
+ 
+ package com.dd3boh.outertune.ui.screens.settings
+ 
++import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.lazy.LazyColumn
+ import androidx.compose.foundation.lazy.LazyRow
++import androidx.compose.foundation.lazy.items
+ import androidx.compose.foundation.lazy.itemsIndexed
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.text.KeyboardOptions
+@@ -25,6 +35,7 @@ import androidx.compose.material.icons.rounded.Equalizer
+ import androidx.compose.material.icons.rounded.Palette
+ import androidx.compose.material.icons.rounded.Search
+ import androidx.compose.material.icons.rounded.Tune
++import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.HorizontalDivider
+ import androidx.compose.material3.Icon
+@@ -35,14 +46,18 @@ import androidx.compose.material3.TextButton
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.LocalPlayerConnection
+@@ -72,8 +87,11 @@ import com.dd3boh.outertune.ui.player.ToneControlsRow
+ import com.dd3boh.outertune.ui.player.quantizeTenth
+ import com.dd3boh.outertune.ui.player.rememberPlayerOnBackgroundColor
+ import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.AutoEqRepository
+ import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.launch
+ 
+ /**
+  * A persistent Settings home for the equalizer - the actual bands/tone/compressor controls, not
+@@ -302,7 +320,10 @@ fun EqualizerSettingsScreen(
+     }
+ 
+     if (showAutoEqDialog) {
+-        AutoEqSearchDialog(onDismiss = { showAutoEqDialog = false })
++        AutoEqSearchDialog(
++            onApply = { curve -> update(curve.copy(balance = settings.balance, compressor = settings.compressor)) },
++            onDismiss = { showAutoEqDialog = false },
++        )
+     }
+ 
+     TopAppBar(
+@@ -321,15 +342,37 @@ fun EqualizerSettingsScreen(
+ }
+ 
+ /**
+- * Framework only - AutoEQ (https://github.com/jaakkopasanen/AutoEq) publishes measured correction
+- * curves for thousands of headphone models, keyed by model name. Wiring an actual result up to
+- * [EqualizerSettings] means picking a data source (a bundled snapshot vs. fetching AutoEq's
+- * results database live) and mapping its parametric-EQ format onto this app's band model - left as
+- * a later step; this just gives the feature a real entry point and search UI to build that behind.
++ * Searches oratory1990's AutoEQ measurements (see [AutoEqRepository] for why that source
++ * specifically, and its own doc for the format being parsed) live against GitHub, and applies the
++ * chosen headphone's curve - replacing the bands, keeping this screen's current balance/compressor
++ * settings - once fetched and parsed.
+  */
+ @Composable
+-private fun AutoEqSearchDialog(onDismiss: () -> Unit) {
++private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: () -> Unit) {
+     var query by remember { mutableStateOf("") }
++    var results by remember { mutableStateOf<List<AutoEqRepository.Result>>(emptyList()) }
++    var isSearching by remember { mutableStateOf(false) }
++    var isApplying by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
++    var error by remember { mutableStateOf<String?>(null) }
++    val coroutineScope = rememberCoroutineScope()
++
++    // Debounced: a search hits GitHub's API three times (over-ear/in-ear/earbud), so this waits
++    // for a pause in typing rather than firing on every keystroke.
++    LaunchedEffect(query) {
++        val q = query.trim()
++        if (q.isEmpty()) {
++            results = emptyList()
++            isSearching = false
++            return@LaunchedEffect
++        }
++        delay(400)
++        isSearching = true
++        error = null
++        val found = runCatching { AutoEqRepository.search(q) }
++        isSearching = false
++        found.onSuccess { results = it }
++            .onFailure { error = it.message }
++    }
+ 
+     DefaultDialog(
+         onDismiss = onDismiss,
+@@ -349,9 +392,67 @@ private fun AutoEqSearchDialog(onDismiss: () -> Unit) {
+             singleLine = true,
+             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+         )
+-        Text(
+-            text = stringResource(R.string.eq_settings_autoeq_coming_soon),
+-            modifier = Modifier.fillMaxWidth(),
+-        )
++        Spacer(Modifier.height(8.dp))
++
++        when {
++            isSearching -> Row(
++                verticalAlignment = Alignment.CenterVertically,
++                modifier = Modifier.padding(vertical = 8.dp)
++            ) {
++                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
++                Spacer(Modifier.width(12.dp))
++                Text(stringResource(R.string.eq_settings_autoeq_searching))
++            }
++
++            error != null -> Text(
++                text = stringResource(R.string.eq_settings_autoeq_error, error ?: ""),
++                color = MaterialTheme.colorScheme.error,
++            )
++
++            query.isNotBlank() && results.isEmpty() -> Text(
++                text = stringResource(R.string.eq_settings_autoeq_no_results),
++            )
++        }
++
++        LazyColumn(
++            modifier = Modifier
++                .fillMaxWidth()
++                .heightIn(max = 320.dp)
++        ) {
++            items(results, key = { "${it.category}/${it.name}" }) { result ->
++                Row(
++                    verticalAlignment = Alignment.CenterVertically,
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .clickable(enabled = isApplying == null) {
++                            coroutineScope.launch {
++                                isApplying = result
++                                error = null
++                                val curve = AutoEqRepository.fetchCurve(result)
++                                isApplying = null
++                                if (curve != null) {
++                                    onApply(curve)
++                                    onDismiss()
++                                } else {
++                                    error = result.name
++                                }
++                            }
++                        }
++                        .padding(vertical = 10.dp)
++                ) {
++                    Column(modifier = Modifier.weight(1f)) {
++                        Text(text = result.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                        Text(
++                            text = result.category,
++                            style = MaterialTheme.typography.labelSmall,
++                            color = MaterialTheme.colorScheme.onSurfaceVariant,
++                        )
++                    }
++                    if (isApplying == result) {
++                        CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
++                    }
++                }
++            }
++        }
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt b/app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt
+new file mode 100644
+index 00000000..18f4fa56
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt
+@@ -0,0 +1,131 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.utils
++
++import android.util.Log
++import com.dd3boh.outertune.models.EqualizerSettings
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
++import okhttp3.OkHttpClient
++import okhttp3.Request
++import org.json.JSONArray
++import java.net.URLEncoder
++
++/**
++ * Searches and fetches headphone correction curves from AutoEQ's public results database
++ * (https://github.com/jaakkopasanen/AutoEq, MIT licensed), scoped to oratory1990's measurements -
++ * the single most consistently referenced source in that database, and one whose directory layout
++ * (one folder per headphone, under over-ear/in-ear/earbud) is simple enough to query directly
++ * against GitHub's own API rather than needing a bundled or self-hosted index.
++ *
++ * AutoEQ's full database spans ~20 other measurement sources and 8000+ entries total; mirroring
++ * all of it would mean either bundling a multi-hundred-megabyte dataset in the APK or standing up
++ * infrastructure to serve it. Querying GitHub's directory listing live instead means no bundled
++ * data to go stale, no APK size cost, and results that are always exactly what's in the repo right
++ * now - at the cost of only covering one (well-regarded) measurement source rather than all of them,
++ * and being unusable offline.
++ */
++object AutoEqRepository {
++    private const val TAG = "AutoEqRepository"
++    private const val OWNER = "jaakkopasanen"
++    private const val REPO = "AutoEq"
++    private val CATEGORIES = listOf("over-ear", "in-ear", "earbud")
++
++    data class Result(val name: String, val category: String)
++
++    private val httpClient = OkHttpClient()
++
++    /** Case-insensitive substring match against oratory1990's headphone folder names. */
++    suspend fun search(query: String): List<Result> = withContext(Dispatchers.IO) {
++        if (query.isBlank()) return@withContext emptyList()
++        CATEGORIES.flatMap { category ->
++            runCatching { listNames(category) }
++                .onFailure { Log.w(TAG, "Failed to list AutoEQ category $category", it) }
++                .getOrDefault(emptyList())
++                .filter { it.contains(query, ignoreCase = true) }
++                .map { Result(it, category) }
++        }.sortedBy { it.name }
++    }
++
++    private fun listNames(category: String): List<String> {
++        val url = "https://api.github.com/repos/$OWNER/$REPO/contents/results/oratory1990/$category"
++        val request = Request.Builder()
++            .url(url)
++            .header("Accept", "application/vnd.github+json")
++            .build()
++        httpClient.newCall(request).execute().use { response ->
++            if (!response.isSuccessful) return emptyList()
++            val body = response.body?.string() ?: return emptyList()
++            val array = JSONArray(body)
++            return (0 until array.length()).mapNotNull { i ->
++                val obj = array.optJSONObject(i) ?: return@mapNotNull null
++                if (obj.optString("type") != "dir") return@mapNotNull null
++                obj.optString("name").takeIf { it.isNotBlank() }
++            }
++        }
++    }
++
++    /** Fetches and parses [result]'s ParametricEQ.txt into a curve, or null on any failure. */
++    suspend fun fetchCurve(result: Result): EqualizerSettings? = withContext(Dispatchers.IO) {
++        val encodedName = URLEncoder.encode(result.name, "UTF-8").replace("+", "%20")
++        val url = "https://raw.githubusercontent.com/$OWNER/$REPO/master/results/oratory1990/" +
++            "${result.category}/$encodedName/$encodedName%20ParametricEQ.txt"
++        runCatching {
++            val request = Request.Builder().url(url).build()
++            httpClient.newCall(request).execute().use { response ->
++                if (!response.isSuccessful) return@runCatching null
++                response.body?.string()?.let(::parseParametricEq)
++            }
++        }.onFailure { Log.w(TAG, "Failed to fetch AutoEQ curve for ${result.name}", it) }.getOrNull()
++    }
++
++    private val PREAMP_LINE = Regex("""Preamp:\s*(-?[\d.]+)\s*dB""", RegexOption.IGNORE_CASE)
++    private val FILTER_LINE = Regex(
++        """Filter\s+\d+:\s*ON\s+(\w+)\s+Fc\s+([\d.]+)\s*Hz\s+Gain\s+(-?[\d.]+)\s*dB\s+Q\s+([\d.]+)""",
++        RegexOption.IGNORE_CASE
++    )
++
++    /**
++     * Parses AutoEQ's ParametricEQ.txt format (the same one Equalizer APO/Wavelet/etc. consume) -
++     * a "Preamp: X dB" line plus one "Filter N: ON <type> Fc <freq> Hz Gain <gain> dB Q <q>" line
++     * per band. Unrecognized lines are just skipped rather than failing the whole parse, since a
++     * comment line or a format quirk in one file shouldn't sink an otherwise-valid curve.
++     */
++    internal fun parseParametricEq(text: String): EqualizerSettings? {
++        val bands = text.lineSequence().mapNotNull { line ->
++            val match = FILTER_LINE.find(line) ?: return@mapNotNull null
++            val (typeCode, freq, gain, q) = match.destructured
++            val type = when (typeCode.uppercase()) {
++                "LSC" -> EqualizerSettings.FilterType.LOW_SHELF
++                "HSC" -> EqualizerSettings.FilterType.HIGH_SHELF
++                "LP", "LPQ" -> EqualizerSettings.FilterType.LOW_PASS
++                "HP", "HPQ" -> EqualizerSettings.FilterType.HIGH_PASS
++                else -> EqualizerSettings.FilterType.PEAKING
++            }
++            EqualizerSettings.EqBand(
++                freqHz = freq.toFloat().coerceIn(EqualizerSettings.MIN_FREQ_HZ, EqualizerSettings.MAX_FREQ_HZ),
++                gainDb = gain.toFloat().coerceIn(EqualizerSettings.MIN_GAIN_DB, EqualizerSettings.MAX_GAIN_DB),
++                q = q.toFloat().coerceIn(EqualizerSettings.MIN_Q, EqualizerSettings.MAX_Q),
++                type = type,
++                enabled = true,
++            )
++        }.toList()
++        if (bands.isEmpty()) return null
++
++        // AutoEQ's preamp offsets the whole curve down so the combined boost/cut never clips -
++        // this app's band model has no separate preamp field, so the closest equivalent is baking
++        // that same offset into every band's own gain.
++        val preampDb = PREAMP_LINE.find(text)?.groupValues?.get(1)?.toFloatOrNull() ?: 0f
++        val adjustedBands = if (preampDb == 0f) bands else bands.map {
++            it.copy(gainDb = (it.gainDb + preampDb).coerceIn(EqualizerSettings.MIN_GAIN_DB, EqualizerSettings.MAX_GAIN_DB))
++        }
++
++        return EqualizerSettings.DEFAULT.copy(enabled = true, bands = adjustedBands)
++    }
++}
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 406577bd..6e0a6c56 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -161,9 +161,11 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="eq_settings_save_as_profile">Save current as new profile</string>
+     <string name="eq_settings_profile_name">Profile name</string>
+     <string name="eq_settings_autoeq_title">Search AutoEQ profiles</string>
+-    <string name="eq_settings_autoeq_description">Apply a measured correction curve for your headphones.</string>
++    <string name="eq_settings_autoeq_description">Apply a measured correction curve for your headphones, from AutoEQ\'s oratory1990 measurements.</string>
+     <string name="eq_settings_autoeq_search_hint">Headphone model</string>
+-    <string name="eq_settings_autoeq_coming_soon">Fetching AutoEQ\'s results database isn\'t wired up yet - this is a placeholder for that.</string>
++    <string name="eq_settings_autoeq_searching">Searching…</string>
++    <string name="eq_settings_autoeq_no_results">No matching headphones found.</string>
++    <string name="eq_settings_autoeq_error">Couldn\'t fetch that curve: %1$s</string>
+ 
+ <!-- Discord integration -->
+     <string name="settings_discord_description">Show your listening activity as your Discord status</string>
+-- 
+2.45.1.windows.1
+
