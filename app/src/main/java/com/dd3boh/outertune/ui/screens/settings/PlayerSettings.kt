@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AudioFile
+import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.NoCell
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +42,7 @@ import com.dd3boh.outertune.constants.StopMusicOnTaskClearKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.ListPreference
+import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
@@ -98,6 +100,11 @@ fun PlayerSettings(
             modifier = Modifier.fillMaxWidth()
         ) {
             AudioQualityFrag()
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.eq_settings_title)) },
+                icon = { Icon(Icons.Rounded.Equalizer, null) },
+                onClick = { navController.navigate("settings/player/equalizer") }
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
 

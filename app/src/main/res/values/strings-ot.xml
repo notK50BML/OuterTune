@@ -147,6 +147,23 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="download_thumbnail">Download thumbnail</string>
     <string name="remove_thumbnail">Remove thumbnail</string>
 
+<!-- Equalizer settings -->
+    <string name="eq_settings_title">Equalizer</string>
+    <string name="eq_settings_appearance">Appearance</string>
+    <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
+    <string name="eq_settings_use_dials_description">Applies to band gain, frequency, and bass/treble controls everywhere the equalizer appears.</string>
+    <string name="eq_settings_contrast_color_title">Color from cover art</string>
+    <string name="eq_settings_contrast_color_description">Color the equalizer\'s controls to contrast with the current song\'s cover art instead of the app theme.</string>
+    <string name="eq_settings_value_gradient_title">Color by value</string>
+    <string name="eq_settings_value_gradient_description">Color dials and slider tracks blue-green-yellow by how low, mid, or high their value is.</string>
+    <string name="eq_settings_profiles">Profiles</string>
+    <string name="eq_settings_save_as_profile">Save current as new profile</string>
+    <string name="eq_settings_profile_name">Profile name</string>
+    <string name="eq_settings_autoeq_title">Search AutoEQ profiles</string>
+    <string name="eq_settings_autoeq_description">Apply a measured correction curve for your headphones.</string>
+    <string name="eq_settings_autoeq_search_hint">Headphone model</string>
+    <string name="eq_settings_autoeq_coming_soon">Fetching AutoEQ\'s results database isn\'t wired up yet - this is a placeholder for that.</string>
+
 <!-- Discord integration -->
     <string name="settings_discord_description">Show your listening activity as your Discord status</string>
     <string name="rpc_listen_ytm">Listen on YouTube Music</string>
