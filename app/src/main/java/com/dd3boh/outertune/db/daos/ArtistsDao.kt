@@ -288,6 +288,15 @@ interface ArtistsDao {
     """)
     fun safeDeleteArtist(artistId: String)
 
+    /**
+     * Used by ArtistCreditEnricher to replace a single combined credit (e.g. one ArtistEntity
+     * literally named "X & Y", with no real channel behind it) with the separate, verified
+     * artists it was standing in for - the ArtistEntity itself is left alone (safeDeleteArtist
+     * afterward if it's now unused by anything else).
+     */
+    @Query("DELETE FROM song_artist_map WHERE songId = :songId AND artistId = :artistId")
+    fun deleteSongArtistMap(songId: String, artistId: String)
+
     @Transaction
     @Query("DELETE FROM artist WHERE isLocal = 1")
     fun nukeLocalArtists()

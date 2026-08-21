@@ -28,6 +28,7 @@ import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
 import com.dd3boh.outertune.constants.DownloadPathKey
 import com.dd3boh.outertune.constants.DownloadThumbnailsKey
 import com.dd3boh.outertune.ui.utils.resize
+import com.dd3boh.outertune.utils.ArtistCreditEnricher
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.entities.FormatEntity
 import com.dd3boh.outertune.db.entities.PlaylistSong
@@ -521,6 +522,11 @@ class DownloadUtil @Inject constructor(
         isProcessingDownloads.value = false
         if (DOWNLOAD_DEBUG) Log.d(TAG, "Database registration complete, triggering map registry rebuild")
         rescanDownloads()
+        // Fire-and-forget: a batch of searches (one per song that actually has something to check
+        // - see ArtistCreditEnricher's own doc) shouldn't hold up this scan finishing.
+        CoroutineScope(dlCoroutine).launch {
+            downloads.value.keys.forEach { songId -> ArtistCreditEnricher.enrich(database, songId) }
+        }
         if (DOWNLOAD_DEBUG) Log.i(TAG, "-scanDownloads()")
     }
 
