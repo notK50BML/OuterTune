@@ -37429,3 +37429,47 @@ index c494707b..79dea755 100644
 -- 
 2.45.1.windows.1
 
+From 8db80f126ebdf5f28dcb2234e759fa542b779409 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 21:39:20 +0800
+Subject: [PATCH] Fix compile error: Coil3's Chain.proceed() takes no arguments
+
+Interceptor.Chain.proceed() is a no-arg suspend fun in Coil3 - to
+actually change the request before proceeding, the chain itself has to
+be replaced first via withRequest(), then proceed() called on that new
+chain. The original commit assumed a proceed(request) overload (the
+pattern in some older Coil versions/other interceptor APIs) that
+doesn't exist here, confirmed by the actual build failure:
+
+  e: ArtworkFallbackInterceptor.kt:28:36 Too many arguments for
+     'suspend fun proceed(): ImageResult'.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt   | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt b/app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt
+index a65839a5..379e3e8b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ArtworkFallbackInterceptor.kt
+@@ -25,7 +25,7 @@ private const val FALLBACK_SIZE = 320
+ 
+ class ArtworkFallbackInterceptor : Interceptor {
+     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
+-        val result = chain.proceed(chain.request)
++        val result = chain.proceed()
+         if (result !is ErrorResult || !artworkFallbackToLowRes) return result
+ 
+         val data = chain.request.data as? String ?: return result
+@@ -35,6 +35,6 @@ class ArtworkFallbackInterceptor : Interceptor {
+         val fallbackRequest = chain.request.newBuilder()
+             .data(fallbackUrl)
+             .build()
+-        return chain.proceed(fallbackRequest)
++        return chain.withRequest(fallbackRequest).proceed()
+     }
+ }
+-- 
+2.45.1.windows.1
+
