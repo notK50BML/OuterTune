@@ -165,7 +165,15 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
 
     @Transaction
     fun insert(mediaMetadata: MediaMetadata, block: (SongEntity) -> SongEntity = { it }) {
-        if (insert(mediaMetadata.toSongEntity().let(block)) == -1L) return
+        val isNewSong = insert(mediaMetadata.toSongEntity().let(block)) != -1L
+        // Artist/genre mappings run even for a song that already existed: one first cached from a
+        // sparse source (search, queue, related) can be missing artists a richer source - e.g. the
+        // very album this call came from - actually credits it with, and previously this whole
+        // function returned immediately on the SongEntity insert's OnConflictStrategy.IGNORE,
+        // silently discarding that richer artist list. The inserts below are already
+        // OnConflictStrategy.IGNORE on [songId, artistId]/[songId, genreId], so re-running this for
+        // an existing song only ever adds a mapping that was missing, never duplicates or removes
+        // one that's already there.
         mediaMetadata.artists.forEachIndexed { index, artist ->
             val artistId = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId()
             insert( // TODO: use upsert???
@@ -201,6 +209,10 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
             )
         }
 
+        // Unlike the mappings above, this isn't idempotent - it adds mediaMetadata.duration to the
+        // album's running total every time it runs, so it must stay gated to the song's actual
+        // first insert or a re-view of an already-known song would keep inflating that total.
+        if (!isNewSong) return
         mediaMetadata.album?.let {
             val album = albumsByName(it.title)
             val albumId = album?.id ?: GenreEntity.generateGenreId()
