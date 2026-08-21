@@ -25,7 +25,7 @@ private const val FALLBACK_SIZE = 320
 
 class ArtworkFallbackInterceptor : Interceptor {
     override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
-        val result = chain.proceed(chain.request)
+        val result = chain.proceed()
         if (result !is ErrorResult || !artworkFallbackToLowRes) return result
 
         val data = chain.request.data as? String ?: return result
@@ -35,6 +35,6 @@ class ArtworkFallbackInterceptor : Interceptor {
         val fallbackRequest = chain.request.newBuilder()
             .data(fallbackUrl)
             .build()
-        return chain.proceed(fallbackRequest)
+        return chain.withRequest(fallbackRequest).proceed()
     }
 }
