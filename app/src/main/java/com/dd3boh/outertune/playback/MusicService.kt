@@ -297,6 +297,9 @@ class MusicService : MediaLibraryService(),
         /** Carried through to [maybeSendPlaybackTelemetry] - see its own doc. */
         val cpn: String,
         val playbackTracking: PlayerResponse.PlaybackTracking?,
+        /** Name of the client this stream came from - read in onPlayerError to tell
+         *  YTPlayerUtils a WEB_REMIX stream specifically was what just got rejected. */
+        val clientName: String,
     )
 
     /**
@@ -674,6 +677,7 @@ class MusicService : MediaLibraryService(),
                 headers = playbackData.streamHeaders,
                 cpn = playbackData.cpn,
                 playbackTracking = playbackData.playbackTracking,
+                clientName = playbackData.clientName,
             )
             // Telemetry deliberately NOT fired here - this runs up to PRECACHE_LEAD_MS before the
             // song actually starts, and the ping sequence's timing only makes sense measured from
@@ -1128,6 +1132,7 @@ class MusicService : MediaLibraryService(),
                 headers = playbackData.streamHeaders,
                 cpn = playbackData.cpn,
                 playbackTracking = playbackData.playbackTracking,
+                clientName = playbackData.clientName,
             )
             songUrlCache[mediaId] = cachedStreamUrl
             maybeSendPlaybackTelemetry(mediaId, cachedStreamUrl)
@@ -1354,6 +1359,11 @@ class MusicService : MediaLibraryService(),
             error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
         val failedMediaId = player.currentMediaItem?.mediaId
         if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
+            // Recorded before the entry is dropped below - lets the retry's re-resolution skip
+            // straight to a fallback client instead of repeating this same WEB_REMIX rejection.
+            if (songUrlCache[failedMediaId]?.clientName == "WEB_REMIX") {
+                YTPlayerUtils.markWebRemixStreamFailed(failedMediaId)
+            }
             songUrlCache.remove(failedMediaId)
             if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL and identity: mediaId=$failedMediaId")
             retryCurrentItemWithFreshIdentity()

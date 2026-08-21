@@ -64,6 +64,32 @@ object YTPlayerUtils {
         IOS,
     )
 
+    private const val WEB_REMIX_FAILURE_TTL_MS = 5 * 60 * 1000L
+
+    /**
+     * videoId -> when its WEB_REMIX (MAIN_CLIENT) stream was last rejected during actual playback.
+     * MusicService's retry-on-source-error re-resolves from scratch, which otherwise tries
+     * WEB_REMIX again first and, if the rejection wasn't fixed by the accompanying identity
+     * rotation, wastes that one retry repeating the same failure instead of reaching a fallback
+     * client. A short TTL rather than a permanent skip: the rejection is often transient (a stale
+     * PoToken, a session flagged only briefly), and WEB_REMIX is the only fallback with premium
+     * formats/correct metadata, worth retrying again soon rather than avoiding indefinitely.
+     */
+    private val webRemixFailures = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    fun markWebRemixStreamFailed(videoId: String) {
+        webRemixFailures[videoId] = System.currentTimeMillis()
+    }
+
+    private fun hasRecentWebRemixFailure(videoId: String): Boolean {
+        val failedAt = webRemixFailures[videoId] ?: return false
+        if (System.currentTimeMillis() - failedAt >= WEB_REMIX_FAILURE_TTL_MS) {
+            webRemixFailures.remove(videoId, failedAt)
+            return false
+        }
+        return true
+    }
+
 
     data class PlaybackData(
         val audioConfig: PlayerResponse.PlayerConfig.AudioConfig?,
@@ -88,6 +114,8 @@ object YTPlayerUtils {
          * generating a throwaway one only for the pings keeps that correlation intact.
          */
         val cpn: String,
+        /** Name of whichever client actually produced [streamUrl] - see [markWebRemixStreamFailed]. */
+        val clientName: String,
     )
 
     /**
@@ -154,6 +182,14 @@ object YTPlayerUtils {
             // decide which client to use for streams and load its player response
             val client: YouTubeClient
             if (clientIndex == -1) {
+                // mainPlayerResponse is still fetched and used for metadata either way (see its
+                // own doc) - this only skips attempting to *stream* from a client whose stream
+                // was just rejected for this exact video, so the one retry MusicService gets after
+                // a source error reaches a fallback client instead of repeating the same failure.
+                if (hasRecentWebRemixFailure(videoId)) {
+                    Log.d(TAG, "Skipping ${MAIN_CLIENT.clientName} stream - recently rejected for this video")
+                    continue
+                }
                 Log.d(TAG, "Trying client: ${MAIN_CLIENT.clientName}")
                 // try with streams from main client first
                 client = MAIN_CLIENT
@@ -246,6 +282,7 @@ object YTPlayerUtils {
             streamExpiresInSeconds,
             streamClient.streamHeaders(),
             cpn,
+            streamClient.clientName,
         )
     }
 
