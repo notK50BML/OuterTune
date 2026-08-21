@@ -232,7 +232,7 @@ fun ExperimentalSettings(
             Spacer(Modifier.height(20.dp))
 
             PreferenceEntry(
-                title = { Text("Reset YouTube session: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues, or stream URLs that stop working partway through a song. Not recommended for logged in users.") },
+                title = { Text("Reset YouTube session: This may (or may not) help resolve \"Sign in to confirm you're not a bot\" issues, or stream URLs that stop working partway through a song. Works the same whether you're logged in or not.") },
                 onClick = {
                     playerConnection?.resetYouTubeSessionAndRetry()
                 }
