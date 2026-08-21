@@ -18,6 +18,8 @@ data class MediaMetadata(
     val artists: List<Artist>,
     val duration: Int,
     val thumbnailUrl: String? = null,
+    /** Downloaded full-res thumbnail path - see SongEntity.thumbnailPath's own doc. */
+    val thumbnailPath: String? = null,
     val trackNumber: Int? = null,
     val discNumber: Int? = null,
     val album: Album? = null,
@@ -101,6 +103,7 @@ data class MediaMetadata(
     fun getDateModifiedLong(): Long? = dateModified?.toEpochSecond(ZoneOffset.UTC)
 
     fun getThumbnailModel(sizeX: Int = -1, sizeY: Int = -1): Any? {
+        thumbnailPath?.let { return LocalArtworkPath(it, sizeX, sizeY) }
         return if (isLocal) {
             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
         } else {
@@ -121,6 +124,7 @@ fun Song.toMediaMetadata() = MediaMetadata(
     },
     duration = song.duration,
     thumbnailUrl = song.thumbnailUrl,
+    thumbnailPath = song.thumbnailPath,
     trackNumber = song.trackNumber,
     discNumber = song.discNumber,
     album = album?.let {

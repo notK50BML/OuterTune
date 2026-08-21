@@ -189,6 +189,20 @@ val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
 val HighResArtworkKey = booleanPreferencesKey("highResArtwork")
 
 /**
+ * When the high-res request in [HighResArtworkKey] fails to load, fall back to a lower-resolution
+ * request instead of showing nothing - the CDN occasionally rejects a very large size (or times out
+ * on it) for art that loads fine at a smaller one.
+ */
+val ArtworkFallbackToLowResKey = booleanPreferencesKey("artworkFallbackToLowRes")
+
+/**
+ * Downloads a song's full-resolution thumbnail into app-managed storage alongside its audio, kept
+ * independently of the audio download (see DownloadUtil.downloadThumbnail/removeThumbnail) so it
+ * can be fetched or removed on its own without touching the downloaded song itself.
+ */
+val DownloadThumbnailsKey = booleanPreferencesKey("downloadThumbnails")
+
+/**
  * Discord Integration
  */
 val DiscordTokenKey = stringPreferencesKey("discordToken")

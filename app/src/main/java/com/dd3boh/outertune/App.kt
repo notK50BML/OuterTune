@@ -29,6 +29,7 @@ import com.dd3boh.outertune.constants.AccountEmailKey
 import com.dd3boh.outertune.constants.AccountImageFetchedKey
 import com.dd3boh.outertune.constants.AccountImageUrlKey
 import com.dd3boh.outertune.constants.AccountNameKey
+import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
 import com.dd3boh.outertune.constants.ContentCountryKey
 import com.dd3boh.outertune.constants.ContentLanguageKey
 import com.dd3boh.outertune.constants.CountryCodeToName
@@ -49,6 +50,7 @@ import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.LocalArtworkPathKeyer
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.get
+import com.dd3boh.outertune.utils.artworkFallbackToLowRes
 import com.dd3boh.outertune.utils.highResArtwork
 import com.dd3boh.outertune.utils.normalizeDataSyncId
 import com.dd3boh.outertune.utils.reportException
@@ -157,6 +159,14 @@ class App : Application(), SingletonImageLoader.Factory {
         }
         GlobalScope.launch {
             dataStore.data
+                .map { it[ArtworkFallbackToLowResKey] ?: true }
+                .distinctUntilChanged()
+                .collect { enabled ->
+                    artworkFallbackToLowRes = enabled
+                }
+        }
+        GlobalScope.launch {
+            dataStore.data
                 .map { it[InnerTubeCookieKey] }
                 .distinctUntilChanged()
                 .collect { cookie ->
@@ -180,6 +190,7 @@ class App : Application(), SingletonImageLoader.Factory {
                 .components {
                     add(CoilBitmapLoader.Factory(this@App))
                     add(LocalArtworkPathKeyer())
+                    add(ArtworkFallbackInterceptor())
                 }
                 .crossfade(true)
                 .allowHardware(false)

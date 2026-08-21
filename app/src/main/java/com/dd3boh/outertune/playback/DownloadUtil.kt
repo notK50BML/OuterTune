@@ -26,6 +26,8 @@ import com.dd3boh.outertune.constants.DOWNLOAD_DEBUG
 import com.dd3boh.outertune.constants.DownloadExtraPathKey
 import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
 import com.dd3boh.outertune.constants.DownloadPathKey
+import com.dd3boh.outertune.constants.DownloadThumbnailsKey
+import com.dd3boh.outertune.ui.utils.resize
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.entities.FormatEntity
 import com.dd3boh.outertune.db.entities.PlaylistSong
@@ -89,6 +91,13 @@ class DownloadUtil @Inject constructor(
     private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
 
     private val songUrlCache = HashMap<String, CachedStreamUrl>()
+    private val thumbnailHttpClient = OkHttpClient.Builder()
+        .proxy(YouTube.proxy)
+        .build()
+
+    /** Where downloadThumbnail/removeThumbnail keep full-res thumbnails - app-managed storage,
+     *  independent of the user-chosen audio download directory. */
+    private val thumbnailDir = File(context.filesDir, "thumbnails").apply { mkdirs() }
     private val dataSourceFactory = ResolvingDataSource.Factory(
         CacheDataSource.Factory()
             .setCache(playerCache)
@@ -179,17 +188,67 @@ class DownloadUtil @Inject constructor(
 
     fun download(songs: List<MediaMetadata>) {
         if (songs.any { downloads.value[it.id] == null }) notifyIfWaitingForWifi()
-        songs.forEach { song -> downloadSong(song.id, song.title) }
+        songs.forEach { song ->
+            downloadSong(song.id, song.title)
+            maybeDownloadThumbnail(song.id, song.thumbnailUrl)
+        }
     }
 
     fun download(song: MediaMetadata) {
         if (downloads.value[song.id] == null) notifyIfWaitingForWifi()
         downloadSong(song.id, song.title)
+        maybeDownloadThumbnail(song.id, song.thumbnailUrl)
     }
 
     fun download(song: SongEntity) {
         if (downloads.value[song.id] == null) notifyIfWaitingForWifi()
         downloadSong(song.id, song.title)
+        maybeDownloadThumbnail(song.id, song.thumbnailUrl)
+    }
+
+    private fun maybeDownloadThumbnail(songId: String, thumbnailUrl: String?) {
+        if (thumbnailUrl == null || !context.dataStore.get(DownloadThumbnailsKey, false)) return
+        CoroutineScope(dlCoroutine).launch { downloadThumbnail(songId, thumbnailUrl) }
+    }
+
+    /**
+     * Downloads [songId]'s full-res thumbnail into app-managed storage, independent of its audio
+     * download (see SongEntity.thumbnailPath's own doc) - called automatically from download()
+     * when [DownloadThumbnailsKey] is on, or directly as a per-song "download thumbnail" action.
+     * Overwrites any thumbnail already downloaded for this song, so re-running it also serves as
+     * a refresh. [thumbnailUrl] is looked up from the database when not already known to the
+     * caller.
+     */
+    suspend fun downloadThumbnail(songId: String, thumbnailUrl: String? = null) {
+        val url = (thumbnailUrl ?: database.song(songId).first()?.song?.thumbnailUrl)
+            ?.resize(1080, 1080) ?: return
+        val file = File(thumbnailDir, "$songId.jpg")
+        try {
+            val request = okhttp3.Request.Builder().url(url).build()
+            withContext(Dispatchers.IO) {
+                thumbnailHttpClient.newCall(request).execute().use { response ->
+                    val body = response.body
+                    if (!response.isSuccessful || body == null) {
+                        Log.w(TAG, "Thumbnail download failed for $songId: HTTP ${response.code}")
+                        return@withContext
+                    }
+                    file.outputStream().use { out -> body.byteStream().copyTo(out) }
+                }
+            }
+            if (!file.exists()) return
+            database.song(songId).first()?.song?.copy(thumbnailPath = file.absolutePath)
+                ?.let { database.update(it) }
+        } catch (e: IOException) {
+            reportException(e)
+            file.delete()
+        }
+    }
+
+    /** Removes a downloaded full-res thumbnail without touching the song's own audio download. */
+    suspend fun removeThumbnail(songId: String) {
+        File(thumbnailDir, "$songId.jpg").delete()
+        database.song(songId).first()?.song?.takeIf { it.thumbnailPath != null }
+            ?.copy(thumbnailPath = null)?.let { database.update(it) }
     }
 
     /**

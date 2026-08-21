@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Backup
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.FolderCopy
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Wifi
@@ -62,6 +63,7 @@ import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DownloadExtraPathKey
 import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
+import com.dd3boh.outertune.constants.DownloadThumbnailsKey
 import com.dd3boh.outertune.constants.DownloadPathKey
 import com.dd3boh.outertune.constants.MaxImageCacheSizeKey
 import com.dd3boh.outertune.constants.MaxSongCacheSizeKey
@@ -150,6 +152,7 @@ fun ColumnScope.DownloadsFrag() {
     val (downloadPath, onDownloadPathChange) = rememberPreference(DownloadPathKey, "")
     val (scanPaths, onScanPathsChange) = rememberPreference(ScanPathsKey, defaultValue = "")
     val (downloadOnWifiOnly, onDownloadOnWifiOnlyChange) = rememberPreference(DownloadOnWifiOnlyKey, defaultValue = true)
+    val (downloadThumbnails, onDownloadThumbnailsChange) = rememberPreference(DownloadThumbnailsKey, defaultValue = false)
 
     // size stats
     var downloadCacheSize by remember {
@@ -202,6 +205,14 @@ fun ColumnScope.DownloadsFrag() {
             onDownloadOnWifiOnlyChange(it)
             downloadUtil.setDownloadRequirements(it)
         }
+    )
+
+    SwitchPreference(
+        title = { Text(stringResource(R.string.download_thumbnails_title)) },
+        description = stringResource(R.string.download_thumbnails_description),
+        icon = { Icon(Icons.Rounded.Image, null) },
+        checked = downloadThumbnails,
+        onCheckedChange = onDownloadThumbnailsChange
     )
 
     PreferenceEntry(

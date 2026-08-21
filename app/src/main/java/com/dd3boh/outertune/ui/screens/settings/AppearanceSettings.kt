@@ -36,6 +36,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
 import com.dd3boh.outertune.constants.HighResArtworkKey
 import com.dd3boh.outertune.constants.ShowTopBarLogoKey
 import com.dd3boh.outertune.constants.SlimNavBarKey
@@ -70,6 +71,8 @@ fun AppearanceSettings(
         rememberPreference(ShowTopBarLogoKey, defaultValue = true)
     val (highResArtworkPref, onHighResArtworkChange) =
         rememberPreference(HighResArtworkKey, defaultValue = true)
+    val (artworkFallbackToLowResPref, onArtworkFallbackToLowResChange) =
+        rememberPreference(ArtworkFallbackToLowResKey, defaultValue = true)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -117,6 +120,14 @@ fun AppearanceSettings(
                 icon = { Icon(Icons.Rounded.HighQuality, null) },
                 checked = highResArtworkPref,
                 onCheckedChange = onHighResArtworkChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.artwork_fallback_low_res_title)) },
+                description = stringResource(R.string.artwork_fallback_low_res_description),
+                icon = { Icon(Icons.Rounded.HighQuality, null) },
+                checked = artworkFallbackToLowResPref,
+                onCheckedChange = onArtworkFallbackToLowResChange,
+                isEnabled = highResArtworkPref
             )
             SwitchPreference(
                 title = { Text(stringResource(R.string.show_top_bar_logo_title)) },

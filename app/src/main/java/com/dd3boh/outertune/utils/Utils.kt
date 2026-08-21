@@ -95,6 +95,13 @@ fun getDownloadState(localDateTimes: List<LocalDateTime?>): Int {
 var highResArtwork: Boolean = true
 
 /**
+ * Mirrors [com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey] for
+ * [com.dd3boh.outertune.ArtworkFallbackInterceptor], which runs outside any Context.
+ */
+@Volatile
+var artworkFallbackToLowRes: Boolean = true
+
+/**
  * Ask the CDN for artwork at the size it will actually be drawn at.
  *
  * YouTube returns whatever thumbnail size suited the response it came from — library and browse

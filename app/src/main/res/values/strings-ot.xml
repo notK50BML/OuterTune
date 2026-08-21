@@ -140,6 +140,12 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="slim_navbar_description">Remove text labels to reduce navbar height</string>
     <string name="high_res_artwork_title">High resolution artwork</string>
     <string name="high_res_artwork_description">Request album art at the size it is displayed instead of using the small thumbnail YouTube returns. Turn off to save data.</string>
+    <string name="artwork_fallback_low_res_title">Fall back to lower resolution artwork</string>
+    <string name="artwork_fallback_low_res_description">If a high resolution image fails to load, retry at a smaller size instead of showing nothing.</string>
+    <string name="download_thumbnails_title">Download full resolution thumbnails</string>
+    <string name="download_thumbnails_description">Save a song\'s full resolution thumbnail alongside its download. Kept separately from the song itself - download or remove it independently from a song\'s menu.</string>
+    <string name="download_thumbnail">Download thumbnail</string>
+    <string name="remove_thumbnail">Remove thumbnail</string>
 
 <!-- Discord integration -->
     <string name="settings_discord_description">Show your listening activity as your Discord status</string>

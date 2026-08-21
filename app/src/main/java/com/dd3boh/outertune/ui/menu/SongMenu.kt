@@ -14,6 +14,8 @@ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.HideImage
+import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.rounded.LibraryAddCheck
@@ -264,6 +266,27 @@ fun SongMenu(
                     }
                 }
             )
+
+        // Independent of the song's own audio download - see SongEntity.thumbnailPath's own doc.
+        if (!song.song.isLocal) {
+            if (song.song.thumbnailPath == null) {
+                GridMenuItem(
+                    icon = Icons.Rounded.Image,
+                    title = R.string.download_thumbnail
+                ) {
+                    coroutineScope.launch { downloadUtil.downloadThumbnail(song.id) }
+                    onDismiss()
+                }
+            } else {
+                GridMenuItem(
+                    icon = Icons.Rounded.HideImage,
+                    title = R.string.remove_thumbnail
+                ) {
+                    coroutineScope.launch { downloadUtil.removeThumbnail(song.id) }
+                    onDismiss()
+                }
+            }
+        }
 
 
         GridMenuItem(

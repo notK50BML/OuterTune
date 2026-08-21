@@ -37,6 +37,9 @@ data class SongEntity(
     @ColumnInfo(index = true)
     val localPath: String?,
     val dateDownload: LocalDateTime? = null, // doubles as "isDownloaded" for new downloader system
+    // Full-res thumbnail downloaded into app-managed storage, independent of dateDownload/localPath -
+    // see DownloadUtil.downloadThumbnail/removeThumbnail. Null means not downloaded.
+    val thumbnailPath: String? = null,
     val liked: Boolean = false,
     val likedDate: LocalDateTime? = null,
 
@@ -104,6 +107,9 @@ data class SongEntity(
     fun getDateModifiedLong(): Long? = dateModified?.toEpochSecond(ZoneOffset.UTC)
 
     fun getThumbnailModel(sizeX: Int = -1, sizeY: Int = -1): Any? {
+        // A downloaded full-res thumbnail always wins over a remote fetch: it's already the
+        // largest size this song will ever have, and using it works offline.
+        thumbnailPath?.let { return LocalArtworkPath(it, sizeX, sizeY) }
         return if (isLocal) {
             LocalArtworkPath(thumbnailUrl ?: localPath, sizeX, sizeY)
         } else {
