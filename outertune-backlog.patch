@@ -34958,3 +34958,423 @@ index f12ff0c0..fe38293f 100644
 -- 
 2.45.1.windows.1
 
+From 586787d1bd73a717382eff3b6939ab1e896d1726 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 20:19:02 +0800
+Subject: [PATCH] Update stale client versions/UAs, fix client flags, tune HTTP
+ client
+
+Several clients were up to a year out of date: WEB/WEB_REMIX/WEB_CREATOR/
+TVHTML5 client versions and the shared Firefox UA all trailed Metrolist's
+current values by ~7-11 months; IOS/ANDROID similarly. Old client-version/
+UA combinations are a known trigger for degraded player responses as
+YouTube ages out old client builds.
+
+Also: WEB_CREATOR and TVHTML5 were missing useWebPoTokens=true; TVHTML5
+and TVHTML5_SIMPLY_EMBEDDED_PLAYER had loginRequired=true despite neither
+actually requiring it (the latter's whole purpose is a logged-out age-
+restriction bypass, which that flag defeated). Context.Client gained
+userAgent/osName/deviceMake/deviceModel/androidSdkVersion fields (real
+TV/VR clients embed these in the request body, not just headers), wired
+through a new YouTubeClient.includeUserAgentInContext flag, and set on
+ANDROID_VR_NO_AUTH. Added ANDROID_VR_1_43_32 (non-adaptive bitrate,
+fixes YT Music audio stuttering some devices see on the adaptive variant)
+as a defined-but-not-yet-wired-in fallback option.
+
+InnerTube's OkHttp client had no explicit timeouts (ktor's default is
+none at all - a stalled mobile connection could hang indefinitely) or
+connection-pool tuning, and no retry for transient I/O errors/5xx -
+added HttpTimeout, HttpRequestRetry (exponential backoff, deliberately
+scoped to exceptions/5xx only - a 403 is already handled by this app's
+own PoToken/session-rotation logic, so retrying it here too would just
+be redundant requests), and matched Metrolist's OkHttp-level timeout/
+connection-pool/HTTP-2 settings.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../java/com/zionhuang/innertube/InnerTube.kt | 37 +++++++++-
+ .../com/zionhuang/innertube/models/Context.kt |  8 +++
+ .../innertube/models/YouTubeClient.kt         | 70 +++++++++++++++----
+ 3 files changed, 98 insertions(+), 17 deletions(-)
+
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+index 42d46e2c..749758d3 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+@@ -16,8 +16,12 @@ import io.ktor.http.*
+ import io.ktor.serialization.kotlinx.json.*
+ import kotlinx.serialization.ExperimentalSerializationApi
+ import kotlinx.serialization.json.Json
++import okhttp3.ConnectionPool
++import okhttp3.Protocol
++import java.io.IOException
+ import java.net.Proxy
+ import java.util.*
++import java.util.concurrent.TimeUnit
+ 
+ /**
+  * Provide access to InnerTube endpoints.
+@@ -65,8 +69,37 @@ class InnerTube {
+             deflate(0.8F)
+         }
+ 
+-        if (proxy != null) {
+-            engine {
++        // Ktor's own defaults have no request timeout at all, so a stalled connection on a bad
++        // mobile network would otherwise hang indefinitely instead of failing fast enough for
++        // the app's own retry/fallback logic (e.g. the client-fallback loop in
++        // YTPlayerUtils.playerResponseForPlayback) to get a turn.
++        install(HttpTimeout) {
++            requestTimeoutMillis = 60_000
++            connectTimeoutMillis = 30_000
++            socketTimeoutMillis = 60_000
++        }
++
++        // Transient I/O only (timeouts, connection resets, 5xx) - deliberately NOT retrying 4xx
++        // here, since a 403/429 is handled by this app's own PoToken-refresh/session-rotation
++        // logic already, and retrying it blindly at this layer would just be redundant requests.
++        install(HttpRequestRetry) {
++            maxRetries = 3
++            retryIf { _, response -> response.status.value in 500..599 }
++            retryOnExceptionIf { _, cause -> cause is IOException }
++            exponentialDelay(baseDelayMs = 500)
++        }
++
++        engine {
++            config {
++                connectTimeout(30, TimeUnit.SECONDS)
++                readTimeout(60, TimeUnit.SECONDS)
++                writeTimeout(60, TimeUnit.SECONDS)
++                retryOnConnectionFailure(true)
++                connectionPool(ConnectionPool(10, 5, TimeUnit.MINUTES))
++                protocols(listOf(Protocol.HTTP_2, Protocol.HTTP_1_1))
++            }
++
++            if (proxy != null) {
+                 proxy = this@InnerTube.proxy
+             }
+         }
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt b/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
+index 226897a9..a17fabe0 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
+@@ -13,7 +13,15 @@ data class Context(
+     data class Client(
+         val clientName: String,
+         val clientVersion: String,
++        // Real TV/VR clients embed their User-Agent and device identity in the JSON body itself,
++        // not just the HTTP header - a client whose body is missing these looks less like the
++        // genuine app it's impersonating. Null (omitted) for clients that don't send them.
++        val userAgent: String? = null,
++        val osName: String? = null,
+         val osVersion: String?,
++        val deviceMake: String? = null,
++        val deviceModel: String? = null,
++        val androidSdkVersion: String? = null,
+         val gl: String,
+         val hl: String,
+         val visitorData: String?,
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+index c2317a86..0b26b34d 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+@@ -8,12 +8,18 @@ data class YouTubeClient(
+     val clientVersion: String,
+     val clientId: String,
+     val userAgent: String,
++    val osName: String? = null,
+     val osVersion: String? = null,
++    val deviceMake: String? = null,
++    val deviceModel: String? = null,
++    val androidSdkVersion: String? = null,
+     val loginSupported: Boolean = false,
+     val loginRequired: Boolean = false,
+     val useSignatureTimestamp: Boolean = false,
+     val useWebPoTokens: Boolean = false,
+     val isEmbedded: Boolean = false,
++    /** Whether [userAgent] also belongs in the request body's context.client - see that field's own doc. */
++    val includeUserAgentInContext: Boolean = false,
+     // val origin: String? = null,
+     // val referer: String? = null,
+ ) {
+@@ -21,7 +27,12 @@ data class YouTubeClient(
+         client = Context.Client(
+             clientName = clientName,
+             clientVersion = clientVersion,
++            userAgent = if (includeUserAgentInContext) userAgent else null,
++            osName = osName,
+             osVersion = osVersion,
++            deviceMake = deviceMake,
++            deviceModel = deviceModel,
++            androidSdkVersion = androidSdkVersion,
+             gl = locale.gl,
+             hl = locale.hl,
+             visitorData = visitorData
+@@ -35,7 +46,7 @@ data class YouTubeClient(
+         /**
+          * Should be the latest Firefox ESR version.
+          */
+-        const val USER_AGENT_WEB = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0"
++        const val USER_AGENT_WEB = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:140.0) Gecko/20100101 Firefox/140.0"
+ 
+         const val ORIGIN_YOUTUBE_MUSIC = "https://music.youtube.com"
+         const val REFERER_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/"
+@@ -43,14 +54,14 @@ data class YouTubeClient(
+ 
+         val WEB = YouTubeClient(
+             clientName = "WEB",
+-            clientVersion = "2.20250312.04.00",
++            clientVersion = "2.20260114.08.00",
+             clientId = "1",
+             userAgent = USER_AGENT_WEB,
+         )
+ 
+         val WEB_REMIX = YouTubeClient(
+             clientName = "WEB_REMIX",
+-            clientVersion = "1.20250310.01.00",
++            clientVersion = "1.20260114.03.00",
+             clientId = "67",
+             userAgent = USER_AGENT_WEB,
+             loginSupported = true,
+@@ -60,22 +71,24 @@ data class YouTubeClient(
+ 
+         val WEB_CREATOR = YouTubeClient(
+             clientName = "WEB_CREATOR",
+-            clientVersion = "1.20250312.03.01",
++            clientVersion = "1.20260114.05.00",
+             clientId = "62",
+             userAgent = USER_AGENT_WEB,
+             loginSupported = true,
+             loginRequired = true,
+             useSignatureTimestamp = true,
++            useWebPoTokens = true,
+         )
+ 
+         val TVHTML5 = YouTubeClient(
+             clientName = "TVHTML5",
+-            clientVersion = "7.20250312.16.00",
++            clientVersion = "7.20260114.12.00",
+             clientId = "7",
+-            userAgent = "Mozilla/5.0(SMART-TV; Linux; Tizen 4.0.0.2) AppleWebkit/605.1.15 (KHTML, like Gecko) SamsungBrowser/9.2 TV Safari/605.1.15",
++            userAgent = "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)",
+             loginSupported = true,
+-            loginRequired = true,
+-            useSignatureTimestamp = true
++            useSignatureTimestamp = true,
++            useWebPoTokens = true,
++            includeUserAgentInContext = true,
+         )
+ 
+         val TVHTML5_SIMPLY_EMBEDDED_PLAYER = YouTubeClient(
+@@ -84,24 +97,26 @@ data class YouTubeClient(
+             clientId = "85",
+             userAgent = "Mozilla/5.0 (PlayStation; PlayStation 4/12.02) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/15.4 Safari/605.1.15",
+             loginSupported = true,
+-            loginRequired = true,
++            // Doesn't actually require login for age-restricted content - this client's whole
++            // point is bypassing that as a logged-out fallback, which loginRequired=true defeated.
++            loginRequired = false,
+             useSignatureTimestamp = true,
+             isEmbedded = true,
+         )
+ 
+         val IOS = YouTubeClient(
+             clientName = "IOS",
+-            clientVersion = "20.10.4",
++            clientVersion = "21.03.1",
+             clientId = "5",
+-            userAgent = "com.google.ios.youtube/20.10.4 (iPhone16,2; U; CPU iOS 18_3_2 like Mac OS X;)",
+-            osVersion = "18.3.2.22D82",
++            userAgent = "com.google.ios.youtube/21.03.1 (iPhone16,2; U; CPU iOS 18_2 like Mac OS X;)",
++            osVersion = "18.2.22C152",
+         )
+ 
+         val ANDROID = YouTubeClient(
+             clientName = "ANDROID",
+-            clientVersion = "20.10.38",
++            clientVersion = "21.03.38",
+             clientId = "3",
+-            userAgent = "com.google.android.youtube/20.10.38 (Linux; U; Android 11) gzip",
++            userAgent = "com.google.android.youtube/21.03.38 (Linux; U; Android 14) gzip",
+             loginSupported = true,
+             useSignatureTimestamp = true
+         )
+@@ -111,8 +126,33 @@ data class YouTubeClient(
+             clientVersion = "1.61.48",
+             clientId = "28",
+             userAgent = "com.google.android.apps.youtube.vr.oculus/1.61.48 (Linux; U; Android 12; en_US; Oculus Quest 3; Build/SQ3A.220605.009.A1; Cronet/132.0.6808.3)",
++            osName = "Android",
++            osVersion = "12",
++            deviceMake = "Oculus",
++            deviceModel = "Quest 3",
++            androidSdkVersion = "32",
++            loginSupported = false,
++            useSignatureTimestamp = false,
++            includeUserAgentInContext = true,
++        )
++
++        /**
++         * Uses non-adaptive bitrate, which fixes audio stuttering with YT Music streams that the
++         * regular (adaptive) ANDROID_VR_NO_AUTH client can exhibit. Does not use AV1.
++         */
++        val ANDROID_VR_1_43_32 = YouTubeClient(
++            clientName = "ANDROID_VR",
++            clientVersion = "1.43.32",
++            clientId = "28",
++            userAgent = "com.google.android.apps.youtube.vr.oculus/1.43.32 (Linux; U; Android 12; en_US; Quest 3; Build/SQ3A.220605.009.A1; Cronet/107.0.5284.2)",
++            osName = "Android",
++            osVersion = "12",
++            deviceMake = "Oculus",
++            deviceModel = "Quest 3",
++            androidSdkVersion = "32",
+             loginSupported = false,
+-            useSignatureTimestamp = false
++            useSignatureTimestamp = false,
++            includeUserAgentInContext = true,
+         )
+     }
+ }
+-- 
+2.45.1.windows.1
+
+From 831a682ac43a8bb67b5b4c758aa59b9012092be5 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 20:24:59 +0800
+Subject: [PATCH] Skip WEB_REMIX for 5 min after its stream is rejected for a
+ video
+
+MusicService's retry-on-source-error re-resolves from scratch, which
+tries WEB_REMIX (MAIN_CLIENT) first again regardless of why the previous
+attempt failed - if the rejection wasn't fixed by the accompanying
+identity rotation, the one retry a song gets was spent repeating the
+same failure instead of reaching a fallback client. Metrolist tracks
+this per-video with a short TTL rather than a permanent skip, since the
+rejection is often transient and WEB_REMIX is the only fallback with
+premium formats/correct metadata.
+
+PlaybackData/CachedStreamUrl now carry which client actually produced
+the stream; onPlayerError records a WEB_REMIX-specific rejection before
+retrying, and playerResponseForPlayback skips attempting WEB_REMIX's
+stream (metadata is still fetched from it either way) while that record
+is fresh.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 10 +++++
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 37 +++++++++++++++++++
+ 2 files changed, 47 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 43f611e8..3fee55fa 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -297,6 +297,9 @@ class MusicService : MediaLibraryService(),
+         /** Carried through to [maybeSendPlaybackTelemetry] - see its own doc. */
+         val cpn: String,
+         val playbackTracking: PlayerResponse.PlaybackTracking?,
++        /** Name of the client this stream came from - read in onPlayerError to tell
++         *  YTPlayerUtils a WEB_REMIX stream specifically was what just got rejected. */
++        val clientName: String,
+     )
+ 
+     /**
+@@ -674,6 +677,7 @@ class MusicService : MediaLibraryService(),
+                 headers = playbackData.streamHeaders,
+                 cpn = playbackData.cpn,
+                 playbackTracking = playbackData.playbackTracking,
++                clientName = playbackData.clientName,
+             )
+             // Telemetry deliberately NOT fired here - this runs up to PRECACHE_LEAD_MS before the
+             // song actually starts, and the ping sequence's timing only makes sense measured from
+@@ -1128,6 +1132,7 @@ class MusicService : MediaLibraryService(),
+                 headers = playbackData.streamHeaders,
+                 cpn = playbackData.cpn,
+                 playbackTracking = playbackData.playbackTracking,
++                clientName = playbackData.clientName,
+             )
+             songUrlCache[mediaId] = cachedStreamUrl
+             maybeSendPlaybackTelemetry(mediaId, cachedStreamUrl)
+@@ -1354,6 +1359,11 @@ class MusicService : MediaLibraryService(),
+             error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
+         val failedMediaId = player.currentMediaItem?.mediaId
+         if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
++            // Recorded before the entry is dropped below - lets the retry's re-resolution skip
++            // straight to a fallback client instead of repeating this same WEB_REMIX rejection.
++            if (songUrlCache[failedMediaId]?.clientName == "WEB_REMIX") {
++                YTPlayerUtils.markWebRemixStreamFailed(failedMediaId)
++            }
+             songUrlCache.remove(failedMediaId)
+             if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL and identity: mediaId=$failedMediaId")
+             retryCurrentItemWithFreshIdentity()
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index fd2b0ffb..c494707b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -64,6 +64,32 @@ object YTPlayerUtils {
+         IOS,
+     )
+ 
++    private const val WEB_REMIX_FAILURE_TTL_MS = 5 * 60 * 1000L
++
++    /**
++     * videoId -> when its WEB_REMIX (MAIN_CLIENT) stream was last rejected during actual playback.
++     * MusicService's retry-on-source-error re-resolves from scratch, which otherwise tries
++     * WEB_REMIX again first and, if the rejection wasn't fixed by the accompanying identity
++     * rotation, wastes that one retry repeating the same failure instead of reaching a fallback
++     * client. A short TTL rather than a permanent skip: the rejection is often transient (a stale
++     * PoToken, a session flagged only briefly), and WEB_REMIX is the only fallback with premium
++     * formats/correct metadata, worth retrying again soon rather than avoiding indefinitely.
++     */
++    private val webRemixFailures = java.util.concurrent.ConcurrentHashMap<String, Long>()
++
++    fun markWebRemixStreamFailed(videoId: String) {
++        webRemixFailures[videoId] = System.currentTimeMillis()
++    }
++
++    private fun hasRecentWebRemixFailure(videoId: String): Boolean {
++        val failedAt = webRemixFailures[videoId] ?: return false
++        if (System.currentTimeMillis() - failedAt >= WEB_REMIX_FAILURE_TTL_MS) {
++            webRemixFailures.remove(videoId, failedAt)
++            return false
++        }
++        return true
++    }
++
+ 
+     data class PlaybackData(
+         val audioConfig: PlayerResponse.PlayerConfig.AudioConfig?,
+@@ -88,6 +114,8 @@ object YTPlayerUtils {
+          * generating a throwaway one only for the pings keeps that correlation intact.
+          */
+         val cpn: String,
++        /** Name of whichever client actually produced [streamUrl] - see [markWebRemixStreamFailed]. */
++        val clientName: String,
+     )
+ 
+     /**
+@@ -154,6 +182,14 @@ object YTPlayerUtils {
+             // decide which client to use for streams and load its player response
+             val client: YouTubeClient
+             if (clientIndex == -1) {
++                // mainPlayerResponse is still fetched and used for metadata either way (see its
++                // own doc) - this only skips attempting to *stream* from a client whose stream
++                // was just rejected for this exact video, so the one retry MusicService gets after
++                // a source error reaches a fallback client instead of repeating the same failure.
++                if (hasRecentWebRemixFailure(videoId)) {
++                    Log.d(TAG, "Skipping ${MAIN_CLIENT.clientName} stream - recently rejected for this video")
++                    continue
++                }
+                 Log.d(TAG, "Trying client: ${MAIN_CLIENT.clientName}")
+                 // try with streams from main client first
+                 client = MAIN_CLIENT
+@@ -246,6 +282,7 @@ object YTPlayerUtils {
+             streamExpiresInSeconds,
+             streamClient.streamHeaders(),
+             cpn,
++            streamClient.clientName,
+         )
+     }
+ 
+-- 
+2.45.1.windows.1
+
