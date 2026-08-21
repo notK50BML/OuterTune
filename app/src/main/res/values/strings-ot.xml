@@ -161,9 +161,11 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="eq_settings_save_as_profile">Save current as new profile</string>
     <string name="eq_settings_profile_name">Profile name</string>
     <string name="eq_settings_autoeq_title">Search AutoEQ profiles</string>
-    <string name="eq_settings_autoeq_description">Apply a measured correction curve for your headphones.</string>
+    <string name="eq_settings_autoeq_description">Apply a measured correction curve for your headphones, from AutoEQ\'s oratory1990 measurements.</string>
     <string name="eq_settings_autoeq_search_hint">Headphone model</string>
-    <string name="eq_settings_autoeq_coming_soon">Fetching AutoEQ\'s results database isn\'t wired up yet - this is a placeholder for that.</string>
+    <string name="eq_settings_autoeq_searching">Searching…</string>
+    <string name="eq_settings_autoeq_no_results">No matching headphones found.</string>
+    <string name="eq_settings_autoeq_error">Couldn\'t fetch that curve: %1$s</string>
 
 <!-- Discord integration -->
     <string name="settings_discord_description">Show your listening activity as your Discord status</string>
