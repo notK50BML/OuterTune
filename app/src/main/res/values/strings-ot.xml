@@ -149,9 +149,10 @@ while also allowing users to translate our app as well. New, specific strings to
 
 <!-- Equalizer settings -->
     <string name="eq_settings_title">Equalizer</string>
+    <string name="eq_settings_enabled_title">Enable equalizer</string>
     <string name="eq_settings_appearance">Appearance</string>
     <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
-    <string name="eq_settings_use_dials_description">Applies to band gain, frequency, and bass/treble controls everywhere the equalizer appears.</string>
+    <string name="eq_settings_use_dials_description">Applies to the selected band\'s frequency/gain editor. The band strip and bass/treble controls stay sliders and dials respectively either way.</string>
     <string name="eq_settings_contrast_color_title">Color from cover art</string>
     <string name="eq_settings_contrast_color_description">Color the equalizer\'s controls to contrast with the current song\'s cover art instead of the app theme.</string>
     <string name="eq_settings_value_gradient_title">Color by value</string>

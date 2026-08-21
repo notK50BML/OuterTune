@@ -126,7 +126,7 @@ private val EqualizerHandleHeight = 56.dp
  * floating over the player background instead of paving over it entirely.
  */
 @Composable
-private fun EqualizerCard(
+internal fun EqualizerCard(
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit,
 ) {
@@ -607,7 +607,7 @@ private fun balanceReadout(balance: Float): String {
 }
 
 /** Snaps a dial/slider's continuous drag output to a clean 0.1 step, e.g. "3.2" rather than "3.187456". */
-private fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10f
+internal fun quantizeTenth(value: Float): Float = (value * 10f).roundToInt() / 10f
 
 private fun formatDb(db: Float): String =
     "${if (db > 0) "+" else ""}${String.format(java.util.Locale.US, "%.1f", db)}"
@@ -685,7 +685,7 @@ private fun PowerampSlider(
  * there's exactly one thing controlling any given frequency.
  */
 @Composable
-private fun ToneControlsRow(
+internal fun ToneControlsRow(
     bassGainDb: Float,
     trebleGainDb: Float,
     balance: Float,
@@ -759,7 +759,7 @@ private fun ToneControlsRow(
  * is already louder than the threshold, then makes the result back up again.
  */
 @Composable
-private fun CompressorSection(
+internal fun CompressorSection(
     compressor: EqualizerSettings.CompressorSettings,
     onChange: (EqualizerSettings.CompressorSettings) -> Unit,
     color: Color,
@@ -944,7 +944,7 @@ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BandColumn(
+internal fun BandColumn(
     band: EqualizerSettings.EqBand,
     enabled: Boolean,
     selected: Boolean,
@@ -1080,7 +1080,7 @@ private fun MiniPlaybackControls(color: Color?) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun BandEditor(
+internal fun BandEditor(
     band: EqualizerSettings.EqBand,
     onChange: (EqualizerSettings.EqBand) -> Unit,
     color: Color,

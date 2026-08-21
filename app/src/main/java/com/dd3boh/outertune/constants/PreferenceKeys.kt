@@ -107,7 +107,12 @@ val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
 val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
 val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
 val EqContrastColorKey = booleanPreferencesKey("eqContrastColor")
-/** Dials vs sliders for band gain, the band editor's frequency/gain, and bass/treble. */
+/**
+ * Dials vs sliders for the selected band's frequency/gain in the band editor - not the 12-band
+ * gain strip above it or the bass/treble tone controls, both of which stay fixed (sliders and
+ * dials respectively) regardless of this setting; see BandColumn's and ToneControlsRow's own docs
+ * for why.
+ */
 val EqUseDialsKey = booleanPreferencesKey("eqUseDials")
 /** Colors slider tracks/thumbs and dial arcs blue-green-yellow by how low/mid/high the value is. */
 val EqValueColorGradientKey = booleanPreferencesKey("eqValueColorGradient")
