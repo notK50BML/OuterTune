@@ -90,15 +90,28 @@ class CoilBitmapLoader @Inject constructor(
 
     override suspend fun fetch(): FetchResult? {
         return try {
-            if (data.path?.startsWith("/storage/") == true) {
-                val mData = MediaMetadataRetriever()
-                var image: Bitmap = try {
-                    mData.setDataSource(data.path)
-                    val art = mData.embeddedPicture
-                    BitmapFactory.decodeByteArray(art, 0, art!!.size)
-                } catch (e: Exception) {
-                    drawPlaceholder(context)
-                } ?: drawPlaceholder(context)
+            if (data.path == null) {
+                null
+            } else {
+                // Two different things end up here: a downloaded thumbnail is already an image
+                // file on disk (see DownloadUtil.downloadThumbnail), while a locally-scanned
+                // song's own path is an audio file whose cover art has to be pulled out of its
+                // tags. decodeFile only reads image headers, so trying it first is cheap and
+                // correctly picks the downloaded-thumbnail case without needing a path prefix
+                // check (that thumbnail lives under the app's private files dir, not /storage/).
+                var image: Bitmap? = BitmapFactory.decodeFile(data.path)
+
+                if (image == null) {
+                    image = try {
+                        val mData = MediaMetadataRetriever()
+                        mData.setDataSource(data.path)
+                        val art = mData.embeddedPicture
+                        art?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                image = image ?: drawPlaceholder(context)
 
                 if (data.x + data.y > 0) {
                     var realX = data.x
@@ -127,8 +140,6 @@ class CoilBitmapLoader @Inject constructor(
                     isSampled = false,
                     dataSource = DataSource.DISK
                 )
-            } else {
-                null
             }
         } catch (e: Exception) {
             reportException(e)

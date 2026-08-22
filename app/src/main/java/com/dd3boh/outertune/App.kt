@@ -215,6 +215,7 @@ class App : Application(), SingletonImageLoader.Factory {
             .components {
                 add(CoilBitmapLoader.Factory(this@App))
                 add(LocalArtworkPathKeyer())
+                add(ArtworkFallbackInterceptor())
             }
             .crossfade(true)
             .allowHardware(false)
