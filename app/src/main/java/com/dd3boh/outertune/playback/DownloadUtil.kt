@@ -253,6 +253,25 @@ class DownloadUtil @Inject constructor(
             ?.copy(thumbnailPath = null)?.let { database.update(it) }
     }
 
+    /** true while [downloadAllThumbnails] is running, so the settings entry that triggers it can
+     *  show progress instead of allowing another run to stack on top of it. */
+    val isDownloadingAllThumbnails = MutableStateFlow(false)
+
+    /** Downloads a full-res thumbnail (see [downloadThumbnail]) for every currently downloaded
+     *  song that doesn't already have one - the bulk counterpart to the per-song action, for
+     *  songs that were downloaded before thumbnail downloading existed or was turned on. */
+    suspend fun downloadAllThumbnails() {
+        if (isDownloadingAllThumbnails.value) return
+        isDownloadingAllThumbnails.value = true
+        try {
+            database.downloadedSongs().first()
+                .filter { it.song.thumbnailPath == null }
+                .forEach { downloadThumbnail(it.id, it.song.thumbnailUrl) }
+        } finally {
+            isDownloadingAllThumbnails.value = false
+        }
+    }
+
     /**
      * Update the network requirement for downloads. Takes effect immediately, including for
      * downloads that are already queued or in progress.

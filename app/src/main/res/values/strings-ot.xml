@@ -146,6 +146,10 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="download_thumbnails_description">Save a song\'s full resolution thumbnail alongside its download. Kept separately from the song itself - download or remove it independently from a song\'s menu.</string>
     <string name="download_thumbnail">Download thumbnail</string>
     <string name="remove_thumbnail">Remove thumbnail</string>
+    <string name="download_all_thumbnails_title">Download thumbnails for all downloaded songs</string>
+    <string name="download_all_thumbnails_description">Fetches a full resolution thumbnail for every downloaded song that doesn\'t already have one.</string>
+    <string name="download_all_thumbnails_started">Downloading thumbnails for all downloaded songs</string>
+    <string name="grp_thumbnails">Thumbnails</string>
 
 <!-- Equalizer settings -->
     <string name="eq_settings_title">Equalizer</string>
