@@ -37871,3 +37871,345 @@ index 8b076d2cf66c3c9ac0e69eaa5499410c2ab7a13c..6eea6c211c933e3b0c46577745983769
 -- 
 2.45.1.windows.1
 
+From ef267500105cceb94b289bdf27a8775424ef11a4 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 22 Aug 2026 11:33:01 +0800
+Subject: Fix downloaded songs still streaming when downloaded mid-queue
+
+Playback resolution preferred the current queue's own cached MediaMetadata
+over the database, but nothing ever refreshes that cached copy once a song
+is queued - so a song downloaded (or finished downloading) after being
+added to the queue kept its stale localPath=null forever, and the player
+silently kept re-streaming it instead of switching to the now-available
+local file. Only rebuilding the queue from scratch (e.g. re-opening the
+playlist) picked up the download. A null localPath from the queue is now
+re-checked against the database once before falling through to streaming.
+---
+ .../java/com/dd3boh/outertune/playback/MusicService.kt | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index b7499dbf..0d573b4b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -999,6 +999,16 @@ class MusicService : MediaLibraryService(),
+             var song = queueBoard.value.getCurrentQueue()?.findSong(dataSpec.key ?: "")
+             if (song == null) { // in the case of resumption, queueBoard may not be ready yet
+                 song = runBlocking { database.song(dataSpec.key).first()?.toMediaMetadata() }
++            } else if (song.localPath == null) {
++                // The queue holds its own MediaMetadata snapshot from whenever this song was
++                // queued, and nothing invalidates it if a download finishes afterward - a null
++                // localPath here means "wasn't downloaded when queued", not "isn't downloaded
++                // now". Re-check the database once before falling through to streaming, so a
++                // song that finished downloading mid-queue actually plays from disk instead of
++                // silently re-streaming until the queue is rebuilt from scratch.
++                runBlocking { database.song(mediaId).first()?.localPath }?.let {
++                    song = song.copy(localPath = it)
++                }
+             }
+             // local song
+             if (song?.localPath != null) {
+From 60b2f0a31952c52ef74c0c1a220bd953a29fbcc3 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 22 Aug 2026 11:40:29 +0800
+Subject: Fix downloaded thumbnails rendering as a black player background
+
+CoilBitmapLoader.fetch() only handled paths under /storage/, and even then
+only by extracting embedded art from an audio file via MediaMetadataRetriever.
+A downloaded thumbnail (DownloadUtil.downloadThumbnail) is a plain image file
+saved under the app's private files dir, so it matched neither condition and
+the fetcher returned null - which Coil surfaces as a failed load, leaving the
+player's blur/gradient backgrounds with nothing to draw over their dark
+backdrop. Try decoding the path as an image directly first (cheap - it only
+reads headers), and fall back to embedded-picture extraction for local audio
+files.
+
+Also register ArtworkFallbackInterceptor on the normal (disk-cache-enabled)
+ImageLoader branch - it was only ever added on the disk-cache-disabled branch,
+so the low-res retry on failed high-res artwork never ran for anyone using
+the default cache settings.
+---
+ app/src/main/java/com/dd3boh/outertune/App.kt |  1 +
+ .../outertune/utils/CoilBitmapLoader.kt       | 33 ++++++++++++-------
+ 2 files changed, 23 insertions(+), 11 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
+index bd4fc564..24baba20 100644
+--- a/app/src/main/java/com/dd3boh/outertune/App.kt
++++ b/app/src/main/java/com/dd3boh/outertune/App.kt
+@@ -215,6 +215,7 @@ class App : Application(), SingletonImageLoader.Factory {
+             .components {
+                 add(CoilBitmapLoader.Factory(this@App))
+                 add(LocalArtworkPathKeyer())
++                add(ArtworkFallbackInterceptor())
+             }
+             .crossfade(true)
+             .allowHardware(false)
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt b/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt
+index 4c438e21..c075215c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt
+@@ -90,15 +90,28 @@ class CoilBitmapLoader @Inject constructor(
+ 
+     override suspend fun fetch(): FetchResult? {
+         return try {
+-            if (data.path?.startsWith("/storage/") == true) {
+-                val mData = MediaMetadataRetriever()
+-                var image: Bitmap = try {
+-                    mData.setDataSource(data.path)
+-                    val art = mData.embeddedPicture
+-                    BitmapFactory.decodeByteArray(art, 0, art!!.size)
+-                } catch (e: Exception) {
+-                    drawPlaceholder(context)
+-                } ?: drawPlaceholder(context)
++            if (data.path == null) {
++                null
++            } else {
++                // Two different things end up here: a downloaded thumbnail is already an image
++                // file on disk (see DownloadUtil.downloadThumbnail), while a locally-scanned
++                // song's own path is an audio file whose cover art has to be pulled out of its
++                // tags. decodeFile only reads image headers, so trying it first is cheap and
++                // correctly picks the downloaded-thumbnail case without needing a path prefix
++                // check (that thumbnail lives under the app's private files dir, not /storage/).
++                var image: Bitmap? = BitmapFactory.decodeFile(data.path)
++
++                if (image == null) {
++                    image = try {
++                        val mData = MediaMetadataRetriever()
++                        mData.setDataSource(data.path)
++                        val art = mData.embeddedPicture
++                        art?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
++                    } catch (e: Exception) {
++                        null
++                    }
++                }
++                image = image ?: drawPlaceholder(context)
+ 
+                 if (data.x + data.y > 0) {
+                     var realX = data.x
+@@ -127,8 +140,6 @@ class CoilBitmapLoader @Inject constructor(
+                     isSampled = false,
+                     dataSource = DataSource.DISK
+                 )
+-            } else {
+-                null
+             }
+         } catch (e: Exception) {
+             reportException(e)
+From 3913d36e9ac4af57fc8dc7a974cdc088bd8817b0 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 22 Aug 2026 11:43:42 +0800
+Subject: Move thumbnail-download setting to Library & Content, add bulk
+ download action
+
+The "download thumbnails automatically" toggle lived in Storage settings next
+to unrelated cache/path management, disconnected from where a user would
+think to look for it alongside other content-behavior settings. Moved it into
+Library & Content under a new Thumbnails group, and added a bulk action next
+to it - download a full-res thumbnail for every already-downloaded song that
+doesn't have one yet, for songs downloaded before this was turned on.
+---
+ .../dd3boh/outertune/playback/DownloadUtil.kt | 19 +++++++
+ .../ui/screens/settings/LibrarySettings.kt    | 57 +++++++++++++++++++
+ .../screens/settings/fragments/StorageFrag.kt | 11 ----
+ app/src/main/res/values/strings-ot.xml        |  4 ++
+ 4 files changed, 80 insertions(+), 11 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index 312eea5c..98047b63 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -253,6 +253,25 @@ class DownloadUtil @Inject constructor(
+             ?.copy(thumbnailPath = null)?.let { database.update(it) }
+     }
+ 
++    /** true while [downloadAllThumbnails] is running, so the settings entry that triggers it can
++     *  show progress instead of allowing another run to stack on top of it. */
++    val isDownloadingAllThumbnails = MutableStateFlow(false)
++
++    /** Downloads a full-res thumbnail (see [downloadThumbnail]) for every currently downloaded
++     *  song that doesn't already have one - the bulk counterpart to the per-song action, for
++     *  songs that were downloaded before thumbnail downloading existed or was turned on. */
++    suspend fun downloadAllThumbnails() {
++        if (isDownloadingAllThumbnails.value) return
++        isDownloadingAllThumbnails.value = true
++        try {
++            database.downloadedSongs().first()
++                .filter { it.song.thumbnailPath == null }
++                .forEach { downloadThumbnail(it.id, it.song.thumbnailUrl) }
++        } finally {
++            isDownloadingAllThumbnails.value = false
++        }
++    }
++
+     /**
+      * Update the network requirement for downloads. Takes effect immediately, including for
+      * downloads that are already queued or in progress.
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
+index e89f88d6..3ecfd9f5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
+@@ -12,34 +12,46 @@ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
+ import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.rememberScrollState
+ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
+ import androidx.compose.material.icons.rounded.FolderCopy
++import androidx.compose.material.icons.rounded.Image
++import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.ElevatedCard
+ import androidx.compose.material3.ExperimentalMaterial3Api
+ import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
+ import androidx.compose.material3.Text
+ import androidx.compose.material3.TopAppBar
+ import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
++import com.dd3boh.outertune.LocalDownloadUtil
++import com.dd3boh.outertune.LocalSnackbarHostState
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.DownloadThumbnailsKey
+ import com.dd3boh.outertune.constants.FlatSubfoldersKey
+ import com.dd3boh.outertune.constants.ShowLikedAndDownloadedPlaylist
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
++import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
+ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.screens.settings.fragments.LocalizationFrag
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.utils.rememberPreference
++import kotlinx.coroutines.launch
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+@@ -52,6 +64,13 @@ fun LibrarySettings(
+         defaultValue = true
+     )
+     val (flatSubfolders, onFlatSubfoldersChange) = rememberPreference(FlatSubfoldersKey, defaultValue = true)
++    val (downloadThumbnails, onDownloadThumbnailsChange) = rememberPreference(DownloadThumbnailsKey, defaultValue = false)
++
++    val downloadUtil = LocalDownloadUtil.current
++    val snackbarHostState = LocalSnackbarHostState.current
++    val coroutineScope = rememberCoroutineScope()
++    val isDownloadingAllThumbnails by downloadUtil.isDownloadingAllThumbnails.collectAsState()
++    val downloadAllThumbnailsStartedMessage = stringResource(R.string.download_all_thumbnails_started)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+@@ -89,6 +108,44 @@ fun LibrarySettings(
+                 onCheckedChange = onFlatSubfoldersChange
+             )
+         }
++        Spacer(modifier = Modifier.height(16.dp))
++
++        PreferenceGroupTitle(
++            title = stringResource(R.string.grp_thumbnails)
++        )
++        ElevatedCard(
++            modifier = Modifier.fillMaxWidth()
++        ) {
++            SwitchPreference(
++                title = { Text(stringResource(R.string.download_thumbnails_title)) },
++                description = stringResource(R.string.download_thumbnails_description),
++                icon = { Icon(Icons.Rounded.Image, null) },
++                checked = downloadThumbnails,
++                onCheckedChange = onDownloadThumbnailsChange
++            )
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.download_all_thumbnails_title)) },
++                description = stringResource(R.string.download_all_thumbnails_description),
++                icon = {
++                    if (isDownloadingAllThumbnails) {
++                        CircularProgressIndicator(
++                            modifier = Modifier.size(24.dp),
++                            color = MaterialTheme.colorScheme.secondary,
++                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
++                        )
++                    } else {
++                        Icon(Icons.Rounded.Image, null)
++                    }
++                },
++                isEnabled = !isDownloadingAllThumbnails,
++                onClick = {
++                    coroutineScope.launch {
++                        snackbarHostState.showSnackbar(downloadAllThumbnailsStartedMessage)
++                        downloadUtil.downloadAllThumbnails()
++                    }
++                }
++            )
++        }
+         Spacer(Modifier.height(96.dp))
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+index eb36d898..e7b732e6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+@@ -25,7 +25,6 @@ import androidx.compose.material.icons.rounded.Backup
+ import androidx.compose.material.icons.rounded.Close
+ import androidx.compose.material.icons.rounded.Downloading
+ import androidx.compose.material.icons.rounded.FolderCopy
+-import androidx.compose.material.icons.rounded.Image
+ import androidx.compose.material.icons.rounded.Restore
+ import androidx.compose.material.icons.rounded.Sync
+ import androidx.compose.material.icons.rounded.Wifi
+@@ -63,7 +62,6 @@ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.DownloadExtraPathKey
+ import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
+-import com.dd3boh.outertune.constants.DownloadThumbnailsKey
+ import com.dd3boh.outertune.constants.DownloadPathKey
+ import com.dd3boh.outertune.constants.MaxImageCacheSizeKey
+ import com.dd3boh.outertune.constants.MaxSongCacheSizeKey
+@@ -152,7 +150,6 @@ fun ColumnScope.DownloadsFrag() {
+     val (downloadPath, onDownloadPathChange) = rememberPreference(DownloadPathKey, "")
+     val (scanPaths, onScanPathsChange) = rememberPreference(ScanPathsKey, defaultValue = "")
+     val (downloadOnWifiOnly, onDownloadOnWifiOnlyChange) = rememberPreference(DownloadOnWifiOnlyKey, defaultValue = true)
+-    val (downloadThumbnails, onDownloadThumbnailsChange) = rememberPreference(DownloadThumbnailsKey, defaultValue = false)
+ 
+     // size stats
+     var downloadCacheSize by remember {
+@@ -207,14 +204,6 @@ fun ColumnScope.DownloadsFrag() {
+         }
+     )
+ 
+-    SwitchPreference(
+-        title = { Text(stringResource(R.string.download_thumbnails_title)) },
+-        description = stringResource(R.string.download_thumbnails_description),
+-        icon = { Icon(Icons.Rounded.Image, null) },
+-        checked = downloadThumbnails,
+-        onCheckedChange = onDownloadThumbnailsChange
+-    )
+-
+     PreferenceEntry(
+         title = { Text(stringResource(R.string.dl_main_path_title)) },
+         description = if (downloadPath != "") uriListFromString(downloadPath).firstOrNull()
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 6e0a6c56..5d1e6625 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -146,6 +146,10 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="download_thumbnails_description">Save a song\'s full resolution thumbnail alongside its download. Kept separately from the song itself - download or remove it independently from a song\'s menu.</string>
+     <string name="download_thumbnail">Download thumbnail</string>
+     <string name="remove_thumbnail">Remove thumbnail</string>
++    <string name="download_all_thumbnails_title">Download thumbnails for all downloaded songs</string>
++    <string name="download_all_thumbnails_description">Fetches a full resolution thumbnail for every downloaded song that doesn\'t already have one.</string>
++    <string name="download_all_thumbnails_started">Downloading thumbnails for all downloaded songs</string>
++    <string name="grp_thumbnails">Thumbnails</string>
+ 
+ <!-- Equalizer settings -->
+     <string name="eq_settings_title">Equalizer</string>
