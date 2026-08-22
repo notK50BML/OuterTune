@@ -234,8 +234,14 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
     fun savedProfile(name: String) = savedProfiles.find { it.name == name }
 
     fun loadProfile(name: String) {
-        val toApply = savedProfile(name)?.settings ?: EqualizerProfile.factoryDefault(name)?.settings ?: return
-        update(toApply.copy(enabled = settings.enabled))
+        val saved = savedProfile(name)
+        val toApply = saved?.settings ?: EqualizerProfile.factoryDefault(name)?.settings ?: return
+        // A built-in preset's factory curve carries no compressor settings of its own (only band
+        // gains), so applying one for the first time (nothing Saved under this name yet) must keep
+        // whatever compressor the user already has dialed in rather than silently reverting it to
+        // default. A saved profile's own compressor - the whole reason Save exists - still wins.
+        val compressorToApply = if (saved != null) toApply.compressor else settings.compressor
+        update(toApply.copy(enabled = settings.enabled, compressor = compressorToApply))
         activeProfileName = name
     }
 
