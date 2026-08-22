@@ -8,6 +8,7 @@ import android.widget.Toast.LENGTH_SHORT
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
 import androidx.media3.database.DatabaseProvider
+import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheSpan
@@ -553,6 +554,17 @@ class DownloadUtil @Inject constructor(
                     download: Download,
                     finalException: Exception?
                 ) {
+                    // A rejected stream URL (403/410) is the CDN's own signal that the resolved
+                    // URL is dead - the same class of failure playback recovers from by re-resolving
+                    // via a different client. Media3 retries a failed download task on its own, but
+                    // it would keep reusing this same now-known-bad cached URL every time without
+                    // this, since the ResolvingDataSource factory above only re-resolves when the
+                    // cache entry is gone.
+                    if (finalException?.isExpiredStreamError() == true) {
+                        Log.w(TAG, "Stream expired for ${download.request.id}, invalidating cached URL for retry")
+                        songUrlCache.remove(download.request.id)
+                    }
+
                     downloads.update { map ->
                         map.toMutableMap().apply {
                             val state = stateToLocalDateTime(download)
@@ -578,6 +590,26 @@ class DownloadUtil @Inject constructor(
             }
         )
     }
+}
+
+/**
+ * Whether this exception (or any exception in its cause chain) is an HTTP 403 or 410 response -
+ * googlevideo.com's way of saying a resolved stream URL has expired or was rejected outright, the
+ * same failure mode ExoPlayer sees mid-playback. Unwrapping the chain is necessary because Media3
+ * wraps the underlying [androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException] in
+ * its own downloader/task exceptions before it reaches [DownloadManager.Listener].
+ */
+private fun Throwable.isExpiredStreamError(): Boolean {
+    var cause: Throwable? = this
+    while (cause != null) {
+        if (cause is HttpDataSource.InvalidResponseCodeException &&
+            (cause.responseCode == 403 || cause.responseCode == 410)
+        ) {
+            return true
+        }
+        cause = cause.cause
+    }
+    return false
 }
 
 fun stateToLocalDateTime(download: Download): LocalDateTime {

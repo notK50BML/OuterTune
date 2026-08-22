@@ -60,7 +60,16 @@ object SignatureCipherManager {
                 return@withLock null
             }
 
-            val config = PlayerCipherConfigStore.get(playerHash)
+            var config = PlayerCipherConfigStore.get(playerHash)
+            if (config == null) {
+                // The bundled table is a build-time snapshot and YouTube rotates players far more
+                // often than this app ships releases; pull the latest upstream table before
+                // giving up on a player it simply hasn't seen yet (rate-limited internally).
+                if (PlayerCipherConfigStore.ensureFreshFor(playerHash)) {
+                    Log.i(TAG, "[$videoId] player $playerHash now known after remote config refresh")
+                    config = PlayerCipherConfigStore.get(playerHash)
+                }
+            }
             if (config == null) {
                 if (attempt == 0 && fromCache) {
                     // The cached player.js may be stale; refetch once in case the current player is

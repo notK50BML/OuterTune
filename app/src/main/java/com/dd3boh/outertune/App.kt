@@ -48,6 +48,7 @@ import com.dd3boh.outertune.extensions.toEnum
 import com.dd3boh.outertune.extensions.toInetSocketAddress
 import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.LocalArtworkPathKeyer
+import com.dd3boh.outertune.utils.cipher.PlayerCipherConfigStore
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.artworkFallbackToLowRes
@@ -164,6 +165,13 @@ class App : Application(), SingletonImageLoader.Factory {
                 .collect { enabled ->
                     artworkFallbackToLowRes = enabled
                 }
+        }
+        // The bundled player cipher config table is a build-time snapshot; refresh it from
+        // upstream once per cold start so a player YouTube rotated since the last release is
+        // already known before the first song plays, rather than only healing reactively after
+        // that song's stream fails once (see PlayerCipherConfigStore's own doc).
+        GlobalScope.launch(Dispatchers.IO) {
+            PlayerCipherConfigStore.refresh(force = false)
         }
         GlobalScope.launch {
             dataStore.data
