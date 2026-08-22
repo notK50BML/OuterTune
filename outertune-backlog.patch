@@ -37473,3 +37473,598 @@ index a65839a5..379e3e8b 100644
 -- 
 2.45.1.windows.1
 
+From d19ed278cf52a916b44702b8ec8a9f8ffa5e00ec Mon Sep 17 00:00:00 2001
+From: verify <verify@example.com>
+Date: Fri, 21 Aug 2026 22:16:49 +0800
+Subject: [PATCH] Add a per-song "try next lyrics provider" action to the
+ lyrics menu
+
+Wrong lyrics for a song are usually a single bad provider, not a config
+problem worth a trip to settings. This adds a "Try next provider" item to
+the lyrics-specific menu that cycles to the next enabled provider (in the
+user's configured order) and re-fetches just that song. The choice is
+stored as the song's provider (LyricsEntity.provider already existed for
+this), so it's remembered and is also what a later switch cycles onward
+from - no new schema needed.
+---
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   | 48 +++++++++++++++++++
+ .../dd3boh/outertune/ui/menu/LyricsMenu.kt    | 22 +++++++++
+ .../viewmodels/LyricsMenuViewModel.kt         | 31 ++++++++++++
+ app/src/main/res/values/strings-ot.xml        |  4 ++
+ 4 files changed, 105 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index d914c0e..8bc2b7f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -493,6 +493,40 @@ class LyricsHelper @Inject constructor(
+         }
+     }
+ 
++    /** Enabled providers in the user's configured order - the same list [nextLyricsProvider] cycles through. */
++    fun enabledProvidersInOrder(): List<LyricsProvider> =
++        orderProviders(lyricsProviders, readProviderOrder(context)).filter { it.isEnabled(context) }
++
++    /**
++     * Fetches [mediaMetadata]'s lyrics from exactly [provider], bypassing the normal ordering/racing
++     * across every enabled provider - for when the current lyrics are simply wrong and the user wants
++     * to explicitly try a specific different one instead. On success this is stored as the song's
++     * chosen provider (see [LyricsEntity.provider]'s own doc), so it is also what is shown - and what
++     * the next "try another" cycles onward from - the next time this song is opened. A failure or
++     * NotFound leaves the existing row untouched, so a bad attempt can never lose lyrics the song
++     * already had.
++     */
++    suspend fun fetchFromProvider(mediaMetadata: MediaMetadata, provider: LyricsProvider): Boolean {
++        val artistName = mediaMetadata.artists
++            .filter { it.id != null }
++            .joinToString { it.name.removeSuffix(" - Topic") }
++            .ifEmpty { mediaMetadata.artists.joinToString { it.name } }
++        val result = runProvider(provider, mediaMetadata, artistName, LyricsFetchRole.MANUAL, PROVIDER_TIMEOUT_MS)
++        if (result !is LyricsFetchResult.Found) return false
++        withContext(Dispatchers.IO) {
++            database.upsert(
++                LyricsEntity(
++                    id = mediaMetadata.id,
++                    lyrics = result.raw,
++                    provider = provider.id,
++                    lastCheckedAt = System.currentTimeMillis(),
++                    providerSignature = ProviderSelection.snapshot(context, lyricsProviders).signature,
++                )
++            )
++        }
++        return true
++    }
++
+     /**
+      * Lookup lyrics from local disk (.lrc) file
+      */
+@@ -673,6 +707,20 @@ fun orderProviders(all: List<LyricsProvider>, order: List<String>): List<LyricsP
+     return ranked + all.filterNot { it in ranked }
+ }
+ 
++/**
++ * The provider to try next after [currentProviderId] when the user asks to switch away from
++ * whatever is currently showing - the one immediately after it in [providers], wrapping back to the
++ * first when it was already the last. Falls back to the first provider when there is nothing to
++ * compare against (nothing stored yet) or the stored id no longer matches anything in [providers]
++ * (it was disabled or removed since). Null only when [providers] itself is empty.
++ */
++fun nextLyricsProvider(providers: List<LyricsProvider>, currentProviderId: String?): LyricsProvider? {
++    if (providers.isEmpty()) return null
++    val currentIndex = providers.indexOfFirst { it.id == currentProviderId }
++    val nextIndex = if (currentIndex == -1) 0 else (currentIndex + 1) % providers.size
++    return providers[nextIndex]
++}
++
+ /**
+  * Aggregate outcome of resolving lyrics across every enabled provider for one song.
+  */
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
+index 8495549..edaf17c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
+@@ -2,6 +2,7 @@ package com.dd3boh.outertune.ui.menu
+ 
+ import android.app.SearchManager
+ import android.content.Intent
++import android.widget.Toast
+ import androidx.compose.animation.animateContentSize
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Box
+@@ -27,6 +28,7 @@ import androidx.compose.material.icons.rounded.Search
+ import androidx.compose.material.icons.rounded.Settings
+ import androidx.compose.material.icons.rounded.Sync
+ import androidx.compose.material.icons.rounded.SyncAlt
++import androidx.compose.material.icons.rounded.SwapHoriz
+ import androidx.compose.material3.CircularProgressIndicator
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
+@@ -414,6 +416,26 @@ fun LyricsMenu(
+             onDismiss()
+             viewModel.refetchLyrics(mediaMetadataProvider()) { onRefreshRequest(it) }
+         }
++        GridMenuItem(
++            icon = Icons.Rounded.SwapHoriz,
++            title = R.string.try_next_lyrics_provider,
++        ) {
++            onDismiss()
++            viewModel.switchToNextLyricsProvider(mediaMetadataProvider(), lyricsProvider()?.provider) { lyrics, providerName ->
++                when {
++                    providerName == null ->
++                        Toast.makeText(context, context.getString(R.string.no_other_lyrics_provider), Toast.LENGTH_SHORT).show()
++
++                    lyrics == null ->
++                        Toast.makeText(context, context.getString(R.string.switched_lyrics_provider_no_lyrics, providerName), Toast.LENGTH_SHORT).show()
++
++                    else -> {
++                        Toast.makeText(context, context.getString(R.string.switched_lyrics_provider, providerName), Toast.LENGTH_SHORT).show()
++                        onRefreshRequest(lyrics)
++                    }
++                }
++            }
++        }
+         GridMenuItem(
+             icon = Icons.Rounded.Search,
+             title = R.string.search,
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt
+index baca3dd..8a3cd66 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt
+@@ -7,6 +7,7 @@ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.lyrics.LyricsFetchRole
+ import com.dd3boh.outertune.lyrics.LyricsHelper
+ import com.dd3boh.outertune.lyrics.LyricsResult
++import com.dd3boh.outertune.lyrics.nextLyricsProvider
+ import com.dd3boh.outertune.models.MediaMetadata
+ import dagger.hilt.android.lifecycle.HiltViewModel
+ import kotlinx.coroutines.CoroutineScope
+@@ -63,4 +64,34 @@ class LyricsMenuViewModel @Inject constructor(
+             }
+         }
+     }
++
++    /**
++     * Cycles this song off whichever provider currently supplied its lyrics ([currentProviderId], the
++     * stored [com.dd3boh.outertune.db.entities.LyricsEntity.provider]) onto the next enabled one in the
++     * user's configured order, for when the current lyrics are simply wrong for this song. The choice
++     * is persisted as that song's provider (see [LyricsHelper.fetchFromProvider]), so it is what shows
++     * next time too, and what a later switch cycles onward from.
++     *
++     * [onDone] receives the newly fetched lyrics (null on failure or not-found) and the name of the
++     * provider that was tried, or null if there was no other enabled provider to try.
++     */
++    fun switchToNextLyricsProvider(
++        mediaMetadata: MediaMetadata,
++        currentProviderId: String?,
++        onDone: (lyrics: SemanticLyrics?, providerName: String?) -> Unit,
++    ) {
++        CoroutineScope(Dispatchers.IO).launch {
++            val candidates = lyricsHelper.enabledProvidersInOrder()
++            val next = nextLyricsProvider(candidates, currentProviderId)
++            if (next == null) {
++                onDone(null, null)
++                return@launch
++            }
++            val lyrics = withTimeoutOrNull(LYRIC_FETCH_TIMEOUT) {
++                val success = lyricsHelper.fetchFromProvider(mediaMetadata, next)
++                if (success) lyricsHelper.getLyrics(mediaMetadata) else null
++            }
++            onDone(lyrics, next.name)
++        }
++    }
+ }
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 6e0a6c5..c9e3a16 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -43,6 +43,10 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="more_settings">More settings</string>
+     <string name="delete_lyric_confirm">Do you really want to delete the stored lyrics for \"%s\"?</string>
+     <string name="tap_show_more">Tap to show more information</string>
++    <string name="try_next_lyrics_provider">Try next provider</string>
++    <string name="switched_lyrics_provider">Now using %s for lyrics</string>
++    <string name="switched_lyrics_provider_no_lyrics">%s didn\'t have lyrics for this song</string>
++    <string name="no_other_lyrics_provider">No other lyrics provider is enabled</string>
+ 
+ <!-- Player -->
+     <string name="err_invalid_ytm_song">Failed to play song. Only content accessible on YouTube Music can be played</string>
+-- 
+2.45.1.windows.1
+
+From a03e30e0705adf9f6e9bb2990e9e0df2e9f764e0 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 22 Aug 2026 10:10:08 +0800
+Subject: [PATCH 1/2] Fix compressor settings reverting to default when picking
+ a built-in EQ preset
+
+Selecting any built-in preset (Rock, Pop, etc.) applied
+EqualizerSettings.DEFAULT.withPresetGains(...), which carries default
+CompressorSettings since presets are just band-gain arrays. That silently
+discarded whatever compressor the user had dialed in every time they picked
+an unsaved built-in preset. Now the current compressor is preserved unless
+the profile being loaded is an explicitly Saved one, whose own compressor
+should win.
+---
+ .../com/dd3boh/outertune/ui/player/EqualizerPanel.kt | 10 ++++++++--
+ .../ui/screens/settings/EqualizerSettings.kt         | 12 ++++++++----
+ 2 files changed, 16 insertions(+), 6 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index 6a816348..e0754a6b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -234,8 +234,14 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+     fun savedProfile(name: String) = savedProfiles.find { it.name == name }
+ 
+     fun loadProfile(name: String) {
+-        val toApply = savedProfile(name)?.settings ?: EqualizerProfile.factoryDefault(name)?.settings ?: return
+-        update(toApply.copy(enabled = settings.enabled))
++        val saved = savedProfile(name)
++        val toApply = saved?.settings ?: EqualizerProfile.factoryDefault(name)?.settings ?: return
++        // A built-in preset's factory curve carries no compressor settings of its own (only band
++        // gains), so applying one for the first time (nothing Saved under this name yet) must keep
++        // whatever compressor the user already has dialed in rather than silently reverting it to
++        // default. A saved profile's own compressor - the whole reason Save exists - still wins.
++        val compressorToApply = if (saved != null) toApply.compressor else settings.compressor
++        update(toApply.copy(enabled = settings.enabled, compressor = compressorToApply))
+         activeProfileName = name
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index 2fd56a59..dcd18882 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -161,10 +161,14 @@ fun EqualizerSettingsScreen(
+     }
+ 
+     fun loadProfile(name: String) {
+-        val toApply = savedProfiles.find { it.name == name }?.settings
+-            ?: EqualizerProfile.factoryDefault(name)?.settings
+-            ?: return
+-        update(toApply.copy(enabled = settings.enabled))
++        val saved = savedProfiles.find { it.name == name }
++        val toApply = saved?.settings ?: EqualizerProfile.factoryDefault(name)?.settings ?: return
++        // A built-in preset's factory curve carries no compressor settings of its own (only band
++        // gains), so applying one for the first time (nothing Saved under this name yet) must keep
++        // whatever compressor the user already has dialed in rather than silently reverting it to
++        // default. A saved profile's own compressor - the whole reason Save exists - still wins.
++        val compressorToApply = if (saved != null) toApply.compressor else settings.compressor
++        update(toApply.copy(enabled = settings.enabled, compressor = compressorToApply))
+     }
+ 
+     fun saveProfile(name: String) {
+-- 
+2.45.1.windows.1
+
+
+From 2045c51c374a05d5b53ebab8ae8f8013a41e378a Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 22 Aug 2026 10:14:36 +0800
+Subject: [PATCH 2/2] Self-heal stale player cipher configs and expired
+ download stream URLs
+
+Two related fixes for the same underlying failure mode (a resolved
+stream URL going bad - "Could not find deobfuscation function" during
+playback, or a silent permanent failure during downloads, both via the
+same YTPlayerUtils/SignatureCipherManager pipeline):
+
+- The bundled player_configs.json (from ZemerTeam/zemer-cipher) is a
+  build-time snapshot; YouTube rotates its player far more often than
+  this app ships releases, so once the current player's hash falls out
+  of that snapshot, CipherWebView has no config to run and WEB
+  deobfuscation fails outright until the next update. PlayerCipherConfigStore
+  now layers a runtime-fetched, disk-cached copy of the same upstream file
+  over the bundled one: refreshed once per cold start, and on-demand
+  (rate limited) whenever a hash comes back unknown.
+
+- Downloads resolve their stream URL through the identical pipeline and
+  cache it (songUrlCache) for reuse across the file's chunks. A 403/410
+  from googlevideo.com meant that cached URL was now dead, but nothing
+  ever invalidated it, so every retry (Media3's own included) kept
+  reusing the same known-bad URL forever. DownloadUtil now detects that
+  response-code pair anywhere in the failure's cause chain and drops the
+  cache entry so the next attempt re-resolves fresh.
+
+Also adds a .gitattributes normalization rule (some edits earlier this
+session picked up CRLF from a Windows/core.autocrlf interaction) so this
+class of corruption can't recur silently on future edits.
+---
+ .gitattributes                                |   1 +
+ app/src/main/java/com/dd3boh/outertune/App.kt |   8 +
+ .../dd3boh/outertune/playback/DownloadUtil.kt |  32 ++++
+ .../utils/cipher/PlayerCipherConfig.kt        | 140 ++++++++++++++++--
+ .../utils/cipher/SignatureCipherManager.kt    |  11 +-
+ 5 files changed, 177 insertions(+), 15 deletions(-)
+
+diff --git a/.gitattributes b/.gitattributes
+index ec1ffa81..ecf83dd6 100644
+--- a/.gitattributes
++++ b/.gitattributes
+@@ -1 +1,2 @@
++* text=auto eol=lf
+ *.patch -text
+diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
+index e2daf153..bd4fc564 100644
+--- a/app/src/main/java/com/dd3boh/outertune/App.kt
++++ b/app/src/main/java/com/dd3boh/outertune/App.kt
+@@ -48,6 +48,7 @@ import com.dd3boh.outertune.extensions.toEnum
+ import com.dd3boh.outertune.extensions.toInetSocketAddress
+ import com.dd3boh.outertune.utils.CoilBitmapLoader
+ import com.dd3boh.outertune.utils.LocalArtworkPathKeyer
++import com.dd3boh.outertune.utils.cipher.PlayerCipherConfigStore
+ import com.dd3boh.outertune.utils.dataStore
+ import com.dd3boh.outertune.utils.get
+ import com.dd3boh.outertune.utils.artworkFallbackToLowRes
+@@ -165,6 +166,13 @@ class App : Application(), SingletonImageLoader.Factory {
+                     artworkFallbackToLowRes = enabled
+                 }
+         }
++        // The bundled player cipher config table is a build-time snapshot; refresh it from
++        // upstream once per cold start so a player YouTube rotated since the last release is
++        // already known before the first song plays, rather than only healing reactively after
++        // that song's stream fails once (see PlayerCipherConfigStore's own doc).
++        GlobalScope.launch(Dispatchers.IO) {
++            PlayerCipherConfigStore.refresh(force = false)
++        }
+         GlobalScope.launch {
+             dataStore.data
+                 .map { it[InnerTubeCookieKey] }
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index 27a8592c..312eea5c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -8,6 +8,7 @@ import android.widget.Toast.LENGTH_SHORT
+ import androidx.core.content.getSystemService
+ import androidx.core.net.toUri
+ import androidx.media3.database.DatabaseProvider
++import androidx.media3.datasource.HttpDataSource
+ import androidx.media3.datasource.ResolvingDataSource
+ import androidx.media3.datasource.cache.CacheDataSource
+ import androidx.media3.datasource.cache.CacheSpan
+@@ -553,6 +554,17 @@ class DownloadUtil @Inject constructor(
+                     download: Download,
+                     finalException: Exception?
+                 ) {
++                    // A rejected stream URL (403/410) is the CDN's own signal that the resolved
++                    // URL is dead - the same class of failure playback recovers from by re-resolving
++                    // via a different client. Media3 retries a failed download task on its own, but
++                    // it would keep reusing this same now-known-bad cached URL every time without
++                    // this, since the ResolvingDataSource factory above only re-resolves when the
++                    // cache entry is gone.
++                    if (finalException?.isExpiredStreamError() == true) {
++                        Log.w(TAG, "Stream expired for ${download.request.id}, invalidating cached URL for retry")
++                        songUrlCache.remove(download.request.id)
++                    }
++
+                     downloads.update { map ->
+                         map.toMutableMap().apply {
+                             val state = stateToLocalDateTime(download)
+@@ -580,6 +592,26 @@ class DownloadUtil @Inject constructor(
+     }
+ }
+ 
++/**
++ * Whether this exception (or any exception in its cause chain) is an HTTP 403 or 410 response -
++ * googlevideo.com's way of saying a resolved stream URL has expired or was rejected outright, the
++ * same failure mode ExoPlayer sees mid-playback. Unwrapping the chain is necessary because Media3
++ * wraps the underlying [androidx.media3.datasource.HttpDataSource.InvalidResponseCodeException] in
++ * its own downloader/task exceptions before it reaches [DownloadManager.Listener].
++ */
++private fun Throwable.isExpiredStreamError(): Boolean {
++    var cause: Throwable? = this
++    while (cause != null) {
++        if (cause is HttpDataSource.InvalidResponseCodeException &&
++            (cause.responseCode == 403 || cause.responseCode == 410)
++        ) {
++            return true
++        }
++        cause = cause.cause
++    }
++    return false
++}
++
+ fun stateToLocalDateTime(download: Download): LocalDateTime {
+     return when (download.state) {
+         Download.STATE_COMPLETED -> {
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt b/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt
+index e0425929..dcb90e06 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt
+@@ -10,7 +10,15 @@ package com.dd3boh.outertune.utils.cipher
+ 
+ import android.util.Log
+ import com.dd3boh.outertune.App
++import com.zionhuang.innertube.YouTube
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withContext
++import okhttp3.OkHttpClient
++import okhttp3.Request
+ import org.json.JSONObject
++import java.io.File
+ 
+ /**
+  * Signature deobfuscation config for one player.js, looked up by its hash and used by [CipherWebView].
+@@ -30,26 +38,134 @@ data class PlayerCipherConfig(
+ /**
+  * Provides player.js cipher configs keyed by the 8-hex player hash (aliases included).
+  *
+- * The data is the bundled `player_configs.json` from ZemerTeam/zemer-cipher
+- * (https://github.com/ZemerTeam/zemer-cipher, GPL-3.0), whose upstream validates each entry
+- * against the live CDN before shipping it. It is bundled only, with no runtime fetch: to follow a
+- * new YouTube player rotation, refresh the bundled file from upstream and release a new build.
++ * The data is [ZemerTeam/zemer-cipher](https://github.com/ZemerTeam/zemer-cipher)'s
++ * `player_configs.json` (GPL-3.0), whose upstream validates each entry against the live CDN
++ * before publishing it. The bundled asset seeds this table for a fresh install, but YouTube
++ * rotates players far more often than this app ships releases, so it is layered under a
++ * runtime-refreshed copy fetched from upstream and cached to disk - the bundled copy alone would
++ * otherwise silently go stale between releases and leave [CipherWebView] with no config to run,
++ * the exact gap that let a player rotation break WEB deobfuscation outright until the next update.
+  */
+ object PlayerCipherConfigStore {
+ 
+     private const val TAG = "PlayerCipherConfig"
+     private const val ASSET_NAME = "player_configs.json"
++    private const val REMOTE_URL =
++        "https://raw.githubusercontent.com/ZemerTeam/zemer-cipher/master/library/src/main/assets/player_configs.json"
++    private const val CACHE_FILE_NAME = "player_configs_remote.json"
+ 
+-    private val configs: Map<String, PlayerCipherConfig> by lazy { load() }
++    // A stream failure on an unknown hash should get one refresh attempt, not one per song - a
++    // whole album of the same rotten config would otherwise hit upstream once per track.
++    private const val MIN_REFRESH_INTERVAL_MS = 10 * 60 * 1000L
+ 
+-    fun get(playerHash: String?): PlayerCipherConfig? = playerHash?.let { configs[it] }
++    private val client = OkHttpClient.Builder()
++        .proxy(YouTube.proxy)
++        .build()
++    private val refreshMutex = Mutex()
++
++    @Volatile
++    private var lastRefreshAttemptMs = 0L
++
++    // Bundled configs never change at runtime; the remote overlay is refreshed independently and
++    // merged on top (remote wins on a hash collision, since it is the fresher of the two).
++    private val bundled: Map<String, PlayerCipherConfig> by lazy { loadFromAsset() }
++
++    @Volatile
++    private var remote: Map<String, PlayerCipherConfig> = emptyMap()
++
++    @Volatile
++    private var merged: Map<String, PlayerCipherConfig> = emptyMap()
++
++    init {
++        remote = loadCachedRemote()
++        rebuildMerged()
++    }
++
++    fun get(playerHash: String?): PlayerCipherConfig? = playerHash?.let { merged[it] }
+ 
+     /** All known player hashes, aliases included. For diagnostics only. */
+-    fun knownHashes(): Set<String> = configs.keys
++    fun knownHashes(): Set<String> = merged.keys
++
++    /**
++     * Called when [playerHash] was missing from the table. Fetches the latest upstream config
++     * once per [MIN_REFRESH_INTERVAL_MS] (never more often, so a run of failing songs cannot spam
++     * upstream), then reports whether [playerHash] is now known.
++     */
++    suspend fun ensureFreshFor(playerHash: String): Boolean {
++        if (merged.containsKey(playerHash)) return true
++        refresh(force = false)
++        return merged.containsKey(playerHash)
++    }
++
++    /**
++     * Fetches the latest `player_configs.json` from upstream and merges it over the bundled
++     * table, persisting it to disk so the next app start has it without a network round trip.
++     *
++     * @param force bypass the [MIN_REFRESH_INTERVAL_MS] rate limit (used for an explicit
++     *   user-triggered refresh; the automatic self-heal path always passes false)
++     * @return true if a fetch was attempted and succeeded
++     */
++    suspend fun refresh(force: Boolean): Boolean = refreshMutex.withLock {
++        val now = System.currentTimeMillis()
++        if (!force && now - lastRefreshAttemptMs < MIN_REFRESH_INTERVAL_MS) return@withLock false
++        lastRefreshAttemptMs = now
++
++        withContext(Dispatchers.IO) {
++            try {
++                val request = Request.Builder().url(REMOTE_URL).build()
++                client.newCall(request).execute().use { response ->
++                    if (!response.isSuccessful) {
++                        Log.w(TAG, "Remote player_configs.json fetch failed: HTTP ${response.code}")
++                        return@withContext false
++                    }
++                    val text = response.body?.string() ?: return@withContext false
++                    val parsed = parse(text)
++                    if (parsed.isEmpty()) {
++                        Log.w(TAG, "Remote player_configs.json parsed to zero entries, ignoring")
++                        return@withContext false
++                    }
++                    remoteCacheFile().writeText(text)
++                    remote = parsed
++                    rebuildMerged()
++                    Log.d(TAG, "Refreshed player cipher configs from upstream: ${parsed.size} entries")
++                    true
++                }
++            } catch (e: Exception) {
++                Log.e(TAG, "Failed to refresh player_configs.json from upstream", e)
++                false
++            }
++        }
++    }
+ 
+-    private fun load(): Map<String, PlayerCipherConfig> = try {
++    private fun rebuildMerged() {
++        merged = bundled + remote
++    }
++
++    private fun remoteCacheFile(): File = File(App.instance.filesDir, CACHE_FILE_NAME)
++
++    private fun loadCachedRemote(): Map<String, PlayerCipherConfig> {
++        val file = remoteCacheFile()
++        if (!file.exists()) return emptyMap()
++        return try {
++            parse(file.readText())
++        } catch (e: Exception) {
++            Log.e(TAG, "Failed to load cached remote player_configs.json", e)
++            emptyMap()
++        }
++    }
++
++    private fun loadFromAsset(): Map<String, PlayerCipherConfig> = try {
+         val text = App.instance.assets.open(ASSET_NAME).bufferedReader().use { it.readText() }
+-        val players = JSONObject(text).getJSONObject("players")
++        val result = parse(text)
++        Log.d(TAG, "Loaded ${result.size} bundled player cipher configs")
++        result
++    } catch (e: Exception) {
++        Log.e(TAG, "Failed to load $ASSET_NAME", e)
++        emptyMap()
++    }
++
++    private fun parse(json: String): Map<String, PlayerCipherConfig> {
++        val players = JSONObject(json).getJSONObject("players")
+         val result = mutableMapOf<String, PlayerCipherConfig>()
+         players.keys().forEach { hash ->
+             val entry = players.getJSONObject(hash)
+@@ -61,11 +177,7 @@ object PlayerCipherConfigStore {
+                 }
+             }
+         }
+-        Log.d(TAG, "Loaded ${result.size} player cipher configs")
+-        result
+-    } catch (e: Exception) {
+-        Log.e(TAG, "Failed to load $ASSET_NAME", e)
+-        emptyMap()
++        return result
+     }
+ 
+     // sig is a `name(int,int,INPUT)` call; returns null on any malformed field so one bad entry can't break the map.
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt b/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt
+index 8b076d2c..6eea6c21 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt
+@@ -60,7 +60,16 @@ object SignatureCipherManager {
+                 return@withLock null
+             }
+ 
+-            val config = PlayerCipherConfigStore.get(playerHash)
++            var config = PlayerCipherConfigStore.get(playerHash)
++            if (config == null) {
++                // The bundled table is a build-time snapshot and YouTube rotates players far more
++                // often than this app ships releases; pull the latest upstream table before
++                // giving up on a player it simply hasn't seen yet (rate-limited internally).
++                if (PlayerCipherConfigStore.ensureFreshFor(playerHash)) {
++                    Log.i(TAG, "[$videoId] player $playerHash now known after remote config refresh")
++                    config = PlayerCipherConfigStore.get(playerHash)
++                }
++            }
+             if (config == null) {
+                 if (attempt == 0 && fromCache) {
+                     // The cached player.js may be stale; refetch once in case the current player is
+-- 
+2.45.1.windows.1
+
