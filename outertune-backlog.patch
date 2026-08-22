@@ -37473,9 +37473,9 @@ index a65839a5..379e3e8b 100644
 -- 
 2.45.1.windows.1
 
-From d19ed278cf52a916b44702b8ec8a9f8ffa5e00ec Mon Sep 17 00:00:00 2001
-From: verify <verify@example.com>
-Date: Fri, 21 Aug 2026 22:16:49 +0800
+From ceb61b8522bb49c266f2ab5b0fbf270fd414ff96 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 21 Aug 2026 21:52:34 +0800
 Subject: [PATCH] Add a per-song "try next lyrics provider" action to the
  lyrics menu
 
@@ -37494,7 +37494,7 @@ from - no new schema needed.
  4 files changed, 105 insertions(+)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
-index d914c0e..8bc2b7f 100644
+index d914c0e8a5c7a6ed85222cbfb0a6edbb7b27ced8..8bc2b7f90c278b88053c13239c43684e01408b12 100644
 --- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
 @@ -493,6 +493,40 @@ class LyricsHelper @Inject constructor(
@@ -37560,7 +37560,7 @@ index d914c0e..8bc2b7f 100644
   * Aggregate outcome of resolving lyrics across every enabled provider for one song.
   */
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
-index 8495549..edaf17c 100644
+index 849554904a7cab5c106ea52c661fd3abaf87ff65..edaf17c572043a50142ca3e7aa7298b3111daa6a 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
 @@ -2,6 +2,7 @@ package com.dd3boh.outertune.ui.menu
@@ -37607,7 +37607,7 @@ index 8495549..edaf17c 100644
              icon = Icons.Rounded.Search,
              title = R.string.search,
 diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt
-index baca3dd..8a3cd66 100644
+index baca3dd84b3f7deaa189311ad2d66dacbd7d4977..8a3cd66d13c60423e2cf2c565f6c0380828ab544 100644
 --- a/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/LyricsMenuViewModel.kt
 @@ -7,6 +7,7 @@ import com.dd3boh.outertune.db.MusicDatabase
@@ -37654,7 +37654,7 @@ index baca3dd..8a3cd66 100644
 +    }
  }
 diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
-index 6e0a6c5..c9e3a16 100644
+index 6e0a6c56763ebbb487e1a2e6f1f7be2043f0bb0d..c9e3a1656fb10f47b79f4635547c8f067a51ce0f 100644
 --- a/app/src/main/res/values/strings-ot.xml
 +++ b/app/src/main/res/values/strings-ot.xml
 @@ -43,6 +43,10 @@ while also allowing users to translate our app as well. New, specific strings to
@@ -37690,7 +37690,7 @@ should win.
  2 files changed, 16 insertions(+), 6 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
-index 6a816348..e0754a6b 100644
+index 6a8163482d3a136ec186adfd291c65204482a703..e0754a6b9c2f981daafde8d923349d647e1c9d06 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
 @@ -234,8 +234,14 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
@@ -37711,7 +37711,7 @@ index 6a816348..e0754a6b 100644
      }
  
 diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
-index 2fd56a59..dcd18882 100644
+index 2fd56a59d38e7c99c539a97fc4a62e1c3c6b6c53..dcd1888235058ec00de1f5fddaebd70788f1a75e 100644
 --- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
 @@ -161,10 +161,14 @@ fun EqualizerSettingsScreen(
@@ -37777,14 +37777,15 @@ class of corruption can't recur silently on future edits.
  5 files changed, 177 insertions(+), 15 deletions(-)
 
 diff --git a/.gitattributes b/.gitattributes
-index ec1ffa81..ecf83dd6 100644
---- a/.gitattributes
+new file mode 100644
+index 0000000000000000000000000000000000000000..ecf83dd65acc841a9f6a04e75b784cbfc3ea347a
+--- /dev/null
 +++ b/.gitattributes
-@@ -1 +1,2 @@
+@@ -0,0 +1,2 @@
 +* text=auto eol=lf
- *.patch -text
++*.patch -text
 diff --git a/app/src/main/java/com/dd3boh/outertune/App.kt b/app/src/main/java/com/dd3boh/outertune/App.kt
-index e2daf153..bd4fc564 100644
+index e2daf1536b7b3769ea7494e460e4704aa5a60f3b..bd4fc5647c812e0e1d0b2241b67ba40065153ac7 100644
 --- a/app/src/main/java/com/dd3boh/outertune/App.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/App.kt
 @@ -48,6 +48,7 @@ import com.dd3boh.outertune.extensions.toEnum
@@ -37810,7 +37811,7 @@ index e2daf153..bd4fc564 100644
              dataStore.data
                  .map { it[InnerTubeCookieKey] }
 diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
-index 27a8592c..312eea5c 100644
+index 27a8592c267d7402cd4158f6ec4aec52d9901a22..312eea5ccbb3ba8665c2566debdb4e98397fb587 100644
 --- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
 @@ -8,6 +8,7 @@ import android.widget.Toast.LENGTH_SHORT
@@ -37867,7 +37868,7 @@ index 27a8592c..312eea5c 100644
      return when (download.state) {
          Download.STATE_COMPLETED -> {
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt b/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt
-index e0425929..dcb90e06 100644
+index e04259293dbd49777553622eefe556d8338aacf2..dcb90e0604e7bd412f509c0363d22b44ed4df7fd 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/cipher/PlayerCipherConfig.kt
 @@ -10,7 +10,15 @@ package com.dd3boh.outertune.utils.cipher
@@ -38044,7 +38045,7 @@ index e0425929..dcb90e06 100644
  
      // sig is a `name(int,int,INPUT)` call; returns null on any malformed field so one bad entry can't break the map.
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt b/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt
-index 8b076d2c..6eea6c21 100644
+index 8b076d2cf66c3c9ac0e69eaa5499410c2ab7a13c..6eea6c211c933e3b0c465777459837699f68d96b 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/cipher/SignatureCipherManager.kt
 @@ -60,7 +60,16 @@ object SignatureCipherManager {
