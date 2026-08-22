@@ -38452,3 +38452,34 @@ index 8347a5ee..e1a105e7 100644
 +        return existing ?: ArtistEntity(id = resolved.id, name = cleanName)
      }
  }
+From c8898c4fdc6ddd61a3be59b49d53e2aa70c5f365 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Sat, 22 Aug 2026 19:14:24 +0800
+Subject: Fix compile errors in the stale-queue localPath re-check
+
+database.song(id) returns the Song relation wrapper, not SongEntity, so the
+downloaded path is .song.localPath, not .localPath directly - the raw
+.localPath reference didn't resolve. Separately, reassigning the outer var
+song from inside a .let{} closure blocked smart-casting it as non-null
+everywhere afterward. Replaced with a plain local val and a direct
+reassignment in the same scope, avoiding both problems.
+---
+ .../main/java/com/dd3boh/outertune/playback/MusicService.kt  | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 0d573b4b..5573a2a0 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -1006,8 +1006,9 @@ class MusicService : MediaLibraryService(),
+                 // now". Re-check the database once before falling through to streaming, so a
+                 // song that finished downloading mid-queue actually plays from disk instead of
+                 // silently re-streaming until the queue is rebuilt from scratch.
+-                runBlocking { database.song(mediaId).first()?.localPath }?.let {
+-                    song = song.copy(localPath = it)
++                val refreshedLocalPath = runBlocking { database.song(mediaId).first()?.song?.localPath }
++                if (refreshedLocalPath != null) {
++                    song = song.copy(localPath = refreshedLocalPath)
+                 }
+             }
+             // local song
