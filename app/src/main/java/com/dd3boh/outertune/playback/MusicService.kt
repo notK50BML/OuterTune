@@ -1006,8 +1006,9 @@ class MusicService : MediaLibraryService(),
                 // now". Re-check the database once before falling through to streaming, so a
                 // song that finished downloading mid-queue actually plays from disk instead of
                 // silently re-streaming until the queue is rebuilt from scratch.
-                runBlocking { database.song(mediaId).first()?.localPath }?.let {
-                    song = song.copy(localPath = it)
+                val refreshedLocalPath = runBlocking { database.song(mediaId).first()?.song?.localPath }
+                if (refreshedLocalPath != null) {
+                    song = song.copy(localPath = refreshedLocalPath)
                 }
             }
             // local song
