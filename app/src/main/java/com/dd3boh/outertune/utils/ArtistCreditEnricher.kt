@@ -44,6 +44,10 @@ object ArtistCreditEnricher {
     )
     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
 
+    /** YouTube's auto-generated channel name for an artist with no official channel of their own. */
+    private val TOPIC_SUFFIX = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
+    private fun String.stripTopicSuffix() = replace(TOPIC_SUFFIX, "").trim()
+
     /**
      * Runs both checks for one song - called once per playback ([com.dd3boh.outertune.playback.MusicService.recoverSong])
      * and once per song when downloads are rescanned ([com.dd3boh.outertune.playback.DownloadUtil.scanDownloads]).
@@ -60,17 +64,17 @@ object ArtistCreditEnricher {
         for ((index, artist) in song.artists.withIndex()) {
             if (artist.isYouTubeArtist) continue
             val candidates = splitAmpersandCandidates(artist.name) ?: continue
-            val resolved = candidates.map { resolveArtist(it) }
+            val resolved = candidates.map { resolveArtistEntity(database, it) }
             if (resolved.any { it == null }) continue
 
             database.deleteSongArtistMap(songId, artist.id)
             database.safeDeleteArtist(artist.id)
             resolved.forEachIndexed { offset, item ->
                 item!!
-                database.insert(ArtistEntity(id = item.id, name = item.title))
+                database.insert(item)
                 database.insert(SongArtistMap(songId = songId, artistId = item.id, position = index + offset))
             }
-            Log.d(TAG, "[$songId] split combined credit \"${artist.name}\" into ${resolved.map { it?.title }}")
+            Log.d(TAG, "[$songId] split combined credit \"${artist.name}\" into ${resolved.map { it?.name }}")
         }
 
         // Add any featured artist named in the title but missing from the credited list. Read
@@ -82,11 +86,11 @@ object ArtistCreditEnricher {
 
         var nextPosition = database.song(songId).first()?.artists?.size ?: return@withContext
         for (name in featured) {
-            val resolved = resolveArtist(name) ?: continue
-            database.insert(ArtistEntity(id = resolved.id, name = resolved.title))
+            val resolved = resolveArtistEntity(database, name) ?: continue
+            database.insert(resolved)
             database.insert(SongArtistMap(songId = songId, artistId = resolved.id, position = nextPosition))
             nextPosition++
-            Log.d(TAG, "[$songId] added featured artist \"${resolved.title}\"")
+            Log.d(TAG, "[$songId] added featured artist \"${resolved.name}\"")
         }
     }
 
@@ -109,11 +113,28 @@ object ArtistCreditEnricher {
             .filter { it.isNotEmpty() }
     }
 
-    /** The real artist channel [name] resolves to, or null if search finds no matching one. */
+    /**
+     * The real artist channel [name] resolves to, or null if search finds no matching one. An
+     * artist with no official channel is only findable under YouTube's auto-generated "X - Topic"
+     * channel, so the match compares against both the raw and Topic-stripped title.
+     */
     private suspend fun resolveArtist(name: String): ArtistItem? {
         val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()?.items
             ?: return null
         return results.filterIsInstance<ArtistItem>()
-            .firstOrNull { it.title.equals(name, ignoreCase = true) }
+            .firstOrNull { it.title.stripTopicSuffix().equals(name, ignoreCase = true) }
+    }
+
+    /**
+     * [resolveArtist], but resolved to a real ArtistEntity ready to credit: its title has the
+     * "- Topic" suffix stripped (see [resolveArtist]'s own doc), and if an artist already exists
+     * in the database under that clean name, its existing id/name are reused instead of minting a
+     * second entity for the same real-world artist under a different id.
+     */
+    private suspend fun resolveArtistEntity(database: MusicDatabase, name: String): ArtistEntity? {
+        val resolved = resolveArtist(name) ?: return null
+        val cleanName = resolved.title.stripTopicSuffix()
+        val existing = database.artistByNameIgnoreCase(cleanName)
+        return existing ?: ArtistEntity(id = resolved.id, name = cleanName)
     }
 }

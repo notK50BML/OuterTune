@@ -68,7 +68,7 @@ class MusicDatabase(
     fun close() = delegate.close()
 
     companion object {
-        const val MUSIC_DATABASE_VERSION = 22
+        const val MUSIC_DATABASE_VERSION = 23
     }
 }
 
@@ -136,6 +136,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_14_15)
                     .addMigrations(MIGRATION_15_16)
                     .addMigrations(MIGRATION_16_17)
+                    .addMigrations(MIGRATION_22_23)
                     .build()
             )
 
@@ -147,6 +148,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_14_15)
                     .addMigrations(MIGRATION_15_16)
                     .addMigrations(MIGRATION_16_17)
+                    .addMigrations(MIGRATION_22_23)
                     .build()
             )
     }
@@ -686,3 +688,80 @@ class Migration17To18 : AutoMigrationSpec
     DeleteColumn(tableName = "song", columnName = "totalPlayTime"),
 )
 class Migration19To20 : AutoMigrationSpec
+
+/**
+ * Clean up artist credits ending in " - Topic" - YouTube's auto-generated channel name for an
+ * artist with no official channel. ArtistCreditEnricher's search-based resolution used to credit
+ * these under that raw channel title, so a featured artist already credited elsewhere under their
+ * plain name ended up duplicated as a second, differently-named ArtistEntity on the same song
+ * (ArtistCreditEnricher itself now dedupes/strips going forward - this is a one-time cleanup for
+ * credits it already added before that fix). No schema change, purely a data fixup, so it runs as
+ * a regular Migration rather than an AutoMigration.
+ */
+val MIGRATION_22_23 = object : Migration(22, 23) {
+    private val topicSuffix = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
+
+    override fun migrate(db: SupportSQLiteDatabase) {
+        data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
+
+        val artists = ArrayList<ArtistRow>()
+        db.query("SELECT id, name, isLocal FROM artist").use { cursor ->
+            val idIdx = cursor.getColumnIndex("id")
+            val nameIdx = cursor.getColumnIndex("name")
+            val isLocalIdx = cursor.getColumnIndex("isLocal")
+            while (cursor.moveToNext()) {
+                artists.add(ArtistRow(cursor.getString(idIdx), cursor.getString(nameIdx), cursor.getInt(isLocalIdx) != 0))
+            }
+        }
+
+        val byLowerName = artists.groupBy { it.name.lowercase() }
+
+        for (artist in artists) {
+            if (!topicSuffix.containsMatchIn(artist.name)) continue
+            val baseName = artist.name.replace(topicSuffix, "").trim()
+            if (baseName.isEmpty()) continue
+
+            val original = byLowerName[baseName.lowercase()]
+                ?.firstOrNull { it.id != artist.id && it.isLocal == artist.isLocal }
+
+            if (original == null) {
+                // The only entry for this real-world artist - just clean up its display name.
+                db.execSQL("UPDATE artist SET name = ? WHERE id = ?", arrayOf(baseName, artist.id))
+                continue
+            }
+
+            // A duplicate already exists under the clean name - merge into it, keeping the
+            // original on any song that credits both (a plain UPDATE would violate
+            // song_artist_map's (songId, artistId) primary key for those songs).
+            val songIds = ArrayList<String>()
+            db.query("SELECT songId FROM song_artist_map WHERE artistId = ?", arrayOf(artist.id)).use { cursor ->
+                val idx = cursor.getColumnIndex("songId")
+                while (cursor.moveToNext()) songIds.add(cursor.getString(idx))
+            }
+
+            for (songId in songIds) {
+                val alreadyHasOriginal = db.query(
+                    "SELECT 1 FROM song_artist_map WHERE songId = ? AND artistId = ?",
+                    arrayOf(songId, original.id)
+                ).use { it.moveToNext() }
+
+                if (alreadyHasOriginal) {
+                    db.execSQL(
+                        "DELETE FROM song_artist_map WHERE songId = ? AND artistId = ?",
+                        arrayOf(songId, artist.id)
+                    )
+                } else {
+                    db.execSQL(
+                        "UPDATE song_artist_map SET artistId = ? WHERE songId = ? AND artistId = ?",
+                        arrayOf(original.id, songId, artist.id)
+                    )
+                }
+            }
+
+            db.execSQL(
+                "DELETE FROM artist WHERE id = ? AND NOT EXISTS (SELECT 1 FROM song_artist_map WHERE artistId = ?)",
+                arrayOf(artist.id, artist.id)
+            )
+        }
+    }
+}

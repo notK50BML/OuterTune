@@ -52,6 +52,14 @@ interface ArtistsDao {
     @Query("SELECT * FROM artist WHERE name = :name")
     fun artistByName(name: String): ArtistEntity?
 
+    /**
+     * Case-insensitive counterpart to [artistByName] - used by ArtistCreditEnricher so a freshly
+     * search-resolved artist reuses an already-known ArtistEntity instead of creating a second one
+     * that differs only in casing or in carrying/lacking YouTube's " - Topic" channel suffix.
+     */
+    @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE LIMIT 1")
+    fun artistByNameIgnoreCase(name: String): ArtistEntity?
+
     @Query("SELECT * FROM artist WHERE isLocal = 1 AND name LIKE '%' || :name || '%'")
     fun localArtistsByNameFuzzy(name: String): List<ArtistEntity>
 
