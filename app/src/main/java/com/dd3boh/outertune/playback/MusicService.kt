@@ -999,6 +999,16 @@ class MusicService : MediaLibraryService(),
             var song = queueBoard.value.getCurrentQueue()?.findSong(dataSpec.key ?: "")
             if (song == null) { // in the case of resumption, queueBoard may not be ready yet
                 song = runBlocking { database.song(dataSpec.key).first()?.toMediaMetadata() }
+            } else if (song.localPath == null) {
+                // The queue holds its own MediaMetadata snapshot from whenever this song was
+                // queued, and nothing invalidates it if a download finishes afterward - a null
+                // localPath here means "wasn't downloaded when queued", not "isn't downloaded
+                // now". Re-check the database once before falling through to streaming, so a
+                // song that finished downloading mid-queue actually plays from disk instead of
+                // silently re-streaming until the queue is rebuilt from scratch.
+                runBlocking { database.song(mediaId).first()?.localPath }?.let {
+                    song = song.copy(localPath = it)
+                }
             }
             // local song
             if (song?.localPath != null) {
