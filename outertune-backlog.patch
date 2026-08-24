@@ -41305,15 +41305,27 @@ index 885e8a73..589a3cb2 100644
 -- 
 2.43.0
 
-From fb6c2cfe38273d7365ecee881f7479adb4d1e7d9 Mon Sep 17 00:00:00 2001
+From 5529246b0e73afc6fa558e064f6ab33a1b7e5b29 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Mon, 24 Aug 2026 00:23:09 +0000
-Subject: [PATCH] Add the VISIONOS client, ported from yuuichi-s/outertune
+Subject: [PATCH] Try the VISIONOS client before MAIN_CLIENT, ported from
+ yuuichi-s/outertune
 
-Adds YouTube's VISIONOS (Apple Vision Pro) client and tries it first in the
-stream fallback chain: its urls need no signature deobfuscation, no
-n-transform and no PO token, and - unlike every other client already in the
-chain - serve a whole track instead of getting cut off partway through.
+Adds YouTube's VISIONOS (Apple Vision Pro) client and tries it before every
+other client, MAIN_CLIENT included: its urls need no signature
+deobfuscation, no n-transform and no PO token, and - unlike every other
+client already in the chain - serve a whole track instead of getting cut off
+partway through.
+
+MAIN_CLIENT stays WEB_REMIX rather than becoming VISIONOS: MAIN_CLIENT's
+player response is also this app's only source of audioConfig (which the
+signed-in client's personalized loudness normalization target lives in) and
+videoDetails/playbackTracking, and VISIONOS is loginSupported=false, so
+metadata would silently lose that personalization for a signed-in user if it
+became MAIN_CLIENT too. VISIONOS's own stream is instead just tried first,
+ahead of MAIN_CLIENT's, before falling through to MAIN_CLIENT and then the
+rest of the fallback chain exactly as before - metadata and stream selection
+are decoupled the same way upstream's own commit keeps them.
 
 Also adds two more ANDROID_VR client versions (1.65.10 and 1.43.32) as
 further fallback options, and makes the optional videoDetails fields on
@@ -41334,14 +41346,14 @@ genuinely new, non-redundant piece - the client itself - was ported.
 Co-Authored-By: Carmelo Chery <cchery@solucionesinformaticasmj.com>
 Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
 ---
- .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 13 ++++++
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 30 ++++++++++++--
  .../com/zionhuang/innertube/models/Context.kt |  5 +++
  .../innertube/models/YouTubeClient.kt         | 41 +++++++++++++++++++
  .../models/response/PlayerResponse.kt         | 18 ++++----
- 4 files changed, 70 insertions(+), 7 deletions(-)
+ 4 files changed, 84 insertions(+), 10 deletions(-)
 
 diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
-index 79dea755..3ee1b54e 100644
+index 79dea755..26dc59bb 100644
 --- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
 +++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
 @@ -24,8 +24,11 @@ import com.dd3boh.outertune.utils.potoken.PoTokenResult
@@ -41356,15 +41368,9 @@ index 79dea755..3ee1b54e 100644
  import com.zionhuang.innertube.models.YouTubeClient.Companion.WEB_REMIX
  import com.zionhuang.innertube.models.response.PlayerResponse
  import okhttp3.OkHttpClient
-@@ -57,7 +60,17 @@ object YTPlayerUtils {
-      * Clients used for fallback streams in case the streams of the main client do not work.
+@@ -58,6 +61,11 @@ object YTPlayerUtils {
       */
      private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
-+        // Tried first: its urls need no signature deobfuscation, no n-transform and no PO token,
-+        // and - unlike every other client here - serve a whole track instead of being cut off
-+        // partway through (see PROBE_OFFSET's own doc for the failure this was worked around by
-+        // detecting; VISIONOS sidesteps it outright rather than needing the retry to catch it).
-+        VISIONOS,
          ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
 +        // Different ANDROID_VR client versions are tracked separately by YouTube - keeping more
 +        // than one gives the chain somewhere to go when one build is turned away instead of losing
@@ -41374,6 +41380,49 @@ index 79dea755..3ee1b54e 100644
  //        ANDROID,
  //        TVHTML5,
  //        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+@@ -176,7 +184,15 @@ object YTPlayerUtils {
+         var streamClient: YouTubeClient = MAIN_CLIENT
+ 
+         var streamPlayerResponse: PlayerResponse? = null
+-        for (clientIndex in (-1 until STREAM_FALLBACK_CLIENTS.size)) {
++        // -2 is tried before MAIN_CLIENT itself, not just before its other fallbacks: VISIONOS's
++        // urls need no signature deobfuscation, no n-transform and no PO token, and - unlike every
++        // other client here, MAIN_CLIENT included - serve a whole track instead of being cut off
++        // partway through (see PROBE_OFFSET's own doc for the failure this was worked around by
++        // detecting; VISIONOS sidesteps it outright rather than needing the retry to catch it).
++        // MAIN_CLIENT stays WEB_REMIX regardless - see its own doc for why metadata specifically
++        // still needs to come from the signed-in client - this only reorders which client's stream
++        // is attempted first.
++        for (clientIndex in (-2 until STREAM_FALLBACK_CLIENTS.size)) {
+             // reset for each client
+             format = null
+             streamUrl = null
+@@ -184,7 +200,16 @@ object YTPlayerUtils {
+ 
+             // decide which client to use for streams and load its player response
+             val client: YouTubeClient
+-            if (clientIndex == -1) {
++            if (clientIndex == -2) {
++                Log.d(TAG, "Trying client: ${VISIONOS.clientName}")
++                client = VISIONOS
++                val playerResult =
++                    YouTube.player(videoId, playlistId, client, signatureTimestamp, webPlayerPot)
++                playerResult.exceptionOrNull()?.let {
++                    Log.e(TAG, "[$videoId] [${client.clientName}] player request failed", it)
++                }
++                streamPlayerResponse = playerResult.getOrNull()
++            } else if (clientIndex == -1) {
+                 // mainPlayerResponse is still fetched and used for metadata either way (see its
+                 // own doc) - this only skips attempting to *stream* from a client whose stream
+                 // was just rejected for this exact video, so the one retry MusicService gets after
+@@ -194,7 +219,6 @@ object YTPlayerUtils {
+                     continue
+                 }
+                 Log.d(TAG, "Trying client: ${MAIN_CLIENT.clientName}")
+-                // try with streams from main client first
+                 client = MAIN_CLIENT
+                 streamPlayerResponse = mainPlayerResponse
+             } else {
 diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt b/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
 index a17fabe0..bac60483 100644
 --- a/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
