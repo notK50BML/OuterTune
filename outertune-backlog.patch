@@ -41305,3 +41305,186 @@ index 885e8a73..589a3cb2 100644
 -- 
 2.43.0
 
+From fb6c2cfe38273d7365ecee881f7479adb4d1e7d9 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Mon, 24 Aug 2026 00:23:09 +0000
+Subject: [PATCH] Add the VISIONOS client, ported from yuuichi-s/outertune
+
+Adds YouTube's VISIONOS (Apple Vision Pro) client and tries it first in the
+stream fallback chain: its urls need no signature deobfuscation, no
+n-transform and no PO token, and - unlike every other client already in the
+chain - serve a whole track instead of getting cut off partway through.
+
+Also adds two more ANDROID_VR client versions (1.65.10 and 1.43.32) as
+further fallback options, and makes the optional videoDetails fields on
+PlayerResponse nullable so the trimmed responses TV/embedded clients return
+parse instead of throwing (which had been silently dropping those clients
+from the chain).
+
+Ported from yuuichi-s/outertune@b7f58abf rather than merged wholesale: that
+commit's other changes (PO token binding, stream-url caching/retry, WEB_REMIX
+failure tracking, HTTP validation probing) address the same problems this
+codebase already independently hardened against over its own commit history,
+usually in a more complete form (e.g. this codebase's PROBE_OFFSET validates
+past the first chunk specifically to catch a mid-stream cutoff, and its
+CachedStreamUrl already caps trust to a measured PoToken validity window) -
+merging those wholesale would have discarded that work for no gain. Only the
+genuinely new, non-redundant piece - the client itself - was ported.
+
+Co-Authored-By: Carmelo Chery <cchery@solucionesinformaticasmj.com>
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 13 ++++++
+ .../com/zionhuang/innertube/models/Context.kt |  5 +++
+ .../innertube/models/YouTubeClient.kt         | 41 +++++++++++++++++++
+ .../models/response/PlayerResponse.kt         | 18 ++++----
+ 4 files changed, 70 insertions(+), 7 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index 79dea755..3ee1b54e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -24,8 +24,11 @@ import com.dd3boh.outertune.utils.potoken.PoTokenResult
+ import com.zionhuang.innertube.NewPipeUtils
+ import com.zionhuang.innertube.YouTube
+ import com.zionhuang.innertube.models.YouTubeClient
++import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_43_32
++import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_65_10
+ import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
+ import com.zionhuang.innertube.models.YouTubeClient.Companion.IOS
++import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS
+ import com.zionhuang.innertube.models.YouTubeClient.Companion.WEB_REMIX
+ import com.zionhuang.innertube.models.response.PlayerResponse
+ import okhttp3.OkHttpClient
+@@ -57,7 +60,17 @@ object YTPlayerUtils {
+      * Clients used for fallback streams in case the streams of the main client do not work.
+      */
+     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
++        // Tried first: its urls need no signature deobfuscation, no n-transform and no PO token,
++        // and - unlike every other client here - serve a whole track instead of being cut off
++        // partway through (see PROBE_OFFSET's own doc for the failure this was worked around by
++        // detecting; VISIONOS sidesteps it outright rather than needing the retry to catch it).
++        VISIONOS,
+         ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
++        // Different ANDROID_VR client versions are tracked separately by YouTube - keeping more
++        // than one gives the chain somewhere to go when one build is turned away instead of losing
++        // this client entirely.
++        ANDROID_VR_1_65_10,
++        ANDROID_VR_1_43_32,
+ //        ANDROID,
+ //        TVHTML5,
+ //        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt b/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
+index a17fabe0..bac60483 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/Context.kt
+@@ -9,6 +9,11 @@ data class Context(
+     private val request: Request = Request(),
+     private val user: User = User(),
+ ) {
++    /**
++     * Everything past the client name describes the device the request claims to come from. A
++     * request that only names the client is served, but the stream urls it hands back are short
++     * lived; identifying as a specific device is what gets a url that lasts a whole track.
++     */
+     @Serializable
+     data class Client(
+         val clientName: String,
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+index 0b26b34d..554f46e2 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+@@ -86,7 +86,9 @@ data class YouTubeClient(
+             clientId = "7",
+             userAgent = "Mozilla/5.0 (ChromiumStylePlatform) Cobalt/25.lts.30.1034943-gold (unlike Gecko), Unknown_TV_Unknown_0/Unknown (Unknown, Unknown)",
+             loginSupported = true,
++            loginRequired = true,
+             useSignatureTimestamp = true,
++            // Without a PO token this client answers without usable streams.
+             useWebPoTokens = true,
+             includeUserAgentInContext = true,
+         )
+@@ -121,6 +123,25 @@ data class YouTubeClient(
+             useSignatureTimestamp = true
+         )
+ 
++        /**
++         * The YouTube client for Apple's Vision Pro. It hands back plain urls that need neither
++         * signature deobfuscation, nor an n-transform, nor a PO token, and those urls serve a whole
++         * track instead of being cut off after about a minute. Measured against Metrolist, which
++         * reaches for this one first.
++         */
++        val VISIONOS = YouTubeClient(
++            clientName = "VISIONOS",
++            clientVersion = "0.1",
++            clientId = "101",
++            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
++            osName = "visionOS",
++            osVersion = "1.3.21O771",
++            deviceMake = "Apple",
++            deviceModel = "RealityDevice14,1",
++            loginSupported = false,
++            useSignatureTimestamp = false,
++        )
++
+         val ANDROID_VR_NO_AUTH = YouTubeClient(
+             clientName = "ANDROID_VR",
+             clientVersion = "1.61.48",
+@@ -154,5 +175,25 @@ data class YouTubeClient(
+             useSignatureTimestamp = false,
+             includeUserAgentInContext = true,
+         )
++
++        /**
++         * Newer Oculus build of the same client. YouTube treats each ANDROID_VR version differently,
++         * so keeping a second one gives the chain somewhere to go when [ANDROID_VR_NO_AUTH] is
++         * turned away instead of losing the client entirely.
++         */
++        val ANDROID_VR_1_65_10 = YouTubeClient(
++            clientName = "ANDROID_VR",
++            clientVersion = "1.65.10",
++            clientId = "28",
++            userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
++            osName = "Android",
++            osVersion = "12L",
++            deviceMake = "Oculus",
++            deviceModel = "Quest 3",
++            androidSdkVersion = "32",
++            loginSupported = false,
++            useSignatureTimestamp = false,
++            includeUserAgentInContext = true,
++        )
+     }
+ }
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt b/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt
+index 3eb45f13..13fc2751 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt
+@@ -88,13 +88,17 @@ data class PlayerResponse(
+     @Serializable
+     data class VideoDetails(
+         val videoId: String,
+-        val title: String,
+-        val author: String,
+-        val channelId: String,
+-        val lengthSeconds: String,
+-        val musicVideoType: String?,
+-        val viewCount: String,
+-        val thumbnail: Thumbnails,
++        // Everything past videoId is optional: the tv/embedded clients answer with a trimmed
++        // videoDetails, and requiring these fields made the whole response fail to parse, which
++        // silently dropped those clients from the stream fallback chain. Metadata is taken from
++        // MAIN_CLIENT anyway, so a sparse videoDetails from a fallback client costs nothing.
++        val title: String? = null,
++        val author: String? = null,
++        val channelId: String? = null,
++        val lengthSeconds: String? = null,
++        val musicVideoType: String? = null,
++        val viewCount: String? = null,
++        val thumbnail: Thumbnails? = null,
+     )
+ 
+     @Serializable
+-- 
+2.43.0
+
