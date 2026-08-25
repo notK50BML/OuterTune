@@ -41712,6 +41712,9 @@ index 00000000..7ffac56b
 + * the suffix.
 + */
 +fun String.stripTopicSuffix(): String = replace(TOPIC_SUFFIX, "").trim()
+
+/** Returns true when this artist name is a YouTube auto-generated "- Topic" name. */
+fun String.hasTopicSuffix(): Boolean = TOPIC_SUFFIX.containsMatchIn(this)
 diff --git a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
 index 62be8457..00000000 100644
 --- a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
