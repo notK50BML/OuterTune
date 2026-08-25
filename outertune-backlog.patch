@@ -41537,3 +41537,308 @@ index 3eb45f13..13fc2751 100644
 -- 
 2.43.0
 
+From 603cbe559bb5549c76473ef542a8da1618f3ba5f Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Tue, 25 Aug 2026 07:41:07 +0000
+Subject: [PATCH 1/2] Disable audio offload while the equalizer or visualiser
+ needs real samples
+
+Audio offload hands compressed audio straight to hardware DSP, bypassing
+every PCM AudioProcessor in the sink's chain - including
+EqualizerAudioProcessor, and the audio-reactive visualiser tap that lives
+inside it. Whichever format/device combination made a given track
+offload-eligible, the effect was the same either way: the equalizer silently
+doing nothing, and the liquid background rendering but frozen, since its
+values never move off their default zero.
+
+EqualizerAudioProcessor now exposes needsPcmAccess (true whenever the EQ is
+actually altering audio, or the visualiser is turned on), and
+MyAudioOffloadSupportProvider checks it - live, on every track/format switch
+- to force the ordinary decode path exactly when it matters. Offload's
+battery saving is untouched the rest of the time.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../outertune/audio/EqualizerAudioProcessor.kt     | 10 ++++++++++
+ .../com/dd3boh/outertune/playback/MusicService.kt  | 14 ++++++++++----
+ 2 files changed, 20 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+index e42d15ef..73a07265 100644
+--- a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
++++ b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+@@ -85,6 +85,16 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
+     @Volatile
+     var visualizerEnabled: Boolean = false
+ 
++    /**
++     * Whether anything downstream actually needs to see PCM samples right now - the equalizer
++     * doing real work, or the visualiser being fed. Read by [MyAudioOffloadSupportProvider] to
++     * force the ordinary (non-offload) decode path exactly when it matters: audio offload hands
++     * compressed data straight to hardware, bypassing this processor - and the visualiser tap
++     * inside it - entirely, which is what leaves the visualiser rendering but frozen (and the
++     * equalizer silently doing nothing) on whichever tracks the device happens to offload.
++     */
++    val needsPcmAccess: Boolean get() = !bypass || visualizerEnabled
++
+     private var configuredSampleRate = 0
+ 
+     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 5573a2a0..91de97d7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -1177,7 +1177,8 @@ class MusicService : MediaLibraryService(),
+                         .setAudioOffloadSupportProvider(
+                             MyAudioOffloadSupportProvider(
+                                 DefaultAudioOffloadSupportProvider(context),
+-                                !gaplessOffloadAllowed
++                                !gaplessOffloadAllowed,
++                                equalizerAudioProcessor,
+                             )
+                         )
+                         .build()
+@@ -1206,7 +1207,8 @@ class MusicService : MediaLibraryService(),
+                         .setAudioOffloadSupportProvider(
+                             MyAudioOffloadSupportProvider(
+                                 DefaultAudioOffloadSupportProvider(context),
+-                                !gaplessOffloadAllowed
++                                !gaplessOffloadAllowed,
++                                equalizerAudioProcessor,
+                             )
+                         )
+                         .build()
+@@ -1671,7 +1673,8 @@ class MusicService : MediaLibraryService(),
+ 
+ class MyAudioOffloadSupportProvider(
+     private val default: DefaultAudioOffloadSupportProvider,
+-    private val disableGaplessOffload: Boolean
++    private val disableGaplessOffload: Boolean,
++    private val equalizerAudioProcessor: EqualizerAudioProcessor,
+ ) : DefaultAudioSink.AudioOffloadSupportProvider by default {
+     override fun getAudioOffloadSupport(
+         format: Format,
+@@ -1680,7 +1683,10 @@ class MyAudioOffloadSupportProvider(
+         val defaultResult = default.getAudioOffloadSupport(format, audioAttributes)
+         val audioOffloadSupport = AudioOffloadSupport.Builder()
+         return audioOffloadSupport
+-            .setIsFormatSupported(defaultResult.isFormatSupported)
++            // Re-checked every time ExoPlayer asks (this runs per track/format switch), so
++            // offload's battery saving comes back automatically the moment neither feature still
++            // needs the samples - see needsPcmAccess's own doc for why this has to happen at all.
++            .setIsFormatSupported(defaultResult.isFormatSupported && !equalizerAudioProcessor.needsPcmAccess)
+             .setIsGaplessSupported(defaultResult.isGaplessSupported && !disableGaplessOffload)
+             .setIsSpeedChangeSupported(defaultResult.isSpeedChangeSupported)
+             .build()
+-- 
+2.43.0
+
+
+From 6d60003dc72ca2e165f59bcc7632adf85003ca2c Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Tue, 25 Aug 2026 07:41:18 +0000
+Subject: [PATCH 2/2] Strip/dedupe '- Topic' artist credits in the general sync
+ path, not just on enrichment
+
+MIGRATION_22_23 already cleaned up '- Topic' credits that existed in the
+database at the time it ran, and ArtistCreditEnricher already stripped/
+deduped them in its own two narrow paths (splitting a combined credit,
+adding a featured artist). Neither covered the actual main path every song's
+artist credits go through: DatabaseDao.insert(mediaMetadata, ...) - used for
+every song from search, library sync, playlists, and the queue - trusted
+YouTube's raw artist.name and artist.id as given. YouTube's auto-generated
+'- Topic' channel has its own distinct channel id, separate from an artist's
+real channel if they have one, so this kept minting a second, differently-
+named ArtistEntity for an artist already known under their real channel -
+the exact duplicate-with-Topic-suffix problem the migration and enricher
+already existed to fix, just still happening prospectively for every song
+synced from here on.
+
+Fixed the same way in all three places that construct an ArtistEntity from a
+raw YouTube artist credit: DatabaseDao's song-artist and album-artist
+inserts, and AlbumsDao's own album-artist insert. Each now matches on the
+Topic-stripped name first (artistByNameIgnoreCase) before falling back to
+YouTube's own id, so a '- Topic' credit for an already-known artist merges
+into that existing entity - the same dedup MIGRATION_22_23 and
+ArtistCreditEnricher use, just applied going forward instead of as a
+one-time fixup. No separate navigation fix needed: every artist-page link in
+the app just follows whatever artistId is already attached to a song's
+credit via SongArtistMap, so once that mapping points at the right entity,
+navigation follows automatically.
+
+Left alone: SyncUtils's subscribed-artists sync (keyed 1:1 on a user's own
+explicit channel subscription, where a '- Topic' entry can be a deliberate
+choice, not a sync artifact) and the like-button inserts in
+YouTubeArtistMenu/ArtistScreen (same reasoning - a direct action on whatever
+channel the user is actually looking at). Also de-duplicated the three
+copies of the Topic-suffix regex this touched into one shared
+db/ArtistTopicSuffix.kt.
+
+Co-Authored-By: Claude Opus 5 (1M context) <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/db/ArtistTopicSuffix.kt  | 21 ++++++++++++++
+ .../com/dd3boh/outertune/db/DatabaseDao.kt    | 28 +++++++++++++++----
+ .../com/dd3boh/outertune/db/MusicDatabase.kt  |  6 ++--
+ .../com/dd3boh/outertune/db/daos/AlbumsDao.kt |  8 ++++--
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    | 11 ++++++--
+ .../outertune/utils/ArtistCreditEnricher.kt   |  5 +---
+ 6 files changed, 60 insertions(+), 19 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt b/app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt
+new file mode 100644
+index 00000000..7ffac56b
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt
+@@ -0,0 +1,21 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.db
++
++/** YouTube's auto-generated channel name for an artist with no official channel of their own. */
++val TOPIC_SUFFIX: Regex = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
++
++/**
++ * Shared by every site that needs to compare or store an artist's display name independent of
++ * whether the credit came in through YouTube's auto-generated "- Topic" channel: the general
++ * song-artist sync path ([DatabaseDao.insert]), [com.dd3boh.outertune.utils.ArtistCreditEnricher]'s
++ * search-based resolution, and [MIGRATION_22_23]'s one-time cleanup of names already stored with
++ * the suffix.
++ */
++fun String.stripTopicSuffix(): String = replace(TOPIC_SUFFIX, "").trim()
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+index 62be8457..00000000 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+@@ -175,11 +175,23 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+         // an existing song only ever adds a mapping that was missing, never duplicates or removes
+         // one that's already there.
+-        mediaMetadata.artists.forEachIndexed { index, artist ->
+-            val artistId = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId()
++        // Normalize once per song so `X` + `X - Topic` becomes exactly one credit. When there is no
++        // clean `X` credit, the Topic credit is retained as the single artist credit but stored
++        // under the clean display name. Keep local and remote artist namespaces separate.
++        val normalizedArtists = mediaMetadata.artists
++            .groupBy { artist ->
++                artist.isLocal to artist.name.stripTopicSuffix().lowercase()
++            }
++            .values
++            .map { group ->
++                group.firstOrNull { !it.name.hasTopicSuffix() } ?: group.first()
++            }
++        normalizedArtists.forEachIndexed { index, artist ->
++            val cleanName = artist.name.stripTopicSuffix()
++            val artistId = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()
+             insert( // TODO: use upsert???
+                 ArtistEntity(
+                     id = artistId,
+-                    name = artist.name,
++                    name = cleanName,
+                     isLocal = artist.isLocal
+                 )
+             )
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+index a5528b74..7e8636d6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+@@ -699,8 +699,6 @@ class Migration19To20 : AutoMigrationSpec
+  * a regular Migration rather than an AutoMigration.
+  */
+ val MIGRATION_22_23 = object : Migration(22, 23) {
+-    private val topicSuffix = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
+-
+     override fun migrate(db: SupportSQLiteDatabase) {
+         data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
+ 
+@@ -717,8 +715,8 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
+         val byLowerName = artists.groupBy { it.name.lowercase() }
+ 
+         for (artist in artists) {
+-            if (!topicSuffix.containsMatchIn(artist.name)) continue
+-            val baseName = artist.name.replace(topicSuffix, "").trim()
++            if (!TOPIC_SUFFIX.containsMatchIn(artist.name)) continue
++            val baseName = artist.name.stripTopicSuffix()
+             if (baseName.isEmpty()) continue
+ 
+             val original = byLowerName[baseName.lowercase()]
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
+index ed2bcb39..0fc5b41c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
+@@ -20,6 +20,7 @@ import com.dd3boh.outertune.db.entities.AlbumWithSongs
+ import com.dd3boh.outertune.db.entities.ArtistEntity
+ import com.dd3boh.outertune.db.entities.Song
+ import com.dd3boh.outertune.db.entities.SongAlbumMap
++import com.dd3boh.outertune.db.stripTopicSuffix
+ import com.dd3boh.outertune.extensions.reversed
+ import com.zionhuang.innertube.models.AlbumItem
+ import kotlinx.coroutines.flow.Flow
+@@ -261,9 +262,12 @@ interface AlbumsDao : ArtistsDao {
+         ) return
+         albumItem.artists
+             ?.map { artist ->
++                // See the identical dedup in DatabaseDao.insert(mediaMetadata, ...)'s own doc for
++                // why this doesn't just trust artist.id/artist.name as given.
++                val cleanName = artist.name.stripTopicSuffix()
+                 ArtistEntity(
+-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
+-                    name = artist.name
++                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
++                    name = cleanName
+                 )
+             }
+             ?.onEach(::insert)
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index 046e8fbe..82236385 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -53,9 +53,14 @@ interface ArtistsDao {
+     fun artistByName(name: String): ArtistEntity?
+ 
+     /**
+-     * Case-insensitive counterpart to [artistByName] - used by ArtistCreditEnricher so a freshly
+-     * search-resolved artist reuses an already-known ArtistEntity instead of creating a second one
+-     * that differs only in casing or in carrying/lacking YouTube's " - Topic" channel suffix.
++     * Case-insensitive counterpart to [artistByName]. Callers pass an already-Topic-stripped name
++     * (see [com.dd3boh.outertune.db.stripTopicSuffix]) so an artist credited under YouTube's
++     * auto-generated "- Topic" channel - its own distinct channel id, separate from the artist's
++     * real one if they have one - resolves to whatever ArtistEntity is already known for that
++     * artist instead of minting a second, differently-named one. Used by the general song/album
++     * artist sync in [com.dd3boh.outertune.db.DatabaseDao] and
++     * [com.dd3boh.outertune.db.daos.AlbumsDao], and by
++     * [com.dd3boh.outertune.utils.ArtistCreditEnricher]'s search-based resolution.
+      */
+     @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE LIMIT 1")
+     fun artistByNameIgnoreCase(name: String): ArtistEntity?
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+index e1a105e7..7ce91d71 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+@@ -12,6 +12,7 @@ import android.util.Log
+ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.db.entities.ArtistEntity
+ import com.dd3boh.outertune.db.entities.SongArtistMap
++import com.dd3boh.outertune.db.stripTopicSuffix
+ import com.zionhuang.innertube.YouTube
+ import com.zionhuang.innertube.models.ArtistItem
+ import kotlinx.coroutines.Dispatchers
+@@ -44,10 +45,6 @@ object ArtistCreditEnricher {
+     )
+     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
+ 
+-    /** YouTube's auto-generated channel name for an artist with no official channel of their own. */
+-    private val TOPIC_SUFFIX = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
+-    private fun String.stripTopicSuffix() = replace(TOPIC_SUFFIX, "").trim()
+-
+     /**
+      * Runs both checks for one song - called once per playback ([com.dd3boh.outertune.playback.MusicService.recoverSong])
+      * and once per song when downloads are rescanned ([com.dd3boh.outertune.playback.DownloadUtil.scanDownloads]).
+-- 
+2.43.0
+
