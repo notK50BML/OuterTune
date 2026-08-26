@@ -41718,3 +41718,629 @@ index 398fc873..2fd26f26 100644
 -- 
 2.45.1.windows.1
 
+From a1fcfacac136a4bab838a980554fe5d84d9ac08a Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 26 Aug 2026 22:23:51 +0800
+Subject: [PATCH 1/2] Simplify backup: drop the merge-restore and selective
+ categories
+
+Both were real, standing risk: merge-restore ATTACHed the backup database
+and copied every table with a positional "SELECT * ... INSERT OR REPLACE",
+which silently assumes both databases have identical on-disk column order -
+not guaranteed just because they're on the same schema version, since two
+databases can reach the same schema through different migration histories
+(Room's table-rebuild migrations reorder columns to match the current
+entity, ALTER-TABLE-only ones don't). A column landing in the wrong
+position is exactly how you get a NOT NULL constraint failure that looks
+unrelated to anything actually wrong with the data - which is what started
+turning up in testing. Selective categories added its own separate risk on
+top: raw DELETE statements against a temp copy of the live database,
+unverified without a working local compiler all session.
+
+Restore is back to the original, proven behavior: copy the whole validated
+backup file over the live one, unconditionally. Automatic backup now writes
+the exact same complete backup the manual Backup button always has -
+writeAutoBackup just calls writeBackup - so there's one backup format and
+one restore path again, nothing selective to keep in sync between them.
+Removed the four AutoBackupInclude*Key preferences and the "What to
+include" section along with the category logic.
+---
+ .../outertune/constants/PreferenceKeys.kt     |  11 --
+ .../dd3boh/outertune/playback/MusicService.kt |  13 +-
+ .../screens/settings/fragments/StorageFrag.kt |  41 ------
+ .../com/dd3boh/outertune/utils/BackupUtil.kt  | 135 ++++--------------
+ .../viewmodels/BackupRestoreViewModel.kt      |  69 +--------
+ app/src/main/res/values/strings-ot.xml        |   9 --
+ 6 files changed, 37 insertions(+), 241 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index c18f8035..63993cde 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -236,17 +236,6 @@ val AutoBackupKeepCountKey = intPreferencesKey("autoBackupKeepCount")
+ /** Epoch millis of the last successful automatic backup - null/unset means one has never run. */
+ val LastAutoBackupKey = longPreferencesKey("lastAutoBackup")
+ 
+-/**
+- * Which optional categories an automatic backup includes, alongside the library itself (songs,
+- * artists, albums, downloads, queue, settings - always included, since e.g. a playlist backed up
+- * without the songs it references would be useless). All default to included; see
+- * [com.dd3boh.outertune.utils.AutoBackupCategories].
+- */
+-val AutoBackupIncludeHistoryKey = booleanPreferencesKey("autoBackupIncludeHistory")
+-val AutoBackupIncludeLocalPlaylistsKey = booleanPreferencesKey("autoBackupIncludeLocalPlaylists")
+-val AutoBackupIncludeLibraryPlaylistsKey = booleanPreferencesKey("autoBackupIncludeLibraryPlaylists")
+-val AutoBackupIncludeStatsKey = booleanPreferencesKey("autoBackupIncludeStats")
+-
+ /**
+  * Discord Integration
+  */
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index a2f00ea9..50cb8b82 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -77,10 +77,6 @@ import com.dd3boh.outertune.constants.AudioQualityKey
+ import com.dd3boh.outertune.constants.AutoLoadMoreKey
+ import com.dd3boh.outertune.constants.AutoBackupDefaults
+ import com.dd3boh.outertune.constants.AutoBackupEnabledKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeHistoryKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeLibraryPlaylistsKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeLocalPlaylistsKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeStatsKey
+ import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
+ import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
+ import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
+@@ -151,7 +147,6 @@ import com.dd3boh.outertune.utils.enumPreference
+ import com.dd3boh.outertune.utils.get
+ import com.dd3boh.outertune.utils.playerCoroutine
+ import com.dd3boh.outertune.utils.reportException
+-import com.dd3boh.outertune.utils.AutoBackupCategories
+ import com.dd3boh.outertune.utils.writeAutoBackup
+ import com.google.common.util.concurrent.MoreExecutors
+ import com.zionhuang.innertube.YouTube
+@@ -583,15 +578,9 @@ class MusicService : MediaLibraryService(),
+                 val dueAt = lastBackup + intervalValue * intervalUnit.days * 24 * 60 * 60 * 1000L
+                 if (System.currentTimeMillis() < dueAt) return@launch
+ 
+-                val categories = AutoBackupCategories(
+-                    history = settings[AutoBackupIncludeHistoryKey] != false,
+-                    localPlaylists = settings[AutoBackupIncludeLocalPlaylistsKey] != false,
+-                    libraryPlaylists = settings[AutoBackupIncludeLibraryPlaylistsKey] != false,
+-                    stats = settings[AutoBackupIncludeStatsKey] != false,
+-                )
+                 val keepCount = settings[AutoBackupKeepCountKey] ?: AutoBackupDefaults.KEEP_COUNT
+ 
+-                if (writeAutoBackup(this@MusicService, database, categories, keepCount)) {
++                if (writeAutoBackup(this@MusicService, database, keepCount)) {
+                     dataStore.edit { it[LastAutoBackupKey] = System.currentTimeMillis() }
+                 }
+             }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+index ae6a7e80..db4c39c9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+@@ -64,10 +64,6 @@ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.AutoBackupDefaults
+ import com.dd3boh.outertune.constants.AutoBackupEnabledKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeHistoryKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeLibraryPlaylistsKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeLocalPlaylistsKey
+-import com.dd3boh.outertune.constants.AutoBackupIncludeStatsKey
+ import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
+ import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
+ import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
+@@ -188,16 +184,6 @@ private fun AutomaticBackupFrag() {
+         AutoBackupKeepCountKey,
+         defaultValue = AutoBackupDefaults.KEEP_COUNT
+     )
+-    val (includeHistory, onIncludeHistoryChange) = rememberPreference(AutoBackupIncludeHistoryKey, defaultValue = true)
+-    val (includeLocalPlaylists, onIncludeLocalPlaylistsChange) = rememberPreference(
+-        AutoBackupIncludeLocalPlaylistsKey,
+-        defaultValue = true
+-    )
+-    val (includeLibraryPlaylists, onIncludeLibraryPlaylistsChange) = rememberPreference(
+-        AutoBackupIncludeLibraryPlaylistsKey,
+-        defaultValue = true
+-    )
+-    val (includeStats, onIncludeStatsChange) = rememberPreference(AutoBackupIncludeStatsKey, defaultValue = true)
+     val lastAutoBackup by rememberPreference(LastAutoBackupKey, defaultValue = 0L)
+ 
+     val available = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
+@@ -250,33 +236,6 @@ private fun AutomaticBackupFrag() {
+         } else {
+             InfoLabel(stringResource(R.string.auto_backup_location))
+         }
+-
+-        SettingsClickToReveal(stringResource(R.string.auto_backup_categories_title)) {
+-            SwitchPreference(
+-                title = { Text(stringResource(R.string.auto_backup_category_history)) },
+-                description = stringResource(R.string.auto_backup_category_history_desc),
+-                checked = includeHistory,
+-                onCheckedChange = onIncludeHistoryChange
+-            )
+-            SwitchPreference(
+-                title = { Text(stringResource(R.string.auto_backup_category_local_playlists)) },
+-                description = stringResource(R.string.auto_backup_category_local_playlists_desc),
+-                checked = includeLocalPlaylists,
+-                onCheckedChange = onIncludeLocalPlaylistsChange
+-            )
+-            SwitchPreference(
+-                title = { Text(stringResource(R.string.auto_backup_category_library_playlists)) },
+-                description = stringResource(R.string.auto_backup_category_library_playlists_desc),
+-                checked = includeLibraryPlaylists,
+-                onCheckedChange = onIncludeLibraryPlaylistsChange
+-            )
+-            SwitchPreference(
+-                title = { Text(stringResource(R.string.auto_backup_category_stats)) },
+-                description = stringResource(R.string.auto_backup_category_stats_desc),
+-                checked = includeStats,
+-                onCheckedChange = onIncludeStatsChange
+-            )
+-        }
+     }
+ 
+     if (showIntervalValueDialog) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt b/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt
+index 8a516e1b..e95f81f8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt
+@@ -3,20 +3,17 @@ package com.dd3boh.outertune.utils
+ import android.content.ContentUris
+ import android.content.ContentValues
+ import android.content.Context
+-import android.database.sqlite.SQLiteDatabase
+ import android.net.Uri
+ import android.os.Build
+ import android.os.Environment
+ import android.provider.MediaStore
+ import android.util.Log
+-import com.dd3boh.outertune.constants.BackupIntervalUnit
+ import com.dd3boh.outertune.db.InternalDatabase
+ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.extensions.div
+ import com.dd3boh.outertune.extensions.zipOutputStream
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+-import java.io.File
+ import java.io.FileInputStream
+ import java.io.OutputStream
+ import java.time.LocalDateTime
+@@ -36,29 +33,12 @@ private const val TAG = "BackupUtil"
+ private const val AUTO_BACKUP_PREFIX = "outertune_auto_"
+ private const val AUTO_BACKUP_RELATIVE_DIR = "OuterTune Backup"
+ 
+-/**
+- * Which optional tables an automatic backup includes, beyond the library itself (songs, artists,
+- * albums, downloads, queue, settings - always included, since e.g. a playlist without the songs
+- * it references would be useless on its own). Maps directly onto real tables in [applyCategoryFilter];
+- * see that function for exactly what each one keeps or drops.
+- */
+-data class AutoBackupCategories(
+-    val history: Boolean = true,
+-    val localPlaylists: Boolean = true,
+-    val libraryPlaylists: Boolean = true,
+-    val stats: Boolean = true,
+-) {
+-    val isEverything: Boolean
+-        get() = history && localPlaylists && libraryPlaylists && stats
+-}
+-
+ /**
+  * Writes a full backup - the settings DataStore file and a checkpointed copy of the whole song
+- * database - to [outputStream] as a zip. This is the format the manual Backup action in
+- * Settings > Backup and Restore produces and Restore reads back; always the full database,
+- * regardless of what an automatic backup (see [writeAutoBackup]) might be configured to leave out
+- * - restoring from a partial backup should never look like data silently went missing from a
+- * *manual* one, which is what someone reaches for specifically to be sure they have everything.
++ * database, every table, exactly as it exists live - to [outputStream] as a zip. This is the
++ * format the manual Backup action in Settings > Backup and Restore produces and Restore reads
++ * back, and [writeAutoBackup] below writes the exact same thing on its own: one backup format,
++ * one restore path, nothing selective to keep in sync between them.
+  */
+ suspend fun writeBackup(context: Context, database: MusicDatabase, outputStream: OutputStream) {
+     withContext(Dispatchers.IO) {
+@@ -78,54 +58,20 @@ suspend fun writeBackup(context: Context, database: MusicDatabase, outputStream:
+ }
+ 
+ /**
+- * Deletes whatever [categories] leaves unchecked from the (already-copied, not-live) database at
+- * [dbFile] - a join table is cleared explicitly rather than relying on Room's CASCADE foreign keys
+- * firing on a bare framework connection (they need `PRAGMA foreign_keys = ON`, which is enabled
+- * here too, but there's no reason to depend on both when being explicit is one extra statement).
+- */
+-private fun applyCategoryFilter(dbFile: File, categories: AutoBackupCategories) {
+-    if (categories.isEverything) return
+-    SQLiteDatabase.openDatabase(dbFile.path, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+-        // The copied bytes carry the live (WAL-mode) database's header, so a connection here would
+-        // otherwise create its own -wal/-shm sidecars next to dbFile - forcing rollback-journal
+-        // mode instead keeps every change (and its cleanup) inside the one file that gets zipped.
+-        db.execSQL("PRAGMA journal_mode = DELETE")
+-        db.execSQL("PRAGMA foreign_keys = ON")
+-        if (!categories.history) {
+-            db.execSQL("DELETE FROM event")
+-            db.execSQL("DELETE FROM search_history")
+-            db.execSQL("DELETE FROM recent_activity")
+-        }
+-        if (!categories.localPlaylists) {
+-            db.execSQL("DELETE FROM playlist_song_map WHERE playlistId IN (SELECT id FROM playlist WHERE isLocal = 1)")
+-            db.execSQL("DELETE FROM playlist WHERE isLocal = 1")
+-        }
+-        if (!categories.libraryPlaylists) {
+-            db.execSQL("DELETE FROM playlist_song_map WHERE playlistId IN (SELECT id FROM playlist WHERE isLocal = 0)")
+-            db.execSQL("DELETE FROM playlist WHERE isLocal = 0")
+-        }
+-        if (!categories.stats) {
+-            db.execSQL("DELETE FROM playCount")
+-        }
+-    }
+-}
+-
+-/**
+- * Writes an automatic backup into Downloads/OuterTune Backup - created on its own the first time,
+- * via [MediaStore] rather than a folder the user has to pick, so this can actually run
+- * unattended. Only available from Android 10 (Q) on: below that this silently does nothing rather
+- * than reach for the broad legacy storage permission this app otherwise avoids entirely (see the
+- * manifest) just for a background convenience feature.
++ * Writes the exact same backup [writeBackup] does, on its own, into Downloads/OuterTune Backup -
++ * created there automatically the first time, via [MediaStore] rather than a folder the user has
++ * to pick, so this can actually run unattended. Only available from Android 10 (Q) on: below that
++ * this silently does nothing rather than reach for the broad legacy storage permission this app
++ * otherwise avoids entirely (see the manifest) just for a background convenience feature.
+  *
+- * [categories] controls which optional tables come along - see [applyCategoryFilter]. Prunes down
+- * to the newest [keepCount] automatic backups afterward (matched by [AUTO_BACKUP_PREFIX], so a
+- * manual backup someone drops in the same folder is never touched). Returns true on success;
+- * false (never throws) on any failure, since this runs unattended and has nothing to show a user.
++ * Prunes down to the newest [keepCount] automatic backups afterward (matched by
++ * [AUTO_BACKUP_PREFIX], so a manual backup someone drops in the same folder is never touched).
++ * Returns true on success; false (never throws) on any failure, since this runs unattended and
++ * has nothing to show a user.
+  */
+ suspend fun writeAutoBackup(
+     context: Context,
+     database: MusicDatabase,
+-    categories: AutoBackupCategories,
+     keepCount: Int,
+ ): Boolean = withContext(Dispatchers.IO) {
+     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext false
+@@ -134,47 +80,26 @@ suspend fun writeAutoBackup(
+         val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+         val fileName = "$AUTO_BACKUP_PREFIX${LocalDateTime.now().format(formatter)}.backup"
+ 
+-        val tempDbFile = File(context.cacheDir, "auto_backup_${System.currentTimeMillis()}.db")
+-        try {
+-            database.checkpoint()
+-            FileInputStream(database.openHelper.writableDatabase.path).use { input ->
+-                tempDbFile.outputStream().use { output -> input.copyTo(output) }
+-            }
+-            applyCategoryFilter(tempDbFile, categories)
+-
+-            val values = ContentValues().apply {
+-                put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+-                put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
+-                put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$AUTO_BACKUP_RELATIVE_DIR")
+-            }
+-            val destUri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+-                ?: return@runCatching false
+-
+-            val wrote = context.contentResolver.openOutputStream(destUri)?.use { out ->
+-                out.buffered().zipOutputStream().use { zip ->
+-                    zip.setLevel(Deflater.BEST_COMPRESSION)
+-                    (context.filesDir / "datastore" / BACKUP_SETTINGS_FILENAME).inputStream().buffered().use { input ->
+-                        zip.putNextEntry(ZipEntry(BACKUP_SETTINGS_FILENAME))
+-                        input.copyTo(zip)
+-                    }
+-                    tempDbFile.inputStream().use { input ->
+-                        zip.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
+-                        input.copyTo(zip)
+-                    }
+-                }
+-                true
+-            } ?: false
+-
+-            if (!wrote) {
+-                context.contentResolver.delete(destUri, null, null)
+-                return@runCatching false
+-            }
++        val values = ContentValues().apply {
++            put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
++            put(MediaStore.MediaColumns.MIME_TYPE, "application/octet-stream")
++            put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/$AUTO_BACKUP_RELATIVE_DIR")
++        }
++        val destUri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
++            ?: return@runCatching false
+ 
+-            pruneOldAutoBackups(context, keepCount)
++        val wrote = context.contentResolver.openOutputStream(destUri)?.use { out ->
++            writeBackup(context, database, out)
+             true
+-        } finally {
+-            tempDbFile.delete()
++        } ?: false
++
++        if (!wrote) {
++            context.contentResolver.delete(destUri, null, null)
++            return@runCatching false
+         }
++
++        pruneOldAutoBackups(context, keepCount)
++        true
+     }.onFailure {
+         Log.e(TAG, "Automatic backup failed", it)
+     }.getOrDefault(false)
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+index 2fd26f26..85798d5f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+@@ -2,7 +2,6 @@ package com.dd3boh.outertune.viewmodels
+ 
+ import android.content.Context
+ import android.content.Intent
+-import android.database.sqlite.SQLiteDatabase
+ import android.net.Uri
+ import android.util.Log
+ import android.widget.Toast
+@@ -95,25 +94,12 @@ class BackupRestoreViewModel @Inject constructor(
+                                 }
+ 
+                                 if (status) {
+-                                    Log.i(TAG, "Found valid database, merging into the live one")
+-                                    // Merges rather than replaces the live file outright: an
+-                                    // automatic backup can be a deliberately partial one (see
+-                                    // AutoBackupCategories) with some tables left empty by
+-                                    // design, and a straight file swap would read that as "the
+-                                    // user wants this data gone" rather than "this backup never
+-                                    // touched it". Every row the backup DOES have overwrites the
+-                                    // live row with the same primary key; nothing the backup
+-                                    // doesn't have is removed from what's already live - so
+-                                    // restoring a stats-only backup updates play counts and
+-                                    // leaves playlists/history exactly as they were, and restoring
+-                                    // a full one still can't erase anything added to the live
+-                                    // library since the backup was taken.
+-                                    mergeDatabaseFile(
+-                                        liveDbPath = requireNotNull(database.openHelper.writableDatabase.path) {
+-                                            "Live database has no path - can't merge into it"
+-                                        },
+-                                        backupDbPath = destFile.path
+-                                    )
++                                    Log.i(TAG, "Found valid database, proceeding with restore")
++                                    destFile.inputStream().use { inputStream ->
++                                        FileOutputStream(database.openHelper.writableDatabase.path).use { outputStream ->
++                                            inputStream.copyTo(outputStream)
++                                        }
++                                    }
+                                 } else {
+                                     Log.e(TAG, "Incompatible database, aborting restore")
+                                     Toast.makeText(
+@@ -140,47 +126,4 @@ class BackupRestoreViewModel @Inject constructor(
+             Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show()
+         }
+     }
+-
+-    /**
+-     * Copies every row [backupDbPath] has into [liveDbPath], table by table, via SQLite's own
+-     * ATTACH rather than a Kotlin-side row loop - table names come from the attached database's
+-     * own sqlite_master, not a hardcoded list, so this keeps working if the schema grows a table
+-     * without needing to come back and update it. `INSERT OR REPLACE` means a row the backup has
+-     * overwrites the live row sharing its primary key; a row the backup DOESN'T have (an empty
+-     * table from an AutoBackupCategories exclusion, or simply a row added to the live library
+-     * since the backup was taken) is left alone rather than deleted - see the call site's own doc
+-     * for why that matters here specifically. By the time this runs, both files have already been
+-     * opened by Room at least once under the current app's migrations (this one when it was first
+-     * created, the backup's copy via the newTestInstance validation just before this call), so
+-     * both are on the same schema version and this never needs a migration of its own.
+-     */
+-    private fun mergeDatabaseFile(liveDbPath: String, backupDbPath: String) {
+-        val escapedBackupPath = backupDbPath.replace("'", "''")
+-        SQLiteDatabase.openDatabase(liveDbPath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
+-            db.execSQL("ATTACH DATABASE '$escapedBackupPath' AS backup")
+-            try {
+-                val tables = mutableListOf<String>()
+-                db.rawQuery(
+-                    "SELECT name FROM backup.sqlite_master " +
+-                        "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'room_%' " +
+-                        "AND name != 'android_metadata'",
+-                    null
+-                ).use { cursor ->
+-                    while (cursor.moveToNext()) tables += cursor.getString(0)
+-                }
+-
+-                db.beginTransaction()
+-                try {
+-                    for (table in tables) {
+-                        db.execSQL("INSERT OR REPLACE INTO main.\"$table\" SELECT * FROM backup.\"$table\"")
+-                    }
+-                    db.setTransactionSuccessful()
+-                } finally {
+-                    db.endTransaction()
+-                }
+-            } finally {
+-                db.execSQL("DETACH DATABASE backup")
+-            }
+-        }
+-    }
+ }
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index a433e677..5b1d684a 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -241,15 +241,6 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="auto_backup_keep_count_description">How many automatic backups to keep before deleting the oldest</string>
+     <string name="auto_backup_last_run">Last automatic backup: %1$s</string>
+     <string name="auto_backup_location">Saved to Downloads/OuterTune Backup</string>
+-    <string name="auto_backup_categories_title">What to include</string>
+-    <string name="auto_backup_category_history">Listen &amp; search history</string>
+-    <string name="auto_backup_category_history_desc">Play history and search history</string>
+-    <string name="auto_backup_category_local_playlists">Local-only playlists</string>
+-    <string name="auto_backup_category_local_playlists_desc">Playlists that only exist on this device</string>
+-    <string name="auto_backup_category_library_playlists">Synced playlists</string>
+-    <string name="auto_backup_category_library_playlists_desc">Playlists synced from your account (liked songs stay in your library either way)</string>
+-    <string name="auto_backup_category_stats">Play stats</string>
+-    <string name="auto_backup_category_stats_desc">Per-song play counts</string>
+     <string name="sleep_timer_fade">Fade out</string>
+     <string name="sleep_timer_fade_duration">Fade duration</string>
+     <string name="sleep_timer_fade_duration_desc">Seconds to lower the volume before stopping</string>
+-- 
+2.45.1.windows.1
+
+
+From 4ea91534ca3fc5eef718361b71c501369c369f5b Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 26 Aug 2026 22:24:01 +0800
+Subject: [PATCH 2/2] Write a safety backup before every irreversible delete
+ action
+
+Before any of the six "Nuke" database tools (Experimental > Developer
+settings, already gated behind their own confirmation) and before Clear
+listen history / Clear search history (Privacy), the app now writes a full
+automatic backup to Downloads/OuterTune Backup first - the same one a
+scheduled automatic backup would produce, reusing writeAutoBackup and its
+existing pruning. Best-effort: a failed safety backup logs and moves on
+rather than blocking the deletion the user already explicitly confirmed.
+
+Deliberately not added to cache-clearing actions (song/image cache,
+downloads) - the backup only ever covers settings and the database, never
+cached files or audio, so a safety backup ahead of those would protect
+nothing.
+---
+ .../screens/settings/ExperimentalSettings.kt  | 15 +++++++
+ .../screens/settings/fragments/LibraryFrag.kt | 44 +++++++++++++++++--
+ 2 files changed, 55 insertions(+), 4 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+index fd88fede..ab92233d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+@@ -67,6 +67,8 @@ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.AudioGaplessOffloadKey
+ import com.dd3boh.outertune.constants.AudioOffloadKey
++import com.dd3boh.outertune.constants.AutoBackupDefaults
++import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
+ import com.dd3boh.outertune.constants.DevSettingsKey
+ import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
+ import com.dd3boh.outertune.constants.MaxQueuesKey
+@@ -83,7 +85,9 @@ import com.dd3boh.outertune.ui.dialog.CounterDialog
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.utils.dataStore
++import com.dd3boh.outertune.utils.get
+ import com.dd3boh.outertune.utils.rememberPreference
++import com.dd3boh.outertune.utils.writeAutoBackup
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.launch
+@@ -610,6 +614,17 @@ fun ExperimentalSettings(
+                         pendingNuke = null
+                         Toast.makeText(context, "Nuking $label from database...", Toast.LENGTH_SHORT).show()
+                         coroutineScope.launch(Dispatchers.IO) {
++                            // A safety net before something this irreversible: the same full
++                            // backup a scheduled automatic backup would write, to the same place.
++                            // Best-effort - a failed safety backup shouldn't block the nuke the
++                            // user already confirmed.
++                            runCatching {
++                                writeAutoBackup(
++                                    context,
++                                    database,
++                                    context.dataStore.get(AutoBackupKeepCountKey, AutoBackupDefaults.KEEP_COUNT)
++                                )
++                            }
+                             Log.i(SETTINGS_TAG, "Nuke database status: ${action()}")
+                         }
+                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LibraryFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LibraryFrag.kt
+index 27e98a6f..7852145f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LibraryFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LibraryFrag.kt
+@@ -18,8 +18,12 @@ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.ui.platform.LocalContext
+ import com.dd3boh.outertune.LocalDatabase
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.AutoBackupDefaults
++import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
+ import com.dd3boh.outertune.constants.InnerTubeCookieKey
+ import com.dd3boh.outertune.constants.PauseListenHistoryKey
+ import com.dd3boh.outertune.constants.PauseRemoteListenHistoryKey
+@@ -27,12 +31,19 @@ import com.dd3boh.outertune.constants.PauseSearchHistoryKey
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.utils.dataStore
++import com.dd3boh.outertune.utils.get
+ import com.dd3boh.outertune.utils.rememberPreference
++import com.dd3boh.outertune.utils.writeAutoBackup
+ import com.zionhuang.innertube.utils.parseCookieString
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.launch
+ 
+ @Composable
+ fun ColumnScope.ListenHistoryFrag() {
++    val context = LocalContext.current
+     val database = LocalDatabase.current
++    val coroutineScope = rememberCoroutineScope()
+ 
+     val (pauseListenHistory, onPauseListenHistoryChange) = rememberPreference(
+         key = PauseListenHistoryKey,
+@@ -96,8 +107,21 @@ fun ColumnScope.ListenHistoryFrag() {
+                 TextButton(
+                     onClick = {
+                         showClearListenHistoryDialog = false
+-                        database.query {
+-                            clearListenHistory()
++                        coroutineScope.launch(Dispatchers.IO) {
++                            // A safety net before something this irreversible: the same full
++                            // backup a scheduled automatic backup would write, to the same place.
++                            // Best-effort - a failed safety backup shouldn't block the clear the
++                            // user already confirmed.
++                            runCatching {
++                                writeAutoBackup(
++                                    context,
++                                    database,
++                                    context.dataStore.get(AutoBackupKeepCountKey, AutoBackupDefaults.KEEP_COUNT)
++                                )
++                            }
++                            database.query {
++                                clearListenHistory()
++                            }
+                         }
+                     }
+                 ) {
+@@ -110,7 +134,9 @@ fun ColumnScope.ListenHistoryFrag() {
+ 
+ @Composable
+ fun ColumnScope.SearchHistoryFrag() {
++    val context = LocalContext.current
+     val database = LocalDatabase.current
++    val coroutineScope = rememberCoroutineScope()
+ 
+     val (pauseSearchHistory, onPauseSearchHistoryChange) = rememberPreference(
+         key = PauseSearchHistoryKey,
+@@ -160,8 +186,18 @@ fun ColumnScope.SearchHistoryFrag() {
+                 TextButton(
+                     onClick = {
+                         showClearSearchHistoryDialog = false
+-                        database.query {
+-                            clearSearchHistory()
++                        coroutineScope.launch(Dispatchers.IO) {
++                            // See ListenHistoryFrag's identical safety backup for why.
++                            runCatching {
++                                writeAutoBackup(
++                                    context,
++                                    database,
++                                    context.dataStore.get(AutoBackupKeepCountKey, AutoBackupDefaults.KEEP_COUNT)
++                                )
++                            }
++                            database.query {
++                                clearSearchHistory()
++                            }
+                         }
+                     }
+                 ) {
+-- 
+2.45.1.windows.1
+
