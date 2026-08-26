@@ -1169,7 +1169,7 @@ fun ControlsContent(
                                                 iterations = 1,
                                                 initialDelayMillis = 5000
                                             )
-                                            .clickable(enabled = artist.id != null) {
+                                            .clickable(enabled = artist.hasArtistPage) {
                                                 navController.navigate("artist/${artist.id}")
                                                 playerSheetState.collapseSoft()
                                             }

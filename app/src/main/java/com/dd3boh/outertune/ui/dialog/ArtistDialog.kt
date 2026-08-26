@@ -12,6 +12,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -39,10 +40,11 @@ fun ArtistDialog(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .height(ListItemHeight)
-                    .clickable {
+                    .clickable(enabled = artist.hasArtistPage) {
                         navController.navigate("artist/${artist.id}")
                         onDismiss()
                     }
+                    .alpha(if (artist.hasArtistPage) 1f else 0.5f)
                     .padding(horizontal = 12.dp),
             ) {
                 Box(
@@ -50,10 +52,6 @@ fun ArtistDialog(
                     modifier = Modifier
                         .fillParentMaxWidth()
                         .height(ListItemHeight)
-                        .clickable {
-                            navController.navigate("artist/${artist.id}")
-                            onDismiss()
-                        }
                         .padding(horizontal = 24.dp),
                 ) {
                     Text(
@@ -87,10 +85,11 @@ fun ArtistDialog(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .height(ListItemHeight)
-                    .clickable {
+                    .clickable(enabled = artist.isYouTubeArtist) {
                         navController.navigate("artist/${artist.id}")
                         onDismiss()
                     }
+                    .alpha(if (artist.isYouTubeArtist) 1f else 0.5f)
                     .padding(horizontal = 12.dp),
             ) {
                 Box(

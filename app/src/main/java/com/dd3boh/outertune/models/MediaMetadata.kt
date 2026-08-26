@@ -40,7 +40,16 @@ data class MediaMetadata(
         val id: String?,
         val name: String,
         val isLocal: Boolean = false,
-    ) : Serializable
+    ) : Serializable {
+        /**
+         * Whether [id] is a real YouTube Music channel rather than a locally-generated
+         * placeholder (see [com.dd3boh.outertune.db.entities.ArtistEntity.isYouTubeArtist], which
+         * this mirrors) - an artist with no real channel has nowhere to navigate to, so this is
+         * what should gate whether tapping the artist's name/row does anything.
+         */
+        val hasArtistPage: Boolean
+            get() = id != null && (id.startsWith("UC") || id.startsWith("FEmusic_library_privately_owned_artist"))
+    }
 
     data class Album(
         val id: String,

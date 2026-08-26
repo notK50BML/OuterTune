@@ -291,10 +291,12 @@ fun SongMenu(
 
         GridMenuItem(
             icon = R.drawable.artist,
-            title = R.string.view_artist
+            title = R.string.view_artist,
+            enabled = song.artists.any { it.isYouTubeArtist }
         ) {
-            if (song.artists.size == 1) {
-                navController.navigate("artist/${song.artists[0].id}")
+            val singleArtistId = song.artists.singleOrNull()?.takeIf { it.isYouTubeArtist }?.id
+            if (singleArtistId != null) {
+                navController.navigate("artist/$singleArtistId")
                 onDismiss()
             } else {
                 showSelectArtistDialog = true

@@ -223,10 +223,12 @@ fun AlbumMenu(
         }
         GridMenuItem(
             icon = R.drawable.artist,
-            title = R.string.view_artist
+            title = R.string.view_artist,
+            enabled = album.artists.any { it.isYouTubeArtist }
         ) {
-            if (album.artists.size == 1) {
-                navController.navigate("artist/${album.artists[0].id}")
+            val singleArtistId = album.artists.singleOrNull()?.takeIf { it.isYouTubeArtist }?.id
+            if (singleArtistId != null) {
+                navController.navigate("artist/$singleArtistId")
                 onDismiss()
             } else {
                 showSelectArtistDialog = true

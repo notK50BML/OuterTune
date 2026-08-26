@@ -205,13 +205,14 @@ fun YouTubeSongMenu(
                 )
             }
         )
-        if (artists.isNotEmpty()) {
+        if (artists.any { it.id != null }) {
             GridMenuItem(
                 icon = Icons.Rounded.Person,
                 title = R.string.view_artist
             ) {
-                if (artists.size == 1) {
-                    navController.navigate("artist/${artists[0].id}")
+                val singleArtistId = artists.singleOrNull()?.id
+                if (singleArtistId != null) {
+                    navController.navigate("artist/$singleArtistId")
                     onDismiss()
                 } else {
                     showSelectArtistDialog = true
