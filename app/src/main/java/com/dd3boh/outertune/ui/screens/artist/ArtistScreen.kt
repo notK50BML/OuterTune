@@ -128,9 +128,20 @@ import kotlin.math.roundToInt
 /**
  * Scales the artist header's aspect ratio down (taller box for the same width) before it's
  * clamped - see the call site for why a header sized to the image's bare aspect ratio alone
- * still needed this.
+ * still needed this. Used for a wide/banner photo, where the box is already fairly short and
+ * benefits from a bit more height so the name doesn't feel cramped against it.
  */
 private const val HEADER_HEIGHT_BOOST = 0.78f
+
+/**
+ * The stronger boost applied to a genuinely square photo with no letterboxing found - see the
+ * call site. A plain square avatar with nothing else going on can afford (and reads better with)
+ * more headroom above it than a banner photo does.
+ */
+private const val HEADER_HEIGHT_BOOST_SQUARE = 0.65f
+
+/** How far from exactly 1:1 a photo's aspect ratio can be and still count as "square" below. */
+private const val SQUARE_ASPECT_TOLERANCE = 0.15f
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -210,16 +221,26 @@ fun ArtistScreen(
                 }
             }
 
-            val detectedAspect = croppedThumbnail?.let { it.width.toFloat() / it.height }
+            val hasLetterbox = croppedThumbnail != null
+            val baseAspect = croppedThumbnail?.let { it.width.toFloat() / it.height } ?: naturalAspect ?: (4f / 3)
             // Displaying the image at its exact own ratio made a wide banner photo's header
             // shallow - a real shape, not a bug, but a strip that thin read as cramped rather than
-            // a proper header. HEADER_HEIGHT_BOOST scales every ratio down by the same amount
-            // before the clamp, so a landscape photo, a square avatar and the no-thumbnail
-            // fallback all get a taller box than their bare aspect ratio implies, not just the
-            // extreme ends the clamp alone would catch - the image itself still renders at its own
-            // true shape (Fit, not cropped to fill), just with a bit more room around it.
-            val headerAspect = ((detectedAspect ?: naturalAspect ?: (4f / 3)) * HEADER_HEIGHT_BOOST)
-                .coerceIn(0.7f, 1.6f)
+            // a proper header. Boosting (scaling the ratio down, which makes the box taller for
+            // the same width) fixes that, but not by the same amount for every source:
+            // - Letterboxed source: the black bars already got cropped off above, so
+            //   `baseAspect` IS the real photo's own shape already - boosting it further on top of
+            //   that just adds more blank space above the image (it's bottom-aligned) for no
+            //   reason. No boost here.
+            // - Genuinely square, no letterboxing found: nothing else is shaping this box, so it
+            //   gets the strongest boost - otherwise the name overlaps the photo's own content
+            //   with no room to breathe.
+            // - Anything else (a real wide/landscape banner): the original, milder boost.
+            val boost = when {
+                hasLetterbox -> 1f
+                baseAspect in (1f - SQUARE_ASPECT_TOLERANCE)..(1f + SQUARE_ASPECT_TOLERANCE) -> HEADER_HEIGHT_BOOST_SQUARE
+                else -> HEADER_HEIGHT_BOOST
+            }
+            val headerAspect = (baseAspect * boost).coerceIn(0.6f, 1.6f)
 
             Column {
                 Box(
