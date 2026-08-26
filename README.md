@@ -2,7 +2,7 @@
 
 [![OuterTune app icon](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/outertune.webp)](https://github.com/yuuichi-s/OuterTune/blob/dev/assets/outertune.webp)
 
-[![Release](https://img.shields.io/badge/release-v0.18.1-orange)](https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
+[![Release](https://img.shields.io/badge/release-v0.18.2-orange)](https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
 A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a dynamic audio visualiser, a free-position UI editor (still WIP), and much more. This player features extensive Material 3 customisation options and player styles for dynamic theming. 
 
@@ -48,6 +48,8 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Fixed blurry cover art on some songs (again)
 - Cleaned up the top bar and removed a redundant icon
 - Added frosted glass and liquid player style
+- Added the VisionOS Youtube Music API as the main player (from https://github.com/yuuichi-s/OuterTune/)
+- Now reads song title and links artists better
 
 ### Lyrics
 
