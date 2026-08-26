@@ -25,17 +25,19 @@ import kotlinx.coroutines.withContext
  * - A single combined credit like "X & Y" that isn't a real channel - YTM sometimes returns this
  *   as one Run with no navigationEndpoint rather than crediting X and Y separately, which lands in
  *   the database as one ArtistEntity with a generated local id (see [ArtistEntity.isYouTubeArtist]).
- *   Once searching each half actually turns up a real channel, X and Y get added as their own
- *   artists.
+ *   "X & Y" might genuinely be one act's own name (a duo whose real channel title contains "&"),
+ *   so it's only replaced once confirmed it doesn't exist as an artist in its own right; once
+ *   confirmed, it's removed and swapped for whichever of X/Y individually resolve to a real,
+ *   populated channel - a half that doesn't resolve is dropped too, never kept as an unconfirmed
+ *   guess.
  * - An artist named in the title's "(feat. X, Y)"/"(ft. X)" text but missing from the credited
  *   list gets added, once a search confirms the name is a real artist.
  *
- * The song's own inbuilt credit is never touched or replaced by either of these - a search match
- * can be wrong (same-named channel, right title but no real profile behind it), so the credit
- * that came straight from the song's own data stays put and stays what "the artist" resolves to.
- * Anything this class finds is *added*, positioned after every credit the song already had, and
- * only when the match actually looks like a real, populated channel (a non-blank thumbnail) -
- * never as a replacement for what was already linked.
+ * The rule behind both: nothing here ever credits a name that hasn't been confirmed to be a real,
+ * populated channel (a non-blank thumbnail) - an unconfirmed or nonexistent name is removed/never
+ * added, never kept around just because it's what the song's own data happened to say. An artist
+ * that IS confirmed real, however (whether it's "X & Y" itself or a split-out half), is linked to
+ * its actual channel, not just left as an inert placeholder.
  */
 object ArtistCreditEnricher {
     private const val TAG = "ArtistCreditEnricher"
@@ -61,36 +63,59 @@ object ArtistCreditEnricher {
     suspend fun enrich(database: MusicDatabase, songId: String): Unit = withContext(Dispatchers.IO) {
         val song = database.song(songId).first() ?: return@withContext
 
-        // Everything found below is appended after the song's own inbuilt credits, never in
-        // place of them - `nextPosition`/`creditedNames` track that running tail as entries are
-        // added, so a song with more than one combined credit or several featured artists still
-        // gets each of them positioned behind everything before it instead of colliding on the
-        // same position.
-        var nextPosition = song.artists.size
-        val creditedNames = song.artists.map { it.name.lowercase() }.toMutableSet()
-
-        // Add the real artists behind a combined "X & Y" credit once both halves resolve to a
-        // real, populated channel. The combined credit itself is left exactly as it was - it's
-        // still the song's own inbuilt link, just not a clickable one.
+        // Rebuilt from scratch rather than patched in place: once any combined credit's count of
+        // real artists differs from 1, every position after it shifts, and rewriting the whole
+        // list from here is simpler and safer than adjusting individual positions.
+        var changed = false
+        val finalArtists = mutableListOf<ArtistEntity>()
         for (artist in song.artists) {
-            if (artist.isYouTubeArtist) continue
-            val candidates = splitAmpersandCandidates(artist.name) ?: continue
-            if (candidates.any { it.lowercase() in creditedNames }) continue
-
-            val resolved = candidates.map { resolveArtistEntity(database, it) }
-            if (resolved.any { it == null }) continue
-
-            resolved.forEach { item ->
-                item!!
-                database.insert(item)
-                database.insert(SongArtistMap(songId = songId, artistId = item.id, position = nextPosition))
-                nextPosition++
-                creditedNames += item.name.lowercase()
+            if (artist.isYouTubeArtist) {
+                finalArtists += artist
+                continue
             }
-            Log.d(TAG, "[$songId] added real artists behind combined credit \"${artist.name}\": ${resolved.map { it?.name }}")
+            val candidates = splitAmpersandCandidates(artist.name)
+            if (candidates == null) {
+                finalArtists += artist
+                continue
+            }
+
+            // "X & Y" might be a real act's own name - only treat it as fake once its own name
+            // fails to resolve to a real, populated channel.
+            val realCombined = resolveArtistEntity(database, artist.name)
+            if (realCombined != null) {
+                finalArtists += realCombined
+                if (realCombined.id != artist.id) changed = true
+                continue
+            }
+
+            // Confirmed it doesn't exist as an artist on its own: drop it, keeping only whichever
+            // half(s) DO resolve to a real, populated channel - an unresolved half is dropped
+            // too, never kept as an unconfirmed guess.
+            val realHalves = candidates.mapNotNull { resolveArtistEntity(database, it) }
+            finalArtists += realHalves
+            changed = true
+            Log.d(TAG, "[$songId] combined credit \"${artist.name}\" doesn't exist on its own - replaced with ${realHalves.map { it.name }}")
         }
 
-        // Add any featured artist named in the title but missing from the credited list.
+        // distinctBy guards against two different combined credits independently resolving to
+        // the same real artist - rare, but song_artist_map's (songId, artistId) primary key
+        // can't hold that same id twice at two different positions.
+        val distinctFinalArtists = finalArtists.distinctBy { it.id }
+
+        if (changed) {
+            song.artists.forEach { database.deleteSongArtistMap(songId, it.id) }
+            song.artists.filterNot { old -> distinctFinalArtists.any { it.id == old.id } }
+                .forEach { database.safeDeleteArtist(it.id) }
+            distinctFinalArtists.forEachIndexed { index, artist ->
+                database.insert(artist)
+                database.insert(SongArtistMap(songId = songId, artistId = artist.id, position = index))
+            }
+        }
+
+        // Add any featured artist named in the title but missing from the (possibly just
+        // rewritten) credited list.
+        val creditedNames = distinctFinalArtists.map { it.name.lowercase() }.toMutableSet()
+        var nextPosition = distinctFinalArtists.size
         val featured = parseFeaturedArtistNames(song.song.title).filter { it.lowercase() !in creditedNames }
         for (name in featured) {
             val resolved = resolveArtistEntity(database, name) ?: continue
