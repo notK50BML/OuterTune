@@ -1151,7 +1151,8 @@ fun ControlsContent(
                                         initialDelayMillis = 3000
                                     )
                                     .clickable(enabled = mediaMetadata?.album != null) {
-                                        navController.navigate("album/${mediaMetadata?.album!!.id}")
+                                        val albumId = mediaMetadata?.album?.id ?: return@clickable
+                                        navController.navigate("album/$albumId")
                                         playerSheetState.collapseSoft()
                                     }
                             )

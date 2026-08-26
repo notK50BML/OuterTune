@@ -302,10 +302,12 @@ fun PlayerMenu(
         }
         GridMenuItem(
             icon = R.drawable.artist,
-            title = R.string.view_artist
+            title = R.string.view_artist,
+            enabled = mediaMetadata.artists.any { it.id != null }
         ) {
-            if (mediaMetadata.artists.size == 1) {
-                navController.navigate("artist/${mediaMetadata.artists[0].id}")
+            val singleArtistId = mediaMetadata.artists.singleOrNull()?.id
+            if (singleArtistId != null) {
+                navController.navigate("artist/$singleArtistId")
                 playerBottomSheetState.collapseSoft()
                 onDismiss()
             } else {
