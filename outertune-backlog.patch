@@ -41685,3 +41685,36 @@ index 85798d5f..398fc873 100644
 -- 
 2.45.1.windows.1
 
+From a1c78d3f1091664804aa24c7178c79117ab2b9da Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 26 Aug 2026 21:55:19 +0800
+Subject: [PATCH] Fix compile error: writableDatabase.path is nullable
+
+CI: "Argument type mismatch: actual type is 'String?', but 'String' was
+expected" at mergeDatabaseFile's liveDbPath argument. SupportSQLiteDatabase.path
+is typed String? - the pre-existing FileInputStream(...path) calls elsewhere
+never caught this because Java constructors are platform types Kotlin
+doesn't null-check, but mergeDatabaseFile is a Kotlin function with a
+non-null String parameter, which does get checked.
+---
+ .../com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+index 398fc873..2fd26f26 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+@@ -109,7 +109,9 @@ class BackupRestoreViewModel @Inject constructor(
+                                     // a full one still can't erase anything added to the live
+                                     // library since the backup was taken.
+                                     mergeDatabaseFile(
+-                                        liveDbPath = database.openHelper.writableDatabase.path,
++                                        liveDbPath = requireNotNull(database.openHelper.writableDatabase.path) {
++                                            "Live database has no path - can't merge into it"
++                                        },
+                                         backupDbPath = destFile.path
+                                     )
+                                 } else {
+-- 
+2.45.1.windows.1
+
