@@ -109,7 +109,9 @@ class BackupRestoreViewModel @Inject constructor(
                                     // a full one still can't erase anything added to the live
                                     // library since the backup was taken.
                                     mergeDatabaseFile(
-                                        liveDbPath = database.openHelper.writableDatabase.path,
+                                        liveDbPath = requireNotNull(database.openHelper.writableDatabase.path) {
+                                            "Live database has no path - can't merge into it"
+                                        },
                                         backupDbPath = destFile.path
                                     )
                                 } else {
