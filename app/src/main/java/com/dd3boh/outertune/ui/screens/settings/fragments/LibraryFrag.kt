@@ -18,8 +18,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.AutoBackupDefaults
+import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
 import com.dd3boh.outertune.constants.InnerTubeCookieKey
 import com.dd3boh.outertune.constants.PauseListenHistoryKey
 import com.dd3boh.outertune.constants.PauseRemoteListenHistoryKey
@@ -27,12 +31,19 @@ import com.dd3boh.outertune.constants.PauseSearchHistoryKey
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.utils.dataStore
+import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.rememberPreference
+import com.dd3boh.outertune.utils.writeAutoBackup
 import com.zionhuang.innertube.utils.parseCookieString
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 
 @Composable
 fun ColumnScope.ListenHistoryFrag() {
+    val context = LocalContext.current
     val database = LocalDatabase.current
+    val coroutineScope = rememberCoroutineScope()
 
     val (pauseListenHistory, onPauseListenHistoryChange) = rememberPreference(
         key = PauseListenHistoryKey,
@@ -96,8 +107,21 @@ fun ColumnScope.ListenHistoryFrag() {
                 TextButton(
                     onClick = {
                         showClearListenHistoryDialog = false
-                        database.query {
-                            clearListenHistory()
+                        coroutineScope.launch(Dispatchers.IO) {
+                            // A safety net before something this irreversible: the same full
+                            // backup a scheduled automatic backup would write, to the same place.
+                            // Best-effort - a failed safety backup shouldn't block the clear the
+                            // user already confirmed.
+                            runCatching {
+                                writeAutoBackup(
+                                    context,
+                                    database,
+                                    context.dataStore.get(AutoBackupKeepCountKey, AutoBackupDefaults.KEEP_COUNT)
+                                )
+                            }
+                            database.query {
+                                clearListenHistory()
+                            }
                         }
                     }
                 ) {
@@ -110,7 +134,9 @@ fun ColumnScope.ListenHistoryFrag() {
 
 @Composable
 fun ColumnScope.SearchHistoryFrag() {
+    val context = LocalContext.current
     val database = LocalDatabase.current
+    val coroutineScope = rememberCoroutineScope()
 
     val (pauseSearchHistory, onPauseSearchHistoryChange) = rememberPreference(
         key = PauseSearchHistoryKey,
@@ -160,8 +186,18 @@ fun ColumnScope.SearchHistoryFrag() {
                 TextButton(
                     onClick = {
                         showClearSearchHistoryDialog = false
-                        database.query {
-                            clearSearchHistory()
+                        coroutineScope.launch(Dispatchers.IO) {
+                            // See ListenHistoryFrag's identical safety backup for why.
+                            runCatching {
+                                writeAutoBackup(
+                                    context,
+                                    database,
+                                    context.dataStore.get(AutoBackupKeepCountKey, AutoBackupDefaults.KEEP_COUNT)
+                                )
+                            }
+                            database.query {
+                                clearSearchHistory()
+                            }
                         }
                     }
                 ) {

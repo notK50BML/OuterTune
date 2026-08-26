@@ -67,6 +67,8 @@ import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AudioGaplessOffloadKey
 import com.dd3boh.outertune.constants.AudioOffloadKey
+import com.dd3boh.outertune.constants.AutoBackupDefaults
+import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
 import com.dd3boh.outertune.constants.DevSettingsKey
 import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
 import com.dd3boh.outertune.constants.MaxQueuesKey
@@ -83,7 +85,9 @@ import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.dataStore
+import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.rememberPreference
+import com.dd3boh.outertune.utils.writeAutoBackup
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -610,6 +614,17 @@ fun ExperimentalSettings(
                         pendingNuke = null
                         Toast.makeText(context, "Nuking $label from database...", Toast.LENGTH_SHORT).show()
                         coroutineScope.launch(Dispatchers.IO) {
+                            // A safety net before something this irreversible: the same full
+                            // backup a scheduled automatic backup would write, to the same place.
+                            // Best-effort - a failed safety backup shouldn't block the nuke the
+                            // user already confirmed.
+                            runCatching {
+                                writeAutoBackup(
+                                    context,
+                                    database,
+                                    context.dataStore.get(AutoBackupKeepCountKey, AutoBackupDefaults.KEEP_COUNT)
+                                )
+                            }
                             Log.i(SETTINGS_TAG, "Nuke database status: ${action()}")
                         }
                     }
