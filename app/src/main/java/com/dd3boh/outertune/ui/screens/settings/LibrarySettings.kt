@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.FolderCopy
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -41,6 +42,7 @@ import com.dd3boh.outertune.LocalSnackbarHostState
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DownloadThumbnailsKey
 import com.dd3boh.outertune.constants.FlatSubfoldersKey
+import com.dd3boh.outertune.constants.ShowArtistVideosAsSongsKey
 import com.dd3boh.outertune.constants.ShowLikedAndDownloadedPlaylist
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
@@ -65,6 +67,10 @@ fun LibrarySettings(
     )
     val (flatSubfolders, onFlatSubfoldersChange) = rememberPreference(FlatSubfoldersKey, defaultValue = true)
     val (downloadThumbnails, onDownloadThumbnailsChange) = rememberPreference(DownloadThumbnailsKey, defaultValue = false)
+    val (showArtistVideosAsSongs, onShowArtistVideosAsSongsChange) = rememberPreference(
+        ShowArtistVideosAsSongsKey,
+        defaultValue = true
+    )
 
     val downloadUtil = LocalDownloadUtil.current
     val snackbarHostState = LocalSnackbarHostState.current
@@ -106,6 +112,13 @@ fun LibrarySettings(
                 icon = { Icon(Icons.Rounded.FolderCopy, null) },
                 checked = flatSubfolders,
                 onCheckedChange = onFlatSubfoldersChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.show_artist_videos_as_songs_title)) },
+                description = stringResource(R.string.show_artist_videos_as_songs_description),
+                icon = { Icon(Icons.Rounded.SmartDisplay, null) },
+                checked = showArtistVideosAsSongs,
+                onCheckedChange = onShowArtistVideosAsSongsChange
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

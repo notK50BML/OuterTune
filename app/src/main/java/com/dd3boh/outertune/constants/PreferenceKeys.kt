@@ -141,6 +141,12 @@ val CrossfadeKey = booleanPreferencesKey("crossfade")
 /** How long before a track ends its volume starts fading out, in seconds. */
 val CrossfadeDurationKey = intPreferencesKey("crossfadeDuration")
 
+/**
+ * When an artist page has no "Songs" list section of its own, show its "Videos" section (if any)
+ * laid out like a song list instead of the video grid/carousel it renders as by default.
+ */
+val ShowArtistVideosAsSongsKey = booleanPreferencesKey("showArtistVideosAsSongs")
+
 
 /**
  * Lyrics

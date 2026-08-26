@@ -274,6 +274,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="local_player_settings_title">Local media</string>
     <string name="flat_subfolders_title">Flatten subfolders</string>
     <string name="flat_subfolders_description">Disable to preserve the file structure as on disk</string>
+    <string name="show_artist_videos_as_songs_title">Show artist videos as songs</string>
+    <string name="show_artist_videos_as_songs_description">When an artist page has no songs of its own, lay out its videos like a song list instead of a grid</string>
     <string name="disable_lm_confirm">Are you sure you want to disable local media features? Your library contents will not be affected.</string>
 
 <!-- Scanner settings -->

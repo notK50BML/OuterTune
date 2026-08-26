@@ -85,6 +85,7 @@ import com.dd3boh.outertune.LocalSnackbarHostState
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AppBarHeight
 import com.dd3boh.outertune.constants.ListThumbnailSize
+import com.dd3boh.outertune.constants.ShowArtistVideosAsSongsKey
 import com.dd3boh.outertune.constants.SwipeToQueueKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.db.entities.ArtistEntity
@@ -158,6 +159,7 @@ fun ArtistScreen(
     val playerConnection = LocalPlayerConnection.current ?: return
 
     val swipeEnabled by rememberPreference(SwipeToQueueKey, true)
+    val showArtistVideosAsSongs by rememberPreference(ShowArtistVideosAsSongsKey, true)
 
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -487,22 +489,35 @@ fun ArtistScreen(
                         }
 
                     }
-                } else artistPage?.sections?.fastForEach { section ->
-                    val isSongsSection = (section.items.firstOrNull() as? SongItem)?.album != null
+                } else artistPage?.sections?.let { sections ->
+                    // YTM's own "Songs" list section (musicShelfRenderer) always carries an album
+                    // per item; a "Videos" carousel is structurally a song too (both are just a
+                    // WatchEndpoint) but never has one - see fromMusicTwoRowItemRenderer/
+                    // fromMusicResponsiveListItemRenderer in ArtistPage.kt. Only fall back to
+                    // showing videos as a song list when the artist has no real Songs section of
+                    // its own; an artist who has both keeps videos in their own grid.
+                    val hasSongsSection = sections.any { (it.items.firstOrNull() as? SongItem)?.album != null }
 
-                    item {
-                        NavigationTitle(
-                            title = if (isSongsSection) stringResource(R.string.songs) else section.title,
-                            onClick = section.moreEndpoint?.let {
-                                {
-                                    navController.navigate("artist/${viewModel.artistId}/items?browseId=${it.browseId}?params=${it.params}")
+                    sections.fastForEach { section ->
+                        val isSongsSection = (section.items.firstOrNull() as? SongItem)?.album != null
+                        val isVideosSection = showArtistVideosAsSongs && !hasSongsSection &&
+                                section.title.contains("video", ignoreCase = true) &&
+                                section.items.all { it is SongItem }
+                        val renderAsSongList = isSongsSection || isVideosSection
+
+                        item {
+                            NavigationTitle(
+                                title = if (isSongsSection) stringResource(R.string.songs) else section.title,
+                                onClick = section.moreEndpoint?.let {
+                                    {
+                                        navController.navigate("artist/${viewModel.artistId}/items?browseId=${it.browseId}?params=${it.params}")
+                                    }
                                 }
-                            }
-                        )
-                    }
+                            )
+                        }
 
-                    if (isSongsSection) {
-                        items(
+                        if (renderAsSongList) {
+                            items(
                             items = section.items,
                             key = { it.id }
                         ) { song ->
@@ -642,6 +657,7 @@ fun ArtistScreen(
                             }
                         }
                     }
+                }
                 }
             }
         }
