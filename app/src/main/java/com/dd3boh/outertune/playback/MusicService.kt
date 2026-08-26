@@ -77,8 +77,13 @@ import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
 import com.dd3boh.outertune.constants.AutoBackupDefaults
 import com.dd3boh.outertune.constants.AutoBackupEnabledKey
-import com.dd3boh.outertune.constants.AutoBackupIntervalDaysKey
-import com.dd3boh.outertune.constants.AutoBackupUriKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeHistoryKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeLibraryPlaylistsKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeLocalPlaylistsKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeStatsKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
+import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
 import com.dd3boh.outertune.constants.CrossfadeDefaults
 import com.dd3boh.outertune.constants.CrossfadeDurationKey
 import com.dd3boh.outertune.constants.CrossfadeKey
@@ -125,6 +130,7 @@ import com.dd3boh.outertune.extensions.currentMetadata
 import com.dd3boh.outertune.extensions.findNextMediaItemById
 import com.dd3boh.outertune.extensions.metadata
 import com.dd3boh.outertune.extensions.setOffloadEnabled
+import com.dd3boh.outertune.extensions.toEnum
 import com.dd3boh.outertune.lyrics.LyricsFetchRole
 import com.dd3boh.outertune.lyrics.LyricsHelper
 import com.dd3boh.outertune.models.HybridCacheDataSinkFactory
@@ -145,6 +151,7 @@ import com.dd3boh.outertune.utils.enumPreference
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.playerCoroutine
 import com.dd3boh.outertune.utils.reportException
+import com.dd3boh.outertune.utils.AutoBackupCategories
 import com.dd3boh.outertune.utils.writeAutoBackup
 import com.google.common.util.concurrent.MoreExecutors
 import com.zionhuang.innertube.YouTube
@@ -561,21 +568,30 @@ class MusicService : MediaLibraryService(),
                 }
             }
 
-            // A best-effort, one-shot check: if automatic backup is enabled, a folder has been
-            // granted, and the configured interval has genuinely elapsed since the last one,
-            // write a fresh automatic backup now. Not a perpetual loop like the watchdog above -
-            // once per service start is plenty for something measured in days, and the service
-            // starts again the next time anything is played.
+            // A best-effort, one-shot check: if automatic backup is enabled and the configured
+            // interval has genuinely elapsed since the last one, write a fresh automatic backup
+            // now. Not a perpetual loop like the watchdog above - once per service start is
+            // plenty for something measured in days/weeks/months, and the service starts again
+            // the next time anything is played.
             scope.launch {
                 val settings = dataStore.data.first()
                 if (settings[AutoBackupEnabledKey] != true) return@launch
-                val treeUri = settings[AutoBackupUriKey] ?: return@launch
-                val intervalDays = settings[AutoBackupIntervalDaysKey] ?: AutoBackupDefaults.INTERVAL_DAYS
+                val intervalUnit = settings[AutoBackupIntervalUnitKey]
+                    .toEnum(AutoBackupDefaults.INTERVAL_UNIT)
+                val intervalValue = settings[AutoBackupIntervalValueKey] ?: AutoBackupDefaults.INTERVAL_VALUE
                 val lastBackup = settings[LastAutoBackupKey] ?: 0L
-                val dueAt = lastBackup + intervalDays * 24 * 60 * 60 * 1000L
+                val dueAt = lastBackup + intervalValue * intervalUnit.days * 24 * 60 * 60 * 1000L
                 if (System.currentTimeMillis() < dueAt) return@launch
 
-                if (writeAutoBackup(this@MusicService, database, treeUri)) {
+                val categories = AutoBackupCategories(
+                    history = settings[AutoBackupIncludeHistoryKey] != false,
+                    localPlaylists = settings[AutoBackupIncludeLocalPlaylistsKey] != false,
+                    libraryPlaylists = settings[AutoBackupIncludeLibraryPlaylistsKey] != false,
+                    stats = settings[AutoBackupIncludeStatsKey] != false,
+                )
+                val keepCount = settings[AutoBackupKeepCountKey] ?: AutoBackupDefaults.KEEP_COUNT
+
+                if (writeAutoBackup(this@MusicService, database, categories, keepCount)) {
                     dataStore.edit { it[LastAutoBackupKey] = System.currentTimeMillis() }
                 }
             }

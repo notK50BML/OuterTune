@@ -229,15 +229,27 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="crossfade_desc">Fade the volume out at the end of a track and back in at the start of the next one</string>
     <string name="crossfade_duration">Crossfade duration</string>
     <string name="crossfade_duration_desc">How long before a track ends its volume starts fading out</string>
-    <string name="auto_backup_folder">Automatic backup folder</string>
-    <string name="auto_backup_folder_not_set">Not set</string>
     <string name="auto_backup_title">Automatic backup</string>
-    <string name="auto_backup_description">Back up settings and your whole library (including play counts and listen history) into the folder above on its own, on the schedule below</string>
+    <string name="auto_backup_description">Back up settings and your library into Downloads/OuterTune Backup on their own, on the schedule below</string>
+    <string name="auto_backup_unavailable">Needs Android 10 or newer</string>
     <string name="auto_backup_frequency">Backup frequency</string>
+    <string name="auto_backup_frequency_unit">Frequency unit</string>
     <string name="auto_backup_frequency_description">How often to write a new automatic backup</string>
     <string name="auto_backup_frequency_summary">Every %1$s</string>
-    <string name="auto_backup_day_unit">d</string>
+    <string name="auto_backup_keep_count">Backups to keep</string>
+    <string name="auto_backup_keep_count_summary">Keep the newest %1$d, delete older ones</string>
+    <string name="auto_backup_keep_count_description">How many automatic backups to keep before deleting the oldest</string>
     <string name="auto_backup_last_run">Last automatic backup: %1$s</string>
+    <string name="auto_backup_location">Saved to Downloads/OuterTune Backup</string>
+    <string name="auto_backup_categories_title">What to include</string>
+    <string name="auto_backup_category_history">Listen &amp; search history</string>
+    <string name="auto_backup_category_history_desc">Play history and search history</string>
+    <string name="auto_backup_category_local_playlists">Local-only playlists</string>
+    <string name="auto_backup_category_local_playlists_desc">Playlists that only exist on this device</string>
+    <string name="auto_backup_category_library_playlists">Synced playlists</string>
+    <string name="auto_backup_category_library_playlists_desc">Playlists synced from your account (liked songs stay in your library either way)</string>
+    <string name="auto_backup_category_stats">Play stats</string>
+    <string name="auto_backup_category_stats_desc">Per-song play counts</string>
     <string name="sleep_timer_fade">Fade out</string>
     <string name="sleep_timer_fade_duration">Fade duration</string>
     <string name="sleep_timer_fade_duration_desc">Seconds to lower the volume before stopping</string>
@@ -509,5 +521,13 @@ while also allowing users to translate our app as well. New, specific strings to
     <plurals name="days">
         <item quantity="one">1 day</item>
         <item quantity="other">%d days</item>
+    </plurals>
+    <plurals name="weeks">
+        <item quantity="one">1 week</item>
+        <item quantity="other">%d weeks</item>
+    </plurals>
+    <plurals name="months">
+        <item quantity="one">1 month</item>
+        <item quantity="other">%d months</item>
     </plurals>
 </resources>

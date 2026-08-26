@@ -1,8 +1,8 @@
 package com.dd3boh.outertune.ui.screens.settings.fragments
 
-import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -64,8 +64,14 @@ import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AutoBackupDefaults
 import com.dd3boh.outertune.constants.AutoBackupEnabledKey
-import com.dd3boh.outertune.constants.AutoBackupIntervalDaysKey
-import com.dd3boh.outertune.constants.AutoBackupUriKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeHistoryKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeLibraryPlaylistsKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeLocalPlaylistsKey
+import com.dd3boh.outertune.constants.AutoBackupIncludeStatsKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
+import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
+import com.dd3boh.outertune.constants.BackupIntervalUnit
 import com.dd3boh.outertune.constants.DownloadExtraPathKey
 import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
 import com.dd3boh.outertune.constants.DownloadPathKey
@@ -76,6 +82,7 @@ import com.dd3boh.outertune.constants.ScanPathsKey
 import com.dd3boh.outertune.constants.ThumbnailCornerRadius
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.extensions.tryOrNull
+import com.dd3boh.outertune.ui.component.EnumListPreference
 import com.dd3boh.outertune.ui.component.ListPreference
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.SettingsClickToReveal
@@ -88,6 +95,7 @@ import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.dialog.InfoLabel
 import com.dd3boh.outertune.utils.dlCoroutine
 import com.dd3boh.outertune.utils.formatFileSize
+import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.utils.scanners.absoluteFilePathFromUri
 import com.dd3boh.outertune.utils.scanners.stringFromUriList
@@ -105,7 +113,6 @@ import java.time.format.DateTimeFormatter
 
 @Composable
 fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
-    val context = LocalContext.current
     val resources = LocalResources.current
 
     val backupLauncher =
@@ -151,71 +158,87 @@ fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
     }
     Spacer(modifier = Modifier.height(16.dp))
 
-    AutomaticBackupFrag(context)
+    AutomaticBackupFrag()
 }
 
 /**
- * A backup written on its own, on the same schedule this section configures, into a folder the
- * user grants persistent access to once - internal app storage (everything the manual Backup
- * action above also copies) is wiped on uninstall, so this is meant to land somewhere that isn't.
- * Writes via [writeAutoBackup] whenever [MusicService] starts and the configured interval has
- * elapsed - see its own doc.
+ * A backup written on its own, on the schedule this section configures, into Downloads/OuterTune
+ * Backup - created there automatically the first time, no folder to pick, since internal app
+ * storage (everything the manual Backup action above also copies) is wiped on uninstall and a
+ * SAF picker dialog can't be answered by anything unattended anyway. Below Android 10 this is
+ * unavailable entirely (see [writeAutoBackup]'s own doc for why) - the switch stays disabled
+ * there rather than promising something that silently won't run.
+ * Writes whenever [MusicService] starts and the configured interval has elapsed - see its own doc.
  */
 @Composable
-private fun AutomaticBackupFrag(context: Context) {
+private fun AutomaticBackupFrag() {
     val (autoBackupEnabled, onAutoBackupEnabledChange) = rememberPreference(
         AutoBackupEnabledKey,
         defaultValue = AutoBackupDefaults.ENABLED
     )
-    val (autoBackupUri, onAutoBackupUriChange) = rememberPreference(AutoBackupUriKey, defaultValue = "")
-    val (autoBackupIntervalDays, onAutoBackupIntervalDaysChange) = rememberPreference(
-        AutoBackupIntervalDaysKey,
-        defaultValue = AutoBackupDefaults.INTERVAL_DAYS
+    val (intervalValue, onIntervalValueChange) = rememberPreference(
+        AutoBackupIntervalValueKey,
+        defaultValue = AutoBackupDefaults.INTERVAL_VALUE
     )
+    val (intervalUnit, onIntervalUnitChange) = rememberEnumPreference(
+        AutoBackupIntervalUnitKey,
+        defaultValue = AutoBackupDefaults.INTERVAL_UNIT
+    )
+    val (keepCount, onKeepCountChange) = rememberPreference(
+        AutoBackupKeepCountKey,
+        defaultValue = AutoBackupDefaults.KEEP_COUNT
+    )
+    val (includeHistory, onIncludeHistoryChange) = rememberPreference(AutoBackupIncludeHistoryKey, defaultValue = true)
+    val (includeLocalPlaylists, onIncludeLocalPlaylistsChange) = rememberPreference(
+        AutoBackupIncludeLocalPlaylistsKey,
+        defaultValue = true
+    )
+    val (includeLibraryPlaylists, onIncludeLibraryPlaylistsChange) = rememberPreference(
+        AutoBackupIncludeLibraryPlaylistsKey,
+        defaultValue = true
+    )
+    val (includeStats, onIncludeStatsChange) = rememberPreference(AutoBackupIncludeStatsKey, defaultValue = true)
     val lastAutoBackup by rememberPreference(LastAutoBackupKey, defaultValue = 0L)
 
-    var showIntervalDialog by remember { mutableStateOf(false) }
+    val available = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
 
-    val folderPickerLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocumentTree()
-    ) { uri ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        context.contentResolver.takePersistableUriPermission(
-            uri,
-            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-        )
-        onAutoBackupUriChange(uri.toString())
-    }
-
-    val folderDisplayPath = autoBackupUri.takeIf { it.isNotEmpty() }
-        ?.let { tryOrNull { absoluteFilePathFromUri(context, it.toUri()) } ?: it }
+    var showIntervalValueDialog by remember { mutableStateOf(false) }
+    var showKeepCountDialog by remember { mutableStateOf(false) }
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth()
     ) {
-        PreferenceEntry(
-            title = { Text(stringResource(R.string.auto_backup_folder)) },
-            description = folderDisplayPath ?: stringResource(R.string.auto_backup_folder_not_set),
-            icon = { Icon(Icons.Rounded.FolderCopy, null) },
-            onClick = { folderPickerLauncher.launch(null) }
-        )
         SwitchPreference(
             title = { Text(stringResource(R.string.auto_backup_title)) },
-            description = stringResource(R.string.auto_backup_description),
+            description = stringResource(
+                if (available) R.string.auto_backup_description else R.string.auto_backup_unavailable
+            ),
             icon = { Icon(Icons.Rounded.Backup, null) },
-            isEnabled = folderDisplayPath != null,
-            checked = autoBackupEnabled && folderDisplayPath != null,
+            isEnabled = available,
+            checked = autoBackupEnabled && available,
             onCheckedChange = onAutoBackupEnabledChange
         )
         PreferenceEntry(
             title = { Text(stringResource(R.string.auto_backup_frequency)) },
-            description = stringResource(
-                R.string.auto_backup_frequency_summary,
-                pluralStringResource(R.plurals.days, autoBackupIntervalDays, autoBackupIntervalDays)
-            ),
+            description = stringResource(R.string.auto_backup_frequency_summary, intervalUnitLabel(intervalUnit, intervalValue)),
             icon = { Icon(Icons.Rounded.Sync, null) },
-            isEnabled = autoBackupEnabled && folderDisplayPath != null,
-            onClick = { showIntervalDialog = true }
+            isEnabled = autoBackupEnabled && available,
+            onClick = { showIntervalValueDialog = true }
+        )
+        EnumListPreference(
+            title = { Text(stringResource(R.string.auto_backup_frequency_unit)) },
+            icon = { Icon(Icons.Rounded.Sync, null) },
+            selectedValue = intervalUnit,
+            onValueSelected = onIntervalUnitChange,
+            isEnabled = autoBackupEnabled && available,
+            valueText = { intervalUnitLabel(it, intervalValue) }
+        )
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.auto_backup_keep_count)) },
+            description = stringResource(R.string.auto_backup_keep_count_summary, keepCount),
+            icon = { Icon(Icons.Rounded.FolderCopy, null) },
+            isEnabled = autoBackupEnabled && available,
+            onClick = { showKeepCountDialog = true }
         )
         if (lastAutoBackup > 0L) {
             val lastAutoBackupText = remember(lastAutoBackup) {
@@ -224,25 +247,77 @@ private fun AutomaticBackupFrag(context: Context) {
                 )
             }
             InfoLabel(stringResource(R.string.auto_backup_last_run, lastAutoBackupText))
+        } else {
+            InfoLabel(stringResource(R.string.auto_backup_location))
+        }
+
+        SettingsClickToReveal(stringResource(R.string.auto_backup_categories_title)) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.auto_backup_category_history)) },
+                description = stringResource(R.string.auto_backup_category_history_desc),
+                checked = includeHistory,
+                onCheckedChange = onIncludeHistoryChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.auto_backup_category_local_playlists)) },
+                description = stringResource(R.string.auto_backup_category_local_playlists_desc),
+                checked = includeLocalPlaylists,
+                onCheckedChange = onIncludeLocalPlaylistsChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.auto_backup_category_library_playlists)) },
+                description = stringResource(R.string.auto_backup_category_library_playlists_desc),
+                checked = includeLibraryPlaylists,
+                onCheckedChange = onIncludeLibraryPlaylistsChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.auto_backup_category_stats)) },
+                description = stringResource(R.string.auto_backup_category_stats_desc),
+                checked = includeStats,
+                onCheckedChange = onIncludeStatsChange
+            )
         }
     }
 
-    if (showIntervalDialog) {
+    if (showIntervalValueDialog) {
         CounterDialog(
             title = stringResource(R.string.auto_backup_frequency),
             description = stringResource(R.string.auto_backup_frequency_description),
-            initialValue = autoBackupIntervalDays,
-            upperBound = AutoBackupDefaults.INTERVAL_DAYS_RANGE.last,
-            lowerBound = AutoBackupDefaults.INTERVAL_DAYS_RANGE.first,
-            unitDisplay = " " + stringResource(R.string.auto_backup_day_unit),
-            onDismiss = { showIntervalDialog = false },
+            initialValue = intervalValue,
+            upperBound = AutoBackupDefaults.INTERVAL_VALUE_RANGE.last,
+            lowerBound = AutoBackupDefaults.INTERVAL_VALUE_RANGE.first,
+            unitDisplay = "",
+            onDismiss = { showIntervalValueDialog = false },
             onConfirm = {
-                showIntervalDialog = false
-                onAutoBackupIntervalDaysChange(it)
+                showIntervalValueDialog = false
+                onIntervalValueChange(it)
             },
-            onCancel = { showIntervalDialog = false }
+            onCancel = { showIntervalValueDialog = false }
         )
     }
+    if (showKeepCountDialog) {
+        CounterDialog(
+            title = stringResource(R.string.auto_backup_keep_count),
+            description = stringResource(R.string.auto_backup_keep_count_description),
+            initialValue = keepCount,
+            upperBound = AutoBackupDefaults.KEEP_COUNT_RANGE.last,
+            lowerBound = AutoBackupDefaults.KEEP_COUNT_RANGE.first,
+            unitDisplay = "",
+            onDismiss = { showKeepCountDialog = false },
+            onConfirm = {
+                showKeepCountDialog = false
+                onKeepCountChange(it)
+            },
+            onCancel = { showKeepCountDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun intervalUnitLabel(unit: BackupIntervalUnit, count: Int): String = when (unit) {
+    BackupIntervalUnit.DAYS -> pluralStringResource(R.plurals.days, count, count)
+    BackupIntervalUnit.WEEKS -> pluralStringResource(R.plurals.weeks, count, count)
+    BackupIntervalUnit.MONTHS -> pluralStringResource(R.plurals.months, count, count)
 }
 
 @Composable

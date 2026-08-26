@@ -218,17 +218,34 @@ val ArtworkFallbackToLowResKey = booleanPreferencesKey("artworkFallbackToLowRes"
 val DownloadThumbnailsKey = booleanPreferencesKey("downloadThumbnails")
 
 /**
- * Automatic backup - writes the same file the manual Backup action produces (see
- * [com.dd3boh.outertune.utils.writeBackup]), on its own, into a folder the user grants
- * persistent access to once. Internal app storage - including the database backups already
- * copy - is wiped on uninstall; this is meant to land somewhere that survives that.
+ * Automatic backup - writes into Downloads/OuterTune Backup on its own, on a schedule, with no
+ * folder to pick: internal app storage (everything the manual Backup action copies) is wiped on
+ * uninstall, so this is meant to land somewhere that survives that, without a SAF picker dialog
+ * standing in the way of it actually running unattended. See [com.dd3boh.outertune.utils.writeAutoBackup].
  */
 val AutoBackupEnabledKey = booleanPreferencesKey("autoBackupEnabled")
-/** Persisted SAF tree URI (as a string) to write automatic backups into - null/unset means no folder has been picked yet. */
-val AutoBackupUriKey = stringPreferencesKey("autoBackupUri")
-val AutoBackupIntervalDaysKey = intPreferencesKey("autoBackupIntervalDays")
+
+/** How often to write a new automatic backup - a count of [AutoBackupIntervalUnitKey]. */
+val AutoBackupIntervalValueKey = intPreferencesKey("autoBackupIntervalValue")
+/** The unit [AutoBackupIntervalValueKey] counts - a [com.dd3boh.outertune.constants.BackupIntervalUnit] name. */
+val AutoBackupIntervalUnitKey = stringPreferencesKey("autoBackupIntervalUnit")
+
+/** How many automatic backups to keep before deleting the oldest. */
+val AutoBackupKeepCountKey = intPreferencesKey("autoBackupKeepCount")
+
 /** Epoch millis of the last successful automatic backup - null/unset means one has never run. */
 val LastAutoBackupKey = longPreferencesKey("lastAutoBackup")
+
+/**
+ * Which optional categories an automatic backup includes, alongside the library itself (songs,
+ * artists, albums, downloads, queue, settings - always included, since e.g. a playlist backed up
+ * without the songs it references would be useless). All default to included; see
+ * [com.dd3boh.outertune.utils.AutoBackupCategories].
+ */
+val AutoBackupIncludeHistoryKey = booleanPreferencesKey("autoBackupIncludeHistory")
+val AutoBackupIncludeLocalPlaylistsKey = booleanPreferencesKey("autoBackupIncludeLocalPlaylists")
+val AutoBackupIncludeLibraryPlaylistsKey = booleanPreferencesKey("autoBackupIncludeLibraryPlaylists")
+val AutoBackupIncludeStatsKey = booleanPreferencesKey("autoBackupIncludeStats")
 
 /**
  * Discord Integration
