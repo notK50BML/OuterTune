@@ -64,10 +64,6 @@ import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AutoBackupDefaults
 import com.dd3boh.outertune.constants.AutoBackupEnabledKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeHistoryKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeLibraryPlaylistsKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeLocalPlaylistsKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeStatsKey
 import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
 import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
 import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
@@ -188,16 +184,6 @@ private fun AutomaticBackupFrag() {
         AutoBackupKeepCountKey,
         defaultValue = AutoBackupDefaults.KEEP_COUNT
     )
-    val (includeHistory, onIncludeHistoryChange) = rememberPreference(AutoBackupIncludeHistoryKey, defaultValue = true)
-    val (includeLocalPlaylists, onIncludeLocalPlaylistsChange) = rememberPreference(
-        AutoBackupIncludeLocalPlaylistsKey,
-        defaultValue = true
-    )
-    val (includeLibraryPlaylists, onIncludeLibraryPlaylistsChange) = rememberPreference(
-        AutoBackupIncludeLibraryPlaylistsKey,
-        defaultValue = true
-    )
-    val (includeStats, onIncludeStatsChange) = rememberPreference(AutoBackupIncludeStatsKey, defaultValue = true)
     val lastAutoBackup by rememberPreference(LastAutoBackupKey, defaultValue = 0L)
 
     val available = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q
@@ -249,33 +235,6 @@ private fun AutomaticBackupFrag() {
             InfoLabel(stringResource(R.string.auto_backup_last_run, lastAutoBackupText))
         } else {
             InfoLabel(stringResource(R.string.auto_backup_location))
-        }
-
-        SettingsClickToReveal(stringResource(R.string.auto_backup_categories_title)) {
-            SwitchPreference(
-                title = { Text(stringResource(R.string.auto_backup_category_history)) },
-                description = stringResource(R.string.auto_backup_category_history_desc),
-                checked = includeHistory,
-                onCheckedChange = onIncludeHistoryChange
-            )
-            SwitchPreference(
-                title = { Text(stringResource(R.string.auto_backup_category_local_playlists)) },
-                description = stringResource(R.string.auto_backup_category_local_playlists_desc),
-                checked = includeLocalPlaylists,
-                onCheckedChange = onIncludeLocalPlaylistsChange
-            )
-            SwitchPreference(
-                title = { Text(stringResource(R.string.auto_backup_category_library_playlists)) },
-                description = stringResource(R.string.auto_backup_category_library_playlists_desc),
-                checked = includeLibraryPlaylists,
-                onCheckedChange = onIncludeLibraryPlaylistsChange
-            )
-            SwitchPreference(
-                title = { Text(stringResource(R.string.auto_backup_category_stats)) },
-                description = stringResource(R.string.auto_backup_category_stats_desc),
-                checked = includeStats,
-                onCheckedChange = onIncludeStatsChange
-            )
         }
     }
 

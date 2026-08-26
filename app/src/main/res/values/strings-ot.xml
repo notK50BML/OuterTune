@@ -241,15 +241,6 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="auto_backup_keep_count_description">How many automatic backups to keep before deleting the oldest</string>
     <string name="auto_backup_last_run">Last automatic backup: %1$s</string>
     <string name="auto_backup_location">Saved to Downloads/OuterTune Backup</string>
-    <string name="auto_backup_categories_title">What to include</string>
-    <string name="auto_backup_category_history">Listen &amp; search history</string>
-    <string name="auto_backup_category_history_desc">Play history and search history</string>
-    <string name="auto_backup_category_local_playlists">Local-only playlists</string>
-    <string name="auto_backup_category_local_playlists_desc">Playlists that only exist on this device</string>
-    <string name="auto_backup_category_library_playlists">Synced playlists</string>
-    <string name="auto_backup_category_library_playlists_desc">Playlists synced from your account (liked songs stay in your library either way)</string>
-    <string name="auto_backup_category_stats">Play stats</string>
-    <string name="auto_backup_category_stats_desc">Per-song play counts</string>
     <string name="sleep_timer_fade">Fade out</string>
     <string name="sleep_timer_fade_duration">Fade duration</string>
     <string name="sleep_timer_fade_duration_desc">Seconds to lower the volume before stopping</string>

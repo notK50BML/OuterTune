@@ -2,7 +2,6 @@ package com.dd3boh.outertune.viewmodels
 
 import android.content.Context
 import android.content.Intent
-import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import android.util.Log
 import android.widget.Toast
@@ -95,25 +94,12 @@ class BackupRestoreViewModel @Inject constructor(
                                 }
 
                                 if (status) {
-                                    Log.i(TAG, "Found valid database, merging into the live one")
-                                    // Merges rather than replaces the live file outright: an
-                                    // automatic backup can be a deliberately partial one (see
-                                    // AutoBackupCategories) with some tables left empty by
-                                    // design, and a straight file swap would read that as "the
-                                    // user wants this data gone" rather than "this backup never
-                                    // touched it". Every row the backup DOES have overwrites the
-                                    // live row with the same primary key; nothing the backup
-                                    // doesn't have is removed from what's already live - so
-                                    // restoring a stats-only backup updates play counts and
-                                    // leaves playlists/history exactly as they were, and restoring
-                                    // a full one still can't erase anything added to the live
-                                    // library since the backup was taken.
-                                    mergeDatabaseFile(
-                                        liveDbPath = requireNotNull(database.openHelper.writableDatabase.path) {
-                                            "Live database has no path - can't merge into it"
-                                        },
-                                        backupDbPath = destFile.path
-                                    )
+                                    Log.i(TAG, "Found valid database, proceeding with restore")
+                                    destFile.inputStream().use { inputStream ->
+                                        FileOutputStream(database.openHelper.writableDatabase.path).use { outputStream ->
+                                            inputStream.copyTo(outputStream)
+                                        }
+                                    }
                                 } else {
                                     Log.e(TAG, "Incompatible database, aborting restore")
                                     Toast.makeText(
@@ -138,49 +124,6 @@ class BackupRestoreViewModel @Inject constructor(
         }.onFailure {
             reportException(it)
             Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    /**
-     * Copies every row [backupDbPath] has into [liveDbPath], table by table, via SQLite's own
-     * ATTACH rather than a Kotlin-side row loop - table names come from the attached database's
-     * own sqlite_master, not a hardcoded list, so this keeps working if the schema grows a table
-     * without needing to come back and update it. `INSERT OR REPLACE` means a row the backup has
-     * overwrites the live row sharing its primary key; a row the backup DOESN'T have (an empty
-     * table from an AutoBackupCategories exclusion, or simply a row added to the live library
-     * since the backup was taken) is left alone rather than deleted - see the call site's own doc
-     * for why that matters here specifically. By the time this runs, both files have already been
-     * opened by Room at least once under the current app's migrations (this one when it was first
-     * created, the backup's copy via the newTestInstance validation just before this call), so
-     * both are on the same schema version and this never needs a migration of its own.
-     */
-    private fun mergeDatabaseFile(liveDbPath: String, backupDbPath: String) {
-        val escapedBackupPath = backupDbPath.replace("'", "''")
-        SQLiteDatabase.openDatabase(liveDbPath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
-            db.execSQL("ATTACH DATABASE '$escapedBackupPath' AS backup")
-            try {
-                val tables = mutableListOf<String>()
-                db.rawQuery(
-                    "SELECT name FROM backup.sqlite_master " +
-                        "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'room_%' " +
-                        "AND name != 'android_metadata'",
-                    null
-                ).use { cursor ->
-                    while (cursor.moveToNext()) tables += cursor.getString(0)
-                }
-
-                db.beginTransaction()
-                try {
-                    for (table in tables) {
-                        db.execSQL("INSERT OR REPLACE INTO main.\"$table\" SELECT * FROM backup.\"$table\"")
-                    }
-                    db.setTransactionSuccessful()
-                } finally {
-                    db.endTransaction()
-                }
-            } finally {
-                db.execSQL("DETACH DATABASE backup")
-            }
         }
     }
 }

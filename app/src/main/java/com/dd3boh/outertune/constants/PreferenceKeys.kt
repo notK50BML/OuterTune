@@ -237,17 +237,6 @@ val AutoBackupKeepCountKey = intPreferencesKey("autoBackupKeepCount")
 val LastAutoBackupKey = longPreferencesKey("lastAutoBackup")
 
 /**
- * Which optional categories an automatic backup includes, alongside the library itself (songs,
- * artists, albums, downloads, queue, settings - always included, since e.g. a playlist backed up
- * without the songs it references would be useless). All default to included; see
- * [com.dd3boh.outertune.utils.AutoBackupCategories].
- */
-val AutoBackupIncludeHistoryKey = booleanPreferencesKey("autoBackupIncludeHistory")
-val AutoBackupIncludeLocalPlaylistsKey = booleanPreferencesKey("autoBackupIncludeLocalPlaylists")
-val AutoBackupIncludeLibraryPlaylistsKey = booleanPreferencesKey("autoBackupIncludeLibraryPlaylists")
-val AutoBackupIncludeStatsKey = booleanPreferencesKey("autoBackupIncludeStats")
-
-/**
  * Discord Integration
  */
 val DiscordTokenKey = stringPreferencesKey("discordToken")

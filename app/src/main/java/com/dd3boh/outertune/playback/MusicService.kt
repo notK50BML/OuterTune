@@ -77,10 +77,6 @@ import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
 import com.dd3boh.outertune.constants.AutoBackupDefaults
 import com.dd3boh.outertune.constants.AutoBackupEnabledKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeHistoryKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeLibraryPlaylistsKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeLocalPlaylistsKey
-import com.dd3boh.outertune.constants.AutoBackupIncludeStatsKey
 import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
 import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
 import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
@@ -151,7 +147,6 @@ import com.dd3boh.outertune.utils.enumPreference
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.playerCoroutine
 import com.dd3boh.outertune.utils.reportException
-import com.dd3boh.outertune.utils.AutoBackupCategories
 import com.dd3boh.outertune.utils.writeAutoBackup
 import com.google.common.util.concurrent.MoreExecutors
 import com.zionhuang.innertube.YouTube
@@ -583,15 +578,9 @@ class MusicService : MediaLibraryService(),
                 val dueAt = lastBackup + intervalValue * intervalUnit.days * 24 * 60 * 60 * 1000L
                 if (System.currentTimeMillis() < dueAt) return@launch
 
-                val categories = AutoBackupCategories(
-                    history = settings[AutoBackupIncludeHistoryKey] != false,
-                    localPlaylists = settings[AutoBackupIncludeLocalPlaylistsKey] != false,
-                    libraryPlaylists = settings[AutoBackupIncludeLibraryPlaylistsKey] != false,
-                    stats = settings[AutoBackupIncludeStatsKey] != false,
-                )
                 val keepCount = settings[AutoBackupKeepCountKey] ?: AutoBackupDefaults.KEEP_COUNT
 
-                if (writeAutoBackup(this@MusicService, database, categories, keepCount)) {
+                if (writeAutoBackup(this@MusicService, database, keepCount)) {
                     dataStore.edit { it[LastAutoBackupKey] = System.currentTimeMillis() }
                 }
             }
