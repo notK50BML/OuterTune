@@ -118,7 +118,7 @@ class MusicDatabase(
         AutoMigration(from = 18, to = 19), // Recent activity
         AutoMigration(from = 19, to = 20, spec = Migration19To20::class), // Db optimization, remove totalplaytime, local media fields
         AutoMigration(from = 20, to = 21), // Lyrics provider column
-        AutoMigration(from = 21, to = 22), // Downloaded full-res thumbnail path
+        // 21->22 (thumbnailPath) is MIGRATION_21_22 below, not an AutoMigration - see its own doc.
     ]
 )
 @TypeConverters(Converters::class)
@@ -136,6 +136,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_14_15)
                     .addMigrations(MIGRATION_15_16)
                     .addMigrations(MIGRATION_16_17)
+                    .addMigrations(MIGRATION_21_22)
                     .addMigrations(MIGRATION_22_23)
                     .build()
             )
@@ -148,6 +149,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_14_15)
                     .addMigrations(MIGRATION_15_16)
                     .addMigrations(MIGRATION_16_17)
+                    .addMigrations(MIGRATION_21_22)
                     .addMigrations(MIGRATION_22_23)
                     .build()
             )
@@ -688,6 +690,20 @@ class Migration17To18 : AutoMigrationSpec
     DeleteColumn(tableName = "song", columnName = "totalPlayTime"),
 )
 class Migration19To20 : AutoMigrationSpec
+
+/**
+ * Adds SongEntity.thumbnailPath (a downloaded full-res thumbnail's path, independent of the
+ * song's own audio download - see the field's own doc). A plain additive nullable column, which
+ * would normally be an AutoMigration - written by hand instead because doing so needs a
+ * `21.json`/`22.json` schema snapshot pair checked into `app/schemas/`, and no `22.json` was ever
+ * generated/committed for this version. Re-adding it as an AutoMigration once that snapshot
+ * exists would work exactly the same as this; this just doesn't depend on it existing at all.
+ */
+val MIGRATION_21_22 = object : Migration(21, 22) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE song ADD COLUMN thumbnailPath TEXT")
+    }
+}
 
 /**
  * Clean up artist credits ending in " - Topic" - YouTube's auto-generated channel name for an
