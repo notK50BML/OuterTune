@@ -229,6 +229,15 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="crossfade_desc">Fade the volume out at the end of a track and back in at the start of the next one</string>
     <string name="crossfade_duration">Crossfade duration</string>
     <string name="crossfade_duration_desc">How long before a track ends its volume starts fading out</string>
+    <string name="auto_backup_folder">Automatic backup folder</string>
+    <string name="auto_backup_folder_not_set">Not set</string>
+    <string name="auto_backup_title">Automatic backup</string>
+    <string name="auto_backup_description">Back up settings and your whole library (including play counts and listen history) into the folder above on its own, on the schedule below</string>
+    <string name="auto_backup_frequency">Backup frequency</string>
+    <string name="auto_backup_frequency_description">How often to write a new automatic backup</string>
+    <string name="auto_backup_frequency_summary">Every %1$s</string>
+    <string name="auto_backup_day_unit">d</string>
+    <string name="auto_backup_last_run">Last automatic backup: %1$s</string>
     <string name="sleep_timer_fade">Fade out</string>
     <string name="sleep_timer_fade_duration">Fade duration</string>
     <string name="sleep_timer_fade_duration_desc">Seconds to lower the volume before stopping</string>
@@ -497,4 +506,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="app_icon_custom_name">Name for the shortcut</string>
     <string name="app_icon_custom_done">Shortcut sent to your launcher.</string>
     <string name="app_icon_custom_note">Android only lets an app use icons compiled into it, so a picture from your gallery cannot replace the launcher icon itself. A pinned shortcut is the way round it: it opens the app exactly as the normal icon does, but the original stays in your app drawer alongside it.</string>
+    <plurals name="days">
+        <item quantity="one">1 day</item>
+        <item quantity="other">%d days</item>
+    </plurals>
 </resources>

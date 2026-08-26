@@ -218,6 +218,19 @@ val ArtworkFallbackToLowResKey = booleanPreferencesKey("artworkFallbackToLowRes"
 val DownloadThumbnailsKey = booleanPreferencesKey("downloadThumbnails")
 
 /**
+ * Automatic backup - writes the same file the manual Backup action produces (see
+ * [com.dd3boh.outertune.utils.writeBackup]), on its own, into a folder the user grants
+ * persistent access to once. Internal app storage - including the database backups already
+ * copy - is wiped on uninstall; this is meant to land somewhere that survives that.
+ */
+val AutoBackupEnabledKey = booleanPreferencesKey("autoBackupEnabled")
+/** Persisted SAF tree URI (as a string) to write automatic backups into - null/unset means no folder has been picked yet. */
+val AutoBackupUriKey = stringPreferencesKey("autoBackupUri")
+val AutoBackupIntervalDaysKey = intPreferencesKey("autoBackupIntervalDays")
+/** Epoch millis of the last successful automatic backup - null/unset means one has never run. */
+val LastAutoBackupKey = longPreferencesKey("lastAutoBackup")
+
+/**
  * Discord Integration
  */
 val DiscordTokenKey = stringPreferencesKey("discordToken")

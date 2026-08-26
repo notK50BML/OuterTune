@@ -6,56 +6,50 @@ import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.dd3boh.outertune.MainActivity
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.db.InternalDatabase
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.extensions.div
 import com.dd3boh.outertune.extensions.zipInputStream
-import com.dd3boh.outertune.extensions.zipOutputStream
 import com.dd3boh.outertune.playback.MusicService
+import com.dd3boh.outertune.utils.BACKUP_SETTINGS_FILENAME
 import com.dd3boh.outertune.utils.reportException
+import com.dd3boh.outertune.utils.writeBackup
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
-import java.io.FileInputStream
+import kotlinx.coroutines.withContext
 import java.io.FileOutputStream
-import java.util.zip.Deflater
-import java.util.zip.ZipEntry
 import javax.inject.Inject
 import kotlin.system.exitProcess
 
 @HiltViewModel
 class BackupRestoreViewModel @Inject constructor(
-    // TODO: make these calls non-blocking
+    // TODO: make restore() non-blocking too
     @ApplicationContext val context: Context,
     val database: MusicDatabase,
 ) : ViewModel() {
     val TAG = BackupRestoreViewModel::class.simpleName.toString()
     fun backup(uri: Uri) {
-        runCatching {
-            context.applicationContext.contentResolver.openOutputStream(uri)?.use {
-                it.buffered().zipOutputStream().use { outputStream ->
-                    outputStream.setLevel(Deflater.BEST_COMPRESSION)
-                    (context.filesDir / "datastore" / SETTINGS_FILENAME).inputStream().buffered().use { inputStream ->
-                        outputStream.putNextEntry(ZipEntry(SETTINGS_FILENAME))
-                        inputStream.copyTo(outputStream)
-                    }
-                    runBlocking(Dispatchers.IO) {
-                        database.checkpoint()
-                    }
-                    FileInputStream(database.openHelper.writableDatabase.path).use { inputStream ->
-                        outputStream.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
-                        inputStream.copyTo(outputStream)
+        // The Toast calls below need the main thread's Looper, so only the actual file copying
+        // moves to IO - not the whole coroutine.
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    context.applicationContext.contentResolver.openOutputStream(uri)?.use { outputStream ->
+                        writeBackup(context, database, outputStream)
                     }
                 }
+            }.onSuccess {
+                Toast.makeText(context, R.string.backup_create_success, Toast.LENGTH_SHORT).show()
+            }.onFailure {
+                reportException(it)
+                Toast.makeText(context, R.string.backup_create_failed, Toast.LENGTH_SHORT).show()
             }
-        }.onSuccess {
-            Toast.makeText(context, R.string.backup_create_success, Toast.LENGTH_SHORT).show()
-        }.onFailure {
-            reportException(it)
-            Toast.makeText(context, R.string.backup_create_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -66,8 +60,8 @@ class BackupRestoreViewModel @Inject constructor(
                     var entry = inputStream.nextEntry
                     while (entry != null) {
                         when (entry.name) {
-                            SETTINGS_FILENAME -> {
-                                (context.filesDir / "datastore" / SETTINGS_FILENAME).outputStream()
+                            BACKUP_SETTINGS_FILENAME -> {
+                                (context.filesDir / "datastore" / BACKUP_SETTINGS_FILENAME).outputStream()
                                     .use { outputStream ->
                                         inputStream.copyTo(outputStream)
                                     }
@@ -131,9 +125,5 @@ class BackupRestoreViewModel @Inject constructor(
             reportException(it)
             Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show()
         }
-    }
-
-    companion object {
-        const val SETTINGS_FILENAME = "settings.preferences_pb"
     }
 }

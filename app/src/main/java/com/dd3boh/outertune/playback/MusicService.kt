@@ -75,6 +75,10 @@ import com.dd3boh.outertune.constants.AudioOffloadKey
 import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
+import com.dd3boh.outertune.constants.AutoBackupDefaults
+import com.dd3boh.outertune.constants.AutoBackupEnabledKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalDaysKey
+import com.dd3boh.outertune.constants.AutoBackupUriKey
 import com.dd3boh.outertune.constants.CrossfadeDefaults
 import com.dd3boh.outertune.constants.CrossfadeDurationKey
 import com.dd3boh.outertune.constants.CrossfadeKey
@@ -98,6 +102,7 @@ import com.dd3boh.outertune.constants.MediaSessionConstants.CommandToggleShuffle
 import com.dd3boh.outertune.constants.MediaSessionConstants.CommandToggleStartRadio
 import com.dd3boh.outertune.constants.PauseListenHistoryKey
 import com.dd3boh.outertune.constants.PauseRemoteListenHistoryKey
+import com.dd3boh.outertune.constants.LastAutoBackupKey
 import com.dd3boh.outertune.constants.PersistentQueueKey
 import com.dd3boh.outertune.constants.PlayerVolumeKey
 import com.dd3boh.outertune.constants.RepeatModeKey
@@ -140,6 +145,7 @@ import com.dd3boh.outertune.utils.enumPreference
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.playerCoroutine
 import com.dd3boh.outertune.utils.reportException
+import com.dd3boh.outertune.utils.writeAutoBackup
 import com.google.common.util.concurrent.MoreExecutors
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.SongItem
@@ -552,6 +558,25 @@ class MusicService : MediaLibraryService(),
                     if (enabled && !token.isNullOrEmpty() && player.isPlaying) {
                         rebuildDiscordRpc(token, enabled)
                     }
+                }
+            }
+
+            // A best-effort, one-shot check: if automatic backup is enabled, a folder has been
+            // granted, and the configured interval has genuinely elapsed since the last one,
+            // write a fresh automatic backup now. Not a perpetual loop like the watchdog above -
+            // once per service start is plenty for something measured in days, and the service
+            // starts again the next time anything is played.
+            scope.launch {
+                val settings = dataStore.data.first()
+                if (settings[AutoBackupEnabledKey] != true) return@launch
+                val treeUri = settings[AutoBackupUriKey] ?: return@launch
+                val intervalDays = settings[AutoBackupIntervalDaysKey] ?: AutoBackupDefaults.INTERVAL_DAYS
+                val lastBackup = settings[LastAutoBackupKey] ?: 0L
+                val dueAt = lastBackup + intervalDays * 24 * 60 * 60 * 1000L
+                if (System.currentTimeMillis() < dueAt) return@launch
+
+                if (writeAutoBackup(this@MusicService, database, treeUri)) {
+                    dataStore.edit { it[LastAutoBackupKey] = System.currentTimeMillis() }
                 }
             }
 

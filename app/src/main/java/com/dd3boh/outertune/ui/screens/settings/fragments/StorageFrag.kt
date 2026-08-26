@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.screens.settings.fragments
 
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -52,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
@@ -60,9 +62,14 @@ import coil3.imageLoader
 import com.dd3boh.outertune.LocalDownloadUtil
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.AutoBackupDefaults
+import com.dd3boh.outertune.constants.AutoBackupEnabledKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalDaysKey
+import com.dd3boh.outertune.constants.AutoBackupUriKey
 import com.dd3boh.outertune.constants.DownloadExtraPathKey
 import com.dd3boh.outertune.constants.DownloadOnWifiOnlyKey
 import com.dd3boh.outertune.constants.DownloadPathKey
+import com.dd3boh.outertune.constants.LastAutoBackupKey
 import com.dd3boh.outertune.constants.MaxImageCacheSizeKey
 import com.dd3boh.outertune.constants.MaxSongCacheSizeKey
 import com.dd3boh.outertune.constants.ScanPathsKey
@@ -76,6 +83,7 @@ import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.button.ResizableIconButton
 import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
+import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.dialog.InfoLabel
 import com.dd3boh.outertune.utils.dlCoroutine
@@ -90,11 +98,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import androidx.compose.ui.tooling.preview.Preview
+import java.time.Instant
 import java.time.LocalDateTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
 fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
+    val context = LocalContext.current
     val resources = LocalResources.current
 
     val backupLauncher =
@@ -136,6 +147,100 @@ fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
             onClick = {
                 restoreLauncher.launch(arrayOf("application/octet-stream"))
             }
+        )
+    }
+    Spacer(modifier = Modifier.height(16.dp))
+
+    AutomaticBackupFrag(context)
+}
+
+/**
+ * A backup written on its own, on the same schedule this section configures, into a folder the
+ * user grants persistent access to once - internal app storage (everything the manual Backup
+ * action above also copies) is wiped on uninstall, so this is meant to land somewhere that isn't.
+ * Writes via [writeAutoBackup] whenever [MusicService] starts and the configured interval has
+ * elapsed - see its own doc.
+ */
+@Composable
+private fun AutomaticBackupFrag(context: Context) {
+    val (autoBackupEnabled, onAutoBackupEnabledChange) = rememberPreference(
+        AutoBackupEnabledKey,
+        defaultValue = AutoBackupDefaults.ENABLED
+    )
+    val (autoBackupUri, onAutoBackupUriChange) = rememberPreference(AutoBackupUriKey, defaultValue = "")
+    val (autoBackupIntervalDays, onAutoBackupIntervalDaysChange) = rememberPreference(
+        AutoBackupIntervalDaysKey,
+        defaultValue = AutoBackupDefaults.INTERVAL_DAYS
+    )
+    val lastAutoBackup by rememberPreference(LastAutoBackupKey, defaultValue = 0L)
+
+    var showIntervalDialog by remember { mutableStateOf(false) }
+
+    val folderPickerLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        onAutoBackupUriChange(uri.toString())
+    }
+
+    val folderDisplayPath = autoBackupUri.takeIf { it.isNotEmpty() }
+        ?.let { tryOrNull { absoluteFilePathFromUri(context, it.toUri()) } ?: it }
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.auto_backup_folder)) },
+            description = folderDisplayPath ?: stringResource(R.string.auto_backup_folder_not_set),
+            icon = { Icon(Icons.Rounded.FolderCopy, null) },
+            onClick = { folderPickerLauncher.launch(null) }
+        )
+        SwitchPreference(
+            title = { Text(stringResource(R.string.auto_backup_title)) },
+            description = stringResource(R.string.auto_backup_description),
+            icon = { Icon(Icons.Rounded.Backup, null) },
+            isEnabled = folderDisplayPath != null,
+            checked = autoBackupEnabled && folderDisplayPath != null,
+            onCheckedChange = onAutoBackupEnabledChange
+        )
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.auto_backup_frequency)) },
+            description = stringResource(
+                R.string.auto_backup_frequency_summary,
+                pluralStringResource(R.plurals.days, autoBackupIntervalDays, autoBackupIntervalDays)
+            ),
+            icon = { Icon(Icons.Rounded.Sync, null) },
+            isEnabled = autoBackupEnabled && folderDisplayPath != null,
+            onClick = { showIntervalDialog = true }
+        )
+        if (lastAutoBackup > 0L) {
+            val lastAutoBackupText = remember(lastAutoBackup) {
+                DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm").format(
+                    Instant.ofEpochMilli(lastAutoBackup).atZone(ZoneId.systemDefault())
+                )
+            }
+            InfoLabel(stringResource(R.string.auto_backup_last_run, lastAutoBackupText))
+        }
+    }
+
+    if (showIntervalDialog) {
+        CounterDialog(
+            title = stringResource(R.string.auto_backup_frequency),
+            description = stringResource(R.string.auto_backup_frequency_description),
+            initialValue = autoBackupIntervalDays,
+            upperBound = AutoBackupDefaults.INTERVAL_DAYS_RANGE.last,
+            lowerBound = AutoBackupDefaults.INTERVAL_DAYS_RANGE.first,
+            unitDisplay = " " + stringResource(R.string.auto_backup_day_unit),
+            onDismiss = { showIntervalDialog = false },
+            onConfirm = {
+                showIntervalDialog = false
+                onAutoBackupIntervalDaysChange(it)
+            },
+            onCancel = { showIntervalDialog = false }
         )
     }
 }
