@@ -41117,3 +41117,571 @@ index 2217a4d2..93349a54 100644
 -- 
 2.45.1.windows.1
 
+From 7132ced36043778e5927de90c2d259dc43645239 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 26 Aug 2026 21:39:33 +0800
+Subject: [PATCH 1/2] Recover the dropped v24 Topic-suffix work, so version-24
+ backups are compatible again
+
+A prior session's last 5 commits on this branch never actually made it into
+this branch's committed history - only their regenerated patch file was left
+behind, uncommitted (found stashed at the start of tonight's session). One
+of those bumped MUSIC_DATABASE_VERSION to 24; since this branch stayed at
+23, a backup or an on-disk database from that build reads as "newer than
+this app" and gets rejected/crash-looped, which is exactly the "old backups
+aren't compatible" and "migration from 24 to 23" issue tonight surfaced.
+
+Recovered the two commits that account for the version bump (skipped three
+unrelated ones from that same lost sequence - a VISIONOS client change, an
+audio-offload/equalizer conflict fix, and a schema-snapshot/thumbnail-crop/
+download-status bundle - none of which this fix depends on, and pulling them
+in blind would be scope creep beyond what broke):
+
+- Strip/dedupe "- Topic" credits in the general sync path (DatabaseDao,
+  AlbumsDao), not just in ArtistCreditEnricher's own narrow paths - shared
+  the Topic-suffix regex/stripping into db/ArtistTopicSuffix.kt, and added
+  ArtistsDao.insertOrHealArtist so a *stale* "- Topic" name already stored
+  under an id gets corrected instead of silently no-op'd by insert()'s
+  OnConflictStrategy.IGNORE.
+- MIGRATION_23_24: re-runs the same cleanup MIGRATION_22_23 already does
+  (factored into a shared mergeTopicSuffixedArtists, now also covering
+  album_artist_map duplicates, which the original migration missed), since
+  a database already recorded at version 23 never re-runs a migration
+  targeting 23 again no matter how that migration's code changes later.
+
+Reconciled against tonight's own changes: MIGRATION_21_22 and the
+downgrade-fallback added earlier this session are untouched and still run
+before/alongside this.
+---
+ .../dd3boh/outertune/db/ArtistTopicSuffix.kt  |  21 +++
+ .../com/dd3boh/outertune/db/DatabaseDao.kt    |  38 +++--
+ .../com/dd3boh/outertune/db/MusicDatabase.kt  | 151 +++++++++++-------
+ .../com/dd3boh/outertune/db/daos/AlbumsDao.kt |  12 +-
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    |  35 +++-
+ .../outertune/utils/ArtistCreditEnricher.kt   |   5 +-
+ 6 files changed, 181 insertions(+), 81 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt b/app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt
+new file mode 100644
+index 00000000..a330c257
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/db/ArtistTopicSuffix.kt
+@@ -0,0 +1,21 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ *
++ * For any other attributions, refer to the git commit history
++ */
++
++package com.dd3boh.outertune.db
++
++/** YouTube's auto-generated channel name for an artist with no official channel of their own. */
++val TOPIC_SUFFIX: Regex = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
++
++/**
++ * Shared by every site that needs to compare or store an artist's display name independent of
++ * whether the credit came in through YouTube's auto-generated "- Topic" channel: the general
++ * song-artist sync path ([DatabaseDao.insert]), [com.dd3boh.outertune.utils.ArtistCreditEnricher]'s
++ * search-based resolution, and the one-time migrations that clean up names already stored with
++ * the suffix.
++ */
++fun String.stripTopicSuffix(): String = replace(TOPIC_SUFFIX, "").trim()
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+index 62be8457..1ec86a06 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+@@ -175,11 +175,23 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+         // an existing song only ever adds a mapping that was missing, never duplicates or removes
+         // one that's already there.
+         mediaMetadata.artists.forEachIndexed { index, artist ->
+-            val artistId = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId()
+-            insert( // TODO: use upsert???
++            // A song's artist can come in credited under YouTube's auto-generated "- Topic"
++            // channel - its own distinct channel id, separate from the artist's real one if they
++            // have one. Matching by the stripped display name first (rather than trusting
++            // artist.id outright) means a "- Topic" credit for an artist already known under their
++            // real channel merges into that existing entity instead of creating a second,
++            // differently-named one for the same real-world artist - the same clean-name dedup
++            // ArtistCreditEnricher and the one-time migrations already use, just applied
++            // prospectively for every song synced from here on rather than as a one-time fixup.
++            // insertOrHealArtist additionally corrects a stale "- Topic" name already sitting
++            // under this id from before this dedup existed, which a plain insert (and even this
++            // same lookup) could never fix on their own - see its own doc.
++            val cleanName = artist.name.stripTopicSuffix()
++            val artistId = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()
++            insertOrHealArtist(
+                 ArtistEntity(
+                     id = artistId,
+-                    name = artist.name,
++                    name = cleanName,
+                     isLocal = artist.isLocal
+                 )
+             )
+@@ -260,12 +272,16 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+             .forEach(::upsert)
+         albumPage.album.artists
+             ?.map { artist ->
++                // See the identical dedup in insert(mediaMetadata, ...)'s own doc for why this
++                // doesn't just trust artist.id/artist.name as given, and insertOrHealArtist's own
++                // doc for why a plain insert isn't enough on its own either.
++                val cleanName = artist.name.stripTopicSuffix()
+                 ArtistEntity(
+-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
+-                    name = artist.name
++                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
++                    name = cleanName
+                 )
+             }
+-            ?.onEach(::insert)
++            ?.map(::insertOrHealArtist)
+             ?.mapIndexed { index, artist ->
+                 AlbumArtistMap(
+                     albumId = albumPage.album.browseId,
+@@ -301,12 +317,16 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+             .forEach(::upsert)
+         albumPage.album.artists
+             ?.map { artist ->
++                // See the identical dedup in insert(mediaMetadata, ...)'s own doc for why this
++                // doesn't just trust artist.id/artist.name as given, and insertOrHealArtist's own
++                // doc for why a plain insert isn't enough on its own either.
++                val cleanName = artist.name.stripTopicSuffix()
+                 ArtistEntity(
+-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
+-                    name = artist.name
++                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
++                    name = cleanName
+                 )
+             }
+-            ?.onEach(::insert)
++            ?.map(::insertOrHealArtist)
+             ?.mapIndexed { index, artist ->
+                 AlbumArtistMap(
+                     albumId = albumPage.album.browseId,
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+index 93349a54..0511d282 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+@@ -68,7 +68,7 @@ class MusicDatabase(
+     fun close() = delegate.close()
+ 
+     companion object {
+-        const val MUSIC_DATABASE_VERSION = 23
++        const val MUSIC_DATABASE_VERSION = 24
+     }
+ }
+ 
+@@ -138,6 +138,7 @@ abstract class InternalDatabase : RoomDatabase() {
+                     .addMigrations(MIGRATION_16_17)
+                     .addMigrations(MIGRATION_21_22)
+                     .addMigrations(MIGRATION_22_23)
++                    .addMigrations(MIGRATION_23_24)
+                     // This app gets rebuilt from different, sometimes-diverging local patch
+                     // lines rather than shipping one monotonically-increasing version history,
+                     // so the database on disk can genuinely be a newer version than the build
+@@ -161,6 +162,7 @@ abstract class InternalDatabase : RoomDatabase() {
+                     .addMigrations(MIGRATION_16_17)
+                     .addMigrations(MIGRATION_21_22)
+                     .addMigrations(MIGRATION_22_23)
++                    .addMigrations(MIGRATION_23_24)
+                     .build()
+             )
+     }
+@@ -717,77 +719,102 @@ val MIGRATION_21_22 = object : Migration(21, 22) {
+ 
+ /**
+  * Clean up artist credits ending in " - Topic" - YouTube's auto-generated channel name for an
+- * artist with no official channel. ArtistCreditEnricher's search-based resolution used to credit
+- * these under that raw channel title, so a featured artist already credited elsewhere under their
+- * plain name ended up duplicated as a second, differently-named ArtistEntity on the same song
+- * (ArtistCreditEnricher itself now dedupes/strips going forward - this is a one-time cleanup for
+- * credits it already added before that fix). No schema change, purely a data fixup, so it runs as
+- * a regular Migration rather than an AutoMigration.
++ * artist with no official channel, with its own distinct channel id separate from the artist's
++ * real one if they have one. Both the general song/album artist sync (DatabaseDao, AlbumsDao) and
++ * ArtistCreditEnricher's search-based resolution now dedupe/strip this going forward - this is a
++ * one-time cleanup for credits added before those fixes existed. No schema change, purely a data
++ * fixup, so it runs as a regular Migration rather than an AutoMigration.
+  */
+-val MIGRATION_22_23 = object : Migration(22, 23) {
+-    private val topicSuffix = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
++private fun mergeTopicSuffixedArtists(db: SupportSQLiteDatabase) {
++    data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
++
++    val artists = ArrayList<ArtistRow>()
++    db.query("SELECT id, name, isLocal FROM artist").use { cursor ->
++        val idIdx = cursor.getColumnIndex("id")
++        val nameIdx = cursor.getColumnIndex("name")
++        val isLocalIdx = cursor.getColumnIndex("isLocal")
++        while (cursor.moveToNext()) {
++            artists.add(ArtistRow(cursor.getString(idIdx), cursor.getString(nameIdx), cursor.getInt(isLocalIdx) != 0))
++        }
++    }
+ 
+-    override fun migrate(db: SupportSQLiteDatabase) {
+-        data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
++    val byLowerName = artists.groupBy { it.name.lowercase() }
++
++    // Re-points every (mapTable, artistIdColumn, otherIdColumn) row crediting a duplicate artist
++    // onto the original instead, dropping the row outright where the original is already credited
++    // too (a plain UPDATE would otherwise violate that map table's own primary key for it).
++    fun mergeMapTable(mapTable: String, otherIdColumn: String, duplicateId: String, originalId: String) {
++        val otherIds = ArrayList<String>()
++        db.query(
++            "SELECT $otherIdColumn FROM $mapTable WHERE artistId = ?",
++            arrayOf(duplicateId)
++        ).use { cursor ->
++            val idx = cursor.getColumnIndex(otherIdColumn)
++            while (cursor.moveToNext()) otherIds.add(cursor.getString(idx))
++        }
+ 
+-        val artists = ArrayList<ArtistRow>()
+-        db.query("SELECT id, name, isLocal FROM artist").use { cursor ->
+-            val idIdx = cursor.getColumnIndex("id")
+-            val nameIdx = cursor.getColumnIndex("name")
+-            val isLocalIdx = cursor.getColumnIndex("isLocal")
+-            while (cursor.moveToNext()) {
+-                artists.add(ArtistRow(cursor.getString(idIdx), cursor.getString(nameIdx), cursor.getInt(isLocalIdx) != 0))
++        for (otherId in otherIds) {
++            val alreadyHasOriginal = db.query(
++                "SELECT 1 FROM $mapTable WHERE $otherIdColumn = ? AND artistId = ?",
++                arrayOf(otherId, originalId)
++            ).use { it.moveToNext() }
++
++            if (alreadyHasOriginal) {
++                db.execSQL(
++                    "DELETE FROM $mapTable WHERE $otherIdColumn = ? AND artistId = ?",
++                    arrayOf(otherId, duplicateId)
++                )
++            } else {
++                db.execSQL(
++                    "UPDATE $mapTable SET artistId = ? WHERE $otherIdColumn = ? AND artistId = ?",
++                    arrayOf(originalId, otherId, duplicateId)
++                )
+             }
+         }
++    }
+ 
+-        val byLowerName = artists.groupBy { it.name.lowercase() }
+-
+-        for (artist in artists) {
+-            if (!topicSuffix.containsMatchIn(artist.name)) continue
+-            val baseName = artist.name.replace(topicSuffix, "").trim()
+-            if (baseName.isEmpty()) continue
++    for (artist in artists) {
++        if (!TOPIC_SUFFIX.containsMatchIn(artist.name)) continue
++        val baseName = artist.name.stripTopicSuffix()
++        if (baseName.isEmpty()) continue
+ 
+-            val original = byLowerName[baseName.lowercase()]
+-                ?.firstOrNull { it.id != artist.id && it.isLocal == artist.isLocal }
++        val original = byLowerName[baseName.lowercase()]
++            ?.firstOrNull { it.id != artist.id && it.isLocal == artist.isLocal }
+ 
+-            if (original == null) {
+-                // The only entry for this real-world artist - just clean up its display name.
+-                db.execSQL("UPDATE artist SET name = ? WHERE id = ?", arrayOf(baseName, artist.id))
+-                continue
+-            }
++        if (original == null) {
++            // The only entry for this real-world artist - just clean up its display name.
++            db.execSQL("UPDATE artist SET name = ? WHERE id = ?", arrayOf(baseName, artist.id))
++            continue
++        }
+ 
+-            // A duplicate already exists under the clean name - merge into it, keeping the
+-            // original on any song that credits both (a plain UPDATE would violate
+-            // song_artist_map's (songId, artistId) primary key for those songs).
+-            val songIds = ArrayList<String>()
+-            db.query("SELECT songId FROM song_artist_map WHERE artistId = ?", arrayOf(artist.id)).use { cursor ->
+-                val idx = cursor.getColumnIndex("songId")
+-                while (cursor.moveToNext()) songIds.add(cursor.getString(idx))
+-            }
++        // A duplicate already exists under the clean name - merge into it.
++        mergeMapTable("song_artist_map", "songId", artist.id, original.id)
++        mergeMapTable("album_artist_map", "albumId", artist.id, original.id)
+ 
+-            for (songId in songIds) {
+-                val alreadyHasOriginal = db.query(
+-                    "SELECT 1 FROM song_artist_map WHERE songId = ? AND artistId = ?",
+-                    arrayOf(songId, original.id)
+-                ).use { it.moveToNext() }
++        db.execSQL(
++            """DELETE FROM artist WHERE id = ? AND NOT EXISTS (
++                SELECT 1 FROM song_artist_map WHERE artistId = ?
++                UNION SELECT 1 FROM album_artist_map WHERE artistId = ?
++            )""",
++            arrayOf(artist.id, artist.id, artist.id)
++        )
++    }
++}
+ 
+-                if (alreadyHasOriginal) {
+-                    db.execSQL(
+-                        "DELETE FROM song_artist_map WHERE songId = ? AND artistId = ?",
+-                        arrayOf(songId, artist.id)
+-                    )
+-                } else {
+-                    db.execSQL(
+-                        "UPDATE song_artist_map SET artistId = ? WHERE songId = ? AND artistId = ?",
+-                        arrayOf(original.id, songId, artist.id)
+-                    )
+-                }
+-            }
++val MIGRATION_22_23 = object : Migration(22, 23) {
++    override fun migrate(db: SupportSQLiteDatabase) = mergeTopicSuffixedArtists(db)
++}
+ 
+-            db.execSQL(
+-                "DELETE FROM artist WHERE id = ? AND NOT EXISTS (SELECT 1 FROM song_artist_map WHERE artistId = ?)",
+-                arrayOf(artist.id, artist.id)
+-            )
+-        }
+-    }
++/**
++ * Re-runs [mergeTopicSuffixedArtists]. MIGRATION_22_23 above only executes for a database that was
++ * literally at version 22 when it opened - once a database records itself as being at version 23,
++ * Room never re-runs a migration targeting 23 again, regardless of what that migration's code does
++ * in a later app update. Both the general sync path's own prospective fix (DatabaseDao's
++ * insertOrHealArtist) and this migration's cleanup were added after some users had already
++ * upgraded through version 23 on an earlier build, so this repeats the same one-time cleanup under
++ * a migration number guaranteed not to have run for them yet, rather than leaving it to only
++ * self-heal one library entry at a time as those entries happen to get synced again.
++ */
++val MIGRATION_23_24 = object : Migration(23, 24) {
++    override fun migrate(db: SupportSQLiteDatabase) = mergeTopicSuffixedArtists(db)
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
+index ed2bcb39..c7e10e3d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
+@@ -20,6 +20,7 @@ import com.dd3boh.outertune.db.entities.AlbumWithSongs
+ import com.dd3boh.outertune.db.entities.ArtistEntity
+ import com.dd3boh.outertune.db.entities.Song
+ import com.dd3boh.outertune.db.entities.SongAlbumMap
++import com.dd3boh.outertune.db.stripTopicSuffix
+ import com.dd3boh.outertune.extensions.reversed
+ import com.zionhuang.innertube.models.AlbumItem
+ import kotlinx.coroutines.flow.Flow
+@@ -261,12 +262,17 @@ interface AlbumsDao : ArtistsDao {
+         ) return
+         albumItem.artists
+             ?.map { artist ->
++                // See the identical dedup in DatabaseDao.insert(mediaMetadata, ...)'s own doc for
++                // why this doesn't just trust artist.id/artist.name as given, and
++                // insertOrHealArtist's own doc for why a plain insert isn't enough on its own
++                // either.
++                val cleanName = artist.name.stripTopicSuffix()
+                 ArtistEntity(
+-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
+-                    name = artist.name
++                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
++                    name = cleanName
+                 )
+             }
+-            ?.onEach(::insert)
++            ?.map(::insertOrHealArtist)
+             ?.mapIndexed { index, artist ->
+                 AlbumArtistMap(
+                     albumId = albumItem.browseId,
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index 046e8fbe..b512ed73 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -53,9 +53,14 @@ interface ArtistsDao {
+     fun artistByName(name: String): ArtistEntity?
+ 
+     /**
+-     * Case-insensitive counterpart to [artistByName] - used by ArtistCreditEnricher so a freshly
+-     * search-resolved artist reuses an already-known ArtistEntity instead of creating a second one
+-     * that differs only in casing or in carrying/lacking YouTube's " - Topic" channel suffix.
++     * Case-insensitive counterpart to [artistByName]. Callers pass an already-Topic-stripped name
++     * (see [com.dd3boh.outertune.db.stripTopicSuffix]) so an artist credited under YouTube's
++     * auto-generated "- Topic" channel - its own distinct channel id, separate from the artist's
++     * real one if they have one - resolves to whatever ArtistEntity is already known for that
++     * artist instead of minting a second, differently-named one. Used by the general song/album
++     * artist sync in [com.dd3boh.outertune.db.DatabaseDao] and
++     * [com.dd3boh.outertune.db.daos.AlbumsDao], and by
++     * [com.dd3boh.outertune.utils.ArtistCreditEnricher]'s search-based resolution.
+      */
+     @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE LIMIT 1")
+     fun artistByNameIgnoreCase(name: String): ArtistEntity?
+@@ -265,6 +270,30 @@ interface ArtistsDao {
+     @Update
+     fun update(artist: ArtistEntity)
+ 
++    /**
++     * Inserts [artist], or - if an entity already exists under its id - heals a stale display
++     * name left over from before the "- Topic" dedup existed. insert()'s OnConflictStrategy.IGNORE
++     * would otherwise silently no-op on the id conflict and leave that stale name in place forever:
++     * the general song/album artist sync in [com.dd3boh.outertune.db.DatabaseDao] and
++     * [com.dd3boh.outertune.db.daos.AlbumsDao] look up an existing entity by its already-stripped
++     * name via [artistByNameIgnoreCase], which can only find it if that stored name was already
++     * clean - an entity still carrying the raw "- Topic" suffix from before this dedup existed
++     * needs an actual update to fix, not another insert.
++     */
++    fun insertOrHealArtist(artist: ArtistEntity): ArtistEntity {
++        val existing = artistById(artist.id)
++        if (existing == null) {
++            insert(artist)
++            return artist
++        }
++        if (existing.name != artist.name) {
++            val healed = existing.copy(name = artist.name)
++            update(healed)
++            return healed
++        }
++        return existing
++    }
++
+     @Transaction
+     fun update(artist: ArtistEntity, artistPage: ArtistPage) {
+         update(
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+index ae9cc745..bd395928 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+@@ -12,6 +12,7 @@ import android.util.Log
+ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.db.entities.ArtistEntity
+ import com.dd3boh.outertune.db.entities.SongArtistMap
++import com.dd3boh.outertune.db.stripTopicSuffix
+ import com.zionhuang.innertube.YouTube
+ import com.zionhuang.innertube.models.ArtistItem
+ import kotlinx.coroutines.Dispatchers
+@@ -49,10 +50,6 @@ object ArtistCreditEnricher {
+     )
+     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
+ 
+-    /** YouTube's auto-generated channel name for an artist with no official channel of their own. */
+-    private val TOPIC_SUFFIX = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
+-    private fun String.stripTopicSuffix() = replace(TOPIC_SUFFIX, "").trim()
+-
+     /**
+      * Runs both checks for one song - called once per playback ([com.dd3boh.outertune.playback.MusicService.recoverSong])
+      * and once per song when downloads are rescanned ([com.dd3boh.outertune.playback.DownloadUtil.scanDownloads]).
+-- 
+2.45.1.windows.1
+
+
+From 604af8c96978b99bc3672d6dc0ce033bb21f10b0 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 26 Aug 2026 21:42:17 +0800
+Subject: [PATCH 2/2] Merge a restored backup into the live database instead of
+ replacing it outright
+
+Restore used to copy the backup's database file straight over the live one
+- fine for a manual backup (always complete), but automatic backups can now
+be deliberately partial (AutoBackupCategories: history/local playlists/
+synced playlists/stats each independently excludable). A straight file swap
+of one of those would have deleted everything it left out, which is the
+opposite of what "restore my stats backup" should do.
+
+Restore now ATTACHes the validated backup database to the live one and runs
+INSERT OR REPLACE per table (table list read from the backup's own
+sqlite_master, not hardcoded, so a future new table doesn't need this
+updated). A row the backup has overwrites the live row sharing its primary
+key; a row it doesn't have - because that category was excluded, or because
+it's simply newer than the backup - is left alone rather than removed. Works
+the same for an old full backup and a new partial one: a full backup's
+"missing" rows are just whatever's been added to the library since, and
+never getting deleted was already the point.
+---
+ .../viewmodels/BackupRestoreViewModel.kt      | 67 +++++++++++++++++--
+ 1 file changed, 61 insertions(+), 6 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+index 85798d5f..398fc873 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+@@ -2,6 +2,7 @@ package com.dd3boh.outertune.viewmodels
+ 
+ import android.content.Context
+ import android.content.Intent
++import android.database.sqlite.SQLiteDatabase
+ import android.net.Uri
+ import android.util.Log
+ import android.widget.Toast
+@@ -94,12 +95,23 @@ class BackupRestoreViewModel @Inject constructor(
+                                 }
+ 
+                                 if (status) {
+-                                    Log.i(TAG, "Found valid database, proceeding with restore")
+-                                    destFile.inputStream().use { inputStream ->
+-                                        FileOutputStream(database.openHelper.writableDatabase.path).use { outputStream ->
+-                                            inputStream.copyTo(outputStream)
+-                                        }
+-                                    }
++                                    Log.i(TAG, "Found valid database, merging into the live one")
++                                    // Merges rather than replaces the live file outright: an
++                                    // automatic backup can be a deliberately partial one (see
++                                    // AutoBackupCategories) with some tables left empty by
++                                    // design, and a straight file swap would read that as "the
++                                    // user wants this data gone" rather than "this backup never
++                                    // touched it". Every row the backup DOES have overwrites the
++                                    // live row with the same primary key; nothing the backup
++                                    // doesn't have is removed from what's already live - so
++                                    // restoring a stats-only backup updates play counts and
++                                    // leaves playlists/history exactly as they were, and restoring
++                                    // a full one still can't erase anything added to the live
++                                    // library since the backup was taken.
++                                    mergeDatabaseFile(
++                                        liveDbPath = database.openHelper.writableDatabase.path,
++                                        backupDbPath = destFile.path
++                                    )
+                                 } else {
+                                     Log.e(TAG, "Incompatible database, aborting restore")
+                                     Toast.makeText(
+@@ -126,4 +138,47 @@ class BackupRestoreViewModel @Inject constructor(
+             Toast.makeText(context, it.message, Toast.LENGTH_SHORT).show()
+         }
+     }
++
++    /**
++     * Copies every row [backupDbPath] has into [liveDbPath], table by table, via SQLite's own
++     * ATTACH rather than a Kotlin-side row loop - table names come from the attached database's
++     * own sqlite_master, not a hardcoded list, so this keeps working if the schema grows a table
++     * without needing to come back and update it. `INSERT OR REPLACE` means a row the backup has
++     * overwrites the live row sharing its primary key; a row the backup DOESN'T have (an empty
++     * table from an AutoBackupCategories exclusion, or simply a row added to the live library
++     * since the backup was taken) is left alone rather than deleted - see the call site's own doc
++     * for why that matters here specifically. By the time this runs, both files have already been
++     * opened by Room at least once under the current app's migrations (this one when it was first
++     * created, the backup's copy via the newTestInstance validation just before this call), so
++     * both are on the same schema version and this never needs a migration of its own.
++     */
++    private fun mergeDatabaseFile(liveDbPath: String, backupDbPath: String) {
++        val escapedBackupPath = backupDbPath.replace("'", "''")
++        SQLiteDatabase.openDatabase(liveDbPath, null, SQLiteDatabase.OPEN_READWRITE).use { db ->
++            db.execSQL("ATTACH DATABASE '$escapedBackupPath' AS backup")
++            try {
++                val tables = mutableListOf<String>()
++                db.rawQuery(
++                    "SELECT name FROM backup.sqlite_master " +
++                        "WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name NOT LIKE 'room_%' " +
++                        "AND name != 'android_metadata'",
++                    null
++                ).use { cursor ->
++                    while (cursor.moveToNext()) tables += cursor.getString(0)
++                }
++
++                db.beginTransaction()
++                try {
++                    for (table in tables) {
++                        db.execSQL("INSERT OR REPLACE INTO main.\"$table\" SELECT * FROM backup.\"$table\"")
++                    }
++                    db.setTransactionSuccessful()
++                } finally {
++                    db.endTransaction()
++                }
++            } finally {
++                db.execSQL("DETACH DATABASE backup")
++            }
++        }
++    }
+ }
+-- 
+2.45.1.windows.1
+
