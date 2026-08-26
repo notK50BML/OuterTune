@@ -39750,3 +39750,78 @@ index 5a00d96a..ae9cc745 100644
 -- 
 2.45.1.windows.1
 
+From ed973a73b07dce17e11e5570101ce55fb53d8e31 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Wed, 26 Aug 2026 12:42:12 +0800
+Subject: [PATCH] Fix compile error: write the 21->22 migration by hand instead
+ of relying on a missing schema snapshot
+
+CI failed with:
+  e: [ksp] MusicDatabase.kt:125: Schema '22.json' required for migration
+  was not found at the schema out folder. Cannot generate auto migrations.
+
+AutoMigration(from = 21, to = 22) needs the version-22 schema snapshot Room
+exports at build time (app/schemas/.../22.json) to diff against version 21's
+- but that file was never generated/committed when the version was bumped
+(21-22 through 20, plus 22.json for the current AutoMigrations, all exist;
+only 22.json is missing). The actual schema change it stood for is a single
+additive nullable column (SongEntity.thumbnailPath, confirmed against
+21.json and the commit that added it) - simple enough to write directly as
+a regular Migration, which doesn't need any schema snapshot at all.
+---
+ .../com/dd3boh/outertune/db/MusicDatabase.kt   | 18 +++++++++++++++++-
+ 1 file changed, 17 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+index a5528b74..2217a4d2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+@@ -118,7 +118,7 @@ class MusicDatabase(
+         AutoMigration(from = 18, to = 19), // Recent activity
+         AutoMigration(from = 19, to = 20, spec = Migration19To20::class), // Db optimization, remove totalplaytime, local media fields
+         AutoMigration(from = 20, to = 21), // Lyrics provider column
+-        AutoMigration(from = 21, to = 22), // Downloaded full-res thumbnail path
++        // 21->22 (thumbnailPath) is MIGRATION_21_22 below, not an AutoMigration - see its own doc.
+     ]
+ )
+ @TypeConverters(Converters::class)
+@@ -136,6 +136,7 @@ abstract class InternalDatabase : RoomDatabase() {
+                     .addMigrations(MIGRATION_14_15)
+                     .addMigrations(MIGRATION_15_16)
+                     .addMigrations(MIGRATION_16_17)
++                    .addMigrations(MIGRATION_21_22)
+                     .addMigrations(MIGRATION_22_23)
+                     .build()
+             )
+@@ -148,6 +149,7 @@ abstract class InternalDatabase : RoomDatabase() {
+                     .addMigrations(MIGRATION_14_15)
+                     .addMigrations(MIGRATION_15_16)
+                     .addMigrations(MIGRATION_16_17)
++                    .addMigrations(MIGRATION_21_22)
+                     .addMigrations(MIGRATION_22_23)
+                     .build()
+             )
+@@ -689,6 +691,20 @@ class Migration17To18 : AutoMigrationSpec
+ )
+ class Migration19To20 : AutoMigrationSpec
+ 
++/**
++ * Adds SongEntity.thumbnailPath (a downloaded full-res thumbnail's path, independent of the
++ * song's own audio download - see the field's own doc). A plain additive nullable column, which
++ * would normally be an AutoMigration - written by hand instead because doing so needs a
++ * `21.json`/`22.json` schema snapshot pair checked into `app/schemas/`, and no `22.json` was ever
++ * generated/committed for this version. Re-adding it as an AutoMigration once that snapshot
++ * exists would work exactly the same as this; this just doesn't depend on it existing at all.
++ */
++val MIGRATION_21_22 = object : Migration(21, 22) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++        db.execSQL("ALTER TABLE song ADD COLUMN thumbnailPath TEXT")
++    }
++}
++
+ /**
+  * Clean up artist credits ending in " - Topic" - YouTube's auto-generated channel name for an
+  * artist with no official channel. ArtistCreditEnricher's search-based resolution used to credit
+-- 
+2.45.1.windows.1
+
