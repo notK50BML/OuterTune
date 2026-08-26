@@ -37,6 +37,9 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AudioNormalizationKey
+import com.dd3boh.outertune.constants.CrossfadeDefaults
+import com.dd3boh.outertune.constants.CrossfadeDurationKey
+import com.dd3boh.outertune.constants.CrossfadeKey
 import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
@@ -238,8 +241,16 @@ fun PlaybackBehaviourFrag() {
         defaultValue = true
     )
     val (ignoreAudioFocus, onIgnoreAudioFocusChange) = rememberPreference(key = IgnoreAudioFocusKey, defaultValue = false)
+    val (crossfade, onCrossfadeChange) = rememberPreference(key = CrossfadeKey, defaultValue = CrossfadeDefaults.ENABLED)
+    val (crossfadeDuration, onCrossfadeDurationChange) = rememberPreference(
+        CrossfadeDurationKey,
+        defaultValue = CrossfadeDefaults.DURATION_SECONDS
+    )
 
     var showMinPlaybackDur by remember {
+        mutableStateOf(false)
+    }
+    var showCrossfadeDuration by remember {
         mutableStateOf(false)
     }
 
@@ -248,6 +259,20 @@ fun PlaybackBehaviourFrag() {
         description = stringResource(R.string.min_playback_duration_summary, minPlaybackDur),
         icon = { Icon(Icons.Rounded.Sync, null) },
         onClick = { showMinPlaybackDur = true }
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.crossfade)) },
+        description = stringResource(R.string.crossfade_desc),
+        icon = { Icon(Icons.Rounded.Timelapse, null) },
+        checked = crossfade,
+        onCheckedChange = onCrossfadeChange
+    )
+    PreferenceEntry(
+        title = { Text(stringResource(R.string.crossfade_duration)) },
+        description = stringResource(R.string.crossfade_duration_desc),
+        icon = { Icon(Icons.Rounded.Timelapse, null) },
+        isEnabled = crossfade,
+        onClick = { showCrossfadeDuration = true }
     )
     SwitchPreference(
         title = { Text(stringResource(R.string.auto_skip_next_on_error)) },
@@ -300,6 +325,24 @@ fun PlaybackBehaviourFrag() {
             },
             onCancel = {
                 showMinPlaybackDur = false
+            }
+        )
+    }
+    if (showCrossfadeDuration) {
+        CounterDialog(
+            title = stringResource(R.string.crossfade_duration),
+            description = stringResource(R.string.crossfade_duration_desc),
+            initialValue = crossfadeDuration,
+            upperBound = CrossfadeDefaults.DURATION_RANGE.last,
+            lowerBound = CrossfadeDefaults.DURATION_RANGE.first,
+            unitDisplay = " " + stringResource(R.string.sleep_timer_second_unit),
+            onDismiss = { showCrossfadeDuration = false },
+            onConfirm = {
+                showCrossfadeDuration = false
+                onCrossfadeDurationChange(it)
+            },
+            onCancel = {
+                showCrossfadeDuration = false
             }
         )
     }

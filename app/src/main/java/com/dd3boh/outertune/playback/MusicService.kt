@@ -75,6 +75,9 @@ import com.dd3boh.outertune.constants.AudioOffloadKey
 import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
+import com.dd3boh.outertune.constants.CrossfadeDefaults
+import com.dd3boh.outertune.constants.CrossfadeDurationKey
+import com.dd3boh.outertune.constants.CrossfadeKey
 import com.dd3boh.outertune.constants.DiscordTokenKey
 import com.dd3boh.outertune.audio.EqualizerAudioProcessor
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
@@ -262,6 +265,7 @@ class MusicService : MediaLibraryService(),
     private val isNetworkConnected = MutableStateFlow(true)
 
     lateinit var sleepTimer: SleepTimer
+    lateinit var crossfader: Crossfader
 
     // Player vars
     val currentMediaMetadata = MutableStateFlow<MediaMetadata?>(null)
@@ -370,6 +374,8 @@ class MusicService : MediaLibraryService(),
                 sleepTimer = SleepTimer(scope, this)
                 sleepTimer.onFinish = { this@MusicService.pauseAllPlayersAndStopSelf() }
                 addListener(sleepTimer)
+                crossfader = Crossfader(scope, this)
+                crossfader.start()
                 addAnalyticsListener(PlaybackStatsListener(false, this@MusicService))
 
                 // misc
@@ -472,13 +478,24 @@ class MusicService : MediaLibraryService(),
                 initQueue()
             }
 
-            combine(playerVolume, normalizeFactor, sleepTimer.fadeFactor) { playerVolume, normalizeFactor, fadeFactor ->
-                playerVolume * normalizeFactor * fadeFactor
+            combine(
+                playerVolume, normalizeFactor, sleepTimer.fadeFactor, crossfader.fadeFactor
+            ) { playerVolume, normalizeFactor, sleepFadeFactor, crossfadeFactor ->
+                playerVolume * normalizeFactor * sleepFadeFactor * crossfadeFactor
             }.collectLatest(scope) {
                 withContext(Dispatchers.Main) {
                     player.volume = it
                 }
             }
+
+            dataStore.data
+                .map { (it[CrossfadeKey] ?: CrossfadeDefaults.ENABLED) to
+                        (it[CrossfadeDurationKey] ?: CrossfadeDefaults.DURATION_SECONDS) }
+                .distinctUntilChanged()
+                .collectLatest(scope) { (enabled, durationSeconds) ->
+                    crossfader.enabled = enabled
+                    crossfader.durationMs = durationSeconds * 1000L
+                }
 
             playerVolume.debounce(1000).collect(scope) { volume ->
                 dataStore.edit { settings ->

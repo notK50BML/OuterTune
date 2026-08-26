@@ -137,6 +137,10 @@ val SleepTimerFadeDurationKey = intPreferencesKey("sleepTimerFadeDuration")
 val SleepTimerDefaultMinutesKey = intPreferencesKey("sleepTimerDefaultMinutes")
 val SleepTimerShowOnPlayerKey = booleanPreferencesKey("sleepTimerShowOnPlayer")
 
+val CrossfadeKey = booleanPreferencesKey("crossfade")
+/** How long before a track ends its volume starts fading out, in seconds. */
+val CrossfadeDurationKey = intPreferencesKey("crossfadeDuration")
+
 
 /**
  * Lyrics
