@@ -138,6 +138,16 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_16_17)
                     .addMigrations(MIGRATION_21_22)
                     .addMigrations(MIGRATION_22_23)
+                    // This app gets rebuilt from different, sometimes-diverging local patch
+                    // lines rather than shipping one monotonically-increasing version history,
+                    // so the database on disk can genuinely be a newer version than the build
+                    // now running knows about (e.g. after switching back to an older patch
+                    // line). With no migration path for that direction, Room's only other
+                    // option is to crash on every single launch - recreating the database
+                    // instead at least leaves the app usable. Not applied to newTestInstance:
+                    // that one exists specifically to check a restored backup's real
+                    // compatibility, which this would silently paper over.
+                    .fallbackToDestructiveMigrationOnDowngrade(dropAllTables = true)
                     .build()
             )
 
