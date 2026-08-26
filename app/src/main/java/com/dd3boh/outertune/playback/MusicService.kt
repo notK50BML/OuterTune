@@ -242,6 +242,9 @@ class MusicService : MediaLibraryService(),
 
     private var discordRpc: DiscordRPC? = null
 
+    /** The (token, enabled) pair the RPC collector below last rebuilt [discordRpc] from - read by the watchdog. */
+    private var discordAuth: Pair<String?, Boolean> = null to false
+
     /**
      * Presence updates are *requested*, never pushed directly.
      *
@@ -258,6 +261,25 @@ class MusicService : MediaLibraryService(),
 
     private fun requestDiscordUpdate() {
         discordUpdateRequests.tryEmit(Unit)
+    }
+
+    /**
+     * Closes whatever [discordRpc] currently is and, if RPC is enabled with a token, opens a
+     * fresh one and re-pushes the current song - a full reconnect, not just a resend, since a
+     * resend through the same (possibly dead) socket object doesn't help. Shared by the
+     * token/enable-switch collector and the watchdog above.
+     */
+    private fun rebuildDiscordRpc(token: String?, enabled: Boolean) {
+        if (discordRpc?.isRpcRunning() == true) {
+            discordRpc?.closeRPC()
+        }
+        discordRpc = null
+        if (!token.isNullOrEmpty() && enabled) {
+            discordRpc = DiscordRPC(this@MusicService, token)
+            // Let the single writer decide what to publish, so this behaves exactly like a track
+            // change rather than being its own path with its own guards.
+            requestDiscordUpdate()
+        }
     }
 
     lateinit var connectivityObserver: NetworkConnectivityObserver
@@ -510,18 +532,28 @@ class MusicService : MediaLibraryService(),
                 .debounce(300)
                 .distinctUntilChanged()
                 .collect(scope) { (token, enabled) ->
-                    if (discordRpc?.isRpcRunning() == true) {
-                        discordRpc?.closeRPC()
-                    }
-                    discordRpc = null
-                    if (!token.isNullOrEmpty() && enabled) {
-                        discordRpc = DiscordRPC(this@MusicService, token)
-                        // Let the single writer decide what to publish, so turning the switch back
-                        // on behaves exactly like a track change rather than being its own path
-                        // with its own guards.
-                        requestDiscordUpdate()
+                    discordAuth = token to enabled
+                    rebuildDiscordRpc(token, enabled)
+                }
+
+            // Kizzy's isRpcRunning()/isWebSocketConnected() only reflect whether connect() was
+            // called and close() wasn't - they can't see a socket the OS silently dropped without
+            // a close frame (routine after screen-off/Doze on mobile data), so a dead connection
+            // still reports "running" forever and the presence it was showing just never updates
+            // again. There's no way to actually observe that from here, so instead of trying to
+            // detect it, periodically force the connection closed and reopened while a song is
+            // genuinely playing - the one situation where a stuck presence would actually be
+            // wrong. Silent when paused/idle: nothing worth refreshing, and no reason to hit
+            // Discord's gateway for no visible benefit.
+            scope.launch {
+                while (true) {
+                    delay(DISCORD_RPC_WATCHDOG_INTERVAL_MS)
+                    val (token, enabled) = discordAuth
+                    if (enabled && !token.isNullOrEmpty() && player.isPlaying) {
+                        rebuildDiscordRpc(token, enabled)
                     }
                 }
+            }
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }
@@ -1656,6 +1688,14 @@ class MusicService : MediaLibraryService(),
     companion object {
         /** How long to wait for a just-queued track's database row before giving up on it. */
         private const val DISCORD_SONG_ROW_TIMEOUT_MS = 5_000L
+
+        /**
+         * How often to force-reconnect the Discord RPC socket while a song is actively playing,
+         * as a safety net against a connection silently dying (the OS drops an idle socket after
+         * screen-off/Doze with no close frame) - see MusicService's own watchdog for why this is
+         * needed instead of just checking DiscordRPC.isRpcRunning().
+         */
+        private const val DISCORD_RPC_WATCHDOG_INTERVAL_MS = 10 * 60 * 1000L
 
         const val ROOT = "root"
         const val SONG = "song"
