@@ -24,22 +24,25 @@ import kotlinx.coroutines.withContext
  *
  * - A single combined credit like "X & Y" that isn't a real channel - YTM sometimes returns this
  *   as one Run with no navigationEndpoint rather than crediting X and Y separately, which lands in
- *   the database as one ArtistEntity with a generated local id (see [ArtistEntity.isYouTubeArtist])
- *   - gets split into its own artists once searching each half actually turns up a real one.
+ *   the database as one ArtistEntity with a generated local id (see [ArtistEntity.isYouTubeArtist]).
+ *   Once searching each half actually turns up a real channel, X and Y get added as their own
+ *   artists.
  * - An artist named in the title's "(feat. X, Y)"/"(ft. X)" text but missing from the credited
  *   list gets added, once a search confirms the name is a real artist.
  *
- * Deliberately conservative: nothing here changes a song's credits unless the corresponding
- * search actually resolves to a real channel, so a genuine single-name act whose real channel
- * name happens to contain "&" is never incorrectly split, and title text that merely looks like a
- * feature credit but isn't a real artist is never added.
+ * The song's own inbuilt credit is never touched or replaced by either of these - a search match
+ * can be wrong (same-named channel, right title but no real profile behind it), so the credit
+ * that came straight from the song's own data stays put and stays what "the artist" resolves to.
+ * Anything this class finds is *added*, positioned after every credit the song already had, and
+ * only when the match actually looks like a real, populated channel (a non-blank thumbnail) -
+ * never as a replacement for what was already linked.
  */
 object ArtistCreditEnricher {
     private const val TAG = "ArtistCreditEnricher"
 
     private val AMPERSAND_SPLIT = Regex("\\s*&\\s*")
     private val FEATURED_ARTISTS = Regex(
-        """[(\[]?\s*(?:feat\.?|ft\.?)\s+([^)\]]+)[)\]]?""",
+        """[(\[]?\s*\b(?:feat\.?|ft\.?)\s+([^)\]]+)[)\]]?""",
         RegexOption.IGNORE_CASE
     )
     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
@@ -58,38 +61,43 @@ object ArtistCreditEnricher {
     suspend fun enrich(database: MusicDatabase, songId: String): Unit = withContext(Dispatchers.IO) {
         val song = database.song(songId).first() ?: return@withContext
 
-        // Split a combined "X & Y" credit once both halves resolve to real artists. Position is
-        // preserved: the split-out names replace the combined one at its own index rather than
-        // being appended, so ordering among the OTHER credited artists doesn't shift.
-        for ((index, artist) in song.artists.withIndex()) {
+        // Everything found below is appended after the song's own inbuilt credits, never in
+        // place of them - `nextPosition`/`creditedNames` track that running tail as entries are
+        // added, so a song with more than one combined credit or several featured artists still
+        // gets each of them positioned behind everything before it instead of colliding on the
+        // same position.
+        var nextPosition = song.artists.size
+        val creditedNames = song.artists.map { it.name.lowercase() }.toMutableSet()
+
+        // Add the real artists behind a combined "X & Y" credit once both halves resolve to a
+        // real, populated channel. The combined credit itself is left exactly as it was - it's
+        // still the song's own inbuilt link, just not a clickable one.
+        for (artist in song.artists) {
             if (artist.isYouTubeArtist) continue
             val candidates = splitAmpersandCandidates(artist.name) ?: continue
+            if (candidates.any { it.lowercase() in creditedNames }) continue
+
             val resolved = candidates.map { resolveArtistEntity(database, it) }
             if (resolved.any { it == null }) continue
 
-            database.deleteSongArtistMap(songId, artist.id)
-            database.safeDeleteArtist(artist.id)
-            resolved.forEachIndexed { offset, item ->
+            resolved.forEach { item ->
                 item!!
                 database.insert(item)
-                database.insert(SongArtistMap(songId = songId, artistId = item.id, position = index + offset))
+                database.insert(SongArtistMap(songId = songId, artistId = item.id, position = nextPosition))
+                nextPosition++
+                creditedNames += item.name.lowercase()
             }
-            Log.d(TAG, "[$songId] split combined credit \"${artist.name}\" into ${resolved.map { it?.name }}")
+            Log.d(TAG, "[$songId] added real artists behind combined credit \"${artist.name}\": ${resolved.map { it?.name }}")
         }
 
-        // Add any featured artist named in the title but missing from the credited list. Read
-        // fresh rather than reusing `song.artists`: the split above may have just changed it.
-        val currentNames = database.song(songId).first()?.artists?.map { it.name.lowercase() }?.toSet()
-            ?: return@withContext
-        val featured = parseFeaturedArtistNames(song.song.title).filter { it.lowercase() !in currentNames }
-        if (featured.isEmpty()) return@withContext
-
-        var nextPosition = database.song(songId).first()?.artists?.size ?: return@withContext
+        // Add any featured artist named in the title but missing from the credited list.
+        val featured = parseFeaturedArtistNames(song.song.title).filter { it.lowercase() !in creditedNames }
         for (name in featured) {
             val resolved = resolveArtistEntity(database, name) ?: continue
             database.insert(resolved)
             database.insert(SongArtistMap(songId = songId, artistId = resolved.id, position = nextPosition))
             nextPosition++
+            creditedNames += resolved.name.lowercase()
             Log.d(TAG, "[$songId] added featured artist \"${resolved.name}\"")
         }
     }
@@ -117,12 +125,19 @@ object ArtistCreditEnricher {
      * The real artist channel [name] resolves to, or null if search finds no matching one. An
      * artist with no official channel is only findable under YouTube's auto-generated "X - Topic"
      * channel, so the match compares against both the raw and Topic-stripped title.
+     *
+     * A title match with a blank thumbnail is rejected rather than accepted: a real, populated
+     * YTM artist channel always has one, so a same-named result with no profile picture behind it
+     * reads as a placeholder/junk channel rather than the actual artist - exactly the case this
+     * should stay conservative about instead of linking to.
      */
     private suspend fun resolveArtist(name: String): ArtistItem? {
         val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()?.items
             ?: return null
         return results.filterIsInstance<ArtistItem>()
-            .firstOrNull { it.title.stripTopicSuffix().equals(name, ignoreCase = true) }
+            .firstOrNull {
+                it.title.stripTopicSuffix().equals(name, ignoreCase = true) && !it.thumbnail.isNullOrBlank()
+            }
     }
 
     /**
