@@ -12,6 +12,7 @@ import android.util.Log
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.SongArtistMap
+import com.dd3boh.outertune.db.stripTopicSuffix
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.ArtistItem
 import kotlinx.coroutines.Dispatchers
@@ -48,10 +49,6 @@ object ArtistCreditEnricher {
         RegexOption.IGNORE_CASE
     )
     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
-
-    /** YouTube's auto-generated channel name for an artist with no official channel of their own. */
-    private val TOPIC_SUFFIX = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
-    private fun String.stripTopicSuffix() = replace(TOPIC_SUFFIX, "").trim()
 
     /**
      * Runs both checks for one song - called once per playback ([com.dd3boh.outertune.playback.MusicService.recoverSong])

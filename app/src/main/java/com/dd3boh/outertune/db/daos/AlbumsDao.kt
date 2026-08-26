@@ -20,6 +20,7 @@ import com.dd3boh.outertune.db.entities.AlbumWithSongs
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongAlbumMap
+import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.extensions.reversed
 import com.zionhuang.innertube.models.AlbumItem
 import kotlinx.coroutines.flow.Flow
@@ -261,12 +262,17 @@ interface AlbumsDao : ArtistsDao {
         ) return
         albumItem.artists
             ?.map { artist ->
+                // See the identical dedup in DatabaseDao.insert(mediaMetadata, ...)'s own doc for
+                // why this doesn't just trust artist.id/artist.name as given, and
+                // insertOrHealArtist's own doc for why a plain insert isn't enough on its own
+                // either.
+                val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
-                    name = artist.name
+                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
+                    name = cleanName
                 )
             }
-            ?.onEach(::insert)
+            ?.map(::insertOrHealArtist)
             ?.mapIndexed { index, artist ->
                 AlbumArtistMap(
                     albumId = albumItem.browseId,

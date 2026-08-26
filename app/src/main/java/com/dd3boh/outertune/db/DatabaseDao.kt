@@ -175,11 +175,23 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
         // an existing song only ever adds a mapping that was missing, never duplicates or removes
         // one that's already there.
         mediaMetadata.artists.forEachIndexed { index, artist ->
-            val artistId = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId()
-            insert( // TODO: use upsert???
+            // A song's artist can come in credited under YouTube's auto-generated "- Topic"
+            // channel - its own distinct channel id, separate from the artist's real one if they
+            // have one. Matching by the stripped display name first (rather than trusting
+            // artist.id outright) means a "- Topic" credit for an artist already known under their
+            // real channel merges into that existing entity instead of creating a second,
+            // differently-named one for the same real-world artist - the same clean-name dedup
+            // ArtistCreditEnricher and the one-time migrations already use, just applied
+            // prospectively for every song synced from here on rather than as a one-time fixup.
+            // insertOrHealArtist additionally corrects a stale "- Topic" name already sitting
+            // under this id from before this dedup existed, which a plain insert (and even this
+            // same lookup) could never fix on their own - see its own doc.
+            val cleanName = artist.name.stripTopicSuffix()
+            val artistId = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()
+            insertOrHealArtist(
                 ArtistEntity(
                     id = artistId,
-                    name = artist.name,
+                    name = cleanName,
                     isLocal = artist.isLocal
                 )
             )
@@ -260,12 +272,16 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
             .forEach(::upsert)
         albumPage.album.artists
             ?.map { artist ->
+                // See the identical dedup in insert(mediaMetadata, ...)'s own doc for why this
+                // doesn't just trust artist.id/artist.name as given, and insertOrHealArtist's own
+                // doc for why a plain insert isn't enough on its own either.
+                val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
-                    name = artist.name
+                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
+                    name = cleanName
                 )
             }
-            ?.onEach(::insert)
+            ?.map(::insertOrHealArtist)
             ?.mapIndexed { index, artist ->
                 AlbumArtistMap(
                     albumId = albumPage.album.browseId,
@@ -301,12 +317,16 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
             .forEach(::upsert)
         albumPage.album.artists
             ?.map { artist ->
+                // See the identical dedup in insert(mediaMetadata, ...)'s own doc for why this
+                // doesn't just trust artist.id/artist.name as given, and insertOrHealArtist's own
+                // doc for why a plain insert isn't enough on its own either.
+                val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = artist.id ?: artistByName(artist.name)?.id ?: ArtistEntity.generateArtistId(),
-                    name = artist.name
+                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
+                    name = cleanName
                 )
             }
-            ?.onEach(::insert)
+            ?.map(::insertOrHealArtist)
             ?.mapIndexed { index, artist ->
                 AlbumArtistMap(
                     albumId = albumPage.album.browseId,

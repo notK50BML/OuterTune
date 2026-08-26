@@ -53,9 +53,14 @@ interface ArtistsDao {
     fun artistByName(name: String): ArtistEntity?
 
     /**
-     * Case-insensitive counterpart to [artistByName] - used by ArtistCreditEnricher so a freshly
-     * search-resolved artist reuses an already-known ArtistEntity instead of creating a second one
-     * that differs only in casing or in carrying/lacking YouTube's " - Topic" channel suffix.
+     * Case-insensitive counterpart to [artistByName]. Callers pass an already-Topic-stripped name
+     * (see [com.dd3boh.outertune.db.stripTopicSuffix]) so an artist credited under YouTube's
+     * auto-generated "- Topic" channel - its own distinct channel id, separate from the artist's
+     * real one if they have one - resolves to whatever ArtistEntity is already known for that
+     * artist instead of minting a second, differently-named one. Used by the general song/album
+     * artist sync in [com.dd3boh.outertune.db.DatabaseDao] and
+     * [com.dd3boh.outertune.db.daos.AlbumsDao], and by
+     * [com.dd3boh.outertune.utils.ArtistCreditEnricher]'s search-based resolution.
      */
     @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE LIMIT 1")
     fun artistByNameIgnoreCase(name: String): ArtistEntity?
@@ -264,6 +269,30 @@ interface ArtistsDao {
     // region Updates
     @Update
     fun update(artist: ArtistEntity)
+
+    /**
+     * Inserts [artist], or - if an entity already exists under its id - heals a stale display
+     * name left over from before the "- Topic" dedup existed. insert()'s OnConflictStrategy.IGNORE
+     * would otherwise silently no-op on the id conflict and leave that stale name in place forever:
+     * the general song/album artist sync in [com.dd3boh.outertune.db.DatabaseDao] and
+     * [com.dd3boh.outertune.db.daos.AlbumsDao] look up an existing entity by its already-stripped
+     * name via [artistByNameIgnoreCase], which can only find it if that stored name was already
+     * clean - an entity still carrying the raw "- Topic" suffix from before this dedup existed
+     * needs an actual update to fix, not another insert.
+     */
+    fun insertOrHealArtist(artist: ArtistEntity): ArtistEntity {
+        val existing = artistById(artist.id)
+        if (existing == null) {
+            insert(artist)
+            return artist
+        }
+        if (existing.name != artist.name) {
+            val healed = existing.copy(name = artist.name)
+            update(healed)
+            return healed
+        }
+        return existing
+    }
 
     @Transaction
     fun update(artist: ArtistEntity, artistPage: ArtistPage) {

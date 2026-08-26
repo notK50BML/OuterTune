@@ -68,7 +68,7 @@ class MusicDatabase(
     fun close() = delegate.close()
 
     companion object {
-        const val MUSIC_DATABASE_VERSION = 23
+        const val MUSIC_DATABASE_VERSION = 24
     }
 }
 
@@ -138,6 +138,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_16_17)
                     .addMigrations(MIGRATION_21_22)
                     .addMigrations(MIGRATION_22_23)
+                    .addMigrations(MIGRATION_23_24)
                     // This app gets rebuilt from different, sometimes-diverging local patch
                     // lines rather than shipping one monotonically-increasing version history,
                     // so the database on disk can genuinely be a newer version than the build
@@ -161,6 +162,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_16_17)
                     .addMigrations(MIGRATION_21_22)
                     .addMigrations(MIGRATION_22_23)
+                    .addMigrations(MIGRATION_23_24)
                     .build()
             )
     }
@@ -717,77 +719,102 @@ val MIGRATION_21_22 = object : Migration(21, 22) {
 
 /**
  * Clean up artist credits ending in " - Topic" - YouTube's auto-generated channel name for an
- * artist with no official channel. ArtistCreditEnricher's search-based resolution used to credit
- * these under that raw channel title, so a featured artist already credited elsewhere under their
- * plain name ended up duplicated as a second, differently-named ArtistEntity on the same song
- * (ArtistCreditEnricher itself now dedupes/strips going forward - this is a one-time cleanup for
- * credits it already added before that fix). No schema change, purely a data fixup, so it runs as
- * a regular Migration rather than an AutoMigration.
+ * artist with no official channel, with its own distinct channel id separate from the artist's
+ * real one if they have one. Both the general song/album artist sync (DatabaseDao, AlbumsDao) and
+ * ArtistCreditEnricher's search-based resolution now dedupe/strip this going forward - this is a
+ * one-time cleanup for credits added before those fixes existed. No schema change, purely a data
+ * fixup, so it runs as a regular Migration rather than an AutoMigration.
  */
-val MIGRATION_22_23 = object : Migration(22, 23) {
-    private val topicSuffix = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
+private fun mergeTopicSuffixedArtists(db: SupportSQLiteDatabase) {
+    data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
 
-    override fun migrate(db: SupportSQLiteDatabase) {
-        data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
-
-        val artists = ArrayList<ArtistRow>()
-        db.query("SELECT id, name, isLocal FROM artist").use { cursor ->
-            val idIdx = cursor.getColumnIndex("id")
-            val nameIdx = cursor.getColumnIndex("name")
-            val isLocalIdx = cursor.getColumnIndex("isLocal")
-            while (cursor.moveToNext()) {
-                artists.add(ArtistRow(cursor.getString(idIdx), cursor.getString(nameIdx), cursor.getInt(isLocalIdx) != 0))
-            }
-        }
-
-        val byLowerName = artists.groupBy { it.name.lowercase() }
-
-        for (artist in artists) {
-            if (!topicSuffix.containsMatchIn(artist.name)) continue
-            val baseName = artist.name.replace(topicSuffix, "").trim()
-            if (baseName.isEmpty()) continue
-
-            val original = byLowerName[baseName.lowercase()]
-                ?.firstOrNull { it.id != artist.id && it.isLocal == artist.isLocal }
-
-            if (original == null) {
-                // The only entry for this real-world artist - just clean up its display name.
-                db.execSQL("UPDATE artist SET name = ? WHERE id = ?", arrayOf(baseName, artist.id))
-                continue
-            }
-
-            // A duplicate already exists under the clean name - merge into it, keeping the
-            // original on any song that credits both (a plain UPDATE would violate
-            // song_artist_map's (songId, artistId) primary key for those songs).
-            val songIds = ArrayList<String>()
-            db.query("SELECT songId FROM song_artist_map WHERE artistId = ?", arrayOf(artist.id)).use { cursor ->
-                val idx = cursor.getColumnIndex("songId")
-                while (cursor.moveToNext()) songIds.add(cursor.getString(idx))
-            }
-
-            for (songId in songIds) {
-                val alreadyHasOriginal = db.query(
-                    "SELECT 1 FROM song_artist_map WHERE songId = ? AND artistId = ?",
-                    arrayOf(songId, original.id)
-                ).use { it.moveToNext() }
-
-                if (alreadyHasOriginal) {
-                    db.execSQL(
-                        "DELETE FROM song_artist_map WHERE songId = ? AND artistId = ?",
-                        arrayOf(songId, artist.id)
-                    )
-                } else {
-                    db.execSQL(
-                        "UPDATE song_artist_map SET artistId = ? WHERE songId = ? AND artistId = ?",
-                        arrayOf(original.id, songId, artist.id)
-                    )
-                }
-            }
-
-            db.execSQL(
-                "DELETE FROM artist WHERE id = ? AND NOT EXISTS (SELECT 1 FROM song_artist_map WHERE artistId = ?)",
-                arrayOf(artist.id, artist.id)
-            )
+    val artists = ArrayList<ArtistRow>()
+    db.query("SELECT id, name, isLocal FROM artist").use { cursor ->
+        val idIdx = cursor.getColumnIndex("id")
+        val nameIdx = cursor.getColumnIndex("name")
+        val isLocalIdx = cursor.getColumnIndex("isLocal")
+        while (cursor.moveToNext()) {
+            artists.add(ArtistRow(cursor.getString(idIdx), cursor.getString(nameIdx), cursor.getInt(isLocalIdx) != 0))
         }
     }
+
+    val byLowerName = artists.groupBy { it.name.lowercase() }
+
+    // Re-points every (mapTable, artistIdColumn, otherIdColumn) row crediting a duplicate artist
+    // onto the original instead, dropping the row outright where the original is already credited
+    // too (a plain UPDATE would otherwise violate that map table's own primary key for it).
+    fun mergeMapTable(mapTable: String, otherIdColumn: String, duplicateId: String, originalId: String) {
+        val otherIds = ArrayList<String>()
+        db.query(
+            "SELECT $otherIdColumn FROM $mapTable WHERE artistId = ?",
+            arrayOf(duplicateId)
+        ).use { cursor ->
+            val idx = cursor.getColumnIndex(otherIdColumn)
+            while (cursor.moveToNext()) otherIds.add(cursor.getString(idx))
+        }
+
+        for (otherId in otherIds) {
+            val alreadyHasOriginal = db.query(
+                "SELECT 1 FROM $mapTable WHERE $otherIdColumn = ? AND artistId = ?",
+                arrayOf(otherId, originalId)
+            ).use { it.moveToNext() }
+
+            if (alreadyHasOriginal) {
+                db.execSQL(
+                    "DELETE FROM $mapTable WHERE $otherIdColumn = ? AND artistId = ?",
+                    arrayOf(otherId, duplicateId)
+                )
+            } else {
+                db.execSQL(
+                    "UPDATE $mapTable SET artistId = ? WHERE $otherIdColumn = ? AND artistId = ?",
+                    arrayOf(originalId, otherId, duplicateId)
+                )
+            }
+        }
+    }
+
+    for (artist in artists) {
+        if (!TOPIC_SUFFIX.containsMatchIn(artist.name)) continue
+        val baseName = artist.name.stripTopicSuffix()
+        if (baseName.isEmpty()) continue
+
+        val original = byLowerName[baseName.lowercase()]
+            ?.firstOrNull { it.id != artist.id && it.isLocal == artist.isLocal }
+
+        if (original == null) {
+            // The only entry for this real-world artist - just clean up its display name.
+            db.execSQL("UPDATE artist SET name = ? WHERE id = ?", arrayOf(baseName, artist.id))
+            continue
+        }
+
+        // A duplicate already exists under the clean name - merge into it.
+        mergeMapTable("song_artist_map", "songId", artist.id, original.id)
+        mergeMapTable("album_artist_map", "albumId", artist.id, original.id)
+
+        db.execSQL(
+            """DELETE FROM artist WHERE id = ? AND NOT EXISTS (
+                SELECT 1 FROM song_artist_map WHERE artistId = ?
+                UNION SELECT 1 FROM album_artist_map WHERE artistId = ?
+            )""",
+            arrayOf(artist.id, artist.id, artist.id)
+        )
+    }
+}
+
+val MIGRATION_22_23 = object : Migration(22, 23) {
+    override fun migrate(db: SupportSQLiteDatabase) = mergeTopicSuffixedArtists(db)
+}
+
+/**
+ * Re-runs [mergeTopicSuffixedArtists]. MIGRATION_22_23 above only executes for a database that was
+ * literally at version 22 when it opened - once a database records itself as being at version 23,
+ * Room never re-runs a migration targeting 23 again, regardless of what that migration's code does
+ * in a later app update. Both the general sync path's own prospective fix (DatabaseDao's
+ * insertOrHealArtist) and this migration's cleanup were added after some users had already
+ * upgraded through version 23 on an earlier build, so this repeats the same one-time cleanup under
+ * a migration number guaranteed not to have run for them yet, rather than leaving it to only
+ * self-heal one library entry at a time as those entries happen to get synced again.
+ */
+val MIGRATION_23_24 = object : Migration(23, 24) {
+    override fun migrate(db: SupportSQLiteDatabase) = mergeTopicSuffixedArtists(db)
 }
