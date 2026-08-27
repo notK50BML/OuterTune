@@ -338,15 +338,20 @@ class MusicService : MediaLibraryService(),
     private val songUrlCache = HashMap<String, CachedStreamUrl>()
 
     /**
-     * MediaIds already given one automatic retry - cache entry dropped, player re-prepared - after
-     * a source/HTTP error this process lifetime. A bad HTTP status (ExoPlayer's 2004, almost
+     * Per-song count of automatic retries - cache entry dropped, player re-prepared - already given
+     * after a source/HTTP error this process lifetime. A bad HTTP status (ExoPlayer's 2004, almost
      * always a 403 from an expired or otherwise rejected stream URL) is frequently just a stale
      * URL rather than a genuinely unplayable video: re-resolving from scratch, possibly landing on
      * a different fallback client than the one that just failed, can well succeed where the cached
-     * URL didn't. Capped at one attempt per song so a video that's actually broken/removed doesn't
-     * retry forever and instead falls through to the normal skip/stop handling.
+     * URL didn't. A single retry only gets one more pass through the whole client try-order
+     * (playerResponseForPlayback already cycles through all of them internally) - if the client
+     * that pass happens to land on is itself only transiently bad, that one shot can still lose.
+     * Capped at [MAX_SOURCE_ERROR_RETRIES] attempts per song, matching yuuichi-s/OuterTune's own
+     * retry budget for this exact failure class, rather than giving up after one, so a video that's
+     * actually broken/removed still falls through to the normal skip/stop handling eventually
+     * instead of retrying forever.
      */
-    private val retriedAfterSourceError = mutableSetOf<String>()
+    private val sourceErrorRetryCount = mutableMapOf<String, Int>()
 
     /**
      * mediaId of the next song already precached (or currently being precached) for the playback
@@ -1338,13 +1343,13 @@ class MusicService : MediaLibraryService(),
     /**
      * Manual escape hatch backing the "Reset YouTube session" settings action. Unlike the
      * automatic retry in [onPlayerError] - which only evicts and retries the one track that just
-     * failed - this clears every cached stream URL and every song already given its one automatic
-     * retry, since a person reaching for a manual reset usually suspects the problem isn't limited
+     * failed - this clears every cached stream URL and every song's accumulated automatic-retry
+     * count, since a person reaching for a manual reset usually suspects the problem isn't limited
      * to a single song.
      */
     fun resetYouTubeSessionAndRetry() {
         songUrlCache.clear()
-        retriedAfterSourceError.clear()
+        sourceErrorRetryCount.clear()
         retryCurrentItemWithFreshIdentity()
     }
 
@@ -1413,8 +1418,8 @@ class MusicService : MediaLibraryService(),
         // expired or was otherwise rejected) is frequently just a stale resolution, not a
         // genuinely unplayable video - re-resolving from scratch can land on a fresh URL, or on a
         // different fallback client than whichever one just failed. Drop the cached URL and
-        // re-prepare once before falling through to skip/stop; see retriedAfterSourceError's own
-        // doc for why this is capped at one attempt per song.
+        // re-prepare before falling through to skip/stop; see sourceErrorRetryCount's own doc for
+        // why this is capped at MAX_SOURCE_ERROR_RETRIES attempts per song, not just one.
         //
         // Also rotates the YouTube session identity before retrying: a rejected URL and a
         // bot-detection-flagged identity produce the identical symptom from here, and re-resolving
@@ -1424,14 +1429,16 @@ class MusicService : MediaLibraryService(),
             error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
         val failedMediaId = player.currentMediaItem?.mediaId
-        if (isRetryableSourceError && failedMediaId != null && retriedAfterSourceError.add(failedMediaId)) {
+        val retryCount = failedMediaId?.let { sourceErrorRetryCount.getOrDefault(it, 0) } ?: 0
+        if (isRetryableSourceError && failedMediaId != null && retryCount < MAX_SOURCE_ERROR_RETRIES) {
+            sourceErrorRetryCount[failedMediaId] = retryCount + 1
             // Recorded before the entry is dropped below - lets the retry's re-resolution skip
             // straight to a fallback client instead of repeating this same WEB_REMIX rejection.
             if (songUrlCache[failedMediaId]?.clientName == "WEB_REMIX") {
                 YTPlayerUtils.markWebRemixStreamFailed(failedMediaId)
             }
             songUrlCache.remove(failedMediaId)
-            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retrying with a fresh URL and identity: mediaId=$failedMediaId")
+            if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retry ${retryCount + 1}/$MAX_SOURCE_ERROR_RETRIES with a fresh URL and identity: mediaId=$failedMediaId")
             retryCurrentItemWithFreshIdentity()
             return
         }
@@ -1730,6 +1737,10 @@ class MusicService : MediaLibraryService(),
         // complete.
         const val STREAM_URL_TRUST_WINDOW_MS = 20_000L
         const val PRECACHE_LEAD_MS = 15_000L
+
+        // See sourceErrorRetryCount's own doc - matches yuuichi-s/OuterTune's retry budget for
+        // this failure class instead of giving up after one attempt.
+        const val MAX_SOURCE_ERROR_RETRIES = 5
 
         const val COMMAND_GET_BINDER = "GET_BINDER"
     }
