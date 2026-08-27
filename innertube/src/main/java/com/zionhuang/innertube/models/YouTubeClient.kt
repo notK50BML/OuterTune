@@ -158,6 +158,26 @@ data class YouTubeClient(
         )
 
         /**
+         * Newer Oculus build of the same client. YouTube treats each ANDROID_VR version
+         * differently, so keeping a second one gives the chain somewhere to go when
+         * [ANDROID_VR_NO_AUTH] is turned away instead of losing the client entirely.
+         */
+        val ANDROID_VR_1_65_10 = YouTubeClient(
+            clientName = "ANDROID_VR",
+            clientVersion = "1.65.10",
+            clientId = "28",
+            userAgent = "com.google.android.apps.youtube.vr.oculus/1.65.10 (Linux; U; Android 12L; eureka-user Build/SQ3A.220605.009.A1) gzip",
+            osName = "Android",
+            osVersion = "12L",
+            deviceMake = "Oculus",
+            deviceModel = "Quest 3",
+            androidSdkVersion = "32",
+            loginSupported = false,
+            useSignatureTimestamp = false,
+            includeUserAgentInContext = true,
+        )
+
+        /**
          * Uses non-adaptive bitrate, which fixes audio stuttering with YT Music streams that the
          * regular (adaptive) ANDROID_VR_NO_AUTH client can exhibit. Does not use AV1.
          */

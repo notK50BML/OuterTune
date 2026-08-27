@@ -24,6 +24,8 @@ import com.dd3boh.outertune.utils.potoken.PoTokenResult
 import com.zionhuang.innertube.NewPipeUtils
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeClient
+import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_43_32
+import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_65_10
 import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
 import com.zionhuang.innertube.models.YouTubeClient.Companion.IOS
 import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS
@@ -63,10 +65,14 @@ object YTPlayerUtils {
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
         VISIONOS,
-        ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
-//        ANDROID,
-//        TVHTML5,
-//        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+        // Two ANDROID_VR builds, not one: YouTube treats each version differently, so a second
+        // gives the chain somewhere to go when the first is turned away rather than losing the
+        // client entirely. This ordering (and the client set) is what yuuichi-s/OuterTune ships
+        // after verifying playback on-device, itself following MetrolistGroup/Metrolist.
+        ANDROID_VR_1_65_10,
+        ANDROID_VR_NO_AUTH,
+        ANDROID_VR_1_43_32,
+//        ANDROID, // player request answers 400
         IOS,
     )
 
@@ -260,12 +266,12 @@ object YTPlayerUtils {
                 }
                 streamUrl += "&cpn=$cpn"
 
-                if (validateStatus(streamUrl, client.streamHeaders())) {
+                if (validateStatus(streamUrl, client.streamHeaders(), client.clientName)) {
                     // working stream found
                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
                     break
                 } else {
-                    Log.w(TAG, "[$videoId] [${client.clientName}] got bad http status code")
+                    Log.w(TAG, "[$videoId] [${client.clientName}] rejected: stream validation failed")
                 }
             }
         }
@@ -290,6 +296,10 @@ object YTPlayerUtils {
             throw Exception("Could not find stream url")
         }
 
+        // At warn so it shows in a release logcat without turning on verbose logging: which client
+        // actually won is the single most useful fact when a stream dies partway through a track,
+        // since every client in the chain fails differently and by different means.
+        Log.w(TAG, "[$videoId] RESOLVED via ${streamClient.clientName}, expires in ${streamExpiresInSeconds}s")
         Log.d(TAG, "[$videoId] stream url: $streamUrl")
 
         PlaybackData(
@@ -387,22 +397,50 @@ object YTPlayerUtils {
      * WEB_REMIX, Referer/Origin) doesn't match, so probing without them risked this validation
      * itself failing (or wrongly passing) independent of whether the URL is actually good.
      */
-    private fun validateStatus(url: String, headers: Map<String, String>): Boolean {
-        try {
-            val requestBuilder = okhttp3.Request.Builder()
-                // Deliberately past the first chunk. A HEAD - or any probe landing inside the
-                // first chunk - succeeds on URLs whose *continuation* requests are rejected, which
-                // is precisely the failure this is meant to screen for: playback that starts
-                // cleanly and dies the moment the first chunk runs out.
-                .header("Range", "bytes=$PROBE_OFFSET-${PROBE_OFFSET + 1}")
-                .url(url)
-            headers.forEach { (name, value) -> requestBuilder.header(name, value) }
-            val response = httpClient.newCall(requestBuilder.build()).execute()
-            return response.use { it.code in 200..299 }
-        } catch (e: Exception) {
-            reportException(e)
+    private fun validateStatus(url: String, headers: Map<String, String>, clientName: String): Boolean {
+        // Probed past the first chunk on purpose: a probe landing inside the first chunk succeeds
+        // on URLs whose *continuation* requests are rejected, which is the failure this screens
+        // for - playback that starts cleanly and dies the moment the first chunk runs out.
+        probe(url, headers, PROBE_OFFSET, clientName)?.let { deepCode ->
+            if (deepCode in 200..299) return true
+
+            // 416 means there simply is no byte at PROBE_OFFSET - a track whose audio stream is
+            // smaller than the probe offset, not a URL being refused. Anything else at this depth
+            // is a real rejection, but only after confirming the URL isn't wholesale dead: falling
+            // back to a first-byte probe keeps a client that actually works from being dropped over
+            // a deep-range request googlevideo declined for its own reasons, which would silently
+            // hand playback to a worse client (the exact WEB_REMIX-dies-at-60s path this chain
+            // exists to avoid). The mid-track 403 recovery in MusicService.onPlayerError is the
+            // backstop if such a URL does die later.
+            if (deepCode != 416) {
+                Log.w(TAG, "[$clientName] deep-range probe got HTTP $deepCode, retrying at first byte")
+            }
+            val shallowCode = probe(url, headers, 0L, clientName) ?: return false
+            if (shallowCode in 200..299) {
+                if (deepCode != 416) {
+                    Log.w(TAG, "[$clientName] accepted on first-byte probe despite HTTP $deepCode deeper in")
+                }
+                return true
+            }
+            Log.w(TAG, "[$clientName] stream validation failed: HTTP $shallowCode")
+            return false
         }
         return false
+    }
+
+    /** One ranged GET against [url], returning the HTTP status, or null if the request itself failed. */
+    private fun probe(url: String, headers: Map<String, String>, offset: Long, clientName: String): Int? {
+        return try {
+            val requestBuilder = okhttp3.Request.Builder()
+                .header("Range", "bytes=$offset-${offset + 1}")
+                .url(url)
+            headers.forEach { (name, value) -> requestBuilder.header(name, value) }
+            httpClient.newCall(requestBuilder.build()).execute().use { it.code }
+        } catch (e: Exception) {
+            Log.w(TAG, "[$clientName] stream validation request failed at offset $offset", e)
+            reportException(e)
+            null
+        }
     }
 
     /**
@@ -413,6 +451,11 @@ object YTPlayerUtils {
      */
     private fun YouTubeClient.streamHeaders(): Map<String, String> = buildMap {
         put("User-Agent", userAgent)
+        // Sent by every real client's media fetch; googlevideo is checking that the request looks
+        // like the client the URL was issued for, so an incomplete header set is part of what it
+        // weighs. Matches yuuichi-s/OuterTune's own set exactly.
+        put("Accept", "*/*")
+        put("Accept-Language", "en-US,en;q=0.9")
         when (clientName) {
             "WEB_REMIX" -> {
                 put("Referer", "https://music.youtube.com/")
