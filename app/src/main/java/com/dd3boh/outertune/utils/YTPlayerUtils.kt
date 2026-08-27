@@ -43,6 +43,12 @@ object YTPlayerUtils {
 
     private val poTokenGenerator = PoTokenGenerator()
 
+    /**
+     * Byte offset used by [validateStatus]. Must stay at or beyond MusicService.CHUNK_LENGTH so the
+     * probe exercises a continuation request rather than the first chunk.
+     */
+    private const val PROBE_OFFSET = 256 * 1024L
+
 
 
     /**
@@ -85,13 +91,31 @@ object YTPlayerUtils {
             ("403" in message && "We're sorry" in message)
     }
 
+    private const val WEB_REMIX_FAILURE_TTL_MS = 5 * 60 * 1000L
+
     /**
-     * No-op kept for MusicService's error path. WEB_REMIX is metadata-only now and can never
-     * produce a stream URL (see the stream chain's own doc), so there is no longer a
-     * WEB_REMIX stream rejection to remember and skip on the next resolve.
+     * videoId -> when its WEB_REMIX (MAIN_CLIENT) stream was last rejected during actual playback.
+     * MusicService's retry-on-source-error re-resolves from scratch, which would otherwise try
+     * WEB_REMIX again and, if the rejection wasn't fixed by the accompanying identity rotation,
+     * spend that retry repeating the same failure instead of reaching a fallback client. A short
+     * TTL rather than a permanent skip: the rejection is often transient (a stale PoToken, a
+     * session flagged only briefly), and WEB_REMIX is the only client with premium formats and
+     * correct metadata, worth trying again soon rather than avoiding indefinitely.
      */
-    @Suppress("UNUSED_PARAMETER")
-    fun markWebRemixStreamFailed(videoId: String) = Unit
+    private val webRemixFailures = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    fun markWebRemixStreamFailed(videoId: String) {
+        webRemixFailures[videoId] = System.currentTimeMillis()
+    }
+
+    private fun hasRecentWebRemixFailure(videoId: String): Boolean {
+        val failedAt = webRemixFailures[videoId] ?: return false
+        if (System.currentTimeMillis() - failedAt >= WEB_REMIX_FAILURE_TTL_MS) {
+            webRemixFailures.remove(videoId, failedAt)
+            return false
+        }
+        return true
+    }
 
 
     data class PlaybackData(
@@ -212,6 +236,14 @@ object YTPlayerUtils {
             }
 
             if (clientIndex == -1) {
+                // Skips attempting to *stream* from a client whose stream was just rejected for
+                // this exact video, so the retry MusicService gets after a source error reaches a
+                // fallback client instead of repeating the same failure. mainPlayerResponse is
+                // still fetched and used for metadata either way.
+                if (hasRecentWebRemixFailure(videoId)) {
+                    Log.w(TAG, "[$videoId] [${client.clientName}] skipped: stream recently rejected for this video")
+                    continue
+                }
                 // MAIN_CLIENT's response was already fetched above for metadata - reuse it rather
                 // than asking again.
                 streamPlayerResponse = mainPlayerResponse
@@ -276,6 +308,14 @@ object YTPlayerUtils {
                 } else {
                     Log.w(TAG, "[$videoId] [${client.clientName}] rejected: stream validation failed")
                 }
+            } else {
+                // At warn, not just the debug line above: a client turned away by playabilityStatus
+                // (a bot check, a region block, an age gate) is otherwise completely invisible in a
+                // release logcat, which makes "why didn't this client win?" unanswerable.
+                Log.w(TAG, "[$videoId] [${client.clientName}] rejected: playabilityStatus=" +
+                        (streamPlayerResponse?.playabilityStatus?.let {
+                            it.status + (it.reason?.let { r -> " - $r" } ?: "")
+                        } ?: "no response"))
             }
         }
 
@@ -401,21 +441,25 @@ object YTPlayerUtils {
      * itself failing (or wrongly passing) independent of whether the URL is actually good.
      */
     private fun validateStatus(url: String, headers: Map<String, String>, clientName: String): Boolean {
-        // Exactly one ranged GET, at the first byte - the same probe yuuichi-s/OuterTune uses and
-        // verified on-device. This deliberately does NOT probe deeper to pre-screen URLs whose
-        // *continuation* requests get refused: every extra probe here is a network round trip
-        // inside the runBlocking that ExoPlayer's ResolvingDataSource is waiting on, and with a
-        // six-client chain a second probe per client was enough to blow the player's own timeout
-        // (ERROR_CODE_TIMEOUT, 1003) before any stream was ever handed back. A URL that passes here
-        // and then dies mid-track is caught by the 403/410 recovery in MusicService.onPlayerError,
-        // which is the right place for it: it costs nothing until it actually happens.
+        // Exactly one ranged GET - never more. Each probe is a network round trip inside the
+        // runBlocking that ExoPlayer's ResolvingDataSource is waiting on, and a second probe per
+        // client was enough to blow the player's own timeout (ERROR_CODE_TIMEOUT, 1003) before any
+        // stream got handed back.
+        //
+        // Deliberately past the first chunk (PROBE_OFFSET), as it has been since before the
+        // VISIONOS port: a probe landing inside the first chunk succeeds on URLs whose
+        // *continuation* requests are refused, which is exactly the failure this screens for -
+        // playback that starts cleanly and dies the moment the first chunk runs out.
         return try {
             val requestBuilder = okhttp3.Request.Builder()
-                .header("Range", "bytes=0-0")
+                .header("Range", "bytes=$PROBE_OFFSET-${PROBE_OFFSET + 1}")
                 .url(url)
             headers.forEach { (name, value) -> requestBuilder.header(name, value) }
             httpClient.newCall(requestBuilder.build()).execute().use { response ->
-                val ok = response.code in 200..299
+                // 416 is a pass, not a rejection: it means there is no byte at PROBE_OFFSET
+                // because the track's audio stream is simply shorter than the probe offset. The
+                // URL is fine; there is just less of it than the probe assumed.
+                val ok = response.code in 200..299 || response.code == 416
                 if (!ok) {
                     // At warn so a release logcat shows why a client was dropped, with the code.
                     Log.w(TAG, "[$clientName] stream validation failed: HTTP ${response.code}")
