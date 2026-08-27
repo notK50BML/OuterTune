@@ -57,14 +57,19 @@ object YTPlayerUtils {
      * client yuuichi-s/OuterTune's fork relies on first for exactly that reason.
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
+        // The one that actually plays a track through. Everything below it is a last resort.
         VISIONOS,
-        // Kept deliberately short. Every entry is one more player POST per resolution, and a long
-        // chain multiplied by the source-error retries is what draws Google's network-level
-        // "automated queries" throttle - at which point every client fails anyway, so the extra
-        // fallbacks buy nothing and cost the throttle. Two ANDROID_VR builds because YouTube
-        // treats each version differently, giving the chain somewhere to go when one is refused.
+        // Two ANDROID_VR builds because YouTube treats each version differently, so one being
+        // refused doesn't cost the client entirely.
         ANDROID_VR_1_65_10,
         ANDROID_VR_1_43_32,
+        // Last on purpose. WEB_REMIX's stream URLs are the short-lived ones googlevideo serves
+        // for about a minute and then refuses, so it must never win a stream while any other
+        // client can supply one - but silence is worse than a track that needs a mid-song
+        // re-resolve, so it stays reachable for the case where everything above it has failed.
+        // Being last also means it skips validation (see the loop), costing no extra request.
+        // It remains the metadata client regardless; that never depended on this list.
+        WEB_REMIX,
 //        ANDROID, // player request answers 400
 //        IOS, // short-lived music URLs; the ones that die partway through a track
     )
@@ -230,26 +235,33 @@ object YTPlayerUtils {
                 continue
             }
 
-            val playerResult =
-                YouTube.player(videoId, playlistId, client, signatureTimestamp, webPlayerPot)
-            playerResult.exceptionOrNull()?.let {
-                // A network-level throttle applies to the whole IP, so every remaining client
-                // would get the same 403 - and asking them would push the throttle out
-                // further. Stop the chain here and let the cooldown run.
-                if (isNetworkAbuseThrottle(it)) {
-                    networkThrottledUntil = System.currentTimeMillis() + NETWORK_THROTTLE_COOLDOWN_MS
-                    Log.e(TAG, "[$videoId] Google is rate-limiting this network " +
-                            "(hit on ${client.clientName}); pausing player requests for " +
-                            "${NETWORK_THROTTLE_COOLDOWN_MS / 1000}s", it)
-                    throw PlaybackException(
-                        "YouTube is rate-limiting this network - try again in a few minutes",
-                        it,
-                        PlaybackException.ERROR_CODE_REMOTE_ERROR
-                    )
+            if (client == MAIN_CLIENT) {
+                // Already fetched above for metadata - reuse it rather than asking again. Saves a
+                // request on the one path that only runs when everything else has failed, which
+                // is exactly when the network is most likely to be throttled already.
+                streamPlayerResponse = mainPlayerResponse
+            } else {
+                val playerResult =
+                    YouTube.player(videoId, playlistId, client, signatureTimestamp, webPlayerPot)
+                playerResult.exceptionOrNull()?.let {
+                    // A network-level throttle applies to the whole IP, so every remaining client
+                    // would get the same 403 - and asking them would push the throttle out
+                    // further. Stop the chain here and let the cooldown run.
+                    if (isNetworkAbuseThrottle(it)) {
+                        networkThrottledUntil = System.currentTimeMillis() + NETWORK_THROTTLE_COOLDOWN_MS
+                        Log.e(TAG, "[$videoId] Google is rate-limiting this network " +
+                                "(hit on ${client.clientName}); pausing player requests for " +
+                                "${NETWORK_THROTTLE_COOLDOWN_MS / 1000}s", it)
+                        throw PlaybackException(
+                            "YouTube is rate-limiting this network - try again in a few minutes",
+                            it,
+                            PlaybackException.ERROR_CODE_REMOTE_ERROR
+                        )
+                    }
+                    Log.e(TAG, "[$videoId] [${client.clientName}] player request failed", it)
                 }
-                Log.e(TAG, "[$videoId] [${client.clientName}] player request failed", it)
+                streamPlayerResponse = playerResult.getOrNull()
             }
-            streamPlayerResponse = playerResult.getOrNull()
 
             Log.d(TAG, "[$videoId] stream client: ${client.clientName}, " +
                     "playabilityStatus: ${streamPlayerResponse?.playabilityStatus?.let {
