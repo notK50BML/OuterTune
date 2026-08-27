@@ -26,6 +26,8 @@ import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeClient
 import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_43_32
 import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_65_10
+import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
+import com.zionhuang.innertube.models.YouTubeClient.Companion.IOS
 import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS
 import com.zionhuang.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import com.zionhuang.innertube.models.response.PlayerResponse
@@ -57,39 +59,20 @@ object YTPlayerUtils {
      * client yuuichi-s/OuterTune's fork relies on first for exactly that reason.
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
-        // The one that actually plays a track through. Everything below it is a last resort.
-        VISIONOS,
-        // Two ANDROID_VR builds because YouTube treats each version differently, so one being
-        // refused doesn't cost the client entirely.
+        // The chain as it stood in Core-v0.18.2, when VISIONOS was first ported and playback
+        // worked. VISIONOS is tried ahead of all of these (and ahead of MAIN_CLIENT) in the loop
+        // below; MAIN_CLIENT (WEB_REMIX) is tried second, then these in order.
+        ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
+        // Different ANDROID_VR client versions are tracked separately by YouTube - keeping more
+        // than one gives the chain somewhere to go when one build is turned away instead of losing
+        // this client entirely.
         ANDROID_VR_1_65_10,
         ANDROID_VR_1_43_32,
-        // Last on purpose. WEB_REMIX's stream URLs are the short-lived ones googlevideo serves
-        // for about a minute and then refuses, so it must never win a stream while any other
-        // client can supply one - but silence is worse than a track that needs a mid-song
-        // re-resolve, so it stays reachable for the case where everything above it has failed.
-        // Being last also means it skips validation (see the loop), costing no extra request.
-        // It remains the metadata client regardless; that never depended on this list.
-        WEB_REMIX,
-//        ANDROID, // player request answers 400
-//        IOS, // short-lived music URLs; the ones that die partway through a track
+//        ANDROID,
+//        TVHTML5,
+//        TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+        IOS,
     )
-
-    /**
-     * How long to stop making player requests after Google answers with its network-level abuse
-     * page ("your computer or network may be sending automated queries"). That response is not
-     * about one video or one client - it means this IP has been throttled, so every client in the
-     * chain will get it too, and each additional request pushes the throttle out further. The only
-     * useful response is to stop asking for a while.
-     */
-    private const val NETWORK_THROTTLE_COOLDOWN_MS = 5 * 60 * 1000L
-
-    /** When the current network-level throttle expires, or 0 when not throttled. */
-    @Volatile
-    private var networkThrottledUntil = 0L
-
-    /** Remaining throttle in ms, or null when requests are allowed. */
-    private fun throttledForMs(): Long? =
-        (networkThrottledUntil - System.currentTimeMillis()).takeIf { it > 0 }
 
     /**
      * True when [error] is Google's network-level "automated queries" abuse page rather than a
@@ -151,16 +134,6 @@ object YTPlayerUtils {
     ): Result<PlaybackData> = runCatching {
         Log.d(TAG, "Playback info requested: $videoId")
 
-        // Refuse to add to the pile while Google is rate-limiting this network (see
-        // NETWORK_THROTTLE_COOLDOWN_MS). Every request sent during a throttle both fails and
-        // deepens it, and resolution is the single biggest request generator in the app.
-        throttledForMs()?.let { remaining ->
-            throw PlaybackException(
-                "YouTube is rate-limiting this network - waiting ${remaining / 1000}s before retrying",
-                null,
-                PlaybackException.ERROR_CODE_REMOTE_ERROR
-            )
-        }
 
         // Generated once per resolve and carried on both the stream URL and the playback
         // telemetry pings fired later from this data - see PlaybackData.cpn's own doc.
@@ -207,14 +180,14 @@ object YTPlayerUtils {
         var streamClient: YouTubeClient = MAIN_CLIENT
 
         var streamPlayerResponse: PlayerResponse? = null
-        // MAIN_CLIENT (WEB_REMIX) is metadata-only and is deliberately NOT in this list. Its
-        // stream URLs are the short-lived ones googlevideo serves for about a minute and then
-        // refuses for good, so having it in the chain meant every VISIONOS failure quietly handed
-        // playback to a URL guaranteed to die mid-track - which looked like "VISIONOS doesn't
-        // work" when what actually happened was "VISIONOS was skipped and WEB_REMIX took over".
-        // mainPlayerResponse (fetched above, unconditionally) still supplies all metadata, so
-        // nothing login-gated is affected by keeping it out of the stream path.
-        val clientTryOrder = STREAM_FALLBACK_CLIENTS.indices.toList()
+        // -2 is VISIONOS, tried before MAIN_CLIENT itself and before every fallback: its urls need
+        // no signature deobfuscation, no n-transform and no PO token, and - unlike every other
+        // client here, MAIN_CLIENT included - serve a whole track instead of being cut off partway
+        // through. -1 is MAIN_CLIENT (WEB_REMIX), which stays the metadata client regardless; see
+        // its own doc for why metadata specifically has to come from the signed-in client. This is
+        // the ordering from Core-v0.18.2, restored: the interim rewrites that reshuffled it were
+        // chasing a failure whose real cause was VideoDetails rejecting VISIONOS's response.
+        val clientTryOrder = listOf(-2, -1) + STREAM_FALLBACK_CLIENTS.indices
         for (clientIndex in clientTryOrder) {
             // reset for each client
             format = null
@@ -222,12 +195,15 @@ object YTPlayerUtils {
             streamExpiresInSeconds = null
 
             // decide which client to use for streams and load its player response
-            val client: YouTubeClient = STREAM_FALLBACK_CLIENTS[clientIndex]
+            val client: YouTubeClient = when (clientIndex) {
+                -2 -> VISIONOS
+                -1 -> MAIN_CLIENT
+                else -> STREAM_FALLBACK_CLIENTS[clientIndex]
+            }
             // At warn: which clients were tried, in order, is the first thing needed to tell
             // "VISIONOS failed" apart from "VISIONOS was never reached", and debug logging is not
             // available in a release build.
-            Log.w(TAG, "[$videoId] trying stream client ${clientIndex + 1}/" +
-                    "${STREAM_FALLBACK_CLIENTS.size}: ${client.clientName}")
+            Log.w(TAG, "[$videoId] trying stream client: ${client.clientName}")
 
             if (client.loginRequired && !isLoggedIn) {
                 // skip client if it requires login but user is not logged in
@@ -235,28 +211,22 @@ object YTPlayerUtils {
                 continue
             }
 
-            if (client == MAIN_CLIENT) {
-                // Already fetched above for metadata - reuse it rather than asking again. Saves a
-                // request on the one path that only runs when everything else has failed, which
-                // is exactly when the network is most likely to be throttled already.
+            if (clientIndex == -1) {
+                // MAIN_CLIENT's response was already fetched above for metadata - reuse it rather
+                // than asking again.
                 streamPlayerResponse = mainPlayerResponse
             } else {
                 val playerResult =
                     YouTube.player(videoId, playlistId, client, signatureTimestamp, webPlayerPot)
                 playerResult.exceptionOrNull()?.let {
-                    // A network-level throttle applies to the whole IP, so every remaining client
-                    // would get the same 403 - and asking them would push the throttle out
-                    // further. Stop the chain here and let the cooldown run.
+                    // Logged, not acted on: a network-level throttle is worth naming in the log
+                    // (it looks nothing like a per-video rejection and would otherwise be
+                    // mystifying), but refusing to make requests for minutes afterward just turns
+                    // a throttle that may already have passed into guaranteed silence. Fall
+                    // through to the next client exactly as with any other failure.
                     if (isNetworkAbuseThrottle(it)) {
-                        networkThrottledUntil = System.currentTimeMillis() + NETWORK_THROTTLE_COOLDOWN_MS
-                        Log.e(TAG, "[$videoId] Google is rate-limiting this network " +
-                                "(hit on ${client.clientName}); pausing player requests for " +
-                                "${NETWORK_THROTTLE_COOLDOWN_MS / 1000}s", it)
-                        throw PlaybackException(
-                            "YouTube is rate-limiting this network - try again in a few minutes",
-                            it,
-                            PlaybackException.ERROR_CODE_REMOTE_ERROR
-                        )
+                        Log.e(TAG, "[$videoId] [${client.clientName}] Google is rate-limiting " +
+                                "this network (\"automated queries\") - not a per-video block")
                     }
                     Log.e(TAG, "[$videoId] [${client.clientName}] player request failed", it)
                 }
