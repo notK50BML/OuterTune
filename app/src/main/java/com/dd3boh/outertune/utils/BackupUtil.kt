@@ -40,16 +40,25 @@ private const val AUTO_BACKUP_RELATIVE_DIR = "OuterTune Backup"
  * back, and [writeAutoBackup] below writes the exact same thing on its own: one backup format,
  * one restore path, nothing selective to keep in sync between them.
  *
- * The checkpoint and the file copy both run inside [MusicDatabase.runInTransaction], which holds
- * the database's single writer connection for the duration of both. `PRAGMA wal_checkpoint(FULL)`
- * on its own only guarantees the WAL is flushed into the main file *at the moment it runs* -
- * nothing stops another write landing in that file a moment later, mid-copy, since WAL mode
- * exists specifically to let writers proceed without waiting on a reader. A raw file copy caught
- * mid-write isn't a smaller backup, it's a torn one: restoring it can fail integrity checks or,
- * worse, silently load a partially-written database. Holding the writer connection for the copy
- * (typically well under a second for this app's database sizes) blocks other writes just long
- * enough to guarantee the bytes on disk don't move while they're being read; reads elsewhere are
- * unaffected, since WAL mode never blocks those on a writer.
+ * The file copy runs inside [MusicDatabase.runInTransaction], which holds the database's single
+ * writer connection for its duration. `PRAGMA wal_checkpoint(FULL)` on its own only guarantees the
+ * WAL is flushed into the main file *at the moment it runs* - nothing stops another write landing
+ * in that file a moment later, mid-copy, since WAL mode exists specifically to let writers proceed
+ * without waiting on a reader. A raw file copy caught mid-write isn't a smaller backup, it's a
+ * torn one: restoring it can fail integrity checks or, worse, silently load a partially-written
+ * database. Holding the writer connection for the copy (typically well under a second for this
+ * app's database sizes) blocks other writes just long enough to guarantee the bytes on disk don't
+ * move while they're being read; reads elsewhere are unaffected, since WAL mode never blocks those
+ * on a writer.
+ *
+ * The checkpoint itself has to run *before* that transaction starts, not inside it: SQLite refuses
+ * `PRAGMA wal_checkpoint` while a transaction is already open on the same connection (it has
+ * nothing to do there - a checkpoint moves committed WAL frames into the main file, and a
+ * transaction, committed or not, can't be checkpointed mid-flight), so calling it inside
+ * runInTransaction threw on every backup rather than actually checkpointing anything. A write that
+ * lands in the gap between this checkpoint and the transaction starting just stays in the WAL,
+ * untouched by the copy below (which only ever reads the main file) - not torn, merely not yet
+ * included, exactly as if the backup had been taken a moment earlier.
  */
 suspend fun writeBackup(context: Context, database: MusicDatabase, outputStream: OutputStream) {
     withContext(Dispatchers.IO) {
@@ -59,8 +68,8 @@ suspend fun writeBackup(context: Context, database: MusicDatabase, outputStream:
                 out.putNextEntry(ZipEntry(BACKUP_SETTINGS_FILENAME))
                 input.copyTo(out)
             }
+            database.checkpoint()
             database.runInTransaction {
-                database.checkpoint()
                 FileInputStream(database.openHelper.writableDatabase.path).use { input ->
                     out.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
                     input.copyTo(out)

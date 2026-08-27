@@ -69,9 +69,10 @@ class MusicDatabase(
      * Runs [block] inside a write transaction synchronously on the calling thread, and returns
      * its result - unlike [transaction] above, which fires block asynchronously on Room's own
      * transaction executor and can't be awaited. Used by the backup path to hold the single
-     * writer connection across a WAL checkpoint and the raw file copy that follows it, so nothing
-     * else can write mid-copy - see [com.dd3boh.outertune.utils.writeBackup]'s own doc for why a
-     * copy taken without that guarantee can capture a torn, unrestorable snapshot.
+     * writer connection across the raw file copy that follows a WAL checkpoint, so nothing else
+     * can write mid-copy - see [com.dd3boh.outertune.utils.writeBackup]'s own doc for why a copy
+     * taken without that guarantee can capture a torn, unrestorable snapshot (and why the
+     * checkpoint itself has to happen before this transaction starts, not inside it).
      */
     fun <T> runInTransaction(block: () -> T): T = delegate.runInTransaction(java.util.concurrent.Callable { block() })
 
