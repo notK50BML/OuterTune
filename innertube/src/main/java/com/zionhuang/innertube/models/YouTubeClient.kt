@@ -137,6 +137,27 @@ data class YouTubeClient(
         )
 
         /**
+         * Apple Vision Pro's Safari-based web client. Not gated behind the WEB_REMIX-style
+         * PoToken/BotGuard machinery (loginSupported/useSignatureTimestamp both false, same as the
+         * ANDROID_VR clients below) despite being a genuine browser user agent, which is what makes
+         * it a reliable stream fallback independent of WEB_REMIX's own PoToken staleness/rejection
+         * issues. Field values (including the fixed clientVersion "0.1" and clientId "101") are
+         * exactly what yuuichi-s/OuterTune's fork uses, not a guess.
+         */
+        val VISIONOS = YouTubeClient(
+            clientName = "VISIONOS",
+            clientVersion = "0.1",
+            clientId = "101",
+            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
+            osName = "visionOS",
+            osVersion = "1.3.21O771",
+            deviceMake = "Apple",
+            deviceModel = "RealityDevice14,1",
+            loginSupported = false,
+            useSignatureTimestamp = false,
+        )
+
+        /**
          * Uses non-adaptive bitrate, which fixes audio stuttering with YT Music streams that the
          * regular (adaptive) ANDROID_VR_NO_AUTH client can exhibit. Does not use AV1.
          */

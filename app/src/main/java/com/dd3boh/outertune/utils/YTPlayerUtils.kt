@@ -26,6 +26,7 @@ import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeClient
 import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
 import com.zionhuang.innertube.models.YouTubeClient.Companion.IOS
+import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS
 import com.zionhuang.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import com.zionhuang.innertube.models.response.PlayerResponse
 import okhttp3.OkHttpClient
@@ -55,8 +56,13 @@ object YTPlayerUtils {
 
     /**
      * Clients used for fallback streams in case the streams of the main client do not work.
+     * VISIONOS goes first: like the ANDROID_VR clients, it needs no PoToken/BotGuard machinery
+     * (loginSupported/useSignatureTimestamp both false) despite being a real browser user agent,
+     * so it's not exposed to WEB_REMIX's own PoToken staleness/rejection failure modes - the
+     * client yuuichi-s/OuterTune's fork relies on first for exactly that reason.
      */
     private val STREAM_FALLBACK_CLIENTS: Array<YouTubeClient> = arrayOf(
+        VISIONOS,
         ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
 //        ANDROID,
 //        TVHTML5,
