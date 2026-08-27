@@ -65,10 +65,20 @@ class MusicDatabase(
         }
     }
 
+    /**
+     * Runs [block] inside a write transaction synchronously on the calling thread, and returns
+     * its result - unlike [transaction] above, which fires block asynchronously on Room's own
+     * transaction executor and can't be awaited. Used by the backup path to hold the single
+     * writer connection across a WAL checkpoint and the raw file copy that follows it, so nothing
+     * else can write mid-copy - see [com.dd3boh.outertune.utils.writeBackup]'s own doc for why a
+     * copy taken without that guarantee can capture a torn, unrestorable snapshot.
+     */
+    fun <T> runInTransaction(block: () -> T): T = delegate.runInTransaction(java.util.concurrent.Callable { block() })
+
     fun close() = delegate.close()
 
     companion object {
-        const val MUSIC_DATABASE_VERSION = 24
+        const val MUSIC_DATABASE_VERSION = 25
     }
 }
 
@@ -139,6 +149,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_21_22)
                     .addMigrations(MIGRATION_22_23)
                     .addMigrations(MIGRATION_23_24)
+                    .addMigrations(MIGRATION_24_25)
                     // This app gets rebuilt from different, sometimes-diverging local patch
                     // lines rather than shipping one monotonically-increasing version history,
                     // so the database on disk can genuinely be a newer version than the build
@@ -163,6 +174,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_21_22)
                     .addMigrations(MIGRATION_22_23)
                     .addMigrations(MIGRATION_23_24)
+                    .addMigrations(MIGRATION_24_25)
                     .build()
             )
     }
@@ -801,6 +813,90 @@ private fun mergeTopicSuffixedArtists(db: SupportSQLiteDatabase) {
     }
 }
 
+/**
+ * Merges every group of 2+ artist rows that share the same Topic-stripped, lowercased name and
+ * [ArtistEntity.isLocal] flag down to one row - see [MIGRATION_24_25]'s own doc for why this needs
+ * to exist as a separate pass from [mergeTopicSuffixedArtists] above (that one only ever merges a
+ * "- Topic" row into an already clean-named one; this one merges duplicates however they arose).
+ * The survivor is preferred to be a row whose name is already Topic-suffix-free, since that id is
+ * the one most likely already linked from other songs/albums synced before this cleanup existed;
+ * falls back to the group's first row if every row in the group happens to carry the suffix, in
+ * which case the survivor's own name is cleaned up too. A group whose stripped name is empty (a
+ * credit that was only ever the literal "- Topic" suffix, no real name in front of it) is left
+ * alone rather than merged under a blank name - same guard [mergeTopicSuffixedArtists] uses.
+ */
+private fun mergeDuplicateArtists(db: SupportSQLiteDatabase) {
+    data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
+
+    val artists = ArrayList<ArtistRow>()
+    db.query("SELECT id, name, isLocal FROM artist").use { cursor ->
+        val idIdx = cursor.getColumnIndex("id")
+        val nameIdx = cursor.getColumnIndex("name")
+        val isLocalIdx = cursor.getColumnIndex("isLocal")
+        while (cursor.moveToNext()) {
+            artists.add(ArtistRow(cursor.getString(idIdx), cursor.getString(nameIdx), cursor.getInt(isLocalIdx) != 0))
+        }
+    }
+
+    // Identical to mergeTopicSuffixedArtists's own helper of the same name - kept local to each
+    // migration rather than shared, since a migration's body needs to stay exactly as it was the
+    // moment it shipped regardless of what a later migration's version of this helper does.
+    fun mergeMapTable(mapTable: String, otherIdColumn: String, duplicateId: String, originalId: String) {
+        val otherIds = ArrayList<String>()
+        db.query(
+            "SELECT $otherIdColumn FROM $mapTable WHERE artistId = ?",
+            arrayOf(duplicateId)
+        ).use { cursor ->
+            val idx = cursor.getColumnIndex(otherIdColumn)
+            while (cursor.moveToNext()) otherIds.add(cursor.getString(idx))
+        }
+
+        for (otherId in otherIds) {
+            val alreadyHasOriginal = db.query(
+                "SELECT 1 FROM $mapTable WHERE $otherIdColumn = ? AND artistId = ?",
+                arrayOf(otherId, originalId)
+            ).use { it.moveToNext() }
+
+            if (alreadyHasOriginal) {
+                db.execSQL(
+                    "DELETE FROM $mapTable WHERE $otherIdColumn = ? AND artistId = ?",
+                    arrayOf(otherId, duplicateId)
+                )
+            } else {
+                db.execSQL(
+                    "UPDATE $mapTable SET artistId = ? WHERE $otherIdColumn = ? AND artistId = ?",
+                    arrayOf(originalId, otherId, duplicateId)
+                )
+            }
+        }
+    }
+
+    val groups = artists.groupBy { it.name.stripTopicSuffix().lowercase() to it.isLocal }
+    for ((key, group) in groups) {
+        val (baseNameLower, _) = key
+        if (group.size < 2 || baseNameLower.isEmpty()) continue
+
+        val original = group.firstOrNull { !TOPIC_SUFFIX.containsMatchIn(it.name) } ?: group.first()
+        val cleanName = original.name.stripTopicSuffix()
+        if (original.name != cleanName) {
+            db.execSQL("UPDATE artist SET name = ? WHERE id = ?", arrayOf(cleanName, original.id))
+        }
+
+        for (duplicate in group) {
+            if (duplicate.id == original.id) continue
+            mergeMapTable("song_artist_map", "songId", duplicate.id, original.id)
+            mergeMapTable("album_artist_map", "albumId", duplicate.id, original.id)
+            db.execSQL(
+                """DELETE FROM artist WHERE id = ? AND NOT EXISTS (
+                    SELECT 1 FROM song_artist_map WHERE artistId = ?
+                    UNION SELECT 1 FROM album_artist_map WHERE artistId = ?
+                )""",
+                arrayOf(duplicate.id, duplicate.id, duplicate.id)
+            )
+        }
+    }
+}
+
 val MIGRATION_22_23 = object : Migration(22, 23) {
     override fun migrate(db: SupportSQLiteDatabase) = mergeTopicSuffixedArtists(db)
 }
@@ -817,4 +913,21 @@ val MIGRATION_22_23 = object : Migration(22, 23) {
  */
 val MIGRATION_23_24 = object : Migration(23, 24) {
     override fun migrate(db: SupportSQLiteDatabase) = mergeTopicSuffixedArtists(db)
+}
+
+/**
+ * [mergeTopicSuffixedArtists] above only ever merges a "- Topic" row into an *already-existing,
+ * cleanly-named* row - real libraries end up with duplicate artist rows for reasons that have
+ * nothing to do with that: the same real-world artist getting a different generated id from two
+ * different sync paths (a song sync vs. an album sync, or a sync that ran before this app's own
+ * dedup existed vs. one that ran after), with neither row necessarily Topic-suffixed at all. And
+ * even within the Topic-suffix case specifically: two "- Topic" rows for the same artist with *no*
+ * clean row to merge into each just got renamed in place independently by the migration above,
+ * leaving two identically-named duplicates behind instead of one row. This groups every artist row
+ * by its Topic-stripped, lowercased name (keeping isLocal separate, matching the existing merge's
+ * own reasoning) and merges each group of 2+ down to one, regardless of which rows happen to carry
+ * the Topic suffix.
+ */
+val MIGRATION_24_25 = object : Migration(24, 25) {
+    override fun migrate(db: SupportSQLiteDatabase) = mergeDuplicateArtists(db)
 }

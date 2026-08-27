@@ -18,6 +18,7 @@ import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.LocalArtistThumbnail
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
+import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.extensions.reversed
 import com.dd3boh.outertune.ui.utils.resize
 import com.zionhuang.innertube.pages.ArtistPage
@@ -298,7 +299,9 @@ interface ArtistsDao {
     fun update(artist: ArtistEntity, artistPage: ArtistPage) {
         update(
             artist.copy(
-                name = artistPage.artist.title,
+                // See DatabaseDao.insert's identical stripTopicSuffix() call for why an artist
+                // name is never stored as YTM returned it verbatim.
+                name = artistPage.artist.title.stripTopicSuffix(),
                 thumbnailUrl = artistPage.artist.thumbnail?.resize(544, 544),
                 lastUpdateTime = LocalDateTime.now()
             )

@@ -11,6 +11,7 @@ import com.dd3boh.outertune.constants.LyricsFetchModeKey
 import com.dd3boh.outertune.constants.LyricsProviderOrderKey
 import com.dd3boh.outertune.constants.MultilineLrcKey
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.db.entities.LyricsEntity
 import com.dd3boh.outertune.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
 import com.dd3boh.outertune.models.MediaMetadata
@@ -350,7 +351,7 @@ class LyricsHelper @Inject constructor(
     ): RemoteLyricsResult {
         val artistName = mediaMetadata.artists
             .filter { it.id != null }
-            .joinToString { it.name.removeSuffix(" - Topic") }
+            .joinToString { it.name.stripTopicSuffix() }
             .ifEmpty { mediaMetadata.artists.joinToString { it.name } }
         val start = System.currentTimeMillis()
         Log.d(TAG, "start: videoId=${mediaMetadata.id} role=${role.log} title=\"${mediaMetadata.title}\" artist=\"${artistName}\"")

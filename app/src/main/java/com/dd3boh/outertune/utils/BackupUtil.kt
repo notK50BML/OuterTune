@@ -39,6 +39,17 @@ private const val AUTO_BACKUP_RELATIVE_DIR = "OuterTune Backup"
  * format the manual Backup action in Settings > Backup and Restore produces and Restore reads
  * back, and [writeAutoBackup] below writes the exact same thing on its own: one backup format,
  * one restore path, nothing selective to keep in sync between them.
+ *
+ * The checkpoint and the file copy both run inside [MusicDatabase.runInTransaction], which holds
+ * the database's single writer connection for the duration of both. `PRAGMA wal_checkpoint(FULL)`
+ * on its own only guarantees the WAL is flushed into the main file *at the moment it runs* -
+ * nothing stops another write landing in that file a moment later, mid-copy, since WAL mode
+ * exists specifically to let writers proceed without waiting on a reader. A raw file copy caught
+ * mid-write isn't a smaller backup, it's a torn one: restoring it can fail integrity checks or,
+ * worse, silently load a partially-written database. Holding the writer connection for the copy
+ * (typically well under a second for this app's database sizes) blocks other writes just long
+ * enough to guarantee the bytes on disk don't move while they're being read; reads elsewhere are
+ * unaffected, since WAL mode never blocks those on a writer.
  */
 suspend fun writeBackup(context: Context, database: MusicDatabase, outputStream: OutputStream) {
     withContext(Dispatchers.IO) {
@@ -48,10 +59,12 @@ suspend fun writeBackup(context: Context, database: MusicDatabase, outputStream:
                 out.putNextEntry(ZipEntry(BACKUP_SETTINGS_FILENAME))
                 input.copyTo(out)
             }
-            database.checkpoint()
-            FileInputStream(database.openHelper.writableDatabase.path).use { input ->
-                out.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
-                input.copyTo(out)
+            database.runInTransaction {
+                database.checkpoint()
+                FileInputStream(database.openHelper.writableDatabase.path).use { input ->
+                    out.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
+                    input.copyTo(out)
+                }
             }
         }
     }
