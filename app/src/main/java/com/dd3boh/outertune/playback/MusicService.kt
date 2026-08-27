@@ -1713,18 +1713,23 @@ class MusicService : MediaLibraryService(),
         const val NOTIFICATION_ID = 888
         const val ERROR_CODE_NO_STREAM = 1000001
         // Bounds every stream request (see createDataSourceFactory()) so no single one can still be
-        // mid-transfer when the cached URL's credentials go stale - see songUrlCache's 40s trust cap
+        // mid-transfer when the cached URL's credentials go stale - see songUrlCache's trust cap
         // for why that matters. Comfortably covers even a low-bitrate song within that window; a
         // higher-bitrate one just means more frequent, still-small requests.
         const val CHUNK_LENGTH = 256 * 1024L
 
         // How long a freshly-resolved stream URL is trusted for before a proactive refresh is
-        // forced - see songUrlCache's own doc for why 40s. Precaching (see precacheNextSongStream())
-        // fires this many ms before the current song ends, comfortably inside that window so the
-        // precached URL is still fresh when playback actually reaches the next song, with a few
-        // seconds of margin for the resolve itself to complete.
-        const val STREAM_URL_TRUST_WINDOW_MS = 40_000L
-        const val PRECACHE_LEAD_MS = 35_000L
+        // forced. Originally 40s against a cutoff that earlier testing placed at roughly a minute
+        // (see songUrlCache's own doc); since then it's been observed failing as early as ~30s in
+        // the field (the onPlayerError source-error retry catching it, audibly, instead of this
+        // proactive path renewing it silently first). Tightened to keep the same proportional
+        // safety margin against that lower observed cutoff rather than against the original one.
+        // Precaching (see precacheNextSongStream()) fires this many ms before the current song
+        // ends, comfortably inside that window so the precached URL is still fresh when playback
+        // actually reaches the next song, with a few seconds of margin for the resolve itself to
+        // complete.
+        const val STREAM_URL_TRUST_WINDOW_MS = 20_000L
+        const val PRECACHE_LEAD_MS = 15_000L
 
         const val COMMAND_GET_BINDER = "GET_BINDER"
     }
