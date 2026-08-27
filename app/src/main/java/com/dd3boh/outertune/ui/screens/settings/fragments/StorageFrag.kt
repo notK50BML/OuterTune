@@ -3,6 +3,7 @@ package com.dd3boh.outertune.ui.screens.settings.fragments
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -164,7 +165,9 @@ fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
  * SAF picker dialog can't be answered by anything unattended anyway. Below Android 10 this is
  * unavailable entirely (see [writeAutoBackup]'s own doc for why) - the switch stays disabled
  * there rather than promising something that silently won't run.
- * Writes whenever [MusicService] starts and the configured interval has elapsed - see its own doc.
+ * Scheduled through WorkManager (see [com.dd3boh.outertune.utils.scheduleAutoBackup] and
+ * [com.dd3boh.outertune.utils.AutoBackupWorker]) whenever this setting changes, entirely outside
+ * the playback path.
  */
 @Composable
 private fun AutomaticBackupFrag() {
@@ -317,6 +320,26 @@ fun ColumnScope.DownloadsFrag() {
     val isLoading by downloadUtil.isProcessingDownloads.collectAsState()
     var showMigrationDialog by rememberSaveable {
         mutableStateOf(false)
+    }
+    var moveTargetUri by rememberSaveable {
+        mutableStateOf<Uri?>(null)
+    }
+    var showMoveDialog by remember {
+        mutableStateOf(false)
+    }
+    var moveProgress by remember {
+        mutableStateOf<Pair<Int, Int>?>(null)
+    }
+    val moveTargetLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri ->
+        if (uri?.path == null || uri.toString() == downloadPath) return@rememberLauncherForActivityResult
+        context.contentResolver.takePersistableUriPermission(
+            uri,
+            Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+        )
+        moveTargetUri = uri
+        showMoveDialog = true
     }
     var showImportDialog by rememberSaveable {
         mutableStateOf(false)
@@ -477,6 +500,26 @@ fun ColumnScope.DownloadsFrag() {
             },
             onClick = {
                 showMigrationDialog = true
+            },
+            isEnabled = !isLoading && !downloadPath.isEmpty()
+        )
+
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.dl_move_title)) },
+            description = stringResource(R.string.dl_move_description),
+            icon = {
+                if (isLoading) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(28.dp),
+                        color = MaterialTheme.colorScheme.secondary,
+                        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    )
+                } else {
+                    Icon(Icons.Rounded.FolderCopy, null)
+                }
+            },
+            onClick = {
+                moveTargetLauncher.launch(null)
             },
             isEnabled = !isLoading && !downloadPath.isEmpty()
         )
@@ -861,6 +904,85 @@ fun ColumnScope.DownloadsFrag() {
                     }
                 ) {
                     Text(text = stringResource(android.R.string.ok))
+                }
+            }
+        )
+    }
+
+    if (showMoveDialog) {
+        val target = moveTargetUri
+        DefaultDialog(
+            onDismiss = {
+                if (moveProgress == null) {
+                    showMoveDialog = false
+                    moveTargetUri = null
+                }
+            },
+            content = {
+                Text(
+                    text = moveProgress?.let { (done, total) ->
+                        stringResource(R.string.dl_move_progress, done, total)
+                    } ?: stringResource(
+                        R.string.dl_move_confirm,
+                        absoluteFilePathFromUri(context, downloadPath.toUri()) ?: downloadPath,
+                        target?.let { absoluteFilePathFromUri(context, it) } ?: target.toString()
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    modifier = Modifier.padding(horizontal = 18.dp)
+                )
+                moveProgress?.let { (done, total) ->
+                    LinearProgressIndicator(
+                        progress = { if (total == 0) 0f else done.toFloat() / total },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 18.dp)
+                    )
+                }
+            },
+            buttons = {
+                if (moveProgress == null) {
+                    TextButton(
+                        onClick = {
+                            showMoveDialog = false
+                            moveTargetUri = null
+                        }
+                    ) {
+                        Text(text = stringResource(android.R.string.cancel))
+                    }
+
+                    TextButton(
+                        onClick = {
+                            val newUri = target ?: return@TextButton
+                            val oldUri = downloadPath.toUri()
+                            moveProgress = 0 to 0
+                            coroutineScope.launch(dlCoroutine) {
+                                try {
+                                    downloadUtil.moveDownloads(oldUri, newUri) { copied, total ->
+                                        moveProgress = copied to total
+                                    }
+                                    onDownloadPathChange(newUri.toString())
+                                    downloadUtil.cd()
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.dl_move_success, moveProgress?.second ?: 0),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.dl_move_failed, e.message),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } finally {
+                                    moveProgress = null
+                                    showMoveDialog = false
+                                    moveTargetUri = null
+                                }
+                            }
+                        }
+                    ) {
+                        Text(text = stringResource(android.R.string.ok))
+                    }
                 }
             }
         )

@@ -2,11 +2,13 @@ package com.dd3boh.outertune.playback
 
 import android.content.Context
 import android.net.ConnectivityManager
+import android.net.Uri
 import android.util.Log
 import android.widget.Toast
 import android.widget.Toast.LENGTH_SHORT
 import androidx.core.content.getSystemService
 import androidx.core.net.toUri
+import androidx.documentfile.provider.DocumentFile
 import androidx.media3.database.DatabaseProvider
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
@@ -49,6 +51,8 @@ import com.dd3boh.outertune.utils.enumPreference
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.reportException
 import com.dd3boh.outertune.utils.scanners.InvalidAudioFileException
+import com.dd3boh.outertune.utils.scanners.LocalMediaScanner.Companion.scanDfRecursive
+import com.dd3boh.outertune.utils.scanners.documentFileFromUri
 import com.dd3boh.outertune.utils.scanners.fileFromUri
 import com.dd3boh.outertune.utils.scanners.uriListFromString
 import com.zionhuang.innertube.YouTube
@@ -446,6 +450,56 @@ class DownloadUtil @Inject constructor(
             context.dataStore.get(DownloadPathKey, "").toUri(),
             uriListFromString(context.dataStore.get(DownloadExtraPathKey, ""))
         )
+    }
+
+    /**
+     * Copies every file out of [oldDirUri] into [newDirUri], deleting each source file only
+     * after its copy has landed - so a picker choice that turns out to be read-only, or a copy
+     * that fails partway, leaves files in their original folder rather than losing them. This is
+     * what changing the external download folder in Settings has never actually done on its own:
+     * swapping [DownloadPathKey] only changes where *new* downloads and rescans look, and leaves
+     * anything already in the old folder orphaned there. [onProgress] reports (copied, total)
+     * after each file. Caller is responsible for updating [DownloadPathKey] and calling [cd] once
+     * this returns.
+     */
+    suspend fun moveDownloads(
+        oldDirUri: Uri,
+        newDirUri: Uri,
+        onProgress: (copied: Int, total: Int) -> Unit = { _, _ -> },
+    ) {
+        if (isProcessingDownloads.value) return
+        isProcessingDownloads.value = true
+        try {
+            withContext(Dispatchers.IO) {
+                val oldDir = documentFileFromUri(context, oldDirUri)
+                    ?.takeIf { it.isDirectory }
+                    ?: throw IOException("The current download folder is no longer accessible")
+                val newDir = DocumentFile.fromTreeUri(context, newDirUri)
+                    ?.takeIf { it.isDirectory }
+                    ?: throw IOException("The chosen folder is not valid")
+
+                val files = ArrayList<DocumentFile>()
+                scanDfRecursive(oldDir, files, true)
+                val toMove = files.filter { it.name != null }
+                val resolver = context.contentResolver
+
+                toMove.forEachIndexed { index, file ->
+                    val name = file.name!!
+                    val mimeType = file.type ?: "application/octet-stream"
+                    val newFile = newDir.createFile(mimeType, name)
+                        ?: throw IOException("Failed to create \"$name\" in the new folder")
+                    resolver.openInputStream(file.uri)?.use { input ->
+                        resolver.openOutputStream(newFile.uri)?.use { output ->
+                            input.copyTo(output)
+                        } ?: throw IOException("Failed to write \"$name\" to the new folder")
+                    } ?: throw IOException("Failed to read \"$name\" from the current folder")
+                    file.delete()
+                    onProgress(index + 1, toMove.size)
+                }
+            }
+        } finally {
+            isProcessingDownloads.value = false
+        }
     }
 
     /**

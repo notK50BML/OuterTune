@@ -367,6 +367,12 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="dl_migrate_confirm">This will migrate ALL internal downloads to \"%s\", and this action cannot be undone. Continue?</string>
     <string name="dl_main_path_title">Set external download folder…</string>
     <string name="dl_main_path_description">Select downloads storage location</string>
+    <string name="dl_move_title">Move downloads to a new folder…</string>
+    <string name="dl_move_description">Copy every downloaded file from the current external folder into a different one, then switch to it - unlike just picking a new folder above, which leaves existing files where they are</string>
+    <string name="dl_move_confirm">Move every download from \"%1$s\" to \"%2$s\"? Files are copied first and only removed from the old folder once the copy succeeds.</string>
+    <string name="dl_move_progress">Moving downloads… %1$d/%2$d</string>
+    <string name="dl_move_success">Moved %1$d download(s) to the new folder</string>
+    <string name="dl_move_failed">Failed to move downloads: %1$s</string>
     <string name="dl_oobe_tooltip">Songs are download to the app\'s private internal storage. To download songs to the external storage, you need to choose a folder first. You can add, change or remove folders, or migrate Internal Downloads to External Downloads later in Settings.</string>
     <string name="dl_rescan_title">Rescan download folders…</string>
     <string name="dl_rescan_description">Update the database and refresh the download registry if any files or folders have changed</string>
