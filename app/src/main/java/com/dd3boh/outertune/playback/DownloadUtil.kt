@@ -112,9 +112,15 @@ class DownloadUtil @Inject constructor(
                 OkHttpDataSource.Factory(
                     OkHttpClient.Builder()
                         .proxy(YouTube.proxy)
-                        // Same backstop as MusicService's own data source: forces a reconnect
-                        // well before googlevideo's own ~60s connection-duration cutoff, in case
-                        // the subrange bound below somehow doesn't trigger a re-resolve in time.
+                        // Forces a reconnect well before googlevideo's own ~60s connection-
+                        // duration cutoff, so a single download request can't run long enough to
+                        // hit it. Media3's DownloadManager retries a caught IOException (default
+                        // 5 times) and CacheDataSource resumes from the already-cached position,
+                        // so a timeout here loses no progress - the next attempt re-resolves
+                        // (getting a fresh URL/PoToken if the cached one has gone stale, see
+                        // songUrlCache below) and continues from where it left off. In practice
+                        // this only matters on a slow connection: most downloads (a few MB) finish
+                        // in well under 45s and never hit it.
                         .callTimeout(45, TimeUnit.SECONDS)
                         .build()
                 )
@@ -127,12 +133,8 @@ class DownloadUtil @Inject constructor(
         }
 
         songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
-            // Bounded the same as the fresh-resolve path below - left unbounded, a download
-            // (unlike playback's own buffered reads) turns into exactly one long-lived
-            // connection past googlevideo's cutoff. See MusicService.CHUNK_LENGTH's own doc.
             return@Factory dataSpec.withUri(it.url.toUri())
                 .withRequestHeaders(it.headers)
-                .subrange(dataSpec.uriPositionOffset, MusicService.CHUNK_LENGTH)
         }
 
         // A cache entry existing (even an expired one) means this song was already resolved once
@@ -172,10 +174,23 @@ class DownloadUtil @Inject constructor(
         }
 
         // No "&range=0-contentLength" query param here (as this used to have): that tells
-        // googlevideo's CDN up front to serve the entire file as one continuous transfer, which
-        // defeats the subrange-based chunking below and is exactly what was driving downloads
-        // into the ~60s connection-duration/PoToken cutoff. MusicService never did this either -
-        // HTTP Range headers via subrange() are the only chunking mechanism now, matching it.
+        // googlevideo's CDN up front to serve the entire file as one continuous transfer,
+        // regardless of how the resulting HTTP request is otherwise shaped - exactly what was
+        // driving downloads into the ~60s connection-duration/PoToken cutoff. MusicService never
+        // did this either.
+        //
+        // Deliberately NOT bounding this dataSpec's length (e.g. via subrange()) the way
+        // MusicService bounds its own playback requests to CHUNK_LENGTH: that pattern relies on
+        // ExoPlayer's own chunk-based playback loader re-invoking this resolver for each
+        // successive chunk. Media3's offline DownloadManager drives its downloads very
+        // differently - the whole download is one CacheWriter.cache() call against a DataSpec
+        // whose length is C.LENGTH_UNSET ("give me everything"), wrapped in an extra
+        // CacheDataSource DownloadManager adds automatically around this factory. Explicitly
+        // declaring a short length here doesn't chunk that download into many requests the way it
+        // does for playback - it just makes the download stop after that length, silently
+        // truncating every file to CHUNK_LENGTH (256KB, ~15s of audio) rather than erroring. The
+        // callTimeout above is what actually protects downloads from the connection-duration
+        // cutoff; this dataSpec should just ask for the whole file.
         val streamUrl = playbackData.streamUrl
 
         songUrlCache[mediaId] = CachedStreamUrl(
@@ -184,14 +199,14 @@ class DownloadUtil @Inject constructor(
             // embedded streaming PoToken has been observed to actually stop working after roughly
             // a minute regardless of connection count or chunk size - see
             // MusicService.STREAM_URL_TRUST_WINDOW_MS's own doc. Capping our own trust the same
-            // way forces the proactive refresh above before the CDN ever gets a chance to reject
-            // the old one.
+            // way means a download that gets interrupted (e.g. by the callTimeout above) and
+            // retries after this window has passed re-resolves for a fresh URL/PoToken instead of
+            // reusing one already past its real-world validity.
             expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, MusicService.STREAM_URL_TRUST_WINDOW_MS),
             headers = playbackData.streamHeaders,
         )
         dataSpec.withUri(streamUrl.toUri())
             .withRequestHeaders(playbackData.streamHeaders)
-            .subrange(dataSpec.uriPositionOffset, MusicService.CHUNK_LENGTH)
     }
     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
     val downloadManager: DownloadManager =
