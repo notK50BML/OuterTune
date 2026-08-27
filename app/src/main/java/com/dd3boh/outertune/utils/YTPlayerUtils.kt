@@ -182,7 +182,16 @@ object YTPlayerUtils {
         var streamClient: YouTubeClient = MAIN_CLIENT
 
         var streamPlayerResponse: PlayerResponse? = null
-        for (clientIndex in (-1 until STREAM_FALLBACK_CLIENTS.size)) {
+        // Tries STREAM_FALLBACK_CLIENTS[0] (VISIONOS) for the stream before MAIN_CLIENT
+        // (WEB_REMIX, index -1), not after: VISIONOS needs no PoToken at all (same as the
+        // ANDROID_VR clients), so it isn't exposed to WEB_REMIX's PoToken-staleness failures
+        // (streams dying ~20-60s in) in the first place, rather than only recovering from them
+        // after the fact via the one-time source-error retry. mainPlayerResponse (fetched above,
+        // unconditionally, from MAIN_CLIENT) still supplies metadata either way regardless of
+        // which client's stream wins here - login-gated features aren't affected by this
+        // reordering, only which client's stream URL actually gets used.
+        val clientTryOrder = listOf(0, -1) + (1 until STREAM_FALLBACK_CLIENTS.size)
+        for (clientIndex in clientTryOrder) {
             // reset for each client
             format = null
             streamUrl = null
@@ -200,7 +209,8 @@ object YTPlayerUtils {
                     continue
                 }
                 Log.d(TAG, "Trying client: ${MAIN_CLIENT.clientName}")
-                // try with streams from main client first
+                // Tried second now (see clientTryOrder above), not first - still the client
+                // mainPlayerResponse already came from, so no extra request needed here.
                 client = MAIN_CLIENT
                 streamPlayerResponse = mainPlayerResponse
             } else {
