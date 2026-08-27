@@ -73,7 +73,12 @@ android {
             initWith(getByName("release"))
             isMinifyEnabled = false
             isShrinkResources = false
-//            isDebuggable = true
+            // Lets `adb install -d` downgrade over an existing userdebug install: since Android 14,
+            // that flag only takes effect if the *currently installed* APK is debuggable - a plain
+            // release build refuses a downgrade install no matter what adb flags are passed. Keeps
+            // the release signing config (see initWith above) so this stays interchangeable with a
+            // real release build, it's just also debuggable.
+            isDebuggable = true
             isProfileable = true
             matchingFallbacks += listOf("release")
         }
