@@ -43,11 +43,6 @@ object YTPlayerUtils {
 
     private val poTokenGenerator = PoTokenGenerator()
 
-    /**
-     * Byte offset used by [validateStatus]. Must stay at or beyond MusicService.CHUNK_LENGTH so the
-     * probe exercises a continuation request rather than the first chunk.
-     */
-    private const val PROBE_OFFSET = 256 * 1024L
 
 
     /**
@@ -266,6 +261,13 @@ object YTPlayerUtils {
                 }
                 streamUrl += "&cpn=$cpn"
 
+                // Nothing left to fall back to, so validating buys nothing - a rejection here
+                // would only throw away the one URL still on the table. Skipping it also drops a
+                // round trip from the worst case, which is exactly the path that was timing out.
+                if (clientIndex == clientTryOrder.last()) {
+                    Log.i(TAG, "[$videoId] [${client.clientName}] last client, using without validation")
+                    break
+                }
                 if (validateStatus(streamUrl, client.streamHeaders(), client.clientName)) {
                     // working stream found
                     Log.i(TAG, "[$videoId] [${client.clientName}] found working stream")
@@ -398,48 +400,31 @@ object YTPlayerUtils {
      * itself failing (or wrongly passing) independent of whether the URL is actually good.
      */
     private fun validateStatus(url: String, headers: Map<String, String>, clientName: String): Boolean {
-        // Probed past the first chunk on purpose: a probe landing inside the first chunk succeeds
-        // on URLs whose *continuation* requests are rejected, which is the failure this screens
-        // for - playback that starts cleanly and dies the moment the first chunk runs out.
-        probe(url, headers, PROBE_OFFSET, clientName)?.let { deepCode ->
-            if (deepCode in 200..299) return true
-
-            // 416 means there simply is no byte at PROBE_OFFSET - a track whose audio stream is
-            // smaller than the probe offset, not a URL being refused. Anything else at this depth
-            // is a real rejection, but only after confirming the URL isn't wholesale dead: falling
-            // back to a first-byte probe keeps a client that actually works from being dropped over
-            // a deep-range request googlevideo declined for its own reasons, which would silently
-            // hand playback to a worse client (the exact WEB_REMIX-dies-at-60s path this chain
-            // exists to avoid). The mid-track 403 recovery in MusicService.onPlayerError is the
-            // backstop if such a URL does die later.
-            if (deepCode != 416) {
-                Log.w(TAG, "[$clientName] deep-range probe got HTTP $deepCode, retrying at first byte")
-            }
-            val shallowCode = probe(url, headers, 0L, clientName) ?: return false
-            if (shallowCode in 200..299) {
-                if (deepCode != 416) {
-                    Log.w(TAG, "[$clientName] accepted on first-byte probe despite HTTP $deepCode deeper in")
-                }
-                return true
-            }
-            Log.w(TAG, "[$clientName] stream validation failed: HTTP $shallowCode")
-            return false
-        }
-        return false
-    }
-
-    /** One ranged GET against [url], returning the HTTP status, or null if the request itself failed. */
-    private fun probe(url: String, headers: Map<String, String>, offset: Long, clientName: String): Int? {
+        // Exactly one ranged GET, at the first byte - the same probe yuuichi-s/OuterTune uses and
+        // verified on-device. This deliberately does NOT probe deeper to pre-screen URLs whose
+        // *continuation* requests get refused: every extra probe here is a network round trip
+        // inside the runBlocking that ExoPlayer's ResolvingDataSource is waiting on, and with a
+        // six-client chain a second probe per client was enough to blow the player's own timeout
+        // (ERROR_CODE_TIMEOUT, 1003) before any stream was ever handed back. A URL that passes here
+        // and then dies mid-track is caught by the 403/410 recovery in MusicService.onPlayerError,
+        // which is the right place for it: it costs nothing until it actually happens.
         return try {
             val requestBuilder = okhttp3.Request.Builder()
-                .header("Range", "bytes=$offset-${offset + 1}")
+                .header("Range", "bytes=0-0")
                 .url(url)
             headers.forEach { (name, value) -> requestBuilder.header(name, value) }
-            httpClient.newCall(requestBuilder.build()).execute().use { it.code }
+            httpClient.newCall(requestBuilder.build()).execute().use { response ->
+                val ok = response.code in 200..299
+                if (!ok) {
+                    // At warn so a release logcat shows why a client was dropped, with the code.
+                    Log.w(TAG, "[$clientName] stream validation failed: HTTP ${response.code}")
+                }
+                ok
+            }
         } catch (e: Exception) {
-            Log.w(TAG, "[$clientName] stream validation request failed at offset $offset", e)
+            Log.w(TAG, "[$clientName] stream validation request failed", e)
             reportException(e)
-            null
+            false
         }
     }
 
