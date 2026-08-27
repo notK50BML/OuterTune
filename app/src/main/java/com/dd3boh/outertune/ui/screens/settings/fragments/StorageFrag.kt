@@ -58,6 +58,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
+import androidx.datastore.preferences.core.edit
 import coil3.annotation.ExperimentalCoilApi
 import coil3.imageLoader
 import com.dd3boh.outertune.LocalDownloadUtil
@@ -90,6 +91,7 @@ import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
 import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.dialog.InfoLabel
+import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.dlCoroutine
 import com.dd3boh.outertune.utils.formatFileSize
 import com.dd3boh.outertune.utils.rememberEnumPreference
@@ -960,7 +962,17 @@ fun ColumnScope.DownloadsFrag() {
                                     downloadUtil.moveDownloads(oldUri, newUri) { copied, total ->
                                         moveProgress = copied to total
                                     }
-                                    onDownloadPathChange(newUri.toString())
+                                    // Not onDownloadPathChange(...): that's rememberPreference's
+                                    // MutableState setter, which fires the DataStore write on its
+                                    // own composition-scoped coroutine and returns immediately -
+                                    // nothing here would then guarantee it lands before cd() reads
+                                    // DownloadPathKey back to re-point localMgr, so cd() could win
+                                    // the race and re-init pointing at the now-emptied old folder.
+                                    // Writing directly and suspending on it (this coroutine, not a
+                                    // detached one) makes the ordering actually guaranteed; the
+                                    // Compose state still updates, since it's collecting the same
+                                    // underlying DataStore flow regardless of who wrote to it.
+                                    context.dataStore.edit { it[DownloadPathKey] = newUri.toString() }
                                     downloadUtil.cd()
                                     Toast.makeText(
                                         context,
