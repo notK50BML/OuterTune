@@ -75,11 +75,6 @@ import com.dd3boh.outertune.constants.AudioOffloadKey
 import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
-import com.dd3boh.outertune.constants.AutoBackupDefaults
-import com.dd3boh.outertune.constants.AutoBackupEnabledKey
-import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
-import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
-import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
 import com.dd3boh.outertune.constants.CrossfadeDefaults
 import com.dd3boh.outertune.constants.CrossfadeDurationKey
 import com.dd3boh.outertune.constants.CrossfadeKey
@@ -103,7 +98,6 @@ import com.dd3boh.outertune.constants.MediaSessionConstants.CommandToggleShuffle
 import com.dd3boh.outertune.constants.MediaSessionConstants.CommandToggleStartRadio
 import com.dd3boh.outertune.constants.PauseListenHistoryKey
 import com.dd3boh.outertune.constants.PauseRemoteListenHistoryKey
-import com.dd3boh.outertune.constants.LastAutoBackupKey
 import com.dd3boh.outertune.constants.PersistentQueueKey
 import com.dd3boh.outertune.constants.PlayerVolumeKey
 import com.dd3boh.outertune.constants.RepeatModeKey
@@ -126,7 +120,6 @@ import com.dd3boh.outertune.extensions.currentMetadata
 import com.dd3boh.outertune.extensions.findNextMediaItemById
 import com.dd3boh.outertune.extensions.metadata
 import com.dd3boh.outertune.extensions.setOffloadEnabled
-import com.dd3boh.outertune.extensions.toEnum
 import com.dd3boh.outertune.lyrics.LyricsFetchRole
 import com.dd3boh.outertune.lyrics.LyricsHelper
 import com.dd3boh.outertune.models.HybridCacheDataSinkFactory
@@ -147,7 +140,6 @@ import com.dd3boh.outertune.utils.enumPreference
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.playerCoroutine
 import com.dd3boh.outertune.utils.reportException
-import com.dd3boh.outertune.utils.writeAutoBackup
 import com.google.common.util.concurrent.MoreExecutors
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.SongItem
@@ -563,27 +555,9 @@ class MusicService : MediaLibraryService(),
                 }
             }
 
-            // A best-effort, one-shot check: if automatic backup is enabled and the configured
-            // interval has genuinely elapsed since the last one, write a fresh automatic backup
-            // now. Not a perpetual loop like the watchdog above - once per service start is
-            // plenty for something measured in days/weeks/months, and the service starts again
-            // the next time anything is played.
-            scope.launch {
-                val settings = dataStore.data.first()
-                if (settings[AutoBackupEnabledKey] != true) return@launch
-                val intervalUnit = settings[AutoBackupIntervalUnitKey]
-                    .toEnum(AutoBackupDefaults.INTERVAL_UNIT)
-                val intervalValue = settings[AutoBackupIntervalValueKey] ?: AutoBackupDefaults.INTERVAL_VALUE
-                val lastBackup = settings[LastAutoBackupKey] ?: 0L
-                val dueAt = lastBackup + intervalValue * intervalUnit.days * 24 * 60 * 60 * 1000L
-                if (System.currentTimeMillis() < dueAt) return@launch
-
-                val keepCount = settings[AutoBackupKeepCountKey] ?: AutoBackupDefaults.KEEP_COUNT
-
-                if (writeAutoBackup(this@MusicService, database, keepCount)) {
-                    dataStore.edit { it[LastAutoBackupKey] = System.currentTimeMillis() }
-                }
-            }
+            // Automatic backup is scheduled by AutoBackupWorker via WorkManager, not from here -
+            // a full DB checkpoint and file copy has no business running on the same coroutine
+            // scope that's standing up playback. See AutoBackupWorker's own doc.
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }

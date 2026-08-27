@@ -30,6 +30,10 @@ import com.dd3boh.outertune.constants.AccountImageFetchedKey
 import com.dd3boh.outertune.constants.AccountImageUrlKey
 import com.dd3boh.outertune.constants.AccountNameKey
 import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
+import com.dd3boh.outertune.constants.AutoBackupDefaults
+import com.dd3boh.outertune.constants.AutoBackupEnabledKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalUnitKey
+import com.dd3boh.outertune.constants.AutoBackupIntervalValueKey
 import com.dd3boh.outertune.constants.ContentCountryKey
 import com.dd3boh.outertune.constants.ContentLanguageKey
 import com.dd3boh.outertune.constants.CountryCodeToName
@@ -55,6 +59,7 @@ import com.dd3boh.outertune.utils.artworkFallbackToLowRes
 import com.dd3boh.outertune.utils.highResArtwork
 import com.dd3boh.outertune.utils.normalizeDataSyncId
 import com.dd3boh.outertune.utils.reportException
+import com.dd3boh.outertune.utils.scheduleAutoBackup
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeLocale
 import com.zionhuang.kugou.KuGou
@@ -164,6 +169,25 @@ class App : Application(), SingletonImageLoader.Factory {
                 .distinctUntilChanged()
                 .collect { enabled ->
                     artworkFallbackToLowRes = enabled
+                }
+        }
+        // Reconciles the auto-backup job with WorkManager whenever the setting changes - this
+        // collector fires immediately with whatever is currently stored too, so a schedule from a
+        // previous install/run is picked up (or re-created) on cold start as well. Deliberately
+        // not driven from MusicService: see AutoBackupWorker's own doc for why a DB checkpoint and
+        // file copy has no business sharing a coroutine scope with anything playback-related.
+        GlobalScope.launch {
+            dataStore.data
+                .map {
+                    Triple(
+                        it[AutoBackupEnabledKey] == true,
+                        it[AutoBackupIntervalValueKey] ?: AutoBackupDefaults.INTERVAL_VALUE,
+                        it[AutoBackupIntervalUnitKey].toEnum(AutoBackupDefaults.INTERVAL_UNIT)
+                    )
+                }
+                .distinctUntilChanged()
+                .collect { (enabled, intervalValue, intervalUnit) ->
+                    scheduleAutoBackup(this@App, enabled, intervalValue, intervalUnit)
                 }
         }
         // The bundled player cipher config table is a build-time snapshot; refresh it from

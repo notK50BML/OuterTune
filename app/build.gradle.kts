@@ -245,6 +245,10 @@ dependencies {
     ksp(libs.room.compiler)
     implementation(libs.room.ktx)
 
+    // Schedules automatic backups outside the playback service, on the system's own background
+    // job infra - see AutoBackupWorker.
+    implementation(libs.work.runtime.ktx)
+
     implementation(libs.apache.lang3)
 
     implementation(libs.hilt)
