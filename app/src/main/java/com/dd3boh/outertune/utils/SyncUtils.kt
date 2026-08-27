@@ -710,8 +710,29 @@ class SyncUtils @Inject constructor(
                                     bookmarkedAt = if (isLikedArtist) LocalDateTime.now() else null
                                 )
                             )
-                        } else if (localArtist.artist.bookmarkedAt == null && isLikedArtist) {
-                            update(localArtist.artist.localToggleLike())
+                        } else {
+                            // Refresh the details this sync actually re-fetched, not just the like
+                            // flag: only ever touching bookmarkedAt meant an artist whose name or
+                            // picture changed upstream (or one first created under a stale
+                            // "- Topic" title by an older build) kept the old values forever, since
+                            // this is the one path that sees the authoritative remote values and it
+                            // was throwing them away for every artist that already existed.
+                            var updated = localArtist.artist
+                            if (remoteArtist.title.isNotBlank() && updated.name != remoteArtist.title) {
+                                updated = updated.copy(name = remoteArtist.title)
+                            }
+                            if (remoteArtist.thumbnail != null && updated.thumbnailUrl != remoteArtist.thumbnail) {
+                                updated = updated.copy(thumbnailUrl = remoteArtist.thumbnail)
+                            }
+                            if (remoteArtist.channelId != null && updated.channelId != remoteArtist.channelId) {
+                                updated = updated.copy(channelId = remoteArtist.channelId)
+                            }
+                            if (updated.bookmarkedAt == null && isLikedArtist) {
+                                updated = updated.localToggleLike()
+                            }
+                            if (updated != localArtist.artist) {
+                                update(updated)
+                            }
                         }
                     }
                     delay(DB_OPERATION_DELAY_MS)
