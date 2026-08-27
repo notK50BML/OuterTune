@@ -1738,9 +1738,15 @@ class MusicService : MediaLibraryService(),
         const val STREAM_URL_TRUST_WINDOW_MS = 20_000L
         const val PRECACHE_LEAD_MS = 15_000L
 
-        // See sourceErrorRetryCount's own doc - matches yuuichi-s/OuterTune's retry budget for
-        // this failure class instead of giving up after one attempt.
-        const val MAX_SOURCE_ERROR_RETRIES = 5
+        /**
+         * See sourceErrorRetryCount's own doc. Deliberately low: each retry re-runs the *whole*
+         * client chain, so one retry is already several player requests, not one. At 5 a single
+         * unplayable song could fire ~30 requests, and enough of those in a row is what draws
+         * Google's network-level "automated queries" throttle - which then fails every client for
+         * every song, causing more retries. Two attempts is enough to clear a genuinely stale URL
+         * (the case this exists for) without feeding that spiral.
+         */
+        const val MAX_SOURCE_ERROR_RETRIES = 2
 
         const val COMMAND_GET_BINDER = "GET_BINDER"
     }
