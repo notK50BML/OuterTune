@@ -77,6 +77,7 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.Executor
+import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -111,6 +112,10 @@ class DownloadUtil @Inject constructor(
                 OkHttpDataSource.Factory(
                     OkHttpClient.Builder()
                         .proxy(YouTube.proxy)
+                        // Same backstop as MusicService's own data source: forces a reconnect
+                        // well before googlevideo's own ~60s connection-duration cutoff, in case
+                        // the subrange bound below somehow doesn't trigger a re-resolve in time.
+                        .callTimeout(45, TimeUnit.SECONDS)
                         .build()
                 )
             )
@@ -122,11 +127,24 @@ class DownloadUtil @Inject constructor(
         }
 
         songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
+            // Bounded the same as the fresh-resolve path below - left unbounded, a download
+            // (unlike playback's own buffered reads) turns into exactly one long-lived
+            // connection past googlevideo's cutoff. See MusicService.CHUNK_LENGTH's own doc.
             return@Factory dataSpec.withUri(it.url.toUri())
                 .withRequestHeaders(it.headers)
+                .subrange(dataSpec.uriPositionOffset, MusicService.CHUNK_LENGTH)
         }
 
+        // A cache entry existing (even an expired one) means this song was already resolved once
+        // before - the aging streaming PoToken embedded in that URL is exactly what's being worked
+        // around here, so force a fresh mint rather than risk PoTokenGenerator's own session-level
+        // cache handing back the same one. Mirrors MusicService's own isRefresh handling.
+        val isRefresh = songUrlCache.containsKey(mediaId)
+
         val playbackData = runBlocking(Dispatchers.IO) {
+            if (isRefresh) {
+                YTPlayerUtils.invalidatePoTokenSession()
+            }
             YTPlayerUtils.playerResponseForPlayback(
                 mediaId,
                 audioQuality = audioQuality,
@@ -145,8 +163,7 @@ class DownloadUtil @Inject constructor(
                     bitrate = format.bitrate,
                     sampleRate = format.audioSampleRate,
                     // YouTube omits Content-Length for some formats/streams; !! here crashed the
-                    // download's data source resolution outright for exactly those. Same fallback
-                    // the range request two lines down already uses for the same nullable field.
+                    // download's data source resolution outright for exactly those.
                     contentLength = format.contentLength ?: 10000000,
                     loudnessDb = playbackData.audioConfig?.loudnessDb,
                     playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
@@ -154,18 +171,27 @@ class DownloadUtil @Inject constructor(
             )
         }
 
-        val streamUrl = playbackData.streamUrl.let {
-            // Specify range to avoid YouTube's throttling
-            "${it}&range=0-${format.contentLength ?: 10000000}"
-        }
+        // No "&range=0-contentLength" query param here (as this used to have): that tells
+        // googlevideo's CDN up front to serve the entire file as one continuous transfer, which
+        // defeats the subrange-based chunking below and is exactly what was driving downloads
+        // into the ~60s connection-duration/PoToken cutoff. MusicService never did this either -
+        // HTTP Range headers via subrange() are the only chunking mechanism now, matching it.
+        val streamUrl = playbackData.streamUrl
 
         songUrlCache[mediaId] = CachedStreamUrl(
             url = streamUrl,
-            expiresAt = System.currentTimeMillis() + (playbackData.streamExpiresInSeconds * 1000L),
+            // streamExpiresInSeconds is YouTube's own claimed validity (routinely hours), but the
+            // embedded streaming PoToken has been observed to actually stop working after roughly
+            // a minute regardless of connection count or chunk size - see
+            // MusicService.STREAM_URL_TRUST_WINDOW_MS's own doc. Capping our own trust the same
+            // way forces the proactive refresh above before the CDN ever gets a chance to reject
+            // the old one.
+            expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, MusicService.STREAM_URL_TRUST_WINDOW_MS),
             headers = playbackData.streamHeaders,
         )
         dataSpec.withUri(streamUrl.toUri())
             .withRequestHeaders(playbackData.streamHeaders)
+            .subrange(dataSpec.uriPositionOffset, MusicService.CHUNK_LENGTH)
     }
     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
     val downloadManager: DownloadManager =
