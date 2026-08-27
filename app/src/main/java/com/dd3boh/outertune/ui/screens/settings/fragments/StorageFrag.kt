@@ -59,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import androidx.datastore.preferences.core.edit
+import androidx.media3.exoplayer.offline.DownloadService
 import coil3.annotation.ExperimentalCoilApi
 import coil3.imageLoader
 import com.dd3boh.outertune.LocalDownloadUtil
@@ -80,6 +81,7 @@ import com.dd3boh.outertune.constants.ScanPathsKey
 import com.dd3boh.outertune.constants.ThumbnailCornerRadius
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.extensions.tryOrNull
+import com.dd3boh.outertune.playback.ExoDownloadService
 import com.dd3boh.outertune.ui.component.EnumListPreference
 import com.dd3boh.outertune.ui.component.ListPreference
 import com.dd3boh.outertune.ui.component.PreferenceEntry
@@ -669,12 +671,22 @@ fun ColumnScope.DownloadsFrag() {
                 TextButton(
                     onClick = {
                         showClearConfirmDialog = false
-                        coroutineScope.launch(Dispatchers.IO) {
-                            // clear internal downloads
-                            downloadCache.keys.forEach { key ->
-                                downloadCache.removeResource(key)
-                            }
+                        // Not downloadCache.removeResource() directly (as this used to do): that
+                        // only wipes the cached bytes/content-metadata, leaving DownloadManager's
+                        // own persisted DownloadIndex - and its live in-memory download list -
+                        // still believing every one of these downloads is STATE_COMPLETED. The next
+                        // rescan then re-registers all of them as "downloaded" from that stale
+                        // index despite the cache being empty, so tapping download again on one of
+                        // them is a silent no-op (downloadSong() sees it's already "downloaded" and
+                        // returns immediately), while a genuinely new download can end up racing
+                        // DownloadManager's confused state for that id and never complete.
+                        // sendRemoveAllDownloads is the same DownloadService entry point
+                        // sendAddDownload/sendResumeDownloads elsewhere in this app already go
+                        // through - it removes each download properly, clearing the cache content,
+                        // the index, and the in-memory task together.
+                        DownloadService.sendRemoveAllDownloads(context, ExoDownloadService::class.java, false)
 
+                        coroutineScope.launch(Dispatchers.IO) {
                             // TODO: Delete external downloads. Rememebr to exclude extra paths
                             // clear external downloads
 //                            database.downloadSongs(SongSortType.NAME, true).collect { songs ->
