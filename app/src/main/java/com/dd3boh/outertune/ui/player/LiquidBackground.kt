@@ -97,6 +97,8 @@ fun LiquidBackground(
     /** See [FerrofluidGpuOrFallback] - only meaningful when [shapeStyle] is
      *  [LiquidShapeStyle.FERROFLUID]; ignored otherwise. */
     useGpuFerrofluid: Boolean = false,
+    /** Render quality for the GPU ferrofluid - see [FerrofluidQuality]. */
+    ferrofluidQuality: FerrofluidQuality = FerrofluidQuality.MEDIUM,
 ) {
     // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
     // guaranteed-vibrant fallback, and the theme's own colour roles are exactly that.
@@ -313,6 +315,14 @@ fun LiquidBackground(
             FerrofluidGpuOrFallback(
                 isActive = isActive,
                 reactiveFrame = reactiveFrame,
+                // The crown's glint/rim/fill taken from the theme rather than hardcoded, so it
+                // belongs to the current palette. Base stays near-black on purpose: ferrofluid
+                // reads as black sold by its highlight, so tinting the fill would lose the effect -
+                // surface supplies that darkness while still following the scheme.
+                highlightColor = accentColor,
+                rimColor = MaterialTheme.colorScheme.tertiary,
+                baseColor = MaterialTheme.colorScheme.surface,
+                quality = ferrofluidQuality,
                 modifier = baseModifier,
                 fallback = { FerrofluidCanvasShape(baseModifier, flowTime, seed, bass, treble, transient, alpha) },
             )

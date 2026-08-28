@@ -42,6 +42,13 @@ val LiquidChromaticShockKey = booleanPreferencesKey("liquidChromaticShock")
  *  meaningfully heavier on the GPU/battery by design; opt-in and off by default for that reason. */
 val LiquidFerrofluidGpuKey = booleanPreferencesKey("liquidFerrofluidGpu")
 
+/**
+ * Render quality for the GPU ferrofluid - a [com.dd3boh.outertune.ui.player.FerrofluidQuality]
+ * name. Exists because the sensible pixel budget differs enormously between a phone on battery and
+ * a WSA build on a desktop GPU, and no single fixed value serves both.
+ */
+val LiquidFerrofluidQualityKey = stringPreferencesKey("liquidFerrofluidQuality")
+
 /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
 val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
 val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")

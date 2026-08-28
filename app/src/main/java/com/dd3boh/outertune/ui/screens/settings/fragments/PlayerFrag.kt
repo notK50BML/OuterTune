@@ -54,6 +54,8 @@ import com.dd3boh.outertune.constants.LiquidChromaticShockKey
 import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
 import com.dd3boh.outertune.constants.LiquidFerrofluidGpuKey
+import com.dd3boh.outertune.constants.LiquidFerrofluidQualityKey
+import com.dd3boh.outertune.ui.player.FerrofluidQuality
 import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.LiquidTextContrastKey
@@ -585,6 +587,29 @@ fun PlayerBackgroundFrag() {
             icon = { Icon(Icons.Rounded.Memory, null) },
             checked = liquidFerrofluidGpu,
             onCheckedChange = onLiquidFerrofluidGpuChange,
+        )
+    }
+
+    val (liquidFerrofluidQuality, onLiquidFerrofluidQualityChange) =
+        rememberEnumPreference(LiquidFerrofluidQualityKey, defaultValue = FerrofluidQuality.MEDIUM)
+    AnimatedVisibility(
+        visible = playerBackground == PlayerBackgroundStyle.LIQUID &&
+            liquidShapeStyle == LiquidShapeStyle.FERROFLUID &&
+            liquidFerrofluidGpu
+    ) {
+        EnumListPreference(
+            title = { Text("GPU ferrofluid quality") },
+            icon = { Icon(Icons.Rounded.Memory, null) },
+            selectedValue = liquidFerrofluidQuality,
+            onValueSelected = onLiquidFerrofluidQualityChange,
+            valueText = {
+                when (it) {
+                    FerrofluidQuality.LOW -> "Low - cheapest, for phones on battery"
+                    FerrofluidQuality.MEDIUM -> "Medium - the default"
+                    FerrofluidQuality.HIGH -> "High - full resolution, for a desktop GPU"
+                }
+            },
+            values = FerrofluidQuality.entries,
         )
     }
 }

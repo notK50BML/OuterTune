@@ -146,6 +146,7 @@ import com.dd3boh.outertune.constants.LiquidChromaticShockKey
 import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
 import com.dd3boh.outertune.constants.LiquidFerrofluidGpuKey
+import com.dd3boh.outertune.constants.LiquidFerrofluidQualityKey
 import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
@@ -1711,6 +1712,10 @@ fun PlayerBackground(
             val liquidShapeStyle by rememberEnumPreference(key = LiquidShapeStyleKey, defaultValue = LiquidShapeStyle.PETAL)
             val liquidChromaticShock by rememberPreference(LiquidChromaticShockKey, defaultValue = true)
             val liquidFerrofluidGpu by rememberPreference(LiquidFerrofluidGpuKey, defaultValue = false)
+            val liquidFerrofluidQuality by rememberEnumPreference(
+                key = LiquidFerrofluidQualityKey,
+                defaultValue = FerrofluidQuality.MEDIUM
+            )
             LiquidBackground(
                 colors = gradientColors,
                 // Stop the animation clock whenever it cannot be appreciated: paused playback or
@@ -1724,6 +1729,7 @@ fun PlayerBackground(
                 accentColor = liquidAccentColor,
                 chromaticShockEnabled = liquidChromaticShock,
                 useGpuFerrofluid = liquidFerrofluidGpu,
+                ferrofluidQuality = liquidFerrofluidQuality,
             )
         }
 
