@@ -17,9 +17,7 @@ import com.dd3boh.outertune.db.entities.SongPlayStats
 import com.dd3boh.outertune.extensions.reversed
 import com.dd3boh.outertune.utils.fixFilePath
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.runBlocking
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 
@@ -409,19 +407,26 @@ interface SongsDao {
     fun incrementPlayCount(songId: String, year: Int, month: Int)
 
     /**
-     * Increment by one the play count with today's year and month.
+     * Creates this song's row for the given month if it doesn't exist yet, leaving an existing one
+     * untouched. (song, year, month) is the primary key, so the conflict clause is what makes this
+     * a no-op for a month already counted.
      */
+    @Query("INSERT OR IGNORE INTO playCount (song, year, month, count) VALUES (:songId, :year, :month, 0)")
+    fun ensurePlayCountRow(songId: String, year: Int, month: Int)
+
+    /**
+     * Increment by one the play count with today's year and month.
+     *
+     * Two statements, no read: this previously ran a runBlocking around a Flow collection just to
+     * learn whether the row existed, which blocked the calling thread on Room emitting - for a
+     * value it only used to decide whether to insert. INSERT OR IGNORE answers that in SQL, which
+     * is both faster and atomic (the old read-then-insert could race two plays of the same song in
+     * the same month).
+     */
+    @Transaction
     fun incrementPlayCount(songId: String) {
         val time = LocalDateTime.now().atOffset(ZoneOffset.UTC)
-        var oldCount: Int
-        runBlocking {
-            oldCount = getPlayCountByMonth(songId, time.year, time.monthValue).first()
-        }
-
-        // add new
-        if (oldCount <= 0) {
-            insert(PlayCountEntity(songId, time.year, time.monthValue, 0))
-        }
+        ensurePlayCountRow(songId, time.year, time.monthValue)
         incrementPlayCount(songId, time.year, time.monthValue)
     }
 
