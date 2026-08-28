@@ -200,10 +200,22 @@ object MetrolistStreamResolver {
             ?.toInt()
             ?: DEFAULT_EXPIRY_SECONDS
 
+        // Recomposed rather than passed through. innertubex reports mimeType and codecs as separate
+        // fields, but this app's own format handling assumes YouTube's single combined header
+        // (audio/mp4; codecs="mp4a.40.2") and splits on "codecs=" to recover the codec. Handing it a
+        // bare "audio/mp4" makes that split return a one-element list, and indexing [1] threw
+        // IndexOutOfBoundsException on Room's disk-io thread while writing the FormatEntity.
+        val combinedMimeType = buildString {
+            append(mimeType ?: "audio/mp4")
+            if (!codecs.isNullOrBlank() && !contains("codecs=")) {
+                append("; codecs=\"").append(codecs).append('"')
+            }
+        }
+
         val format = PlayerResponse.StreamingData.Format(
             itag = itag,
             url = audioUrl,
-            mimeType = mimeType ?: "audio/mp4",
+            mimeType = combinedMimeType,
             bitrate = bitrate ?: 0,
             width = null,
             height = null,
