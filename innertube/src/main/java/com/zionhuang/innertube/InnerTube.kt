@@ -135,8 +135,13 @@ class InnerTube {
             append("X-Goog-Api-Format-Version", "1")
             append("X-YouTube-Client-Name", client.clientId /* Not a typo. The Client-Name header does contain the client id. */)
             append("X-YouTube-Client-Version", client.clientVersion)
+            // Both, not just X-Origin: MetrolistGroup/innertubex sends the real Origin header
+            // alongside it, and a request that names an origin in only one of the two places looks
+            // less like the browser/app it is claiming to be.
+            append("Origin", origin)
             append("X-Origin", origin)
             append("Referer", referer)
+            append("Accept-Language", "${locale.hl}-${locale.gl},${locale.hl};q=0.9")
             // Real clients send this alongside the same value already in the request body's
             // context.client.visitorData - Metrolist and SimpMusic (siblings sharing this API
             // client's lineage) both set it explicitly rather than relying on the body alone.

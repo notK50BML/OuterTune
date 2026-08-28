@@ -174,6 +174,15 @@ data class YouTubeClient(
             deviceModel = "RealityDevice17,1",
             loginSupported = false,
             useSignatureTimestamp = false,
+            // Attaches the WebView-minted PoToken to this client's player request. VISIONOS sends
+            // no cookie (loginSupported = false), and an anonymous player request is exactly what
+            // YouTube answers with "LOGIN_REQUIRED - Sign in to confirm you're not a bot" once a
+            // session or address has been flagged - observed here on every single track, which is
+            // what kept handing playback to WEB_REMIX and its ~60s URLs. A PoToken is the
+            // mechanism that challenge exists to be satisfied by, so send one rather than leaving
+            // the request bare. Costs nothing when the token is unavailable: the body field is
+            // only populated if one was actually minted.
+            useWebPoTokens = true,
             useMusicPlayerEndpoint = true,
         )
 
@@ -197,6 +206,7 @@ data class YouTubeClient(
             deviceModel = "RealityDevice14,1",
             loginSupported = false,
             useSignatureTimestamp = false,
+            useWebPoTokens = true, // see VISIONOS above
             useMusicPlayerEndpoint = true,
         )
 
