@@ -63,6 +63,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -93,6 +94,18 @@ class DownloadUtil @Inject constructor(
 
     private val connectivityManager = context.getSystemService<ConnectivityManager>()!!
     private val audioQuality by enumPreference(context, AudioQualityKey, AudioQuality.AUTO)
+
+    /**
+     * Mirrors of the two preferences the download click path needs, kept current by a collector in
+     * [init] so that path never has to read DataStore itself - see there for why that mattered.
+     * Defaults match the preference defaults, and only apply for the moment before the first
+     * emission arrives.
+     */
+    @Volatile
+    private var downloadOnWifiOnly = true
+
+    @Volatile
+    private var downloadThumbnails = false
     /** Same shape as MusicService's - see that one's doc for why the headers have to travel
      *  with the URL. */
     private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
@@ -254,7 +267,7 @@ class DownloadUtil @Inject constructor(
     }
 
     private fun maybeDownloadThumbnail(songId: String, thumbnailUrl: String?) {
-        if (thumbnailUrl == null || !context.dataStore.get(DownloadThumbnailsKey, false)) return
+        if (thumbnailUrl == null || !downloadThumbnails) return
         CoroutineScope(dlCoroutine).launch { downloadThumbnail(songId, thumbnailUrl) }
     }
 
@@ -335,7 +348,7 @@ class DownloadUtil @Inject constructor(
      * since the download is queued silently and only starts once Wi-Fi is available.
      */
     private fun notifyIfWaitingForWifi() {
-        if (context.dataStore.get(DownloadOnWifiOnlyKey, true) && connectivityManager.isActiveNetworkMetered) {
+        if (downloadOnWifiOnly && connectivityManager.isActiveNetworkMetered) {
             Toast.makeText(context, R.string.download_waiting_for_wifi, LENGTH_SHORT).show()
         }
     }
@@ -659,6 +672,21 @@ class DownloadUtil @Inject constructor(
         // TODO: make sure db is update when download is queued
         CoroutineScope(dlCoroutine).launch {
             rescanDownloads()
+        }
+
+        // Kept mirrored here so the download click path never reads DataStore directly. The
+        // dataStore.get(key, default) helper is runBlocking underneath, and download() is called
+        // straight from a UI click handler - so every tap on Download blocked the main thread on a
+        // preferences file read (twice: wifi-only and thumbnails), which is exactly the freeze that
+        // shows up when tapping download. Reading a volatile field instead costs nothing.
+        CoroutineScope(dlCoroutine).launch {
+            context.dataStore.data
+                .map { (it[DownloadOnWifiOnlyKey] != false) to (it[DownloadThumbnailsKey] == true) }
+                .distinctUntilChanged()
+                .collect { (wifiOnly, thumbnails) ->
+                    downloadOnWifiOnly = wifiOnly
+                    downloadThumbnails = thumbnails
+                }
         }
 
         downloadManager.addListener(
