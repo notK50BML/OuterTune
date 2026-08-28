@@ -23,6 +23,7 @@ import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.db.entities.ArtistEntity
+import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.playback.queues.YouTubeQueue
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.items.YouTubeListItem
@@ -51,7 +52,11 @@ fun YouTubeArtistMenu(
                             insert(
                                 ArtistEntity(
                                     id = artist.id,
-                                    name = artist.title,
+                                    // Stripped, like every other artist insert in the app: liking
+                                    // an artist YTM titles "X - Topic" otherwise creates a second
+                                    // entity under that raw name, right beside the "X" the song
+                                    // credits already use - one of the ways duplicates appeared.
+                                    name = artist.title.stripTopicSuffix(),
                                     channelId = artist.channelId,
                                     thumbnailUrl = artist.thumbnail,
                                 ).toggleLike()

@@ -89,6 +89,7 @@ import com.dd3boh.outertune.constants.ShowArtistVideosAsSongsKey
 import com.dd3boh.outertune.constants.SwipeToQueueKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.db.entities.ArtistEntity
+import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.extensions.toMediaItem
 import com.dd3boh.outertune.extensions.togglePlayPause
 import com.dd3boh.outertune.models.toMediaMetadata
@@ -700,7 +701,10 @@ fun ArtistScreen(
                                     insert(
                                         ArtistEntity(
                                             id = it.id,
-                                            name = it.title,
+                                            // See YouTubeArtistMenu's identical insert: an
+                                            // unstripped "X - Topic" here becomes a duplicate of
+                                            // the "X" the song credits already point at.
+                                            name = it.title.stripTopicSuffix(),
                                             channelId = it.channelId,
                                             thumbnailUrl = it.thumbnail,
                                         ).toggleLike()
