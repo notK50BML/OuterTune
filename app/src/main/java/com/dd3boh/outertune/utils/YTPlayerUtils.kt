@@ -232,7 +232,19 @@ object YTPlayerUtils {
         // its own doc for why metadata specifically has to come from the signed-in client. This is
         // the ordering from Core-v0.18.2, restored: the interim rewrites that reshuffled it were
         // chasing a failure whose real cause was VideoDetails rejecting VISIONOS's response.
-        val clientTryOrder = listOf(-2, -1) + STREAM_FALLBACK_CLIENTS.indices
+        //
+        // A WEB_REMIX stream this video just had rejected moves it to the *back* of the order
+        // rather than out of it. Dropping it entirely was wrong: WEB_REMIX is routinely the only
+        // client YouTube will serve this session at all - every anonymous one gets turned away with
+        // a bot challenge - so removing it from the retry guaranteed the retry failed, burning
+        // through five dead clients and then stopping playback outright. Last place gets the same
+        // "try a fallback first" benefit without betting the whole retry on a fallback working.
+        val webRemixDeprioritised = hasRecentWebRemixFailure(videoId)
+        val clientTryOrder = if (webRemixDeprioritised) {
+            listOf(-2) + STREAM_FALLBACK_CLIENTS.indices + listOf(-1)
+        } else {
+            listOf(-2, -1) + STREAM_FALLBACK_CLIENTS.indices
+        }
         for (clientIndex in clientTryOrder) {
             // reset for each client
             format = null
@@ -257,17 +269,24 @@ object YTPlayerUtils {
             }
 
             if (clientIndex == -1) {
-                // Skips attempting to *stream* from a client whose stream was just rejected for
-                // this exact video, so the retry MusicService gets after a source error reaches a
-                // fallback client instead of repeating the same failure. mainPlayerResponse is
-                // still fetched and used for metadata either way.
-                if (hasRecentWebRemixFailure(videoId)) {
-                    Log.w(TAG, "[$videoId] [${client.clientName}] skipped: stream recently rejected for this video")
-                    continue
+                if (webRemixDeprioritised) {
+                    // Reusing mainPlayerResponse here would hand back the very url that was just
+                    // rejected, so this asks again for a fresh one. That is the whole point of the
+                    // retry when the cause was a stale or wrongly-bound url rather than a video
+                    // this client genuinely cannot serve.
+                    Log.w(TAG, "[$videoId] [${client.clientName}] re-resolving: previous stream was rejected")
+                    val refreshed = YouTube.player(
+                        videoId, playlistId, client, signatureTimestamp, potFor(client).first
+                    )
+                    refreshed.exceptionOrNull()?.let {
+                        Log.e(TAG, "[$videoId] [${client.clientName}] re-resolve failed", it)
+                    }
+                    streamPlayerResponse = refreshed.getOrNull()
+                } else {
+                    // MAIN_CLIENT's response was already fetched above for metadata - reuse it
+                    // rather than asking again.
+                    streamPlayerResponse = mainPlayerResponse
                 }
-                // MAIN_CLIENT's response was already fetched above for metadata - reuse it rather
-                // than asking again.
-                streamPlayerResponse = mainPlayerResponse
             } else {
                 val playerResult =
                     YouTube.player(videoId, playlistId, client, signatureTimestamp, potFor(client).first)
