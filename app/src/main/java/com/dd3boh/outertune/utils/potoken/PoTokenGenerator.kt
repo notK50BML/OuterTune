@@ -19,13 +19,12 @@ class PoTokenGenerator {
     private val webPoTokenGenLock = Mutex()
 
     /**
-     * Streaming (session-bound) PoTokens, keyed by the identity each was minted against. There is
-     * deliberately more than one: a request that carries the account cookie has to present a token
-     * bound to dataSyncId, while an anonymous one needs visitorData, and a single resolve attempts
-     * both kinds of client. Keying instead of overwriting is what lets those coexist without
-     * tearing down and rebuilding the WebView on every client switch.
+     * Session-bound PoTokens - the kind the *player request* carries - keyed by the identity each
+     * was minted against. There is deliberately more than one: a single resolve attempts several
+     * clients, and keying instead of overwriting lets their identities coexist without tearing down
+     * and rebuilding the WebView on every client switch.
      */
-    private val webPoTokenStreamingPots = mutableMapOf<String, String>()
+    private val webPoTokenSessionPots = mutableMapOf<String, String>()
     private var webPoTokenGenerator: PoTokenWebView? = null
     private var webPoTokenInvalidated = false
 
@@ -66,7 +65,7 @@ class PoTokenGenerator {
     private suspend fun getWebClientPoToken(videoId: String, sessionId: String, forceRecreate: Boolean): PoTokenResult {
         if (POTOKEN_DEBUG) Log.d(TAG, "Web poToken requested: $videoId, $sessionId")
 
-        val (poTokenGenerator, streamingPot, hasBeenRecreated) =
+        val (poTokenGenerator, sessionPot, hasBeenRecreated) =
             webPoTokenGenLock.withLock {
                 val shouldRecreate = forceRecreate || webPoTokenGenerator == null ||
                         webPoTokenGenerator!!.isExpired || webPoTokenInvalidated
@@ -74,7 +73,7 @@ class PoTokenGenerator {
                 if (shouldRecreate) {
                     webPoTokenInvalidated = false
                     // Tokens minted by the outgoing generator do not outlive it.
-                    webPoTokenStreamingPots.clear()
+                    webPoTokenSessionPots.clear()
 
                     withContext(Dispatchers.Main) {
                         webPoTokenGenerator?.close()
@@ -84,19 +83,19 @@ class PoTokenGenerator {
                     webPoTokenGenerator = PoTokenWebView.getNewPoTokenGenerator(App.instance)
                 }
 
-                // The streaming poToken for an identity needs to be generated exactly once, and
-                // before any other (player) token is minted from this generator for it.
-                val streamingPotForSession = webPoTokenStreamingPots.getOrPut(sessionId) {
+                // The session-bound token has to be minted exactly once per identity, and before
+                // any video-bound token is minted from this generator.
+                val sessionPot = webPoTokenSessionPots.getOrPut(sessionId) {
                     webPoTokenGenerator!!.generatePoToken(sessionId)
                 }
 
-                Triple(webPoTokenGenerator!!, streamingPotForSession, shouldRecreate)
+                Triple(webPoTokenGenerator!!, sessionPot, shouldRecreate)
             }
 
-        val playerPot = try {
+        val videoBoundPot = try {
             // Not using synchronized here, since poTokenGenerator would be able to generate
             // multiple poTokens in parallel if needed. The only important thing is for exactly one
-            // streaming poToken (based on [sessionId]) to be generated before anything else.
+            // session poToken (based on [sessionId]) to be generated before anything else.
             poTokenGenerator.generatePoToken(videoId)
         } catch (throwable: Throwable) {
             if (hasBeenRecreated) {
@@ -112,8 +111,21 @@ class PoTokenGenerator {
             }
         }
 
-        if (POTOKEN_DEBUG) Log.d(TAG, "[$videoId] playerPot=$playerPot, streamingPot=$streamingPot")
+        if (POTOKEN_DEBUG) {
+            Log.d(TAG, "[$videoId] sessionPot=$sessionPot, videoBoundPot=$videoBoundPot")
+        }
 
-        return PoTokenResult(playerPot, streamingPot)
+        // Which binding goes where is not interchangeable, and getting it backwards fails in a way
+        // that looks like success. YouTube's current web enforcement is GVS-only: the token on the
+        // stream url must be bound to the *video*, and the player request's token to the *session*.
+        // A session-bound token on the stream url is, as far as googlevideo is concerned, no token
+        // at all - it serves the first buffer and then refuses with a 403 about a minute in, which
+        // is indistinguishable from an expired url right up to the point it isn't. Metrolist's
+        // PlaybackClientCatalog states the rule outright, including that a video-bound GVS token
+        // must not be reused for the player request.
+        return PoTokenResult(
+            playerRequestPoToken = sessionPot,
+            streamingDataPoToken = videoBoundPot,
+        )
     }
 }
