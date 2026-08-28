@@ -1,7 +1,7 @@
 From 2b78ffb9460bb3a325aac3640afe3addab3a366a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 001/187] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 001/189] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 00000000..81d7f34c
 From d72c2384c7c6f7f35d42263c61608427ab6f45d0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 002/187] Add patch notes
+Subject: [PATCH 002/189] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 00000000..28c797a0
 From 51b36712b098f7bb23ee326eaff6135dc906f148 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 003/187] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 003/189] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a89..27f97bf7 100644
 From 1c74c5b2931f3fc0dad4f2245970ee227a0e60bb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 004/187] Clarify build route in patch notes
+Subject: [PATCH 004/189] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f961..a43e5d3f 100644
 From a626d201015c8378281a0145b6b6c25f72689ed8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 005/187] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 005/189] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b930..7d500840 100644
 From 81da606bb34c6f3ade5689eabe82f5adaa31bf29 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 006/187] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 006/189] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac8..a848cde2 100644
 From c592f424bf604be631a04b888c85e5d5766afdae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 007/187] Report the liked-songs sync outcome instead of
+Subject: [PATCH 007/189] Report the liked-songs sync outcome instead of
  failing silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf7..580a4a9c 100644
 From cb974ee9b74a5bbc669c7aae5979f631ae1dd03f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 008/187] Add Discord rich presence
+Subject: [PATCH 008/189] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b851593..575e5dee 100755
 From 3d7e73f4384138acda4d489fb08f7fb6e7db13d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 009/187] Keep the play button the same size when lyrics are
+Subject: [PATCH 009/189] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 83537f7a..113ca4e6 100644
 From e6a7d077e51927b7453319c06ee817fdfb7e76bb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 010/187] Add a Liquid player background
+Subject: [PATCH 010/189] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2e..9ce0f192 100644
 From a8df0fb2f6fcb034aef019039828fabc8a11f086 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 011/187] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 011/189] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f192..0afd9445 100644
 From 28179f6627b818df372bd6c35569db3246c8e9a2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 012/187] Tell the user when the Discord login cannot read a
+Subject: [PATCH 012/189] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd9445..8388e17e 100644
 From b115a3c6151e6c5bc3152cbe9f59345571415d47 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 013/187] Fix Discord presence never appearing
+Subject: [PATCH 013/189] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fcc..d9eaf365 100644
 From 41471144150ac4044b414073562c0871b2260181 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 014/187] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 014/189] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17e..25f56c21 100644
 From a43ca5f6f22de995d939fa4b1d2c3f13090c68b1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 015/187] Make Discord connection failures visible, and stop
+Subject: [PATCH 015/189] Make Discord connection failures visible, and stop
  the infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f5..90bac793 100644
 From 07a2e5a50acc0cb0df11ce52e1d423d498f6881c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 016/187] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 016/189] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c0..92770533 100644
 From 2d4ea9713dbaed9cb91007acc414445ded1dc283 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 017/187] Stop reporting the previous track's position to
+Subject: [PATCH 017/189] Stop reporting the previous track's position to
  Discord
 
 player.currentPosition can still refer to the outgoing item while a track
@@ -5830,7 +5830,7 @@ index 92770533..1fd386f5 100644
 From 88282929bce159d868436d86dffe057c1df437aa Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 018/187] Point in-app links at this fork
+Subject: [PATCH 018/189] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5965,7 +5965,7 @@ index 3f52f92e..ea1302e1 160000
 From 29d64b528b3e4a3e67328e728f5e17e1e3262a2e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 019/187] Fix the Discord presence freezing on a track change
+Subject: [PATCH 019/189] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6206,7 +6206,7 @@ index 227e9628..e843bb7d 100644
 From 68c8cca11e2be2b292e7183fcbd1a1603c249359 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 020/187] Explain where to find the Discord token
+Subject: [PATCH 020/189] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6236,7 +6236,7 @@ index 035206ed..93e4b92b 100644
 From 8accab9fa4794ff43841d635f9bd4f584963a526 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 021/187] Ask Discord's module registry for the token
+Subject: [PATCH 021/189] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6423,7 +6423,7 @@ index 9244411c..4aea73d0 100644
 From 9bf9b0893dc14305c8d901845963ad95ec5f48f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 022/187] Add app icon customisation
+Subject: [PATCH 022/189] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7361,7 +7361,7 @@ index 93e4b92b..25673abe 100644
 From f08abb6af05a29207d5cb2d9757667b43cd32c79 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 023/187] Add a frosted glass player background
+Subject: [PATCH 023/189] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7742,7 +7742,7 @@ index 25673abe..d6c42efd 100644
 From 4cbfad6628b0c039d8fd30a78c629d4910f85987 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 024/187] Turn the home search into a field, and thin out the
+Subject: [PATCH 024/189] Turn the home search into a field, and thin out the
  top bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8030,7 +8030,7 @@ index d6c42efd..37748685 100644
 From f574fdee3230728c55951bf54a6e606aa2a2b410 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 025/187] Add extended charts to Stats
+Subject: [PATCH 025/189] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8326,7 +8326,7 @@ index 37748685..10418352 100644
 From b0ad66c0df8ac06e5c5de6c055cb083535eec7d2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 026/187] Import player layouts from the layout editor
+Subject: [PATCH 026/189] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9299,7 +9299,7 @@ index 10418352..20ed4dc7 100644
 From 841345b6180d61f07301b2c3ba0e126733599298 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 027/187] Add song recognition
+Subject: [PATCH 027/189] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11357,7 +11357,7 @@ index 00000000..1c59e9ca
 From 6797f6d5ec27e5897b93871760ca99f6a6e611e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 028/187] Fix the stats charts
+Subject: [PATCH 028/189] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11756,7 +11756,7 @@ index f7096084..a26b3be5 100644
 From da29d1cbc5d4036a37e6bb91ff02077473fa0d9d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 029/187] Let the stats charts rank by plays or by time
+Subject: [PATCH 029/189] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -12003,7 +12003,7 @@ index a26b3be5..3bc88bf8 100644
 From d3a960641e23d76ac319e370dfc18b7ced957dc9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 030/187] Position layout blocks by their centre, and allow
+Subject: [PATCH 030/189] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12077,7 +12077,7 @@ index ee3a36c6..641eb5f5 100644
 From eeefb485380081522d5da12aeb6baef2adee3885 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 031/187] Keep word timings when the lenient TTML parser is
+Subject: [PATCH 031/189] Keep word timings when the lenient TTML parser is
  used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
@@ -12418,7 +12418,7 @@ index 00000000..5d346a37
 From d670b7558539480528b314b4859afca3eb2c036d Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 032/187] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 032/189] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13236,7 +13236,7 @@ index 00000000..c9a8384c
 From b6f323393cfdbef8cf695cb8ac4b863f6f7e959b Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 033/187] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 033/189] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13290,7 +13290,7 @@ index 156d94ca..a909d4d5 100644
 From 96b442dafafaecb9fba1cdac15edc60d69a99871 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 034/187] Let the user choose which lyric provider is preferred
+Subject: [PATCH 034/189] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14114,7 +14114,7 @@ index 00000000..78961d0d
 From 620200df5ca480fece3378b5fb99557fc4f200cb Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 035/187] Document the lyrics work in the patch notes
+Subject: [PATCH 035/189] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14219,7 +14219,7 @@ index a43e5d3f..85917675 100644
 From c108f6292a3d9ce969dac5145f6e35aa2634f8dd Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 036/187] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 036/189] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14275,7 +14275,7 @@ index 78bb0691..f7636ae1 100644
 From c2a3403ccfe2ca060f6701a9ed439fb6b99567cd Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 037/187] Colour the queue handle to match the player
+Subject: [PATCH 037/189] Colour the queue handle to match the player
  background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
@@ -14506,7 +14506,7 @@ index 86483840..338957b0 100644
 From adc19d14959f24929fbbad52332af0a3d662618f Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:39:12 +0000
-Subject: [PATCH 038/187] Restore the artist queries the stats fix deleted
+Subject: [PATCH 038/189] Restore the artist queries the stats fix deleted
 
 :app:compileCoreReleaseKotlin failed with a page of unresolved references -
 artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
@@ -14623,7 +14623,7 @@ index 6a7034b5..5a8ef057 100644
 From bd7c3bab16f219e558a1994e77bca9f1616335be Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 039/187] Let the identify-a-song button be moved or hidden
+Subject: [PATCH 039/189] Let the identify-a-song button be moved or hidden
 
 Settings -> Appearance -> Display -> Identify a song button, with three
 choices: the top of the home screen, where it has always been; inside the
@@ -14832,7 +14832,7 @@ index f7636ae1..45596e34 100644
 From 1f6f4837a677e204308f94187988029836ca6cb1 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 040/187] Colour the lyrics from the player background, not the
+Subject: [PATCH 040/189] Colour the lyrics from the player background, not the
  theme
 
 Lyrics are drawn on top of whatever the player is showing behind them, but they
@@ -14928,7 +14928,7 @@ index 1700c659..18a7575b 100644
 From b36f6c84ece2a1ae14da6fc1b6d8dd7298105319 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:39:45 +0000
-Subject: [PATCH 041/187] Stop the word sweep from silently doing nothing
+Subject: [PATCH 041/189] Stop the word sweep from silently doing nothing
 
 Three ways it could look dead, all fixed, none of them confirmed as the one -
 this is written without a device to reproduce on.
@@ -15037,7 +15037,7 @@ index 18a7575b..5e9b45d5 100644
 From 693f01fe5dd390930482e5d86eba452853e86564 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 042/187] Prefer word-timed lyrics over whichever provider
+Subject: [PATCH 042/189] Prefer word-timed lyrics over whichever provider
  answers first
 
 The word-by-word sweep was never engaging, and the renderer was not the reason:
@@ -15245,7 +15245,7 @@ index ed96011c..cfd6e83e 100644
 From d24a708e01e488fa9e14d7b13c07cbc28a5c3e74 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 043/187] Start the chart queue at the song that was tapped
+Subject: [PATCH 043/189] Start the chart queue at the song that was tapped
 
 Tapping any song in Most played songs, or in the extended Top songs, played the
 number one track instead. Both built a queue from the whole chart and never said
@@ -15326,7 +15326,7 @@ index 48721417..3c284db3 100644
 From 4de8f80c2d0e1870f47ae70e9536123d78caba17 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:28:52 +0000
-Subject: [PATCH 044/187] Actually place the blocks an imported layout asks for
+Subject: [PATCH 044/189] Actually place the blocks an imported layout asks for
 
 The importer read every field in the file, validated it, showed it back in the
 settings summary, and then the player used two of them: whether a block is
@@ -15622,7 +15622,7 @@ index 00000000..aa2ecafb
 From 894c31dce0791c9fe9e6ba5ca6bf262507e15bf5 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:58:53 +0000
-Subject: [PATCH 045/187] Stop the layout dispatch from changing the built-in
+Subject: [PATCH 045/189] Stop the layout dispatch from changing the built-in
  player
 
 Two faults, both mine, both from making the action row a block.
@@ -15766,7 +15766,7 @@ index b793cb19..291d13ee 100644
 From e97e9ab2a637a886dc52d17072e6894f55fcc965 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 08:18:05 +0000
-Subject: [PATCH 046/187] Pause the Discord presence instead of removing it
+Subject: [PATCH 046/189] Pause the Discord presence instead of removing it
 
 Pausing a song cleared the activity outright, so the card vanished from your
 profile and came back on resume. It now stays up with its timestamps dropped.
@@ -15897,7 +15897,7 @@ index 45596e34..58bf36a5 100644
 From 1b7cc6cced515b5d9e12108352fd1bbb2c5e400a Mon Sep 17 00:00:00 2001
 From: K50 <k50@example.com>
 Date: Mon, 10 Aug 2026 10:58:07 +0000
-Subject: [PATCH 047/187] Make landscape player full-width and hide navigation
+Subject: [PATCH 047/189] Make landscape player full-width and hide navigation
  rail
 
 ---
@@ -16008,7 +16008,7 @@ index d3568b6e..45152b97 100644
 From c30ff9d2297c02c9f00a960cfa3d52fb67c26b49 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:05 +0800
-Subject: [PATCH 048/187] Confirm nuke actions, and add a queue-beside-current
+Subject: [PATCH 048/189] Confirm nuke actions, and add a queue-beside-current
  toggle
 
 The debug nuke buttons deleted from the database immediately on click
@@ -16296,7 +16296,7 @@ index 58bf36a5..afc1ef7a 100644
 From 597f6d12682005dd013b1ce26b4c0ba4ca1e86c3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:24 +0800
-Subject: [PATCH 049/187] Show the YTM view count in the song details dialog
+Subject: [PATCH 049/189] Show the YTM view count in the song details dialog
 
 PlayerResponse.VideoDetails.viewCount was already being fetched for
 playback but never surfaced anywhere. Thread it into the Details
@@ -16372,7 +16372,7 @@ index afc1ef7a..97586a2d 100644
 From ec0ed9c906a860a1041728ee7e00829377329c69 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:38 +0800
-Subject: [PATCH 050/187] Keep the Discord card layout when paused, add an
+Subject: [PATCH 050/189] Keep the Discord card layout when paused, add an
  auto-clear timeout
 
 Pausing dropped both startTime and endTime, which also removes the
@@ -16591,7 +16591,7 @@ index e4422458..0c909c81 100644
 From 190777078da2b87b37afde506ec4b7be0bece185 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:59 +0800
-Subject: [PATCH 051/187] Paginate remote history and stop swallowing fetch
+Subject: [PATCH 051/189] Paginate remote history and stop swallowing fetch
  failures
 
 musicHistory() only ever read the first page - there was no
@@ -16821,7 +16821,7 @@ index 5881062b..881ebce5 100644
 From 7e7c02744b09806f6ec93595a0080bbe69f4b7a7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:17:20 +0800
-Subject: [PATCH 052/187] Fix the top bar landing under the status bar, and the
+Subject: [PATCH 052/189] Fix the top bar landing under the status bar, and the
  tablet rail covering the search bar
 
 Two separate inset bugs in SearchBarContainer, both stemming from the
@@ -16945,7 +16945,7 @@ index b33a6b87..d34f96c1 100644
 From e42e082eb4597778460388021ab139300ceba842 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:06 +0800
-Subject: [PATCH 053/187] Center the landscape player and give it a full-width
+Subject: [PATCH 053/189] Center the landscape player and give it a full-width
  queue handle
 
 Three related fixes in LandscapePlayer:
@@ -17091,7 +17091,7 @@ index 45152b97..c27e51f0 100644
 From 5fbeffca2f023b83af7a95adee9f871c58b8d1af Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 14:56:23 +0800
-Subject: [PATCH 054/187] Fix the black-screen player backgrounds, and give
+Subject: [PATCH 054/189] Fix the black-screen player backgrounds, and give
  FOLLOW_THEME a renderer
 
 Two bugs behind "the screens are all black":
@@ -17283,7 +17283,7 @@ index c27e51f0..095a91ff 100644
 From 4c7cc178a87eb5cca431fd75e42611cfc9a8e806 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:26 +0800
-Subject: [PATCH 055/187] Add a 12-band parametric equalizer
+Subject: [PATCH 055/189] Add a 12-band parametric equalizer
 
 A cascaded-biquad IIR filter bank (Robert Bristow-Johnson cookbook
 coefficients, pure Kotlin - no native library, negligible size cost),
@@ -18339,7 +18339,7 @@ index 0c909c81..4e867ee5 100644
 From e797442862bf0157d8845f1ae9cd6aabca2a2596 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:10 +0800
-Subject: [PATCH 056/187] Rework the equalizer into a full-screen panel, and
+Subject: [PATCH 056/189] Rework the equalizer into a full-screen panel, and
  add balance/more presets
 
 The EQ sheet's state used to live inside the transient 3-dot menu
@@ -19715,7 +19715,7 @@ index 4e867ee5..71024c63 100644
 From aaed54ebc59db357c1ea252b1f53430346490925 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:32 +0800
-Subject: [PATCH 057/187] Center the navigation rail and remove its logo header
+Subject: [PATCH 057/189] Center the navigation rail and remove its logo header
 
 The rail's own logo header anchored the item group to the top, and
 Modifier.verticalScroll() on the rail meant weight()-based centering
@@ -19811,7 +19811,7 @@ index 26330b96..703cac30 100644
 From ae4c0e852a9633d0745b66b4e581ea7c40877943 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:44 +0800
-Subject: [PATCH 058/187] Stop the Discord presence from still ticking forward
+Subject: [PATCH 058/189] Stop the Discord presence from still ticking forward
  while paused
 
 Kept timestamps set while paused so the progress-bar row stayed put
@@ -19865,7 +19865,7 @@ index 290d34fc..a6cf5a94 100644
 From 279ff971a7d849aca3d7233d902e043f06ceff94 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:40:07 +0800
-Subject: [PATCH 059/187] Show each song's own listen time/play count on the
+Subject: [PATCH 059/189] Show each song's own listen time/play count on the
  stats screen
 
 The stats screen already had a chip toggle to rank by time listened
@@ -20135,7 +20135,7 @@ index 71024c63..93e4840d 100644
 From 65fcf7ea20396f7b8c63ea664b80cc57dab0081e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:43:17 +0800
-Subject: [PATCH 060/187] Add shuffle to the equalizer's mini transport
+Subject: [PATCH 060/189] Add shuffle to the equalizer's mini transport
 
 Missed from the prev/play-pause/next row - shuffle belongs in the
 same "basic playback controls" set.
@@ -20182,7 +20182,7 @@ index 62aabc08..4e5e33a0 100644
 From 2487abfbac42e4d7c4e459e66e3fd860670d754e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:53:25 +0800
-Subject: [PATCH 061/187] Fix the app freezing when opening a song's details
+Subject: [PATCH 061/189] Fix the app freezing when opening a song's details
  dialog
 
 The view-count fetch added in the details dialog ran straight from
@@ -20237,7 +20237,7 @@ index 64586602..18f0ecda 100644
 From 3a95c144fc2c5e1a9eff3b76c29bf8c647bf2998 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:20 +0800
-Subject: [PATCH 062/187] Add a compressor to the equalizer's audio pipeline
+Subject: [PATCH 062/189] Add a compressor to the equalizer's audio pipeline
 
 A simple feed-forward dynamics compressor (threshold/ratio/attack/release/makeup gain), applied after the band cascade and gated by the same master enabled switch.
 ---
@@ -20526,7 +20526,7 @@ index e24b0e5b..1ecfc377 100644
 From 0e7f72bfe3795078c27cace7a1cf64c7d6a6b1e9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:36 +0800
-Subject: [PATCH 063/187] Rework the equalizer panel: contrast color
+Subject: [PATCH 063/189] Rework the equalizer panel: contrast color
  everywhere, rotary dials, compressor UI, matching transport
 
 - Add a rotary dial control and use it for per-band frequency/gain in the band editor, plus quick bass/treble dials and an optional balance dial with a left/right readout.
@@ -21410,7 +21410,7 @@ index 560f2441..7f41aec8 100644
 From 7beb579012a2eae2708d7b25b14aa489b6f1b991 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:24:27 +0800
-Subject: [PATCH 064/187] Remove the Discord presence entirely while paused
+Subject: [PATCH 064/189] Remove the Discord presence entirely while paused
  instead of showing a paused card
 
 Superseded the earlier omit-timestamps fix: a paused/stopped player now calls stopActivity() immediately (same as no media loaded), rather than sending a 'Paused' card with a frozen layout. Removes the now-meaningless auto-clear-after-pause timer and setting along with it, since there's nothing left for it to clear.
@@ -21648,7 +21648,7 @@ index a6cf5a94..49e2e224 100644
 From 714a32d607075a8469f179cf2f836df0a165e75e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:28:35 +0800
-Subject: [PATCH 065/187] Remove the remote history tab
+Subject: [PATCH 065/189] Remove the remote history tab
 
 Local history is the only option now that the remote tab is gone, so collapse the History screen to render it directly instead of behind a source selector. Drops the now-dead remote-history fetch/continuation/pagination code from the view model, the innertube client, and the HistoryPage model.
 ---
@@ -22233,7 +22233,7 @@ index 881ebce5..00000000
 From 87e35ff9b182ab3763601459b1b7419c1600aaff Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:29:22 +0800
-Subject: [PATCH 066/187] Refine the equalizer's built-in presets to feel
+Subject: [PATCH 066/189] Refine the equalizer's built-in presets to feel
  closer to Poweramp's
 
 Loudness becomes a proper Fletcher-Munson smile curve, plus two more Poweramp-signature presets (Small Speakers, Full Bass & Treble).
@@ -22268,7 +22268,7 @@ index 1ecfc377..29258783 100644
 From 6599f83388470002e8e0728781efb89eba4efac7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:41:37 +0800
-Subject: [PATCH 067/187] Simplify the EQ's slider styling, dock its transport
+Subject: [PATCH 067/189] Simplify the EQ's slider styling, dock its transport
  like the queue, fix landscape lyrics overlap
 
 - Drop the per-feature slim/default slider-style picker in the equalizer - it's slim everywhere now, no setting to maintain.
@@ -22445,7 +22445,7 @@ index a9cbaa3a..780b4e56 100644
 From b60a0e6b355accc4f98a643c2d3b09b9855fa57c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:56:54 +0800
-Subject: [PATCH 068/187] Tweak equalizer gain values in 0.1 dB steps
+Subject: [PATCH 068/189] Tweak equalizer gain values in 0.1 dB steps
 
 Quantizes every gain-related dial/slider (band gain, bass/treble, compressor threshold/makeup) to 0.1 dB on change, and formats their labels to one decimal instead of rounding to a whole dB.
 ---
@@ -22562,7 +22562,7 @@ index 780b4e56..ae31fef8 100644
 From 18d546dfefdf5e7810c42b5b2a4d8276a16713e9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:00:19 +0800
-Subject: [PATCH 069/187] Let equalizer presets remember custom edits as named
+Subject: [PATCH 069/189] Let equalizer presets remember custom edits as named
  profiles
 
 Adds EqualizerProfile: every preset name doubles as a profile, with a factory curve (from the existing PRESETS gains) and, once Saved, a persisted custom override. The preset row becomes a profile selector (FilterChip, built-ins undeletable, custom ones removable), with Save / Save as new / Revert to saved / Revert to default actions for whichever profile is active - so tweaking a band while a preset is selected has somewhere to persist instead of being overwritten the next time that preset is tapped.
@@ -22809,7 +22809,7 @@ index ae31fef8..9d8066a5 100644
 From 8315eeaa51e7f393a48ef9060db0d8dfa97e6c01 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:18:05 +0800
-Subject: [PATCH 070/187] Make the Liquid player background audio-reactive
+Subject: [PATCH 070/189] Make the Liquid player background audio-reactive
 
 Adds VisualizerAnalyzer: cheap, no-FFT bass/mid/treble/transient extraction fed from the equalizer's existing audio tap (EqualizerAudioProcessor), published as a throttled ~30Hz StateFlow rather than per-sample. Gated by a visualizerEnabled flag so the extra sample decoding only happens while something's actually consuming it - the EQ's bypass path otherwise stays a cheap bulk buffer copy.
 
@@ -23285,7 +23285,7 @@ index f84b6af1..b0bd9449 100644
 From 66d35fb885448c681b133156cc48a0dbbab63752 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:19:25 +0800
-Subject: [PATCH 071/187] Fix missing WindowInsets.statusBars import breaking
+Subject: [PATCH 071/189] Fix missing WindowInsets.statusBars import breaking
  the build
 
 ---
@@ -23311,7 +23311,7 @@ index 13ce963c..cd838c70 100644
 From 2793e592ec3b4673452c452c0475bcfb96784fa6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:25:36 +0800
-Subject: [PATCH 072/187] Fix EQ crackle on boosted presets: automatic headroom
+Subject: [PATCH 072/189] Fix EQ crackle on boosted presets: automatic headroom
  pre-gain plus soft clipping
 
 Several adjacent bands boosted at once (Bass Boost, Loudness, Small Speakers) overlap enough that the summed signal clears 0dBFS well before any single band's own gain would suggest, and the previous hard coerceIn(-1f, 1f) turned that into audible crackle on transients.
@@ -23417,7 +23417,7 @@ index f2de06f8..cbf450a1 100644
 From 6a47502a196ae9ce4bdbcbce291286b6f59be96f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:41:57 +0800
-Subject: [PATCH 073/187] Bring back remote history
+Subject: [PATCH 073/189] Bring back remote history
 
 Reconsidered after removing it - the underlying fetch was already fixed (pagination, safe defaults instead of force-unwraps, failures surfaced via snackbar) before it got pulled entirely, so restoring the already-working version rather than rebuilding from scratch. Local/remote tab selector, HistoryPage/HistorySource, and YouTube.musicHistory()/musicHistoryContinuation() are all back exactly as they were right before removal.
 ---
@@ -24002,7 +24002,7 @@ index 00000000..881ebce5
 From 2786af5ffcd8635543297aea2ba9fe0672da5f56 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:43:44 +0800
-Subject: [PATCH 074/187] Remove orphaned strings left over from earlier
+Subject: [PATCH 074/189] Remove orphaned strings left over from earlier
  removals
 
 equalizer_slider_style, discord_rpc_clear_after_pause(_desc), never, and rpc_paused have had zero code references since the slider-style setting was dropped and the Discord paused-card behavior was removed - the resource shrinker already excludes them from the built APK, this is just source hygiene.
@@ -24052,7 +24052,7 @@ index 93e4840d..a2296ddb 100644
 From f07e6187272acfd83d65d222fb9fdd4c347efddd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:58:57 +0800
-Subject: [PATCH 075/187] Fix the rotary dials not responding, and the liquid
+Subject: [PATCH 075/189] Fix the rotary dials not responding, and the liquid
  visualiser rendering grey
 
 - RotaryDial's drag handler closed over the value parameter directly, but detectDragGestures runs in a coroutine that survives across separate physical drags - so every drag after the first computed its delta against a stale value from whenever that coroutine started, not the value the previous drag actually landed on. Fixed with rememberUpdatedState on both the value and the callback.
@@ -24337,7 +24337,7 @@ index cd838c70..57eac864 100644
 From c57830b50d84ec32f8f3db825c85a4f0c4010dc3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:08:48 +0800
-Subject: [PATCH 076/187] Add dial/slider toggle, Poweramp-style flat sliders,
+Subject: [PATCH 076/189] Add dial/slider toggle, Poweramp-style flat sliders,
  and value color gradient to the equalizer
 
 - New 'Use dials instead of sliders' setting: band gain, the band editor's frequency/gain, and bass/treble all switch between the rotary dials and a slider depending on it, alongside the existing separate balance dial/slider toggle.
@@ -25095,7 +25095,7 @@ index 08e5f268..4ca41321 100644
 From 0438f47404c40461a2874c038c477326e7b1bf02 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:52:17 +0800
-Subject: [PATCH 077/187] Fix RotaryDial compile error: missing getValue import
+Subject: [PATCH 077/189] Fix RotaryDial compile error: missing getValue import
  for by rememberUpdatedState
 
 State<T> needs the androidx.compose.runtime.getValue extension in scope to be
@@ -25125,7 +25125,7 @@ index e89d3b26..f2e16144 100644
 From 481f3f8604c782be8e783e715a95586bdf8a08bf Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 06:48:30 +0800
-Subject: [PATCH 078/187] Fix EqualizerPanel compile error: opt in to
+Subject: [PATCH 078/189] Fix EqualizerPanel compile error: opt in to
  ExperimentalMaterial3Api on PowerampSlider/LabeledSlider
 
 Both call the Slider(track=, thumb=) overload directly but weren't annotated,
@@ -25162,7 +25162,7 @@ index 4ca41321..e37fcebe 100644
 From f70c492d54722b9e0f17898333177193ac5b248a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 14:46:35 +0800
-Subject: [PATCH 079/187] EQ visual overhaul + lyrics sync fix + miniplayer
+Subject: [PATCH 079/189] EQ visual overhaul + lyrics sync fix + miniplayer
  dismiss fix
 
 - Lyrics: findCurrentLineIndex no longer wraps a transient negative
@@ -26092,7 +26092,7 @@ index 57eac864..430b1aa6 100644
 From c1ecd79807f76e86a6a98d38f28cb5fecac21ed5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:38:42 +0800
-Subject: [PATCH 080/187] EQ tone controls rework, Liquid background v3,
+Subject: [PATCH 080/189] EQ tone controls rework, Liquid background v3,
  per-style text contrast
 
 - Bass/Treble dials now move every band at/below 250Hz or at/above
@@ -26881,7 +26881,7 @@ index b0bd9449..5d63ed4a 100644
 From a1ce2f01f37516900d6651c1ddfc58a23f946283 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:33:54 +0800
-Subject: [PATCH 081/187] EQ color scheme rework, bigger handle, fix Liquid
+Subject: [PATCH 081/189] EQ color scheme rework, bigger handle, fix Liquid
  alpha-flash
 
 - Sliders: track fill is always a fixed green, unfilled portion a
@@ -27425,7 +27425,7 @@ index 8a31b1e2..d9f55c41 100644
 From f63f416be751120896d32d4e0a371213aafa2208 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:03:07 +0800
-Subject: [PATCH 082/187] Layout editor schema v4: render individual
+Subject: [PATCH 082/189] Layout editor schema v4: render individual
  transport/action buttons
 
 - PlayerLayout.kt: bumped to SCHEMA_VERSION 4, fixed two bugs in the
@@ -28208,7 +28208,7 @@ index aa2ecafb..abbf50eb 100644
 From 72993ef1d551d6bb24ddbc7a9e92891d40a09dbe Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:29:09 +0800
-Subject: [PATCH 083/187] Fix the actual EQ handle, restore Liquid's flower
+Subject: [PATCH 083/189] Fix the actual EQ handle, restore Liquid's flower
  shape smaller and blurred
 
 - The player-screen handle that opens the EQ (EqualizerHandle in
@@ -28536,7 +28536,7 @@ index 1b5f123b..a430aaf5 100644
 From 1e0af9de0d1e6f92803f5ccbd246875c3a810cdd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:13:28 +0800
-Subject: [PATCH 084/187] Add a Liquid shape setting: petal (spiky) or spheres
+Subject: [PATCH 084/189] Add a Liquid shape setting: petal (spiky) or spheres
  (soft)
 
 Rather than keep flip-flopping between the spiky "flower" and the soft
@@ -28946,7 +28946,7 @@ index 5d63ed4a..4f69ef2e 100644
 From 625d30c4587ba3679997a553b33d0ac3efbbbf85 Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Thu, 13 Aug 2026 17:37:53 +0900
-Subject: [PATCH 085/187] fix: prevent concurrent home pagination requests
+Subject: [PATCH 085/189] fix: prevent concurrent home pagination requests
 
 Set the loading flag only when no home pagination request is already running. Perform the check and update as a single operation so that simultaneous load-more requests start only one network call.
 
@@ -28998,7 +28998,7 @@ index 14d91ba2..22af1f35 100644
 From eab6876fd9ed8945d0e90fb0318e522a99a706db Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Thu, 13 Aug 2026 19:24:49 +0900
-Subject: [PATCH 086/187] fix: discard stale home load-more results
+Subject: [PATCH 086/189] fix: discard stale home load-more results
 
 A home load-more request can finish after a refresh or category change and append its sections to the newly displayed content.
 
@@ -29059,7 +29059,7 @@ index 22af1f35..5fb5e467 100644
 From f15fb9a2e23dda9c04a59058b602336eb959dade Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Fri, 14 Aug 2026 11:23:00 +0900
-Subject: [PATCH 087/187] fix: prevent crash when clearing the final queue
+Subject: [PATCH 087/189] fix: prevent crash when clearing the final queue
 
 ExoPlayer can report a prospective media item index when its timeline is empty.
 The lyrics target update treated that index as a valid item after the final queue was cleared and tried to read a nonexistent window.
@@ -29107,7 +29107,7 @@ index 801f1567..1a72918c 100644
 From cdf7aabebe05c1e900d30681069e5829dcdf3391 Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Sat, 15 Aug 2026 13:43:21 +0900
-Subject: [PATCH 088/187] fix: add cipher configs for current YouTube players
+Subject: [PATCH 088/189] fix: add cipher configs for current YouTube players
 
 Refresh the bundled player_configs.json from ZemerTeam/zemer-cipher.
 
@@ -29336,7 +29336,7 @@ index 80bcd9d7..f7e95cf6 100644
 From 52deb3a09c1a0e03d15ee17124eb8f4452737d7e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:36:42 +0800
-Subject: [PATCH 089/187] Fix garbled unsynced lyrics, make Liquid's idle
+Subject: [PATCH 089/189] Fix garbled unsynced lyrics, make Liquid's idle
  motion actually visible
 
 Unsynced lyrics were joined with joinToString { "${it.first}\n" } -
@@ -29441,7 +29441,7 @@ index ffec9482..4ab79472 100644
 From e96207dcc9603acc6fa37b81651bd49f9a29c8b1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:43:44 +0800
-Subject: [PATCH 090/187] Match the petal's colour to the playback controls,
+Subject: [PATCH 090/189] Match the petal's colour to the playback controls,
  soften its edges
 
 The petal was filled from the album-art extraction (falling back to
@@ -29530,7 +29530,7 @@ index 4ab79472..94974ded 100644
 From 468599ce694f328d6e737bec45a4cad0d4b6b60b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:59:46 +0800
-Subject: [PATCH 091/187] Make Liquid's text contrast follow the backdrop, not
+Subject: [PATCH 091/189] Make Liquid's text contrast follow the backdrop, not
  the cover art
 
 rememberPlayerOnBackgroundColor measured the raw album cover's
@@ -29620,7 +29620,7 @@ index 91703cd9..8847cc88 100644
 From 264bea8a150563be2e9fc7f11352fd67864021cc Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:59:58 +0800
-Subject: [PATCH 092/187] Fix two crashes that could abort playback/downloads
+Subject: [PATCH 092/189] Fix two crashes that could abort playback/downloads
  mid-stream
 
 format.contentLength!! in both MusicService's playback data source and
@@ -29713,7 +29713,7 @@ index 1a72918c..31e070b6 100644
 From fd90e1280934ef177a1e6c115ecc80caa186af3a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:01:56 +0800
-Subject: [PATCH 093/187] Size the artist header to the image's own shape, not
+Subject: [PATCH 093/189] Size the artist header to the image's own shape, not
  a forced 4:3 crop
 
 Artist images come in two real shapes: older channels have a square
@@ -29847,7 +29847,7 @@ index a848cde2..1511ea7e 100644
 From f61b13a9716cbf4d8a32b0f2b69da6df3489cc55 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:10:40 +0800
-Subject: [PATCH 094/187] Keep Bass/Balance/Treble as dials regardless of the
+Subject: [PATCH 094/189] Keep Bass/Balance/Treble as dials regardless of the
  slider toggle
 
 ToneControlsRow followed the panel-wide "use dials instead of
@@ -30012,7 +30012,7 @@ index ff04effa..a506385a 100644
 From 7611353e14486aa9d65679cfd136f47c0a2e137d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:21:03 +0800
-Subject: [PATCH 095/187] Fix Follow-theme's grey/black fallback, and a
+Subject: [PATCH 095/189] Fix Follow-theme's grey/black fallback, and a
  settings/behaviour mismatch
 
 extractGradientColors() routed through Score.score(), which is tuned
@@ -30101,7 +30101,7 @@ index 588b965e..8de5a1ec 100644
 From 7b7d513706663e13f4a03462c3e378f00342bc6e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:26:55 +0800
-Subject: [PATCH 096/187] Restructure the EQ panel into rounded cards, fix
+Subject: [PATCH 096/189] Restructure the EQ panel into rounded cards, fix
  contrast gaps
 
 Split the flat, divider-separated column into four rounded cards -
@@ -30717,7 +30717,7 @@ index a506385a..42e8eee2 100644
 From bee6a32d7f99b198186e56a7666873e42e027a96 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:35:51 +0800
-Subject: [PATCH 097/187] Fix Liquid's Theme-surface contrast being a no-op,
+Subject: [PATCH 097/189] Fix Liquid's Theme-surface contrast being a no-op,
  and its flat-black look
 
 rememberPlayerOnBackgroundColor's SURFACE branch returned themeFallback
@@ -30830,7 +30830,7 @@ index b17bbf17..41d1df99 100644
 From fcee136e31d0df59411f7e564f9ae652bddd1a81 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:32:14 +0800
-Subject: [PATCH 098/187] Recover unparseable lyrics on display, refetch once
+Subject: [PATCH 098/189] Recover unparseable lyrics on display, refetch once
  if they still fail
 
 PlayerConnection.resolveLyrics (the actual live display path) called
@@ -30940,7 +30940,7 @@ index 31f4381a..16bcf669 100644
 From d06847f9ffd5c48c81bbac2cf15809a7cb33fb28 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:45:03 +0800
-Subject: [PATCH 099/187] Detect letterboxing baked into artist photos, not
+Subject: [PATCH 099/189] Detect letterboxing baked into artist photos, not
  just file shape
 
 The previous fix (sizing the header to the URL's own aspect ratio)
@@ -31218,7 +31218,7 @@ index 1511ea7e..907e9c32 100644
 From c0705dd7fd4edefc7cff695a41cbb2c6fe9f806f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:45:14 +0800
-Subject: [PATCH 100/187] Give Liquid's Theme-surface backdrop and blobs
+Subject: [PATCH 100/189] Give Liquid's Theme-surface backdrop and blobs
  distinct colour roles
 
 Theme surface's backdrop was a tinted elevated surface, which read as
@@ -31392,7 +31392,7 @@ index 41d1df99..0aa39aac 100644
 From 56805490d6d47176b1ef334114b63aeeb5ee3a2f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 10:41:18 +0800
-Subject: [PATCH 101/187] Two more defenses against error 2004 (bad HTTP status
+Subject: [PATCH 101/189] Two more defenses against error 2004 (bad HTTP status
  from googlevideo)
 
 Beyond the cipher-config refresh already in place:
@@ -31653,7 +31653,7 @@ index fd6be5d8..ee3fd0a0 100644
 From 11fea8ffed80e1fe147d898636e4ffe00079b2bd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 10:44:36 +0800
-Subject: [PATCH 102/187] Show seek back/forward in a custom layout even with
+Subject: [PATCH 102/189] Show seek back/forward in a custom layout even with
  the setting off
 
 A custom layout that explicitly asks for BlockId.SEEK_BACKWARD/
@@ -31758,7 +31758,7 @@ index 0aa39aac..1f6e26cd 100644
 From 63828ed1a4fe31c81988c99ee3f94336dbbf4c7a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:16:41 +0800
-Subject: [PATCH 103/187] Give the artist header more height, especially for
+Subject: [PATCH 103/189] Give the artist header more height, especially for
  wide/landscape photos
 
 Sizing the header box to the image's exact aspect ratio was correct in
@@ -31820,7 +31820,7 @@ index 39848100..b72ecf8e 100644
 From b1f02bc77e119bd77f3f26d0d878e9b5c17970ef Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:29:19 +0800
-Subject: [PATCH 104/187] Fix artist header image floating away from its title
+Subject: [PATCH 104/189] Fix artist header image floating away from its title
  text
 
 The previous commit made the header box deliberately taller than the
@@ -31872,7 +31872,7 @@ index b72ecf8e..e46407a3 100644
 From c58af37794f615772cfdeb31dcbb41bd20a26c4c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:34:44 +0800
-Subject: [PATCH 105/187] Fix Theme-surface backdrop blending into the player's
+Subject: [PATCH 105/189] Fix Theme-surface backdrop blending into the player's
  own controls
 
 The last fix made the backdrop plain colorScheme.primary to stop it
@@ -31952,7 +31952,7 @@ index 1f6e26cd..aba77ec9 100644
 From 9a73dd7e10a3b24a9088a310aa7c0899edaa2ff8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:38:43 +0800
-Subject: [PATCH 106/187] Add a Ferrofluid Liquid shape: a dark, glossy spiked
+Subject: [PATCH 106/189] Add a Ferrofluid Liquid shape: a dark, glossy spiked
  crown
 
 A third LiquidShapeStyle alongside Petal and Spheres, styled after
@@ -32174,7 +32174,7 @@ index 6241781d..c95aea58 100644
 From efea823e40b26a18cbc09bb84ae38ce6cb09b893 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:58:18 +0800
-Subject: [PATCH 107/187] Add opt-in AGSL GPU shaders: chromatic shock ripple
+Subject: [PATCH 107/189] Add opt-in AGSL GPU shaders: chromatic shock ripple
  and raymarched Ferrofluid
 
 The lightweight Canvas Liquid renderer can't do real refraction or a lit
@@ -32792,7 +32792,7 @@ index c95aea58..75ea979d 100644
 From 934a9612933682373c49a0e02b077bbcf8b2cccb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 12:18:29 +0800
-Subject: [PATCH 108/187] Fix compile error: missing getValue/setValue imports
+Subject: [PATCH 108/189] Fix compile error: missing getValue/setValue imports
  in the new shader files
 
 CI failed on LiquidChromaticShock.kt and LiquidFerrofluidGpu.kt: their
@@ -32842,7 +32842,7 @@ index 5154d04d..d45bf04f 100644
 From 6688e44da03f6976067974216a7e2ea98b376633 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 12:38:39 +0800
-Subject: [PATCH 109/187] Fix repeat button drifting from the right edge when
+Subject: [PATCH 109/189] Fix repeat button drifting from the right edge when
  seek buttons toggle
 
 Each control-row icon (shuffle, skip, seek, repeat) sat in its own
@@ -32917,7 +32917,7 @@ index 9f0de090..43047355 100644
 From 4e807b14f57cbf573adecd0ae5b23a4d8b6f7dc4 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 13:13:40 +0800
-Subject: [PATCH 110/187] Lighten the GPU ferrofluid shader, and fix the Canvas
+Subject: [PATCH 110/189] Lighten the GPU ferrofluid shader, and fix the Canvas
  one's star-shaped crown
 
 GPU ferrofluid was too heavy for lower-end GPUs and still not visibly
@@ -33112,7 +33112,7 @@ index d45bf04f..7a67a1b6 100644
 From 5471b826b4ebfdc678da1edb824f634446e50263 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Mon, 17 Aug 2026 21:50:53 +0800
-Subject: [PATCH 111/187] Fix lyrics rendering silently dying partway through a
+Subject: [PATCH 111/189] Fix lyrics rendering silently dying partway through a
  song
 
 Two separate LaunchedEffects, both keyed on lyricsModel, own two different
@@ -33211,7 +33211,7 @@ index 2affc5a4..9233fa89 100644
 From 0221e13074998d0279565ce8531264aac243a4c4 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 09:14:22 +0000
-Subject: [PATCH 112/187] Stop battery saver from overriding word-by-word
+Subject: [PATCH 112/189] Stop battery saver from overriding word-by-word
  lyrics sync
 
 LyricKaraokeEnable is the person's own choice to turn word-by-word sync on;
@@ -33255,7 +33255,7 @@ index 9233fa89..0923c58c 100644
 From b4067fbfb2efca4ce73782689b4f0879fe946749 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 10:59:31 +0000
-Subject: [PATCH 113/187] Rotate the YouTube session identity as part of the
+Subject: [PATCH 113/189] Rotate the YouTube session identity as part of the
  existing source-error retry
 
 The retry in onPlayerError (from the earlier 'Two more defenses against
@@ -33469,7 +33469,7 @@ index cf7d973c..e6d55e74 100644
 From 32f5122eff7fb01003b693b6b884133fb4cf63c2 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 12:26:34 +0000
-Subject: [PATCH 114/187] Keep every stream request under googlevideo's
+Subject: [PATCH 114/189] Keep every stream request under googlevideo's
  connection-duration cutoff
 
 Confirmed independently of any auth/URL-freshness issue: temporarily
@@ -33548,7 +33548,7 @@ index 8723ca66..cf101cc5 100644
 From 3865665083d1bb3e9720e07c53bb8d74d7bed871 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 13:11:06 +0000
-Subject: [PATCH 115/187] Proactively refresh the streaming PoToken before it
+Subject: [PATCH 115/189] Proactively refresh the streaming PoToken before it
  actually goes stale
 
 Confirmed the CDN-connection-duration theory wrong: tightening chunk size
@@ -33661,7 +33661,7 @@ index 460ca782..aac787ba 100644
 From de4a8b4d5999660204c1b00f575ccfa1d9f429d9 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 12:19:59 +0000
-Subject: [PATCH 116/187] Stop the 'Failed to parse proxy url' toast on every
+Subject: [PATCH 116/189] Stop the 'Failed to parse proxy url' toast on every
  launch with no proxy set
 
 toInetSocketAddress() destructured split(":") with no length check, so a
@@ -33742,7 +33742,7 @@ index 148dda53..dc67714d 100644
 From e5b86a3c73281ce9b6d1b311ba5db9f7a4b24932 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 23:27:54 +0000
-Subject: [PATCH 117/187] Use a PoToken-bearing client for playback streams
+Subject: [PATCH 117/189] Use a PoToken-bearing client for playback streams
 
 Every PoToken fix in this series so far - the session rotation, the 40s
 cache cap, invalidate()-before-refresh - operated on a token that was
@@ -33911,7 +33911,7 @@ index 00000000..5b91bee1
 From d8adc64bf15a31112b8edd7045c9bf0f32dd2b0d Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 23:28:07 +0000
-Subject: [PATCH 118/187] Validate streams with a ranged GET past the first
+Subject: [PATCH 118/189] Validate streams with a ranged GET past the first
  chunk
 
 validateStatus() issued a HEAD. googlevideo answers HEAD with 200 on
@@ -34095,7 +34095,7 @@ index 5b91bee1..00000000
 From f6674d826b1e2e9ac4a6fc4239ec6c70c56f8958 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:34:05 +0800
-Subject: [PATCH 119/187] Send Referer/Origin on stream requests, precache the
+Subject: [PATCH 119/189] Send Referer/Origin on stream requests, precache the
  next song's URL
 
 Every stream request only ever carried a User-Agent. googlevideo.com has
@@ -34508,7 +34508,7 @@ index 9a2be236..cbe76e1c 100644
 From bc26633879116fca119008a14cb5b8a9fc96cfd9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:42:23 +0800
-Subject: [PATCH 120/187] Send X-Goog-Visitor-Id header on every innertube API
+Subject: [PATCH 120/189] Send X-Goog-Visitor-Id header on every innertube API
  request
 
 visitorData was already in every request body's context.client field, but
@@ -34544,7 +34544,7 @@ index 49051c7d..d2dd5d7f 100644
 From 38a07293441396c4ff354901785a3a10fe12c85a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:49:35 +0800
-Subject: [PATCH 121/187] Replay real playback-start telemetry: cpn +
+Subject: [PATCH 121/189] Replay real playback-start telemetry: cpn +
  watchtime/atr pings
 
 OuterTune's only playback ping fired at a song's END for local history
@@ -34881,7 +34881,7 @@ index ecdc8cde..54814a01 100644
 From 451a6e8b49d26c69edb92ad980fbae38514a930d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 20 Aug 2026 21:20:47 +0800
-Subject: [PATCH 122/187] Swiping the mini player down stops playback and
+Subject: [PATCH 122/189] Swiping the mini player down stops playback and
  dismisses it
 
 The mini player and the full player share one dismiss gesture (drag past
@@ -34969,7 +34969,7 @@ index 43047355..fecb5c13 100644
 From 07c3ff1b485abe735ea4470de2def4c1fde2f46a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 20 Aug 2026 21:28:07 +0800
-Subject: [PATCH 123/187] Bump NewPipeExtractor v0.26.3 -> v0.26.5
+Subject: [PATCH 123/189] Bump NewPipeExtractor v0.26.3 -> v0.26.5
 
 Two releases (and ~2 months) behind. Neither release's changelog calls
 out a targeted signature/throttling-parameter fix, so this isn't a
@@ -35002,7 +35002,7 @@ index f12ff0c0..fe38293f 100644
 From 16f95c74a4838544206a179b7943f7361d45e067 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:19:02 +0800
-Subject: [PATCH 124/187] Update stale client versions/UAs, fix client flags,
+Subject: [PATCH 124/189] Update stale client versions/UAs, fix client flags,
  tune HTTP client
 
 Several clients were up to a year out of date: WEB/WEB_REMIX/WEB_CREATOR/
@@ -35282,7 +35282,7 @@ index c2317a86..0b26b34d 100644
 From 7f8c042f9d01cf8797ed5bc078c90b9d4f6aaf86 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:24:59 +0800
-Subject: [PATCH 125/187] Skip WEB_REMIX for 5 min after its stream is rejected
+Subject: [PATCH 125/189] Skip WEB_REMIX for 5 min after its stream is rejected
  for a video
 
 MusicService's retry-on-source-error re-resolves from scratch, which
@@ -35424,7 +35424,7 @@ index fd2b0ffb..c494707b 100644
 From 03e25f0abb1b44cf0bbf0a06e3669a2154f94530 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:35:27 +0800
-Subject: [PATCH 126/187] Exclude the top system bar from the free-placement
+Subject: [PATCH 126/189] Exclude the top system bar from the free-placement
  player area
 
 Free-placement blocks (PlayerLayoutBlock's FreeBlock) measure
@@ -35489,7 +35489,7 @@ index fecb5c13..064c350f 100644
 From 36d74c2e537608db9f8707d17e87bb9671adcad0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:46:10 +0800
-Subject: [PATCH 127/187] Download full-res thumbnails independently, fall back
+Subject: [PATCH 127/189] Download full-res thumbnails independently, fall back
  on load failure
 
 Adds SongEntity.thumbnailPath (DB v21->22, additive nullable column) for
@@ -35971,7 +35971,7 @@ index 153e3e2e..c6f197d3 100644
 From d625310148632c714852b2cdb7570cb2f857de61 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:51:31 +0800
-Subject: [PATCH 128/187] Enrich an existing song's artists/genres instead of
+Subject: [PATCH 128/189] Enrich an existing song's artists/genres instead of
  discarding them
 
 insert(mediaMetadata) returned immediately whenever the SongEntity insert
@@ -36035,7 +36035,7 @@ index ff43ce9d..62be8457 100644
 From 82629577abc5af685e4e5bb067edcde8eb46c2a8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:57:01 +0800
-Subject: [PATCH 129/187] Add an Equalizer settings sub-page
+Subject: [PATCH 129/189] Add an Equalizer settings sub-page
 
 The dials-vs-sliders, contrast-color, and color-by-value toggles - and
 profile save/load/delete - previously only existed inside the in-player
@@ -36392,7 +36392,7 @@ index c6f197d3..dd8790fb 100644
 From 9432413a08abda047ed9b4197e94fb76e6b592ef Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:09:23 +0800
-Subject: [PATCH 130/187] Split combined "X & Y" credits and add featured
+Subject: [PATCH 130/189] Split combined "X & Y" credits and add featured
  artists, once verified
 
 Two cases where a song's credited artists were less complete than YTM
@@ -36620,7 +36620,7 @@ index 00000000..8347a5ee
 From 97208a52cd7079955f4c3c12f609d65be8e479fc Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:17:23 +0800
-Subject: [PATCH 131/187] Put the real equalizer controls in Settings, not just
+Subject: [PATCH 131/189] Put the real equalizer controls in Settings, not just
  its meta-settings
 
 The Equalizer settings page previously only exposed the dials/contrast-
@@ -36974,7 +36974,7 @@ index dd8790fb..406577bd 100644
 From 9c344b74223718c978358fd21cc85f841980b9cb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:27:30 +0800
-Subject: [PATCH 132/187] Make AutoEQ search actually search and apply real
+Subject: [PATCH 132/189] Make AutoEQ search actually search and apply real
  curves
 
 Replaces the AutoEQ placeholder with a working implementation: searches
@@ -37360,7 +37360,7 @@ index 406577bd..6e0a6c56 100644
 From 233587938733ac4a682f95675217e9a8284c21da Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:34:38 +0800
-Subject: [PATCH 133/187] Mint PoTokens against visitorData, never dataSyncId,
+Subject: [PATCH 133/189] Mint PoTokens against visitorData, never dataSyncId,
  even when logged in
 
 Every PoToken this app minted while signed in was tied to dataSyncId -
@@ -37483,7 +37483,7 @@ index c494707b..79dea755 100644
 From 303b09707ae8ba1844444c2a81e75e544a38b401 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:39:20 +0800
-Subject: [PATCH 134/187] Fix compile error: Coil3's Chain.proceed() takes no
+Subject: [PATCH 134/189] Fix compile error: Coil3's Chain.proceed() takes no
  arguments
 
 Interceptor.Chain.proceed() is a no-arg suspend fun in Coil3 - to
@@ -37529,7 +37529,7 @@ index a65839a5..379e3e8b 100644
 From 54d0de9476629ac569da945f577cfbb4bdfc132d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 10:10:08 +0800
-Subject: [PATCH 135/187] Fix compressor settings reverting to default when
+Subject: [PATCH 135/189] Fix compressor settings reverting to default when
  picking a built-in EQ preset
 
 Selecting any built-in preset (Rock, Pop, etc.) applied
@@ -37595,7 +37595,7 @@ index 2fd56a59..dcd18882 100644
 From ccf2076c9fae668061510413bab14dee343546c5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 10:14:36 +0800
-Subject: [PATCH 136/187] Self-heal stale player cipher configs and expired
+Subject: [PATCH 136/189] Self-heal stale player cipher configs and expired
  download stream URLs
 
 Two related fixes for the same underlying failure mode (a resolved
@@ -37929,7 +37929,7 @@ index 8b076d2c..6eea6c21 100644
 From 1a03a4cd4393df3809e51c5f355441380decfa57 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:33:01 +0800
-Subject: [PATCH 137/187] Fix downloaded songs still streaming when downloaded
+Subject: [PATCH 137/189] Fix downloaded songs still streaming when downloaded
  mid-queue
 
 Playback resolution preferred the current queue's own cached MediaMetadata
@@ -37972,7 +37972,7 @@ index b7499dbf..0d573b4b 100644
 From fceaf1c61de3e614d339f443682762fffd4cfe3b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:40:29 +0800
-Subject: [PATCH 138/187] Fix downloaded thumbnails rendering as a black player
+Subject: [PATCH 138/189] Fix downloaded thumbnails rendering as a black player
  background
 
 CoilBitmapLoader.fetch() only handled paths under /storage/, and even then
@@ -38064,7 +38064,7 @@ index 4c438e21..c075215c 100644
 From 91fe2294ad4a55fa6e1bd7a0f38d1fef938f05e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:43:42 +0800
-Subject: [PATCH 139/187] Move thumbnail-download setting to Library & Content,
+Subject: [PATCH 139/189] Move thumbnail-download setting to Library & Content,
  add bulk download action
 
 The "download thumbnails automatically" toggle lived in Storage settings next
@@ -38285,7 +38285,7 @@ index 6e0a6c56..5d1e6625 100644
 From 8db6b82bb470773037b281c10e81da827c12142e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 18:57:58 +0800
-Subject: [PATCH 140/187] Strip/dedupe " - Topic" artist credits, clean up ones
+Subject: [PATCH 140/189] Strip/dedupe " - Topic" artist credits, clean up ones
  already added
 
 ArtistCreditEnricher resolves featured/split-credit artist names via YT
@@ -38529,7 +38529,7 @@ index 8347a5ee..e1a105e7 100644
 From 35ab06b140fc8b4f0061e428f0e84ba6e2e53a36 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 19:14:24 +0800
-Subject: [PATCH 141/187] Fix compile errors in the stale-queue localPath
+Subject: [PATCH 141/189] Fix compile errors in the stale-queue localPath
  re-check
 
 database.song(id) returns the Song relation wrapper, not SongEntity, so the
@@ -38565,7 +38565,7 @@ index 0d573b4b..5573a2a0 100644
 From c86bbe7e3f7cee3870cbc5c1f11777133edda972 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:17 +0800
-Subject: [PATCH 142/187] Never replace a song's own artist credit, only add
+Subject: [PATCH 142/189] Never replace a song's own artist credit, only add
  confirmed extras behind it
 
 ArtistCreditEnricher used to delete a song's combined "X & Y" credit and
@@ -38711,7 +38711,7 @@ index e1a105e7..5a00d96a 100644
 From ab9635bb610f213d8343efa284acb7a407cbb055 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:29 +0800
-Subject: [PATCH 143/187] Fix two player crash risks around album/artist
+Subject: [PATCH 143/189] Fix two player crash risks around album/artist
  navigation
 
 - Player.kt's album-title tap read mediaMetadata!!.album!!.id inside the
@@ -38769,7 +38769,7 @@ index 064c350f..e12f4518 100644
 From 22ad94e73582f2b8284c88b1882727ad7289808a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:40 +0800
-Subject: [PATCH 144/187] Size the artist header photo's padding to whether
+Subject: [PATCH 144/189] Size the artist header photo's padding to whether
  it's letterboxed
 
 The header's extra headroom (HEADER_HEIGHT_BOOST) was applied by the same
@@ -38856,7 +38856,7 @@ index e46407a3..e9008404 100644
 From b7edc3c361b2d91330e58db4077d7e5b7099b49a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:51 +0800
-Subject: [PATCH 145/187] Add crossfade with a configurable fade-out duration
+Subject: [PATCH 145/189] Add crossfade with a configurable fade-out duration
 
 There's one ExoPlayer, not two, so this isn't a true overlapping crossfade -
 Crossfader instead fades the current track's volume out over the last
@@ -39158,7 +39158,7 @@ index 5d1e6625..89b921c9 100644
 From 2798e4ed71ba5774d748cb67dddb09ddf0f8456b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:07 +0800
-Subject: [PATCH 146/187] Never navigate to an artist with no real page
+Subject: [PATCH 146/189] Never navigate to an artist with no real page
 
 Every "view artist" action (the player's title-area link, its overflow
 menu, song/album menus, both the plain and thumbnailed artist picker
@@ -39386,7 +39386,7 @@ index e12f4518..878b48a1 100644
 From dc4e11c35207725370cd5fa4db4b11f6d8a0a8e3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:18 +0800
-Subject: [PATCH 147/187] Show an artist's videos as a song list when they have
+Subject: [PATCH 147/189] Show an artist's videos as a song list when they have
  no songs of their own
 
 An artist page's "Videos" carousel and its "Songs" list both come from the
@@ -39567,7 +39567,7 @@ index 89b921c9..6f7af844 100644
 From 5de846af1942a948e7c7a633cb352b94e419e35a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:30 +0800
-Subject: [PATCH 148/187] Watch for a dead Discord RPC connection and
+Subject: [PATCH 148/189] Watch for a dead Discord RPC connection and
  force-reconnect it
 
 Kizzy's isRpcRunning()/isWebSocketConnected() only reflect whether connect()
@@ -39690,7 +39690,7 @@ index 632e7ffa..0e9acbaf 100644
 From c0ff0174478ba106c0bbf9404214e47154e62119 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:28:52 +0800
-Subject: [PATCH 149/187] Remove a combined artist credit once confirmed it
+Subject: [PATCH 149/189] Remove a combined artist credit once confirmed it
  doesn't exist, not just add around it
 
 The previous version never touched a song's own "X & Y" combined credit,
@@ -39836,7 +39836,7 @@ index 5a00d96a..ae9cc745 100644
 From 363230bdbb7b1618886104805e78d0f17f8daa0f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:42:12 +0800
-Subject: [PATCH 150/187] Fix compile error: write the 21->22 migration by hand
+Subject: [PATCH 150/189] Fix compile error: write the 21->22 migration by hand
  instead of relying on a missing schema snapshot
 
 CI failed with:
@@ -39912,7 +39912,7 @@ index a5528b74..2217a4d2 100644
 From 17e9f88c00b2abaf89a4667b284c50d0f58d0561 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 13:30:20 +0800
-Subject: [PATCH 151/187] Add automatic backup, so song stats survive an
+Subject: [PATCH 151/189] Add automatic backup, so song stats survive an
  uninstall without a manual step
 
 Backup and Restore already covers every setting and the whole database
@@ -40432,7 +40432,7 @@ index 6f7af844..08b9a051 100644
 From beb60ad104f181e9bb32fd188f497b37625b05a2 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 19:55:04 +0800
-Subject: [PATCH 152/187] Auto-create the automatic backup folder, add interval
+Subject: [PATCH 152/189] Auto-create the automatic backup folder, add interval
  units, and selective categories
 
 Replaces the SAF folder picker with Downloads/OuterTune Backup, created on
@@ -41161,7 +41161,7 @@ index 08b9a051..a433e677 100644
 From 262fb3b4b62f17a8bb4c0d5a45a3a5686f76b98f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 20:25:17 +0800
-Subject: [PATCH 153/187] Fix a crash-loop on launch: recreate the database on
+Subject: [PATCH 153/189] Fix a crash-loop on launch: recreate the database on
  a downgrade instead of crashing
 
 Logcat: "IllegalStateException: A migration from 24 to 23 was required but
@@ -41212,7 +41212,7 @@ index 2217a4d2..93349a54 100644
 From b2d95a3e27422742d000ce9bc4ca42d51070a3e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:39:33 +0800
-Subject: [PATCH 154/187] Recover the dropped v24 Topic-suffix work, so
+Subject: [PATCH 154/189] Recover the dropped v24 Topic-suffix work, so
  version-24 backups are compatible again
 
 A prior session's last 5 commits on this branch never actually made it into
@@ -41661,7 +41661,7 @@ index ae9cc745..bd395928 100644
 From a168f94231e073c8642461f4878349e4e736cca8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:42:17 +0800
-Subject: [PATCH 155/187] Merge a restored backup into the live database
+Subject: [PATCH 155/189] Merge a restored backup into the live database
  instead of replacing it outright
 
 Restore used to copy the backup's database file straight over the live one
@@ -41781,7 +41781,7 @@ index 85798d5f..398fc873 100644
 From c30c27e2e44accf5f603e8eb2205d890d2ad2e1c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:55:19 +0800
-Subject: [PATCH 156/187] Fix compile error: writableDatabase.path is nullable
+Subject: [PATCH 156/189] Fix compile error: writableDatabase.path is nullable
 
 CI: "Argument type mismatch: actual type is 'String?', but 'String' was
 expected" at mergeDatabaseFile's liveDbPath argument. SupportSQLiteDatabase.path
@@ -41815,7 +41815,7 @@ index 398fc873..2fd26f26 100644
 From d01c1443ff74666fb0233c6b5e8ff46511453cca Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 22:23:51 +0800
-Subject: [PATCH 157/187] Simplify backup: drop the merge-restore and selective
+Subject: [PATCH 157/189] Simplify backup: drop the merge-restore and selective
  categories
 
 Both were real, standing risk: merge-restore ATTACHed the backup database
@@ -42282,7 +42282,7 @@ index a433e677..5b1d684a 100644
 From 75c1cc80bf058055d9ec58a885f1aaa6785c718d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 22:24:01 +0800
-Subject: [PATCH 158/187] Write a safety backup before every irreversible
+Subject: [PATCH 158/189] Write a safety backup before every irreversible
  delete action
 
 Before any of the six "Nuke" database tools (Experimental > Developer
@@ -42442,7 +42442,7 @@ index 27e98a6f..7852145f 100644
 From c0a3db336bb57af5408dc3e528903d64ba47e04b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:32:59 +0800
-Subject: [PATCH 159/187] Move automatic backup off the playback path onto
+Subject: [PATCH 159/189] Move automatic backup off the playback path onto
  WorkManager
 
 writeAutoBackup (a WAL checkpoint plus a full copy of the live database)
@@ -42720,7 +42720,7 @@ index fe38293f..d1def5d3 100644
 From 9e5c06ab287824c8c22e1428da591d4a1f803b68 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:33:16 +0800
-Subject: [PATCH 160/187] Fix a torn-snapshot race in writeBackup, and merge
+Subject: [PATCH 160/189] Fix a torn-snapshot race in writeBackup, and merge
  duplicate artists more completely
 
 writeBackup ran PRAGMA wal_checkpoint(FULL) and then copied song.db as a
@@ -43010,7 +43010,7 @@ index e95f81f8..d5ef61cd 100644
 From 4f6d1f54b689e08bc707f28a16610ac336bc29e6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:33:29 +0800
-Subject: [PATCH 161/187] Add a way to move already-downloaded songs to a new
+Subject: [PATCH 161/189] Add a way to move already-downloaded songs to a new
  folder
 
 Changing the external download folder in Settings has never actually
@@ -43307,7 +43307,7 @@ index 5b1d684a..227736fc 100644
 From ea7e30d3563a47d504db1385bf6e4c4b0e1474bb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 10:37:07 +0800
-Subject: [PATCH 162/187] Bound download stream requests the same way playback
+Subject: [PATCH 162/189] Bound download stream requests the same way playback
  already is
 
 DownloadUtil's data source never got the connection-duration/PoToken-
@@ -43427,7 +43427,7 @@ index c534e7db..4bcd5c3f 100644
 From 987b648a9aafa8e6afa34105118e935ccb8ba048 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 10:44:16 +0800
-Subject: [PATCH 163/187] Tighten the proactive stream-URL refresh window to
+Subject: [PATCH 163/189] Tighten the proactive stream-URL refresh window to
  20s
 
 Field reports of playback dying with a source error around ~30s in,
@@ -43487,7 +43487,7 @@ index de63d528..9b11b540 100644
 From 07e2784015f77820baf6aff54970247ba1e7cadd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:07:55 +0800
-Subject: [PATCH 164/187] Make the userdebug variant debuggable, so adb -d
+Subject: [PATCH 164/189] Make the userdebug variant debuggable, so adb -d
  downgrades work on it
 
 Android 14+ refuses adb install -d (downgrade) unless the *currently
@@ -43535,7 +43535,7 @@ index ea1302e1..3f52f92e 160000
 From 0780a40dd9f0d29fc176e6b3d1ab691d76402d0b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:11:24 +0800
-Subject: [PATCH 165/187] Fix backup creation: run the WAL checkpoint before
+Subject: [PATCH 165/189] Fix backup creation: run the WAL checkpoint before
  the transaction, not inside it
 
 9fe9e9f9 wrapped both the checkpoint and the file copy in
@@ -43636,7 +43636,7 @@ index d5ef61cd..bc077914 100644
 From 0d85cb14ed7e6aaaf3e1e2c803ffb0d3e998f4e8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:43:08 +0800
-Subject: [PATCH 166/187] Fix a race in move-downloads that could re-point
+Subject: [PATCH 166/189] Fix a race in move-downloads that could re-point
  localMgr at the old folder
 
 The move handler called onDownloadPathChange(newUri) - rememberPreference's
@@ -43704,7 +43704,7 @@ index e3bbfdf9..5ad6d3af 100644
 From 0081dde0ed8a86d152b88ca62e64fcdf38db0715 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:53:50 +0800
-Subject: [PATCH 167/187] Fix downloads truncating to ~15s: drop the
+Subject: [PATCH 167/189] Fix downloads truncating to ~15s: drop the
  CHUNK_LENGTH subrange bound
 
 Verified against the actual vendored media3 source
@@ -43827,7 +43827,7 @@ index 4bcd5c3f..c6fbef59 100644
 From 10461905c939108a580bfc7366d6f95594b05830 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 15:11:53 +0800
-Subject: [PATCH 168/187] Fix Clear all downloads leaving DownloadManager's
+Subject: [PATCH 168/189] Fix Clear all downloads leaving DownloadManager's
  index stale
 
 It called downloadCache.removeResource(key) directly for every cache
@@ -43909,7 +43909,7 @@ index 5ad6d3af..c8bc66a5 100644
 From 75155cf46e571a8874bb56f9a955ca3965cdc55b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 15:15:50 +0800
-Subject: [PATCH 169/187] Add the VISIONOS client as a stream fallback, first
+Subject: [PATCH 169/189] Add the VISIONOS client as a stream fallback, first
  in line
 
 WEB_REMIX (MAIN_CLIENT) remains the primary client for metadata and the
@@ -43998,7 +43998,7 @@ index 0b26b34d..988918ca 100644
 From f00af2a4acfa0f594f55e12a4bfafbc271f982d5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 16:26:55 +0800
-Subject: [PATCH 170/187] Try VISIONOS before WEB_REMIX for streams, not just
+Subject: [PATCH 170/189] Try VISIONOS before WEB_REMIX for streams, not just
  as a fallback
 
 Keeps WEB_REMIX as MAIN_CLIENT (metadata, login-gated features - both
@@ -44056,7 +44056,7 @@ index e156413f..50a20c4d 100644
 From 9ce227162bb6703531a4c73124a219c93717666a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 16:40:28 +0800
-Subject: [PATCH 171/187] Raise the source-error retry cap from 1 to 5,
+Subject: [PATCH 171/189] Raise the source-error retry cap from 1 to 5,
  matching yuuichi-s/OuterTune
 
 Each retry only gets one more pass through the whole client try-order -
@@ -44174,7 +44174,7 @@ index 9b11b540..b54ef909 100644
 From 4720eeeef53ebc2da3a2161c6e84534f8bb181e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 19:40:08 +0800
-Subject: [PATCH 172/187] Fix VISIONOS being silently dropped from the stream
+Subject: [PATCH 172/189] Fix VISIONOS being silently dropped from the stream
  chain
 
 The VISIONOS client was added and put first, but playback still died ~60s in
@@ -44416,7 +44416,7 @@ index 3eb45f13..63250ae1 100644
 From 7ac0c314433e92f0c3e79f8bfb4deefd1bc70f07 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 19:40:21 +0800
-Subject: [PATCH 173/187] Refresh an existing artist's details on sync instead
+Subject: [PATCH 173/189] Refresh an existing artist's details on sync instead
  of only its like flag
 
 The subscribed-artists sync inserted a full ArtistEntity for an artist it had
@@ -44480,7 +44480,7 @@ index 580a4a9c..41dd9ab6 100644
 From 71fbec63ccae1c6b1ac7f53c62c7ee3bdd669422 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 20:48:55 +0800
-Subject: [PATCH 174/187] Fix ERROR_CODE_TIMEOUT (1003) I introduced in stream
+Subject: [PATCH 174/189] Fix ERROR_CODE_TIMEOUT (1003) I introduced in stream
  validation
 
 Stream resolution runs inside a runBlocking that ExoPlayer's
@@ -44612,7 +44612,7 @@ index 18c2d48f..c239cb49 100644
 From faabd682436dc82e1563da5cb56cebe5c001da4f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 21:41:31 +0800
-Subject: [PATCH 175/187] Never stream from WEB_REMIX; metadata only. Back off
+Subject: [PATCH 175/189] Never stream from WEB_REMIX; metadata only. Back off
  when Google throttles.
 
 Two problems, one cause: request volume.
@@ -44882,7 +44882,7 @@ index c239cb49..a6c92fbd 100644
 From f22d0e992345a252575363b8387aa2d0346412bb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 21:42:34 +0800
-Subject: [PATCH 176/187] Keep WEB_REMIX reachable for streams, but only as the
+Subject: [PATCH 176/189] Keep WEB_REMIX reachable for streams, but only as the
  true last resort
 
 Refines the previous commit, which cut WEB_REMIX out of the stream chain
@@ -44990,7 +44990,7 @@ index a6c92fbd..4c209986 100644
 From eb58b72555e8aa2d47c465195a02bbe6de0c8c69 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:15:01 +0800
-Subject: [PATCH 177/187] Restore the Core-v0.18.2 stream architecture, and
+Subject: [PATCH 177/189] Restore the Core-v0.18.2 stream architecture, and
  drop the throttle cooldown
 
 Two things, both undoing my own damage from earlier in this session.
@@ -45198,7 +45198,7 @@ index 4c209986..0549cf74 100644
 From 3ce46e71c30d86f36e77bfbbe37c9c2d815aa5cd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:18:52 +0800
-Subject: [PATCH 178/187] Restore two more v0.18.2 behaviours, and log every
+Subject: [PATCH 178/189] Restore two more v0.18.2 behaviours, and log every
  client rejection at warn
 
 Comparing the restored chain against Core-v0.18.2 line by line turned up two
@@ -45355,7 +45355,7 @@ index 0549cf74..b2b9d843 100644
 From 9ea6b990df42256a0a7114b96124bd1fcb02a0b7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:23:36 +0800
-Subject: [PATCH 179/187] Write the artist's current name back to the library
+Subject: [PATCH 179/189] Write the artist's current name back to the library
  when its page is opened
 
 Tapping an artist credited as "X" on a song could land on a page headed "Y".
@@ -45475,7 +45475,7 @@ index c044d3f2..f3d1acad 100644
 From b2ada2903a61e5980e4a9fc6643ef8cdcfe8daae Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 14:25:16 +0800
-Subject: [PATCH 180/187] Send each client's player request to the host that
+Subject: [PATCH 180/189] Send each client's player request to the host that
  client actually lives on
 
 Ported from MetrolistGroup/innertubex, whose extraction is the one known to
@@ -45699,7 +45699,7 @@ index fa8ef2f5..7b01eb19 100644
 From ef33ea626d414f4ef848d0c74b0bd60844a17ace Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:16:15 +0800
-Subject: [PATCH 181/187] Send a PoToken with VISIONOS's player request, so it
+Subject: [PATCH 181/189] Send a PoToken with VISIONOS's player request, so it
  stops being bot-blocked
 
 Captured over adb, on every track without exception:
@@ -45785,7 +45785,7 @@ index 7b01eb19..cb191dd1 100644
 From 2c0290e80cf3e445cb2caa7b07ca7f6c50ec43d9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:25:20 +0800
-Subject: [PATCH 182/187] Strip "- Topic" on the two like-button artist inserts
+Subject: [PATCH 182/189] Strip "- Topic" on the two like-button artist inserts
  that still didn't
 
 Liking an artist from its own page or from the YouTube artist menu inserted
@@ -45859,7 +45859,7 @@ index fe342573..669e68aa 100644
 From 464d0a6e953005198c4b517487d590de07d6435b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:25:20 +0800
-Subject: [PATCH 183/187] Rework the GPU ferrofluid: skip empty space, theme
+Subject: [PATCH 183/189] Rework the GPU ferrofluid: skip empty space, theme
  its colours, make it move
 
 Three things, aimed at it being worth running on a desktop-class GPU (a WSA
@@ -46342,7 +46342,7 @@ index 946e19b4..465d23d7 100644
 From 65bae4a919110a3bfa7aa4e706970e8706d6fb27 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:35:48 +0800
-Subject: [PATCH 184/187] Move the setup wizard's backup/skip buttons above the
+Subject: [PATCH 184/189] Move the setup wizard's backup/skip buttons above the
  feature tour
 
 They sat after the logo, welcome text, four feature rows and a tip, so
@@ -46451,7 +46451,7 @@ index b1faa3f2..7c00e092 100644
 From 68d022c19ca72c14689aa7f82530f55b5b16e324 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:35:49 +0800
-Subject: [PATCH 185/187] Stop the download button blocking the UI thread on a
+Subject: [PATCH 185/189] Stop the download button blocking the UI thread on a
  preferences read
 
 Tapping Download froze the app. download() calls notifyIfWaitingForWifi() and
@@ -46551,7 +46551,7 @@ index c6fbef59..cb5897f1 100644
 From c2dd32cad9c9e78de66858d561432cb37beaa6ad Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:35:50 +0800
-Subject: [PATCH 186/187] Drop the blocking read from incrementPlayCount
+Subject: [PATCH 186/189] Drop the blocking read from incrementPlayCount
 
 It wrapped a Flow collection in runBlocking purely to learn whether this
 month's row existed, blocking the calling thread on Room emitting for a value
@@ -46623,7 +46623,7 @@ index 13fc3f10..7ae3697c 100644
 From a0ffcfbae23445c172d3d2302b524a95c1ab42d0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:36:04 +0800
-Subject: [PATCH 187/187] Stop the artist thumbnail refresh re-triggering
+Subject: [PATCH 187/189] Stop the artist thumbnail refresh re-triggering
  itself and hammering YouTube
 
 The refresh loop collected the artist list and, for every artist missing a
@@ -46739,6 +46739,344 @@ index fd937b47..1e9cf090 100644
  }
  
  @HiltViewModel
+-- 
+2.45.1.windows.1
+
+
+From 784098a5a277bf1f98af68f4e44564c9aac8dec8 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 28 Aug 2026 16:04:30 +0800
+Subject: [PATCH 188/189] Bind PoTokens to the identity of the client that
+ presents them
+
+A PoToken is only honoured when it is bound to the same identity as the
+request carrying it: dataSyncId for a client that sends the account
+cookie, visitorData for one that goes out anonymous. An earlier commit
+here changed this to mint against visitorData unconditionally, which
+left WEB_REMIX - which does send the cookie, and names dataSyncId as
+onBehalfOfUser - presenting a token for an identity it wasn't using.
+
+Nothing rejects that outright, which is why it survived so long: the
+player request still returns OK with a stream url, and the 256KB range
+probe used to validate that url still passes, so resolution looks
+completely healthy in the log right down to "found working stream".
+googlevideo only refuses once the initial buffer is exhausted - about a
+minute into playback - and immediately for the range-heavy reads a
+download does, which is also why every queued download was failing with
+a 403 while resolution reported success for each one.
+
+Binds per client instead of once per resolve, memoised per identity, so
+a resolve that tries both an anonymous and a signed-in client asks the
+generator for each identity exactly once. PoTokenGenerator now caches a
+streaming token per identity rather than holding a single one, so those
+two coexist without tearing down and rebuilding the WebView on every
+client switch; it recreates only on expiry or explicit invalidation.
+
+Also logs which identity each stream url's token was bound to, at warn:
+a token bound to the wrong identity resolves and probes exactly like a
+correct one and only fails a minute later, so that was the one thing
+needed to tell them apart and it was invisible in a release logcat.
+---
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 86 +++++++++++++------
+ .../utils/potoken/PoTokenGenerator.kt         | 35 +++++---
+ 2 files changed, 81 insertions(+), 40 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index 834a825c..fbab64b1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -172,30 +172,47 @@ object YTPlayerUtils {
+         val signatureTimestamp = getSignatureTimestampOrNull(videoId)
+ 
+         val isLoggedIn = YouTube.cookie != null
+-        // Always visitorData - never dataSyncId, even when logged in. dataSyncId is permanent and
+-        // tied to the Google account itself; a PoToken minted against it carries that same
+-        // permanent identity forever, so if BotGuard ever flags anything tied to it, every future
+-        // PoToken inherits the flag and nothing client-side (including rotateSessionIdentity()
+-        // below) can shed it - a signed-in "Reset YouTube session" was always a no-op for exactly
+-        // this reason. visitorData is a rotatable, non-account-tied identifier instead: minting a
+-        // fresh one (which this app can and does do) gets a genuinely new BotGuard identity rather
+-        // than reusing whatever this account's dataSyncId has already accumulated. Metrolist does
+-        // the same - always visitorData, regardless of login state - which is why the identical
+-        // Google account can play fine there while failing here under the old dataSyncId-when-
+-        // logged-in logic.
+-        val sessionId = YouTube.visitorData
+ 
+         Log.d(TAG, "[$videoId] signatureTimestamp: $signatureTimestamp, isLoggedIn: $isLoggedIn, " +
+                 "visitorData present: ${!YouTube.visitorData.isNullOrBlank()}")
+ 
+-        val (webPlayerPot, webStreamingPot) = getWebClientPoTokenOrNull(videoId, sessionId)?.let {
+-            Pair(it.playerRequestPoToken, it.streamingDataPoToken)
+-        } ?: Pair(null, null).also {
+-            Log.w(TAG, "[$videoId] No po token")
++        // A PoToken is only honoured when it is bound to the same identity as the request carrying
++        // it: dataSyncId for a client that sends the account cookie (WEB_REMIX names it as
++        // onBehalfOfUser), visitorData for one that goes out anonymous (VISIONOS, the ANDROID_VR
++        // family). Binding everything to visitorData regardless - as this did for a while - leaves
++        // WEB_REMIX presenting a token for an identity it isn't using. Nothing rejects that
++        // outright: the player request still returns OK with a stream url, and a short range probe
++        // against that url still passes, so resolution looks entirely healthy. googlevideo only
++        // refuses once the initial buffer is exhausted, which is the "playback dies about a minute
++        // in with a 403" failure, and immediately for the range-heavy reads a download does.
++        //
++        // Bound per client rather than once per resolve, and memoised, so a resolve that tries both
++        // an anonymous and a signed-in client asks the generator for each identity exactly once.
++        val potCache = mutableMapOf<String, Pair<String?, String?>>()
++        fun potFor(client: YouTubeClient): Pair<String?, String?> {
++            // Falls back to visitorData if a signed-in session somehow has no dataSyncId: a token
++            // bound to the wrong identity and no token at all both end in a 403, but the latter at
++            // least cannot be mistaken for a healthy resolve.
++            val sessionId = if (client.loginSupported && isLoggedIn) {
++                YouTube.dataSyncId?.takeIf { it.isNotBlank() } ?: YouTube.visitorData
++            } else {
++                YouTube.visitorData
++            }
++            if (sessionId.isNullOrBlank()) {
++                Log.w(TAG, "[$videoId] [${client.clientName}] no session identity to bind a po token to")
++                return Pair(null, null)
++            }
++            return potCache.getOrPut(sessionId) {
++                getWebClientPoTokenOrNull(videoId, sessionId)?.let {
++                    Pair<String?, String?>(it.playerRequestPoToken, it.streamingDataPoToken)
++                } ?: Pair<String?, String?>(null, null).also {
++                    Log.w(TAG, "[$videoId] no po token minted for this identity")
++                }
++            }
+         }
+ 
+         val mainPlayerResponse =
+-            YouTube.player(videoId, playlistId, MAIN_CLIENT, signatureTimestamp, webPlayerPot)
++            YouTube.player(videoId, playlistId, MAIN_CLIENT, signatureTimestamp, potFor(MAIN_CLIENT).first)
+                 .getOrThrow()
+ 
+         val audioConfig = mainPlayerResponse.playerConfig?.audioConfig
+@@ -253,7 +270,7 @@ object YTPlayerUtils {
+                 streamPlayerResponse = mainPlayerResponse
+             } else {
+                 val playerResult =
+-                    YouTube.player(videoId, playlistId, client, signatureTimestamp, webPlayerPot)
++                    YouTube.player(videoId, playlistId, client, signatureTimestamp, potFor(client).first)
+                 playerResult.exceptionOrNull()?.let {
+                     // Logged, not acted on: a network-level throttle is worth naming in the log
+                     // (it looks nothing like a per-video rejection and would otherwise be
+@@ -293,8 +310,18 @@ object YTPlayerUtils {
+                 }
+                 streamClient = client
+ 
+-                if (client.useWebPoTokens && webStreamingPot != null) {
+-                    streamUrl += "&pot=$webStreamingPot";
++                val clientStreamingPot = potFor(client).second
++                if (client.useWebPoTokens && clientStreamingPot != null) {
++                    streamUrl += "&pot=$clientStreamingPot"
++                }
++                // At warn, and naming only which identity was used rather than any token material:
++                // a stream url whose pot is bound to the wrong identity resolves and probes exactly
++                // like a healthy one and only fails a minute later, so without this the single
++                // thing needed to tell those apart is invisible in a release logcat.
++                if (client.useWebPoTokens) {
++                    Log.w(TAG, "[$videoId] [${client.clientName}] pot bound to " +
++                            (if (client.loginSupported && isLoggedIn) "dataSyncId" else "visitorData") +
++                            ", present=${clientStreamingPot != null}")
+                 }
+                 streamUrl += "&cpn=$cpn"
+ 
+@@ -370,12 +397,12 @@ object YTPlayerUtils {
+      * targets a third, distinct cause - YouTube's bot-detection having flagged this client's
+      * identity, which a differently-resolved URL under the *same* identity would not fix.
+      *
+-     * Not gated on login state: visitorData is what every PoToken is minted against regardless of
+-     * whether the session is signed in (see playerResponseForPlayback's own doc for why this app
+-     * never uses dataSyncId for that), so rotating it is exactly as useful logged in as signed out
+-     * - unlike before, when this only did anything for a signed-out session because dataSyncId,
+-     * the identifier a logged-in PoToken used to be minted against instead, isn't something minting
+-     * a fresh visitorData here has any effect on.
++     * Not gated on login state, but it is worth being clear about what it can and cannot shed. A
++     * fresh visitorData gives the anonymous clients a genuinely new BotGuard identity. It does
++     * nothing for the signed-in clients, whose tokens are bound to dataSyncId - permanent and tied
++     * to the account itself, so no client-side action can rotate it. Invalidating the generator
++     * still helps there, since it discards every cached token and rebuilds the WebView, which is
++     * what clears a merely stale token as opposed to a flagged identity.
+      */
+     suspend fun rotateSessionIdentity() {
+         poTokenGenerator.invalidate()
+@@ -414,8 +441,11 @@ object YTPlayerUtils {
+         // Include the web player integrity fields because omitting the player PoToken may
+         // cause the request to return UNPLAYABLE.
+         val signatureTimestamp = getSignatureTimestampOrNull(videoId)
+-        // Always visitorData - see playerResponseForPlayback's doc for why, regardless of login.
+-        val webPlayerPot = getWebClientPoTokenOrNull(videoId, YouTube.visitorData)?.playerRequestPoToken
++        // WEB_REMIX sends the account cookie, so its token has to be bound to dataSyncId when
++        // signed in - see playerResponseForPlayback's potFor() for why the identity has to match.
++        val sessionId = if (YouTube.cookie != null) YouTube.dataSyncId else YouTube.visitorData
++        val webPlayerPot = sessionId
++            ?.let { getWebClientPoTokenOrNull(videoId, it)?.playerRequestPoToken }
+         return YouTube.player(videoId, playlistId, WEB_REMIX, signatureTimestamp, webPlayerPot)
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt b/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
+index e6d55e74..d6f117de 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/potoken/PoTokenGenerator.kt
+@@ -17,19 +17,26 @@ class PoTokenGenerator {
+     private var webViewBadImpl = false // whether the system has a bad WebView implementation
+ 
+     private val webPoTokenGenLock = Mutex()
+-    private var webPoTokenSessionId: String? = null
+-    private var webPoTokenStreamingPot: String? = null
++
++    /**
++     * Streaming (session-bound) PoTokens, keyed by the identity each was minted against. There is
++     * deliberately more than one: a request that carries the account cookie has to present a token
++     * bound to dataSyncId, while an anonymous one needs visitorData, and a single resolve attempts
++     * both kinds of client. Keying instead of overwriting is what lets those coexist without
++     * tearing down and rebuilding the WebView on every client switch.
++     */
++    private val webPoTokenStreamingPots = mutableMapOf<String, String>()
+     private var webPoTokenGenerator: PoTokenWebView? = null
++    private var webPoTokenInvalidated = false
+ 
+     /**
+      * Forces the next [getWebClientPoToken] call to mint a fresh streaming token and, if needed,
+      * recreate the WebView generator from scratch - instead of reusing state that may be exactly
+      * why the last request was rejected. [webPoTokenSessionId] is what [getWebClientPoToken]
+-     * already checks to decide whether to recreate, so invalidating it here is enough; no session
+-     * id a real caller passes will ever equal null.
++     * already checks to decide whether to recreate, so setting this is enough.
+      */
+     fun invalidate() {
+-        webPoTokenSessionId = null
++        webPoTokenInvalidated = true
+     }
+ 
+     fun getWebClientPoToken(videoId: String, sessionId: String): PoTokenResult? {
+@@ -61,11 +68,13 @@ class PoTokenGenerator {
+ 
+         val (poTokenGenerator, streamingPot, hasBeenRecreated) =
+             webPoTokenGenLock.withLock {
+-                val shouldRecreate =
+-                    forceRecreate || webPoTokenGenerator == null || webPoTokenGenerator!!.isExpired || webPoTokenSessionId != sessionId
++                val shouldRecreate = forceRecreate || webPoTokenGenerator == null ||
++                        webPoTokenGenerator!!.isExpired || webPoTokenInvalidated
+ 
+                 if (shouldRecreate) {
+-                    webPoTokenSessionId = sessionId
++                    webPoTokenInvalidated = false
++                    // Tokens minted by the outgoing generator do not outlive it.
++                    webPoTokenStreamingPots.clear()
+ 
+                     withContext(Dispatchers.Main) {
+                         webPoTokenGenerator?.close()
+@@ -73,13 +82,15 @@ class PoTokenGenerator {
+ 
+                     // create a new webPoTokenGenerator
+                     webPoTokenGenerator = PoTokenWebView.getNewPoTokenGenerator(App.instance)
++                }
+ 
+-                    // The streaming poToken needs to be generated exactly once before generating
+-                    // any other (player) tokens.
+-                    webPoTokenStreamingPot = webPoTokenGenerator!!.generatePoToken(webPoTokenSessionId!!)
++                // The streaming poToken for an identity needs to be generated exactly once, and
++                // before any other (player) token is minted from this generator for it.
++                val streamingPotForSession = webPoTokenStreamingPots.getOrPut(sessionId) {
++                    webPoTokenGenerator!!.generatePoToken(sessionId)
+                 }
+ 
+-                Triple(webPoTokenGenerator!!, webPoTokenStreamingPot!!, shouldRecreate)
++                Triple(webPoTokenGenerator!!, streamingPotForSession, shouldRecreate)
+             }
+ 
+         val playerPot = try {
+-- 
+2.45.1.windows.1
+
+
+From 16f31c83b7b8601480067333a02d8069d286ea1a Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 28 Aug 2026 16:34:36 +0800
+Subject: [PATCH 189/189] Move a rejected WEB_REMIX to the back of the retry
+ order, not out of it
+
+A WEB_REMIX stream this video just had rejected was being skipped
+entirely on the retry, on the theory that the retry should reach a
+fallback client instead of repeating the same failure. That reasoning
+only holds if a fallback can actually serve the track, and here none
+can: every anonymous client in the chain is refused with a bot
+challenge, because the PoToken this app can mint is a web token from
+the WebView's BotGuard and is not valid for VISIONOS, ANDROID_VR or
+IOS. Removing the one client YouTube will serve therefore guaranteed
+the retry failed - the log shows it burning through five dead clients
+and then stopping playback outright.
+
+Last place in the order keeps the "prefer a fallback" intent without
+betting the whole retry on a fallback existing. Re-requests the player
+response in that case rather than reusing the one fetched for metadata,
+since reusing it would hand back the very url that was just rejected -
+a fresh url is the entire point of retrying when the cause was a stale
+or wrongly-bound one.
+---
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   | 41 ++++++++++++++-----
+ 1 file changed, 30 insertions(+), 11 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index fbab64b1..ec1a6a23 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -232,7 +232,19 @@ object YTPlayerUtils {
+         // its own doc for why metadata specifically has to come from the signed-in client. This is
+         // the ordering from Core-v0.18.2, restored: the interim rewrites that reshuffled it were
+         // chasing a failure whose real cause was VideoDetails rejecting VISIONOS's response.
+-        val clientTryOrder = listOf(-2, -1) + STREAM_FALLBACK_CLIENTS.indices
++        //
++        // A WEB_REMIX stream this video just had rejected moves it to the *back* of the order
++        // rather than out of it. Dropping it entirely was wrong: WEB_REMIX is routinely the only
++        // client YouTube will serve this session at all - every anonymous one gets turned away with
++        // a bot challenge - so removing it from the retry guaranteed the retry failed, burning
++        // through five dead clients and then stopping playback outright. Last place gets the same
++        // "try a fallback first" benefit without betting the whole retry on a fallback working.
++        val webRemixDeprioritised = hasRecentWebRemixFailure(videoId)
++        val clientTryOrder = if (webRemixDeprioritised) {
++            listOf(-2) + STREAM_FALLBACK_CLIENTS.indices + listOf(-1)
++        } else {
++            listOf(-2, -1) + STREAM_FALLBACK_CLIENTS.indices
++        }
+         for (clientIndex in clientTryOrder) {
+             // reset for each client
+             format = null
+@@ -257,17 +269,24 @@ object YTPlayerUtils {
+             }
+ 
+             if (clientIndex == -1) {
+-                // Skips attempting to *stream* from a client whose stream was just rejected for
+-                // this exact video, so the retry MusicService gets after a source error reaches a
+-                // fallback client instead of repeating the same failure. mainPlayerResponse is
+-                // still fetched and used for metadata either way.
+-                if (hasRecentWebRemixFailure(videoId)) {
+-                    Log.w(TAG, "[$videoId] [${client.clientName}] skipped: stream recently rejected for this video")
+-                    continue
++                if (webRemixDeprioritised) {
++                    // Reusing mainPlayerResponse here would hand back the very url that was just
++                    // rejected, so this asks again for a fresh one. That is the whole point of the
++                    // retry when the cause was a stale or wrongly-bound url rather than a video
++                    // this client genuinely cannot serve.
++                    Log.w(TAG, "[$videoId] [${client.clientName}] re-resolving: previous stream was rejected")
++                    val refreshed = YouTube.player(
++                        videoId, playlistId, client, signatureTimestamp, potFor(client).first
++                    )
++                    refreshed.exceptionOrNull()?.let {
++                        Log.e(TAG, "[$videoId] [${client.clientName}] re-resolve failed", it)
++                    }
++                    streamPlayerResponse = refreshed.getOrNull()
++                } else {
++                    // MAIN_CLIENT's response was already fetched above for metadata - reuse it
++                    // rather than asking again.
++                    streamPlayerResponse = mainPlayerResponse
+                 }
+-                // MAIN_CLIENT's response was already fetched above for metadata - reuse it rather
+-                // than asking again.
+-                streamPlayerResponse = mainPlayerResponse
+             } else {
+                 val playerResult =
+                     YouTube.player(videoId, playlistId, client, signatureTimestamp, potFor(client).first)
 -- 
 2.45.1.windows.1
 
