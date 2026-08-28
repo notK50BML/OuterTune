@@ -1,7 +1,7 @@
-From a4ced5541ca35f908d60cc4a0ce27dccce59fc2b Mon Sep 17 00:00:00 2001
+From 2b78ffb9460bb3a325aac3640afe3addab3a366a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 001/179] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 001/180] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2282,13 +2282,13 @@ index 00000000..81d7f34c
 +    }
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 483926d39f26a024f68af358b58c79af2e7a7754 Mon Sep 17 00:00:00 2001
+From d72c2384c7c6f7f35d42263c61608427ab6f45d0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 002/179] Add patch notes
+Subject: [PATCH 002/180] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2450,13 +2450,13 @@ index 00000000..28c797a0
 +  `LyricsProvider.getLyrics()` has no `album` parameter, so adding it means touching all
 +  seven providers. Left alone to keep this diff reviewable.
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 71c238f87322353fa0a2ce969ce26ad04caf18e1 Mon Sep 17 00:00:00 2001
+From 51b36712b098f7bb23ee326eaff6135dc906f148 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 003/179] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 003/180] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2516,13 +2516,13 @@ index f5230a89..27f97bf7 100644
                              executeSyncPlaylist(remotePlaylist.id, it.id)
                          }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From d76baa5915b40e4f88cb167d51ac5188467a2cb8 Mon Sep 17 00:00:00 2001
+From 1c74c5b2931f3fc0dad4f2245970ee227a0e60bb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 004/179] Clarify build route in patch notes
+Subject: [PATCH 004/180] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2556,13 +2556,13 @@ index 2480f961..a43e5d3f 100644
  No CI changes were made — the repo's existing `.github/workflows/build.yml` should produce
  an APK on push.
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 12d4e0abe62a16edc95992a011db757d9c92e97b Mon Sep 17 00:00:00 2001
+From a626d201015c8378281a0145b6b6c25f72689ed8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 005/179] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 005/180] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2648,13 +2648,13 @@ index d192b930..7d500840 100644
                  makeTimeString(song.song.duration * 1000L)
              ),
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 71d4ad0a000827492b33d8d0ba2155930c4d5434 Mon Sep 17 00:00:00 2001
+From 81da606bb34c6f3ade5689eabe82f5adaa31bf29 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 006/179] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 006/180] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2736,13 +2736,13 @@ index d5068ac8..a848cde2 100644
      }
      if (this.contains("i.ytimg.com")) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 775d014eb0d61c5123ad17a51a28761939503e86 Mon Sep 17 00:00:00 2001
+From c592f424bf604be631a04b888c85e5d5766afdae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 007/179] Report the liked-songs sync outcome instead of
+Subject: [PATCH 007/180] Report the liked-songs sync outcome instead of
  failing silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2874,13 +2874,13 @@ index 27f97bf7..580a4a9c 100644
              if (SYNC_DEBUG) Log.i(TAG, "Liked songs synchronization ended")
          }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2febe3ce8246ad6c00de6b799ae5d844e1a27322 Mon Sep 17 00:00:00 2001
+From cb974ee9b74a5bbc669c7aae5979f631ae1dd03f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 008/179] Add Discord rich presence
+Subject: [PATCH 008/180] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4586,13 +4586,13 @@ index 7b851593..575e5dee 100755
  // Use a local copy of NewPipe Extractor by uncommenting the lines below.
  // We assume, that OuterTune and NewPipe Extractor have the same parent directory.
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 85eed6b4b5a5a0a70bc2f269aa7c4f5f8d04ac09 Mon Sep 17 00:00:00 2001
+From 3d7e73f4384138acda4d489fb08f7fb6e7db13d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 009/179] Keep the play button the same size when lyrics are
+Subject: [PATCH 009/180] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4630,13 +4630,13 @@ index 83537f7a..113ca4e6 100644
                          .clip(RoundedCornerShape(playPauseRoundness))
                          .background(MaterialTheme.colorScheme.primary)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From f14299c3cca293d24f8ff1a2e6390f8c891d4385 Mon Sep 17 00:00:00 2001
+From e6a7d077e51927b7453319c06ee817fdfb7e76bb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 010/179] Add a Liquid player background
+Subject: [PATCH 010/180] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4863,13 +4863,13 @@ index c6d8cb2e..9ce0f192 100644
      <string name="show_queue_title">Show queue name on player</string>
      <string name="show_liked_and_downloaded_playlist">Show playlists for liked and downloaded songs in library</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 7fa110bab1284cf0202ea1d1391cda6e1b5e9817 Mon Sep 17 00:00:00 2001
+From a8df0fb2f6fcb034aef019039828fabc8a11f086 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 011/179] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 011/180] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5068,13 +5068,13 @@ index 9ce0f192..0afd9445 100644
      <string name="slider_style_squiggly">Squiggly</string>
      <string name="slider_style_default">Default</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 87d31473e1ae137e1628266028115aa2b9982c07 Mon Sep 17 00:00:00 2001
+From 28179f6627b818df372bd6c35569db3246c8e9a2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 012/179] Tell the user when the Discord login cannot read a
+Subject: [PATCH 012/180] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5185,13 +5185,13 @@ index 0afd9445..8388e17e 100644
      <string name="slider_style_squiggly">Squiggly</string>
      <string name="slider_style_default">Default</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 7f16f8fac4280dbdc757f6ec8947a81f560a7f24 Mon Sep 17 00:00:00 2001
+From b115a3c6151e6c5bc3152cbe9f59345571415d47 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 013/179] Fix Discord presence never appearing
+Subject: [PATCH 013/180] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5294,13 +5294,13 @@ index 6e9d8fcc..d9eaf365 100644
          sessionId = null
          connected = false
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From d46ee43a7b6f40155cf3fea3dc497491bb6cba0f Mon Sep 17 00:00:00 2001
+From 41471144150ac4044b414073562c0871b2260181 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 014/179] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 014/180] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5328,13 +5328,13 @@ index 8388e17e..25f56c21 100644
      <string name="slider_style_squiggly">Squiggly</string>
      <string name="slider_style_default">Default</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 93c2f50686780a1a0a914803d9c032c5f5f05833 Mon Sep 17 00:00:00 2001
+From a43ca5f6f22de995d939fa4b1d2c3f13090c68b1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 015/179] Make Discord connection failures visible, and stop
+Subject: [PATCH 015/180] Make Discord connection failures visible, and stop
  the infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5578,13 +5578,13 @@ index 2d7f99f5..90bac793 100644
          if (!isRpcRunning()) {
              discordWebSocket.connect()
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 622a477574b829a7cbfd74b67384122b95894b18 Mon Sep 17 00:00:00 2001
+From 07a2e5a50acc0cb0df11ce52e1d423d498f6881c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 016/179] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 016/180] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5681,13 +5681,13 @@ index 8652b7c0..92770533 100644
          )
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From d304011ab3c447848ac349310ad49769f4a95b9e Mon Sep 17 00:00:00 2001
+From 2d4ea9713dbaed9cb91007acc414445ded1dc283 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 017/179] Stop reporting the previous track's position to
+Subject: [PATCH 017/180] Stop reporting the previous track's position to
  Discord
 
 player.currentPosition can still refer to the outgoing item while a track
@@ -5824,13 +5824,13 @@ index 92770533..1fd386f5 100644
          private const val APPLICATION_ID = "1411019391843172514"
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 8da19483c1986e9e078a9aeb813a68075d1059f1 Mon Sep 17 00:00:00 2001
+From 88282929bce159d868436d86dffe057c1df437aa Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 018/179] Point in-app links at this fork
+Subject: [PATCH 018/180] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5959,13 +5959,13 @@ index 3f52f92e..ea1302e1 160000
 -Subproject commit 3f52f92e3532b9915ae6fec3dd72ebff9bde0e0a
 +Subproject commit ea1302e128f5263f12b90279a2f299c174a8beee
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 6a845bdacc2e93227063715799c0cb39de276dc3 Mon Sep 17 00:00:00 2001
+From 29d64b528b3e4a3e67328e728f5e17e1e3262a2e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 019/179] Fix the Discord presence freezing on a track change
+Subject: [PATCH 019/180] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6200,13 +6200,13 @@ index 227e9628..e843bb7d 100644
  
      private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 778e53f18d8a2fa3ce5ca5bbfddc5e7dac2fe14a Mon Sep 17 00:00:00 2001
+From 68c8cca11e2be2b292e7183fcbd1a1603c249359 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 020/179] Explain where to find the Discord token
+Subject: [PATCH 020/180] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6230,13 +6230,13 @@ index 035206ed..93e4b92b 100644
      <string name="discord_test_connection_description">Open a connection to Discord and report what happens</string>
      <string name="discord_login_failed">Could not read the token from this page. Go back and use \"Log in with token\" instead.</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 30760ed4076b408bfc1d2a0bae42638752124fee Mon Sep 17 00:00:00 2001
+From 8accab9fa4794ff43841d635f9bd4f584963a526 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 021/179] Ask Discord's module registry for the token
+Subject: [PATCH 021/180] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6417,13 +6417,13 @@ index 9244411c..4aea73d0 100644
          )
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 9e88a864bb1ea01e8d51539a718fa6acfc75748e Mon Sep 17 00:00:00 2001
+From 9bf9b0893dc14305c8d901845963ad95ec5f48f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 022/179] Add app icon customisation
+Subject: [PATCH 022/180] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7355,13 +7355,13 @@ index 93e4b92b..25673abe 100644
  </resources>
 \ No newline at end of file
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 7e11d157b68ab64b1595794d9669d5e463ebf832 Mon Sep 17 00:00:00 2001
+From f08abb6af05a29207d5cb2d9757667b43cd32c79 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 023/179] Add a frosted glass player background
+Subject: [PATCH 023/180] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7736,13 +7736,13 @@ index 25673abe..d6c42efd 100644
      <string name="show_liked_and_downloaded_playlist">Show playlists for liked and downloaded songs in library</string>
      <string name="slim_navbar_title">Slim navbar</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From e429afb809eb955c5916555c9e70c14194e11eb3 Mon Sep 17 00:00:00 2001
+From 4cbfad6628b0c039d8fd30a78c629d4910f85987 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 024/179] Turn the home search into a field, and thin out the
+Subject: [PATCH 024/180] Turn the home search into a field, and thin out the
  top bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8024,13 +8024,13 @@ index d6c42efd..37748685 100644
      <string name="app_icon">App icon</string>
      <string name="app_icon_default">Default</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 4df4d1f11541a2ef3d92e52ede96aabc8d680842 Mon Sep 17 00:00:00 2001
+From f574fdee3230728c55951bf54a6e606aa2a2b410 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 025/179] Add extended charts to Stats
+Subject: [PATCH 025/180] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8320,13 +8320,13 @@ index 37748685..10418352 100644
      <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
      <!-- App icon -->
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 25ddfdb4137f3ceb767b114eb24cd9d59c9661fb Mon Sep 17 00:00:00 2001
+From b0ad66c0df8ac06e5c5de6c055cb083535eec7d2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 026/179] Import player layouts from the layout editor
+Subject: [PATCH 026/180] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9293,13 +9293,13 @@ index 10418352..20ed4dc7 100644
      <string name="app_icon">App icon</string>
      <string name="app_icon_default">Default</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b540f39ea70b7dfeba19547562c62fded2a3ab59 Mon Sep 17 00:00:00 2001
+From 841345b6180d61f07301b2c3ba0e126733599298 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 027/179] Add song recognition
+Subject: [PATCH 027/180] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11351,13 +11351,13 @@ index 00000000..1c59e9ca
 +    data class Error(val message: String) : RecognitionStatus()
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From d121b027fba2f2c98dfcf47b1b3361539fe9743c Mon Sep 17 00:00:00 2001
+From 6797f6d5ec27e5897b93871760ca99f6a6e611e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 028/179] Fix the stats charts
+Subject: [PATCH 028/180] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11750,13 +11750,13 @@ index f7096084..a26b3be5 100644
      <string name="recognition">Identify a song</string>
      <string name="recognition_ready">Ready to listen</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 8afb898fa05e74de7a97645901101c98041e968b Mon Sep 17 00:00:00 2001
+From da29d1cbc5d4036a37e6bb91ff02077473fa0d9d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 029/179] Let the stats charts rank by plays or by time
+Subject: [PATCH 029/180] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -11997,13 +11997,13 @@ index a26b3be5..3bc88bf8 100644
      <string name="stats_extended_songs">Top songs</string>
      <string name="stats_extended_artists">Top artists</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 5c6488ea6983dac327192549d0288de31dbe1e7d Mon Sep 17 00:00:00 2001
+From d3a960641e23d76ac319e370dfc18b7ced957dc9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 030/179] Position layout blocks by their centre, and allow
+Subject: [PATCH 030/180] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12071,13 +12071,13 @@ index ee3a36c6..641eb5f5 100644
              }
              require(parsed.isNotEmpty()) { "None of the blocks in that file were recognised." }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 5473bf81b952c6c704a161b46ab86f44d2411a56 Mon Sep 17 00:00:00 2001
+From eeefb485380081522d5da12aeb6baef2adee3885 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 031/179] Keep word timings when the lenient TTML parser is
+Subject: [PATCH 031/180] Keep word timings when the lenient TTML parser is
  used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
@@ -12412,13 +12412,13 @@ index 00000000..5d346a37
 +    }
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 1af4e92e28c1ed6221ead2606022389afab73e42 Mon Sep 17 00:00:00 2001
+From d670b7558539480528b314b4859afca3eb2c036d Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 032/179] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 032/180] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13230,13 +13230,13 @@ index 00000000..c9a8384c
 +    }
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 65795f290b2842dc3b6f866856f3807ab80c45bb Mon Sep 17 00:00:00 2001
+From b6f323393cfdbef8cf695cb8ac4b863f6f7e959b Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 033/179] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 033/180] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13284,13 +13284,13 @@ index 156d94ca..a909d4d5 100644
          }
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From d19600df9775c00fc8c330c8249d3e49d1d4be39 Mon Sep 17 00:00:00 2001
+From 96b442dafafaecb9fba1cdac15edc60d69a99871 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 034/179] Let the user choose which lyric provider is preferred
+Subject: [PATCH 034/180] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14108,13 +14108,13 @@ index 00000000..78961d0d
 +    }
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 72f90e451ce61a696670ddd5d5cc0b6acd4fc0f4 Mon Sep 17 00:00:00 2001
+From 620200df5ca480fece3378b5fb99557fc4f200cb Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 035/179] Document the lyrics work in the patch notes
+Subject: [PATCH 035/180] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14213,13 +14213,13 @@ index a43e5d3f..85917675 100644
  
  ## Building
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From cb402291f9bbf8a1be8fa388bcf2d6f0f22162c5 Mon Sep 17 00:00:00 2001
+From c108f6292a3d9ce969dac5145f6e35aa2634f8dd Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 036/179] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 036/180] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14269,13 +14269,13 @@ index 78bb0691..f7636ae1 100644
      <string name="recognition">Identify a song</string>
      <string name="recognition_ready">Ready to listen</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2072de1f6823b7c1a2f64a87cc857081f3c67ad5 Mon Sep 17 00:00:00 2001
+From c2a3403ccfe2ca060f6701a9ed439fb6b99567cd Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 037/179] Colour the queue handle to match the player
+Subject: [PATCH 037/180] Colour the queue handle to match the player
  background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
@@ -14500,13 +14500,13 @@ index 86483840..338957b0 100644
                          overflow = TextOverflow.Ellipsis,
                          textAlign = TextAlign.Center,
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 9c15207dd887ef3c5f781a64b465cabb7ede7eab Mon Sep 17 00:00:00 2001
+From adc19d14959f24929fbbad52332af0a3d662618f Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:39:12 +0000
-Subject: [PATCH 038/179] Restore the artist queries the stats fix deleted
+Subject: [PATCH 038/180] Restore the artist queries the stats fix deleted
 
 :app:compileCoreReleaseKotlin failed with a page of unresolved references -
 artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
@@ -14617,13 +14617,13 @@ index 6a7034b5..5a8ef057 100644
       * Artists ranked over the same window, by the same measure, as [mostPlayedSongs].
       *
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 74fb4abf555dea81b62a1b915324683e3886dd41 Mon Sep 17 00:00:00 2001
+From bd7c3bab16f219e558a1994e77bca9f1616335be Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 039/179] Let the identify-a-song button be moved or hidden
+Subject: [PATCH 039/180] Let the identify-a-song button be moved or hidden
 
 Settings -> Appearance -> Display -> Identify a song button, with three
 choices: the top of the home screen, where it has always been; inside the
@@ -14826,13 +14826,13 @@ index f7636ae1..45596e34 100644
      <string name="lyrics_fetch_mode_auto">Automatic (fastest)</string>
      <string name="lyrics_fetch_mode_manual">In my order</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 890fec7e6fb2a2b4a6a533abca1e0e7094bd159f Mon Sep 17 00:00:00 2001
+From 1f6f4837a677e204308f94187988029836ca6cb1 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 040/179] Colour the lyrics from the player background, not the
+Subject: [PATCH 040/180] Colour the lyrics from the player background, not the
  theme
 
 Lyrics are drawn on top of whatever the player is showing behind them, but they
@@ -14922,13 +14922,13 @@ index 1700c659..18a7575b 100644
   * How often the karaoke position is refreshed when nothing is moving. Only exists so that a seek
   * made while paused still lands on screen; the sweep is frame-synced whenever it is actually moving.
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a4e77fa4a4db364fcf4bf87d4fa262c67e7c7ad6 Mon Sep 17 00:00:00 2001
+From b36f6c84ece2a1ae14da6fc1b6d8dd7298105319 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:39:45 +0000
-Subject: [PATCH 041/179] Stop the word sweep from silently doing nothing
+Subject: [PATCH 041/180] Stop the word sweep from silently doing nothing
 
 Three ways it could look dead, all fixed, none of them confirmed as the one -
 this is written without a device to reproduce on.
@@ -15031,13 +15031,13 @@ index 18a7575b..5e9b45d5 100644
                          if (karaoke) {
                              KaraokeLyricLine(
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 9d81fccd6d772a72ace35b73aeab9c715bef6191 Mon Sep 17 00:00:00 2001
+From 693f01fe5dd390930482e5d86eba452853e86564 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 042/179] Prefer word-timed lyrics over whichever provider
+Subject: [PATCH 042/180] Prefer word-timed lyrics over whichever provider
  answers first
 
 The word-by-word sweep was never engaging, and the renderer was not the reason:
@@ -15239,13 +15239,13 @@ index ed96011c..cfd6e83e 100644
 +    }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 7d0612d340cee4b71e367f9b36723e199e506e0a Mon Sep 17 00:00:00 2001
+From d24a708e01e488fa9e14d7b13c07cbc28a5c3e74 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 043/179] Start the chart queue at the song that was tapped
+Subject: [PATCH 043/180] Start the chart queue at the song that was tapped
 
 Tapping any song in Most played songs, or in the extended Top songs, played the
 number one track instead. Both built a queue from the whole chart and never said
@@ -15320,13 +15320,13 @@ index 48721417..3c284db3 100644
                          )
                      },
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 5ce100d9bff76ab89d4104f162622fe8bd7beb5c Mon Sep 17 00:00:00 2001
+From 4de8f80c2d0e1870f47ae70e9536123d78caba17 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:28:52 +0000
-Subject: [PATCH 044/179] Actually place the blocks an imported layout asks for
+Subject: [PATCH 044/180] Actually place the blocks an imported layout asks for
 
 The importer read every field in the file, validated it, showed it back in the
 settings summary, and then the player used two of them: whether a block is
@@ -15616,13 +15616,13 @@ index 00000000..aa2ecafb
 +    }
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 821969117354cb294cff585a0a9f3d4192e900ab Mon Sep 17 00:00:00 2001
+From 894c31dce0791c9fe9e6ba5ca6bf262507e15bf5 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:58:53 +0000
-Subject: [PATCH 045/179] Stop the layout dispatch from changing the built-in
+Subject: [PATCH 045/180] Stop the layout dispatch from changing the built-in
  player
 
 Two faults, both mine, both from making the action row a block.
@@ -15760,13 +15760,13 @@ index b793cb19..291d13ee 100644
              )
          }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 807f8e17cc0205c4985481e1ae76d3f08313c054 Mon Sep 17 00:00:00 2001
+From e97e9ab2a637a886dc52d17072e6894f55fcc965 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 08:18:05 +0000
-Subject: [PATCH 046/179] Pause the Discord presence instead of removing it
+Subject: [PATCH 046/180] Pause the Discord presence instead of removing it
 
 Pausing a song cleared the activity outright, so the card vanished from your
 profile and came back on resume. It now stays up with its timestamps dropped.
@@ -15891,13 +15891,13 @@ index 45596e34..58bf36a5 100644
      <string name="recognition_placement_top_bar">Top of the home screen</string>
      <string name="recognition_placement_search_field">In the search field</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From d0a7d65819a39ade021a6b392159257f3fe53efd Mon Sep 17 00:00:00 2001
+From 1b7cc6cced515b5d9e12108352fd1bbb2c5e400a Mon Sep 17 00:00:00 2001
 From: K50 <k50@example.com>
 Date: Mon, 10 Aug 2026 10:58:07 +0000
-Subject: [PATCH 047/179] Make landscape player full-width and hide navigation
+Subject: [PATCH 047/180] Make landscape player full-width and hide navigation
  rail
 
 ---
@@ -16002,13 +16002,13 @@ index d3568b6e..45152b97 100644
          } else {
              PortraitPlayer(state, navController, queueBoard)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 128b54d09f336ef6cb9417f8bed426fe49f1a283 Mon Sep 17 00:00:00 2001
+From c30ff9d2297c02c9f00a960cfa3d52fb67c26b49 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:05 +0800
-Subject: [PATCH 048/179] Confirm nuke actions, and add a queue-beside-current
+Subject: [PATCH 048/180] Confirm nuke actions, and add a queue-beside-current
  toggle
 
 The debug nuke buttons deleted from the database immediately on click
@@ -16290,13 +16290,13 @@ index 58bf36a5..afc1ef7a 100644
  <!-- Setup wizard -->
      <string name="oobe_welcome_message">Welcome to OuterTune</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 6b481a76a38832060183de36d7374e470a88bd5a Mon Sep 17 00:00:00 2001
+From 597f6d12682005dd013b1ce26b4c0ba4ca1e86c3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:24 +0800
-Subject: [PATCH 049/179] Show the YTM view count in the song details dialog
+Subject: [PATCH 049/180] Show the YTM view count in the song details dialog
 
 PlayerResponse.VideoDetails.viewCount was already being fetched for
 playback but never surfaced anywhere. Thread it into the Details
@@ -16366,13 +16366,13 @@ index afc1ef7a..97586a2d 100644
      <string name="playlist_missing_note">Playlists missing? Click here to enable sync read-write mode in settings</string>
      <string name="toggle_lyrics">Toggle lyrics</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 8b6fc297a733b34d4c3d1376308c8d21a1b85dca Mon Sep 17 00:00:00 2001
+From ec0ed9c906a860a1041728ee7e00829377329c69 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:38 +0800
-Subject: [PATCH 050/179] Keep the Discord card layout when paused, add an
+Subject: [PATCH 050/180] Keep the Discord card layout when paused, add an
  auto-clear timeout
 
 Pausing dropped both startTime and endTime, which also removes the
@@ -16585,13 +16585,13 @@ index e4422458..0c909c81 100644
      <string name="about">About</string>
      <string name="app_version">App version</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 1d0e59a44baaa19b4a46bf024fb67dfdd453aebe Mon Sep 17 00:00:00 2001
+From 190777078da2b87b37afde506ec4b7be0bece185 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:59 +0800
-Subject: [PATCH 051/179] Paginate remote history and stop swallowing fetch
+Subject: [PATCH 051/180] Paginate remote history and stop swallowing fetch
  failures
 
 musicHistory() only ever read the first page - there was no
@@ -16815,13 +16815,13 @@ index 5881062b..881ebce5 100644
                  id = renderer.playlistItemData?.videoId ?: return null,
                  title = renderer.flexColumns.firstOrNull()
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 4153376a2d5fde7c72d5e22e6d7da25a0c08b1db Mon Sep 17 00:00:00 2001
+From 7e7c02744b09806f6ec93595a0080bbe69f4b7a7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:17:20 +0800
-Subject: [PATCH 052/179] Fix the top bar landing under the status bar, and the
+Subject: [PATCH 052/180] Fix the top bar landing under the status bar, and the
  tablet rail covering the search bar
 
 Two separate inset bugs in SearchBarContainer, both stemming from the
@@ -16939,13 +16939,13 @@ index b33a6b87..d34f96c1 100644
          } else {
              WindowInsets.systemBars.only(WindowInsetsSides.Top)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a09360b22ed456e81c3ca79570be95570f1cd74b Mon Sep 17 00:00:00 2001
+From e42e082eb4597778460388021ab139300ceba842 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:06 +0800
-Subject: [PATCH 053/179] Center the landscape player and give it a full-width
+Subject: [PATCH 053/180] Center the landscape player and give it a full-width
  queue handle
 
 Three related fixes in LandscapePlayer:
@@ -17085,13 +17085,13 @@ index 45152b97..c27e51f0 100644
      }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 95484a352cc86e2c78cbe0ef675f13caf36fcd3c Mon Sep 17 00:00:00 2001
+From 5fbeffca2f023b83af7a95adee9f871c58b8d1af Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 14:56:23 +0800
-Subject: [PATCH 054/179] Fix the black-screen player backgrounds, and give
+Subject: [PATCH 054/180] Fix the black-screen player backgrounds, and give
  FOLLOW_THEME a renderer
 
 Two bugs behind "the screens are all black":
@@ -17277,13 +17277,13 @@ index c27e51f0..095a91ff 100644
  
          if (playerBackground == PlayerBackgroundStyle.FROSTED) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From ff960aea97805691f58d96c8c21ef5ede9c5ccd7 Mon Sep 17 00:00:00 2001
+From 4c7cc178a87eb5cca431fd75e42611cfc9a8e806 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:26 +0800
-Subject: [PATCH 055/179] Add a 12-band parametric equalizer
+Subject: [PATCH 055/180] Add a 12-band parametric equalizer
 
 A cascaded-biquad IIR filter bank (Robert Bristow-Johnson cookbook
 coefficients, pure Kotlin - no native library, negligible size cost),
@@ -18333,13 +18333,13 @@ index 0c909c81..4e867ee5 100644
      <string name="storage">Storage</string>
      <string name="cache">Cache</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 6483685caf7fcff89a603d1b4e1589b0c436a730 Mon Sep 17 00:00:00 2001
+From e797442862bf0157d8845f1ae9cd6aabca2a2596 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:10 +0800
-Subject: [PATCH 056/179] Rework the equalizer into a full-screen panel, and
+Subject: [PATCH 056/180] Rework the equalizer into a full-screen panel, and
  add balance/more presets
 
 The EQ sheet's state used to live inside the transient 3-dot menu
@@ -19709,13 +19709,13 @@ index 4e867ee5..71024c63 100644
      <string name="storage">Storage</string>
      <string name="cache">Cache</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 78727633f9ede86045d660354af8e34139080f69 Mon Sep 17 00:00:00 2001
+From aaed54ebc59db357c1ea252b1f53430346490925 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:32 +0800
-Subject: [PATCH 057/179] Center the navigation rail and remove its logo header
+Subject: [PATCH 057/180] Center the navigation rail and remove its logo header
 
 The rail's own logo header anchored the item group to the top, and
 Modifier.verticalScroll() on the rail meant weight()-based centering
@@ -19805,13 +19805,13 @@ index 26330b96..703cac30 100644
                              }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 61e0fe4fcf0237f594d4622bd16a61a5a9b6143d Mon Sep 17 00:00:00 2001
+From ae4c0e852a9633d0745b66b4e581ea7c40877943 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:44 +0800
-Subject: [PATCH 058/179] Stop the Discord presence from still ticking forward
+Subject: [PATCH 058/180] Stop the Discord presence from still ticking forward
  while paused
 
 Kept timestamps set while paused so the progress-bar row stayed put
@@ -19859,13 +19859,13 @@ index 290d34fc..a6cf5a94 100644
          )
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 1e23d7282a22ffa6d0b5cf9a6b4b9cd82f1427e5 Mon Sep 17 00:00:00 2001
+From 279ff971a7d849aca3d7233d902e043f06ceff94 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:40:07 +0800
-Subject: [PATCH 059/179] Show each song's own listen time/play count on the
+Subject: [PATCH 059/180] Show each song's own listen time/play count on the
  stats screen
 
 The stats screen already had a chip toggle to rank by time listened
@@ -20129,13 +20129,13 @@ index 71024c63..93e4840d 100644
      <!-- Snackbar -->
      <string name="playlist_imported">Playlist imported</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 5c312c50ba57f7f16f2884ec8c908dbf35bf7825 Mon Sep 17 00:00:00 2001
+From 65fcf7ea20396f7b8c63ea664b80cc57dab0081e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:43:17 +0800
-Subject: [PATCH 060/179] Add shuffle to the equalizer's mini transport
+Subject: [PATCH 060/180] Add shuffle to the equalizer's mini transport
 
 Missed from the prev/play-pause/next row - shuffle belongs in the
 same "basic playback controls" set.
@@ -20176,13 +20176,13 @@ index 62aabc08..4e5e33a0 100644
              Icon(Icons.Rounded.SkipPrevious, contentDescription = null)
          }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 7d341c4e011abfd5b76ecf4ddb004fa10225987d Mon Sep 17 00:00:00 2001
+From 2487abfbac42e4d7c4e459e66e3fd860670d754e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:53:25 +0800
-Subject: [PATCH 061/179] Fix the app freezing when opening a song's details
+Subject: [PATCH 061/180] Fix the app freezing when opening a song's details
  dialog
 
 The view-count fetch added in the details dialog ran straight from
@@ -20231,13 +20231,13 @@ index 64586602..18f0ecda 100644
                  viewCount.value = NumberFormat.getIntegerInstance().format(count)
              }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 9dad85a72bb6abb4c25fc351bf0c9533aecb8f74 Mon Sep 17 00:00:00 2001
+From 3a95c144fc2c5e1a9eff3b76c29bf8c647bf2998 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:20 +0800
-Subject: [PATCH 062/179] Add a compressor to the equalizer's audio pipeline
+Subject: [PATCH 062/180] Add a compressor to the equalizer's audio pipeline
 
 A simple feed-forward dynamics compressor (threshold/ratio/attack/release/makeup gain), applied after the band cascade and gated by the same master enabled switch.
 ---
@@ -20520,13 +20520,13 @@ index e24b0e5b..1ecfc377 100644
          }
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b880c4480cd2b4c91f3961cf096c8164feb40b22 Mon Sep 17 00:00:00 2001
+From 0e7f72bfe3795078c27cace7a1cf64c7d6a6b1e9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:36 +0800
-Subject: [PATCH 063/179] Rework the equalizer panel: contrast color
+Subject: [PATCH 063/180] Rework the equalizer panel: contrast color
  everywhere, rotary dials, compressor UI, matching transport
 
 - Add a rotary dial control and use it for per-band frequency/gain in the band editor, plus quick bass/treble dials and an optional balance dial with a left/right readout.
@@ -21404,13 +21404,13 @@ index 560f2441..7f41aec8 100644
      }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 63033beab96968a94632b4d3c64c13c9e7861c94 Mon Sep 17 00:00:00 2001
+From 7beb579012a2eae2708d7b25b14aa489b6f1b991 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:24:27 +0800
-Subject: [PATCH 064/179] Remove the Discord presence entirely while paused
+Subject: [PATCH 064/180] Remove the Discord presence entirely while paused
  instead of showing a paused card
 
 Superseded the earlier omit-timestamps fix: a paused/stopped player now calls stopActivity() immediately (same as no media loaded), rather than sending a 'Paused' card with a frozen layout. Removes the now-meaningless auto-clear-after-pause timer and setting along with it, since there's nothing left for it to clear.
@@ -21642,13 +21642,13 @@ index a6cf5a94..49e2e224 100644
          )
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2082d5b9aa09d94e4e8123b6d1a8d2dc9f7122db Mon Sep 17 00:00:00 2001
+From 714a32d607075a8469f179cf2f836df0a165e75e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:28:35 +0800
-Subject: [PATCH 065/179] Remove the remote history tab
+Subject: [PATCH 065/180] Remove the remote history tab
 
 Local history is the only option now that the remote tab is gone, so collapse the History screen to render it directly instead of behind a source selector. Drops the now-dead remote-history fetch/continuation/pagination code from the view model, the innertube client, and the HistoryPage model.
 ---
@@ -22227,13 +22227,13 @@ index 881ebce5..00000000
 -    }
 -}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 4e63bd41decf72658352fde1d0d46c30a3dcc38d Mon Sep 17 00:00:00 2001
+From 87e35ff9b182ab3763601459b1b7419c1600aaff Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:29:22 +0800
-Subject: [PATCH 066/179] Refine the equalizer's built-in presets to feel
+Subject: [PATCH 066/180] Refine the equalizer's built-in presets to feel
  closer to Poweramp's
 
 Loudness becomes a proper Fletcher-Munson smile curve, plus two more Poweramp-signature presets (Small Speakers, Full Bass & Treble).
@@ -22262,13 +22262,13 @@ index 1ecfc377..29258783 100644
  
          /**
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 6c761b96da0a7eee709543b60738e91384b6f03d Mon Sep 17 00:00:00 2001
+From 6599f83388470002e8e0728781efb89eba4efac7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:41:37 +0800
-Subject: [PATCH 067/179] Simplify the EQ's slider styling, dock its transport
+Subject: [PATCH 067/180] Simplify the EQ's slider styling, dock its transport
  like the queue, fix landscape lyrics overlap
 
 - Drop the per-feature slim/default slider-style picker in the equalizer - it's slim everywhere now, no setting to maintain.
@@ -22439,13 +22439,13 @@ index a9cbaa3a..780b4e56 100644
          }
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From e811611536b2196162287d7205384f563364270b Mon Sep 17 00:00:00 2001
+From b60a0e6b355accc4f98a643c2d3b09b9855fa57c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:56:54 +0800
-Subject: [PATCH 068/179] Tweak equalizer gain values in 0.1 dB steps
+Subject: [PATCH 068/180] Tweak equalizer gain values in 0.1 dB steps
 
 Quantizes every gain-related dial/slider (band gain, bass/treble, compressor threshold/makeup) to 0.1 dB on change, and formats their labels to one decimal instead of rounding to a whole dB.
 ---
@@ -22556,13 +22556,13 @@ index 780b4e56..ae31fef8 100644
          }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 0bedeb240fbf66eb8a5f74f5f10978a22ab84661 Mon Sep 17 00:00:00 2001
+From 18d546dfefdf5e7810c42b5b2a4d8276a16713e9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:00:19 +0800
-Subject: [PATCH 069/179] Let equalizer presets remember custom edits as named
+Subject: [PATCH 069/180] Let equalizer presets remember custom edits as named
  profiles
 
 Adds EqualizerProfile: every preset name doubles as a profile, with a factory curve (from the existing PRESETS gains) and, once Saved, a persisted custom override. The preset row becomes a profile selector (FilterChip, built-ins undeletable, custom ones removable), with Save / Save as new / Revert to saved / Revert to default actions for whichever profile is active - so tweaking a band while a preset is selected has somewhere to persist instead of being overwritten the next time that preset is tapped.
@@ -22803,13 +22803,13 @@ index ae31fef8..9d8066a5 100644
  
                  BassTrebleDials(
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 293f996f493568be16dd0b54b6837477fef4977c Mon Sep 17 00:00:00 2001
+From 8315eeaa51e7f393a48ef9060db0d8dfa97e6c01 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:18:05 +0800
-Subject: [PATCH 070/179] Make the Liquid player background audio-reactive
+Subject: [PATCH 070/180] Make the Liquid player background audio-reactive
 
 Adds VisualizerAnalyzer: cheap, no-FFT bass/mid/treble/transient extraction fed from the equalizer's existing audio tap (EqualizerAudioProcessor), published as a throttled ~30Hz StateFlow rather than per-sample. Gated by a visualizerEnabled flag so the extra sample decoding only happens while something's actually consuming it - the EQ's bypass path otherwise stays a cheap bulk buffer copy.
 
@@ -23279,13 +23279,13 @@ index f84b6af1..b0bd9449 100644
 +    }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 84f74c339effa30bd468670da28253648e0166b1 Mon Sep 17 00:00:00 2001
+From 66d35fb885448c681b133156cc48a0dbbab63752 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:19:25 +0800
-Subject: [PATCH 071/179] Fix missing WindowInsets.statusBars import breaking
+Subject: [PATCH 071/180] Fix missing WindowInsets.statusBars import breaking
  the build
 
 ---
@@ -23305,13 +23305,13 @@ index 13ce963c..cd838c70 100644
  import androidx.compose.foundation.layout.width
  import androidx.compose.foundation.layout.windowInsetsPadding
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 0a39bc1c9e93378f1ef5beaa0b9a632c727b97d8 Mon Sep 17 00:00:00 2001
+From 2793e592ec3b4673452c452c0475bcfb96784fa6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:25:36 +0800
-Subject: [PATCH 072/179] Fix EQ crackle on boosted presets: automatic headroom
+Subject: [PATCH 072/180] Fix EQ crackle on boosted presets: automatic headroom
  pre-gain plus soft clipping
 
 Several adjacent bands boosted at once (Bass Boost, Loudness, Small Speakers) overlap enough that the summed signal clears 0dBFS well before any single band's own gain would suggest, and the previous hard coerceIn(-1f, 1f) turned that into audible crackle on transients.
@@ -23411,13 +23411,13 @@ index f2de06f8..cbf450a1 100644
              }
              if (feedVisualizer) visualizer.feed(frameSum / channelCount)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 148af10d0abb694f3c7cd689bd07cc10a292341d Mon Sep 17 00:00:00 2001
+From 6a47502a196ae9ce4bdbcbce291286b6f59be96f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:41:57 +0800
-Subject: [PATCH 073/179] Bring back remote history
+Subject: [PATCH 073/180] Bring back remote history
 
 Reconsidered after removing it - the underlying fetch was already fixed (pagination, safe defaults instead of force-unwraps, failures surfaced via snackbar) before it got pulled entirely, so restoring the already-working version rather than rebuilding from scratch. Local/remote tab selector, HistoryPage/HistorySource, and YouTube.musicHistory()/musicHistoryContinuation() are all back exactly as they were right before removal.
 ---
@@ -23996,13 +23996,13 @@ index 00000000..881ebce5
 +    }
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 4b1e58de648be6be48e69c762ae39b7c6369d48e Mon Sep 17 00:00:00 2001
+From 2786af5ffcd8635543297aea2ba9fe0672da5f56 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:43:44 +0800
-Subject: [PATCH 074/179] Remove orphaned strings left over from earlier
+Subject: [PATCH 074/180] Remove orphaned strings left over from earlier
  removals
 
 equalizer_slider_style, discord_rpc_clear_after_pause(_desc), never, and rpc_paused have had zero code references since the slider-style setting was dropped and the Discord paused-card behavior was removed - the resource shrinker already excludes them from the built APK, this is just source hygiene.
@@ -24046,13 +24046,13 @@ index 93e4840d..a2296ddb 100644
      <string name="about">About</string>
      <string name="app_version">App version</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 89a3c0a3994381d0fe64b97cd40fda63c0b06a9b Mon Sep 17 00:00:00 2001
+From f07e6187272acfd83d65d222fb9fdd4c347efddd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:58:57 +0800
-Subject: [PATCH 075/179] Fix the rotary dials not responding, and the liquid
+Subject: [PATCH 075/180] Fix the rotary dials not responding, and the liquid
  visualiser rendering grey
 
 - RotaryDial's drag handler closed over the value parameter directly, but detectDragGestures runs in a coroutine that survives across separate physical drags - so every drag after the first computed its delta against a stale value from whenever that coroutine started, not the value the previous drag actually landed on. Fixed with rememberUpdatedState on both the value and the callback.
@@ -24331,13 +24331,13 @@ index cd838c70..57eac864 100644
          }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From c1387513127fcf6bfdc3036529f35a56b89271b7 Mon Sep 17 00:00:00 2001
+From c57830b50d84ec32f8f3db825c85a4f0c4010dc3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:08:48 +0800
-Subject: [PATCH 076/179] Add dial/slider toggle, Poweramp-style flat sliders,
+Subject: [PATCH 076/180] Add dial/slider toggle, Poweramp-style flat sliders,
  and value color gradient to the equalizer
 
 - New 'Use dials instead of sliders' setting: band gain, the band editor's frequency/gain, and bass/treble all switch between the rotary dials and a slider depending on it, alongside the existing separate balance dial/slider toggle.
@@ -25089,13 +25089,13 @@ index 08e5f268..4ca41321 100644
  }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From ae531ba83f05d05c28b64752b8af2dfa226827c7 Mon Sep 17 00:00:00 2001
+From 0438f47404c40461a2874c038c477326e7b1bf02 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:52:17 +0800
-Subject: [PATCH 077/179] Fix RotaryDial compile error: missing getValue import
+Subject: [PATCH 077/180] Fix RotaryDial compile error: missing getValue import
  for by rememberUpdatedState
 
 State<T> needs the androidx.compose.runtime.getValue extension in scope to be
@@ -25119,13 +25119,13 @@ index e89d3b26..f2e16144 100644
  import androidx.compose.ui.Alignment
  import androidx.compose.ui.Modifier
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b7d30566d2f9e4fdcd318eaa8f007bdc299f815d Mon Sep 17 00:00:00 2001
+From 481f3f8604c782be8e783e715a95586bdf8a08bf Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 06:48:30 +0800
-Subject: [PATCH 078/179] Fix EqualizerPanel compile error: opt in to
+Subject: [PATCH 078/180] Fix EqualizerPanel compile error: opt in to
  ExperimentalMaterial3Api on PowerampSlider/LabeledSlider
 
 Both call the Slider(track=, thumb=) overload directly but weren't annotated,
@@ -25156,13 +25156,13 @@ index 4ca41321..e37fcebe 100644
  private fun LabeledSlider(
      label: String,
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 6af6c34f523ccef13f29a8bf892defbf3b101965 Mon Sep 17 00:00:00 2001
+From f70c492d54722b9e0f17898333177193ac5b248a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 14:46:35 +0800
-Subject: [PATCH 079/179] EQ visual overhaul + lyrics sync fix + miniplayer
+Subject: [PATCH 079/180] EQ visual overhaul + lyrics sync fix + miniplayer
  dismiss fix
 
 - Lyrics: findCurrentLineIndex no longer wraps a transient negative
@@ -26086,13 +26086,13 @@ index 57eac864..430b1aa6 100644
          collapsedContent = {
              MiniPlayer()
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 852ee9259d593efb6f546435dfd6760347acf504 Mon Sep 17 00:00:00 2001
+From c1ecd79807f76e86a6a98d38f28cb5fecac21ed5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:38:42 +0800
-Subject: [PATCH 080/179] EQ tone controls rework, Liquid background v3,
+Subject: [PATCH 080/180] EQ tone controls rework, Liquid background v3,
  per-style text contrast
 
 - Bass/Treble dials now move every band at/below 250Hz or at/above
@@ -26875,13 +26875,13 @@ index b0bd9449..5d63ed4a 100644
 +    }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 69cb001b2707f53c3d0ad0691d2017997d404702 Mon Sep 17 00:00:00 2001
+From a1ce2f01f37516900d6651c1ddfc58a23f946283 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:33:54 +0800
-Subject: [PATCH 081/179] EQ color scheme rework, bigger handle, fix Liquid
+Subject: [PATCH 081/180] EQ color scheme rework, bigger handle, fix Liquid
  alpha-flash
 
 - Sliders: track fill is always a fixed green, unfilled portion a
@@ -27419,13 +27419,13 @@ index 8a31b1e2..d9f55c41 100644
                  palette.forEachIndexed { i, color ->
                      // Two sine terms per axis at deliberately non-harmonic speeds, each blob on its
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From dd614b9e6129ef9ebc43220bf6d02ae8d0749d37 Mon Sep 17 00:00:00 2001
+From f63f416be751120896d32d4e0a371213aafa2208 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:03:07 +0800
-Subject: [PATCH 082/179] Layout editor schema v4: render individual
+Subject: [PATCH 082/180] Layout editor schema v4: render individual
  transport/action buttons
 
 - PlayerLayout.kt: bumped to SCHEMA_VERSION 4, fixed two bugs in the
@@ -28202,13 +28202,13 @@ index aa2ecafb..abbf50eb 100644
      if (scale == 1f && block.rotationDegrees == 0f) return this
      return graphicsLayer {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From d0c86bd71dab9eda2f906e028c1a2f9d2907cd5b Mon Sep 17 00:00:00 2001
+From 72993ef1d551d6bb24ddbc7a9e92891d40a09dbe Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:29:09 +0800
-Subject: [PATCH 083/179] Fix the actual EQ handle, restore Liquid's flower
+Subject: [PATCH 083/180] Fix the actual EQ handle, restore Liquid's flower
  shape smaller and blurred
 
 - The player-screen handle that opens the EQ (EqualizerHandle in
@@ -28530,13 +28530,13 @@ index 1b5f123b..a430aaf5 100644
          )
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 09bfcf9f92f27b25a191faa023a50c1843ed091c Mon Sep 17 00:00:00 2001
+From 1e0af9de0d1e6f92803f5ccbd246875c3a810cdd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:13:28 +0800
-Subject: [PATCH 084/179] Add a Liquid shape setting: petal (spiky) or spheres
+Subject: [PATCH 084/180] Add a Liquid shape setting: petal (spiky) or spheres
  (soft)
 
 Rather than keep flip-flopping between the spiky "flower" and the soft
@@ -28940,13 +28940,13 @@ index 5d63ed4a..4f69ef2e 100644
          rememberEnumPreference(LiquidColorSchemeKey, defaultValue = LiquidColorScheme.SURFACE)
      AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 1100e79b2c06531c3cc2b2cfd8126b5ca01a2c47 Mon Sep 17 00:00:00 2001
+From 625d30c4587ba3679997a553b33d0ac3efbbbf85 Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Thu, 13 Aug 2026 17:37:53 +0900
-Subject: [PATCH 085/179] fix: prevent concurrent home pagination requests
+Subject: [PATCH 085/180] fix: prevent concurrent home pagination requests
 
 Set the loading flag only when no home pagination request is already running. Perform the check and update as a single operation so that simultaneous load-more requests start only one network call.
 
@@ -28992,13 +28992,13 @@ index 14d91ba2..22af1f35 100644
      }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 15c0e81ee8cd68208a14d25573d95fbb3be1c845 Mon Sep 17 00:00:00 2001
+From eab6876fd9ed8945d0e90fb0318e522a99a706db Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Thu, 13 Aug 2026 19:24:49 +0900
-Subject: [PATCH 086/179] fix: discard stale home load-more results
+Subject: [PATCH 086/180] fix: discard stale home load-more results
 
 A home load-more request can finish after a refresh or category change and append its sections to the newly displayed content.
 
@@ -29053,13 +29053,13 @@ index 22af1f35..5fb5e467 100644
                  _isLoadingMore.value = false
              }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 8e12c3cb41fee9ca6c1cfecef1a8a37184b3b74b Mon Sep 17 00:00:00 2001
+From f15fb9a2e23dda9c04a59058b602336eb959dade Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Fri, 14 Aug 2026 11:23:00 +0900
-Subject: [PATCH 087/179] fix: prevent crash when clearing the final queue
+Subject: [PATCH 087/180] fix: prevent crash when clearing the final queue
 
 ExoPlayer can report a prospective media item index when its timeline is empty.
 The lyrics target update treated that index as a valid item after the final queue was cleared and tried to read a nonexistent window.
@@ -29101,13 +29101,13 @@ index 801f1567..1a72918c 100644
 \ No newline at end of file
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 30ecfb43997139dcf774ed88348c6fff8f2cd76c Mon Sep 17 00:00:00 2001
+From cdf7aabebe05c1e900d30681069e5829dcdf3391 Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Sat, 15 Aug 2026 13:43:21 +0900
-Subject: [PATCH 088/179] fix: add cipher configs for current YouTube players
+Subject: [PATCH 088/180] fix: add cipher configs for current YouTube players
 
 Refresh the bundled player_configs.json from ZemerTeam/zemer-cipher.
 
@@ -29330,13 +29330,13 @@ index 80bcd9d7..f7e95cf6 100644
    }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From c0d1d040a87954040c31570dd3df9f088be30e11 Mon Sep 17 00:00:00 2001
+From 52deb3a09c1a0e03d15ee17124eb8f4452737d7e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:36:42 +0800
-Subject: [PATCH 089/179] Fix garbled unsynced lyrics, make Liquid's idle
+Subject: [PATCH 089/180] Fix garbled unsynced lyrics, make Liquid's idle
  motion actually visible
 
 Unsynced lyrics were joined with joinToString { "${it.first}\n" } -
@@ -29435,13 +29435,13 @@ index ffec9482..4ab79472 100644
                          return Offset(cx + r * cos(angle), cy + r * sin(angle))
                      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 5fd52063f45773a39b5e941a9571dbe76b153d46 Mon Sep 17 00:00:00 2001
+From e96207dcc9603acc6fa37b81651bd49f9a29c8b1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:43:44 +0800
-Subject: [PATCH 090/179] Match the petal's colour to the playback controls,
+Subject: [PATCH 090/180] Match the petal's colour to the playback controls,
  soften its edges
 
 The petal was filled from the album-art extraction (falling back to
@@ -29524,13 +29524,13 @@ index 4ab79472..94974ded 100644
                      )
                  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a2d0d142e46c114551a3727b6eff5f0072323521 Mon Sep 17 00:00:00 2001
+From 468599ce694f328d6e737bec45a4cad0d4b6b60b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:59:46 +0800
-Subject: [PATCH 091/179] Make Liquid's text contrast follow the backdrop, not
+Subject: [PATCH 091/180] Make Liquid's text contrast follow the backdrop, not
  the cover art
 
 rememberPlayerOnBackgroundColor measured the raw album cover's
@@ -29614,13 +29614,13 @@ index 91703cd9..8847cc88 100644
  }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 73ec120ceec4a3fd89fb856070c2e5037206ba91 Mon Sep 17 00:00:00 2001
+From 264bea8a150563be2e9fc7f11352fd67864021cc Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:59:58 +0800
-Subject: [PATCH 092/179] Fix two crashes that could abort playback/downloads
+Subject: [PATCH 092/180] Fix two crashes that could abort playback/downloads
  mid-stream
 
 format.contentLength!! in both MusicService's playback data source and
@@ -29707,13 +29707,13 @@ index 1a72918c..31e070b6 100644
                          playbackTrackingUrl = playbackData.playbackTracking?.videostatsPlaybackUrl?.baseUrl
                      )
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b21d86b1051a95f429943bb1162240ad07422e76 Mon Sep 17 00:00:00 2001
+From fd90e1280934ef177a1e6c115ecc80caa186af3a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:01:56 +0800
-Subject: [PATCH 093/179] Size the artist header to the image's own shape, not
+Subject: [PATCH 093/180] Size the artist header to the image's own shape, not
  a forced 4:3 crop
 
 Artist images come in two real shapes: older channels have a square
@@ -29841,13 +29841,13 @@ index a848cde2..1511ea7e 100644
 +    return null
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2c07f9e68d4e4a9f6b1a439ffc7ca61b30f73065 Mon Sep 17 00:00:00 2001
+From f61b13a9716cbf4d8a32b0f2b69da6df3489cc55 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:10:40 +0800
-Subject: [PATCH 094/179] Keep Bass/Balance/Treble as dials regardless of the
+Subject: [PATCH 094/180] Keep Bass/Balance/Treble as dials regardless of the
  slider toggle
 
 ToneControlsRow followed the panel-wide "use dials instead of
@@ -30006,13 +30006,13 @@ index ff04effa..a506385a 100644
  }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 4adc7df6cb83f68993ca3c6f0334adbce2cf7fb3 Mon Sep 17 00:00:00 2001
+From 7611353e14486aa9d65679cfd136f47c0a2e137d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:21:03 +0800
-Subject: [PATCH 095/179] Fix Follow-theme's grey/black fallback, and a
+Subject: [PATCH 095/180] Fix Follow-theme's grey/black fallback, and a
  settings/behaviour mismatch
 
 extractGradientColors() routed through Score.score(), which is tuned
@@ -30095,13 +30095,13 @@ index 588b965e..8de5a1ec 100644
  
  fun DynamicScheme.toColorScheme() = ColorScheme(
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 9b8d574bb52e6ed70c4a27df7f9ef50c901c0143 Mon Sep 17 00:00:00 2001
+From 7b7d513706663e13f4a03462c3e378f00342bc6e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:26:55 +0800
-Subject: [PATCH 096/179] Restructure the EQ panel into rounded cards, fix
+Subject: [PATCH 096/180] Restructure the EQ panel into rounded cards, fix
  contrast gaps
 
 Split the flat, divider-separated column into four rounded cards -
@@ -30711,13 +30711,13 @@ index a506385a..42e8eee2 100644
                  ) {
                      Text(
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From fdb65cc3eb2399404a5ce1b9d1fd0106c10eef74 Mon Sep 17 00:00:00 2001
+From bee6a32d7f99b198186e56a7666873e42e027a96 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:35:51 +0800
-Subject: [PATCH 097/179] Fix Liquid's Theme-surface contrast being a no-op,
+Subject: [PATCH 097/180] Fix Liquid's Theme-surface contrast being a no-op,
  and its flat-black look
 
 rememberPlayerOnBackgroundColor's SURFACE branch returned themeFallback
@@ -30824,13 +30824,13 @@ index b17bbf17..41d1df99 100644
      } else {
          MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a216233853b44c12a406cd8bb648c4e238558634 Mon Sep 17 00:00:00 2001
+From fcee136e31d0df59411f7e564f9ae652bddd1a81 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:32:14 +0800
-Subject: [PATCH 098/179] Recover unparseable lyrics on display, refetch once
+Subject: [PATCH 098/180] Recover unparseable lyrics on display, refetch once
  if they still fail
 
 PlayerConnection.resolveLyrics (the actual live display path) called
@@ -30934,13 +30934,13 @@ index 31f4381a..16bcf669 100644
      }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 068f261c111a80aef762bdd846e177237045b8cc Mon Sep 17 00:00:00 2001
+From d06847f9ffd5c48c81bbac2cf15809a7cb33fb28 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:45:03 +0800
-Subject: [PATCH 099/179] Detect letterboxing baked into artist photos, not
+Subject: [PATCH 099/180] Detect letterboxing baked into artist photos, not
  just file shape
 
 The previous fix (sizing the header to the URL's own aspect ratio)
@@ -31212,13 +31212,13 @@ index 1511ea7e..907e9c32 100644
 +    return Rect(left, top, right + 1, bottom + 1)
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2763ba5531dd2987b7f28eab0c0cde5c3791810e Mon Sep 17 00:00:00 2001
+From c0705dd7fd4edefc7cff695a41cbb2c6fe9f806f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:45:14 +0800
-Subject: [PATCH 100/179] Give Liquid's Theme-surface backdrop and blobs
+Subject: [PATCH 100/180] Give Liquid's Theme-surface backdrop and blobs
  distinct colour roles
 
 Theme surface's backdrop was a tinted elevated surface, which read as
@@ -31386,13 +31386,13 @@ index 41d1df99..0aa39aac 100644
          }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From c284af42accf0020499790fa0f2d896ad7655cba Mon Sep 17 00:00:00 2001
+From 56805490d6d47176b1ef334114b63aeeb5ee3a2f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 10:41:18 +0800
-Subject: [PATCH 101/179] Two more defenses against error 2004 (bad HTTP status
+Subject: [PATCH 101/180] Two more defenses against error 2004 (bad HTTP status
  from googlevideo)
 
 Beyond the cipher-config refresh already in place:
@@ -31647,13 +31647,13 @@ index fd6be5d8..ee3fd0a0 100644
              val response = httpClient.newCall(requestBuilder.build()).execute()
              return response.isSuccessful
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 6f67f756f4a71ba8848240df580887bddc9242f0 Mon Sep 17 00:00:00 2001
+From 11fea8ffed80e1fe147d898636e4ffe00079b2bd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 10:44:36 +0800
-Subject: [PATCH 102/179] Show seek back/forward in a custom layout even with
+Subject: [PATCH 102/180] Show seek back/forward in a custom layout even with
  the setting off
 
 A custom layout that explicitly asks for BlockId.SEEK_BACKWARD/
@@ -31752,13 +31752,13 @@ index 0aa39aac..1f6e26cd 100644
              val skipNextButtonBlock: @Composable () -> Unit = {
                  ResizableIconButton(
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 9b1a6deba9b48fd4dee57f0a2d007176f7aa0c09 Mon Sep 17 00:00:00 2001
+From 63828ed1a4fe31c81988c99ee3f94336dbbf4c7a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:16:41 +0800
-Subject: [PATCH 103/179] Give the artist header more height, especially for
+Subject: [PATCH 103/180] Give the artist header more height, especially for
  wide/landscape photos
 
 Sizing the header box to the image's exact aspect ratio was correct in
@@ -31814,13 +31814,13 @@ index 39848100..b72ecf8e 100644
              Column {
                  Box(
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b7c226db5cc9b41fb282b264c5e5787146bba040 Mon Sep 17 00:00:00 2001
+From b1f02bc77e119bd77f3f26d0d878e9b5c17970ef Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:29:19 +0800
-Subject: [PATCH 104/179] Fix artist header image floating away from its title
+Subject: [PATCH 104/180] Fix artist header image floating away from its title
  text
 
 The previous commit made the header box deliberately taller than the
@@ -31866,13 +31866,13 @@ index b72ecf8e..e46407a3 100644
                                  top = WindowInsets.systemBars
                                      .asPaddingValues()
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 71870bf53f37ec55f292326e86d814f1e1c5813e Mon Sep 17 00:00:00 2001
+From c58af37794f615772cfdeb31dcbb41bd20a26c4c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:34:44 +0800
-Subject: [PATCH 105/179] Fix Theme-surface backdrop blending into the player's
+Subject: [PATCH 105/180] Fix Theme-surface backdrop blending into the player's
  own controls
 
 The last fix made the backdrop plain colorScheme.primary to stop it
@@ -31946,13 +31946,13 @@ index 1f6e26cd..aba77ec9 100644
      } else {
          MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 980dc32577307a1a62f41a6f6e119604659d9189 Mon Sep 17 00:00:00 2001
+From 9a73dd7e10a3b24a9088a310aa7c0899edaa2ff8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:38:43 +0800
-Subject: [PATCH 106/179] Add a Ferrofluid Liquid shape: a dark, glossy spiked
+Subject: [PATCH 106/180] Add a Ferrofluid Liquid shape: a dark, glossy spiked
  crown
 
 A third LiquidShapeStyle alongside Petal and Spheres, styled after
@@ -32168,13 +32168,13 @@ index 6241781d..c95aea58 100644
              },
              values = LiquidShapeStyle.entries,
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 7d1fde886037ddf1ab39f907899ddbe39229f8a4 Mon Sep 17 00:00:00 2001
+From efea823e40b26a18cbc09bb84ae38ce6cb09b893 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:58:18 +0800
-Subject: [PATCH 107/179] Add opt-in AGSL GPU shaders: chromatic shock ripple
+Subject: [PATCH 107/180] Add opt-in AGSL GPU shaders: chromatic shock ripple
  and raymarched Ferrofluid
 
 The lightweight Canvas Liquid renderer can't do real refraction or a lit
@@ -32786,13 +32786,13 @@ index c95aea58..75ea979d 100644
 +    }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From ead177810dd0e7cfed8e6af9f4aedc7a9ef4770f Mon Sep 17 00:00:00 2001
+From 934a9612933682373c49a0e02b077bbcf8b2cccb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 12:18:29 +0800
-Subject: [PATCH 108/179] Fix compile error: missing getValue/setValue imports
+Subject: [PATCH 108/180] Fix compile error: missing getValue/setValue imports
  in the new shader files
 
 CI failed on LiquidChromaticShock.kt and LiquidFerrofluidGpu.kt: their
@@ -32836,13 +32836,13 @@ index 5154d04d..d45bf04f 100644
  import androidx.compose.runtime.remember
  import androidx.compose.runtime.rememberUpdatedState
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 37ab888a98db964a8fda0700eee2dbd36128fffb Mon Sep 17 00:00:00 2001
+From 6688e44da03f6976067974216a7e2ea98b376633 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 12:38:39 +0800
-Subject: [PATCH 109/179] Fix repeat button drifting from the right edge when
+Subject: [PATCH 109/180] Fix repeat button drifting from the right edge when
  seek buttons toggle
 
 Each control-row icon (shuffle, skip, seek, repeat) sat in its own
@@ -32911,13 +32911,13 @@ index 9f0de090..43047355 100644
                                  }
                              }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b9c09595f1a92f0d6e3c32715b5099fae4f29cf3 Mon Sep 17 00:00:00 2001
+From 4e807b14f57cbf573adecd0ae5b23a4d8b6f7dc4 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 13:13:40 +0800
-Subject: [PATCH 110/179] Lighten the GPU ferrofluid shader, and fix the Canvas
+Subject: [PATCH 110/180] Lighten the GPU ferrofluid shader, and fix the Canvas
  one's star-shaped crown
 
 GPU ferrofluid was too heavy for lower-end GPUs and still not visibly
@@ -33106,13 +33106,13 @@ index d45bf04f..7a67a1b6 100644
          shader.setFloatUniform("time", elapsedSeconds)
          shader.setFloatUniform("bass", currentBass)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From ee628761f7968fa1a311e064f1f86fc599a5f546 Mon Sep 17 00:00:00 2001
+From 5471b826b4ebfdc678da1edb824f634446e50263 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Mon, 17 Aug 2026 21:50:53 +0800
-Subject: [PATCH 111/179] Fix lyrics rendering silently dying partway through a
+Subject: [PATCH 111/180] Fix lyrics rendering silently dying partway through a
  song
 
 Two separate LaunchedEffects, both keyed on lyricsModel, own two different
@@ -33205,13 +33205,13 @@ index 2affc5a4..9233fa89 100644
      // transitions. position.toUInt() on a negative Long wraps to a huge unsigned value, so every
      // real line.start compares as smaller than it - the loop below never finds a "current" line
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From e871b8b243b0c325da5b941c269b853f339e63eb Mon Sep 17 00:00:00 2001
+From 0221e13074998d0279565ce8531264aac243a4c4 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 09:14:22 +0000
-Subject: [PATCH 112/179] Stop battery saver from overriding word-by-word
+Subject: [PATCH 112/180] Stop battery saver from overriding word-by-word
  lyrics sync
 
 LyricKaraokeEnable is the person's own choice to turn word-by-word sync on;
@@ -33249,13 +33249,13 @@ index 9233fa89..0923c58c 100644
      // How often the *current line* is recomputed, which is what drives highlighting and scrolling.
      // The word sweep does not go through here: it redraws itself every frame.
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a4aa3ddbe0b6313376fdd69d2366c2992fe7d415 Mon Sep 17 00:00:00 2001
+From b4067fbfb2efca4ce73782689b4f0879fe946749 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 10:59:31 +0000
-Subject: [PATCH 113/179] Rotate the YouTube session identity as part of the
+Subject: [PATCH 113/180] Rotate the YouTube session identity as part of the
  existing source-error retry
 
 The retry in onPlayerError (from the earlier 'Two more defenses against
@@ -33463,13 +33463,13 @@ index cf7d973c..e6d55e74 100644
          if (!webViewSupported || webViewBadImpl) {
              return null
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 1987e120208003bf8268038a71ddee8838acbe2f Mon Sep 17 00:00:00 2001
+From 32f5122eff7fb01003b693b6b884133fb4cf63c2 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 12:26:34 +0000
-Subject: [PATCH 114/179] Keep every stream request under googlevideo's
+Subject: [PATCH 114/180] Keep every stream request under googlevideo's
  connection-duration cutoff
 
 Confirmed independently of any auth/URL-freshness issue: temporarily
@@ -33542,13 +33542,13 @@ index 8723ca66..cf101cc5 100644
  
              if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 1fdee942e9a50f4ac6873f58d20cbae383b8a30a Mon Sep 17 00:00:00 2001
+From 3865665083d1bb3e9720e07c53bb8d74d7bed871 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 13:11:06 +0000
-Subject: [PATCH 115/179] Proactively refresh the streaming PoToken before it
+Subject: [PATCH 115/180] Proactively refresh the streaming PoToken before it
  actually goes stale
 
 Confirmed the CDN-connection-duration theory wrong: tightening chunk size
@@ -33655,13 +33655,13 @@ index 460ca782..aac787ba 100644
       * Fetches a WEB_REMIX player response for non-streaming data, including
       * video metadata and playback tracking.
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 22328b4c07ccc5c24c19393a04bdf0b49b84f651 Mon Sep 17 00:00:00 2001
+From de4a8b4d5999660204c1b00f575ccfa1d9f429d9 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 12:19:59 +0000
-Subject: [PATCH 116/179] Stop the 'Failed to parse proxy url' toast on every
+Subject: [PATCH 116/180] Stop the 'Failed to parse proxy url' toast on every
  launch with no proxy set
 
 toInetSocketAddress() destructured split(":") with no length check, so a
@@ -33736,13 +33736,13 @@ index 148dda53..dc67714d 100644
  }
 \ No newline at end of file
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 46f7e5541f7c2fb5faf18f590d005d10dab71a60 Mon Sep 17 00:00:00 2001
+From e5b86a3c73281ce9b6d1b311ba5db9f7a4b24932 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 23:27:54 +0000
-Subject: [PATCH 117/179] Use a PoToken-bearing client for playback streams
+Subject: [PATCH 117/180] Use a PoToken-bearing client for playback streams
 
 Every PoToken fix in this series so far - the session rotation, the 40s
 cache cap, invalidate()-before-refresh - operated on a token that was
@@ -33905,13 +33905,13 @@ index 00000000..5b91bee1
 +-- 
 +2.43.0
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 3e4b67f56ef62f14f4a5c876cb80c942f8d6466a Mon Sep 17 00:00:00 2001
+From d8adc64bf15a31112b8edd7045c9bf0f32dd2b0d Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 23:28:07 +0000
-Subject: [PATCH 118/179] Validate streams with a ranged GET past the first
+Subject: [PATCH 118/180] Validate streams with a ranged GET past the first
  chunk
 
 validateStatus() issued a HEAD. googlevideo answers HEAD with 200 on
@@ -34089,13 +34089,13 @@ index 5b91bee1..00000000
 --- 
 -2.43.0
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 90d4ea70d1c3a0481841c6a19754bb3530dc5afb Mon Sep 17 00:00:00 2001
+From f6674d826b1e2e9ac4a6fc4239ec6c70c56f8958 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:34:05 +0800
-Subject: [PATCH 119/179] Send Referer/Origin on stream requests, precache the
+Subject: [PATCH 119/180] Send Referer/Origin on stream requests, precache the
  next song's URL
 
 Every stream request only ever carried a User-Agent. googlevideo.com has
@@ -34502,13 +34502,13 @@ index 9a2be236..cbe76e1c 100644
      private fun getSignatureTimestampOrNull(
          videoId: String
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 50082333de11864d1118f1dad9d5fe5704e18876 Mon Sep 17 00:00:00 2001
+From bc26633879116fca119008a14cb5b8a9fc96cfd9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:42:23 +0800
-Subject: [PATCH 120/179] Send X-Goog-Visitor-Id header on every innertube API
+Subject: [PATCH 120/180] Send X-Goog-Visitor-Id header on every innertube API
  request
 
 visitorData was already in every request body's context.client field, but
@@ -34538,13 +34538,13 @@ index 49051c7d..d2dd5d7f 100644
                  cookie?.let { cookie ->
                      val cookieMap = parseCookieString(cookie)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 11a913398b5d4ee3f56e1f17cefa9bd4dbecbbcd Mon Sep 17 00:00:00 2001
+From 38a07293441396c4ff354901785a3a10fe12c85a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:49:35 +0800
-Subject: [PATCH 121/179] Replay real playback-start telemetry: cpn +
+Subject: [PATCH 121/180] Replay real playback-start telemetry: cpn +
  watchtime/atr pings
 
 OuterTune's only playback ping fired at a song's END for local history
@@ -34875,13 +34875,13 @@ index ecdc8cde..54814a01 100644
      }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 408f258885b37c85e9373cdc80cd31e7b27d3002 Mon Sep 17 00:00:00 2001
+From 451a6e8b49d26c69edb92ad980fbae38514a930d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 20 Aug 2026 21:20:47 +0800
-Subject: [PATCH 122/179] Swiping the mini player down stops playback and
+Subject: [PATCH 122/180] Swiping the mini player down stops playback and
  dismisses it
 
 The mini player and the full player share one dismiss gesture (drag past
@@ -34963,13 +34963,13 @@ index 43047355..fecb5c13 100644
          collapsedContent = {
              MiniPlayer()
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From ed653a3ef808e0cef27608f6befbb3b1f7d8cf31 Mon Sep 17 00:00:00 2001
+From 07c3ff1b485abe735ea4470de2def4c1fde2f46a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 20 Aug 2026 21:28:07 +0800
-Subject: [PATCH 123/179] Bump NewPipeExtractor v0.26.3 -> v0.26.5
+Subject: [PATCH 123/180] Bump NewPipeExtractor v0.26.3 -> v0.26.5
 
 Two releases (and ~2 months) behind. Neither release's changelog calls
 out a targeted signature/throttling-parameter fix, so this isn't a
@@ -34996,13 +34996,13 @@ index f12ff0c0..fe38293f 100644
  [plugins]
  aboutlibraries = { id = "com.mikepenz.aboutlibraries.plugin", version.ref = "aboutLibraries" }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 64dde30932b56118d2e7187720212bfbfa3cf560 Mon Sep 17 00:00:00 2001
+From 16f95c74a4838544206a179b7943f7361d45e067 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:19:02 +0800
-Subject: [PATCH 124/179] Update stale client versions/UAs, fix client flags,
+Subject: [PATCH 124/180] Update stale client versions/UAs, fix client flags,
  tune HTTP client
 
 Several clients were up to a year out of date: WEB/WEB_REMIX/WEB_CREATOR/
@@ -35276,13 +35276,13 @@ index c2317a86..0b26b34d 100644
      }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 0380c75489c5c04f4c54d89b77b5872689ec6a34 Mon Sep 17 00:00:00 2001
+From 7f8c042f9d01cf8797ed5bc078c90b9d4f6aaf86 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:24:59 +0800
-Subject: [PATCH 125/179] Skip WEB_REMIX for 5 min after its stream is rejected
+Subject: [PATCH 125/180] Skip WEB_REMIX for 5 min after its stream is rejected
  for a video
 
 MusicService's retry-on-source-error re-resolves from scratch, which
@@ -35418,13 +35418,13 @@ index fd2b0ffb..c494707b 100644
      }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 78c2183ef3822ada3f86cc3c6c4b37ced8f44af8 Mon Sep 17 00:00:00 2001
+From 03e25f0abb1b44cf0bbf0a06e3669a2154f94530 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:35:27 +0800
-Subject: [PATCH 126/179] Exclude the top system bar from the free-placement
+Subject: [PATCH 126/180] Exclude the top system bar from the free-placement
  player area
 
 Free-placement blocks (PlayerLayoutBlock's FreeBlock) measure
@@ -35483,13 +35483,13 @@ index fecb5c13..064c350f 100644
      ) {
          if (freePlacement) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a1f98aaf3b1da54147808e4f0ed6294ee73bf82b Mon Sep 17 00:00:00 2001
+From 36d74c2e537608db9f8707d17e87bb9671adcad0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:46:10 +0800
-Subject: [PATCH 127/179] Download full-res thumbnails independently, fall back
+Subject: [PATCH 127/180] Download full-res thumbnails independently, fall back
  on load failure
 
 Adds SongEntity.thumbnailPath (DB v21->22, additive nullable column) for
@@ -35965,13 +35965,13 @@ index 153e3e2e..c6f197d3 100644
  <!-- Discord integration -->
      <string name="settings_discord_description">Show your listening activity as your Discord status</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 90278e9b8a377bf50422968ad9a1275656f8dd00 Mon Sep 17 00:00:00 2001
+From d625310148632c714852b2cdb7570cb2f857de61 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:51:31 +0800
-Subject: [PATCH 128/179] Enrich an existing song's artists/genres instead of
+Subject: [PATCH 128/180] Enrich an existing song's artists/genres instead of
  discarding them
 
 insert(mediaMetadata) returned immediately whenever the SongEntity insert
@@ -36029,13 +36029,13 @@ index ff43ce9d..62be8457 100644
              val album = albumsByName(it.title)
              val albumId = album?.id ?: GenreEntity.generateGenreId()
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 84272d7e77255cdbd1ce536f187f39b378f5b4e9 Mon Sep 17 00:00:00 2001
+From 82629577abc5af685e4e5bb067edcde8eb46c2a8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:57:01 +0800
-Subject: [PATCH 129/179] Add an Equalizer settings sub-page
+Subject: [PATCH 129/180] Add an Equalizer settings sub-page
 
 The dials-vs-sliders, contrast-color, and color-by-value toggles - and
 profile save/load/delete - previously only existed inside the in-player
@@ -36386,13 +36386,13 @@ index c6f197d3..dd8790fb 100644
      <string name="settings_discord_description">Show your listening activity as your Discord status</string>
      <string name="rpc_listen_ytm">Listen on YouTube Music</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 696a4a68efa0eecdd36671f50efb9176b6bbc807 Mon Sep 17 00:00:00 2001
+From 9432413a08abda047ed9b4197e94fb76e6b592ef Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:09:23 +0800
-Subject: [PATCH 130/179] Split combined "X & Y" credits and add featured
+Subject: [PATCH 130/180] Split combined "X & Y" credits and add featured
  artists, once verified
 
 Two cases where a song's credited artists were less complete than YTM
@@ -36614,13 +36614,13 @@ index 00000000..8347a5ee
 +    }
 +}
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 7d3e7ba1f42e0e74bfab9aa6e2b782517f14ab3f Mon Sep 17 00:00:00 2001
+From 97208a52cd7079955f4c3c12f609d65be8e479fc Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:17:23 +0800
-Subject: [PATCH 131/179] Put the real equalizer controls in Settings, not just
+Subject: [PATCH 131/180] Put the real equalizer controls in Settings, not just
  its meta-settings
 
 The Equalizer settings page previously only exposed the dials/contrast-
@@ -36968,13 +36968,13 @@ index dd8790fb..406577bd 100644
      <string name="eq_settings_contrast_color_description">Color the equalizer\'s controls to contrast with the current song\'s cover art instead of the app theme.</string>
      <string name="eq_settings_value_gradient_title">Color by value</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 31c7f6d361fcbeddee6a0801b29c7cd260eb0e29 Mon Sep 17 00:00:00 2001
+From 9c344b74223718c978358fd21cc85f841980b9cb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:27:30 +0800
-Subject: [PATCH 132/179] Make AutoEQ search actually search and apply real
+Subject: [PATCH 132/180] Make AutoEQ search actually search and apply real
  curves
 
 Replaces the AutoEQ placeholder with a working implementation: searches
@@ -37354,13 +37354,13 @@ index 406577bd..6e0a6c56 100644
  <!-- Discord integration -->
      <string name="settings_discord_description">Show your listening activity as your Discord status</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 600d9927b5b14fb03b2d8f6bd513892a16285d21 Mon Sep 17 00:00:00 2001
+From 233587938733ac4a682f95675217e9a8284c21da Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:34:38 +0800
-Subject: [PATCH 133/179] Mint PoTokens against visitorData, never dataSyncId,
+Subject: [PATCH 133/180] Mint PoTokens against visitorData, never dataSyncId,
  even when logged in
 
 Every PoToken this app minted while signed in was tied to dataSyncId -
@@ -37477,13 +37477,13 @@ index c494707b..79dea755 100644
      }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From f78ff5b0d9ced59eba5c781a3a605d0fd2a37523 Mon Sep 17 00:00:00 2001
+From 303b09707ae8ba1844444c2a81e75e544a38b401 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:39:20 +0800
-Subject: [PATCH 134/179] Fix compile error: Coil3's Chain.proceed() takes no
+Subject: [PATCH 134/180] Fix compile error: Coil3's Chain.proceed() takes no
  arguments
 
 Interceptor.Chain.proceed() is a no-arg suspend fun in Coil3 - to
@@ -37523,13 +37523,13 @@ index a65839a5..379e3e8b 100644
      }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From cc773387f67378c1fcb040e7b57beaaec59f3e6d Mon Sep 17 00:00:00 2001
+From 54d0de9476629ac569da945f577cfbb4bdfc132d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 10:10:08 +0800
-Subject: [PATCH 135/179] Fix compressor settings reverting to default when
+Subject: [PATCH 135/180] Fix compressor settings reverting to default when
  picking a built-in EQ preset
 
 Selecting any built-in preset (Rock, Pop, etc.) applied
@@ -37589,13 +37589,13 @@ index 2fd56a59..dcd18882 100644
  
      fun saveProfile(name: String) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b84ad87a46e558f45b02d819ac2862501bfdaf5d Mon Sep 17 00:00:00 2001
+From ccf2076c9fae668061510413bab14dee343546c5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 10:14:36 +0800
-Subject: [PATCH 136/179] Self-heal stale player cipher configs and expired
+Subject: [PATCH 136/180] Self-heal stale player cipher configs and expired
  download stream URLs
 
 Two related fixes for the same underlying failure mode (a resolved
@@ -37923,13 +37923,13 @@ index 8b076d2c..6eea6c21 100644
                  if (attempt == 0 && fromCache) {
                      // The cached player.js may be stale; refetch once in case the current player is
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From e900818678491ef2871d6b8b05c6ce27c1d48698 Mon Sep 17 00:00:00 2001
+From 1a03a4cd4393df3809e51c5f355441380decfa57 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:33:01 +0800
-Subject: [PATCH 137/179] Fix downloaded songs still streaming when downloaded
+Subject: [PATCH 137/180] Fix downloaded songs still streaming when downloaded
  mid-queue
 
 Playback resolution preferred the current queue's own cached MediaMetadata
@@ -37966,13 +37966,13 @@ index b7499dbf..0d573b4b 100644
              // local song
              if (song?.localPath != null) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From c708aa0239ab6d7911d7ebfc465c6b02172884f7 Mon Sep 17 00:00:00 2001
+From fceaf1c61de3e614d339f443682762fffd4cfe3b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:40:29 +0800
-Subject: [PATCH 138/179] Fix downloaded thumbnails rendering as a black player
+Subject: [PATCH 138/180] Fix downloaded thumbnails rendering as a black player
  background
 
 CoilBitmapLoader.fetch() only handled paths under /storage/, and even then
@@ -38058,13 +38058,13 @@ index 4c438e21..c075215c 100644
          } catch (e: Exception) {
              reportException(e)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 0141f98f0f5758846495f17d2de3d27607f3dfde Mon Sep 17 00:00:00 2001
+From 91fe2294ad4a55fa6e1bd7a0f38d1fef938f05e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:43:42 +0800
-Subject: [PATCH 139/179] Move thumbnail-download setting to Library & Content,
+Subject: [PATCH 139/180] Move thumbnail-download setting to Library & Content,
  add bulk download action
 
 The "download thumbnails automatically" toggle lived in Storage settings next
@@ -38279,13 +38279,13 @@ index 6e0a6c56..5d1e6625 100644
  <!-- Equalizer settings -->
      <string name="eq_settings_title">Equalizer</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From c94c09a0e9075f5133ad356ee83e3a521033d4aa Mon Sep 17 00:00:00 2001
+From 8db6b82bb470773037b281c10e81da827c12142e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 18:57:58 +0800
-Subject: [PATCH 140/179] Strip/dedupe " - Topic" artist credits, clean up ones
+Subject: [PATCH 140/180] Strip/dedupe " - Topic" artist credits, clean up ones
  already added
 
 ArtistCreditEnricher resolves featured/split-credit artist names via YT
@@ -38523,13 +38523,13 @@ index 8347a5ee..e1a105e7 100644
      }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 882aaf0aeac5fc53ace86fcbe176d89283be78e5 Mon Sep 17 00:00:00 2001
+From 35ab06b140fc8b4f0061e428f0e84ba6e2e53a36 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 19:14:24 +0800
-Subject: [PATCH 141/179] Fix compile errors in the stale-queue localPath
+Subject: [PATCH 141/180] Fix compile errors in the stale-queue localPath
  re-check
 
 database.song(id) returns the Song relation wrapper, not SongEntity, so the
@@ -38559,13 +38559,13 @@ index 0d573b4b..5573a2a0 100644
              }
              // local song
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b9cad44abf54f6e7e5cd2aa78dbbcb9f1dcb1f6d Mon Sep 17 00:00:00 2001
+From c86bbe7e3f7cee3870cbc5c1f11777133edda972 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:17 +0800
-Subject: [PATCH 142/179] Never replace a song's own artist credit, only add
+Subject: [PATCH 142/180] Never replace a song's own artist credit, only add
  confirmed extras behind it
 
 ArtistCreditEnricher used to delete a song's combined "X & Y" credit and
@@ -38705,13 +38705,13 @@ index e1a105e7..5a00d96a 100644
  
      /**
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From db6ce5f69efc3d5181b0306d7e2817aa35c08b1f Mon Sep 17 00:00:00 2001
+From ab9635bb610f213d8343efa284acb7a407cbb055 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:29 +0800
-Subject: [PATCH 143/179] Fix two player crash risks around album/artist
+Subject: [PATCH 143/180] Fix two player crash risks around album/artist
  navigation
 
 - Player.kt's album-title tap read mediaMetadata!!.album!!.id inside the
@@ -38763,13 +38763,13 @@ index 064c350f..e12f4518 100644
                                      }
                              )
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 1aacbd5ccf65de9cd5929d31cf3c9297c8113631 Mon Sep 17 00:00:00 2001
+From 22ad94e73582f2b8284c88b1882727ad7289808a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:40 +0800
-Subject: [PATCH 144/179] Size the artist header photo's padding to whether
+Subject: [PATCH 144/180] Size the artist header photo's padding to whether
  it's letterboxed
 
 The header's extra headroom (HEADER_HEIGHT_BOOST) was applied by the same
@@ -38850,13 +38850,13 @@ index e46407a3..e9008404 100644
              Column {
                  Box(
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From e5ee957bd01d865965f07d6c1d35c39b537b0b47 Mon Sep 17 00:00:00 2001
+From b7edc3c361b2d91330e58db4077d7e5b7099b49a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:51 +0800
-Subject: [PATCH 145/179] Add crossfade with a configurable fade-out duration
+Subject: [PATCH 145/180] Add crossfade with a configurable fade-out duration
 
 There's one ExoPlayer, not two, so this isn't a true overlapping crossfade -
 Crossfader instead fades the current track's volume out over the last
@@ -39152,13 +39152,13 @@ index 5d1e6625..89b921c9 100644
      <string name="sleep_timer_fade_duration">Fade duration</string>
      <string name="sleep_timer_fade_duration_desc">Seconds to lower the volume before stopping</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 5fd79fd79584835140e440ed75fc9d16f4a6bbd9 Mon Sep 17 00:00:00 2001
+From 2798e4ed71ba5774d748cb67dddb09ddf0f8456b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:07 +0800
-Subject: [PATCH 146/179] Never navigate to an artist with no real page
+Subject: [PATCH 146/180] Never navigate to an artist with no real page
 
 Every "view artist" action (the player's title-area link, its overflow
 menu, song/album menus, both the plain and thumbnailed artist picker
@@ -39380,13 +39380,13 @@ index e12f4518..878b48a1 100644
                                                  playerSheetState.collapseSoft()
                                              }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 56ba5e06f97c6eaf0225531d9f0aa6dd3ed92ca1 Mon Sep 17 00:00:00 2001
+From dc4e11c35207725370cd5fa4db4b11f6d8a0a8e3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:18 +0800
-Subject: [PATCH 147/179] Show an artist's videos as a song list when they have
+Subject: [PATCH 147/180] Show an artist's videos as a song list when they have
  no songs of their own
 
 An artist page's "Videos" carousel and its "Songs" list both come from the
@@ -39561,13 +39561,13 @@ index 89b921c9..6f7af844 100644
  
  <!-- Scanner settings -->
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2e887bebf79d22d73adde8c412e4f4ec1b823580 Mon Sep 17 00:00:00 2001
+From 5de846af1942a948e7c7a633cb352b94e419e35a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:30 +0800
-Subject: [PATCH 148/179] Watch for a dead Discord RPC connection and
+Subject: [PATCH 148/180] Watch for a dead Discord RPC connection and
  force-reconnect it
 
 Kizzy's isRpcRunning()/isWebSocketConnected() only reflect whether connect()
@@ -39684,13 +39684,13 @@ index 632e7ffa..0e9acbaf 100644
          const val SONG = "song"
          const val ARTIST = "artist"
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 78d480214485714851a3586935cf002749f9d632 Mon Sep 17 00:00:00 2001
+From c0ff0174478ba106c0bbf9404214e47154e62119 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:28:52 +0800
-Subject: [PATCH 149/179] Remove a combined artist credit once confirmed it
+Subject: [PATCH 149/180] Remove a combined artist credit once confirmed it
  doesn't exist, not just add around it
 
 The previous version never touched a song's own "X & Y" combined credit,
@@ -39830,13 +39830,13 @@ index 5a00d96a..ae9cc745 100644
          for (name in featured) {
              val resolved = resolveArtistEntity(database, name) ?: continue
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From c6c2f9d312beeb596e0f2a3d843c3e5b6106f0a8 Mon Sep 17 00:00:00 2001
+From 363230bdbb7b1618886104805e78d0f17f8daa0f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:42:12 +0800
-Subject: [PATCH 150/179] Fix compile error: write the 21->22 migration by hand
+Subject: [PATCH 150/180] Fix compile error: write the 21->22 migration by hand
  instead of relying on a missing schema snapshot
 
 CI failed with:
@@ -39906,13 +39906,13 @@ index a5528b74..2217a4d2 100644
   * Clean up artist credits ending in " - Topic" - YouTube's auto-generated channel name for an
   * artist with no official channel. ArtistCreditEnricher's search-based resolution used to credit
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a9a611c33bdd5f043b0966c5512cb9e3da8c5899 Mon Sep 17 00:00:00 2001
+From 17e9f88c00b2abaf89a4667b284c50d0f58d0561 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 13:30:20 +0800
-Subject: [PATCH 151/179] Add automatic backup, so song stats survive an
+Subject: [PATCH 151/180] Add automatic backup, so song stats survive an
  uninstall without a manual step
 
 Backup and Restore already covers every setting and the whole database
@@ -40426,13 +40426,13 @@ index 6f7af844..08b9a051 100644
  </resources>
 \ No newline at end of file
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 35f62a8c02cf80412c4a1f51a72ff8111e5f11d0 Mon Sep 17 00:00:00 2001
+From beb60ad104f181e9bb32fd188f497b37625b05a2 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 19:55:04 +0800
-Subject: [PATCH 152/179] Auto-create the automatic backup folder, add interval
+Subject: [PATCH 152/180] Auto-create the automatic backup folder, add interval
  units, and selective categories
 
 Replaces the SAF folder picker with Downloads/OuterTune Backup, created on
@@ -41155,13 +41155,13 @@ index 08b9a051..a433e677 100644
  </resources>
 \ No newline at end of file
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From fa2579b2c25a0a7337cadfae1d4920a56848697f Mon Sep 17 00:00:00 2001
+From 262fb3b4b62f17a8bb4c0d5a45a3a5686f76b98f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 20:25:17 +0800
-Subject: [PATCH 153/179] Fix a crash-loop on launch: recreate the database on
+Subject: [PATCH 153/180] Fix a crash-loop on launch: recreate the database on
  a downgrade instead of crashing
 
 Logcat: "IllegalStateException: A migration from 24 to 23 was required but
@@ -41206,13 +41206,13 @@ index 2217a4d2..93349a54 100644
              )
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2c6ce7fca21813b2772b1bd2417ff5d30986e643 Mon Sep 17 00:00:00 2001
+From b2d95a3e27422742d000ce9bc4ca42d51070a3e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:39:33 +0800
-Subject: [PATCH 154/179] Recover the dropped v24 Topic-suffix work, so
+Subject: [PATCH 154/180] Recover the dropped v24 Topic-suffix work, so
  version-24 backups are compatible again
 
 A prior session's last 5 commits on this branch never actually made it into
@@ -41655,13 +41655,13 @@ index ae9cc745..bd395928 100644
       * Runs both checks for one song - called once per playback ([com.dd3boh.outertune.playback.MusicService.recoverSong])
       * and once per song when downloads are rescanned ([com.dd3boh.outertune.playback.DownloadUtil.scanDownloads]).
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 3f44093b9f3b392a77b86a046f1e6729628118aa Mon Sep 17 00:00:00 2001
+From a168f94231e073c8642461f4878349e4e736cca8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:42:17 +0800
-Subject: [PATCH 155/179] Merge a restored backup into the live database
+Subject: [PATCH 155/180] Merge a restored backup into the live database
  instead of replacing it outright
 
 Restore used to copy the backup's database file straight over the live one
@@ -41775,13 +41775,13 @@ index 85798d5f..398fc873 100644
 +    }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From a7210180c1a1b250d2d3381629b9caf61dd67435 Mon Sep 17 00:00:00 2001
+From c30c27e2e44accf5f603e8eb2205d890d2ad2e1c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:55:19 +0800
-Subject: [PATCH 156/179] Fix compile error: writableDatabase.path is nullable
+Subject: [PATCH 156/180] Fix compile error: writableDatabase.path is nullable
 
 CI: "Argument type mismatch: actual type is 'String?', but 'String' was
 expected" at mergeDatabaseFile's liveDbPath argument. SupportSQLiteDatabase.path
@@ -41809,13 +41809,13 @@ index 398fc873..2fd26f26 100644
                                      )
                                  } else {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b82441440477d0e5c160f5246f50fd437584854f Mon Sep 17 00:00:00 2001
+From d01c1443ff74666fb0233c6b5e8ff46511453cca Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 22:23:51 +0800
-Subject: [PATCH 157/179] Simplify backup: drop the merge-restore and selective
+Subject: [PATCH 157/180] Simplify backup: drop the merge-restore and selective
  categories
 
 Both were real, standing risk: merge-restore ATTACHed the backup database
@@ -42276,13 +42276,13 @@ index a433e677..5b1d684a 100644
      <string name="sleep_timer_fade_duration">Fade duration</string>
      <string name="sleep_timer_fade_duration_desc">Seconds to lower the volume before stopping</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From cc5544a586de79c63dee3365bec7bbd0c951178e Mon Sep 17 00:00:00 2001
+From 75c1cc80bf058055d9ec58a885f1aaa6785c718d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 22:24:01 +0800
-Subject: [PATCH 158/179] Write a safety backup before every irreversible
+Subject: [PATCH 158/180] Write a safety backup before every irreversible
  delete action
 
 Before any of the six "Nuke" database tools (Experimental > Developer
@@ -42436,13 +42436,13 @@ index 27e98a6f..7852145f 100644
                      }
                  ) {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 70b7c130363465ac20ae379e414bf26b6aad9bda Mon Sep 17 00:00:00 2001
+From c0a3db336bb57af5408dc3e528903d64ba47e04b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:32:59 +0800
-Subject: [PATCH 159/179] Move automatic backup off the playback path onto
+Subject: [PATCH 159/180] Move automatic backup off the playback path onto
  WorkManager
 
 writeAutoBackup (a WAL checkpoint plus a full copy of the live database)
@@ -42714,13 +42714,13 @@ index fe38293f..d1def5d3 100644
  
  hilt = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 9fe9e9f9ce01e9379c44e5a6e6c1b378b597cda8 Mon Sep 17 00:00:00 2001
+From 9e5c06ab287824c8c22e1428da591d4a1f803b68 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:33:16 +0800
-Subject: [PATCH 160/179] Fix a torn-snapshot race in writeBackup, and merge
+Subject: [PATCH 160/180] Fix a torn-snapshot race in writeBackup, and merge
  duplicate artists more completely
 
 writeBackup ran PRAGMA wal_checkpoint(FULL) and then copied song.db as a
@@ -43004,13 +43004,13 @@ index e95f81f8..d5ef61cd 100644
          }
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2a00a43158b1b9d10c8b46f5ae051bccc3396097 Mon Sep 17 00:00:00 2001
+From 4f6d1f54b689e08bc707f28a16610ac336bc29e6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:33:29 +0800
-Subject: [PATCH 161/179] Add a way to move already-downloaded songs to a new
+Subject: [PATCH 161/180] Add a way to move already-downloaded songs to a new
  folder
 
 Changing the external download folder in Settings has never actually
@@ -43301,13 +43301,13 @@ index 5b1d684a..227736fc 100644
      <string name="dl_rescan_title">Rescan download folders…</string>
      <string name="dl_rescan_description">Update the database and refresh the download registry if any files or folders have changed</string>
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 35fca1602a2a46ff1dd88ee609ac1d803291e460 Mon Sep 17 00:00:00 2001
+From ea7e30d3563a47d504db1385bf6e4c4b0e1474bb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 10:37:07 +0800
-Subject: [PATCH 162/179] Bound download stream requests the same way playback
+Subject: [PATCH 162/180] Bound download stream requests the same way playback
  already is
 
 DownloadUtil's data source never got the connection-duration/PoToken-
@@ -43421,13 +43421,13 @@ index c534e7db..4bcd5c3f 100644
      val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
      val downloadManager: DownloadManager =
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From b39e5c13457dd25290ea59268a14521bc4335628 Mon Sep 17 00:00:00 2001
+From 987b648a9aafa8e6afa34105118e935ccb8ba048 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 10:44:16 +0800
-Subject: [PATCH 163/179] Tighten the proactive stream-URL refresh window to
+Subject: [PATCH 163/180] Tighten the proactive stream-URL refresh window to
  20s
 
 Field reports of playback dying with a source error around ~30s in,
@@ -43481,13 +43481,13 @@ index de63d528..9b11b540 100644
          const val COMMAND_GET_BINDER = "GET_BINDER"
      }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 05eeae41f4574e03298482adb54e72ef8a830346 Mon Sep 17 00:00:00 2001
+From 07e2784015f77820baf6aff54970247ba1e7cadd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:07:55 +0800
-Subject: [PATCH 164/179] Make the userdebug variant debuggable, so adb -d
+Subject: [PATCH 164/180] Make the userdebug variant debuggable, so adb -d
  downgrades work on it
 
 Android 14+ refuses adb install -d (downgrade) unless the *currently
@@ -43529,13 +43529,13 @@ index ea1302e1..3f52f92e 160000
 -Subproject commit ea1302e128f5263f12b90279a2f299c174a8beee
 +Subproject commit 3f52f92e3532b9915ae6fec3dd72ebff9bde0e0a
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 09eb6fd872b79e385c9099e128cb9e815fcb265f Mon Sep 17 00:00:00 2001
+From 0780a40dd9f0d29fc176e6b3d1ab691d76402d0b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:11:24 +0800
-Subject: [PATCH 165/179] Fix backup creation: run the WAL checkpoint before
+Subject: [PATCH 165/180] Fix backup creation: run the WAL checkpoint before
  the transaction, not inside it
 
 9fe9e9f9 wrapped both the checkpoint and the file copy in
@@ -43630,13 +43630,13 @@ index d5ef61cd..bc077914 100644
                      out.putNextEntry(ZipEntry(InternalDatabase.DB_NAME))
                      input.copyTo(out)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From ee8c67a15c1b1cf903f3dad4e267304a8a6b9682 Mon Sep 17 00:00:00 2001
+From 0d85cb14ed7e6aaaf3e1e2c803ffb0d3e998f4e8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:43:08 +0800
-Subject: [PATCH 166/179] Fix a race in move-downloads that could re-point
+Subject: [PATCH 166/180] Fix a race in move-downloads that could re-point
  localMgr at the old folder
 
 The move handler called onDownloadPathChange(newUri) - rememberPreference's
@@ -43698,13 +43698,13 @@ index e3bbfdf9..5ad6d3af 100644
                                      Toast.makeText(
                                          context,
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 6ceb09e4bbf41a107fabcaccbdbfdcac214013ad Mon Sep 17 00:00:00 2001
+From 0081dde0ed8a86d152b88ca62e64fcdf38db0715 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:53:50 +0800
-Subject: [PATCH 167/179] Fix downloads truncating to ~15s: drop the
+Subject: [PATCH 167/180] Fix downloads truncating to ~15s: drop the
  CHUNK_LENGTH subrange bound
 
 Verified against the actual vendored media3 source
@@ -43821,13 +43821,13 @@ index 4bcd5c3f..c6fbef59 100644
      val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
      val downloadManager: DownloadManager =
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 2884a2ecc03c4a8b79e08e74290bf6d4018f25d3 Mon Sep 17 00:00:00 2001
+From 10461905c939108a580bfc7366d6f95594b05830 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 15:11:53 +0800
-Subject: [PATCH 168/179] Fix Clear all downloads leaving DownloadManager's
+Subject: [PATCH 168/180] Fix Clear all downloads leaving DownloadManager's
  index stale
 
 It called downloadCache.removeResource(key) directly for every cache
@@ -43903,13 +43903,13 @@ index 5ad6d3af..c8bc66a5 100644
                              // clear external downloads
  //                            database.downloadSongs(SongSortType.NAME, true).collect { songs ->
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 0e3f1648769dec6f4350e8fc2bf7e4ce94334ef1 Mon Sep 17 00:00:00 2001
+From 75155cf46e571a8874bb56f9a955ca3965cdc55b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 15:15:50 +0800
-Subject: [PATCH 169/179] Add the VISIONOS client as a stream fallback, first
+Subject: [PATCH 169/180] Add the VISIONOS client as a stream fallback, first
  in line
 
 WEB_REMIX (MAIN_CLIENT) remains the primary client for metadata and the
@@ -43992,13 +43992,13 @@ index 0b26b34d..988918ca 100644
           * Uses non-adaptive bitrate, which fixes audio stuttering with YT Music streams that the
           * regular (adaptive) ANDROID_VR_NO_AUTH client can exhibit. Does not use AV1.
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From f6837170d2f4ed6845330bfb4883f26315bc5d9a Mon Sep 17 00:00:00 2001
+From f00af2a4acfa0f594f55e12a4bfafbc271f982d5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 16:26:55 +0800
-Subject: [PATCH 170/179] Try VISIONOS before WEB_REMIX for streams, not just
+Subject: [PATCH 170/180] Try VISIONOS before WEB_REMIX for streams, not just
  as a fallback
 
 Keeps WEB_REMIX as MAIN_CLIENT (metadata, login-gated features - both
@@ -44050,13 +44050,13 @@ index e156413f..50a20c4d 100644
                  streamPlayerResponse = mainPlayerResponse
              } else {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From e6376c354b6ebb599ebbb47eaa2ec45039435214 Mon Sep 17 00:00:00 2001
+From 9ce227162bb6703531a4c73124a219c93717666a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 16:40:28 +0800
-Subject: [PATCH 171/179] Raise the source-error retry cap from 1 to 5,
+Subject: [PATCH 171/180] Raise the source-error retry cap from 1 to 5,
  matching yuuichi-s/OuterTune
 
 Each retry only gets one more pass through the whole client try-order -
@@ -44168,13 +44168,13 @@ index 9b11b540..b54ef909 100644
      }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 4b0064991fdc9e50dac31908b88f5af702dafeb9 Mon Sep 17 00:00:00 2001
+From 4720eeeef53ebc2da3a2161c6e84534f8bb181e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 19:40:08 +0800
-Subject: [PATCH 172/179] Fix VISIONOS being silently dropped from the stream
+Subject: [PATCH 172/180] Fix VISIONOS being silently dropped from the stream
  chain
 
 The VISIONOS client was added and put first, but playback still died ~60s in
@@ -44410,13 +44410,13 @@ index 3eb45f13..63250ae1 100644
  
      @Serializable
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 38c6ae3f6d9882cc200b20a286f96c7d02008ac1 Mon Sep 17 00:00:00 2001
+From 7ac0c314433e92f0c3e79f8bfb4deefd1bc70f07 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 19:40:21 +0800
-Subject: [PATCH 173/179] Refresh an existing artist's details on sync instead
+Subject: [PATCH 173/180] Refresh an existing artist's details on sync instead
  of only its like flag
 
 The subscribed-artists sync inserted a full ArtistEntity for an artist it had
@@ -44474,13 +44474,13 @@ index 580a4a9c..41dd9ab6 100644
                      }
                      delay(DB_OPERATION_DELAY_MS)
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 481368712d87969e55243d837e4213565980cc56 Mon Sep 17 00:00:00 2001
+From 71fbec63ccae1c6b1ac7f53c62c7ee3bdd669422 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 20:48:55 +0800
-Subject: [PATCH 174/179] Fix ERROR_CODE_TIMEOUT (1003) I introduced in stream
+Subject: [PATCH 174/180] Fix ERROR_CODE_TIMEOUT (1003) I introduced in stream
  validation
 
 Stream resolution runs inside a runBlocking that ExoPlayer's
@@ -44606,13 +44606,13 @@ index 18c2d48f..c239cb49 100644
      }
  
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 42f9d0e3473118cefb3254e4acb4728c2f00f4c3 Mon Sep 17 00:00:00 2001
+From faabd682436dc82e1563da5cb56cebe5c001da4f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 21:41:31 +0800
-Subject: [PATCH 175/179] Never stream from WEB_REMIX; metadata only. Back off
+Subject: [PATCH 175/180] Never stream from WEB_REMIX; metadata only. Back off
  when Google throttles.
 
 Two problems, one cause: request volume.
@@ -44876,13 +44876,13 @@ index c239cb49..a6c92fbd 100644
              Log.d(TAG, "[$videoId] stream client: ${client.clientName}, " +
                      "playabilityStatus: ${streamPlayerResponse?.playabilityStatus?.let {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 55daf0c3060c5ca21e8ef1439f60e20f976304f9 Mon Sep 17 00:00:00 2001
+From f22d0e992345a252575363b8387aa2d0346412bb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 21:42:34 +0800
-Subject: [PATCH 176/179] Keep WEB_REMIX reachable for streams, but only as the
+Subject: [PATCH 176/180] Keep WEB_REMIX reachable for streams, but only as the
  true last resort
 
 Refines the previous commit, which cut WEB_REMIX out of the stream chain
@@ -44984,13 +44984,13 @@ index a6c92fbd..4c209986 100644
              Log.d(TAG, "[$videoId] stream client: ${client.clientName}, " +
                      "playabilityStatus: ${streamPlayerResponse?.playabilityStatus?.let {
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 3e740a15dcd6fa41bcfa5efb377695bae652c08a Mon Sep 17 00:00:00 2001
+From eb58b72555e8aa2d47c465195a02bbe6de0c8c69 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:15:01 +0800
-Subject: [PATCH 177/179] Restore the Core-v0.18.2 stream architecture, and
+Subject: [PATCH 177/180] Restore the Core-v0.18.2 stream architecture, and
  drop the throttle cooldown
 
 Two things, both undoing my own damage from earlier in this session.
@@ -45192,13 +45192,13 @@ index 4c209986..0549cf74 100644
                      Log.e(TAG, "[$videoId] [${client.clientName}] player request failed", it)
                  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 514fcbe37003bfe6601bb0b507fb265cdb48d251 Mon Sep 17 00:00:00 2001
+From 3ce46e71c30d86f36e77bfbbe37c9c2d815aa5cd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:18:52 +0800
-Subject: [PATCH 178/179] Restore two more v0.18.2 behaviours, and log every
+Subject: [PATCH 178/180] Restore two more v0.18.2 behaviours, and log every
  client rejection at warn
 
 Comparing the restored chain against Core-v0.18.2 line by line turned up two
@@ -45349,13 +45349,13 @@ index 0549cf74..b2b9d843 100644
                      // At warn so a release logcat shows why a client was dropped, with the code.
                      Log.w(TAG, "[$clientName] stream validation failed: HTTP ${response.code}")
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
 
 
-From 911c69ee717e66d79b7278bd2546e66b7603b862 Mon Sep 17 00:00:00 2001
+From 9ea6b990df42256a0a7114b96124bd1fcb02a0b7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:23:36 +0800
-Subject: [PATCH 179/179] Write the artist's current name back to the library
+Subject: [PATCH 179/180] Write the artist's current name back to the library
  when its page is opened
 
 Tapping an artist credited as "X" on a song could land on a page headed "Y".
@@ -45469,5 +45469,229 @@ index c044d3f2..f3d1acad 100644
 +    }
  }
 -- 
-2.51.1.windows.1
+2.45.1.windows.1
+
+
+From b2ada2903a61e5980e4a9fc6643ef8cdcfe8daae Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Fri, 28 Aug 2026 14:25:16 +0800
+Subject: [PATCH 180/180] Send each client's player request to the host that
+ client actually lives on
+
+Ported from MetrolistGroup/innertubex, whose extraction is the one known to
+work for these clients. It routes the player endpoint per client -
+music.youtube.com for the music clients, www.youtube.com for everything else -
+and this codebase sent every client to music.youtube.com unconditionally.
+
+That mismatch is visible in the logs: ANDROID_VR's player POST to
+music.youtube.com came back as Google's network-level abuse page ("your
+computer or network may be sending automated queries"), not a per-video
+rejection. An Oculus VR app asking music.youtube.com for a player response is
+a client/host pairing that doesn't occur in the wild, so anti-abuse treats it
+as automation - and every fallback in the chain was making exactly that
+request, which is why they all failed and why the throttle kept deepening.
+
+- YouTubeClient gains useMusicPlayerEndpoint. WEB_REMIX and the VISIONOS
+  builds set it (they genuinely present as music clients); the device clients
+  don't, so their player requests now go to www.youtube.com with matching
+  Origin/Referer, and the SAPISIDHASH is hashed against whichever origin the
+  request is actually going to rather than always the music one.
+- Only the player endpoint is rerouted. browse/search/next stay on
+  music.youtube.com for every client, as before.
+- Routing is decided in player() and passed into ytClient explicitly, not
+  inferred from the URL inside it: Ktor's defaultRequest merges its base URL
+  after the builder block runs, so the path isn't reliable from in there.
+
+Also refreshed VISIONOS to innertubex's current definition - clientVersion
+1.02, current Safari/visionOS user agent, RealityDevice17,1 - since the 0.1
+build this had been using is two major versions stale, and kept the old 0.1
+build as VISIONOS_0_1 second in the chain so one being refused doesn't cost
+the client entirely.
+---
+ .../dd3boh/outertune/utils/YTPlayerUtils.kt   |  4 ++
+ .../java/com/zionhuang/innertube/InnerTube.kt | 31 +++++++++--
+ .../innertube/models/YouTubeClient.kt         | 53 +++++++++++++++++--
+ 3 files changed, 79 insertions(+), 9 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index b2b9d843..834a825c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -29,6 +29,7 @@ import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_65_10
+ import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
+ import com.zionhuang.innertube.models.YouTubeClient.Companion.IOS
+ import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS
++import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS_0_1
+ import com.zionhuang.innertube.models.YouTubeClient.Companion.WEB_REMIX
+ import com.zionhuang.innertube.models.response.PlayerResponse
+ import okhttp3.OkHttpClient
+@@ -68,6 +69,9 @@ object YTPlayerUtils {
+         // The chain as it stood in Core-v0.18.2, when VISIONOS was first ported and playback
+         // worked. VISIONOS is tried ahead of all of these (and ahead of MAIN_CLIENT) in the loop
+         // below; MAIN_CLIENT (WEB_REMIX) is tried second, then these in order.
++        // The older visionOS build, as a second shot before leaving the client behind entirely -
++        // same reasoning as keeping several ANDROID_VR versions.
++        VISIONOS_0_1,
+         ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
+         // Different ANDROID_VR client versions are tracked separately by YouTube - keeping more
+         // than one gives the chain somewhere to go when one build is turned away instead of losing
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+index 749758d3..0230efa4 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/InnerTube.kt
+@@ -114,18 +114,29 @@ class InnerTube {
+      * authenticate as a specific account, rather than as whichever account is currently configured,
+      * pass it explicitly.
+      */
++    /**
++     * @param useWwwOrigin sends this request to www.youtube.com instead of music.youtube.com, and
++     * matches the Origin/Referer/SAPISIDHASH to it. Passed explicitly rather than inferred from the
++     * URL: Ktor's defaultRequest merges its base URL *after* this builder block runs, so the path
++     * seen from in here isn't reliably the final one. Only the player endpoint ever sets this - see
++     * [YouTubeClient.useMusicPlayerEndpoint].
++     */
+     private fun HttpRequestBuilder.ytClient(
+         client: YouTubeClient,
+         setLogin: Boolean = false,
+         cookie: String? = this@InnerTube.cookie,
++        useWwwOrigin: Boolean = false,
+     ) {
++        val origin = if (useWwwOrigin) YouTubeClient.ORIGIN_YOUTUBE_WWW else YouTubeClient.ORIGIN_YOUTUBE_MUSIC
++        val referer = if (useWwwOrigin) YouTubeClient.REFERER_YOUTUBE_WWW else YouTubeClient.REFERER_YOUTUBE_MUSIC
++
+         contentType(ContentType.Application.Json)
+         headers {
+             append("X-Goog-Api-Format-Version", "1")
+             append("X-YouTube-Client-Name", client.clientId /* Not a typo. The Client-Name header does contain the client id. */)
+             append("X-YouTube-Client-Version", client.clientVersion)
+-            append("X-Origin", YouTubeClient.ORIGIN_YOUTUBE_MUSIC)
+-            append("Referer", YouTubeClient.REFERER_YOUTUBE_MUSIC)
++            append("X-Origin", origin)
++            append("Referer", referer)
+             // Real clients send this alongside the same value already in the request body's
+             // context.client.visitorData - Metrolist and SimpMusic (siblings sharing this API
+             // client's lineage) both set it explicitly rather than relying on the body alone.
+@@ -136,7 +147,9 @@ class InnerTube {
+                     append("cookie", cookie)
+                     if ("SAPISID" !in cookieMap) return@let
+                     val currentTime = System.currentTimeMillis() / 1000
+-                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} ${YouTubeClient.ORIGIN_YOUTUBE_MUSIC}")
++                    // Hashed against the origin this request is actually going to - a SAPISIDHASH
++                    // bound to a different origin than the one it is presented to is rejected.
++                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} $origin")
+                     append("Authorization", "SAPISIDHASH ${currentTime}_${sapisidHash} SAPISID1PHASH ${currentTime}_${sapisidHash} SAPISID3PHASH ${currentTime}_${sapisidHash}")
+                 }
+             }
+@@ -174,7 +187,17 @@ class InnerTube {
+         signatureTimestamp: Int?,
+         webPlayerPot: String?,
+     ) = httpClient.post("player") {
+-        ytClient(client, setLogin = true)
++        // A device client (ANDROID_VR, IOS, TVHTML5...) asking music.youtube.com for a player
++        // response is a client/host pairing that doesn't occur in the wild, and Google's anti-abuse
++        // answers it with a network-level 403 abuse page rather than a stream. Route those to
++        // www.youtube.com, which is where those clients really live, and keep the music clients on
++        // music.youtube.com. Set as an absolute URL so Ktor's defaultRequest (which only fills in
++        // an unset host) leaves it alone.
++        val useWwwOrigin = !client.useMusicPlayerEndpoint
++        if (useWwwOrigin) {
++            url(YouTubeClient.API_URL_YOUTUBE_WWW + "player")
++        }
++        ytClient(client, setLogin = true, useWwwOrigin = useWwwOrigin)
+         setBody(
+             PlayerBody(
+                 context = client.toContext(locale, visitorData, dataSyncId).let {
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+index fa8ef2f5..7b01eb19 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+@@ -20,8 +20,20 @@ data class YouTubeClient(
+     val isEmbedded: Boolean = false,
+     /** Whether [userAgent] also belongs in the request body's context.client - see that field's own doc. */
+     val includeUserAgentInContext: Boolean = false,
+-    // val origin: String? = null,
+-    // val referer: String? = null,
++    /**
++     * Whether this client's *player* request belongs on music.youtube.com rather than
++     * www.youtube.com.
++     *
++     * This matters more than it looks. Every client used to be sent to music.youtube.com, which is
++     * wrong for the device clients: an Oculus VR app or an iOS app asking music.youtube.com for a
++     * player response is a client/host combination that does not occur in the wild, and Google's
++     * anti-abuse answers it with a network-level 403 ("your computer or network may be sending
++     * automated queries") rather than a stream. MetrolistGroup/innertubex routes per client for
++     * exactly this reason - music.youtube.com for the browser-origin music clients and for the
++     * ones that genuinely present as music clients, www.youtube.com for everything else - and its
++     * extraction is the one known to work here.
++     */
++    val useMusicPlayerEndpoint: Boolean = false,
+ ) {
+     fun toContext(locale: YouTubeLocale, visitorData: String?, dataSyncId: String?) = Context(
+         client = Context.Client(
+@@ -52,6 +64,10 @@ data class YouTubeClient(
+         const val REFERER_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/"
+         const val API_URL_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/youtubei/v1/"
+ 
++        const val ORIGIN_YOUTUBE_WWW = "https://www.youtube.com"
++        const val REFERER_YOUTUBE_WWW = "$ORIGIN_YOUTUBE_WWW/"
++        const val API_URL_YOUTUBE_WWW = "$ORIGIN_YOUTUBE_WWW/youtubei/v1/"
++
+         val WEB = YouTubeClient(
+             clientName = "WEB",
+             clientVersion = "2.20260114.08.00",
+@@ -67,6 +83,8 @@ data class YouTubeClient(
+             loginSupported = true,
+             useSignatureTimestamp = true,
+             useWebPoTokens = true,
++            // It *is* the YouTube Music web client - music.youtube.com is its real home.
++            useMusicPlayerEndpoint = true,
+         )
+ 
+         val WEB_CREATOR = YouTubeClient(
+@@ -146,15 +164,40 @@ data class YouTubeClient(
+          */
+         val VISIONOS = YouTubeClient(
+             clientName = "VISIONOS",
+-            clientVersion = "0.1",
++            clientVersion = "1.02",
+             clientId = "101",
+-            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
++            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 " +
++                    "(KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+             osName = "visionOS",
+-            osVersion = "1.3.21O771",
++            osVersion = "26.5.23O471",
++            deviceMake = "Apple",
++            deviceModel = "RealityDevice17,1",
++            loginSupported = false,
++            useSignatureTimestamp = false,
++            useMusicPlayerEndpoint = true,
++        )
++
++        /**
++         * The older visionOS 0.1 build. Kept as a second shot for the same reason two ANDROID_VR
++         * versions are kept: YouTube treats each client version separately, so one being refused
++         * doesn't have to cost the client entirely. MetrolistGroup/innertubex flags this build as
++         * needing its player response accepted without the usual validation, which is a hint that
++         * what it returns is thinner than the newer build's - hence the nullable videoDetails
++         * fields this codebase now has.
++         */
++        val VISIONOS_0_1 = YouTubeClient(
++            clientName = "VISIONOS",
++            clientVersion = "0.1",
++            clientId = "101",
++            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 " +
++                    "(KHTML, like Gecko) Version/17.5 Safari/605.1.15",
++            osName = "VISION_OS",
++            osVersion = "1.3",
+             deviceMake = "Apple",
+             deviceModel = "RealityDevice14,1",
+             loginSupported = false,
+             useSignatureTimestamp = false,
++            useMusicPlayerEndpoint = true,
+         )
+ 
+         /**
+-- 
+2.45.1.windows.1
 
