@@ -134,6 +134,7 @@ import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.DiscordRPC
 import com.dd3boh.outertune.utils.NetworkConnectivityObserver
 import com.dd3boh.outertune.utils.SyncUtils
+import com.dd3boh.outertune.utils.StreamRangePolicy
 import com.dd3boh.outertune.utils.YTPlayerUtils
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.enumPreference
@@ -1106,16 +1107,16 @@ class MusicService : MediaLibraryService(),
                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
                 offloadScope.launch { recoverSong(mediaId) }
                 maybeSendPlaybackTelemetry(mediaId, it)
-                // Bounded the same as the fresh-resolve path below, and for the same reason: left
-                // unbounded (as this was before), this is the request that turns into one
-                // long-lived connection past whatever duration googlevideo's CDN cuts a stream at -
-                // confirmed independently of any auth/URL-freshness issue, since a much larger
-                // CHUNK_LENGTH still failed with the same source error at roughly the same wall-clock
-                // point regardless of the extra bytes available. Every read has to keep reconnecting
-                // under that ceiling, not just the very first one.
+                // Shaped by the client the url was signed for - see StreamRangePolicy. Bounding
+                // this unconditionally, as it used to, is what killed playback partway into the
+                // first minute: a web url served as a run of small bounded ranges gets a few dozen
+                // of them and then a 403.
+                val length = StreamRangePolicy.requestLengthOrNull(it.clientName)
                 return@Factory dataSpec.withUri(it.url.toUri())
                     .withRequestHeaders(it.headers)
-                    .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+                    .let { spec ->
+                        if (length != null) spec.subrange(dataSpec.uriPositionOffset, length) else spec
+                    }
             }
 
             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
@@ -1209,9 +1210,14 @@ class MusicService : MediaLibraryService(),
             )
             songUrlCache[mediaId] = cachedStreamUrl
             maybeSendPlaybackTelemetry(mediaId, cachedStreamUrl)
+            // See StreamRangePolicy: only the clients that actually require a bounded range get
+            // one. WEB_REMIX and the other web clients have to be read straight through.
+            val length = StreamRangePolicy.requestLengthOrNull(playbackData.clientName)
             dataSpec.withUri(streamUrl.toUri())
                 .withRequestHeaders(playbackData.streamHeaders)
-                .subrange(dataSpec.uriPositionOffset, CHUNK_LENGTH)
+                .let { spec ->
+                    if (length != null) spec.subrange(dataSpec.uriPositionOffset, length) else spec
+                }
         }
     }
 
@@ -1721,23 +1727,30 @@ class MusicService : MediaLibraryService(),
         const val CHANNEL_NAME = "fgs_workaround"
         const val NOTIFICATION_ID = 888
         const val ERROR_CODE_NO_STREAM = 1000001
-        // Bounds every stream request (see createDataSourceFactory()) so no single one can still be
-        // mid-transfer when the cached URL's credentials go stale - see songUrlCache's trust cap
-        // for why that matters. Comfortably covers even a low-bitrate song within that window; a
-        // higher-bitrate one just means more frequent, still-small requests.
+        // Cache-lookup granularity only. This used to bound every stream request as well, which was
+        // wrong for the web clients and is now decided per client by StreamRangePolicy - see its doc
+        // for what that cost.
         const val CHUNK_LENGTH = 256 * 1024L
 
         // How long a freshly-resolved stream URL is trusted for before a proactive refresh is
-        // forced. Originally 40s against a cutoff that earlier testing placed at roughly a minute
-        // (see songUrlCache's own doc); since then it's been observed failing as early as ~30s in
-        // the field (the onPlayerError source-error retry catching it, audibly, instead of this
-        // proactive path renewing it silently first). Tightened to keep the same proportional
-        // safety margin against that lower observed cutoff rather than against the original one.
-        // Precaching (see precacheNextSongStream()) fires this many ms before the current song
-        // ends, comfortably inside that window so the precached URL is still fresh when playback
-        // actually reaches the next song, with a few seconds of margin for the resolve itself to
-        // complete.
-        const val STREAM_URL_TRUST_WINDOW_MS = 20_000L
+        // forced.
+        //
+        // This was 20s, chased down from 40s, against a url that kept dying about a minute in. That
+        // was the wrong lesson from a real observation: the url was not aging out, it was being
+        // requested as a run of small bounded ranges until googlevideo refused (StreamRangePolicy
+        // has the detail). The note left here at the time even recorded the giveaway - raising the
+        // chunk size changed nothing - and concluded time-since-minting, when neither test had
+        // varied the one thing that mattered, the number of requests.
+        //
+        // Trusting a url for 20s means re-resolving three times a minute per playing song, and a
+        // full resolve is a /player POST. With a download queue running alongside it, that reached
+        // fifteen in a single minute and Google answered with its /sorry/ abuse page - an HTML 403
+        // on the API itself, which then failed downloads and playback alike. So the tight window did
+        // not merely fail to help, it manufactured a second, worse failure.
+        //
+        // Half an hour instead, still well under YouTube's own claimed validity (routinely ~6h), so
+        // a genuinely stale url still self-heals in reasonable time.
+        const val STREAM_URL_TRUST_WINDOW_MS = 30 * 60 * 1000L
         const val PRECACHE_LEAD_MS = 15_000L
 
         /**
