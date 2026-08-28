@@ -114,18 +114,29 @@ class InnerTube {
      * authenticate as a specific account, rather than as whichever account is currently configured,
      * pass it explicitly.
      */
+    /**
+     * @param useWwwOrigin sends this request to www.youtube.com instead of music.youtube.com, and
+     * matches the Origin/Referer/SAPISIDHASH to it. Passed explicitly rather than inferred from the
+     * URL: Ktor's defaultRequest merges its base URL *after* this builder block runs, so the path
+     * seen from in here isn't reliably the final one. Only the player endpoint ever sets this - see
+     * [YouTubeClient.useMusicPlayerEndpoint].
+     */
     private fun HttpRequestBuilder.ytClient(
         client: YouTubeClient,
         setLogin: Boolean = false,
         cookie: String? = this@InnerTube.cookie,
+        useWwwOrigin: Boolean = false,
     ) {
+        val origin = if (useWwwOrigin) YouTubeClient.ORIGIN_YOUTUBE_WWW else YouTubeClient.ORIGIN_YOUTUBE_MUSIC
+        val referer = if (useWwwOrigin) YouTubeClient.REFERER_YOUTUBE_WWW else YouTubeClient.REFERER_YOUTUBE_MUSIC
+
         contentType(ContentType.Application.Json)
         headers {
             append("X-Goog-Api-Format-Version", "1")
             append("X-YouTube-Client-Name", client.clientId /* Not a typo. The Client-Name header does contain the client id. */)
             append("X-YouTube-Client-Version", client.clientVersion)
-            append("X-Origin", YouTubeClient.ORIGIN_YOUTUBE_MUSIC)
-            append("Referer", YouTubeClient.REFERER_YOUTUBE_MUSIC)
+            append("X-Origin", origin)
+            append("Referer", referer)
             // Real clients send this alongside the same value already in the request body's
             // context.client.visitorData - Metrolist and SimpMusic (siblings sharing this API
             // client's lineage) both set it explicitly rather than relying on the body alone.
@@ -136,7 +147,9 @@ class InnerTube {
                     append("cookie", cookie)
                     if ("SAPISID" !in cookieMap) return@let
                     val currentTime = System.currentTimeMillis() / 1000
-                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} ${YouTubeClient.ORIGIN_YOUTUBE_MUSIC}")
+                    // Hashed against the origin this request is actually going to - a SAPISIDHASH
+                    // bound to a different origin than the one it is presented to is rejected.
+                    val sapisidHash = sha1("$currentTime ${cookieMap["SAPISID"]} $origin")
                     append("Authorization", "SAPISIDHASH ${currentTime}_${sapisidHash} SAPISID1PHASH ${currentTime}_${sapisidHash} SAPISID3PHASH ${currentTime}_${sapisidHash}")
                 }
             }
@@ -174,7 +187,17 @@ class InnerTube {
         signatureTimestamp: Int?,
         webPlayerPot: String?,
     ) = httpClient.post("player") {
-        ytClient(client, setLogin = true)
+        // A device client (ANDROID_VR, IOS, TVHTML5...) asking music.youtube.com for a player
+        // response is a client/host pairing that doesn't occur in the wild, and Google's anti-abuse
+        // answers it with a network-level 403 abuse page rather than a stream. Route those to
+        // www.youtube.com, which is where those clients really live, and keep the music clients on
+        // music.youtube.com. Set as an absolute URL so Ktor's defaultRequest (which only fills in
+        // an unset host) leaves it alone.
+        val useWwwOrigin = !client.useMusicPlayerEndpoint
+        if (useWwwOrigin) {
+            url(YouTubeClient.API_URL_YOUTUBE_WWW + "player")
+        }
+        ytClient(client, setLogin = true, useWwwOrigin = useWwwOrigin)
         setBody(
             PlayerBody(
                 context = client.toContext(locale, visitorData, dataSyncId).let {

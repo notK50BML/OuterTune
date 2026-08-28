@@ -20,8 +20,20 @@ data class YouTubeClient(
     val isEmbedded: Boolean = false,
     /** Whether [userAgent] also belongs in the request body's context.client - see that field's own doc. */
     val includeUserAgentInContext: Boolean = false,
-    // val origin: String? = null,
-    // val referer: String? = null,
+    /**
+     * Whether this client's *player* request belongs on music.youtube.com rather than
+     * www.youtube.com.
+     *
+     * This matters more than it looks. Every client used to be sent to music.youtube.com, which is
+     * wrong for the device clients: an Oculus VR app or an iOS app asking music.youtube.com for a
+     * player response is a client/host combination that does not occur in the wild, and Google's
+     * anti-abuse answers it with a network-level 403 ("your computer or network may be sending
+     * automated queries") rather than a stream. MetrolistGroup/innertubex routes per client for
+     * exactly this reason - music.youtube.com for the browser-origin music clients and for the
+     * ones that genuinely present as music clients, www.youtube.com for everything else - and its
+     * extraction is the one known to work here.
+     */
+    val useMusicPlayerEndpoint: Boolean = false,
 ) {
     fun toContext(locale: YouTubeLocale, visitorData: String?, dataSyncId: String?) = Context(
         client = Context.Client(
@@ -52,6 +64,10 @@ data class YouTubeClient(
         const val REFERER_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/"
         const val API_URL_YOUTUBE_MUSIC = "$ORIGIN_YOUTUBE_MUSIC/youtubei/v1/"
 
+        const val ORIGIN_YOUTUBE_WWW = "https://www.youtube.com"
+        const val REFERER_YOUTUBE_WWW = "$ORIGIN_YOUTUBE_WWW/"
+        const val API_URL_YOUTUBE_WWW = "$ORIGIN_YOUTUBE_WWW/youtubei/v1/"
+
         val WEB = YouTubeClient(
             clientName = "WEB",
             clientVersion = "2.20260114.08.00",
@@ -67,6 +83,8 @@ data class YouTubeClient(
             loginSupported = true,
             useSignatureTimestamp = true,
             useWebPoTokens = true,
+            // It *is* the YouTube Music web client - music.youtube.com is its real home.
+            useMusicPlayerEndpoint = true,
         )
 
         val WEB_CREATOR = YouTubeClient(
@@ -146,15 +164,40 @@ data class YouTubeClient(
          */
         val VISIONOS = YouTubeClient(
             clientName = "VISIONOS",
+            clientVersion = "1.02",
+            clientId = "101",
+            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 15_7_3) AppleWebKit/605.1.15 " +
+                    "(KHTML, like Gecko) Version/26.0 Safari/605.1.15",
+            osName = "visionOS",
+            osVersion = "26.5.23O471",
+            deviceMake = "Apple",
+            deviceModel = "RealityDevice17,1",
+            loginSupported = false,
+            useSignatureTimestamp = false,
+            useMusicPlayerEndpoint = true,
+        )
+
+        /**
+         * The older visionOS 0.1 build. Kept as a second shot for the same reason two ANDROID_VR
+         * versions are kept: YouTube treats each client version separately, so one being refused
+         * doesn't have to cost the client entirely. MetrolistGroup/innertubex flags this build as
+         * needing its player response accepted without the usual validation, which is a hint that
+         * what it returns is thinner than the newer build's - hence the nullable videoDetails
+         * fields this codebase now has.
+         */
+        val VISIONOS_0_1 = YouTubeClient(
+            clientName = "VISIONOS",
             clientVersion = "0.1",
             clientId = "101",
-            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15",
-            osName = "visionOS",
-            osVersion = "1.3.21O771",
+            userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/605.1.15 " +
+                    "(KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+            osName = "VISION_OS",
+            osVersion = "1.3",
             deviceMake = "Apple",
             deviceModel = "RealityDevice14,1",
             loginSupported = false,
             useSignatureTimestamp = false,
+            useMusicPlayerEndpoint = true,
         )
 
         /**

@@ -29,6 +29,7 @@ import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_1_65_10
 import com.zionhuang.innertube.models.YouTubeClient.Companion.ANDROID_VR_NO_AUTH
 import com.zionhuang.innertube.models.YouTubeClient.Companion.IOS
 import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS
+import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS_0_1
 import com.zionhuang.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import com.zionhuang.innertube.models.response.PlayerResponse
 import okhttp3.OkHttpClient
@@ -68,6 +69,9 @@ object YTPlayerUtils {
         // The chain as it stood in Core-v0.18.2, when VISIONOS was first ported and playback
         // worked. VISIONOS is tried ahead of all of these (and ahead of MAIN_CLIENT) in the loop
         // below; MAIN_CLIENT (WEB_REMIX) is tried second, then these in order.
+        // The older visionOS build, as a second shot before leaving the client behind entirely -
+        // same reasoning as keeping several ANDROID_VR versions.
+        VISIONOS_0_1,
         ANDROID_VR_NO_AUTH, // no PoToken support: streams die at the first continuation request
         // Different ANDROID_VR client versions are tracked separately by YouTube - keeping more
         // than one gives the chain somewhere to go when one build is turned away instead of losing
