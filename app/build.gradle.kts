@@ -266,6 +266,14 @@ dependencies {
 
     // modules
     implementation(project(":innertube"))
+    implementation("com.github.MetrolistGroup:innertubex:v0.2.6")
+    // Ktor on the app classpath too: the innertubex stream resolver builds its own client,
+    // and :innertube keeps these implementation-scoped rather than exposing them.
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.okhttp)
+    implementation(libs.ktor.client.content.negotiation)
+    implementation(libs.ktor.serialization.json)
+    implementation(libs.ktor.client.encoding)
     implementation(project(":kugou"))
     implementation(project(":lrclib"))
     implementation(project(":betterlyrics"))

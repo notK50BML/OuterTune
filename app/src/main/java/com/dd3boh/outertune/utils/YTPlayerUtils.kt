@@ -42,7 +42,13 @@ object YTPlayerUtils {
         .proxy(YouTube.proxy)
         .build()
 
-    private val poTokenGenerator = PoTokenGenerator()
+    /**
+     * Shared with [MetrolistStreamResolver] rather than one generator each: each instance owns a
+     * WebView and mints its own session token, so a second one would both waste that and make
+     * [rotateSessionIdentity] a half-measure, invalidating one engine's tokens while the other
+     * carried on presenting the identity that had just been rotated away from.
+     */
+    internal val poTokenGenerator = PoTokenGenerator()
 
     /**
      * Byte offset used by [validateStatus]. Must stay at or beyond MusicService.CHUNK_LENGTH so the
@@ -202,6 +208,20 @@ object YTPlayerUtils {
         val audioConfig = mainPlayerResponse.playerConfig?.audioConfig
         val videoDetails = mainPlayerResponse.videoDetails
         val playbackTracking = mainPlayerResponse.playbackTracking
+
+        // Stream resolution goes to innertubex first - see MetrolistStreamResolver for why - while
+        // metadata stays with MAIN_CLIENT above. Splitting it this way is deliberate: audioConfig
+        // carries the loudness this app normalises with and playbackTracking is what registers
+        // history, and innertubex reports neither, so taking its stream without its (absent)
+        // metadata keeps both features intact. Falls through to the client loop below on null,
+        // which is every failure mode - a thrown extractor, no audio url, an unplayable video.
+        MetrolistStreamResolver.resolve(videoId, cpn)?.let { resolved ->
+            return@runCatching resolved.copy(
+                audioConfig = audioConfig,
+                videoDetails = videoDetails,
+                playbackTracking = playbackTracking,
+            )
+        }
 
         var format: PlayerResponse.StreamingData.Format? = null
         var streamUrl: String? = null
