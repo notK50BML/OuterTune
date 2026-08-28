@@ -115,17 +115,15 @@ class PoTokenGenerator {
             Log.d(TAG, "[$videoId] sessionPot=$sessionPot, videoBoundPot=$videoBoundPot")
         }
 
-        // Which binding goes where is not interchangeable, and getting it backwards fails in a way
-        // that looks like success. YouTube's current web enforcement is GVS-only: the token on the
-        // stream url must be bound to the *video*, and the player request's token to the *session*.
-        // A session-bound token on the stream url is, as far as googlevideo is concerned, no token
-        // at all - it serves the first buffer and then refuses with a 403 about a minute in, which
-        // is indistinguishable from an expired url right up to the point it isn't. Metrolist's
-        // PlaybackClientCatalog states the rule outright, including that a video-bound GVS token
-        // must not be reused for the player request.
+        // Which binding goes where is not interchangeable, and this orientation was verified by
+        // experiment after being got backwards once: the token on the stream url is session-bound
+        // and the player request's is video-bound, which is the scheme yt-dlp documents. Sending
+        // them the other way round is refused outright - googlevideo answers the very first range
+        // probe with a 403 rather than failing later - so if a stream url ever starts being
+        // rejected immediately, check this before anything else.
         return PoTokenResult(
-            playerRequestPoToken = sessionPot,
-            streamingDataPoToken = videoBoundPot,
+            playerRequestPoToken = videoBoundPot,
+            streamingDataPoToken = sessionPot,
         )
     }
 }

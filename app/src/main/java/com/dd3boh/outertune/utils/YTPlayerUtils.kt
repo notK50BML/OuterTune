@@ -182,12 +182,11 @@ object YTPlayerUtils {
         Log.d(TAG, "[$videoId] signatureTimestamp: $signatureTimestamp, isLoggedIn: $isLoggedIn, " +
                 "visitorData present: ${!YouTube.visitorData.isNullOrBlank()}")
 
-        // visitorData, regardless of login state - the session token's binding, per Metrolist's
-        // PlaybackClientCatalog (PoTokenBinding.VISITOR_DATA), which is the implementation this was
-        // checked against after several wrong guesses here. An earlier attempt bound this to
-        // dataSyncId when signed in on the theory that the token had to match the identity the
-        // request authenticated with; that changed nothing, because the binding that was actually
-        // wrong was which token rode on which request - see PoTokenGenerator.
+        // visitorData, regardless of login state - matching Metrolist, and matching what this used
+        // before. Binding it to dataSyncId when signed in was tried and measured: the stream url
+        // still failed at the same point, so the identity was never what was wrong here. What the
+        // GVS token binds to is the session; which token rides on which request is the part that
+        // has to be right, and PoTokenGenerator documents it.
         val sessionId = YouTube.visitorData
 
         val pot = if (sessionId.isNullOrBlank()) {
@@ -341,7 +340,7 @@ object YTPlayerUtils {
                 // like a healthy one and only fails a minute later, so without this the single
                 // thing needed to tell those apart is invisible in a release logcat.
                 if (client.useWebPoTokens) {
-                    Log.w(TAG, "[$videoId] [${client.clientName}] gvs pot (video-bound) " +
+                    Log.w(TAG, "[$videoId] [${client.clientName}] gvs pot (session-bound) " +
                             "present=${webStreamingPot != null}")
                 }
                 streamUrl += "&cpn=$cpn"
