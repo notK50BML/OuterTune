@@ -76,7 +76,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
@@ -299,24 +301,61 @@ class LibraryArtistsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            allArtists.collect { artists ->
-                artists
-                    ?.map { it.artist }
-                    ?.filter {
-                        it.thumbnailUrl == null || Duration.between(
-                            it.lastUpdateTime,
-                            LocalDateTime.now()
-                        ) > Duration.ofDays(10)
-                    }
-                    ?.forEach { artist ->
-                        YouTube.artist(artist.id).onSuccess { artistPage ->
+            // Artists already tried this session, successfully or not. Without this the loop below
+            // never stops asking about an artist it cannot fetch: a failed request leaves
+            // thumbnailUrl null, which is the very condition that selects it, so it would be
+            // retried on every re-emission for as long as the screen lives. Session-scoped
+            // deliberately - a transient failure gets another chance next launch, just not another
+            // chance every few seconds.
+            val attempted = mutableSetOf<String>()
+
+            allArtists
+                // Only the set of artists actually needing a refresh, so an unrelated write to the
+                // artist table (a like, a rename, this loop's own update) doesn't re-run any of
+                // this. Previously each update() re-emitted the Room flow and restarted the whole
+                // pass, which on a large library meant re-walking the remaining artists after
+                // every single one - and hammering YouTube while doing it.
+                .map { artists ->
+                    artists
+                        ?.map { it.artist }
+                        ?.filter { artist ->
+                            artist.thumbnailUrl == null || Duration.between(
+                                artist.lastUpdateTime,
+                                LocalDateTime.now()
+                            ) > Duration.ofDays(10)
+                        }
+                        ?.map { it.id }
+                        ?.toSet()
+                        .orEmpty()
+                }
+                .distinctUntilChanged()
+                // collectLatest, not collect: if the stale set does change mid-pass, abandon the
+                // rest of the old pass rather than letting two overlap.
+                .collectLatest { staleIds ->
+                    val toFetch = staleIds - attempted
+                    if (toFetch.isEmpty()) return@collectLatest
+
+                    val byId = allArtists.value?.associate { it.artist.id to it.artist }.orEmpty()
+                    for (id in toFetch) {
+                        val artist = byId[id] ?: continue
+                        attempted += id
+                        YouTube.artist(id).onSuccess { artistPage ->
                             database.query {
                                 update(artist, artistPage)
                             }
                         }
+                        // Paced on purpose. This is background housekeeping nobody is waiting on,
+                        // and a burst of back-to-back player/browse requests from one device is
+                        // what draws YouTube's "automated queries" throttle - which then breaks
+                        // playback, not just this.
+                        delay(ARTIST_REFRESH_SPACING_MS)
                     }
-            }
+                }
         }
+    }
+
+    companion object {
+        private const val ARTIST_REFRESH_SPACING_MS = 500L
     }
 }
 
