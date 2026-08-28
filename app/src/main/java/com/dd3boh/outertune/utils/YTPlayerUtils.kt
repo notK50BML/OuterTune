@@ -172,30 +172,47 @@ object YTPlayerUtils {
         val signatureTimestamp = getSignatureTimestampOrNull(videoId)
 
         val isLoggedIn = YouTube.cookie != null
-        // Always visitorData - never dataSyncId, even when logged in. dataSyncId is permanent and
-        // tied to the Google account itself; a PoToken minted against it carries that same
-        // permanent identity forever, so if BotGuard ever flags anything tied to it, every future
-        // PoToken inherits the flag and nothing client-side (including rotateSessionIdentity()
-        // below) can shed it - a signed-in "Reset YouTube session" was always a no-op for exactly
-        // this reason. visitorData is a rotatable, non-account-tied identifier instead: minting a
-        // fresh one (which this app can and does do) gets a genuinely new BotGuard identity rather
-        // than reusing whatever this account's dataSyncId has already accumulated. Metrolist does
-        // the same - always visitorData, regardless of login state - which is why the identical
-        // Google account can play fine there while failing here under the old dataSyncId-when-
-        // logged-in logic.
-        val sessionId = YouTube.visitorData
 
         Log.d(TAG, "[$videoId] signatureTimestamp: $signatureTimestamp, isLoggedIn: $isLoggedIn, " +
                 "visitorData present: ${!YouTube.visitorData.isNullOrBlank()}")
 
-        val (webPlayerPot, webStreamingPot) = getWebClientPoTokenOrNull(videoId, sessionId)?.let {
-            Pair(it.playerRequestPoToken, it.streamingDataPoToken)
-        } ?: Pair(null, null).also {
-            Log.w(TAG, "[$videoId] No po token")
+        // A PoToken is only honoured when it is bound to the same identity as the request carrying
+        // it: dataSyncId for a client that sends the account cookie (WEB_REMIX names it as
+        // onBehalfOfUser), visitorData for one that goes out anonymous (VISIONOS, the ANDROID_VR
+        // family). Binding everything to visitorData regardless - as this did for a while - leaves
+        // WEB_REMIX presenting a token for an identity it isn't using. Nothing rejects that
+        // outright: the player request still returns OK with a stream url, and a short range probe
+        // against that url still passes, so resolution looks entirely healthy. googlevideo only
+        // refuses once the initial buffer is exhausted, which is the "playback dies about a minute
+        // in with a 403" failure, and immediately for the range-heavy reads a download does.
+        //
+        // Bound per client rather than once per resolve, and memoised, so a resolve that tries both
+        // an anonymous and a signed-in client asks the generator for each identity exactly once.
+        val potCache = mutableMapOf<String, Pair<String?, String?>>()
+        fun potFor(client: YouTubeClient): Pair<String?, String?> {
+            // Falls back to visitorData if a signed-in session somehow has no dataSyncId: a token
+            // bound to the wrong identity and no token at all both end in a 403, but the latter at
+            // least cannot be mistaken for a healthy resolve.
+            val sessionId = if (client.loginSupported && isLoggedIn) {
+                YouTube.dataSyncId?.takeIf { it.isNotBlank() } ?: YouTube.visitorData
+            } else {
+                YouTube.visitorData
+            }
+            if (sessionId.isNullOrBlank()) {
+                Log.w(TAG, "[$videoId] [${client.clientName}] no session identity to bind a po token to")
+                return Pair(null, null)
+            }
+            return potCache.getOrPut(sessionId) {
+                getWebClientPoTokenOrNull(videoId, sessionId)?.let {
+                    Pair<String?, String?>(it.playerRequestPoToken, it.streamingDataPoToken)
+                } ?: Pair<String?, String?>(null, null).also {
+                    Log.w(TAG, "[$videoId] no po token minted for this identity")
+                }
+            }
         }
 
         val mainPlayerResponse =
-            YouTube.player(videoId, playlistId, MAIN_CLIENT, signatureTimestamp, webPlayerPot)
+            YouTube.player(videoId, playlistId, MAIN_CLIENT, signatureTimestamp, potFor(MAIN_CLIENT).first)
                 .getOrThrow()
 
         val audioConfig = mainPlayerResponse.playerConfig?.audioConfig
@@ -253,7 +270,7 @@ object YTPlayerUtils {
                 streamPlayerResponse = mainPlayerResponse
             } else {
                 val playerResult =
-                    YouTube.player(videoId, playlistId, client, signatureTimestamp, webPlayerPot)
+                    YouTube.player(videoId, playlistId, client, signatureTimestamp, potFor(client).first)
                 playerResult.exceptionOrNull()?.let {
                     // Logged, not acted on: a network-level throttle is worth naming in the log
                     // (it looks nothing like a per-video rejection and would otherwise be
@@ -293,8 +310,18 @@ object YTPlayerUtils {
                 }
                 streamClient = client
 
-                if (client.useWebPoTokens && webStreamingPot != null) {
-                    streamUrl += "&pot=$webStreamingPot";
+                val clientStreamingPot = potFor(client).second
+                if (client.useWebPoTokens && clientStreamingPot != null) {
+                    streamUrl += "&pot=$clientStreamingPot"
+                }
+                // At warn, and naming only which identity was used rather than any token material:
+                // a stream url whose pot is bound to the wrong identity resolves and probes exactly
+                // like a healthy one and only fails a minute later, so without this the single
+                // thing needed to tell those apart is invisible in a release logcat.
+                if (client.useWebPoTokens) {
+                    Log.w(TAG, "[$videoId] [${client.clientName}] pot bound to " +
+                            (if (client.loginSupported && isLoggedIn) "dataSyncId" else "visitorData") +
+                            ", present=${clientStreamingPot != null}")
                 }
                 streamUrl += "&cpn=$cpn"
 
@@ -370,12 +397,12 @@ object YTPlayerUtils {
      * targets a third, distinct cause - YouTube's bot-detection having flagged this client's
      * identity, which a differently-resolved URL under the *same* identity would not fix.
      *
-     * Not gated on login state: visitorData is what every PoToken is minted against regardless of
-     * whether the session is signed in (see playerResponseForPlayback's own doc for why this app
-     * never uses dataSyncId for that), so rotating it is exactly as useful logged in as signed out
-     * - unlike before, when this only did anything for a signed-out session because dataSyncId,
-     * the identifier a logged-in PoToken used to be minted against instead, isn't something minting
-     * a fresh visitorData here has any effect on.
+     * Not gated on login state, but it is worth being clear about what it can and cannot shed. A
+     * fresh visitorData gives the anonymous clients a genuinely new BotGuard identity. It does
+     * nothing for the signed-in clients, whose tokens are bound to dataSyncId - permanent and tied
+     * to the account itself, so no client-side action can rotate it. Invalidating the generator
+     * still helps there, since it discards every cached token and rebuilds the WebView, which is
+     * what clears a merely stale token as opposed to a flagged identity.
      */
     suspend fun rotateSessionIdentity() {
         poTokenGenerator.invalidate()
@@ -414,8 +441,11 @@ object YTPlayerUtils {
         // Include the web player integrity fields because omitting the player PoToken may
         // cause the request to return UNPLAYABLE.
         val signatureTimestamp = getSignatureTimestampOrNull(videoId)
-        // Always visitorData - see playerResponseForPlayback's doc for why, regardless of login.
-        val webPlayerPot = getWebClientPoTokenOrNull(videoId, YouTube.visitorData)?.playerRequestPoToken
+        // WEB_REMIX sends the account cookie, so its token has to be bound to dataSyncId when
+        // signed in - see playerResponseForPlayback's potFor() for why the identity has to match.
+        val sessionId = if (YouTube.cookie != null) YouTube.dataSyncId else YouTube.visitorData
+        val webPlayerPot = sessionId
+            ?.let { getWebClientPoTokenOrNull(videoId, it)?.playerRequestPoToken }
         return YouTube.player(videoId, playlistId, WEB_REMIX, signatureTimestamp, webPlayerPot)
     }
 

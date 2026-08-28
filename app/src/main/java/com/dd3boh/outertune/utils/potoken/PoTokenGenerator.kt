@@ -17,19 +17,26 @@ class PoTokenGenerator {
     private var webViewBadImpl = false // whether the system has a bad WebView implementation
 
     private val webPoTokenGenLock = Mutex()
-    private var webPoTokenSessionId: String? = null
-    private var webPoTokenStreamingPot: String? = null
+
+    /**
+     * Streaming (session-bound) PoTokens, keyed by the identity each was minted against. There is
+     * deliberately more than one: a request that carries the account cookie has to present a token
+     * bound to dataSyncId, while an anonymous one needs visitorData, and a single resolve attempts
+     * both kinds of client. Keying instead of overwriting is what lets those coexist without
+     * tearing down and rebuilding the WebView on every client switch.
+     */
+    private val webPoTokenStreamingPots = mutableMapOf<String, String>()
     private var webPoTokenGenerator: PoTokenWebView? = null
+    private var webPoTokenInvalidated = false
 
     /**
      * Forces the next [getWebClientPoToken] call to mint a fresh streaming token and, if needed,
      * recreate the WebView generator from scratch - instead of reusing state that may be exactly
      * why the last request was rejected. [webPoTokenSessionId] is what [getWebClientPoToken]
-     * already checks to decide whether to recreate, so invalidating it here is enough; no session
-     * id a real caller passes will ever equal null.
+     * already checks to decide whether to recreate, so setting this is enough.
      */
     fun invalidate() {
-        webPoTokenSessionId = null
+        webPoTokenInvalidated = true
     }
 
     fun getWebClientPoToken(videoId: String, sessionId: String): PoTokenResult? {
@@ -61,11 +68,13 @@ class PoTokenGenerator {
 
         val (poTokenGenerator, streamingPot, hasBeenRecreated) =
             webPoTokenGenLock.withLock {
-                val shouldRecreate =
-                    forceRecreate || webPoTokenGenerator == null || webPoTokenGenerator!!.isExpired || webPoTokenSessionId != sessionId
+                val shouldRecreate = forceRecreate || webPoTokenGenerator == null ||
+                        webPoTokenGenerator!!.isExpired || webPoTokenInvalidated
 
                 if (shouldRecreate) {
-                    webPoTokenSessionId = sessionId
+                    webPoTokenInvalidated = false
+                    // Tokens minted by the outgoing generator do not outlive it.
+                    webPoTokenStreamingPots.clear()
 
                     withContext(Dispatchers.Main) {
                         webPoTokenGenerator?.close()
@@ -73,13 +82,15 @@ class PoTokenGenerator {
 
                     // create a new webPoTokenGenerator
                     webPoTokenGenerator = PoTokenWebView.getNewPoTokenGenerator(App.instance)
-
-                    // The streaming poToken needs to be generated exactly once before generating
-                    // any other (player) tokens.
-                    webPoTokenStreamingPot = webPoTokenGenerator!!.generatePoToken(webPoTokenSessionId!!)
                 }
 
-                Triple(webPoTokenGenerator!!, webPoTokenStreamingPot!!, shouldRecreate)
+                // The streaming poToken for an identity needs to be generated exactly once, and
+                // before any other (player) token is minted from this generator for it.
+                val streamingPotForSession = webPoTokenStreamingPots.getOrPut(sessionId) {
+                    webPoTokenGenerator!!.generatePoToken(sessionId)
+                }
+
+                Triple(webPoTokenGenerator!!, streamingPotForSession, shouldRecreate)
             }
 
         val playerPot = try {
