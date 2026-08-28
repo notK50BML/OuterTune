@@ -326,11 +326,46 @@ fun SetupWizard(
                             textAlign = TextAlign.Center
                         )
 
+                        // Kept directly under the welcome text rather than after the feature list
+                        // and tip below: someone restoring a backup, or skipping setup entirely,
+                        // has already decided before reading the feature tour, and having to
+                        // scroll past all of it to reach either action was pure friction for the
+                        // two cases that want out of this screen fastest.
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 24.dp, start = 48.dp, end = 48.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            TextButton(
+                                onClick = {
+                                    navController.navigate("settings/backup_restore")
+                                }
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.oobe_use_backup),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+
+                            TextButton(
+                                onClick = {
+                                    oobeStatus = OOBE_VERSION
+                                    navController.navigateUp()
+                                }
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.action_skip),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+
                         Column(
                             verticalArrangement = Arrangement.spacedBy(12.dp),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(start = 16.dp, top = 48.dp, end = 16.dp, bottom = 16.dp)
+                                .padding(start = 16.dp, top = 24.dp, end = 16.dp, bottom = 16.dp)
                         ) {
                             OobeFeatureRow(
                                 title = stringResource(R.string.oobe_ytm_integration),
@@ -365,36 +400,6 @@ fun SetupWizard(
                                 .padding(horizontal = 16.dp)
                         )
                         Spacer(Modifier.height(16.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 48.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            TextButton(
-                                onClick = {
-                                    navController.navigate("settings/backup_restore")
-                                }
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.oobe_use_backup),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-
-                            TextButton(
-                                onClick = {
-                                    oobeStatus = OOBE_VERSION
-                                    navController.navigateUp()
-                                }
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.action_skip),
-                                    style = MaterialTheme.typography.bodyMedium
-                                )
-                            }
-                        }
                     }
 
                     // appearance
