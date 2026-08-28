@@ -321,7 +321,14 @@ fun LiquidBackground(
                 // surface supplies that darkness while still following the scheme.
                 highlightColor = accentColor,
                 rimColor = MaterialTheme.colorScheme.tertiary,
-                baseColor = MaterialTheme.colorScheme.surface,
+                // Ferrofluid is a black body, and it should read as one - but passing the surface
+                // role straight through made it *only* black, since in a dark scheme that role is
+                // already near-black and the lit term had nothing of the theme left in it to carry.
+                // A black-dominant blend keeps the material looking like ink while letting the
+                // accent show in the lit faces, so the blobs belong to the current theme instead of
+                // being holes in it. Weighted well down: past roughly a fifth it stops looking like
+                // ferrofluid and starts looking like coloured plastic.
+                baseColor = lerp(Color.Black, accentColor, 0.18f),
                 quality = ferrofluidQuality,
                 modifier = baseModifier,
                 fallback = { FerrofluidCanvasShape(baseModifier, flowTime, seed, bass, treble, transient, alpha) },
