@@ -266,7 +266,13 @@ dependencies {
 
     // modules
     implementation(project(":innertube"))
-    implementation("com.github.MetrolistGroup:innertubex:v0.2.6")
+    // The JitPack-published Gradle metadata does not resolve a single platform variant, so the
+    // root module drags in the desktop JVM jar alongside the Android aar and every class lands
+    // twice - checkDuplicateClasses fails the release build. Excluding the desktop artifact
+    // keeps the root module's own dependency declarations while leaving just the Android one.
+    implementation("com.github.MetrolistGroup:innertubex:v0.2.6") {
+        exclude(group = "com.github.MetrolistGroup.innertubex", module = "innertubex-desktop")
+    }
     // Ktor on the app classpath too: the innertubex stream resolver builds its own client,
     // and :innertube keeps these implementation-scoped rather than exposing them.
     implementation(libs.ktor.client.core)
