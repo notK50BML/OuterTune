@@ -91,7 +91,14 @@ object AppUpdater {
             }
 
             val release = JSONObject(body)
-            val versionName = release.optString("tag_name").removePrefix("v")
+            // The release's own name first, its tag second. This repo tags releases by flavour
+            // (Core-v0.18.2) while naming them by version (v0.18.2), and the tag is the wrong one
+            // to put in front of someone: "New release available - Core-v0.18.2" reads like the
+            // flavour is part of the version. Either is only a label - what an upgrade is actually
+            // decided on is the versionCode parsed from the asset filename below.
+            val versionName = release.optString("name")
+                .ifBlank { release.optString("tag_name") }
+                .removePrefix("v")
             val notes = release.optString("body").orEmpty()
             val assets = release.optJSONArray("assets") ?: return@withContext null
 
