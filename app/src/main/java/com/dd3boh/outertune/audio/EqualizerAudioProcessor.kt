@@ -13,7 +13,9 @@ import androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException
 import androidx.media3.common.audio.BaseAudioProcessor
 import com.dd3boh.outertune.models.EqualizerSettings
 import java.nio.ByteBuffer
+import kotlin.math.abs
 import kotlin.math.pow
+import kotlin.math.roundToInt
 import kotlin.math.tanh
 
 /**
@@ -69,6 +71,21 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     // tweaks never reset the running filter state (which would produce an audible click).
     private var states: Array<Array<BiquadState>> = arrayOf()
 
+    // Audio-thread-only. The coefficients actually applied, as a flat [band * 5] array, ramped
+    // towards whatever [coefficients] currently holds rather than snapped to it.
+    //
+    // Not resetting the filter state on a gain change (above) avoids one click but not the other:
+    // substituting a whole new coefficient set between two consecutive samples is itself a step
+    // discontinuity in the filter's response, and a slider dragged across its range fires one per
+    // update. That is the zipper noise heard while adjusting a band. Interpolating over ~20ms
+    // turns each of those steps into a smooth traversal instead.
+    private var activeCoeffs: FloatArray = FloatArray(0)
+    private var targetCoeffs: FloatArray = FloatArray(0)
+    private var rampFramesLeft: Int = 0
+
+    /** Identity check only - detects that [setSettings] published a new array since last buffer. */
+    private var lastSeenTarget: Array<BiquadCoefficients>? = null
+
     // One envelope follower per channel - unlike the biquad grid this doesn't depend on the band
     // count, only the channel count, so it's resized independently.
     private var compStates: Array<CompressorState> = arrayOf()
@@ -89,7 +106,23 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
     fun setSettings(settings: EqualizerSettings) {
-        val flat = settings.bands.all { !it.enabled || it.gainDb == 0f }
+        // "Flat" has to mean "no enabled band changes the signal", and for a low/high-pass that is
+        // never true regardless of gain: they have no gain parameter at all, so gainDb sits at 0
+        // and a `gainDb == 0f` test called them inactive. The processor then bypassed itself
+        // wholesale and bulk-copied the buffer, so a curve made only of pass filters - one built by
+        // hand, or an AutoEq profile using LP/HP bands - was computed correctly by
+        // BiquadCoefficients.forBand (which already excludes them from its own 0dB shortcut) and
+        // then never actually run. Mirror that exclusion here.
+        val flat = settings.bands.all { band ->
+            !band.enabled || when (band.type) {
+                EqualizerSettings.FilterType.PEAKING,
+                EqualizerSettings.FilterType.LOW_SHELF,
+                EqualizerSettings.FilterType.HIGH_SHELF -> band.gainDb == 0f
+
+                EqualizerSettings.FilterType.LOW_PASS,
+                EqualizerSettings.FilterType.HIGH_PASS -> false
+            }
+        }
         val compressorOff = !settings.compressor.enabled
         bypass = !settings.enabled || (flat && settings.balance == 0f && compressorOff)
         bands = settings.bands
@@ -181,7 +214,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         }
 
         ensureStates(channelCount)
-        val coeffs = coefficients
+        syncCoefficientTarget()
+        val coeffs = activeCoeffs
         val compCoeffs = compressorCoefficients
         val compressorEnabled = compressorSettings.enabled
         val preGain = preGainLinear
@@ -189,6 +223,17 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val rightGain = this.rightGain
 
         while (inputBuffer.hasRemaining()) {
+            // Advanced once per frame, not per channel, so both channels stay on the same filter
+            // for a given instant. The step is 1/remaining rather than a fixed fraction, so the
+            // last frame of the ramp lands exactly on the target instead of asymptotically near it.
+            if (rampFramesLeft > 0) {
+                val step = 1f / rampFramesLeft
+                for (i in coeffs.indices) {
+                    coeffs[i] += (targetCoeffs[i] - coeffs[i]) * step
+                }
+                rampFramesLeft--
+            }
+
             var frameSum = 0f
             for (ch in 0 until channelCount) {
                 var sample = when (encoding) {
@@ -210,9 +255,12 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                 // coeffs (still the older size) briefly disagree. Bounding by the smaller of the
                 // two degrades that one buffer's worth of processing instead of indexing past
                 // whichever array is still short and crashing the playback thread outright.
-                val bandCount = minOf(coeffs.size, channelStates.size)
+                val bandCount = minOf(coeffs.size / COEFFS_PER_BAND, channelStates.size)
                 for (b in 0 until bandCount) {
-                    sample = channelStates[b].process(sample, coeffs[b])
+                    val o = b * COEFFS_PER_BAND
+                    sample = channelStates[b].process(
+                        sample, coeffs[o], coeffs[o + 1], coeffs[o + 2], coeffs[o + 3], coeffs[o + 4]
+                    )
                 }
 
                 if (compressorEnabled) {
@@ -227,15 +275,18 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     else -> 1f
                 }
 
-                // A hard coerceIn here is exactly what crackles on a transient that still gets
-                // through: a flat-topped waveform, not a rounded one. tanh leaves anything well
-                // under full scale untouched (tanh(x) ≈ x for small x) and only rounds off actual
-                // peaks, so the rare over from a boosted preset saturates instead of clipping.
-                val limited = tanh(sample)
+                val limited = softLimit(sample)
 
                 when (encoding) {
+                    // Rounded, not truncated. toInt() truncates towards zero, which is a
+                    // consistently-signed error rather than a symmetric one, so it behaves as
+                    // distortion correlated with the waveform instead of as noise - audible on
+                    // quiet passages as a gritty edge. The clamp costs nothing and makes the
+                    // conversion safe by construction: a value that reached +32768 would wrap to
+                    // full-scale *negative* as a Short, which is about the loudest click a sample
+                    // can make.
                     C.ENCODING_PCM_16BIT ->
-                        buffer.putShort((limited * 32767f).toInt().toShort())
+                        buffer.putShort((limited * 32767f).roundToInt().coerceIn(-32768, 32767).toShort())
                     C.ENCODING_PCM_FLOAT -> buffer.putFloat(limited)
                 }
             }
@@ -244,18 +295,99 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         buffer.flip()
     }
 
+    /**
+     * Picks up a coefficient set published by [setSettings] and starts interpolating towards it.
+     *
+     * A change in band count can't be interpolated - the arrays don't line up element for element -
+     * so that one snaps, which is the same thing the filter-state rebuild in [ensureStates] already
+     * has to do for it.
+     */
+    private fun syncCoefficientTarget() {
+        val target = coefficients
+        if (target === lastSeenTarget) return
+        lastSeenTarget = target
+
+        val flat = FloatArray(target.size * COEFFS_PER_BAND)
+        for (b in target.indices) {
+            val c = target[b]
+            val o = b * COEFFS_PER_BAND
+            flat[o] = c.b0
+            flat[o + 1] = c.b1
+            flat[o + 2] = c.b2
+            flat[o + 3] = c.a1
+            flat[o + 4] = c.a2
+        }
+
+        if (activeCoeffs.size != flat.size) {
+            activeCoeffs = flat
+            targetCoeffs = flat.copyOf()
+            rampFramesLeft = 0
+        } else {
+            targetCoeffs = flat
+            rampFramesLeft = (configuredSampleRate * RAMP_MS / 1000).coerceAtLeast(1)
+        }
+    }
+
     override fun onFlush(streamMetadata: StreamMetadata) {
         // A seek or track change is a discontinuity the filter shouldn't carry a memory of - left
         // alone, the old delay-line values would ring into the start of the new audio.
         states.forEach { channel -> channel.forEach { it.reset() } }
         compStates.forEach { it.reset() }
+        // Nothing to glide over across a discontinuity either: the audio on the far side of it is
+        // unrelated, so the new coefficients may as well be fully in effect for its first sample.
+        if (rampFramesLeft > 0) {
+            targetCoeffs.copyInto(activeCoeffs)
+            rampFramesLeft = 0
+        }
         visualizer.reset()
     }
 
     override fun onReset() {
         states = arrayOf()
         compStates = arrayOf()
+        activeCoeffs = FloatArray(0)
+        targetCoeffs = FloatArray(0)
+        rampFramesLeft = 0
+        lastSeenTarget = null
         configuredSampleRate = 0
         visualizer.reset()
+    }
+
+    private companion object {
+        const val COEFFS_PER_BAND = 5
+
+        /** Long enough to be inaudible as a step, short enough to feel immediate on a slider. */
+        const val RAMP_MS = 20
+
+        /**
+         * Below this the signal is passed through bit-exact; above it, it is compressed smoothly
+         * into the remaining headroom. See [softLimit].
+         */
+        const val LIMIT_THRESHOLD = 0.75f
+        const val LIMIT_RANGE = 1f - LIMIT_THRESHOLD
+    }
+
+    /**
+     * Soft-knee ceiling. Transparent below [LIMIT_THRESHOLD], asymptotic to 1.0 above it.
+     *
+     * This replaced a bare `tanh(sample)` on every sample. tanh is a fine saturator but it is not
+     * the identity anywhere: tanh(0.5) is 0.462 and tanh(0.7) is 0.604, so ordinary programme
+     * material sitting at a normal listening level was being pulled down by 8-14% - a continuous,
+     * waveform-dependent nonlinearity across the whole signal rather than something that engages
+     * only on peaks. That is odd-harmonic distortion on everything, worst on bass-heavy material
+     * where the high-amplitude fundamental throws its harmonics up into the midrange, and it is
+     * audible as exactly the gritty crackle a boosted band was blamed for: the pre-gain leaves a
+     * boosted band's output riding right around the level where tanh starts bending hard.
+     *
+     * Composing tanh with an offset instead keeps the saturation but confines it to the top of the
+     * range. The pieces meet with matching value *and* matching slope at the threshold (tanh'(0)
+     * is 1, and the 1/[LIMIT_RANGE] inside cancels the [LIMIT_RANGE] outside), so there is no
+     * discontinuity in the transfer curve for the ear to find as the signal crosses it.
+     */
+    private fun softLimit(x: Float): Float {
+        val magnitude = abs(x)
+        if (magnitude <= LIMIT_THRESHOLD) return x
+        val shaped = LIMIT_THRESHOLD + LIMIT_RANGE * tanh((magnitude - LIMIT_THRESHOLD) / LIMIT_RANGE)
+        return if (x < 0f) -shaped else shaped
     }
 }

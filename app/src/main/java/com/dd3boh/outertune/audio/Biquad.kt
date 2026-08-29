@@ -132,21 +132,39 @@ class BiquadState {
     private var y1 = 0f
     private var y2 = 0f
 
-    fun process(x0: Float, c: BiquadCoefficients): Float {
-        val rawY0 = c.b0 * x0 + c.b1 * x1 + c.b2 * x2 - c.a1 * y1 - c.a2 * y2
+    private companion object {
+        /** See [process] - anything below this is inaudible, and denormals start far below it. */
+        const val ANTI_DENORMAL = 1e-25f
+    }
+
+    fun process(x0: Float, b0: Float, b1: Float, b2: Float, a1: Float, a2: Float): Float {
+        val rawY0 = b0 * x0 + b1 * x1 + b2 * x2 - a1 * y1 - a2 * y2
         // A filter that's briefly fed absurd input (a corrupt frame, a format edge case) can ring
         // up to NaN/Infinity and then never recover - every future sample multiplies by that same
         // poisoned state. The clamp is far above any real signal (even several cascaded +15dB
         // boosts stays well under this), so it only ever trips on an actual runaway - and it has
         // to cover the sample this function returns too, not just the fed-back state, or a single
         // NaN sample still reaches the output before the state catches up.
-        val y0 = if (rawY0.isFinite()) rawY0.coerceIn(-16f, 16f) else 0f
+        val clamped = if (rawY0.isFinite()) rawY0.coerceIn(-16f, 16f) else 0f
+        // Flush the delay line once it decays into denormal territory. When a track fades out, or
+        // during any near-silent passage, an IIR's feedback path rings down through progressively
+        // smaller values and eventually spends a long stretch in denormals - and scalar float
+        // arithmetic on denormals is handled off the fast path on a good deal of ARM hardware,
+        // costing orders of magnitude more per operation than the same maths on normal floats.
+        // With a 16-band cascade running per channel per sample that is enough extra work to miss
+        // the audio deadline, which is heard as crackle - and heard *per band*, since the bands
+        // that ring longest (low frequency, high Q) sit in denormals longest. The threshold is
+        // ~-500dBFS: far below anything audible, far above the denormal range it exists to avoid.
+        val y0 = if (abs(clamped) < ANTI_DENORMAL) 0f else clamped
         x2 = x1
-        x1 = x0
+        x1 = if (abs(x0) < ANTI_DENORMAL) 0f else x0
         y2 = y1
         y1 = y0
         return y0
     }
+
+    fun process(x0: Float, c: BiquadCoefficients): Float =
+        process(x0, c.b0, c.b1, c.b2, c.a1, c.a2)
 
     fun reset() {
         x1 = 0f; x2 = 0f; y1 = 0f; y2 = 0f

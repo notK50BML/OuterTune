@@ -85,7 +85,6 @@ object AutoEqRepository {
         }.onFailure { Log.w(TAG, "Failed to fetch AutoEQ curve for ${result.name}", it) }.getOrNull()
     }
 
-    private val PREAMP_LINE = Regex("""Preamp:\s*(-?[\d.]+)\s*dB""", RegexOption.IGNORE_CASE)
     private val FILTER_LINE = Regex(
         """Filter\s+\d+:\s*ON\s+(\w+)\s+Fc\s+([\d.]+)\s*Hz\s+Gain\s+(-?[\d.]+)\s*dB\s+Q\s+([\d.]+)""",
         RegexOption.IGNORE_CASE
@@ -118,14 +117,21 @@ object AutoEqRepository {
         }.toList()
         if (bands.isEmpty()) return null
 
-        // AutoEQ's preamp offsets the whole curve down so the combined boost/cut never clips -
-        // this app's band model has no separate preamp field, so the closest equivalent is baking
-        // that same offset into every band's own gain.
-        val preampDb = PREAMP_LINE.find(text)?.groupValues?.get(1)?.toFloatOrNull() ?: 0f
-        val adjustedBands = if (preampDb == 0f) bands else bands.map {
-            it.copy(gainDb = (it.gainDb + preampDb).coerceIn(EqualizerSettings.MIN_GAIN_DB, EqualizerSettings.MAX_GAIN_DB))
-        }
-
-        return EqualizerSettings.DEFAULT.copy(enabled = true, bands = adjustedBands)
+        // AutoEQ's "Preamp:" line is deliberately not applied to the bands.
+        //
+        // It is a single global gain stage - one attenuation of the whole signal, the way Equalizer
+        // APO implements it - and it exists purely to buy headroom for the boosts that follow. It
+        // is not a per-band offset, and adding it to each band's gain (as this used to) does not
+        // move the curve down by that amount: a peaking filter's gain only acts around its own
+        // centre frequency, so shifting all of them turns every band AutoEQ specified at 0dB into
+        // a real cut at its centre and leaves a comb of dips instead of a level change. Low/high
+        // pass bands have no gain to offset at all, so they silently kept their original level
+        // while everything around them moved - the same curve, differently wrong.
+        //
+        // Headroom is already handled, and handled globally, by EqualizerAudioProcessor's own
+        // pre-gain, which derives exactly this kind of attenuation from how much boost the curve
+        // actually asks for. So the filters are taken as written and the preamp's job is left to
+        // the stage that already does it.
+        return EqualizerSettings.DEFAULT.copy(enabled = true, bands = bands)
     }
 }
