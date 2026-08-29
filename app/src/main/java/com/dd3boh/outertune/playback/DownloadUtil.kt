@@ -144,7 +144,10 @@ class DownloadUtil @Inject constructor(
 
         songUrlCache[mediaId]?.takeIf { it.expiresAt > System.currentTimeMillis() }?.let {
             return@Factory dataSpec.withUri(it.url.toUri())
-                .withRequestHeaders(it.headers)
+                // Merged, not replaced - matching Metrolist v13.6.3's DownloadUtil. Replacing
+                // discards whatever the caller had already put on the spec, and googlevideo will
+                // refuse a request that is missing a header the url was signed alongside.
+                .withRequestHeaders(dataSpec.httpRequestHeaders + it.headers)
         }
 
         // A cache entry existing (even an expired one) means this song was already resolved once
@@ -218,7 +221,8 @@ class DownloadUtil @Inject constructor(
             headers = playbackData.streamHeaders,
         )
         dataSpec.withUri(streamUrl.toUri())
-            .withRequestHeaders(playbackData.streamHeaders)
+            // Merged for the same reason as the cached branch above.
+            .withRequestHeaders(dataSpec.httpRequestHeaders + playbackData.streamHeaders)
     }
     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
     val downloadManager: DownloadManager =

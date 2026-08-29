@@ -64,6 +64,7 @@ import com.dd3boh.outertune.utils.scheduleAutoBackup
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeLocale
 import com.zionhuang.kugou.KuGou
+import timber.log.Timber
 import dagger.hilt.android.HiltAndroidApp
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
@@ -89,6 +90,13 @@ class App : Application(), SingletonImageLoader.Factory {
         }
 
         instance = this;
+
+        // The imported stream engine logs entirely through Timber, and Timber with no tree planted
+        // discards everything - which is why the first build carrying it produced no cipher or
+        // PoToken output at all. Planted unconditionally rather than only in debug builds, matching
+        // Metrolist: reading its release-build logs is what made the stream failures diagnosable
+        // here in the first place, and the same is worth having when this one misbehaves.
+        Timber.plant(Timber.DebugTree())
 
         val locale = Locale.getDefault()
         val languageTag = locale.toLanguageTag().replace("-Hant", "") // replace zh-Hant-* to zh-*
