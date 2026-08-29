@@ -110,6 +110,46 @@ object ArtistCreditEnricher {
             Log.d(TAG, "[$songId] combined credit \"${artist.name}\" doesn't exist on its own - replaced with ${realHalves.map { it.name }}")
         }
 
+        // An artist that renamed itself upstream can end up credited twice on one song, once under
+        // each name, and the two credits are not equally useful. ((G)I-DLE -> i-dle is the case
+        // this was written against.) YTM keeps returning the old name against the real channel, so
+        // that credit links correctly but reads wrongly, while the new name arrives as a bare Run
+        // with no navigationEndpoint and lands as a local placeholder - which reads correctly and
+        // links nowhere, so it shows greyed out. The song then displays both.
+        //
+        // Neither is right on its own and the fix is not to pick one: it is to notice they are the
+        // same artist. A placeholder whose name resolves to a channel already credited on this song
+        // is that channel under its current name, so the placeholder is dropped and its name is
+        // written onto the real credit - which is the one the tap already went to. The result is a
+        // single credit, named as the page it opens.
+        //
+        // Only attempted when the song holds both kinds at once, so the search this costs is paid
+        // on the rare shape that can actually be a rebrand rather than on every song.
+        if (finalArtists.any { it.isYouTubeArtist } && finalArtists.any { !it.isYouTubeArtist }) {
+            val collapsed = mutableListOf<ArtistEntity>()
+            for (artist in finalArtists) {
+                if (artist.isYouTubeArtist) {
+                    collapsed += artist
+                    continue
+                }
+                val resolved = resolveArtistEntity(database, artist.name)
+                val sameChannel = resolved?.let { r -> finalArtists.firstOrNull { it.id == r.id && it.isYouTubeArtist } }
+                if (sameChannel == null) {
+                    collapsed += artist
+                    continue
+                }
+                if (sameChannel.name != resolved.name) {
+                    Log.d(TAG, "[$songId] ${sameChannel.id} renamed upstream: \"${sameChannel.name}\" -> \"${resolved.name}\"")
+                    database.update(sameChannel.copy(name = resolved.name))
+                    collapsed.replaceAll { if (it.id == sameChannel.id) it.copy(name = resolved.name) else it }
+                }
+                Log.d(TAG, "[$songId] dropping \"${artist.name}\", a placeholder for ${sameChannel.id} under its new name")
+                changed = true
+            }
+            finalArtists.clear()
+            finalArtists += collapsed
+        }
+
         // distinctBy guards against two different combined credits independently resolving to
         // the same real artist - rare, but song_artist_map's (songId, artistId) primary key
         // can't hold that same id twice at two different positions.

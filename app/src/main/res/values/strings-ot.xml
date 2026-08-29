@@ -125,11 +125,24 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="special_thanks">Special thanks</string>
 
     <!-- In-app updater -->
+    <string name="updater">Updater</string>
     <string name="check_for_updates">Check for updates</string>
+    <string name="update_checking">Checking…</string>
     <string name="update_up_to_date">You are on the latest build</string>
+    <string name="update_available">New release available — %1$s</string>
+    <string name="update_install_now">Download and install</string>
+    <string name="update_current_version">Currently on %1$s (%2$d)</string>
     <string name="update_downloading">Downloading %1$s… %2$d%%</string>
     <string name="update_handed_to_installer">Ready to install — confirm in the installer</string>
     <string name="update_failed">Update failed: %1$s</string>
+    <string name="update_options">Options</string>
+    <string name="update_auto_check">Check on opening this screen</string>
+    <string name="update_auto_check_desc">Looks for a new release when the Updater is opened</string>
+    <string name="update_auto_download">Download automatically</string>
+    <string name="update_auto_download_desc">Fetches the APK as soon as one is found, so installing is a single tap</string>
+    <string name="update_prefer_full">Use the full build</string>
+    <string name="update_prefer_full_desc">Larger APK with the extra playback decoders. Leave off for the core build.</string>
+    <string name="update_install_tooltip">Android does the installing, not OuterTune. You will be asked to allow installing unknown apps once, and to confirm every update after that.</string>
 
 <!-- Appearance settings -->
     <string name="new_interface">New interface layout</string>

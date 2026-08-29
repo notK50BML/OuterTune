@@ -70,7 +70,12 @@ object AppUpdater {
      * device, or null. Never throws: an update check failing is not worth interrupting anything
      * over, so it is logged and treated as "nothing to update to".
      */
-    suspend fun checkForUpdate(): Update? = withContext(Dispatchers.IO) {
+    /**
+     * @param flavor which build flavour to look for. Defaults to the one running, which is almost
+     *   always what is wanted; it is settable so someone on core can move to full (or back) by
+     *   taking the next update, rather than having to find and sideload an apk by hand.
+     */
+    suspend fun checkForUpdate(flavor: String = BuildConfig.FLAVOR): Update? = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
                 .url(RELEASES_API)
@@ -93,7 +98,6 @@ object AppUpdater {
             // Only an apk built for this device's abi and this build's flavour can replace this
             // install. A universal apk is accepted too, since it contains every abi.
             val abis = Build.SUPPORTED_ABIS.toSet()
-            val flavor = BuildConfig.FLAVOR
 
             var best: Update? = null
             for (i in 0 until assets.length()) {

@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Palette
@@ -183,6 +184,11 @@ fun SettingsScreen(
         ElevatedCard(
             modifier = Modifier.fillMaxWidth()
         ) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.updater)) },
+                icon = { Icon(Icons.Rounded.SystemUpdate, null) },
+                onClick = { navController.navigate("settings/updater") }
+            )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.about)) },
                 icon = { Icon(Icons.Rounded.Info, null) },

@@ -186,6 +186,7 @@ import com.dd3boh.outertune.ui.screens.settings.PlayerSettings
 import com.dd3boh.outertune.ui.screens.settings.PrivacySettings
 import com.dd3boh.outertune.ui.screens.settings.SettingsScreen
 import com.dd3boh.outertune.ui.screens.settings.StorageSettings
+import com.dd3boh.outertune.ui.screens.settings.UpdaterSettings
 import com.dd3boh.outertune.ui.theme.DefaultThemeColor
 import com.dd3boh.outertune.ui.theme.OuterTuneTheme
 import com.dd3boh.outertune.ui.utils.appBarScrollBehavior
@@ -762,6 +763,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("settings/discord/login") {
                                         DiscordLoginScreen(navController)
+                                    }
+                                    composable("settings/updater") {
+                                        UpdaterSettings(navController, scrollBehavior)
                                     }
                                     composable("settings/about") {
                                         AboutScreen(navController, scrollBehavior)

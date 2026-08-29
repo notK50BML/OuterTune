@@ -548,3 +548,9 @@ val CountryCodeToName = mapOf(
     "YE" to "Yemen",
     "ZW" to "Zimbabwe",
 )
+
+// Updater
+val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
+val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
+/** Which build flavour to pull, since only a matching one can replace this install. */
+val UpdateFlavorKey = stringPreferencesKey("updateFlavor")
