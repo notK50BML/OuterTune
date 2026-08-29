@@ -162,11 +162,6 @@ class DownloadUtil @Inject constructor(
                 audioQuality = audioQuality,
                 connectivityManager = connectivityManager,
                 // See the dataSpec note below: a download is one whole-file request, so a client
-                // whose url is only served for an explicitly bounded range cannot supply it. Such
-                // a client has to be kept out of the selection rather than picked and then
-                // refused - which is what was happening, as a 403 a few seconds in on most songs
-                // and an occasional success whenever the chosen client happened not to need one.
-                allowBoundedRange = false,
             )
         }.getOrThrow()
         val format = playbackData.format

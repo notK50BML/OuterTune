@@ -90,3 +90,16 @@
 ## Quality of life for logs
 -keepclasseswithmembernames class com.dd3boh.outertune.playback.**
 -keepclasseswithmembernames class com.dd3boh.outertune.utils.scanners.**
+
+# --- Ported stream engine (Metrolist v13.6.3) ---
+# Both of these talk to page JavaScript across an @JavascriptInterface bridge, so the members are
+# only ever reached by name from JS. R8 sees no caller and strips them, and the failure is silent:
+# the WebView loads, the callback never fires, and deobfuscation just times out.
+-keepclassmembers class com.dd3boh.outertune.utils.cipher.CipherWebView {
+    @android.webkit.JavascriptInterface public *;
+}
+-keepclassmembers class com.dd3boh.outertune.utils.potoken.PoTokenWebView {
+    @android.webkit.JavascriptInterface public *;
+}
+-keep class com.dd3boh.outertune.utils.cipher.** { *; }
+-keep class com.dd3boh.outertune.utils.potoken.** { *; }

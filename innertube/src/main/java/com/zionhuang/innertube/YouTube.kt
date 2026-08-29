@@ -742,6 +742,45 @@ object YouTube {
         innerTube.player(client, videoId, playlistId, signatureTimestamp, webPlayerPot).body<PlayerResponse>()
     }
 
+    fun getNewPipeStreamUrls(videoId: String): List<Pair<Int, String>> =
+        NewPipeUtils.newPipePlayer(videoId)
+
+    /**
+     * [tempRes] with every format's url replaced by NewPipe's own for the same itag.
+     *
+     * Ported from Metrolist v13.6.3. The point is that a player response can be perfectly playable
+     * as metadata while its urls are unusable - a signature this app cannot descramble, most often
+     * right after YouTube rotates its player. Rather than discard the whole response, NewPipe
+     * resolves the same video by itself and its urls are grafted on by itag, keeping the response's
+     * formats, loudness and tracking intact.
+     *
+     * Null when there is nothing to be gained: an unplayable response, no NewPipe streams, or a
+     * graft that produced no urls at all. The caller reads null as "try the next client".
+     */
+    suspend fun newPipePlayer(videoId: String, tempRes: PlayerResponse): PlayerResponse? {
+        if (tempRes.playabilityStatus.status != "OK") return null
+
+        val streamsList = getNewPipeStreamUrls(videoId)
+        if (streamsList.isEmpty()) return null
+
+        val decodedSigResponse = tempRes.copy(
+            streamingData = tempRes.streamingData?.copy(
+                formats = tempRes.streamingData.formats?.map { format ->
+                    format.copy(url = streamsList.find { it.first == format.itag }?.second ?: format.url)
+                },
+                adaptiveFormats = tempRes.streamingData.adaptiveFormats.map { adaptiveFormat ->
+                    adaptiveFormat.copy(
+                        url = streamsList.find { it.first == adaptiveFormat.itag }?.second ?: adaptiveFormat.url
+                    )
+                },
+            ),
+        )
+
+        val hasAnyUrl = decodedSigResponse.streamingData?.adaptiveFormats?.any { it.url != null } == true ||
+            decodedSigResponse.streamingData?.formats?.any { it.url != null } == true
+        return decodedSigResponse.takeIf { hasAnyUrl }
+    }
+
     /**
      * The "cpn" (client playback nonce) a real client generates once per playback and reuses on
      * every tracking ping for that playback, plus (see [YTPlayerUtils] in the app module) as a

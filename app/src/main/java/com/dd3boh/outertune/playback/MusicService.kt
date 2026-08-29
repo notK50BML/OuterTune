@@ -135,7 +135,6 @@ import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.DiscordRPC
 import com.dd3boh.outertune.utils.NetworkConnectivityObserver
 import com.dd3boh.outertune.utils.SyncUtils
-import com.dd3boh.outertune.utils.StreamRangePolicy
 import com.dd3boh.outertune.utils.YTPlayerUtils
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.enumPreference
@@ -328,35 +327,21 @@ class MusicService : MediaLibraryService(),
         /** Name of the client this stream came from - read in onPlayerError to tell
          *  YTPlayerUtils a WEB_REMIX stream specifically was what just got rejected. */
         val clientName: String,
-        /** How this url has to be requested - travels with it, see [withResolvedStream]. */
-        val requireBoundedRange: Boolean,
-        val useRangeChunks: Boolean,
-        val rangeChunkSizeBytes: Long,
     )
 
     /**
-     * Applies a resolved stream to a [DataSpec]: its url, its headers, and the range shape the
-     * client that signed it requires.
+     * Applies an already-cached stream to a [DataSpec]: its url and its headers, merged onto
+     * whatever the caller already set.
      *
-     * Headers are merged rather than replaced, so whatever the caller already set survives. The
-     * bound, when there is one, starts at 0 and never exceeds a length the caller actually asked
-     * for. Only ANDROID_VR/IOS/TVHTML5_SIMPLY are bounded at all; a web url read as a run of small
-     * bounded ranges is served a few dozen times and then refused, which is a failure that shows up
-     * a minute into playback rather than at resolve time.
+     * Deliberately unbounded, matching Metrolist v13.6.3, whose engine this now runs. Only the
+     * *fresh* resolve below takes a subrange; a url being replayed from cache is read straight
+     * through. The per-client range policy that used to live here is gone with the rest of the
+     * innertubex path - it was derived from that library's rules, and this engine has its own
+     * answer, which is the flat CHUNK_LENGTH bound applied at the fetch site.
      */
-    private fun DataSpec.withResolvedStream(stream: CachedStreamUrl): DataSpec {
-        val resolved = withUri(stream.url.toUri())
+    private fun DataSpec.withResolvedStream(stream: CachedStreamUrl): DataSpec =
+        withUri(stream.url.toUri())
             .withRequestHeaders(httpRequestHeaders + stream.headers)
-        if ((!stream.requireBoundedRange && !stream.useRangeChunks) || stream.rangeChunkSizeBytes <= 0L) {
-            return resolved
-        }
-        val boundedLength = if (length == C.LENGTH_UNSET.toLong()) {
-            stream.rangeChunkSizeBytes
-        } else {
-            minOf(length, stream.rangeChunkSizeBytes)
-        }
-        return resolved.subrange(0, boundedLength)
-    }
 
     /**
      * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
@@ -767,9 +752,6 @@ class MusicService : MediaLibraryService(),
                 cpn = playbackData.cpn,
                 playbackTracking = playbackData.playbackTracking,
                 clientName = playbackData.clientName,
-                requireBoundedRange = playbackData.requireBoundedRange,
-                useRangeChunks = playbackData.useRangeChunks,
-                rangeChunkSizeBytes = playbackData.rangeChunkSizeBytes,
             )
             // Telemetry deliberately NOT fired here - this runs up to PRECACHE_LEAD_MS before the
             // song actually starts, and the ping sequence's timing only makes sense measured from
@@ -1227,9 +1209,6 @@ class MusicService : MediaLibraryService(),
                 cpn = playbackData.cpn,
                 playbackTracking = playbackData.playbackTracking,
                 clientName = playbackData.clientName,
-                requireBoundedRange = playbackData.requireBoundedRange,
-                useRangeChunks = playbackData.useRangeChunks,
-                rangeChunkSizeBytes = playbackData.rangeChunkSizeBytes,
             )
             songUrlCache[mediaId] = cachedStreamUrl
             maybeSendPlaybackTelemetry(mediaId, cachedStreamUrl)
@@ -1459,7 +1438,7 @@ class MusicService : MediaLibraryService(),
             // Recorded before the entry is dropped below - lets the retry's re-resolution skip
             // straight to a fallback client instead of repeating this same WEB_REMIX rejection.
             if (songUrlCache[failedMediaId]?.clientName == "WEB_REMIX") {
-                YTPlayerUtils.markWebRemixStreamFailed(failedMediaId)
+                YTPlayerUtils.markWebRemixFailed(failedMediaId)
             }
             songUrlCache.remove(failedMediaId)
             if (SERVICE_DEBUG) Log.w(TAG, "source error (${error.errorCode}), retry ${retryCount + 1}/$MAX_SOURCE_ERROR_RETRIES with a fresh URL and identity: mediaId=$failedMediaId")

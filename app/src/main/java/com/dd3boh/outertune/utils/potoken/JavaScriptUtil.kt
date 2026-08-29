@@ -62,7 +62,7 @@ fun parseChallengeData(rawChallengeData: String): String {
 
 /**
  * Parses the raw integrity token data obtained from the GenerateIT endpoint to a JavaScript
- * `Uint8Array` that can be embedded directly in JavaScript code, and an [Int] representing the
+ * `Uint8Array` that can be embedded directly in JavaScript code, and a [Long] representing the
  * duration of this token in seconds.
  */
 fun parseIntegrityTokenData(rawIntegrityTokenData: String): Pair<String, Long> {

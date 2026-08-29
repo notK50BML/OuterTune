@@ -17,6 +17,12 @@ data class YouTubeClient(
     val loginRequired: Boolean = false,
     val useSignatureTimestamp: Boolean = false,
     val useWebPoTokens: Boolean = false,
+    /**
+     * Whether this client is not worth attempting at all without a PoToken, as opposed to merely
+     * benefiting from one. The ported stream engine skips such a client outright when minting
+     * failed, rather than spending a player request on a response it already knows will be refused.
+     */
+    val requirePoToken: Boolean = false,
     val isEmbedded: Boolean = false,
     /** Whether [userAgent] also belongs in the request body's context.client - see that field's own doc. */
     val includeUserAgentInContext: Boolean = false,
@@ -119,6 +125,10 @@ data class YouTubeClient(
             // point is bypassing that as a logged-out fallback, which loginRequired=true defeated.
             loginRequired = false,
             useSignatureTimestamp = true,
+            // Matches Metrolist v13.6.3, where this client carries both flags: it is served only
+            // with a web PoToken, so without one there is nothing to gain by asking.
+            useWebPoTokens = true,
+            requirePoToken = true,
             isEmbedded = true,
         )
 

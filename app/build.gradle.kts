@@ -206,6 +206,11 @@ ksp {
 }
 
 dependencies {
+    // Used by the ported cipher/potoken stack, which logs through it at ~300 call sites. Kept as
+    // Timber rather than rewritten onto android.util.Log so those files stay diffable against the
+    // Metrolist source they came from - the whole point of taking that engine wholesale is being
+    // able to compare it line for line when YouTube next changes something.
+    implementation(libs.timber)
     implementation(libs.guava)
     implementation(libs.coroutines.guava)
     implementation(libs.concurrent.futures)
@@ -266,15 +271,12 @@ dependencies {
 
     // modules
     implementation(project(":innertube"))
-    // The JitPack-published Gradle metadata does not resolve a single platform variant, so the
-    // root module drags in the desktop JVM jar alongside the Android aar and every class lands
-    // twice - checkDuplicateClasses fails the release build. Excluding the desktop artifact
-    // keeps the root module's own dependency declarations while leaving just the Android one.
-    implementation("com.github.MetrolistGroup:innertubex:v0.2.6") {
-        exclude(group = "com.github.MetrolistGroup.innertubex", module = "innertubex-desktop")
-    }
-    // Ktor on the app classpath too: the innertubex stream resolver builds its own client,
-    // and :innertube keeps these implementation-scoped rather than exposing them.
+    // MetrolistGroup:innertubex is gone with the resolver that used it. Nothing in this app links
+    // against it any more - the engine imported from Metrolist v13.6.3 does its own deobfuscation
+    // and never touched that library, which is the whole reason it was taken - so keeping the
+    // dependency would only be paying its weight in the apk for classes nothing calls.
+    // Ktor stays on the app classpath: :innertube keeps these implementation-scoped rather than
+    // exposing them.
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation(libs.ktor.client.content.negotiation)

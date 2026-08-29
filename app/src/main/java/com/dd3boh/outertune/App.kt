@@ -52,7 +52,8 @@ import com.dd3boh.outertune.extensions.toEnum
 import com.dd3boh.outertune.extensions.toInetSocketAddress
 import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.LocalArtworkPathKeyer
-import com.dd3boh.outertune.utils.cipher.PlayerCipherConfigStore
+import com.dd3boh.outertune.utils.YTPlayerUtils
+import com.dd3boh.outertune.utils.cipher.CipherDeobfuscator
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.artworkFallbackToLowRes
@@ -190,12 +191,16 @@ class App : Application(), SingletonImageLoader.Factory {
                     scheduleAutoBackup(this@App, enabled, intervalValue, intervalUnit)
                 }
         }
-        // The bundled player cipher config table is a build-time snapshot; refresh it from
-        // upstream once per cold start so a player YouTube rotated since the last release is
-        // already known before the first song plays, rather than only healing reactively after
-        // that song's stream fails once (see PlayerCipherConfigStore's own doc).
+        // The imported cipher stack owns its own table now: a bundled asset as the offline floor,
+        // overlaid by the Faraday and Zemer registries, refreshed on its own schedule. initialize()
+        // is synchronous and only reads what is already on disk; the network refresh and the
+        // WebView warm-up happen off the main thread below.
+        CipherDeobfuscator.initialize(this)
         GlobalScope.launch(Dispatchers.IO) {
-            PlayerCipherConfigStore.refresh(force = false)
+            // Deobfuscation runs in a WebView, and a cold one costs seconds. Warming it here means
+            // the first song of a session does not pay for it.
+            runCatching { CipherDeobfuscator.prewarm() }
+            runCatching { YTPlayerUtils.prewarmPoToken() }
         }
         GlobalScope.launch {
             dataStore.data

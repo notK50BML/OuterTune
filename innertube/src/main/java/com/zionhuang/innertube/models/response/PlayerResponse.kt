@@ -79,9 +79,32 @@ data class PlayerResponse(
             val loudnessDb: Double?,
             val lastModified: Long?,
             val signatureCipher: String?,
+            /**
+             * The older sibling of [signatureCipher]. Some clients still answer with this name for
+             * the same payload, and the ported stream engine reads `signatureCipher ?: cipher`.
+             */
+            val cipher: String? = null,
+            val audioTrack: AudioTrack? = null,
         ) {
             val isAudio: Boolean
                 get() = width == null
+
+            /**
+             * Whether this is the track as released rather than one of YouTube's machine-dubbed
+             * translations. Auto-dubbed tracks carry an audioTrack block declaring themselves as
+             * such; the original carries none, which is why absence rather than `false` is the test.
+             * Picking one of these by accident replaces the vocal entirely, so the ported engine
+             * filters on it.
+             */
+            val isOriginal: Boolean
+                get() = audioTrack?.isAutoDubbed == null
+
+            @Serializable
+            data class AudioTrack(
+                val displayName: String?,
+                val id: String?,
+                val isAutoDubbed: Boolean?,
+            )
         }
     }
 

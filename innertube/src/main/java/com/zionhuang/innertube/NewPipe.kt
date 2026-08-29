@@ -13,6 +13,7 @@ import org.schabi.newpipe.extractor.downloader.Response
 import org.schabi.newpipe.extractor.exceptions.ParsingException
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
 import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
+import org.schabi.newpipe.extractor.stream.StreamInfo
 import java.io.IOException
 import java.net.Proxy
 
@@ -69,6 +70,26 @@ object NewPipeUtils {
 
     fun getSignatureTimestamp(videoId: String): Result<Int> = runCatching {
         YoutubeJavaScriptPlayerManager.getSignatureTimestamp(videoId)
+    }
+
+    /**
+     * Every stream NewPipe can extract for [videoId], as itag to url.
+     *
+     * Ported from Metrolist v13.6.3 for the stream engine taken from it. This is its last-resort
+     * path: when a player response comes back playable but its own urls will not deobfuscate,
+     * NewPipe resolves the same video independently and its urls are grafted onto that response by
+     * itag. Returns empty rather than throwing, since the caller treats "nothing to graft" and
+     * "extraction failed" the same way - it falls through to the next client either way.
+     */
+    fun newPipePlayer(videoId: String): List<Pair<Int, String>> = try {
+        val streamInfo = StreamInfo.getInfo(
+            NewPipe.getService(0),
+            "https://www.youtube.com/watch?v=$videoId",
+        )
+        (streamInfo.audioStreams + streamInfo.videoStreams + streamInfo.videoOnlyStreams)
+            .mapNotNull { (it.itagItem?.id ?: return@mapNotNull null) to it.content }
+    } catch (e: Exception) {
+        emptyList()
     }
 
     fun getStreamUrl(format: PlayerResponse.StreamingData.Format, videoId: String): Result<String> =
