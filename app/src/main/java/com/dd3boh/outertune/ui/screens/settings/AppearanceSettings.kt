@@ -10,10 +10,8 @@
 package com.dd3boh.outertune.ui.screens.settings
 
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -24,7 +22,6 @@ import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreHoriz
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -43,7 +40,7 @@ import com.dd3boh.outertune.constants.SlimNavBarKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
-import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
+import com.dd3boh.outertune.ui.component.SettingsGroup
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.screens.settings.fragments.GestureSettingsFrag
@@ -80,32 +77,15 @@ fun AppearanceSettings(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        PreferenceGroupTitle(
-            title = stringResource(R.string.theme)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        SettingsGroup(title = stringResource(R.string.theme)) {
             ThemeAppFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_layout)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        // Tabs, the navbar and which tab opens first are all one subject - where the app puts you
+        // and how you move around it - so they belong together. Two of them used to sit under
+        // "Display" instead, which is what made that group unreadable.
+        SettingsGroup(title = stringResource(R.string.grp_layout)) {
             TabArrangementFrag()
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_display)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
             TabExtrasFrag()
             SwitchPreference(
                 title = { Text(stringResource(R.string.slim_navbar_title)) },
@@ -114,6 +94,21 @@ fun AppearanceSettings(
                 checked = slimNav,
                 onCheckedChange = onSlimNavChange
             )
+        }
+
+        SettingsGroup(title = stringResource(R.string.grp_now_playing)) {
+            PlayerBackgroundFrag()
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.player_layout)) },
+                description = stringResource(R.string.player_layout_summary),
+                icon = { Icon(Icons.Rounded.Dashboard, null) },
+                onClick = { navController.navigate("settings/appearance/layout") }
+            )
+        }
+
+        // The fallback only means anything with high-res on, so keeping the two adjacent is the
+        // whole point of grouping them - the dependency is visible rather than inferred.
+        SettingsGroup(title = stringResource(R.string.grp_thumbnails)) {
             SwitchPreference(
                 title = { Text(stringResource(R.string.high_res_artwork_title)) },
                 description = stringResource(R.string.high_res_artwork_description),
@@ -129,6 +124,9 @@ fun AppearanceSettings(
                 onCheckedChange = onArtworkFallbackToLowResChange,
                 isEnabled = highResArtworkPref
             )
+        }
+
+        SettingsGroup(title = stringResource(R.string.grp_general)) {
             SwitchPreference(
                 title = { Text(stringResource(R.string.show_top_bar_logo_title)) },
                 description = stringResource(R.string.show_top_bar_logo_description),
@@ -136,30 +134,16 @@ fun AppearanceSettings(
                 checked = showTopBarLogo,
                 onCheckedChange = onShowTopBarLogoChange
             )
-            PlayerBackgroundFrag()
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.player_layout)) },
-                description = stringResource(R.string.player_layout_summary),
-                icon = { Icon(Icons.Rounded.Dashboard, null) },
-                onClick = { navController.navigate("settings/appearance/layout") }
-            )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.app_icon)) },
                 icon = { Icon(Icons.Rounded.AppShortcut, null) },
                 onClick = { navController.navigate("settings/appearance/icon") }
             )
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_behavior)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        SettingsGroup(title = stringResource(R.string.grp_behavior)) {
             GestureSettingsFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
     }
 
     TopAppBar(

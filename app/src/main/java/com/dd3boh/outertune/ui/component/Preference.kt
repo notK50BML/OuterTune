@@ -4,12 +4,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ProvideTextStyle
 import androidx.compose.material3.RadioButton
@@ -248,4 +251,26 @@ fun PreferenceGroupTitle(
         color = MaterialTheme.colorScheme.primary,
         modifier = modifier.padding(16.dp)
     )
+}
+
+/**
+ * One titled group of settings, drawn as a card.
+ *
+ * Every settings screen was spelling this out by hand - a [PreferenceGroupTitle], an ElevatedCard
+ * around the entries, then a Spacer of whichever height that screen happened to use. Which means
+ * the grouping was a matter of remembering to repeat three things in order, and the trailing spacer
+ * in particular was easy to leave out. Naming the pattern makes a screen's structure readable at a
+ * glance and keeps the spacing identical everywhere.
+ */
+@Composable
+fun ColumnScope.SettingsGroup(
+    title: String,
+    modifier: Modifier = Modifier,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    PreferenceGroupTitle(title = title)
+    ElevatedCard(modifier = modifier.fillMaxWidth()) {
+        content()
+    }
+    Spacer(modifier = Modifier.height(16.dp))
 }
