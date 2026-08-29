@@ -447,14 +447,36 @@ object YTPlayerUtils {
      * targets a third, distinct cause - YouTube's bot-detection having flagged this client's
      * identity, which a differently-resolved URL under the *same* identity would not fix.
      *
-     * Not gated on login state: every PoToken here is bound to visitorData or to a video id, and
-     * never to the account's dataSyncId, so a fresh visitorData genuinely does buy a new BotGuard
-     * identity whether or not the session is signed in. Invalidating the generator alongside it
-     * discards every cached token and rebuilds the WebView, which is what clears a merely stale
-     * token as opposed to a flagged identity.
+     * Gated on login state, which it did not used to be. The note that replaced said a fresh
+     * visitorData buys a new BotGuard identity "whether or not the session is signed in". It does
+     * not: when signed in, visitorData is not a free-floating anonymous id but half of a pair. The
+     * one issued during login belongs with the account cookie, and [YouTube.visitorData] mints a
+     * brand new *anonymous* one from getSwJsData. Overwriting the login-issued value therefore
+     * leaves the cookie claiming one identity and the visitorData another, which is precisely the
+     * shape YouTube's bot detection looks for - every client then comes back LOGIN_REQUIRED /
+     * "Sign in to confirm you're not a bot", and the web stream url is signed but answered with a
+     * 403 on its first media request.
+     *
+     * Worse, this was reached from onPlayerError, so it ran on every source error - including the
+     * errors it had itself caused. One rotation poisoned the session, every track then failed,
+     * and each failure rotated again. Nothing about that loop recovers on its own; it only ever
+     * deepens, which is why it presented as the app dying outright rather than as flakiness.
+     *
+     * Metrolist, which works on this same account and device, never rotates at all: it mints a
+     * visitorData only when none is stored yet and otherwise keeps whatever login gave it.
+     *
+     * So when signed in, only the PoToken generator is invalidated - that still discards every
+     * cached token and rebuilds the WebView, which is what actually clears a stale or rejected
+     * token, and it does it without touching the identity the account is tied to. Signed out,
+     * there is no pair to break and a fresh visitorData is a genuinely new identity, so the
+     * original behaviour is kept.
      */
     suspend fun rotateSessionIdentity() {
         poTokenGenerator.invalidate()
+        if (YouTube.cookie != null) {
+            Log.w(TAG, "signed in - keeping the login-issued visitorData, rotating tokens only")
+            return
+        }
         YouTube.visitorData().onSuccess { newVisitorData ->
             YouTube.visitorData = newVisitorData
             App.instance.dataStore.edit { it[VisitorDataKey] = newVisitorData }
