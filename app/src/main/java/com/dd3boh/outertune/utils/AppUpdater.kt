@@ -99,25 +99,34 @@ object AppUpdater {
             // install. A universal apk is accepted too, since it contains every abi.
             val abis = Build.SUPPORTED_ABIS.toSet()
 
+            // Tried in order: the flavour asked for, then the one actually running. Without the
+            // second pass, asking for a flavour this release does not publish finds no asset and
+            // is indistinguishable from being up to date - so choosing "full" against a release
+            // that only ships core would silently stop updates working at all.
+            val flavorsToTry = listOf(flavor, BuildConfig.FLAVOR).distinct()
+
             var best: Update? = null
-            for (i in 0 until assets.length()) {
-                val asset = assets.optJSONObject(i) ?: continue
-                val name = asset.optString("name")
-                val code = ASSET_NAME.find(name)?.groupValues?.get(1)?.toIntOrNull() ?: continue
+            for (wanted in flavorsToTry) {
+                for (i in 0 until assets.length()) {
+                    val asset = assets.optJSONObject(i) ?: continue
+                    val name = asset.optString("name")
+                    val code = ASSET_NAME.find(name)?.groupValues?.get(1)?.toIntOrNull() ?: continue
 
-                val abiMatches = name.contains("universal") || abis.any { name.contains(it) }
-                if (!abiMatches || !name.contains(flavor, ignoreCase = true)) continue
-                if (code <= BuildConfig.VERSION_CODE) continue
-                if (best != null && code <= best.versionCode) continue
+                    val abiMatches = name.contains("universal") || abis.any { name.contains(it) }
+                    if (!abiMatches || !name.contains(wanted, ignoreCase = true)) continue
+                    if (code <= BuildConfig.VERSION_CODE) continue
+                    if (best != null && code <= best.versionCode) continue
 
-                best = Update(
-                    versionCode = code,
-                    versionName = versionName.ifBlank { code.toString() },
-                    assetName = name,
-                    downloadUrl = asset.optString("browser_download_url"),
-                    sizeBytes = asset.optLong("size"),
-                    releaseNotes = notes,
-                )
+                    best = Update(
+                        versionCode = code,
+                        versionName = versionName.ifBlank { code.toString() },
+                        assetName = name,
+                        downloadUrl = asset.optString("browser_download_url"),
+                        sizeBytes = asset.optLong("size"),
+                        releaseNotes = notes,
+                    )
+                }
+                if (best != null) break
             }
 
             best?.also { Log.i(TAG, "update available: ${it.assetName} (${it.versionCode} > ${BuildConfig.VERSION_CODE})") }
