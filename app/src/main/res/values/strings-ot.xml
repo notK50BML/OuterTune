@@ -124,6 +124,13 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="attribution_title">Attribution</string>
     <string name="special_thanks">Special thanks</string>
 
+    <!-- In-app updater -->
+    <string name="check_for_updates">Check for updates</string>
+    <string name="update_up_to_date">You are on the latest build</string>
+    <string name="update_downloading">Downloading %1$s… %2$d%%</string>
+    <string name="update_handed_to_installer">Ready to install — confirm in the installer</string>
+    <string name="update_failed">Update failed: %1$s</string>
+
 <!-- Appearance settings -->
     <string name="new_interface">New interface layout</string>
     <string name="player_background_blur">Blur</string>

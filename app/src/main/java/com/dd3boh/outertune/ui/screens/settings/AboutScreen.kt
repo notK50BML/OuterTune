@@ -40,6 +40,14 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import com.dd3boh.outertune.utils.AppUpdater
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -90,6 +98,13 @@ fun AboutScreen(
     val uriHandler = LocalUriHandler.current
 
     val showDebugInfo = BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "userdebug"
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    // Deliberately not remembered across navigation: an update check is cheap, and a stale
+    // "up to date" from ten minutes ago is worse than no answer at all.
+    var updateStatus by remember { mutableStateOf<String?>(null) }
+    var updateInProgress by remember { mutableStateOf(false) }
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -178,6 +193,37 @@ fun AboutScreen(
             ElevatedCard(
                 modifier = Modifier.fillMaxWidth()
             ) {
+                PreferenceEntry(
+                    title = { Text(stringResource(R.string.check_for_updates)) },
+                    description = updateStatus,
+                    onClick = {
+                        if (updateInProgress) return@PreferenceEntry
+                        coroutineScope.launch {
+                            updateInProgress = true
+                            val available = AppUpdater.checkForUpdate()
+                            if (available == null) {
+                                updateStatus = context.getString(R.string.update_up_to_date)
+                                updateInProgress = false
+                                return@launch
+                            }
+                            updateStatus = context.getString(R.string.update_downloading, available.versionName, 0)
+                            AppUpdater.downloadAndInstall(context, available) { fraction ->
+                                updateStatus = context.getString(
+                                    R.string.update_downloading,
+                                    available.versionName,
+                                    (fraction * 100).toInt(),
+                                )
+                            }.onSuccess {
+                                // The system installer takes it from here, and whether the user
+                                // goes through with it is not something this screen gets told.
+                                updateStatus = context.getString(R.string.update_handed_to_installer)
+                            }.onFailure {
+                                updateStatus = context.getString(R.string.update_failed, it.message.orEmpty())
+                            }
+                            updateInProgress = false
+                        }
+                    }
+                )
                 PreferenceEntry(
                     title = { Text(stringResource(R.string.attribution_title)) },
                     onClick = {

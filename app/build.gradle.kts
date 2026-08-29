@@ -198,6 +198,23 @@ android {
 
     androidResources {
         generateLocaleConfig = true
+
+        // Ship only the languages asked for, via -Plocales=en,ja (or the workflow's "locales"
+        // input). Left unset the build keeps all 50, which is the right default for a release
+        // anyone might install; a build made for one person is carrying ~1.4MB of strings that
+        // person cannot read.
+        //
+        // English is always kept whatever is asked for. It is the base values/ resource, so
+        // dropping it would leave any string a filtered language happens not to translate with
+        // nothing to fall back to.
+        val requestedLocales = (project.findProperty("locales") as String?)
+            ?.split(',')
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() }
+            ?: emptyList()
+        if (requestedLocales.isNotEmpty()) {
+            localeFilters += (requestedLocales + "en").distinct()
+        }
     }
 }
 
