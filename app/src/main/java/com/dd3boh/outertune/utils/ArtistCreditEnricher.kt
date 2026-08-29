@@ -11,6 +11,7 @@ package com.dd3boh.outertune.utils
 import android.util.Log
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.entities.ArtistEntity
+import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.zionhuang.innertube.YouTube
@@ -59,6 +60,21 @@ object ArtistCreditEnricher {
      */
     suspend fun enrich(database: MusicDatabase, songId: String): Unit = withContext(Dispatchers.IO) {
         val song = database.song(songId).first() ?: return@withContext
+
+        // A song credited to nobody at all takes the artists of the album it belongs to. YTM
+        // regularly returns album tracks with the album set but no per-track artist runs, and the
+        // result was a blank artist line in the player with nothing to tap.
+        //
+        // Written into song_artist_map rather than substituted at display time. Doing it here means
+        // one rule covers the player, the library lists, the song menus and search alike instead of
+        // each screen needing its own fallback, and the credit that results is an ordinary
+        // ArtistEntity - the album's own artists are already real channels - so it links exactly
+        // like a directly-credited one. Everything below this point assumes a non-empty credit
+        // list, and there is nothing for it to split or de-duplicate here anyway, so this returns.
+        if (song.artists.isEmpty()) {
+            creditAlbumArtists(database, song)
+            return@withContext
+        }
 
         // Rebuilt from scratch rather than patched in place: once any combined credit's count of
         // real artists differs from 1, every position after it shifts, and rewriting the whole
@@ -122,6 +138,30 @@ object ArtistCreditEnricher {
             creditedNames += resolved.name.lowercase()
             Log.d(TAG, "[$songId] added featured artist \"${resolved.name}\"")
         }
+    }
+
+    /**
+     * Credits [song] with the artists of the album it belongs to. No-op when it isn't on an album,
+     * or when the album itself has no credited artists either.
+     *
+     * The album is taken from the song_album_map relation where there is one and from the song row's
+     * own albumId otherwise - the same pair of sources, in the same order, that
+     * [com.dd3boh.outertune.models.MediaMetadata] resolves an album from, so a song shows an album
+     * here exactly when it shows one in the player.
+     */
+    private suspend fun creditAlbumArtists(database: MusicDatabase, song: Song) {
+        val albumId = song.album?.id ?: song.song.albumId ?: return
+        val albumArtists = database.album(albumId).first()?.artists.orEmpty()
+        if (albumArtists.isEmpty()) return
+
+        albumArtists.forEachIndexed { index, artist ->
+            // Both inserts are OnConflictStrategy.IGNORE, so an artist already in the library keeps
+            // the row it has (name, thumbnail, bookmark and all) rather than being overwritten by
+            // the album's copy of it.
+            database.insert(artist)
+            database.insert(SongArtistMap(songId = song.song.id, artistId = artist.id, position = index))
+        }
+        Log.d(TAG, "[${song.song.id}] no credited artists - inherited ${albumArtists.map { it.name }} from album $albumId")
     }
 
     /**
