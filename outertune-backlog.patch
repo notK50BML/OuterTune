@@ -1,4 +1,4 @@
-﻿From 2b78ffb9460bb3a325aac3640afe3addab3a366a Mon Sep 17 00:00:00 2001
+From 2b78ffb9460bb3a325aac3640afe3addab3a366a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
 Subject: [PATCH 001/199] Fix liked-songs order, artwork resolution, and
