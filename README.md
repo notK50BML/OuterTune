@@ -158,9 +158,11 @@ Thank you very much for helping to make OuterTune accessible to many people worl
 
 Thanks to all our contributors! Check them out [here](https://github.com/OuterTune/OuterTune/graphs/contributors)
 
-[Outertune](github.com/OuterTune/OuterTune) and (https://github.com/yuuichi-s/OuterTune) for almost all the main code, this is just a casual project to fix some small errors, but almost ALL credit goes to them.
+[OuterTune](github.com/OuterTune/OuterTune) and [OuterTune by yuuichi-s](https://github.com/yuuichi-s/OuterTune) for almost all the main code, this is just a casual project to fix some small errors, but almost ALL credit goes to them.
 
-Note: this builds on a few other Outertune forks, so a lot of credit goes to https://github.com/reocat/OuterTune and of course https://github.com/yuuichi-s/OuterTune
+Note: this builds on a few other Outertune forks, so a lot of credit goes to the OuterTune forks by [reocat](https://github.com/reocat/OuterTune) and of course [yuuichi-s](https://github.com/yuuichi-s/OuterTune)
+
+[Metrolist](https://github.com/metrolistgroup/metrolist) for a really great framework of a stream and sync engine, without which this app would be 100% broken
 
 [z-huang/InnerTune](https://github.com/z-huang/InnerTune) for providing an awesome base for this fork, none of this
 would have been possible without it.
@@ -169,6 +171,8 @@ would have been possible without it.
 experience done right.
 
 [Gramophone](https://github.com/FoedusProgramme/Gramophone) for emotional support, and a legendary lyrics parser
+
+[BetterLyrics](https://github.com/better-lyrics/better-lyrics) for their amazing word-by-word lyrics engine
 
 
 
