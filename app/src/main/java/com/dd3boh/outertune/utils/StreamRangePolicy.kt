@@ -34,15 +34,4 @@ object StreamRangePolicy {
 
     fun chunkSizeBytes(clientName: String?): Long =
         if (usesChunkedRanges(clientName)) CHUNKED_RANGE_BYTES else BOUNDED_RANGE_BYTES
-
-    /**
-     * The length to bound a media request to, or null to leave it unbounded and let the response run
-     * to the end of the stream - which is what the web clients, WEB_REMIX included, require.
-     */
-    fun requestLengthOrNull(clientName: String?): Long? =
-        if (requiresBoundedRange(clientName) || usesChunkedRanges(clientName)) {
-            chunkSizeBytes(clientName)
-        } else {
-            null
-        }
 }

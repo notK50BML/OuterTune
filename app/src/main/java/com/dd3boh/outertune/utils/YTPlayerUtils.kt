@@ -33,6 +33,8 @@ import com.zionhuang.innertube.models.YouTubeClient.Companion.VISIONOS_0_1
 import com.zionhuang.innertube.models.YouTubeClient.Companion.WEB_REMIX
 import com.zionhuang.innertube.models.response.PlayerResponse
 import okhttp3.OkHttpClient
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.ensureActive
 
 object YTPlayerUtils {
 
@@ -153,6 +155,15 @@ object YTPlayerUtils {
         val cpn: String,
         /** Name of whichever client actually produced [streamUrl] - see [markWebRemixStreamFailed]. */
         val clientName: String,
+        /**
+         * How the media request for [streamUrl] has to be shaped. Travels with the url rather than
+         * being recomputed at the fetch site, because it is a property of the client that signed
+         * it. Getting it wrong does not fail the resolve - it fails the playback a minute later.
+         * See StreamRangePolicy.
+         */
+        val requireBoundedRange: Boolean,
+        val useRangeChunks: Boolean,
+        val rangeChunkSizeBytes: Long,
     )
 
     /**
@@ -249,6 +260,12 @@ object YTPlayerUtils {
             listOf(-2, -1) + STREAM_FALLBACK_CLIENTS.indices
         }
         for (clientIndex in clientTryOrder) {
+            // Stop immediately if the player has abandoned this load rather than working down the
+            // rest of the chain inside a dead scope. Every request in a cancelled scope fails at
+            // once, so without this an abandoned load turned into a full sweep of rejected clients
+            // in about ten milliseconds and was then reported as an unplayable track.
+            coroutineContext.ensureActive()
+
             // reset for each client
             format = null
             streamUrl = null
@@ -406,6 +423,9 @@ object YTPlayerUtils {
             streamClient.streamHeaders(),
             cpn,
             streamClient.clientName,
+            requireBoundedRange = StreamRangePolicy.requiresBoundedRange(streamClient.clientName),
+            useRangeChunks = StreamRangePolicy.usesChunkedRanges(streamClient.clientName),
+            rangeChunkSizeBytes = StreamRangePolicy.chunkSizeBytes(streamClient.clientName),
         )
     }
 

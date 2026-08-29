@@ -78,7 +78,6 @@ import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneOffset
 import java.util.concurrent.Executor
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -125,16 +124,14 @@ class DownloadUtil @Inject constructor(
                 OkHttpDataSource.Factory(
                     OkHttpClient.Builder()
                         .proxy(YouTube.proxy)
-                        // Forces a reconnect well before googlevideo's own ~60s connection-
-                        // duration cutoff, so a single download request can't run long enough to
-                        // hit it. Media3's DownloadManager retries a caught IOException (default
-                        // 5 times) and CacheDataSource resumes from the already-cached position,
-                        // so a timeout here loses no progress - the next attempt re-resolves
-                        // (getting a fresh URL/PoToken if the cached one has gone stale, see
-                        // songUrlCache below) and continues from where it left off. In practice
-                        // this only matters on a slow connection: most downloads (a few MB) finish
-                        // in well under 45s and never hit it.
-                        .callTimeout(45, TimeUnit.SECONDS)
+                        // No callTimeout, deliberately. There used to be a 45s one here, to force
+                        // a reconnect before a "~60s connection-duration cutoff" that turned out
+                        // not to exist - what actually failed at about a minute was a web url being
+                        // requested as a run of small bounded ranges (see StreamRangePolicy).
+                        // OkHttp's callTimeout covers the whole call including reading the body, so
+                        // on a download it is a hard cap on transfer time: anything not finished in
+                        // 45s was aborted mid-file, and once Media3's retries were spent the file
+                        // stayed truncated. Metrolist sets no timeouts on its stream client either.
                         .build()
                 )
             )
@@ -203,7 +200,7 @@ class DownloadUtil @Inject constructor(
         // declaring a short length here doesn't chunk that download into many requests the way it
         // does for playback - it just makes the download stop after that length, silently
         // truncating every file to CHUNK_LENGTH (256KB, ~15s of audio) rather than erroring. The
-        // callTimeout above is what actually protects downloads from the connection-duration
+        // The range shape (see StreamRangePolicy) is what protects downloads from the
         // cutoff; this dataSpec should just ask for the whole file.
         val streamUrl = playbackData.streamUrl
 
@@ -213,7 +210,7 @@ class DownloadUtil @Inject constructor(
             // embedded streaming PoToken has been observed to actually stop working after roughly
             // a minute regardless of connection count or chunk size - see
             // MusicService.STREAM_URL_TRUST_WINDOW_MS's own doc. Capping our own trust the same
-            // way means a download that gets interrupted (e.g. by the callTimeout above) and
+            // way means a download that gets interrupted and
             // retries after this window has passed re-resolves for a fresh URL/PoToken instead of
             // reusing one already past its real-world validity.
             expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, MusicService.STREAM_URL_TRUST_WINDOW_MS),

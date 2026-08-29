@@ -23,6 +23,7 @@ import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.compression.ContentEncoding
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.serialization.kotlinx.json.json
+import kotlinx.coroutines.CancellationException
 import kotlinx.serialization.json.Json
 import java.io.IOException
 
@@ -177,6 +178,14 @@ object MetrolistStreamResolver {
         val extracted = try {
             syncSession()
             extractor.extract(videoId = videoId, hints = ContentHints())
+        } catch (e: CancellationException) {
+            // Never swallowed. Catching this alongside everything else meant that when the player
+            // abandoned a load - a seek, a skip, a stop - the cancellation was reported as a failed
+            // extraction and the caller carried on into its own client loop inside an already
+            // cancelled scope. Every client there then failed instantly with "no response", six of
+            // them inside ten milliseconds, and what had merely been an abandoned load was
+            // reported as a track that could not be played at all.
+            throw e
         } catch (e: Exception) {
             Log.w(TAG, "[$videoId] extraction failed", e)
             null
@@ -246,6 +255,12 @@ object MetrolistStreamResolver {
             streamHeaders = headers,
             cpn = cpn,
             clientName = clientName,
+            // innertubex's own values, not re-derived from the client name: it decides these and a
+            // future rule change should arrive with the library rather than needing to be noticed
+            // and mirrored here.
+            requireBoundedRange = requireBoundedRange,
+            useRangeChunks = useRangeChunks,
+            rangeChunkSizeBytes = rangeChunkSizeBytes,
         )
     }
 }

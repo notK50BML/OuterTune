@@ -42,6 +42,7 @@ import androidx.media3.common.Timeline
 import androidx.media3.common.audio.SonicAudioProcessor
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR
@@ -179,7 +180,6 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.time.LocalDateTime
-import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 import kotlin.math.min
 import kotlin.math.pow
@@ -328,7 +328,35 @@ class MusicService : MediaLibraryService(),
         /** Name of the client this stream came from - read in onPlayerError to tell
          *  YTPlayerUtils a WEB_REMIX stream specifically was what just got rejected. */
         val clientName: String,
+        /** How this url has to be requested - travels with it, see [withResolvedStream]. */
+        val requireBoundedRange: Boolean,
+        val useRangeChunks: Boolean,
+        val rangeChunkSizeBytes: Long,
     )
+
+    /**
+     * Applies a resolved stream to a [DataSpec]: its url, its headers, and the range shape the
+     * client that signed it requires.
+     *
+     * Headers are merged rather than replaced, so whatever the caller already set survives. The
+     * bound, when there is one, starts at 0 and never exceeds a length the caller actually asked
+     * for. Only ANDROID_VR/IOS/TVHTML5_SIMPLY are bounded at all; a web url read as a run of small
+     * bounded ranges is served a few dozen times and then refused, which is a failure that shows up
+     * a minute into playback rather than at resolve time.
+     */
+    private fun DataSpec.withResolvedStream(stream: CachedStreamUrl): DataSpec {
+        val resolved = withUri(stream.url.toUri())
+            .withRequestHeaders(httpRequestHeaders + stream.headers)
+        if ((!stream.requireBoundedRange && !stream.useRangeChunks) || stream.rangeChunkSizeBytes <= 0L) {
+            return resolved
+        }
+        val boundedLength = if (length == C.LENGTH_UNSET.toLong()) {
+            stream.rangeChunkSizeBytes
+        } else {
+            minOf(length, stream.rangeChunkSizeBytes)
+        }
+        return resolved.subrange(0, boundedLength)
+    }
 
     /**
      * mediaId -> its cached stream URL. Lives for the player's lifetime (was a local inside
@@ -739,6 +767,9 @@ class MusicService : MediaLibraryService(),
                 cpn = playbackData.cpn,
                 playbackTracking = playbackData.playbackTracking,
                 clientName = playbackData.clientName,
+                requireBoundedRange = playbackData.requireBoundedRange,
+                useRangeChunks = playbackData.useRangeChunks,
+                rangeChunkSizeBytes = playbackData.rangeChunkSizeBytes,
             )
             // Telemetry deliberately NOT fired here - this runs up to PRECACHE_LEAD_MS before the
             // song actually starts, and the ping sequence's timing only makes sense measured from
@@ -1025,15 +1056,13 @@ class MusicService : MediaLibraryService(),
                             OkHttpDataSource.Factory(
                                 OkHttpClient.Builder()
                                     .proxy(YouTube.proxy)
-                                    // Belt-and-suspenders alongside the dataSpec-level chunk bound
-                                    // in createDataSourceFactory(): if a single call somehow runs
-                                    // longer than this regardless of that bound (a device/ExoPlayer
-                                    // version where the chunk continuation doesn't kick in the way
-                                    // expected, for instance), this forces OkHttp itself to abort
-                                    // and reconnect before reaching googlevideo's own connection
-                                    // cutoff (confirmed at roughly a minute), rather than depending
-                                    // on a single mechanism to always work.
-                                    .callTimeout(45, TimeUnit.SECONDS)
+                                    // No callTimeout, deliberately - same reason as DownloadUtil's.
+                                    // It was here to abort and reconnect before a googlevideo
+                                    // connection cutoff "confirmed at roughly a minute", but that
+                                    // cutoff was a misreading: what failed at about a minute was
+                                    // the number of small bounded range requests, not the age of
+                                    // the connection. A hard cap on call duration only guarantees a
+                                    // mid-transfer abort on anything slow.
                                     .build()
                             )
                         )
@@ -1107,16 +1136,7 @@ class MusicService : MediaLibraryService(),
                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (temp cache)")
                 offloadScope.launch { recoverSong(mediaId) }
                 maybeSendPlaybackTelemetry(mediaId, it)
-                // Shaped by the client the url was signed for - see StreamRangePolicy. Bounding
-                // this unconditionally, as it used to, is what killed playback partway into the
-                // first minute: a web url served as a run of small bounded ranges gets a few dozen
-                // of them and then a 403.
-                val length = StreamRangePolicy.requestLengthOrNull(it.clientName)
-                return@Factory dataSpec.withUri(it.url.toUri())
-                    .withRequestHeaders(it.headers)
-                    .let { spec ->
-                        if (length != null) spec.subrange(dataSpec.uriPositionOffset, length) else spec
-                    }
+                return@Factory dataSpec.withResolvedStream(it)
             }
 
             if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (online fetch)")
@@ -1207,17 +1227,13 @@ class MusicService : MediaLibraryService(),
                 cpn = playbackData.cpn,
                 playbackTracking = playbackData.playbackTracking,
                 clientName = playbackData.clientName,
+                requireBoundedRange = playbackData.requireBoundedRange,
+                useRangeChunks = playbackData.useRangeChunks,
+                rangeChunkSizeBytes = playbackData.rangeChunkSizeBytes,
             )
             songUrlCache[mediaId] = cachedStreamUrl
             maybeSendPlaybackTelemetry(mediaId, cachedStreamUrl)
-            // See StreamRangePolicy: only the clients that actually require a bounded range get
-            // one. WEB_REMIX and the other web clients have to be read straight through.
-            val length = StreamRangePolicy.requestLengthOrNull(playbackData.clientName)
-            dataSpec.withUri(streamUrl.toUri())
-                .withRequestHeaders(playbackData.streamHeaders)
-                .let { spec ->
-                    if (length != null) spec.subrange(dataSpec.uriPositionOffset, length) else spec
-                }
+            dataSpec.withResolvedStream(cachedStreamUrl)
         }
     }
 
