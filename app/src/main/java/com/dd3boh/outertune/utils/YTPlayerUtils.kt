@@ -225,13 +225,23 @@ object YTPlayerUtils {
         // history, and innertubex reports neither, so taking its stream without its (absent)
         // metadata keeps both features intact. Falls through to the client loop below on null,
         // which is every failure mode - a thrown extractor, no audio url, an unplayable video.
-        MetrolistStreamResolver.resolve(videoId, cpn)?.let { resolved ->
-            return@runCatching resolved.copy(
-                audioConfig = audioConfig,
-                videoDetails = videoDetails,
-                playbackTracking = playbackTracking,
-            )
-        }
+        //
+        // A WEB_REMIX stream this video just had rejected is not accepted from here either. In
+        // practice innertubex answers with WEB_REMIX for essentially every track, so without this
+        // the deprioritisation below could never take effect: MusicService's retry dropped the
+        // cached url, called markWebRemixStreamFailed, re-resolved - and got handed the same
+        // WEB_REMIX url straight back, never reaching the client loop that would have tried
+        // VISIONOS and validated the result. Every retry repeated the rejection it was retrying.
+        // Only WEB_REMIX is refused, so anything else innertubex resolves is still taken.
+        MetrolistStreamResolver.resolve(videoId, cpn)
+            ?.takeUnless { it.clientName == MAIN_CLIENT.clientName && hasRecentWebRemixFailure(videoId) }
+            ?.let { resolved ->
+                return@runCatching resolved.copy(
+                    audioConfig = audioConfig,
+                    videoDetails = videoDetails,
+                    playbackTracking = playbackTracking,
+                )
+            }
 
         var format: PlayerResponse.StreamingData.Format? = null
         var streamUrl: String? = null

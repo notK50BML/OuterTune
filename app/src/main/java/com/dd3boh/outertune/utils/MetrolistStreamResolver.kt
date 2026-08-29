@@ -67,9 +67,29 @@ object MetrolistStreamResolver {
             cookie: String?,
         ): MetrolistPoTokenResult? {
             val minted = poTokenGenerator.getWebClientPoToken(videoId, visitorData) ?: return null
+
+            // Mapped by *binding*, not by field name, and that is why these look crossed over.
+            //
+            // PoTokenResult's two fields are named for the roles the native client loop in
+            // YTPlayerUtils gives them, where the orientation was settled by experiment:
+            // playerRequestPoToken holds the video-id-bound token, streamingDataPoToken the
+            // visitorData-bound one. innertubex names its two by the request they ride on and
+            // decides the binding itself, in PlaybackClientCatalog: WEB_REMIX (the only client
+            // this resolver has been observed to return) carries webGvsRequired, which is
+            // PoTokenRule(REQUIRED, VIDEO_ID, ...) - the stream url's token must be bound to the
+            // video id - alongside webSessionPlayerRequired's PoTokenRule(REQUIRED, VISITOR_DATA)
+            // for the player request.
+            //
+            // Passing these straight through by name therefore put the visitorData-bound token on
+            // the stream url, where googlevideo wants the video-bound one. It is not refused at
+            // resolve time - the url comes back looking fine - so it fails later, as a 403 on a
+            // media request about a minute in, or immediately on stricter videos, and on every
+            // download because a download reads the whole file. Crossing them here restores the
+            // contract this doc comment above already describes, and leaves the native path's
+            // verified orientation untouched.
             return MetrolistPoTokenResult(
-                playerRequestToken = minted.playerRequestPoToken,
-                streamingDataToken = minted.streamingDataPoToken,
+                playerRequestToken = minted.streamingDataPoToken,
+                streamingDataToken = minted.playerRequestPoToken,
                 visitorData = visitorData,
             )
         }
