@@ -153,8 +153,23 @@ object MetrolistStreamResolver {
      */
     private val playerConfigRepository = object : PlayerConfigRepository {
         override val enabled = true
+        // Was cdn.jsdelivr.net/gh/MetrolistGroup/faraday@main/registry/player_configs.json, which
+        // answered 404 to every request this app ever made: faraday's default branch is master,
+        // not main, so there was no such ref. Nothing surfaced it - a config table that fails to
+        // load leaves signature and n-parameter handling on whatever it can manage locally, which
+        // reads as an ordinary rejected stream rather than as a missing dependency.
+        //
+        // Now the same table Metrolist consumes, from the same url. Both registries were checked
+        // and both currently describe the player YouTube is serving (e937390a) with identical
+        // fields, so this is not about coverage - it is about using the source that is known to
+        // work in an app that works, and being able to compare like for like when it doesn't.
+        //
+        // raw.githubusercontent rather than a CDN on purpose. jsDelivr caches a branch ref for
+        // hours, and the entire value of this table is that it is republished promptly when
+        // YouTube rotates its player; serving a cached copy across a rotation would reintroduce
+        // exactly the breakage it exists to prevent.
         override val defaultSourceUrl =
-            "https://cdn.jsdelivr.net/gh/MetrolistGroup/faraday@main/registry/player_configs.json"
+            "https://raw.githubusercontent.com/ZemerTeam/zemer-cipher/master/library/src/main/assets/player_configs.json"
         override val sourceUrl get() = defaultSourceUrl
 
         // In-memory for now: losing it costs one fetch on next launch, not correctness.
