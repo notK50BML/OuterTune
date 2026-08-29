@@ -1,7 +1,10 @@
 package com.dd3boh.outertune.utils
 
+import android.net.ConnectivityManager
 import android.util.Log
+import com.dd3boh.outertune.constants.AudioQuality
 import com.metrolist.innertubex.InnerTube as MetrolistInnerTube
+import com.metrolist.innertubex.extraction.AudioQuality as MetrolistAudioQuality
 import com.metrolist.innertubex.cipher.PlayerConfigRepository
 import com.metrolist.innertubex.cipher.RemotePlayerConfigStore
 import com.metrolist.innertubex.cipher.YouTubeCipherService
@@ -194,10 +197,52 @@ object MetrolistStreamResolver {
      * caller falls through to the existing client loop. A second engine is only an improvement if
      * its failures are no worse than those of what it supplements.
      */
-    suspend fun resolve(videoId: String, cpn: String): YTPlayerUtils.PlaybackData? {
+    suspend fun resolve(
+        videoId: String,
+        cpn: String,
+        audioQuality: AudioQuality,
+        connectivityManager: ConnectivityManager,
+        allowBoundedRange: Boolean = true,
+        excludedClients: Set<String> = emptySet(),
+    ): YTPlayerUtils.PlaybackData? {
+        // extract() takes five arguments and this used to pass two, leaving the other three on
+        // their defaults. Each of those defaults is wrong for this app:
+        //
+        // allowSabr defaults to true, and this app has no SABR support at all - the class doc
+        // above says so in as many words. A SABR stream's url is a bootstrap for a protocol the
+        // player cannot speak, so handing one to a plain OkHttp data source does not fail, it
+        // stalls: the track buffers to wherever the first fetch got to and then waits forever.
+        // allowHls defaults to true and is the same story, since nothing here reads a media
+        // playlist either. Both are switched off, and the sabrBootstrap check below is a second
+        // line of defence in case a client answers with one anyway.
+        //
+        // allowBoundedRange is what a download has to turn off. A client whose url is only served
+        // for an explicitly bounded range cannot supply a whole file in one request, and one
+        // request is exactly what DownloadUtil issues - so picking such a client guarantees the
+        // download is refused. Playback leaves it on, since it reads progressively and can honour
+        // the bound.
+        val hints = ContentHints().withStreamCapabilities(
+            allowHls = false,
+            allowSabr = false,
+            allowBoundedRange = allowBoundedRange,
+        )
+
         val extracted = try {
             syncSession()
-            extractor.extract(videoId = videoId, hints = ContentHints())
+            extractor.extract(
+                videoId = videoId,
+                hints = hints,
+                // Refusing a client here costs nothing; refusing its result afterwards throws away
+                // a whole extraction and can leave nothing to play.
+                excludedClients = excludedClients,
+                // The user's audio quality preference reached the app's own client loop but never
+                // this engine, so every innertubex-resolved stream ignored the setting entirely.
+                audioQuality = audioQuality.toInnerTubeX(connectivityManager),
+                // The same cpn the caller already generated, rather than one minted inside the
+                // extractor: it is carried on the stream url *and* on the playback telemetry fired
+                // later from this data, and those two have to agree for a play to register.
+                clientPlaybackNonce = cpn,
+            )
         } catch (e: CancellationException) {
             // Never swallowed. Catching this alongside everything else meant that when the player
             // abandoned a load - a seek, a skip, a stop - the cancellation was reported as a failed
@@ -216,9 +261,27 @@ object MetrolistStreamResolver {
             return null
         }
 
+        // Belt and braces against the allowSabr hint above. A SABR stream is not a url this player
+        // can fetch, and taking one would look like a track that buffers forever rather than one
+        // that failed - so it is refused here and the caller falls through to its own client loop.
+        if (extracted.sabrBootstrap != null) {
+            Log.w(TAG, "[$videoId] ${extracted.clientName} answered SABR, which this player cannot fetch")
+            return null
+        }
+
         Log.i(TAG, "[$videoId] resolved via ${extracted.clientName} (${extracted.profileId})")
         return extracted.toPlaybackData(cpn)
     }
+
+    /** Mirrors the app's own quality preference onto innertubex's, metered-aware like the rest. */
+    private fun AudioQuality.toInnerTubeX(connectivityManager: ConnectivityManager): MetrolistAudioQuality =
+        when (this) {
+            AudioQuality.HIGH -> MetrolistAudioQuality.HIGH
+            AudioQuality.LOW -> MetrolistAudioQuality.LOW
+            AudioQuality.AUTO ->
+                if (connectivityManager.isActiveNetworkMetered) MetrolistAudioQuality.LOW
+                else MetrolistAudioQuality.AUTO
+        }
 
     private fun ExtractedStream.toPlaybackData(cpn: String): YTPlayerUtils.PlaybackData {
         // expiresAt is absolute; this app's cache still speaks in "seconds from now". Floored at
