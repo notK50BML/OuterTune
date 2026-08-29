@@ -52,10 +52,28 @@ on:
         description: "versionCode - must be HIGHER than the build you already have installed, or Android refuses the upgrade"
         required: false
         default: "94"
+      locales:
+        description: "Languages to ship, comma separated (e.g. en or en,ja). Blank = all 50. English is always kept."
+        required: false
+        default: "en"
+      publish_release:
+        description: "Publish the APKs as a Release. draft/prerelease are NOT offered by the in-app updater - build once, test, then promote in the Releases UI without rebuilding."
+        required: true
+        default: "draft"
+        type: choice
+        options:
+          - "no"
+          - "draft"
+          - "prerelease"
+          - "latest"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
+    # Only needed by the optional release step below; harmless otherwise.
+    permissions:
+      contents: write
 
     steps:
       - name: Check out source (with media3 submodule)
@@ -82,9 +100,9 @@ jobs:
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: 4ce025faad1e8db986361a601962fc05cc7e903de3ca21d0bf5805eb3d070b2e"
-          echo "lines: $(wc -l < "$PATCH")  (expected 45473)   bytes: $(wc -c < "$PATCH")  (expected 2269961)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 179)"
+          echo "expected: 0b305e9e26cf8b4eead400617b1549e31644eaf9f43a10ac9d3a4ac8b15bd769"
+          echo "lines: $(wc -l < "$PATCH")  (expected 67520)   bytes: $(wc -c < "$PATCH")  (expected 3312860)"
+          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 209)"
           echo "================"
 
           git config user.name "github-actions"
@@ -248,7 +266,12 @@ jobs:
       - name: Build ${{ inputs.variant }}
         run: |
           set -o pipefail
-          ./gradlew assemble${{ inputs.variant }} --stacktrace -DskipFormatKtlint 2>&1 | tee build.log
+          LOCALES=""
+          if [ -n "${{ inputs.locales }}" ]; then
+            LOCALES="-Plocales=${{ inputs.locales }}"
+            echo "::notice::Shipping only these languages: ${{ inputs.locales }} (plus English)"
+          fi
+          ./gradlew assemble${{ inputs.variant }} $LOCALES --stacktrace -DskipFormatKtlint 2>&1 | tee build.log
 
       # Gradle prints compiler errors early and then buries them under a stack trace hundreds of
       # lines long, so neither end of a failed log contains them. Put them somewhere that needs no
@@ -296,6 +319,61 @@ jobs:
           name: outertune-${{ inputs.variant }}
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
+
+      # The in-app updater reads the releases API and downloads a release *asset*. It cannot use a
+      # workflow artifact: those are zipped and need an authenticated API call, so an installed app
+      # has no way to fetch one. Publishing here is what makes the updater have anything to find.
+      #
+      # The tag carries the versionCode, since that is what an Android upgrade is actually decided
+      # on - versionName is free text and two builds routinely share one.
+      # Publishing is separated from promoting on purpose. A build's quality is not knowable at
+      # dispatch time, and the alternative - deciding up front - is a choice between shipping
+      # something untested to everyone's updater or having to run the whole build again once it
+      # turns out fine. Neither is necessary: GitHub's /releases/latest endpoint, which is what the
+      # in-app updater reads, skips drafts and prereleases entirely. So a draft build is fully
+      # uploaded and downloadable by you, and invisible to every updater, until you press Publish
+      # in the Releases UI. That promotion costs one click and no rebuild.
+      - name: Publish release
+        if: ${{ inputs.publish_release != 'no' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          # Matches the tag convention already in this repo's releases (e.g. Core-v0.18.2), so old
+          # and new release urls keep the same shape.
+          case "${{ inputs.variant }}" in
+            full*) FLAVOR_TAG="Full" ;;
+            *)     FLAVOR_TAG="Core" ;;
+          esac
+          TAG="$FLAVOR_TAG-v${{ inputs.version_name }}"
+
+          if [ -z "${{ secrets.KEYSTORE }}" ]; then
+            echo "::warning::No KEYSTORE secret is set, so this build is signed with a throwaway key."
+            echo "::warning::Android will refuse to install it over an existing install (signature"
+            echo "::warning::mismatch), so the in-app updater will download it and then fail."
+          fi
+
+          case "${{ inputs.publish_release }}" in
+            draft)      VISIBILITY="--draft" ;;
+            prerelease) VISIBILITY="--prerelease" ;;
+            latest)     VISIBILITY="--latest" ;;
+          esac
+
+          mapfile -t APKS < <(find app/build/outputs/apk -name '*.apk')
+          echo "Publishing ${#APKS[@]} apk(s) as $TAG (${{ inputs.publish_release }})"
+
+          # Re-running the same versionName replaces that release's assets rather than failing,
+          # since a rebuild of the same version is a correction, not a new release.
+          gh release create "$TAG" "${APKS[@]}" \
+            --title "$TAG" \
+            --notes "Automated build of ${{ inputs.variant }} (versionCode ${{ inputs.version_code }}) from ${{ inputs.patch_file }}." \
+            $VISIBILITY \
+            || gh release upload "$TAG" "${APKS[@]}" --clobber
+
+          if [ "${{ inputs.publish_release }}" != "latest" ]; then
+            echo "::notice::Published as ${{ inputs.publish_release }} - the in-app updater will NOT offer this."
+            echo "::notice::Test it, then press Publish release on $TAG to hand it to everyone."
+          fi
 
       - name: Upload build reports on failure
         if: failure()
