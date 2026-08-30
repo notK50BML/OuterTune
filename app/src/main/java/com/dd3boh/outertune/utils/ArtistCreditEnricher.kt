@@ -132,16 +132,22 @@ object ArtistCreditEnricher {
                     collapsed += artist
                     continue
                 }
-                val resolved = resolveArtistEntity(database, artist.name)
+                // resolveArtist, not resolveArtistEntity. The latter prefers an existing library row
+                // with the resolved name - and in exactly this case that row is the placeholder
+                // being examined, so it handed back the placeholder's own local id, which of course
+                // never matched a real channel and the collapse never fired. What is needed here is
+                // the channel the name resolves to upstream, regardless of what is already stored.
+                val resolved = resolveArtist(artist.name)
+                val cleanName = resolved?.title?.stripTopicSuffix()
                 val sameChannel = resolved?.let { r -> finalArtists.firstOrNull { it.id == r.id && it.isYouTubeArtist } }
-                if (sameChannel == null) {
+                if (sameChannel == null || cleanName == null) {
                     collapsed += artist
                     continue
                 }
-                if (sameChannel.name != resolved.name) {
-                    Log.d(TAG, "[$songId] ${sameChannel.id} renamed upstream: \"${sameChannel.name}\" -> \"${resolved.name}\"")
-                    database.update(sameChannel.copy(name = resolved.name))
-                    collapsed.replaceAll { if (it.id == sameChannel.id) it.copy(name = resolved.name) else it }
+                if (sameChannel.name != cleanName) {
+                    Log.d(TAG, "[$songId] ${sameChannel.id} renamed upstream: \"${sameChannel.name}\" -> \"$cleanName\"")
+                    database.update(sameChannel.copy(name = cleanName))
+                    collapsed.replaceAll { if (it.id == sameChannel.id) it.copy(name = cleanName) else it }
                 }
                 Log.d(TAG, "[$songId] dropping \"${artist.name}\", a placeholder for ${sameChannel.id} under its new name")
                 changed = true

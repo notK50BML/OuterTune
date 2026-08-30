@@ -70,6 +70,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
+import okhttp3.Request
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileInputStream
@@ -111,6 +112,11 @@ class DownloadUtil @Inject constructor(
 
     private val songUrlCache = HashMap<String, CachedStreamUrl>()
     private val thumbnailHttpClient = OkHttpClient.Builder()
+        .proxy(YouTube.proxy)
+        .build()
+
+    /** Used only for the content-length probe below - kept separate so it carries no timeouts. */
+    private val streamHttpClient = OkHttpClient.Builder()
         .proxy(YouTube.proxy)
         .build()
 
@@ -204,9 +210,33 @@ class DownloadUtil @Inject constructor(
         // declaring a short length here doesn't chunk that download into many requests the way it
         // does for playback - it just makes the download stop after that length, silently
         // truncating every file to CHUNK_LENGTH (256KB, ~15s of audio) rather than erroring. The
-        // The range shape (see StreamRangePolicy) is what protects downloads from the
-        // cutoff; this dataSpec should just ask for the whole file.
-        val streamUrl = playbackData.streamUrl
+        // this dataSpec should just ask for the whole file.
+        //
+        // The whole file is asked for on the *url* instead, as &range=0-<length>, which is what
+        // Metrolist v13.6.3 does and is the reason its downloads finish while these crawled.
+        // googlevideo paces a plain progressive request at roughly playback speed - fine for
+        // playback, which is why streaming was never affected, but it means a download of a three
+        // minute song takes about three minutes. An explicit range asks for those same bytes as a
+        // bulk transfer and they arrive as fast as the connection allows.
+        //
+        // contentLength comes from the format where the client gave one; where it did not, a HEAD
+        // request is worth the round trip, since without a length there is no range to ask for and
+        // the download falls back to being paced.
+        val contentLength = playbackData.format.contentLength ?: runCatching {
+            val probe = Request.Builder()
+                .head()
+                .url(playbackData.streamUrl)
+                .apply { playbackData.streamHeaders.forEach { (name, value) -> header(name, value) } }
+                .build()
+            streamHttpClient.newCall(probe).execute().use { it.header("Content-Length")?.toLongOrNull() }
+        }.getOrNull()
+
+        val streamUrl = playbackData.streamUrl.let {
+            if (contentLength != null && contentLength > 0) "$it&range=0-$contentLength" else it
+        }
+        if (contentLength == null) {
+            Log.w(TAG, "No content length for $mediaId - downloading without a range, which will be slow")
+        }
 
         songUrlCache[mediaId] = CachedStreamUrl(
             url = streamUrl,
