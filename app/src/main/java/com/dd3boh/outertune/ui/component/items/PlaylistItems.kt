@@ -129,6 +129,22 @@ fun PlaylistListItem(
             getNSongsString(playlist.songCount, playlist.downloadCount),
     badges = {
         PlaylistIcon(playlist.playlist) // always show
+
+        // Downloaded is a fact about the playlist, not a detail of the screen showing it, so it
+        // belongs above the showBadges gate rather than below it. Below, it was unreachable: the
+        // parameter defaults to false and not one of the fourteen call sites passes true, so a
+        // fully downloaded playlist never showed the pin anywhere in the app. The edit and local
+        // icons below genuinely are per-screen decoration and stay gated.
+        if (playlist.downloadCount > 0) {
+            Icon(
+                imageVector = Icons.Rounded.OfflinePin,
+                contentDescription = null,
+                modifier = Modifier
+                    .size(18.dp)
+                    .padding(end = 2.dp)
+            )
+        }
+
         if (!showBadges) return@ListItem
         Icon(
             imageVector = if (playlist.playlist.isEditable) Icons.Rounded.Edit else Icons.Rounded.EditOff,
@@ -141,16 +157,6 @@ fun PlaylistListItem(
         if (playlist.playlist.isLocal) {
             Icon(
                 imageVector = Icons.Rounded.SdCard,
-                contentDescription = null,
-                modifier = Modifier
-                    .size(18.dp)
-                    .padding(end = 2.dp)
-            )
-        }
-
-        if (playlist.downloadCount > 0) {
-            Icon(
-                imageVector = Icons.Rounded.OfflinePin,
                 contentDescription = null,
                 modifier = Modifier
                     .size(18.dp)
