@@ -48,8 +48,8 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Fixed blurry cover art on some songs (again)
 - Cleaned up the top bar and removed a redundant icon
 - Added frosted glass and liquid player style
-- Added the VisionOS Youtube Music API as the main player (from https://github.com/yuuichi-s/OuterTune/)
-- Now reads song title and links artists better
+- Added [InnerTubeX](https://github.com/MetrolistGroup/innertubex) as the main stream and download backend
+- Improved artist linking through fetching albums, splitting artists for Youtube songs and other techniques
 
 ### Lyrics
 
@@ -58,10 +58,10 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Added SimpMusic and BetterLyrics as lyrics providers
 - Queries enabled providers in parallel with timeouts
 - Fetches lyrics in the playback service even while the lyrics panel is closed
-- Added word-by-word lyrics, rendered in the normal word-highlight style
+- Added word-by-word lyrics, rendered in the word-highlight style
 - Improved lyrics pipeline
 - Fixed "cannot parse lyrics" errors
-- Fixed word-by-word lyrics rendering breaking (now can be enabled under Lyrics > Advanced > Karaoke style lyrics)
+- Fixed word-by-word lyrics rendering breaking when battery saver was enabled (now can be enabled under Lyrics > Advanced > Karaoke style lyrics)
 
 ### Navigation and menus
 
@@ -96,6 +96,7 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Added a Wi-Fi-only download toggle
 - Improved fetch time for uncached songs
 - Added an inbuilt parametric equaliser and compressor
+- Added a crossfade function
 
 ### Internal libraries and build tooling
 
