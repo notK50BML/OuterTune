@@ -140,7 +140,6 @@ import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
 import com.dd3boh.outertune.audio.VisualizerFrame
-import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.LiquidAudioReactiveKey
 import com.dd3boh.outertune.constants.LiquidChromaticShockKey
 import com.dd3boh.outertune.constants.LiquidColorScheme
@@ -477,11 +476,15 @@ private fun EqualizerHandle() {
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     // The same colour the lyrics/queue handle already use - measured from the cover itself, so it
     // stays legible against whichever background style and cover is currently showing instead of
-    // a fixed theme colour that can all but disappear on some covers. Same toggle as the panel
-    // itself, so turning contrast colour off is consistent everywhere the equalizer appears.
-    val useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
+    // a fixed theme colour that can all but disappear on some covers.
+    //
+    // No longer optional. The switch that used to gate this was removed with the one in the panel,
+    // but for the opposite reason: in the panel it changed nothing visible, because those cards are
+    // a flat dark grey whatever the artwork is. Here the handle sits directly on the cover, which
+    // is exactly where measuring against it earns its keep, so this keeps the behaviour the switch
+    // defaulted to rather than the one it was being turned off to get.
     val playerBackgroundStyle by rememberEnumPreference(key = PlayerBackgroundStyleKey, defaultValue = DEFAULT_PLAYER_BACKGROUND)
-    val handleColor = if (useContrastColor) rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle) else MaterialTheme.colorScheme.onSurface
+    val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle)
 
     val equalizerPanelState = LocalEqualizerPanelState.current
     var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }

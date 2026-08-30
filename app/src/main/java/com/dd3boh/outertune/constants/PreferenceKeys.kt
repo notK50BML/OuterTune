@@ -113,7 +113,6 @@ val EqualizerSettingsKey = stringPreferencesKey("equalizerSettings")
 val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
 val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
 val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
-val EqContrastColorKey = booleanPreferencesKey("eqContrastColor")
 /**
  * Dials vs sliders for the selected band's frequency/gain in the band editor - not the 12-band
  * gain strip above it or the bass/treble tone controls, both of which stay fixed (sliders and

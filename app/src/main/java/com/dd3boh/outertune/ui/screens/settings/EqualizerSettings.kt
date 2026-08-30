@@ -63,7 +63,6 @@ import androidx.navigation.NavController
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
-import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.EqUseDialsKey
 import com.dd3boh.outertune.constants.EqValueColorGradientKey
 import com.dd3boh.outertune.constants.EqualizerProfilesKey
@@ -115,10 +114,8 @@ fun EqualizerSettingsScreen(
         defaultValue = DEFAULT_PLAYER_BACKGROUND
     )
     val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackground)
-
-    var useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
-    val eqColor = if (useContrastColor) handleColor else MaterialTheme.colorScheme.onSurface
-    val eqColorVariant = if (useContrastColor) handleColor.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
+    val eqColor = MaterialTheme.colorScheme.onSurface
+    val eqColorVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
     var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
@@ -224,6 +221,7 @@ fun EqualizerSettingsScreen(
                         enabled = settings.enabled,
                         selected = selectedBand == index,
                         color = eqColor,
+                        useGradient = useValueGradient,
                         onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
                         onTapLabel = { selectedBand = if (selectedBand == index) null else index },
                     )
@@ -265,13 +263,6 @@ fun EqualizerSettingsScreen(
             icon = { Icon(Icons.Rounded.Tune, null) },
             checked = useDials,
             onCheckedChange = { useDials = it }
-        )
-        SwitchPreference(
-            title = { Text(stringResource(R.string.eq_settings_contrast_color_title)) },
-            description = stringResource(R.string.eq_settings_contrast_color_description),
-            icon = { Icon(Icons.Rounded.Palette, null) },
-            checked = useContrastColor,
-            onCheckedChange = { useContrastColor = it }
         )
         SwitchPreference(
             title = { Text(stringResource(R.string.eq_settings_value_gradient_title)) },

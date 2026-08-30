@@ -83,7 +83,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="grp_account_sync">Account and sync</string>
     <string name="grp_appearance_controls">Appearance and controls</string>
     <string name="grp_audio">Audio</string>
-    <string name="grp_behavior">Behavior</string>
+    <string name="grp_behavior">Behaviour</string>
     <string name="grp_display">Display</string>
     <string name="grp_extra_scanner_settings">Additional scanner settings</string>
     <string name="grp_general">General</string>
@@ -177,10 +177,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="eq_settings_appearance">Appearance</string>
     <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
     <string name="eq_settings_use_dials_description">Applies to the selected band\'s frequency/gain editor. The band strip and bass/treble controls stay sliders and dials respectively either way.</string>
-    <string name="eq_settings_contrast_color_title">Color from cover art</string>
-    <string name="eq_settings_contrast_color_description">Color the equalizer\'s controls to contrast with the current song\'s cover art instead of the app theme.</string>
-    <string name="eq_settings_value_gradient_title">Color by value</string>
-    <string name="eq_settings_value_gradient_description">Color dials and slider tracks blue-green-yellow by how low, mid, or high their value is.</string>
+    <string name="eq_settings_value_gradient_title">Colour by value</string>
+    <string name="eq_settings_value_gradient_description">Colour dials and slider tracks blue-green-yellow by how low, mid, or high their value is.</string>
     <string name="eq_settings_profiles">Profiles</string>
     <string name="eq_settings_save_as_profile">Save current as new profile</string>
     <string name="eq_settings_profile_name">Profile name</string>
@@ -433,11 +431,11 @@ while also allowing users to translate our app as well. New, specific strings to
 
 <!-- Setup wizard -->
     <string name="oobe_welcome_message">Welcome to OuterTune</string>
-    <string name="oobe_welcome_tip">For the best experience, we recommend completing a quick setup to personalize key settings like theme, YouTube account, local media, and downloads.</string>
+    <string name="oobe_welcome_tip">For the best experience, we recommend completing a quick setup to personalise key settings like theme, YouTube account, local media, and downloads.</string>
 
     <!-- Landing -->
     <string name="oobe_ytm_integration">YouTube Music Integration</string>
-    <string name="oobe_ytm_integration_description">Access your favorite tracks seamlessly</string>
+    <string name="oobe_ytm_integration_description">Access your favourite tracks seamlessly</string>
     <string name="oobe_ad_free_exp">No YouTube ADs</string>
     <string name="oobe_ad_free_exp_description">Enjoy uninterrupted music playback</string>
     <string name="oobe_local_music_support">Extensive Local Music Support</string>
@@ -447,7 +445,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="oobe_use_backup">I have a backup</string>
 
     <!-- Interface setup page -->
-    <string name="oobe_interface_subtitle">Customize how OuterTune looks and what content it shows you.</string>
+    <string name="oobe_interface_subtitle">Customise how OuterTune looks and what content it shows you.</string>
 
     <!-- Account setup page -->
     <string name="oobe_ytm_logon_title">Account</string>

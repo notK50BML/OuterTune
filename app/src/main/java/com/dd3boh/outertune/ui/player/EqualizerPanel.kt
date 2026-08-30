@@ -86,7 +86,6 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DarkMode
 import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
-import com.dd3boh.outertune.constants.EqContrastColorKey
 import com.dd3boh.outertune.constants.EqUseDialsKey
 import com.dd3boh.outertune.constants.EqValueColorGradientKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
@@ -181,9 +180,12 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
     // Material3-themed widget like Switch/SegmentedButton, which already follows the app theme
     // correctly) from the cover art's contrast color instead of the plain theme color - on by
     // default since a busy or dark cover can otherwise swallow plain onSurface text.
-    var useContrastColor by rememberPreference(EqContrastColorKey, defaultValue = true)
-    val eqColor = if (useContrastColor) handleColor else MaterialTheme.colorScheme.onSurface
-    val eqColorVariant = if (useContrastColor) handleColor.copy(alpha = 0.75f) else MaterialTheme.colorScheme.onSurfaceVariant
+    // Was a "Use cover contrast colour" switch, tinting the panel from the artwork instead of the
+    // theme. It never earned its place: the panel's cards are a flat dark grey whatever the artwork
+    // is, so the two settings looked near enough identical, and a toggle whose effect cannot be
+    // seen is worse than no toggle. Fixed to the theme colour, which is what it was being left on.
+    val eqColor = MaterialTheme.colorScheme.onSurface
+    val eqColorVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     // Dials vs sliders, and whether either one colors itself by its own value instead of by the
     // contrast/theme color above - both apply everywhere a band gain, frequency, bass/treble, or
@@ -341,22 +343,6 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     }
 
                     Spacer(Modifier.height(4.dp))
-
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            text = "Use cover contrast color",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = eqColorVariant,
-                        )
-                        Switch(
-                            checked = useContrastColor,
-                            onCheckedChange = { useContrastColor = it },
-                        )
-                    }
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -555,6 +541,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                                 enabled = settings.enabled,
                                 selected = selectedBand == index,
                                 color = eqColor,
+                                useGradient = useValueGradient,
                                 onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
                                 onTapLabel = { selectedBand = if (selectedBand == index) null else index },
                             )
@@ -599,7 +586,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(vertical = 16.dp)
             ) {
-                MiniPlaybackControls(color = if (useContrastColor) eqColor else null)
+                MiniPlaybackControls(color = eqColor)
             }
         }
     }
@@ -955,10 +942,17 @@ internal fun BandColumn(
     enabled: Boolean,
     selected: Boolean,
     color: Color,
+    useGradient: Boolean,
     onGainChange: (Float) -> Unit,
     onTapLabel: () -> Unit,
 ) {
     val gainRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
+
+    // The bands were the one control in the panel that ignored colour-by-value: bass, treble,
+    // balance and every compressor dial took their colour from it while these twelve stayed a
+    // fixed green, which made the setting look broken rather than deliberate - they are the
+    // controls most obviously "a value in a range", so they are where it is expected to show.
+    val bandColor = if (useGradient) valueGradientColor(band.gainDb, gainRange) else SliderActiveGreen
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -966,9 +960,8 @@ internal fun BandColumn(
     ) {
         // Twelve of these side by side, so each one stays a plain slider regardless of the
         // panel-wide dial/slider setting - a strip of tiny 48dp dials read as fiddly rather than
-        // Poweramp-like, and the reference layout doesn't use them here either. The track is
-        // always green/light-grey and the label always the plain contrast color, same as every
-        // other slider in the panel - only dial arcs still follow the value gradient.
+        // Poweramp-like, and the reference layout doesn't use them here either. The label stays the
+        // plain contrast colour like every other slider's; the track and thumb follow the value.
         Text(
             text = formatDb(band.gainDb),
             style = MaterialTheme.typography.labelSmall,
@@ -983,12 +976,12 @@ internal fun BandColumn(
             track = { sliderState ->
                 PowerampTrack(
                     sliderState = sliderState,
-                    activeColor = SliderActiveGreen,
+                    activeColor = bandColor,
                     inactiveColor = sliderInactiveColor(),
                     trackThickness = 8.dp,
                 )
             },
-            thumb = { PowerampThumb(color = SliderActiveGreen) },
+            thumb = { PowerampThumb(color = bandColor) },
             modifier = Modifier
                 .weight(1f)
                 .width(36.dp),
