@@ -19,6 +19,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AudioFile
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.NoCell
 import androidx.compose.material3.ElevatedCard
@@ -38,6 +39,7 @@ import com.dd3boh.outertune.constants.AudioDecoderKey
 import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
 import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
 import com.dd3boh.outertune.constants.KeepAliveKey
+import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
 import com.dd3boh.outertune.constants.StopMusicOnTaskClearKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
@@ -71,6 +73,7 @@ fun PlayerSettings(
         key = AudioDecoderKey,
         defaultValue = DEFAULT_AUDIO_DECODER
     )
+    val (statsIncludeRemote, onStatsIncludeRemoteChange) = rememberPreference(key = StatsIncludeRemoteKey, defaultValue = false)
     val (keepAlive, onKeepAliveChange) = rememberPreference(key = KeepAliveKey, defaultValue = false)
     val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(
         key = StopMusicOnTaskClearKey,
@@ -126,6 +129,22 @@ fun PlayerSettings(
             modifier = Modifier.fillMaxWidth()
         ) {
             PlaybackBehaviourFrag()
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        PreferenceGroupTitle(
+            title = stringResource(R.string.history)
+        )
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.stats_include_remote_title)) },
+                description = stringResource(R.string.stats_include_remote_description),
+                icon = { Icon(Icons.Rounded.CloudSync, null) },
+                checked = statsIncludeRemote,
+                onCheckedChange = onStatsIncludeRemoteChange,
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
 
