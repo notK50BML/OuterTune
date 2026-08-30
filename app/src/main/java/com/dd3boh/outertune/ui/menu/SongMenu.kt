@@ -302,13 +302,17 @@ fun SongMenu(
                 showSelectArtistDialog = true
             }
         }
-        if (song.song.albumId != null && !song.song.isLocal) {
+        if ((song.album?.id ?: song.song.albumId) != null && !song.song.isLocal) {
             GridMenuItem(
                 icon = Icons.Rounded.Album,
                 title = R.string.view_album
             ) {
                 onDismiss()
-                navController.navigate("album/${song.song.albumId}")
+                // The relation first, the song row's own column second - the same order
+                // MediaMetadata resolves an album in, so this menu and the player agree about which
+                // album a song is on. Reading the column alone is how they came to disagree: it is
+                // a second copy of the same fact, and it goes stale when two albums are merged.
+                navController.navigate("album/${song.album?.id ?: song.song.albumId}")
             }
         }
         if (!song.song.isLocal)

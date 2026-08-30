@@ -1446,6 +1446,9 @@ class LocalMediaScanner(context: Context, scannerImpl: ScannerImpl) {
 
                 // update participation(s)
                 updateSongAlbumMap(old.id, new.id)
+                // ...and the copy of that same fact denormalised onto the song row, which was left
+                // behind pointing at the album deleted two lines below - see updateSongAlbumId.
+                updateSongAlbumId(old.id, new.id)
 
                 // nuke old artist
                 safeDeleteAlbum(old.id)

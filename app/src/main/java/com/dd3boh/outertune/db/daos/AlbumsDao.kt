@@ -80,6 +80,19 @@ interface AlbumsDao : ArtistsDao {
     @Query("UPDATE song_album_map SET albumId = :newId WHERE albumId = :oldId")
     fun updateSongAlbumMap(oldId: String, newId: String)
 
+    /**
+     * The song row's own albumId column, moved to match [updateSongAlbumMap].
+     *
+     * A song's album is recorded twice - once in song_album_map, once denormalised onto the song
+     * row - and merging two albums only ever rewrote the map. The column kept pointing at the album
+     * that no longer exists, so which album a song belonged to depended on which of the two a given
+     * screen happened to read: the player followed the map and opened the right one, the song menu
+     * read the column and opened a different one.
+     */
+    @Transaction
+    @Query("UPDATE song SET albumId = :newId WHERE albumId = :oldId")
+    fun updateSongAlbumId(oldId: String, newId: String)
+
     @Query(
         """
         DELETE FROM album
