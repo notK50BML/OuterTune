@@ -140,7 +140,13 @@ object ArtistCreditEnricher {
                 continue
             }
             if (artist.isYouTubeArtist) {
-                finalArtists += artist
+                val repointed = repointDeadTopicChannel(database, songId, artist, allowNetwork)
+                if (repointed != null) {
+                    finalArtists += repointed
+                    changed = true
+                } else {
+                    finalArtists += artist
+                }
                 continue
             }
             val candidates = splitAmpersandCandidates(artist.name)
@@ -358,6 +364,48 @@ object ArtistCreditEnricher {
             database.insert(SongArtistMap(songId = song.song.id, artistId = artist.id, position = index))
         }
         Timber.tag(TAG).d("[${song.song.id}] no credited artists - inherited ${albumArtists.map { it.name }} from album $albumId")
+    }
+
+    /**
+     * The artist's real channel, when the credited one turns out to be a dead end. Null when there
+     * is nothing to change, which is the ordinary case.
+     *
+     * A credit can carry a genuine channel id that is nonetheless useless. YouTube auto-generates a
+     * Topic channel per artist, and occasionally generates one whose artist name came through empty
+     * - a channel literally titled " - Topic", carrying nothing. Seraphine is one:
+     * UCPOtcixkNLHOLUZa_fG-ZPw is titled " - Topic" while the real Seraphine channel is a different
+     * id entirely. The song still names the artist correctly, because the name comes from the
+     * credit run rather than the channel, so it reads right and opens nothing.
+     *
+     * Searching the name finds the channel YouTube itself answers with, which is the populated one
+     * - resolveArtist already requires a non-blank thumbnail, and a bare Topic channel has none.
+     *
+     * Gated on the stored artist having no thumbnail, which is what keeps this from costing a
+     * request per credit forever: a credit that has been through here, or whose page has been
+     * opened, has one and is skipped. That gate also happens to select the right candidates, since
+     * an artist row built from a credit run alone starts without a picture.
+     */
+    private suspend fun repointDeadTopicChannel(
+        database: MusicDatabase,
+        songId: String,
+        artist: ArtistEntity,
+        allowNetwork: Boolean,
+    ): ArtistEntity? {
+        if (!allowNetwork || !artist.thumbnailUrl.isNullOrBlank()) return null
+        val resolved = resolveArtist(artist.name, allowNetwork = true) ?: return null
+        if (resolved.id == artist.id) return null
+
+        Timber.tag(TAG).d(
+            "[$songId] \"${artist.name}\" was credited to ${artist.id}, which is not its channel - " +
+                "repointing to ${resolved.id}"
+        )
+        // Stored with the picture the search already returned, so the gate above closes and this
+        // artist is never searched for again.
+        return ArtistEntity(
+            id = resolved.id,
+            name = resolved.title.stripTopicSuffix(),
+            thumbnailUrl = resolved.thumbnail,
+        )
     }
 
     /**
