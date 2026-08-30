@@ -18,6 +18,7 @@ import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.LocalArtistThumbnail
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
+import com.dd3boh.outertune.db.TOPIC_SUFFIX
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.extensions.reversed
 import com.dd3boh.outertune.ui.utils.resize
@@ -297,11 +298,22 @@ interface ArtistsDao {
 
     @Transaction
     fun update(artist: ArtistEntity, artistPage: ArtistPage) {
+        // See DatabaseDao.insert's identical stripTopicSuffix() call for why an artist name is
+        // never stored as YTM returned it verbatim.
+        val freshName = artistPage.artist.title.stripTopicSuffix()
+        // A channel titled exactly "- Topic" names nobody, and the suffix surviving the strip is
+        // how that shows: stripping tidies a name, it does not delete one, so a title with nothing
+        // in front of the suffix comes back unchanged. Keeping the stored name in that case matters
+        // here as well as at the caller, because this is the write - a refresh that only meant to
+        // update the picture would otherwise take the name down with it.
+        val name = if (freshName.isNotBlank() && !TOPIC_SUFFIX.containsMatchIn(freshName)) {
+            freshName
+        } else {
+            artist.name
+        }
         update(
             artist.copy(
-                // See DatabaseDao.insert's identical stripTopicSuffix() call for why an artist
-                // name is never stored as YTM returned it verbatim.
-                name = artistPage.artist.title.stripTopicSuffix(),
+                name = name,
                 thumbnailUrl = artistPage.artist.thumbnail?.resize(544, 544),
                 lastUpdateTime = LocalDateTime.now()
             )

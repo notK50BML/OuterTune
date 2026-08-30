@@ -9,6 +9,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dd3boh.outertune.constants.ArtistSongSortType
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.db.TOPIC_SUFFIX
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.ui.utils.resize
 import com.dd3boh.outertune.utils.reportException
@@ -77,7 +78,13 @@ class ArtistViewModel @Inject constructor(
         val stored = database.artist(artistId).first()?.artist ?: return
         val freshName = page.artist.title.stripTopicSuffix()
         val freshThumbnail = page.artist.thumbnail?.resize(544, 544)
-        val nameChanged = freshName.isNotBlank() && stored.name != freshName
+        // A channel titled exactly "- Topic" names nobody. stripTopicSuffix leaves such a title
+        // alone rather than reducing it to an empty string - stripping is meant to tidy a name, not
+        // delete one - which means it now arrives here looking like an ordinary name and would
+        // overwrite a perfectly good stored one. So the suffix surviving the strip is the tell that
+        // there was no name in front of it, and whatever is already stored is worth more.
+        val namesSomebody = freshName.isNotBlank() && !TOPIC_SUFFIX.containsMatchIn(freshName)
+        val nameChanged = namesSomebody && stored.name != freshName
         val thumbnailChanged = freshThumbnail != null && stored.thumbnailUrl != freshThumbnail
         if (!nameChanged && !thumbnailChanged) return
 

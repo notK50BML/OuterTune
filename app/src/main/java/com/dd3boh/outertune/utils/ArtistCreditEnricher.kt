@@ -290,8 +290,14 @@ object ArtistCreditEnricher {
         val tracks = database.albumSongs(albumId).first().filter { it.artists.isNotEmpty() }
         if (tracks.isEmpty()) return
 
+        // Compared on the normalised id, because the two spellings of one channel would otherwise
+        // never intersect: a record where some tracks credit MPLAUC… and others credit UC… shares
+        // its artist on every track and looked, to an id comparison, like it shared nobody. That is
+        // what "tracks share no artist" was reporting for albums that plainly have one.
         val shared = tracks.first().artists.filter { candidate ->
-            tracks.all { track -> track.artists.any { it.id == candidate.id } }
+            tracks.all { track ->
+                track.artists.any { it.id.normalizeArtistId() == candidate.id.normalizeArtistId() }
+            }
         }
         if (shared.isEmpty()) {
             Timber.tag(TAG).d("[$albumId] tracks share no artist - leaving the album uncredited")
@@ -299,7 +305,7 @@ object ArtistCreditEnricher {
         }
 
         shared.forEachIndexed { index, artist ->
-            database.insert(AlbumArtistMap(albumId = albumId, artistId = artist.id, order = index))
+            database.insert(AlbumArtistMap(albumId = albumId, artistId = artist.id.normalizeArtistId(), order = index))
         }
         Timber.tag(TAG).d("[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
     }
