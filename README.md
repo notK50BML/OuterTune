@@ -39,7 +39,7 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Added connection tester to diagnose any connection issues
 - Improved normal login authentication process
 
-### YouTube Music playback and display
+### YouTube Music
 
 - Fixed albums with missing tracks, crashes while opening playlists, and failed search result parsing
 - Fixed the "Source error 2004" issue that could block YouTube Music playback
@@ -51,6 +51,9 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Added frosted glass and liquid player style
 - Added [InnerTubeX](https://github.com/MetrolistGroup/innertubex) as the main stream and download backend
 - Improved artist linking through fetching albums, splitting artists for Youtube songs, resolving duplicate names, and other techniques
+- Improved artist image placement by rendering a square picture and realigning (thanks to [Metrolist](https://github.com/metrolistgroup/metrolist))
+- Fixed the broken remote history page
+- Added a feature which allows remote listens to count to total song stats
 
 ### Lyrics
 
@@ -71,11 +74,17 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Replaced the persistent search bar on tab screens with a top icon row (search, stats, and settings)
 - Added swipe-to-skip to the mini player
 
-### Local music playback
+### Local music
 
 - Improved tag reading, song linking, and gapless playback for local music
 - Fixed the album song count shown on album screens
 - Added a Local tab for browsing on-device songs, albums, artists, and playlists with filters and search
+- Added an inbuilt parametric equaliser and compressor
+- Improved equaliser and compressor pipeline for better, less artefact-prone audio
+- Added a crossfade function
+- Fixed a bug with colours in the equaliser bands
+- Removed redundant settings for the equaliser page (Contrast by colour was unneeded as the cards were by default grey anyway)
+- Added AutoEQ support, though this is still WIP
 
 ### Display and settings
 
@@ -91,15 +100,18 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Significantly revamped Liquid player theme by adding audio-reactive features
 - Note: some features require Android 13+ support, and will be marked as such in settings
 - Made the default English locale British English for better consistency
+- Improved performance for the Liquid Ferrofluid's raymarched renderer and added quality settings
 
-### Playback and downloads
+### Downloads
 
 - Added a sleep timer that fades out and fully stops playback
 - Added a Wi-Fi-only download option
 - Improved fetch time for uncached songs
-- Added an inbuilt parametric equaliser and compressor
-- Improved equaliser and compressor pipeline for better, less artefact-prone audio
-- Added a crossfade function
+- Fixed a bug where song download speeds were limited by googlevideo limits
+
+### Other features
+- Added an APK auto-downloader
+
 
 ### Internal libraries and build tooling
 
