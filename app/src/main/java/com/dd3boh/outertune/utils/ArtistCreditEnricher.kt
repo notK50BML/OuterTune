@@ -130,6 +130,53 @@ object ArtistCreditEnricher {
             Timber.tag(TAG).d("[$songId] combined credit \"${artist.name}\" doesn't exist on its own - replaced with ${realHalves.map { it.name }}")
         }
 
+        // Two credits reading the same name are one artist listed twice, whatever ids they carry.
+        // It happens after a rebrand once the real channel's name catches up with the placeholder's
+        // (both then read i-dle), and it happens when a song is credited to both an artist's real
+        // channel and the auto-generated Topic one YouTube made for them, which carry the same name
+        // and different ids.
+        //
+        // Which to keep is not a coin toss: it is the one whose channel actually has this song,
+        // because that is the page a listener tapping the name is trying to reach. That is what the
+        // name resolving to a real, populated channel establishes - it returns the channel YouTube
+        // itself answers with for that name, which is the one carrying the catalogue. A credit
+        // matching it wins; failing that a real channel beats a local placeholder, which has no
+        // page at all and so cannot be the one holding anything.
+        //
+        // Costs one search per duplicated name, and only when a song actually has one.
+        val duplicatedNames = finalArtists
+            .groupBy { it.name.trim().lowercase() }
+            .filterValues { it.size > 1 }
+            .keys
+        if (duplicatedNames.isNotEmpty()) {
+            val winners = HashMap<String, ArtistEntity>()
+            for (key in duplicatedNames) {
+                val dupes = finalArtists.filter { it.name.trim().lowercase() == key }
+                val canonicalId = resolveArtist(dupes.first().name)?.id
+                val winner = dupes.firstOrNull { it.id == canonicalId }
+                    ?: dupes.firstOrNull { it.isYouTubeArtist }
+                    ?: dupes.first()
+                winners[key] = winner
+                Timber.tag(TAG).d(
+                    "[$songId] \"${dupes.first().name}\" credited ${dupes.size}x " +
+                        "(${dupes.joinToString { it.id }}) - keeping ${winner.id}"
+                )
+            }
+
+            val deduped = mutableListOf<ArtistEntity>()
+            for (artist in finalArtists) {
+                val key = artist.name.trim().lowercase()
+                if (key !in duplicatedNames) {
+                    deduped += artist
+                } else if (winners[key]?.id == artist.id && deduped.none { it.id == artist.id }) {
+                    deduped += artist
+                }
+            }
+            if (deduped.size != finalArtists.size) changed = true
+            finalArtists.clear()
+            finalArtists += deduped
+        }
+
         // An artist that renamed itself upstream can end up credited twice on one song, once under
         // each name, and the two credits are not equally useful. ((G)I-DLE -> i-dle is the case
         // this was written against.) YTM keeps returning the old name against the real channel, so
@@ -153,21 +200,6 @@ object ArtistCreditEnricher {
                     continue
                 }
 
-                // The easy half, and in practice the common one. Once the real channel's name has
-                // been corrected - which happens on its own the first time its page is opened - the
-                // two credits read identically, and a local placeholder named exactly like a real
-                // channel already on the same song cannot be anything but a duplicate of it. That
-                // needs no search to establish, so it is settled before spending a request below,
-                // and it still works when the search would not: offline, rate limited, or for an
-                // artist whose name no longer finds its own channel.
-                val sameName = finalArtists.firstOrNull {
-                    it.isYouTubeArtist && it.name.equals(artist.name, ignoreCase = true)
-                }
-                if (sameName != null) {
-                    Timber.tag(TAG).d("[$songId] dropping \"${artist.name}\", a duplicate of ${sameName.id} under the same name")
-                    changed = true
-                    continue
-                }
                 // resolveArtist, not resolveArtistEntity. The latter prefers an existing library row
                 // with the resolved name - and in exactly this case that row is the placeholder
                 // being examined, so it handed back the placeholder's own local id, which of course
