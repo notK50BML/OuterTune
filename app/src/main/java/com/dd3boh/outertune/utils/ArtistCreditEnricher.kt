@@ -8,7 +8,6 @@
 
 package com.dd3boh.outertune.utils
 
-import android.util.Log
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.entities.AlbumArtistMap
 import com.dd3boh.outertune.db.entities.ArtistEntity
@@ -20,6 +19,7 @@ import com.zionhuang.innertube.models.ArtistItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import timber.log.Timber
 
 /**
  * Fixes two cases where a song's credited artists are less complete than what YouTube Music
@@ -61,6 +61,15 @@ object ArtistCreditEnricher {
      */
     suspend fun enrich(database: MusicDatabase, songId: String): Unit = withContext(Dispatchers.IO) {
         val song = database.song(songId).first() ?: return@withContext
+
+        // Logged unconditionally, and at the top, because the interesting question when a credit
+        // has not corrected itself is which of two things happened: this never ran for that song,
+        // or it ran and decided to leave it alone. Every other line here only fires when something
+        // changed, so their absence answered neither.
+        Timber.tag(TAG).d(
+            "[$songId] enriching \"${song.song.title}\": " +
+                song.artists.joinToString { "${it.name}(${it.id})" }.ifEmpty { "no credits" }
+        )
 
         // A song credited to nobody at all takes the artists of the album it belongs to. YTM
         // regularly returns album tracks with the album set but no per-track artist runs, and the
@@ -108,7 +117,7 @@ object ArtistCreditEnricher {
             val realHalves = candidates.mapNotNull { resolveArtistEntity(database, it) }
             finalArtists += realHalves
             changed = true
-            Log.d(TAG, "[$songId] combined credit \"${artist.name}\" doesn't exist on its own - replaced with ${realHalves.map { it.name }}")
+            Timber.tag(TAG).d("[$songId] combined credit \"${artist.name}\" doesn't exist on its own - replaced with ${realHalves.map { it.name }}")
         }
 
         // An artist that renamed itself upstream can end up credited twice on one song, once under
@@ -146,11 +155,11 @@ object ArtistCreditEnricher {
                     continue
                 }
                 if (sameChannel.name != cleanName) {
-                    Log.d(TAG, "[$songId] ${sameChannel.id} renamed upstream: \"${sameChannel.name}\" -> \"$cleanName\"")
+                    Timber.tag(TAG).d("[$songId] ${sameChannel.id} renamed upstream: \"${sameChannel.name}\" -> \"$cleanName\"")
                     database.update(sameChannel.copy(name = cleanName))
                     collapsed.replaceAll { if (it.id == sameChannel.id) it.copy(name = cleanName) else it }
                 }
-                Log.d(TAG, "[$songId] dropping \"${artist.name}\", a placeholder for ${sameChannel.id} under its new name")
+                Timber.tag(TAG).d("[$songId] dropping \"${artist.name}\", a placeholder for ${sameChannel.id} under its new name")
                 changed = true
             }
             finalArtists.clear()
@@ -183,7 +192,7 @@ object ArtistCreditEnricher {
             database.insert(SongArtistMap(songId = songId, artistId = resolved.id, position = nextPosition))
             nextPosition++
             creditedNames += resolved.name.lowercase()
-            Log.d(TAG, "[$songId] added featured artist \"${resolved.name}\"")
+            Timber.tag(TAG).d("[$songId] added featured artist \"${resolved.name}\"")
         }
 
         backfillAlbumArtists(database, song)
@@ -216,14 +225,14 @@ object ArtistCreditEnricher {
             tracks.all { track -> track.artists.any { it.id == candidate.id } }
         }
         if (shared.isEmpty()) {
-            Log.d(TAG, "[$albumId] tracks share no artist - leaving the album uncredited")
+            Timber.tag(TAG).d("[$albumId] tracks share no artist - leaving the album uncredited")
             return
         }
 
         shared.forEachIndexed { index, artist ->
             database.insert(AlbumArtistMap(albumId = albumId, artistId = artist.id, order = index))
         }
-        Log.d(TAG, "[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
+        Timber.tag(TAG).d("[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
     }
 
     /**
@@ -247,7 +256,7 @@ object ArtistCreditEnricher {
             database.insert(artist)
             database.insert(SongArtistMap(songId = song.song.id, artistId = artist.id, position = index))
         }
-        Log.d(TAG, "[${song.song.id}] no credited artists - inherited ${albumArtists.map { it.name }} from album $albumId")
+        Timber.tag(TAG).d("[${song.song.id}] no credited artists - inherited ${albumArtists.map { it.name }} from album $albumId")
     }
 
     /**
