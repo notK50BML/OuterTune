@@ -44,12 +44,11 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Improved YouTube Music thumbnail resolution and allows for switching between low res and standard thumbnails (on some songs)
 - Fixed a crash that could occur when opening playlists or albums while their data was being updated
 - Fixed .m3u playlist import crashes and improved YouTube song matching
-- Fixed incorrect Liked Music song sequence
 - Fixed blurry cover art on some songs (again)
 - Cleaned up the top bar and removed a redundant icon
 - Added frosted glass and liquid player style
 - Added [InnerTubeX](https://github.com/MetrolistGroup/innertubex) as the main stream and download backend
-- Improved artist linking through fetching albums, splitting artists for Youtube songs and other techniques
+- Improved artist linking through fetching albums, splitting artists for Youtube songs, resolving duplicate names, and other techniques
 
 ### Lyrics
 
@@ -89,13 +88,15 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Added Frosted Glass and Liquid player themes, along with a toggle for contrasting text for accessibility.
 - Significantly revamped Liquid player theme by adding audio-reactive features
 - Note: some features require Android 13+ support, and will be marked as such in settings
+- Made the default English locale British English for better consistency
 
 ### Playback and downloads
 
 - Added a sleep timer that fades out and fully stops playback
-- Added a Wi-Fi-only download toggle
+- Added a Wi-Fi-only download option
 - Improved fetch time for uncached songs
 - Added an inbuilt parametric equaliser and compressor
+- Improved equaliser and compressor pipeline for better, less artefact-prone audio
 - Added a crossfade function
 
 ### Internal libraries and build tooling
