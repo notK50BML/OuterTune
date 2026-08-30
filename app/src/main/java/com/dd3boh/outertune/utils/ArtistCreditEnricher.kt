@@ -142,6 +142,22 @@ object ArtistCreditEnricher {
                     collapsed += artist
                     continue
                 }
+
+                // The easy half, and in practice the common one. Once the real channel's name has
+                // been corrected - which happens on its own the first time its page is opened - the
+                // two credits read identically, and a local placeholder named exactly like a real
+                // channel already on the same song cannot be anything but a duplicate of it. That
+                // needs no search to establish, so it is settled before spending a request below,
+                // and it still works when the search would not: offline, rate limited, or for an
+                // artist whose name no longer finds its own channel.
+                val sameName = finalArtists.firstOrNull {
+                    it.isYouTubeArtist && it.name.equals(artist.name, ignoreCase = true)
+                }
+                if (sameName != null) {
+                    Timber.tag(TAG).d("[$songId] dropping \"${artist.name}\", a duplicate of ${sameName.id} under the same name")
+                    changed = true
+                    continue
+                }
                 // resolveArtist, not resolveArtistEntity. The latter prefers an existing library row
                 // with the resolved name - and in exactly this case that row is the placeholder
                 // being examined, so it handed back the placeholder's own local id, which of course
