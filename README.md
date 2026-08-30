@@ -12,6 +12,8 @@ I really, really need a cat.
 > This is a fork based on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune), a fork of the original OuterTune repository.
 >
 > While APKs would be uploaded, beta or nightly releases are rare in APK form. If you want to get a fix for a problem as soon as possible or try out new features, please read the wiki (https://github.com/notK50BML/OuterTune/wiki/Getting-started) for instructions on how to compile the APK yourself.
+>
+> I am also currently working on a Windows build of this app, so it is quite possible that android development may slow down a bit. To be honest though, this app already has more than enough features for most people, so adding more is probably counter-productive anyway. Of course, the android branch will still continue to receive maintenance updates and new features, but some time would be spent on the new windows build.
 
 
 ## What This Fork Improves
