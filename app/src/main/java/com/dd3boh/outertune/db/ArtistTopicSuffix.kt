@@ -12,6 +12,24 @@ package com.dd3boh.outertune.db
 val TOPIC_SUFFIX: Regex = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
 
 /**
+ * The bare channel id for an artist, whichever of YouTube's two spellings arrived.
+ *
+ * YTM hands back the same artist under two ids depending on where the credit came from: the plain
+ * channel id (UCWT2ZfW7d8YI-HinHEVhyCA) and a browse-id form with an MPLA prefix on the front of it
+ * (MPLAUCWT2ZfW7d8YI-HinHEVhyCA). They are one artist, and nothing here knew that.
+ *
+ * Two things went wrong as a result. A song credited under both spellings showed the artist twice.
+ * And because "is this a real channel" is decided by the id starting with UC, the prefixed form
+ * failed that test, got filed as a local placeholder, and rendered greyed out and untappable - so a
+ * song credited *only* under the prefixed form had no working artist link at all.
+ *
+ * Stripping the prefix rather than teaching every check to accept both keeps one id per artist,
+ * which is also what stops the duplicate from arising in the first place.
+ */
+fun String.normalizeArtistId(): String =
+    if (startsWith("MPLAUC")) removePrefix("MPLA") else this
+
+/**
  * Shared by every site that needs to compare or store an artist's display name independent of
  * whether the credit came in through YouTube's auto-generated "- Topic" channel: the general
  * song-artist sync path ([DatabaseDao.insert]), [com.dd3boh.outertune.utils.ArtistCreditEnricher]'s

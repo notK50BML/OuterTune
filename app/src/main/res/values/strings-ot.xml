@@ -110,7 +110,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="help_contact_email_inquiries">Other inquires (Tap to copy email)</string>
     <string name="help_support_forum">Help and support (Via GitHub)</string>
     <string name="no_updates_available">No updates available</string>
-    <string name="oss_licenses_title">Open source licenses</string>
+    <string name="oss_licenses_title">Open source licences</string>
     <string name="wiki">Wiki</string>
 
 <!-- Contributions -->
@@ -233,10 +233,10 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="wifi_only">Wi-Fi only</string>
 
 <!-- Player settings -->
-    <string name="audio_decoder_ffmpeg_only">Prioritize FFmpeg decoders</string>
+    <string name="audio_decoder_ffmpeg_only">Prioritise FFmpeg decoders</string>
     <string name="audio_decoder_preference">Audio decoder</string>
     <string name="audio_decoder_system_only">System decoders only</string>
-    <string name="audio_decoder_system_with_ffmpeg">Prioritize system decoders</string>
+    <string name="audio_decoder_system_with_ffmpeg">Prioritise system decoders</string>
     <string name="audio_gapless_offload" translatable="false">Gapless offload</string>
     <string name="audio_gapless_offload_description" translatable="false">Allow gapless offload if supported by the device and audio format. Some devices advertise support (Ex. Google Pixel 9 series), but the feature is good as useless in ExoPlayer because playback breaks after playing one song. When troubleshooting issues with offload, we suggest turning gapless offload off</string>
     <string name="audio_offload">Enable offload</string>
@@ -293,7 +293,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_provider_order_description">Providers are tried one at a time from the top, and the first synced lyrics win. This is slower than asking all of them at once.</string>
     <string name="lyrics_provider_order_auto_note">Provider selection is set to automatic, so this order only decides how alternate lyrics are listed. Set provider selection to use your order to have it decide which provider is used.</string>
     <string name="lyrics_prefer_local">Prefer local lyric files</string>
-    <string name="lyrics_prefer_local_description">Prioritize resolving local lyric files before using all cloud providers. Turn this off to prioritize cloud providers</string>
+    <string name="lyrics_prefer_local_description">Prioritise resolving local lyric files before using all cloud providers. Turn this off to prioritise cloud providers</string>
     <string name="lyrics_prefetch_title">Pre-fetch upcoming lyrics</string>
     <string name="lyrics_prefetch_description">Fetch lyrics for the next songs in the queue in advance</string>
     <string name="lyrics_prefetch_count_title">Number of songs to pre-fetch</string>

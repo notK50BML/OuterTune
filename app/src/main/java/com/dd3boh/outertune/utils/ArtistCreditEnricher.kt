@@ -13,6 +13,7 @@ import com.dd3boh.outertune.db.entities.AlbumArtistMap
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
+import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.ArtistItem
@@ -99,6 +100,16 @@ object ArtistCreditEnricher {
             // then picks its album's up on the next pass, which is a better answer than a blank.
             if (artist.name.isBlank()) {
                 Timber.tag(TAG).d("[$songId] dropping nameless credit ${artist.id}")
+                changed = true
+                continue
+            }
+            // Same artist, YouTube's other spelling of its id - see normalizeArtistId. Rewritten
+            // here rather than merely tolerated, so the credit becomes a real channel that links,
+            // and so it collides with its own bare-id twin below instead of showing twice.
+            val normalizedId = artist.id.normalizeArtistId()
+            if (normalizedId != artist.id) {
+                Timber.tag(TAG).d("[$songId] \"${artist.name}\" ${artist.id} -> $normalizedId")
+                finalArtists += artist.copy(id = normalizedId)
                 changed = true
                 continue
             }

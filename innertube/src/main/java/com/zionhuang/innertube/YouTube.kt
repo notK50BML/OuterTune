@@ -265,7 +265,12 @@ object YouTube {
     }
 
     suspend fun artist(browseId: String): Result<ArtistPage> = runCatching {
-        val response = innerTube.browse(WEB_REMIX, browseId).body<BrowseResponse>()
+        // YTM credits the same artist under both a plain channel id and an MPLA-prefixed browse id
+        // of the same channel. Only the plain form browses, so a credit stored in the prefixed form
+        // would otherwise open nothing. Normalised at the single point that fetches an artist page,
+        // rather than at each of the screens and menus that navigate to one.
+        val id = if (browseId.startsWith("MPLAUC")) browseId.removePrefix("MPLA") else browseId
+        val response = innerTube.browse(WEB_REMIX, id).body<BrowseResponse>()
 
         ArtistPage(
             artist = ArtistItem(

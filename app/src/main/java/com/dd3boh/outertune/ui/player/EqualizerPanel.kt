@@ -366,7 +366,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = "Color by value (green to red)",
+                            text = "Colour by value (green to red)",
                             style = MaterialTheme.typography.labelMedium,
                             color = eqColorVariant,
                         )

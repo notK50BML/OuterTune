@@ -48,7 +48,8 @@ data class MediaMetadata(
          * what should gate whether tapping the artist's name/row does anything.
          */
         val hasArtistPage: Boolean
-            get() = id != null && (id.startsWith("UC") || id.startsWith("FEmusic_library_privately_owned_artist"))
+            get() = id != null && (id.startsWith("UC") || id.startsWith("MPLAUC") ||
+                id.startsWith("FEmusic_library_privately_owned_artist"))
     }
 
     data class Album(

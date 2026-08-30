@@ -25,7 +25,11 @@ data class ArtistEntity(
     val isLocal: Boolean = false
 ) {
     val isYouTubeArtist: Boolean
-        get() = id.startsWith("UC") || id.startsWith("FEmusic_library_privately_owned_artist")
+        // MPLAUC is YouTube's other spelling of a plain UC channel id - see normalizeArtistId.
+        // Accepted here so a credit that still carries the prefixed form is treated as the real
+        // channel it is, rather than greyed out as a placeholder until the enricher rewrites it.
+        get() = id.startsWith("UC") || id.startsWith("MPLAUC") ||
+                id.startsWith("FEmusic_library_privately_owned_artist")
 
     fun localToggleLike() = copy(
         bookmarkedAt = if (bookmarkedAt != null) null else LocalDateTime.now(),
