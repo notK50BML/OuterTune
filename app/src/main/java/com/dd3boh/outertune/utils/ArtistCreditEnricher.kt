@@ -10,6 +10,7 @@ package com.dd3boh.outertune.utils
 
 import android.util.Log
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.db.entities.AlbumArtistMap
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
@@ -184,6 +185,45 @@ object ArtistCreditEnricher {
             creditedNames += resolved.name.lowercase()
             Log.d(TAG, "[$songId] added featured artist \"${resolved.name}\"")
         }
+
+        backfillAlbumArtists(database, song)
+    }
+
+    /**
+     * Credits the album this song is on with the artists its tracks agree on, when the album itself
+     * has none. The mirror of [creditAlbumArtists], for the case where the album is the side missing
+     * the data rather than the song.
+     *
+     * Only artists credited on *every* track are used. Taking one track's credits would be wrong on
+     * anything that is not a single-artist record: on a compilation, or on an album with one guest
+     * feature, whichever track happened to be looked at would put its guest on the album as though
+     * they had made all of it. An intersection can only ever yield artists the whole record shares,
+     * which on a normal album is exactly its artist and on a compilation is correctly nothing.
+     *
+     * Runs only when the album has no artists at all, so it never argues with data YTM did supply.
+     * It cannot recurse into [creditAlbumArtists] either: that one returns before reaching here, and
+     * only ever runs for a song with no artists, which contributes nothing to an intersection.
+     */
+    private suspend fun backfillAlbumArtists(database: MusicDatabase, song: Song) {
+        val albumId = song.album?.id ?: song.song.albumId ?: return
+        val album = database.album(albumId).first() ?: return
+        if (album.artists.isNotEmpty()) return
+
+        val tracks = database.albumSongs(albumId).first().filter { it.artists.isNotEmpty() }
+        if (tracks.isEmpty()) return
+
+        val shared = tracks.first().artists.filter { candidate ->
+            tracks.all { track -> track.artists.any { it.id == candidate.id } }
+        }
+        if (shared.isEmpty()) {
+            Log.d(TAG, "[$albumId] tracks share no artist - leaving the album uncredited")
+            return
+        }
+
+        shared.forEachIndexed { index, artist ->
+            database.insert(AlbumArtistMap(albumId = albumId, artistId = artist.id, order = index))
+        }
+        Log.d(TAG, "[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
     }
 
     /**
