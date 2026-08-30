@@ -20,6 +20,7 @@ import com.dd3boh.outertune.db.entities.AlbumWithSongs
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongAlbumMap
+import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.extensions.reversed
 import com.zionhuang.innertube.models.AlbumItem
@@ -268,7 +269,7 @@ interface AlbumsDao : ArtistsDao {
                 // either.
                 val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId(),
+                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId(),
                     name = cleanName
                 )
             }
@@ -276,7 +277,7 @@ interface AlbumsDao : ArtistsDao {
             ?.mapIndexed { index, artist ->
                 AlbumArtistMap(
                     albumId = albumItem.browseId,
-                    artistId = artist.id,
+                    artistId = artist.id.normalizeArtistId(),
                     order = index
                 )
             }

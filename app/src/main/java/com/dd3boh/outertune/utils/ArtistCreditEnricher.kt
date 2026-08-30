@@ -60,7 +60,33 @@ object ArtistCreditEnricher {
      * check - a song whose credits are already fully split and complete does nothing here beyond
      * the one initial database read.
      */
-    suspend fun enrich(database: MusicDatabase, songId: String): Unit = withContext(Dispatchers.IO) {
+    /**
+     * Repairs every song whose stored credits can be fixed without asking YouTube anything - the
+     * MPLA spelling of a channel id, and credits left with no name at all.
+     *
+     * Exists because those two faults come back. They are written by the ordinary song sync, which
+     * stores an artist id as YTM hands it over, so a library re-sync can reintroduce on a hundred
+     * songs what playback had corrected one song at a time. Normalising at the insert sites stops
+     * new ones; this clears out what is already there, without waiting for each song to be played
+     * again.
+     *
+     * Offline only, deliberately. The searching parts of [enrich] resolve one name per request, and
+     * a sweep that fired those across a whole library would be a lot of traffic for the sake of a
+     * refresh gesture. Those still run per song on playback, where one request is proportionate.
+     */
+    suspend fun relinkAll(database: MusicDatabase): Unit = withContext(Dispatchers.IO) {
+        val songIds = database.songIdsWithRepairableArtists()
+        if (songIds.isEmpty()) return@withContext
+        Timber.tag(TAG).d("relinking artists on ${songIds.size} song(s)")
+        songIds.forEach { enrich(database, it, allowNetwork = false) }
+    }
+
+    suspend fun enrich(
+        database: MusicDatabase,
+        songId: String,
+        /** False during [relinkAll] - see there for why a bulk pass does not search. */
+        allowNetwork: Boolean = true,
+    ): Unit = withContext(Dispatchers.IO) {
         val song = database.song(songId).first() ?: return@withContext
 
         // Logged unconditionally, and at the top, because the interesting question when a credit
@@ -125,7 +151,7 @@ object ArtistCreditEnricher {
 
             // "X & Y" might be a real act's own name - only treat it as fake once its own name
             // fails to resolve to a real, populated channel.
-            val realCombined = resolveArtistEntity(database, artist.name)
+            val realCombined = resolveArtistEntity(database, artist.name, allowNetwork)
             if (realCombined != null) {
                 finalArtists += realCombined
                 if (realCombined.id != artist.id) changed = true
@@ -135,7 +161,7 @@ object ArtistCreditEnricher {
             // Confirmed it doesn't exist as an artist on its own: drop it, keeping only whichever
             // half(s) DO resolve to a real, populated channel - an unresolved half is dropped
             // too, never kept as an unconfirmed guess.
-            val realHalves = candidates.mapNotNull { resolveArtistEntity(database, it) }
+            val realHalves = candidates.mapNotNull { resolveArtistEntity(database, it, allowNetwork) }
             finalArtists += realHalves
             changed = true
             Timber.tag(TAG).d("[$songId] combined credit \"${artist.name}\" doesn't exist on its own - replaced with ${realHalves.map { it.name }}")
@@ -163,7 +189,7 @@ object ArtistCreditEnricher {
             val winners = HashMap<String, ArtistEntity>()
             for (key in duplicatedNames) {
                 val dupes = finalArtists.filter { it.name.trim().lowercase() == key }
-                val canonicalId = resolveArtist(dupes.first().name)?.id
+                val canonicalId = resolveArtist(dupes.first().name, allowNetwork)?.id
                 val winner = dupes.firstOrNull { it.id == canonicalId }
                     ?: dupes.firstOrNull { it.isYouTubeArtist }
                     ?: dupes.first()
@@ -216,7 +242,7 @@ object ArtistCreditEnricher {
                 // being examined, so it handed back the placeholder's own local id, which of course
                 // never matched a real channel and the collapse never fired. What is needed here is
                 // the channel the name resolves to upstream, regardless of what is already stored.
-                val resolved = resolveArtist(artist.name)
+                val resolved = resolveArtist(artist.name, allowNetwork)
                 val cleanName = resolved?.title?.stripTopicSuffix()
                 val sameChannel = resolved?.let { r -> finalArtists.firstOrNull { it.id == r.id && it.isYouTubeArtist } }
                 if (sameChannel == null || cleanName == null) {
@@ -256,7 +282,7 @@ object ArtistCreditEnricher {
         var nextPosition = distinctFinalArtists.size
         val featured = parseFeaturedArtistNames(song.song.title).filter { it.lowercase() !in creditedNames }
         for (name in featured) {
-            val resolved = resolveArtistEntity(database, name) ?: continue
+            val resolved = resolveArtistEntity(database, name, allowNetwork) ?: continue
             database.insert(resolved)
             database.insert(SongArtistMap(songId = songId, artistId = resolved.id, position = nextPosition))
             nextPosition++
@@ -363,7 +389,8 @@ object ArtistCreditEnricher {
      * reads as a placeholder/junk channel rather than the actual artist - exactly the case this
      * should stay conservative about instead of linking to.
      */
-    private suspend fun resolveArtist(name: String): ArtistItem? {
+    private suspend fun resolveArtist(name: String, allowNetwork: Boolean = true): ArtistItem? {
+        if (!allowNetwork) return null
         val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()?.items
             ?: return null
         return results.filterIsInstance<ArtistItem>()
@@ -378,8 +405,8 @@ object ArtistCreditEnricher {
      * in the database under that clean name, its existing id/name are reused instead of minting a
      * second entity for the same real-world artist under a different id.
      */
-    private suspend fun resolveArtistEntity(database: MusicDatabase, name: String): ArtistEntity? {
-        val resolved = resolveArtist(name) ?: return null
+    private suspend fun resolveArtistEntity(database: MusicDatabase, name: String, allowNetwork: Boolean = true): ArtistEntity? {
+        val resolved = resolveArtist(name, allowNetwork) ?: return null
         val cleanName = resolved.title.stripTopicSuffix()
         val existing = database.artistByNameIgnoreCase(cleanName)
         return existing ?: ArtistEntity(id = resolved.id, name = cleanName)

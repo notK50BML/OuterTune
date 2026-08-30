@@ -300,6 +300,22 @@ interface SongsDao {
         }.map { it.reversed(descending) }
     // endregion
 
+    /**
+     * Songs whose credits are repairable without asking YouTube anything: one carrying an artist
+     * under the MPLA spelling of a channel id, or one credited to an artist with no name.
+     *
+     * Deliberately not "every song". The repair itself is cheap, but running it over a whole
+     * library to find the handful that need it is not, and the two faults it fixes are both
+     * visible in the stored rows - so the rows can say which songs to bother with.
+     */
+    @Query("""
+        SELECT DISTINCT sam.songId
+        FROM song_artist_map sam
+            JOIN artist a ON a.id = sam.artistId
+        WHERE a.id LIKE 'MPLAUC%' OR TRIM(a.name) = ''
+    """)
+    fun songIdsWithRepairableArtists(): List<String>
+
     // region downloaded Songs utils
     @Transaction
     @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0")

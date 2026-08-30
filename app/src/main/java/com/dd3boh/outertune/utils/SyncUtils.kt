@@ -594,6 +594,14 @@ class SyncUtils @Inject constructor(
                 }
             }
 
+            // Straight after the sync that causes the damage, not on a schedule of its own. The
+            // insert path stores an artist id as YTM hands it over, and YTM hands the same channel
+            // over under two spellings, so a sync can undo across the library what playback had
+            // corrected song by song - which is why the credits appeared to reset on every launch.
+            // Cheap: it only looks at songs whose stored rows show the fault, and asks YouTube
+            // nothing.
+            ArtistCreditEnricher.relinkAll(database)
+
             markSynced(LastLibSongSyncKey)
             updateState { copy(librarySongs = SyncStatus.Completed) }
         } catch (e: CancellationException) {
