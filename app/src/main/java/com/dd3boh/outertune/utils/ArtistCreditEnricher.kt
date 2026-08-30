@@ -92,6 +92,16 @@ object ArtistCreditEnricher {
         var changed = false
         val finalArtists = mutableListOf<ArtistEntity>()
         for (artist in song.artists) {
+            // Cleans up rows already written by the blank-name bug in stripTopicSuffix, which
+            // turned a channel titled exactly "- Topic" into an artist with no name at all. Such a
+            // credit renders as nothing, sorts nowhere, and links to the junk channel it came from,
+            // so there is nothing to preserve by keeping it. A song left with no credits at all
+            // then picks its album's up on the next pass, which is a better answer than a blank.
+            if (artist.name.isBlank()) {
+                Timber.tag(TAG).d("[$songId] dropping nameless credit ${artist.id}")
+                changed = true
+                continue
+            }
             if (artist.isYouTubeArtist) {
                 finalArtists += artist
                 continue
