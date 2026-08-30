@@ -1,9 +1,7 @@
 package com.dd3boh.outertune.ui.screens.artist
 
 import android.content.Intent
-import android.graphics.Bitmap
 import androidx.compose.foundation.ExperimentalFoundationApi
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -59,8 +57,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -73,10 +71,6 @@ import androidx.compose.ui.util.fastForEach
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import coil3.compose.AsyncImage
-import coil3.imageLoader
-import coil3.request.ImageRequest
-import coil3.request.allowHardware
-import coil3.toBitmap
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalMenuState
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
@@ -113,37 +107,15 @@ import com.dd3boh.outertune.ui.menu.YouTubeArtistMenu
 import com.dd3boh.outertune.ui.menu.YouTubePlaylistMenu
 import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
 import com.dd3boh.outertune.ui.utils.backToMain
-import com.dd3boh.outertune.ui.utils.detectLetterboxContentBounds
 import com.dd3boh.outertune.ui.utils.fadingEdge
-import com.dd3boh.outertune.ui.utils.naturalAspectRatioOrNull
 import com.dd3boh.outertune.ui.utils.resize
-import com.dd3boh.outertune.utils.coilCoroutine
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.ArtistViewModel
 import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.ArtistItem
 import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.SongItem
-import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
-
-/**
- * Scales the artist header's aspect ratio down (taller box for the same width) before it's
- * clamped - see the call site for why a header sized to the image's bare aspect ratio alone
- * still needed this. Used for a wide/banner photo, where the box is already fairly short and
- * benefits from a bit more height so the name doesn't feel cramped against it.
- */
-private const val HEADER_HEIGHT_BOOST = 0.78f
-
-/**
- * The stronger boost applied to a genuinely square photo with no letterboxing found - see the
- * call site. A plain square avatar with nothing else going on can afford (and reads better with)
- * more headroom above it than a banner photo does.
- */
-private const val HEADER_HEIGHT_BOOST_SQUARE = 0.65f
-
-/** How far from exactly 1:1 a photo's aspect ratio can be and still count as "square" below. */
-private const val SQUARE_ASPECT_TOLERANCE = 0.15f
 
 @OptIn(ExperimentalFoundationApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -191,105 +163,53 @@ fun ArtistScreen(
             val thumbnail = artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
             val artistName = artistPage?.artist?.title ?: libraryArtist?.artist?.name
 
-            // Requesting a fixed 4:3 crop regardless of the source's own shape cost the old
-            // square channel avatars their top and bottom and newer wide banner photos their
-            // sides - both are real artist-image shapes, not artifacts to crop away. The box now
-            // takes on whichever shape the source actually has (old square avatars render at
-            // roughly their own square-ish size instead of being squeezed into a wide slot; newer
-            // wide/letterboxed photos render at their own width, "normally"), clamped so a stray
-            // unusual source can't blow the header out to something absurd.
-            val naturalAspect = remember(thumbnail) { thumbnail?.naturalAspectRatioOrNull() }
-
-            // The URL's own aspect ratio only describes the *file's* shape, not necessarily the
-            // photo's - some square avatars are a non-square picture letterboxed onto a square
-            // canvas, black bars baked into the pixels rather than anything a resize parameter
-            // can see or remove. Decoding the thumbnail once and looking for those bars is the
-            // only way to find that content region; null means either it's still loading or there
-            // genuinely isn't a bar to trim, and the URL-based aspect ratio is used meanwhile/instead.
-            var croppedThumbnail by remember(thumbnail) { mutableStateOf<Bitmap?>(null) }
-            LaunchedEffect(thumbnail) {
-                croppedThumbnail = null
-                val url = thumbnail ?: return@LaunchedEffect
-                withContext(coilCoroutine) {
-                    val bitmap = runCatching {
-                        context.imageLoader.execute(
-                            ImageRequest.Builder(context)
-                                .data(url.resize(width = 900))
-                                .allowHardware(false)
-                                .build()
-                        ).image?.toBitmap()
-                    }.getOrNull() ?: return@withContext
-                    val bounds = bitmap.detectLetterboxContentBounds() ?: return@withContext
-                    croppedThumbnail = Bitmap.createBitmap(bitmap, bounds.left, bounds.top, bounds.width(), bounds.height())
-                }
-            }
-
-            val hasLetterbox = croppedThumbnail != null
-            val baseAspect = croppedThumbnail?.let { it.width.toFloat() / it.height } ?: naturalAspect ?: (4f / 3)
-            // Displaying the image at its exact own ratio made a wide banner photo's header
-            // shallow - a real shape, not a bug, but a strip that thin read as cramped rather than
-            // a proper header. Boosting (scaling the ratio down, which makes the box taller for
-            // the same width) fixes that, but not by the same amount for every source:
-            // - Letterboxed source: the black bars already got cropped off above, so
-            //   `baseAspect` IS the real photo's own shape already - boosting it further on top of
-            //   that just adds more blank space above the image (it's bottom-aligned) for no
-            //   reason. No boost here.
-            // - Genuinely square, no letterboxing found: nothing else is shaping this box, so it
-            //   gets the strongest boost - otherwise the name overlaps the photo's own content
-            //   with no room to breathe.
-            // - Anything else (a real wide/landscape banner): the original, milder boost.
-            val boost = when {
-                hasLetterbox -> 1f
-                baseAspect in (1f - SQUARE_ASPECT_TOLERANCE)..(1f + SQUARE_ASPECT_TOLERANCE) -> HEADER_HEIGHT_BOOST_SQUARE
-                else -> HEADER_HEIGHT_BOOST
-            }
-            val headerAspect = (baseAspect * boost).coerceIn(0.6f, 1.6f)
-
+            // A fixed square header, filled by cropping - which is what Metrolist does, and the
+            // reason its artist pages look settled where this one did not.
+            //
+            // What was here instead tried to honour whatever shape each source image happened to
+            // be: reading the natural aspect from the url, decoding the bitmap to hunt for baked-in
+            // letterbox bars, cropping those off, then scaling the result by one of three boost
+            // factors depending on what it had found. Every step of that was reasonable on its own
+            // and the whole was not, because it made the header a different height on every artist.
+            // Nothing else on the screen could be positioned against it, the name sat at a
+            // different place each time, and the page appeared to jump as the decode finished and
+            // the ratio changed underneath it.
+            //
+            // Cropping to a constant square gives up showing every image whole, which is a real
+            // cost and a small one: these are artist portraits and channel banners, and the middle
+            // of one is the part worth seeing. In exchange the header is the same size for every
+            // artist, the name always lands in the same place, and nothing reflows after load.
             Column {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(
-                            if (thumbnail != null) Modifier.aspectRatio(headerAspect) else Modifier
+                            if (thumbnail != null) Modifier.aspectRatio(1f) else Modifier
                         )
                 ) {
                     if (thumbnail != null) {
-                        // Bottom-aligned, not centred: the box is now deliberately taller than the
-                        // image's own shape (HEADER_HEIGHT_BOOST), and centring a same-size image
-                        // in a taller box split that extra room evenly above *and* below it -
-                        // pulling the image's bottom edge away from the artist-name text pinned to
-                        // the box's own bottom, so the name ended up floating over bare background
-                        // instead of over the photo's (faded) bottom edge. Anchoring the image to
-                        // the bottom keeps it flush with the text overlay exactly as before; the
-                        // extra height shows up above the image instead, which is the one place
-                        // adding it doesn't disturb anything (that's already just the area behind
-                        // the transparent status bar/app bar).
-                        val fadeModifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fadingEdge(
-                                top = WindowInsets.systemBars
-                                    .asPaddingValues()
-                                    .calculateTopPadding() + AppBarHeight,
-                                bottom = 64.dp
-                            )
-                        val cropped = croppedThumbnail
-                        if (cropped != null) {
-                            Image(
-                                bitmap = cropped.asImageBitmap(),
-                                contentDescription = null,
-                                modifier = fadeModifier,
-                            )
-                        } else {
-                            AsyncImage(
-                                // Width only, not a fixed width+height: the latter is what forced
-                                // the crop above. resize() fills in a height that preserves the
-                                // source's own aspect ratio when it knows one (googleusercontent),
-                                // and every other scheme here ignores the height argument anyway.
-                                model = thumbnail.resize(width = 1200),
-                                contentDescription = null,
-                                modifier = fadeModifier,
-                            )
-                        }
+                        AsyncImage(
+                            // Square on both axes now, matching the box, since the image is being
+                            // cropped to fill it rather than laid out at its own shape.
+                            model = thumbnail.resize(1200, 1200),
+                            contentDescription = null,
+                            // Crop, not Fit: Fit would letterbox a non-square source inside the
+                            // square and put back the bars the old code went to such lengths to
+                            // detect and remove.
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                // Top-aligned so the crop keeps a portrait's head rather than its
+                                // chin - centring took the middle of the frame, which on a standing
+                                // photo is rarely the face.
+                                .align(Alignment.TopCenter)
+                                .fadingEdge(
+                                    top = WindowInsets.systemBars
+                                        .asPaddingValues()
+                                        .calculateTopPadding() + AppBarHeight,
+                                    bottom = 64.dp
+                                ),
+                        )
                     }
                     AutoResizeText(
                         text = artistName
