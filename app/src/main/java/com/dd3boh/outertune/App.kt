@@ -38,7 +38,6 @@ import com.dd3boh.outertune.constants.ContentCountryKey
 import com.dd3boh.outertune.constants.ContentLanguageKey
 import com.dd3boh.outertune.constants.CountryCodeToName
 import com.dd3boh.outertune.constants.DataSyncIdKey
-import com.dd3boh.outertune.constants.HighResArtworkKey
 import com.dd3boh.outertune.constants.InnerTubeCookieKey
 import com.dd3boh.outertune.constants.LanguageCodeToName
 import com.dd3boh.outertune.constants.MaxImageCacheSizeKey
@@ -57,7 +56,6 @@ import com.dd3boh.outertune.utils.cipher.CipherDeobfuscator
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.artworkFallbackToLowRes
-import com.dd3boh.outertune.utils.highResArtwork
 import com.dd3boh.outertune.utils.normalizeDataSyncId
 import com.dd3boh.outertune.utils.reportException
 import com.dd3boh.outertune.utils.scheduleAutoBackup
@@ -160,16 +158,6 @@ class App : Application(), SingletonImageLoader.Factory {
                 .distinctUntilChanged()
                 .collect { dataSyncId ->
                     YouTube.dataSyncId = normalizeDataSyncId(dataSyncId)
-                }
-        }
-        // Mirrored into a plain field so the artwork helpers, which are called from non-composable
-        // code paths without a Context, can read it cheaply.
-        GlobalScope.launch {
-            dataStore.data
-                .map { it[HighResArtworkKey] ?: true }
-                .distinctUntilChanged()
-                .collect { enabled ->
-                    highResArtwork = enabled
                 }
         }
         GlobalScope.launch {

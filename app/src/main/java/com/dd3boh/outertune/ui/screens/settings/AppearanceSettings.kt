@@ -34,7 +34,6 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
-import com.dd3boh.outertune.constants.HighResArtworkKey
 import com.dd3boh.outertune.constants.ShowTopBarLogoKey
 import com.dd3boh.outertune.constants.SlimNavBarKey
 import com.dd3boh.outertune.constants.TopBarInsets
@@ -66,8 +65,6 @@ fun AppearanceSettings(
     val (slimNav, onSlimNavChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
     val (showTopBarLogo, onShowTopBarLogoChange) =
         rememberPreference(ShowTopBarLogoKey, defaultValue = true)
-    val (highResArtworkPref, onHighResArtworkChange) =
-        rememberPreference(HighResArtworkKey, defaultValue = true)
     val (artworkFallbackToLowResPref, onArtworkFallbackToLowResChange) =
         rememberPreference(ArtworkFallbackToLowResKey, defaultValue = true)
 
@@ -106,23 +103,14 @@ fun AppearanceSettings(
             )
         }
 
-        // The fallback only means anything with high-res on, so keeping the two adjacent is the
-        // whole point of grouping them - the dependency is visible rather than inferred.
+        // High-res artwork is no longer a choice, so only the failure fallback is left here.
         SettingsGroup(title = stringResource(R.string.grp_thumbnails)) {
-            SwitchPreference(
-                title = { Text(stringResource(R.string.high_res_artwork_title)) },
-                description = stringResource(R.string.high_res_artwork_description),
-                icon = { Icon(Icons.Rounded.HighQuality, null) },
-                checked = highResArtworkPref,
-                onCheckedChange = onHighResArtworkChange
-            )
             SwitchPreference(
                 title = { Text(stringResource(R.string.artwork_fallback_low_res_title)) },
                 description = stringResource(R.string.artwork_fallback_low_res_description),
                 icon = { Icon(Icons.Rounded.HighQuality, null) },
                 checked = artworkFallbackToLowResPref,
                 onCheckedChange = onArtworkFallbackToLowResChange,
-                isEnabled = highResArtworkPref
             )
         }
 

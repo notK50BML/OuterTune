@@ -210,17 +210,12 @@ val MaxImageCacheSizeKey = intPreferencesKey("maxImageCacheSize")
 val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
 
 /**
- * When true, remote artwork URLs are rewritten to request an image at least as large as the
- * view that will display it. YouTube hands out small thumbnails (often 60-226px) in browse and
- * library responses; using them verbatim leaves album covers visibly soft on a full-width
- * player. When false, URLs are used exactly as returned, which is what OuterTune did before.
- */
-val HighResArtworkKey = booleanPreferencesKey("highResArtwork")
-
-/**
- * When the high-res request in [HighResArtworkKey] fails to load, fall back to a lower-resolution
- * request instead of showing nothing - the CDN occasionally rejects a very large size (or times out
- * on it) for art that loads fine at a smaller one.
+ * When a full-size artwork request fails to load, fall back to a lower-resolution one instead of
+ * showing nothing - the CDN occasionally rejects a very large size (or times out on it) for art
+ * that loads fine smaller.
+ *
+ * This is a fallback for a failure, not a preference about quality: asking for artwork at the size
+ * it will be drawn at is unconditional now (see [com.dd3boh.outertune.utils.remoteArtwork]).
  */
 val ArtworkFallbackToLowResKey = booleanPreferencesKey("artworkFallbackToLowRes")
 

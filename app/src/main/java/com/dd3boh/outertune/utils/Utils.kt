@@ -87,14 +87,6 @@ fun getDownloadState(localDateTimes: List<LocalDateTime?>): Int {
 }
 
 /**
- * Mirrors [com.dd3boh.outertune.constants.HighResArtworkKey] so the non-composable artwork
- * helpers below can consult it without a Context. Kept in sync by a DataStore collector in
- * [com.dd3boh.outertune.App].
- */
-@Volatile
-var highResArtwork: Boolean = true
-
-/**
  * Mirrors [com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey] for
  * [com.dd3boh.outertune.ArtworkFallbackInterceptor], which runs outside any Context.
  */
@@ -109,10 +101,16 @@ var artworkFallbackToLowRes: Boolean = true
  * Coil then upscaled it to fill the view, which is why album covers looked soft. Rewriting the
  * `=wW-hH` (or `*default.jpg`) portion of the URL costs nothing and gets a sharp image.
  *
+ * This used to be optional. It is not any more: the setting only ever bought back the difference
+ * between a small JPEG and a slightly larger one, which is not a saving worth a soft album cover on
+ * every screen in the app. [com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey] still exists
+ * and still matters, because it covers the case where the CDN refuses a large size outright - that
+ * is a fallback for a failure, not a preference about quality.
+ *
  * A non-positive [sizeX] means "size unknown", in which case the URL is left alone.
  */
 fun remoteArtwork(thumbnailUrl: String, sizeX: Int = -1, sizeY: Int = -1): String {
-    if (!highResArtwork || sizeX <= 0) return thumbnailUrl
+    if (sizeX <= 0) return thumbnailUrl
     return runCatching { thumbnailUrl.resize(sizeX, if (sizeY > 0) sizeY else sizeX) }
         .getOrDefault(thumbnailUrl)
 }
