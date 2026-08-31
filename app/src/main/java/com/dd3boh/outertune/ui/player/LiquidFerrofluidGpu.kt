@@ -41,27 +41,45 @@ private const val TAG = "LiquidFerrofluidGpu"
  * home on a desktop-class GPU (a WSA build on a PC), where the pixel budget the phone tiers are
  * protecting simply isn't the constraint.
  */
-enum class FerrofluidQuality(val renderScale: Float, val maxSteps: Int) {
-    /** Quarter-resolution, short march. For phones, or when battery matters more than the look. */
-    LOW(0.35f, 20),
+enum class FerrofluidQuality(
+    val renderScale: Float,
+    val maxSteps: Int,
+    val targetFps: Int,
+    /** How many lattice sites are marched - see `activeSpikes` in [FERROFLUID_GPU_SHADER_SRC]. */
+    val activeSpikes: Int,
+) {
+    /** Quarter-resolution, short march, one ring. For phones, or when battery matters most. */
+    LOW(0.35f, 20, 24, 7),
 
-    /** The previous fixed behaviour, kept as the default so nothing changes without asking. */
-    MEDIUM(0.5f, 24),
+    /** Half-resolution, one ring. The default. */
+    MEDIUM(0.5f, 28, 30, 7),
 
-    /** Native resolution and a long march - for a desktop-class GPU, where this actually shines. */
-    HIGH(1.0f, 40),
+    /** Native resolution, both rings - for a desktop-class GPU, where this actually shines. */
+    HIGH(1.0f, 44, 60, 19),
+
+    /** Everything uncapped. Genuinely expensive; for a discrete GPU or a flagship Xclipse/Adreno. */
+    ULTRA(1.0f, 64, 60, 19),
 }
 
 /**
  * Experimental, opt-in alternative to [LiquidShapeStyle.FERROFLUID]'s Canvas polygon: a genuine
- * raymarched scene, the same technique Shadertoy-style GPU ferrofluid/metaball demos use, running
- * as a single AGSL fragment shader rather than a flat 2D shape. Several blobby "spike" spheres are
- * smooth-min blended into one connected crown SDF, marched per pixel, lit with a Fresnel/specular
- * model - the same "genuinely black, sold by the highlight, not the fill" idea the lightweight
- * version uses, just with a real surface normal instead of a 2D gradient standing in for one.
+ * raymarched scene running as a single AGSL fragment shader rather than a flat 2D shape.
  *
- * Three things about this version are worth knowing:
+ * This models what ferrofluid actually does, rather than the generic Shadertoy metaball look:
  *
+ * - **The shape is the Rosensweig instability.** Put a ferrofluid pool in a vertical magnetic
+ *   field and past a critical strength the flat surface spontaneously breaks into a regular
+ *   *hexagonal lattice* of peaks - the packing that best balances surface tension, gravity and the
+ *   field. So the scene is a hexagonal array of cusped peaks rising from a shallow pool, with bass
+ *   playing the part of field strength, rather than a ring of blobs orbiting each other. See
+ *   `latticeSite`.
+ * - **The peaks are cones, not spheres.** A real peak has a broad foot and a near-point tip, and
+ *   blending spheres can only ever produce mounds. `sdRoundCone` is an exact cone SDF, and the
+ *   smin blend radius is deliberately tight so the feet meet the pool in a cusp.
+ * - **The material is almost pure specular.** Ferrofluid is magnetite in oil - optically it is
+ *   opaque black, and essentially everything visible in real footage is reflection, not diffuse
+ *   shading. So diffuse is a trace, and the surface is carried by two sharp highlights, a Schlick
+ *   Fresnel edge, and a cheap reflected vertical gradient standing in for the room.
  * - **The empty space is skipped analytically.** The scene lives entirely inside a known bounding
  *   sphere, so rather than marching from the camera and spending steps crossing vacuum, the ray is
  *   intersected with that sphere in closed form and the march *starts at the surface*. Rays that
@@ -71,13 +89,10 @@ enum class FerrofluidQuality(val renderScale: Float, val maxSteps: Int) {
  * - **The colour comes from the theme.** Highlight and rim colours are uniforms fed from the
  *   Material 3 scheme, so the crown belongs to whatever palette the app is currently wearing
  *   instead of being hardcoded to one cold blue-grey.
- * - **The crown moves.** Spikes orbit, and breathe outward and back in together (split/converge)
- *   on a slow cycle that bass pushes along, so the shape travels rather than sitting in place
- *   pulsing. See `orbit`/`spread` in [FERROFLUID_GPU_SHADER_SRC].
  *
  * Still real, sustained per-pixel GPU work: up to `maxSteps` scene evaluations per pixel, each
- * blending SPIKES distance fields, plus four more for the normal at the hit point (tetrahedron
- * technique, not six paired samples). Deliberately kept separate from and opt-in alongside the
+ * blending `activeSpikes` distance fields, plus four more for the normal at the hit point
+ * (tetrahedron technique, not six paired samples). Deliberately kept separate from and opt-in alongside the
  * lightweight Canvas version (never replacing it) so battery/thermal impact stays comparable on a
  * real device - which the lightweight polygon was written to avoid needing in the first place.
  */
@@ -88,6 +103,7 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
     uniform float treble;
     uniform float transient;
     uniform int maxSteps;
+    uniform int activeSpikes;
     // Material 3 roles, linear-ish sRGB components. highlightColor carries the specular glint and
     // rimColor the Fresnel edge, so the crown reads as part of the current theme rather than a
     // fixed cold grey.
@@ -95,16 +111,19 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
     uniform float3 rimColor;
     uniform float3 baseColor;
 
-    const int SPIKES = 5;
+    // A full two-ring hexagonal lattice: 1 centre + 6 + 12. The tier's activeSpikes decides how
+    // many are actually marched (early break in sceneDist), so the cheap tiers render the centre
+    // and first ring only - still a hexagon, just a smaller one, rather than a broken lattice.
+    const int SPIKES = 19;
     // The ceiling, and a compile-time constant on purpose: AGSL follows GLSL ES 2.0 rules, where a
     // loop's bound has to be a constant expression, so the quality tier cannot be the bound itself.
     // It's applied as an early break inside the loop instead - a dynamic break is allowed, which
     // the surface-hit test below already relies on.
-    const int MAX_STEPS = 40;
+    const int MAX_STEPS = 64;
     const float MAX_DIST = 6.0;
     const float SURF_DIST = 0.008;
     // Everything the scene can ever occupy fits in this sphere about the origin - the spike
-    // centres reach at most ~0.75 out and their radii ~0.3, plus headroom for the pool below.
+    // pool reaches 0.80 in xz and 0.87 below, and the tallest peak tops out near y = 0.35.
     const float BOUND_RADIUS = 1.45;
 
     float sminCubic(float a, float b, float k) {
@@ -112,37 +131,79 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
         return mix(b, a, h) - k * h * (1.0 - h);
     }
 
+    // Exact SDF for a vertical rounded cone (Inigo Quilez): base radius r1 at the origin tapering
+    // to tip radius r2 at height h. This is the shape that makes the difference - a real peak is a
+    // cusp with a broad foot and a near-point, not a sphere, and blending spheres could only ever
+    // give mounds.
+    float sdRoundCone(float3 p, float r1, float r2, float h) {
+        float2 q = float2(length(p.xz), p.y);
+        float b = (r1 - r2) / h;
+        float a = sqrt(max(1.0 - b * b, 0.0));
+        float k = dot(q, float2(-b, a));
+        if (k < 0.0) return length(q) - r1;
+        if (k > a * h) return length(q - float2(0.0, h)) - r2;
+        return dot(q, float2(a, b)) - r1;
+    }
+
+    // Rosensweig lattice. A ferrofluid pool in a vertical magnetic field does not throw up a ring
+    // of blobs: past a critical field strength the flat surface goes unstable and settles into a
+    // regular *hexagonal* array of peaks, because that is the packing that best balances surface
+    // tension, gravity and the field. Index 0 is the centre, 1..6 the first ring, and 7..18 the
+    // second - six at the corners plus six at the edge midpoints, which is what makes the outer
+    // ring part of the same hexagonal packing instead of just a wider circle of peaks.
+    float3 latticeSite(int i, float spacing, float spin) {
+        if (i == 0) return float3(0.0, 0.0, 0.0);
+        float ang;
+        float rad;
+        if (i <= 6) {
+            ang = float(i - 1) * 1.0471976;
+            rad = spacing;
+        } else if (i <= 12) {
+            ang = float(i - 7) * 1.0471976;
+            rad = spacing * 2.0;
+        } else {
+            ang = float(i - 13) * 1.0471976 + 0.5235988;
+            rad = spacing * 1.7320508;
+        }
+        ang += spin;
+        return float3(cos(ang) * rad, 0.0, sin(ang) * rad);
+    }
+
     float spikeDist(float3 p, int i, float t) {
-        float fi = float(i);
+        float spacing = 0.26;
+        // The lattice turns slowly as a whole. The peaks keep their slots relative to each other,
+        // which is the point - a hexagonal array that stays an array reads as a real instability,
+        // where independently wandering blobs read as lava lamp.
+        float3 site = latticeSite(i, spacing, t * 0.13);
 
-        // Orbit: the whole crown rotates, and each spike also drifts around its own slot, so the
-        // arrangement never settles into a fixed wheel.
-        float orbit = fi * 6.2831853 / float(SPIKES)
-            + t * 0.22
-            + sin(t * 0.37 + fi * 2.1) * 0.28;
+        // The applied field is strongest at the centre, so outer peaks are shorter and the crown
+        // domes. Bass plays the part of field strength: quiet leaves the surface nearly flat and
+        // loud drives the peaks up, which is exactly how the real instability responds.
+        float ringFall = 1.0 - clamp(length(site.xz) / (spacing * 2.4), 0.0, 1.0) * 0.55;
+        float field = bass + transient * 0.35;
+        // A ripple travelling outward from the centre, so the array breathes in sequence rather
+        // than every peak pumping in unison.
+        float ripple = 0.5 + 0.5 * sin(t * 1.1 - length(site.xz) * 5.0);
+        float h = max((0.10 + field * 0.62 + ripple * 0.05) * ringFall, 0.02);
 
-        // Split/converge: one slow breath pushes every spike outward and draws it back in
-        // together, with bass able to shove it wider. This is what makes the shape travel rather
-        // than pulse in place - the radius the spikes sit at is itself moving.
-        float spread = 0.42
-            + 0.20 * sin(t * 0.31)
-            + bass * 0.22
-            + transient * 0.10;
-
-        float wobble = sin(t * 0.9 + fi * 1.7) * 0.08;
-        float2 basePos = float2(cos(orbit), sin(orbit)) * (spread + wobble);
-
-        float height = 0.26 + bass * 1.3 + 0.07 * sin(t * 2.1 + fi * 2.3) + transient * 0.5;
-        float3 center = float3(basePos.x, -0.2 + height * 0.42, basePos.y);
-        float radius = 0.3 - height * 0.07;
-        return length(p - center) - radius;
+        float3 q = p - float3(site.x, -0.42, site.z);
+        return sdRoundCone(q, 0.135 * ringFall, 0.018, h);
     }
 
     float sceneDist(float3 p, float t) {
-        float pool = length(float3(p.x, (p.y + 0.6) * 2.6, p.z)) - 0.58;
+        // The shallow pool the peaks rise out of. Dividing by the y-scale keeps the result a
+        // conservative *under*-estimate of the true distance: a squashed sphere written the naive
+        // way overestimates by the scale factor, and an overestimating SDF lets the march step
+        // straight through the surface it was meant to stop at.
+        float pool = (length(float3(p.x, (p.y + 0.62) * 3.2, p.z)) - 0.80) / 3.2;
         float d = pool;
         for (int i = 0; i < SPIKES; i++) {
-            d = sminCubic(d, spikeDist(p, i, t), 0.32);
+            if (i >= activeSpikes) {
+                break;
+            }
+            // Tight blend radius. Real peaks meet the pool in a cusp; a wide smin would melt the
+            // feet together into one mound and undo the cone shape above.
+            d = sminCubic(d, spikeDist(p, i, t), 0.10);
         }
         return d;
     }
@@ -166,8 +227,10 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
             return half4(0.0, 0.0, 0.0, 0.0);
         }
 
-        float3 rayOrigin = float3(0.0, 0.25, -2.2);
-        float3 rayDir = normalize(float3(uv.x, -uv.y, 1.0));
+        // Raised and tilted down onto the pool. The old near-horizontal camera was fine for a ring
+        // of blobs, but a hexagonal array is only legible as one if you can see across it.
+        float3 rayOrigin = float3(0.0, 0.85, -2.2);
+        float3 rayDir = normalize(float3(uv.x, -uv.y - 0.55, 1.0));
 
         // Analytic bounding-sphere entry. Solving this quadratic once is far cheaper than the
         // several marching steps it would otherwise take to cross the empty space in front of the
@@ -213,17 +276,45 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
         }
 
         float3 normal = estimateNormal(hitPos, time);
-        float3 lightDir = normalize(float3(0.5, 0.8, -0.6));
-        float diffuse = max(dot(normal, lightDir), 0.0);
         float3 viewDir = normalize(rayOrigin - hitPos);
-        float3 halfDir = normalize(lightDir + viewDir);
-        float specular = pow(max(dot(normal, halfDir), 0.0), 46.0);
-        float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
 
-        float3 col = baseColor * (0.3 + diffuse * 0.7)
-            + highlightColor * specular * 0.9
-            + rimColor * fresnel * 0.45
-            + treble * 0.06 * highlightColor;
+        // Ferrofluid is magnetite suspended in oil: for practical purposes it is opaque black.
+        // Essentially nothing you see on real footage of it is diffuse colour - it is all
+        // reflection. So the diffuse term here is a trace, and the surface is instead sold by two
+        // sharp highlights, a strong Fresnel edge, and a cheap environment reflection.
+        float3 keyDir = normalize(float3(0.5, 0.8, -0.6));
+        float3 fillDir = normalize(float3(-0.6, 0.35, -0.4));
+
+        float keySpec = pow(max(dot(normal, normalize(keyDir + viewDir)), 0.0), 150.0);
+        float fillSpec = pow(max(dot(normal, normalize(fillDir + viewDir)), 0.0), 40.0);
+        float diffuse = max(dot(normal, keyDir), 0.0);
+
+        // Schlick Fresnel with a dielectric F0. A near-black dielectric is almost mirror-like at
+        // grazing angles, which is why the silhouette and the flanks of the peaks in real footage
+        // are so much brighter than the surfaces facing you.
+        float cosTheta = clamp(dot(normal, viewDir), 0.0, 1.0);
+        float fresnel = 0.04 + 0.96 * pow(1.0 - cosTheta, 5.0);
+
+        // A stand-in environment: reflect the view vector and read a vertical gradient, bright
+        // above and dark below. Two lines, no texture, and it does more for "this is a liquid
+        // mirror" than any amount of extra lighting would - because the thing that actually makes
+        // a mirror look like a mirror is having something to reflect.
+        float3 reflDir = reflect(-viewDir, normal);
+        float envUp = clamp(reflDir.y * 0.5 + 0.5, 0.0, 1.0);
+        float3 env = mix(baseColor * 0.15, rimColor, envUp * envUp);
+
+        // Real ferrofluid is black, and a physically honest version of this was black too - which
+        // left it with nothing to contrast against a dark UI, since a black shape on a dark
+        // background is just a hole. So the body is deliberately tinted with the theme's base
+        // colour and given a real diffuse term: a *coloured* liquid metal rather than a literal
+        // one. The specular model above is untouched, and that is what still reads as ferrofluid -
+        // the tight highlights and the Fresnel-bright flanks do the identifying, not the fill.
+        float3 col = baseColor * 0.18
+            + baseColor * diffuse * 0.45
+            + env * fresnel * 1.4
+            + highlightColor * keySpec * 1.5
+            + highlightColor * fillSpec * 0.30
+            + rimColor * treble * 0.05;
 
         return half4(col, 1.0);
     }
@@ -282,16 +373,28 @@ fun FerrofluidGpuOrFallback(
     val currentBase by rememberUpdatedState(baseColor)
     val renderScale = quality.renderScale
 
-    LaunchedEffect(isActive) {
+    // The march is re-run for every pixel every time elapsedSeconds changes, and the Canvas below
+    // reads it - so the rate this advances at *is* the render frame rate. Left uncapped it followed
+    // the display, meaning a 120Hz phone paid twice the GPU of a 60Hz one to animate a slow,
+    // heavily-blurred blob that reads no differently either way. Frames arriving sooner than the
+    // tier's interval are dropped without touching the state, so no redraw happens for them.
+    //
+    // Wall-clock time is still read straight from the vsync stamp rather than accumulated from the
+    // frames we kept, so dropping frames slows the render rate without slowing the animation.
+    val frameIntervalNanos = 1_000_000_000L / quality.targetFps
+    LaunchedEffect(isActive, frameIntervalNanos) {
         if (!isActive) return@LaunchedEffect
-        var lastFrameNanos = 0L
+        var startNanos = 0L
+        var lastEmitNanos = 0L
         while (true) {
             withFrameNanos { nanos ->
-                if (lastFrameNanos != 0L) {
-                    val deltaSeconds = (nanos - lastFrameNanos) / 1_000_000_000f
-                    elapsedSeconds += deltaSeconds
+                if (startNanos == 0L) {
+                    startNanos = nanos
+                    lastEmitNanos = nanos
+                } else if (nanos - lastEmitNanos >= frameIntervalNanos) {
+                    lastEmitNanos = nanos
+                    elapsedSeconds = (nanos - startNanos) / 1_000_000_000f
                 }
-                lastFrameNanos = nanos
             }
         }
     }
@@ -324,6 +427,7 @@ fun FerrofluidGpuOrFallback(
         shader.setFloatUniform("treble", currentTreble)
         shader.setFloatUniform("transient", currentTransient)
         shader.setIntUniform("maxSteps", quality.maxSteps)
+        shader.setIntUniform("activeSpikes", quality.activeSpikes)
         shader.setFloatUniform("highlightColor", currentHighlight.red, currentHighlight.green, currentHighlight.blue)
         shader.setFloatUniform("rimColor", currentRim.red, currentRim.green, currentRim.blue)
         shader.setFloatUniform("baseColor", currentBase.red, currentBase.green, currentBase.blue)

@@ -66,6 +66,8 @@ import androidx.compose.material.icons.rounded.SkipPrevious
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
@@ -115,6 +117,7 @@ import androidx.navigation.NavController
 import com.dd3boh.outertune.LocalMenuState
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
+import com.dd3boh.outertune.LocalSnackbarHostState
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.CONTENT_TYPE_SONG
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
@@ -372,6 +375,37 @@ fun BoxScope.QueueContent(
      */
     val mutableSongs = remember { mutableStateListOf<MediaMetadata>() }
     val lazySongsListState = rememberLazyListState()
+
+    // Swiping a row out of the queue used to be silent and irreversible - one stray horizontal
+    // drag and the song was gone, with nothing on screen to even say what had happened. The song
+    // and the index it sat at are captured before the removal so the snackbar's action can put it
+    // back exactly where it was rather than on the end.
+    //
+    // The queue object is captured up front too: by the time Undo is tapped the user may well have
+    // switched queues, and re-inserting into whatever is current then would drop the song into an
+    // unrelated list.
+    val snackbarHostState = LocalSnackbarHostState.current
+    val removeSongWithUndo: (Int) -> Unit = { index ->
+        val removed = mutableSongs.getOrNull(index)
+        val sourceQueue = qb.getCurrentQueue()
+        if (removed != null && sourceQueue != null && qb.removeCurrentQueueSong(index)) {
+            playerConnection.player.removeMediaItem(index)
+            mutableSongs.removeAt(index)
+            coroutineScope.launch {
+                val result = snackbarHostState.showSnackbar(
+                    message = context.getString(R.string.removed_song_from_queue, removed.title),
+                    actionLabel = context.getString(R.string.undo),
+                    withDismissAction = true,
+                    duration = SnackbarDuration.Short,
+                )
+                if (result == SnackbarResult.ActionPerformed) {
+                    // addSongsToQueue clamps the position itself and re-syncs the player through
+                    // setCurrQueue, so this is the whole undo - no separate player insert.
+                    qb.addSongsToQueue(sourceQueue, index, listOf(removed))
+                }
+            }
+        }
+    }
 
     // multiselect
     var inSelectMode by remember {
@@ -764,19 +798,13 @@ fun BoxScope.QueueContent(
                         confirmValueChange = { dismissValue ->
                             when (dismissValue) {
                                 SwipeToDismissBoxValue.StartToEnd -> {
-                                    if (qb.removeCurrentQueueSong(index)) {
-                                        playerConnection.player.removeMediaItem(index)
-                                        mutableSongs.removeAt(index)
-                                    }
+                                    removeSongWithUndo(index)
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     return@rememberSwipeToDismissBoxState true
                                 }
 
                                 SwipeToDismissBoxValue.EndToStart -> {
-                                    if (qb.removeCurrentQueueSong(index)) {
-                                        playerConnection.player.removeMediaItem(index)
-                                        mutableSongs.removeAt(index)
-                                    }
+                                    removeSongWithUndo(index)
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     return@rememberSwipeToDismissBoxState true
                                 }

@@ -257,7 +257,15 @@ class DownloadUtil @Inject constructor(
     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
     val downloadManager: DownloadManager =
         DownloadManager(context, databaseProvider, downloadCache, dataSourceFactory, Executor(Runnable::run)).apply {
-            maxParallelDownloads = 3
+            // Per-file speed is already handled by the &range=0-<length> trick above, so the only
+            // lever left on a bulk queue is how many run at once. Each download is a single
+            // sequential stream that spends most of its life waiting on the network rather than
+            // saturating it, so three at a time leaves a decent connection idle. Five is a
+            // deliberate stopping point rather than a maximum: every concurrent download is a
+            // separate googlevideo connection carrying the same PoToken, and pushing that count
+            // high is a good way to attract the throttling and 403s this fork has already spent
+            // time escaping. This only affects queues - a single song downloads no faster.
+            maxParallelDownloads = 5
             requirements = downloadRequirements(context.dataStore.get(DownloadOnWifiOnlyKey, true))
             addListener(
                 ExoDownloadService.TerminalStateNotificationHelper(
