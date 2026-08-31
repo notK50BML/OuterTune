@@ -71,6 +71,7 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.LyricClickable
 import com.dd3boh.outertune.constants.LyricFontSizeKey
+import com.dd3boh.outertune.constants.LyricEstimatedWordSync
 import com.dd3boh.outertune.constants.LyricKaraokeEnable
 import com.dd3boh.outertune.constants.LyricUpdateSpeed
 import com.dd3boh.outertune.constants.LyricsPosition
@@ -88,6 +89,7 @@ import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
 import com.dd3boh.outertune.ui.menu.LyricsMenu
 import com.dd3boh.outertune.ui.player.rememberPlayerOnBackgroundColor
 import com.dd3boh.outertune.ui.utils.fadingEdge
+import com.dd3boh.outertune.ui.utils.withEstimatedWordSync
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
@@ -120,6 +122,7 @@ fun Lyrics(
 
     val lyricsClickable by rememberPreference(LyricClickable, true)
     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
+    val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, false)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -144,8 +147,15 @@ fun Lyrics(
         lyricsModel is SemanticLyrics.SyncedLyrics
     }
 
-    LaunchedEffect(playerLyrics) {
-        lyricsModel = playerLyrics
+    LaunchedEffect(playerLyrics, estimatedWordSync) {
+        // The sweep renderer works entirely off each line's word list, so making it run on ordinary
+        // line-synced lyrics is a matter of supplying that list rather than touching the renderer.
+        // Lines that already carry real word timings are left alone by withEstimatedWordSync.
+        lyricsModel = if (estimatedWordSync && playerLyrics is SemanticLyrics.SyncedLyrics) {
+            (playerLyrics as SemanticLyrics.SyncedLyrics).withEstimatedWordSync()
+        } else {
+            playerLyrics
+        }
     }
 
     LaunchedEffect(lyricsModel) {

@@ -166,6 +166,14 @@ val LyricSourcePrefKey = booleanPreferencesKey("preferLocalLyrics")
 val LyricFontSizeKey = intPreferencesKey("lyricFontSize")
 val LyricClickable = booleanPreferencesKey("lyricClickable")
 val LyricKaraokeEnable = booleanPreferencesKey("lyricKaraokeEnable")
+
+/**
+ * Beta: invent word timings for line-synced lyrics so the karaoke sweep works on ordinary LRC
+ * files, instead of only the rare ones carrying real per-word timestamps. Off by default - it is a
+ * guess, and a guess should be opted into. Has no effect unless [LyricKaraokeEnable] is on, since
+ * it only supplies the timings that setting's sweep consumes.
+ */
+val LyricEstimatedWordSync = booleanPreferencesKey("lyricEstimatedWordSync")
 val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
 val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
 val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")
