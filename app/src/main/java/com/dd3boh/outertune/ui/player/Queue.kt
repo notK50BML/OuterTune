@@ -334,29 +334,20 @@ fun BoxScope.QueueContent(
         (LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE && wideScreen && !tabMode) ||
                 showQueuesBesideCurrent
 
-    val insets = LocalPlayerAwareWindowInsets.current
-    val insetsSTE = if (!tabMode) {
-        InsetsSafeSTE
-    } else {
-        insets
-            .only(WindowInsetsSides.Start + WindowInsetsSides.End)
-            .add(WindowInsets.safeDrawing.only(WindowInsetsSides.Top))
-    }
-    val insetsSE = if (!tabMode) {
-        InsetsSafeSE
-    } else {
-        insets.only(WindowInsetsSides.Start + WindowInsetsSides.End)
-    }
-    val insetsS = if (!tabMode) {
-        InsetsSafeS
-    } else {
-        insets.only(WindowInsetsSides.Start)
-    }
-    val insetsE = if (!tabMode) {
-        InsetsSafeE
-    } else {
-        insets.only(WindowInsetsSides.End)
-    }
+    // Plain system insets on both sides, in tab mode as well as out of it.
+    //
+    // Tab mode used to pad the queue by the player-aware insets instead, and those carry the width
+    // of the navigation rail so that ordinary screens lay out beside it. The queue is not an
+    // ordinary screen - it is drawn over the entire window, rail included - so padding by them
+    // reserved room for chrome that is not there, and left the queue shifted off the left edge with
+    // a strip of dead space beside it in landscape.
+    //
+    // The system bars and the display cutout still have to be avoided, and safeDrawing is exactly
+    // those, which is what the non-tab path was already using.
+    val insetsSTE = InsetsSafeSTE
+    val insetsSE = InsetsSafeSE
+    val insetsS = InsetsSafeS
+    val insetsE = InsetsSafeE
 
 
     val queueWindows by playerConnection.queueWindows.collectAsState()
@@ -376,6 +367,17 @@ fun BoxScope.QueueContent(
     val mutableSongs = remember { mutableStateListOf<MediaMetadata>() }
     /** Which song the list last auto-scrolled to, so a reorder does not count as a track change. */
     var lastScrolledToSongId by remember { mutableStateOf<String?>(null) }
+
+    /**
+     * The song that is playing, held as the list entry itself rather than as a position.
+     *
+     * Only ever assigned from the player's own state, never in response to the on-screen list being
+     * rearranged. That is the whole point: a drag reorders the list immediately and leaves the
+     * player alone until the drop, so during a drag the entry at the player's index is no longer
+     * the song that is playing. Holding the entry means the marker travels with the song as it is
+     * dragged, which is what it looked like it should do all along.
+     */
+    var playingItem by remember { mutableStateOf<MediaMetadata?>(null) }
     val lazySongsListState = rememberLazyListState()
 
     // Swiping a row out of the queue used to be silent and irreversible - one stray horizontal
@@ -468,6 +470,11 @@ fun BoxScope.QueueContent(
     var dragInfo by remember {
         mutableStateOf<Pair<Int, Int>?>(null)
     }
+    // Track changes move the marker too, and those do not go through the queue rebuild above.
+    LaunchedEffect(currentWindowIndex) {
+        playingItem = mutableSongs.getOrNull(currentWindowIndex)
+    }
+
     val reorderableState = rememberReorderableLazyListState(
         lazyListState = lazySongsListState,
         scrollThresholdPadding = WindowInsets.systemBars.add(
@@ -544,10 +551,23 @@ fun BoxScope.QueueContent(
             return@LaunchedEffect
         }
 
-        mutableSongs.apply {
-            clear()
-            addAll(queueWindows.mapIndexedNotNull { index, w -> w.mediaItem.metadata?.copy(composeUidWorkaround = index.toDouble()) })
+        // Rebuilt, but only swapped in when the queue's contents actually differ from what is on
+        // screen. After a drag the list is already in the new order - the drag reordered it
+        // directly, and the player was then told to match - so replacing it achieves nothing except
+        // re-stamping every uid. The LazyColumn keys off those uids, so every row counted as a
+        // brand new item and the whole list flashed at the moment of the drop.
+        val rebuilt = queueWindows.mapIndexedNotNull { index, w ->
+            w.mediaItem.metadata?.copy(composeUidWorkaround = index.toDouble())
         }
+        val alreadyShown = mutableSongs.size == rebuilt.size &&
+            mutableSongs.indices.all { mutableSongs[it].id == rebuilt[it].id }
+        if (!alreadyShown) {
+            mutableSongs.apply {
+                clear()
+                addAll(rebuilt)
+            }
+        }
+        playingItem = mutableSongs.getOrNull(currentWindowIndex)
 
         // Only when the song being played actually changed. This effect also runs for a queue that
         // was merely rearranged, and scrolling then yanked the list away to the playing song the
@@ -842,16 +862,10 @@ fun BoxScope.QueueContent(
                     val content = @Composable {
                         MediaMetadataListItem(
                             mediaMetadata = window,
-                            // Matched on the song's uid rather than its row position. Dragging
-                            // reorders this list immediately but deliberately leaves the player
-                            // alone until the drop, so during a drag the row at
-                            // currentWindowIndex is no longer the song that is playing - and the
-                            // now-playing animation would jump to whichever song had been shuffled
-                            // into that slot. The uid is stamped from the player's own index when
-                            // the list is built, so it still points at the right song mid-drag, and
-                            // it distinguishes two copies of one song where an id comparison could
-                            // not.
-                            isActive = (window.composeUidWorkaround == currentWindowIndex.toDouble() && !detachedHead) ||
+                            // Compared against the playing entry itself, not a row position - see
+                            // playingItem for why. Entry equality also tells two copies of one song
+                            // apart, which comparing ids could not.
+                            isActive = (window == playingItem && !detachedHead) ||
                                 index == detachedQueue?.getQueuePosShuffled(),
                             isPlaying = isPlaying && !detachedHead,
                             trailingContent = {
@@ -902,11 +916,10 @@ fun BoxScope.QueueContent(
                                             onCheckedChange(window.hashCode() !in selectedItems)
                                         } else {
                                             coroutineScope.launch(Dispatchers.Main) {
-                                                // Same uid match as isActive above, so that tapping
-                                                // the song that is actually playing toggles it
-                                                // rather than seeking to whatever now sits at its
-                                                // old index.
-                                                if (window.composeUidWorkaround == currentWindowIndex.toDouble() && !detachedHead) {
+                                                // Same match as isActive above, so tapping the song
+                                                // that is actually playing toggles it rather than
+                                                // seeking to whatever now sits at its old index.
+                                                if (window == playingItem && !detachedHead) {
                                                     playerConnection.player.togglePlayPause()
                                                 } else {
                                                     val index = index // race condition...?
