@@ -42,21 +42,38 @@ class ArtistItemsViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Guards against re-requesting a page that is already on its way. The screen drives this from a
+     * snapshotFlow on the scroll position, and it has two of them - one for the list layout and one
+     * for the grid - so a single scroll to the end could call in twice over. Worse, the flow keeps
+     * emitting while the request is in flight, and the continuation token only changes once the
+     * response lands, so every one of those emissions asked for the exact same page again. The
+     * duplicates were invisible (distinctBy swallowed them) but they were real requests competing
+     * with the one that mattered, on a screen already waiting on the network.
+     */
+    private var loadingMore = false
+
     fun loadMore() {
+        if (loadingMore) return
+        val oldItemsPage = itemsPage.value ?: return
+        val continuation = oldItemsPage.continuation ?: return
+        loadingMore = true
         viewModelScope.launch {
-            val oldItemsPage = itemsPage.value ?: return@launch
-            val continuation = oldItemsPage.continuation ?: return@launch
-            YouTube.artistItemsContinuation(continuation)
-                .onSuccess { artistItemsContinuationPage ->
-                    itemsPage.update {
-                        ItemsPage(
-                            items = (oldItemsPage.items + artistItemsContinuationPage.items).distinctBy { it.id },
-                            continuation = artistItemsContinuationPage.continuation
-                        )
+            try {
+                YouTube.artistItemsContinuation(continuation)
+                    .onSuccess { artistItemsContinuationPage ->
+                        itemsPage.update {
+                            ItemsPage(
+                                items = (oldItemsPage.items + artistItemsContinuationPage.items).distinctBy { it.id },
+                                continuation = artistItemsContinuationPage.continuation
+                            )
+                        }
+                    }.onFailure {
+                        reportException(it)
                     }
-                }.onFailure {
-                    reportException(it)
-                }
+            } finally {
+                loadingMore = false
+            }
         }
     }
 }
