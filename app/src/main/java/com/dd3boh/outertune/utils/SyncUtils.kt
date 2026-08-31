@@ -29,6 +29,7 @@ import com.dd3boh.outertune.constants.YtmSyncConflictKey
 import com.dd3boh.outertune.constants.YtmSyncContentKey
 import com.dd3boh.outertune.constants.decodeSyncString
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.PlaylistEntity
 import com.dd3boh.outertune.db.entities.PlaylistSongMap
@@ -711,7 +712,7 @@ class SyncUtils @Inject constructor(
                         if (localArtist == null) {
                             insert(
                                 ArtistEntity(
-                                    id = remoteArtist.id,
+                                    id = remoteArtist.id.normalizeArtistId(),
                                     name = remoteArtist.title,
                                     thumbnailUrl = remoteArtist.thumbnail,
                                     channelId = remoteArtist.channelId,

@@ -323,6 +323,25 @@ interface ArtistsDao {
     @Transaction
     @Query("UPDATE song_artist_map SET artistId = :newId WHERE artistId = :oldId")
     fun updateSongArtistMap(oldId: String, newId: String)
+
+    /** Artist rows stored under the MPLA spelling of a channel id - see normalizeArtistId. */
+    @Query("SELECT * FROM artist WHERE id LIKE 'MPLAUC%'")
+    fun artistsWithPrefixedIds(): List<ArtistEntity>
+
+    /**
+     * Drops the credits that would collide before [updateSongArtistMap] moves the rest.
+     *
+     * song_artist_map is keyed on (songId, artistId), so a song credited under both spellings of
+     * one channel cannot simply have the prefixed row repointed onto the bare one - that is the
+     * duplicate key. Deleting the prefixed row for exactly those songs leaves the update with only
+     * the rows that can move.
+     */
+    @Query("""
+        DELETE FROM song_artist_map
+        WHERE artistId = :oldId
+          AND songId IN (SELECT songId FROM song_artist_map WHERE artistId = :newId)
+    """)
+    fun deleteCollidingSongArtistMaps(oldId: String, newId: String)
     // endregion
 
     // region Deletes

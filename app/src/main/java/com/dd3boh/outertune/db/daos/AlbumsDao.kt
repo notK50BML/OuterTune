@@ -282,7 +282,7 @@ interface AlbumsDao : ArtistsDao {
                 // either.
                 val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId(),
+                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
                     name = cleanName
                 )
             }
@@ -314,6 +314,14 @@ interface AlbumsDao : ArtistsDao {
     @Transaction
     @Query("UPDATE album_artist_map SET artistId = :newId WHERE artistId = :oldId")
     fun updateAlbumArtistMap(oldId: String, newId: String)
+
+    /** The album-side counterpart of deleteCollidingSongArtistMaps - same key, same problem. */
+    @Query("""
+        DELETE FROM album_artist_map
+        WHERE artistId = :oldId
+          AND albumId IN (SELECT albumId FROM album_artist_map WHERE artistId = :newId)
+    """)
+    fun deleteCollidingAlbumArtistMaps(oldId: String, newId: String)
 
     @Transaction
     @Query("DELETE FROM song_artist_map WHERE songId = :songID")

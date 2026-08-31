@@ -75,10 +75,47 @@ object ArtistCreditEnricher {
      * refresh gesture. Those still run per song on playback, where one request is proportionate.
      */
     suspend fun relinkAll(database: MusicDatabase): Unit = withContext(Dispatchers.IO) {
+        mergePrefixedArtists(database)
+
         val songIds = database.songIdsWithRepairableArtists()
         if (songIds.isEmpty()) return@withContext
         Timber.tag(TAG).d("relinking artists on ${songIds.size} song(s)")
         songIds.forEach { enrich(database, it, allowNetwork = false) }
+    }
+
+    /**
+     * Merges every artist row stored under the MPLA spelling of a channel id into the bare-id row
+     * for that same channel, and deletes the prefixed one.
+     *
+     * Rewriting credits was not enough on its own, which is why the duplicates kept returning. The
+     * prefixed *rows* survived in the artist table, and the song sync looks an artist up by name
+     * before it considers the id it was handed:
+     *
+     *     artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: generate()
+     *
+     * So a surviving prefixed row named "i-dle" was found by name and its id handed back, putting
+     * the prefixed credit onto the song again - normalising the incoming id never got a look in.
+     * The row itself has to go for that lookup to stop returning it.
+     */
+    private suspend fun mergePrefixedArtists(database: MusicDatabase) = withContext(Dispatchers.IO) {
+        val prefixed = database.artistsWithPrefixedIds()
+        if (prefixed.isEmpty()) return@withContext
+
+        prefixed.forEach { old ->
+            val newId = old.id.normalizeArtistId()
+            database.query {
+                // Keep whatever the bare-id row already holds; only create one when the channel is
+                // known solely under the prefixed spelling, carrying its name and picture across.
+                if (artistById(newId) == null) insert(old.copy(id = newId))
+                // Collisions first, then move the rest - see deleteCollidingSongArtistMaps.
+                deleteCollidingSongArtistMaps(old.id, newId)
+                updateSongArtistMap(old.id, newId)
+                deleteCollidingAlbumArtistMaps(old.id, newId)
+                updateAlbumArtistMap(old.id, newId)
+                safeDeleteArtist(old.id)
+            }
+            Timber.tag(TAG).d("merged artist row ${old.id} (\"${old.name}\") into $newId")
+        }
     }
 
     suspend fun enrich(

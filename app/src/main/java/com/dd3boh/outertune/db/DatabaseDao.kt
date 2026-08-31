@@ -187,7 +187,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
             // under this id from before this dedup existed, which a plain insert (and even this
             // same lookup) could never fix on their own - see its own doc.
             val cleanName = artist.name.stripTopicSuffix()
-            val artistId = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId()
+            val artistId = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId()
             insertOrHealArtist(
                 ArtistEntity(
                     id = artistId,
@@ -277,7 +277,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                 // doc for why a plain insert isn't enough on its own either.
                 val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId(),
+                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
                     name = cleanName
                 )
             }
@@ -322,7 +322,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                 // doc for why a plain insert isn't enough on its own either.
                 val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId(),
+                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
                     name = cleanName
                 )
             }
