@@ -355,14 +355,19 @@ fun FerrofluidGpuOrFallback(
         if (!isActive) return@LaunchedEffect
         var startNanos = 0L
         var lastEmitNanos = 0L
+        // Where the clock was when this effect (re)started. Without it, pausing and resuming - or
+        // changing quality, which restarts the effect too - would take the scene back to t=0 and
+        // snap every droplet to a different place mid-view.
+        var baseSeconds = elapsedSeconds
         while (true) {
             withFrameNanos { nanos ->
                 if (startNanos == 0L) {
                     startNanos = nanos
                     lastEmitNanos = nanos
+                    baseSeconds = elapsedSeconds
                 } else if (nanos - lastEmitNanos >= frameIntervalNanos) {
                     lastEmitNanos = nanos
-                    elapsedSeconds = (nanos - startNanos) / 1_000_000_000f
+                    elapsedSeconds = baseSeconds + (nanos - startNanos) / 1_000_000_000f
                 }
             }
         }

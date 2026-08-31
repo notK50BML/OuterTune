@@ -478,9 +478,20 @@ class DownloadUtil @Inject constructor(
         }
     }
 
+    /**
+     * One lane, so songs are enqueued in the order they were asked for.
+     *
+     * Enqueueing has to happen off the main thread now that a cache promotion may precede it, but
+     * the shared download dispatcher runs several jobs at once, and a promotion takes as long as
+     * the song is big - so a playlist queued through that would hand its songs to Media3 in
+     * whatever order the copies happened to finish. Serialising costs nothing worth having, since
+     * these are local disk copies that do not go faster in parallel.
+     */
+    private val enqueueScope = CoroutineScope(Dispatchers.IO.limitedParallelism(1))
+
     private fun downloadSong(id: String, title: String) {
         if (downloads.value[id] != null) return
-        CoroutineScope(dlCoroutine).launch {
+        enqueueScope.launch {
             promoteCachedSong(id)
             val downloadRequest = DownloadRequest.Builder(id, id.toUri())
                 .setCustomCacheKey(id)

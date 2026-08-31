@@ -14,6 +14,7 @@ import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
 import com.dd3boh.outertune.db.normalizeArtistId
+import com.dd3boh.outertune.db.TOPIC_SUFFIX
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.ArtistItem
@@ -402,7 +403,15 @@ object ArtistCreditEnricher {
         }
 
         shared.forEachIndexed { index, artist ->
-            database.insert(AlbumArtistMap(albumId = albumId, artistId = artist.id.normalizeArtistId(), order = index))
+            val artistId = artist.id.normalizeArtistId()
+            // The map row's artistId is a foreign key onto artist.id, and normalising can point it
+            // at a spelling no row is stored under yet - a channel held only as MPLAUC… has no
+            // bare-id row until mergePrefixedArtists runs, and this can reach an album before that
+            // does. Inserting the artist first guarantees the parent exists; it is IGNORE on
+            // conflict, so an artist already in the library keeps the row it has rather than being
+            // overwritten by the track's copy of it.
+            database.insert(artist.copy(id = artistId))
+            database.insert(AlbumArtistMap(albumId = albumId, artistId = artistId, order = index))
         }
         if (stored.isEmpty()) {
             Timber.tag(TAG).d("[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
@@ -519,7 +528,11 @@ object ArtistCreditEnricher {
         // discography, so linking a song to it gives a much worse artist page for no reason.
         // Prefer the real channel whenever both came back, and fall back to Topic only when that
         // is genuinely all that exists (which for smaller artists it often is).
-        return candidates.firstOrNull { it.title.stripTopicSuffix() == it.title }
+        // Tested against the suffix directly rather than by comparing the stripped title to the
+        // original. stripTopicSuffix deliberately returns the input unchanged when stripping would
+        // leave nothing, so a channel titled exactly "- Topic" compares equal to its own stripped
+        // form and would be read here as a real channel - the one kind this is meant to avoid.
+        return candidates.firstOrNull { !TOPIC_SUFFIX.containsMatchIn(it.title) }
             ?: candidates.firstOrNull()
     }
 

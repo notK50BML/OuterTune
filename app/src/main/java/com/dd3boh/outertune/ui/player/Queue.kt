@@ -385,10 +385,15 @@ fun BoxScope.QueueContent(
     // switched queues, and re-inserting into whatever is current then would drop the song into an
     // unrelated list.
     val snackbarHostState = LocalSnackbarHostState.current
-    val removeSongWithUndo: (Int) -> Unit = { index ->
+    // Takes the song rather than its row position on purpose. While a queue search is active the
+    // list is rendering filteredSongs, so the row index belongs to that filtered list and not to
+    // the queue - passing it straight through removed whichever song happened to occupy that
+    // position in the real queue instead of the one that was swiped.
+    val removeSongWithUndo: (MediaMetadata) -> Unit = { song ->
+        val index = mutableSongs.indexOf(song)
         val removed = mutableSongs.getOrNull(index)
         val sourceQueue = qb.getCurrentQueue()
-        if (removed != null && sourceQueue != null && qb.removeCurrentQueueSong(index)) {
+        if (index >= 0 && removed != null && sourceQueue != null && qb.removeCurrentQueueSong(index)) {
             playerConnection.player.removeMediaItem(index)
             mutableSongs.removeAt(index)
             coroutineScope.launch {
@@ -798,13 +803,13 @@ fun BoxScope.QueueContent(
                         confirmValueChange = { dismissValue ->
                             when (dismissValue) {
                                 SwipeToDismissBoxValue.StartToEnd -> {
-                                    removeSongWithUndo(index)
+                                    removeSongWithUndo(window)
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     return@rememberSwipeToDismissBoxState true
                                 }
 
                                 SwipeToDismissBoxValue.EndToStart -> {
-                                    removeSongWithUndo(index)
+                                    removeSongWithUndo(window)
                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
                                     return@rememberSwipeToDismissBoxState true
                                 }

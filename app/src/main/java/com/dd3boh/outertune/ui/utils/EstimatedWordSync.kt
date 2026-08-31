@@ -88,9 +88,11 @@ private fun estimateWords(line: SemanticLyrics.LyricLine): MutableList<Word>? {
 /**
  * Character ranges of the whitespace-separated words in [text], in order.
  *
- * The ranges cover the words themselves and not the spaces between them, so a sweep pauses in the
- * gaps rather than gliding through them - which is closer to how a real word-synced file behaves
- * and reads better at speed.
+ * The ranges cover the words themselves and not the spaces between them. Since consecutive words
+ * are given touching time ranges, the effect is that a word holds the highlight for its whole slice
+ * and the gap after it is crossed instantly at the boundary - so the spaces cost no sweep time and
+ * the words get all of it, which is what makes the highlight track the syllables rather than
+ * drifting ahead of them.
  */
 private fun wordSpans(text: String): List<IntRange> {
     val spans = ArrayList<IntRange>()
