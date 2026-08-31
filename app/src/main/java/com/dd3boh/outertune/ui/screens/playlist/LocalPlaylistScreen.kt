@@ -104,6 +104,8 @@ import com.dd3boh.outertune.constants.AlbumThumbnailSize
 import com.dd3boh.outertune.constants.CONTENT_TYPE_HEADER
 import com.dd3boh.outertune.constants.CONTENT_TYPE_SONG
 import com.dd3boh.outertune.constants.ListThumbnailSize
+import com.dd3boh.outertune.constants.DEFAULT_PLAYLIST_SEARCH_THRESHOLD
+import com.dd3boh.outertune.constants.PlaylistSearchThresholdKey
 import com.dd3boh.outertune.constants.PlaylistEditLockKey
 import com.dd3boh.outertune.constants.PlaylistSongSortDescendingKey
 import com.dd3boh.outertune.constants.PlaylistSongSortType
@@ -189,6 +191,7 @@ fun LocalPlaylistScreen(
 
     // search
     var isSearching by rememberSaveable { mutableStateOf(false) }
+    val playlistSearchThreshold by rememberPreference(PlaylistSearchThresholdKey, DEFAULT_PLAYLIST_SEARCH_THRESHOLD)
     var query by rememberSaveable(stateSaver = TextFieldValue.Saver) {
         mutableStateOf(TextFieldValue())
     }
@@ -464,6 +467,14 @@ fun LocalPlaylistScreen(
                                 songs =  playlistWithSongs.second,
                                 onShowEditDialog = { showEditDialog = true },
                                 onShowRemoveDownloadDialog = { showRemoveDownloadDialog = true },
+                                onStartSearch = if (
+                                    playlistSearchThreshold > 0 &&
+                                    playlistWithSongs.second.size >= playlistSearchThreshold
+                                ) {
+                                    { isSearching = true }
+                                } else {
+                                    null
+                                },
                                 snackbarHostState = snackbarHostState,
                                 modifier = Modifier // .animateItem()
                             )
@@ -671,6 +682,12 @@ fun LocalPlaylistHeader(
     songs: List<PlaylistSong>,
     onShowEditDialog: () -> Unit,
     onShowRemoveDownloadDialog: () -> Unit,
+    /**
+     * Opens the playlist's search, or null to leave the button out. The caller decides that from
+     * [com.dd3boh.outertune.constants.PlaylistSearchThresholdKey] - see its doc for why this is a
+     * second entry point to the top bar's search rather than a search of its own.
+     */
+    onStartSearch: (() -> Unit)?,
     snackbarHostState: SnackbarHostState,
     modifier: Modifier,
 ) {
@@ -754,6 +771,17 @@ fun LocalPlaylistHeader(
                 )
 
                 Row {
+                    if (onStartSearch != null) {
+                        IconButton(
+                            onClick = onStartSearch
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Search,
+                                contentDescription = null
+                            )
+                        }
+                    }
+
                     IconButton(
                         onClick = onShowEditDialog
                     ) {

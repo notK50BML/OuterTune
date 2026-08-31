@@ -20,6 +20,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.FolderCopy
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -44,8 +45,11 @@ import com.dd3boh.outertune.constants.DownloadThumbnailsKey
 import com.dd3boh.outertune.constants.FlatSubfoldersKey
 import com.dd3boh.outertune.constants.ShowArtistVideosAsSongsKey
 import com.dd3boh.outertune.constants.ShowLikedAndDownloadedPlaylist
+import com.dd3boh.outertune.constants.DEFAULT_PLAYLIST_SEARCH_THRESHOLD
+import com.dd3boh.outertune.constants.PlaylistSearchThresholdKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+import com.dd3boh.outertune.ui.component.ListPreference
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
@@ -70,6 +74,10 @@ fun LibrarySettings(
     val (showArtistVideosAsSongs, onShowArtistVideosAsSongsChange) = rememberPreference(
         ShowArtistVideosAsSongsKey,
         defaultValue = true
+    )
+    val (playlistSearchThreshold, onPlaylistSearchThresholdChange) = rememberPreference(
+        PlaylistSearchThresholdKey,
+        defaultValue = DEFAULT_PLAYLIST_SEARCH_THRESHOLD
     )
 
     val downloadUtil = LocalDownloadUtil.current
@@ -119,6 +127,20 @@ fun LibrarySettings(
                 icon = { Icon(Icons.Rounded.SmartDisplay, null) },
                 checked = showArtistVideosAsSongs,
                 onCheckedChange = onShowArtistVideosAsSongsChange
+            )
+            ListPreference(
+                title = { Text(stringResource(R.string.playlist_search_button_title)) },
+                icon = { Icon(Icons.Rounded.Search, null) },
+                selectedValue = playlistSearchThreshold,
+                values = listOf(0, 20, 50, 100, 200),
+                valueText = {
+                    if (it == 0) {
+                        stringResource(R.string.playlist_search_button_never)
+                    } else {
+                        stringResource(R.string.playlist_search_button_from, it)
+                    }
+                },
+                onValueSelected = onPlaylistSearchThresholdChange,
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

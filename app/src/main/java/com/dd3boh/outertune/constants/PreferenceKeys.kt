@@ -556,3 +556,15 @@ val UpdateFlavorKey = stringPreferencesKey("updateFlavor")
 
 /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
 val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")
+
+/**
+ * How many songs a playlist needs before a search button appears in its header action row, next to
+ * edit/sync/download/queue. Set to 0 to never show it.
+ *
+ * The button is only a second way in to the search that already lives in the top app bar - there is
+ * one search implementation, not two - so this controls discoverability on the long playlists where
+ * scrolling is actually a problem, without adding a control to a playlist of six songs that does
+ * not need one.
+ */
+val PlaylistSearchThresholdKey = intPreferencesKey("playlistSearchThreshold")
+const val DEFAULT_PLAYLIST_SEARCH_THRESHOLD = 50
