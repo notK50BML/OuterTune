@@ -99,6 +99,8 @@ fun LiquidBackground(
     useGpuFerrofluid: Boolean = false,
     /** Render quality for the GPU ferrofluid - see [FerrofluidQuality]. */
     ferrofluidQuality: FerrofluidQuality = FerrofluidQuality.MEDIUM,
+    /** How hard the audio drives the ferrofluid - see [FerrofluidReactivity]. */
+    ferrofluidReactivity: FerrofluidReactivity = FerrofluidReactivity.NORMAL,
 ) {
     // Extraction can come back empty (still loading) or dull/greyish - either way this needs a
     // guaranteed-vibrant fallback, and the theme's own colour roles are exactly that.
@@ -330,6 +332,7 @@ fun LiquidBackground(
                 // ferrofluid and starts looking like coloured plastic.
                 baseColor = lerp(Color.Black, accentColor, 0.18f),
                 quality = ferrofluidQuality,
+                reactivity = ferrofluidReactivity,
                 modifier = baseModifier,
                 fallback = { FerrofluidCanvasShape(baseModifier, flowTime, seed, bass, treble, transient, alpha) },
             )

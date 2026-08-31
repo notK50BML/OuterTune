@@ -55,7 +55,9 @@ import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
 import com.dd3boh.outertune.constants.LiquidFerrofluidGpuKey
 import com.dd3boh.outertune.constants.LiquidFerrofluidQualityKey
+import com.dd3boh.outertune.constants.LiquidFerrofluidReactivityKey
 import com.dd3boh.outertune.ui.player.FerrofluidQuality
+import com.dd3boh.outertune.ui.player.FerrofluidReactivity
 import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.LiquidTextContrastKey
@@ -590,6 +592,8 @@ fun PlayerBackgroundFrag() {
         )
     }
 
+    val (liquidFerrofluidReactivity, onLiquidFerrofluidReactivityChange) =
+        rememberEnumPreference(LiquidFerrofluidReactivityKey, defaultValue = FerrofluidReactivity.NORMAL)
     val (liquidFerrofluidQuality, onLiquidFerrofluidQualityChange) =
         rememberEnumPreference(LiquidFerrofluidQualityKey, defaultValue = FerrofluidQuality.MEDIUM)
     AnimatedVisibility(
@@ -611,6 +615,21 @@ fun PlayerBackgroundFrag() {
                 }
             },
             values = FerrofluidQuality.entries,
+        )
+
+        EnumListPreference(
+            title = { Text("Ferrofluid reactivity") },
+            icon = { Icon(Icons.Rounded.GraphicEq, null) },
+            selectedValue = liquidFerrofluidReactivity,
+            onValueSelected = onLiquidFerrofluidReactivityChange,
+            valueText = {
+                when (it) {
+                    FerrofluidReactivity.SUBTLE -> "Subtle - barely follows the music"
+                    FerrofluidReactivity.NORMAL -> "Normal"
+                    FerrofluidReactivity.HIGH -> "High"
+                    FerrofluidReactivity.EXTREME -> "Extreme - flies apart on every beat"
+                }
+            },
         )
     }
 }

@@ -146,6 +146,7 @@ import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
 import com.dd3boh.outertune.constants.LiquidFerrofluidGpuKey
 import com.dd3boh.outertune.constants.LiquidFerrofluidQualityKey
+import com.dd3boh.outertune.constants.LiquidFerrofluidReactivityKey
 import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
@@ -1719,6 +1720,10 @@ fun PlayerBackground(
                 key = LiquidFerrofluidQualityKey,
                 defaultValue = FerrofluidQuality.MEDIUM
             )
+            val liquidFerrofluidReactivity by rememberEnumPreference(
+                key = LiquidFerrofluidReactivityKey,
+                defaultValue = FerrofluidReactivity.NORMAL
+            )
             LiquidBackground(
                 colors = gradientColors,
                 // Stop the animation clock whenever it cannot be appreciated: paused playback or
@@ -1733,6 +1738,7 @@ fun PlayerBackground(
                 chromaticShockEnabled = liquidChromaticShock,
                 useGpuFerrofluid = liquidFerrofluidGpu,
                 ferrofluidQuality = liquidFerrofluidQuality,
+                ferrofluidReactivity = liquidFerrofluidReactivity,
             )
         }
 

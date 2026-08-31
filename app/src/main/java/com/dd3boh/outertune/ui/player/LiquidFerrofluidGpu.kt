@@ -62,6 +62,22 @@ enum class FerrofluidQuality(
 }
 
 /**
+ * How hard the audio drives the shape, as a multiplier on the bass/transient terms in
+ * [FERROFLUID_GPU_SHADER_SRC].
+ *
+ * Separate from [FerrofluidQuality] because it is a taste question rather than a cost one - it
+ * changes nothing about how expensive a frame is to draw, only how far the droplets travel for a
+ * given amount of music. [SUBTLE] is roughly where this effect sat before, for anyone who wants a
+ * background that stays in the background.
+ */
+enum class FerrofluidReactivity(val multiplier: Float) {
+    SUBTLE(0.5f),
+    NORMAL(1f),
+    HIGH(1.5f),
+    EXTREME(2f),
+}
+
+/**
  * Experimental, opt-in alternative to [LiquidShapeStyle.FERROFLUID]'s Canvas polygon: a genuine
  * raymarched scene running as a single AGSL fragment shader rather than a flat 2D shape.
  *
@@ -104,6 +120,8 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
     uniform float transient;
     uniform int maxSteps;
     uniform int activeBlobs;
+    /** How hard the audio drives the shape - 1.0 is the default tier. */
+    uniform float reactivity;
     // Material 3 roles, linear-ish sRGB components. highlightColor carries the specular glint and
     // rimColor the Fresnel edge, so the crown reads as part of the current theme rather than a
     // fixed cold grey.
@@ -123,8 +141,8 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
     const float MAX_DIST = 6.0;
     const float SURF_DIST = 0.008;
     // Everything the scene can ever occupy fits in this sphere about the origin: a droplet at full
-    // spread sits ~0.83 out with a radius up to 0.25, plus vertical drift.
-    const float BOUND_RADIUS = 1.25;
+    // spread sits ~0.89 out with a radius up to 0.25, plus vertical drift - so ~1.16 at worst.
+    const float BOUND_RADIUS = 1.40;
 
     float sminCubic(float a, float b, float k) {
         float h = clamp(0.5 + 0.5 * (b - a) / k, 0.0, 1.0);
@@ -144,24 +162,31 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
         // Golden-angle phase, so the droplets never settle into an obvious wheel.
         float orbit = fi * 2.3999632 + t * 0.17 + sin(t * 0.28 + fi) * 0.35;
 
-        // The shared cycle. The small per-droplet offset means they do not all part company on the
-        // same frame, so the mass tears apart raggedly the way real fluid does instead of blooming
-        // open like an umbrella.
+        // The slow cycle is now only an idle drift - enough that a paused or quiet track still
+        // moves. What actually drives the break-up is the audio. The music used to be a 45% nudge
+        // on top of a cycle that swung four times as far, so the shape was really just breathing on
+        // a timer with a faint wobble; now the timer is the small term and the track is the large
+        // one, and the mass visibly flies apart on a loud passage and gathers back in a quiet one.
         float cycle = 0.5 + 0.5 * sin(t * 0.24 + fi * 0.22);
-        float spread = (0.10 + 0.40 * cycle) * (1.0 + bass * 0.45 + transient * 0.2);
+        float ambient = 0.12 + 0.10 * cycle;
+        // Clamped so that turning reactivity up raises how hard normal material hits rather than
+        // letting a loud peak throw droplets outside the bounding sphere.
+        float drive = clamp((bass * 1.1 + transient * 0.6) * reactivity, 0.0, 1.6);
+        float spread = ambient + 0.42 * drive;
 
-        // Droplets swell as they gather and thin as they stretch apart - surface tension pulling a
-        // separating bead back towards a sphere.
+        // Droplets thin as they stretch apart - surface tension pulling a separating bead back
+        // towards a sphere - and swell on a transient, so a beat reads as a pulse as well as a
+        // push outward.
         float bob = sin(t * 0.63 + fi * 1.9) * 0.16;
         float3 centre = float3(cos(orbit) * spread, bob, sin(orbit) * spread);
-        float radius = 0.20 - 0.05 * cycle + bass * 0.05;
+        float radius = 0.19 - 0.04 * clamp(drive, 0.0, 1.0) + transient * 0.05 * reactivity;
         return length(p - centre) - radius;
     }
 
     float sceneDist(float3 p, float t) {
         // A core the droplets flow out of and back into, so a body is always present and the scene
         // never empties out at full spread.
-        float core = length(p * float3(1.0, 1.35, 1.0)) - (0.19 + bass * 0.07);
+        float core = length(p * float3(1.0, 1.35, 1.0)) - (0.17 + bass * 0.10 * reactivity);
         float d = core;
         for (int i = 0; i < BLOBS; i++) {
             if (i >= activeBlobs) {
@@ -283,7 +308,7 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
             + rimColor * fill * 0.22
             + env * fresnel * 0.9
             + highlightColor * keySpec * 1.3
-            + rimColor * treble * 0.05;
+            + rimColor * treble * 0.18 * reactivity;
 
         return half4(col, 1.0);
     }
@@ -321,6 +346,7 @@ fun FerrofluidGpuOrFallback(
     rimColor: Color,
     baseColor: Color,
     quality: FerrofluidQuality = FerrofluidQuality.MEDIUM,
+    reactivity: FerrofluidReactivity = FerrofluidReactivity.NORMAL,
     modifier: Modifier = Modifier,
     fallback: @Composable () -> Unit,
 ) {
@@ -402,6 +428,7 @@ fun FerrofluidGpuOrFallback(
         shader.setFloatUniform("transient", currentTransient)
         shader.setIntUniform("maxSteps", quality.maxSteps)
         shader.setIntUniform("activeBlobs", quality.activeBlobs)
+        shader.setFloatUniform("reactivity", reactivity.multiplier)
         shader.setFloatUniform("highlightColor", currentHighlight.red, currentHighlight.green, currentHighlight.blue)
         shader.setFloatUniform("rimColor", currentRim.red, currentRim.green, currentRim.blue)
         shader.setFloatUniform("baseColor", currentBase.red, currentBase.green, currentBase.blue)

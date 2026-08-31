@@ -49,6 +49,14 @@ val LiquidFerrofluidGpuKey = booleanPreferencesKey("liquidFerrofluidGpu")
  */
 val LiquidFerrofluidQualityKey = stringPreferencesKey("liquidFerrofluidQuality")
 
+/**
+ * How hard the audio drives the GPU ferrofluid - a
+ * [com.dd3boh.outertune.ui.player.FerrofluidReactivity] name. Separate from quality because it is
+ * a taste question, not a cost one: it changes how far the droplets travel for a given amount of
+ * music, not how expensive a frame is to draw.
+ */
+val LiquidFerrofluidReactivityKey = stringPreferencesKey("liquidFerrofluidReactivity")
+
 /** Show the app logo at the left of the home top bar. Off gives the search field the full width. */
 val ShowTopBarLogoKey = booleanPreferencesKey("showTopBarLogo")
 val RecognitionButtonPlacementKey = stringPreferencesKey("recognitionButtonPlacement")
