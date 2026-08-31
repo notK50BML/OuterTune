@@ -11,7 +11,9 @@ object YouTubeSubtitleLyricsProvider : LyricsProvider {
 
     override suspend fun getLyrics(id: String, title: String, artist: String, duration: Int): LyricsFetchResult =
         YouTube.transcript(id).fold(
-            onSuccess = { LyricsFetchResult.Found(it) },
+            // Captions are a transcript rather than a lyric sheet - see cleanCaptionLyrics for what
+            // that means in practice and why only this provider gets the treatment.
+            onSuccess = { LyricsFetchResult.Found(cleanCaptionLyrics(it)) },
             onFailure = {
                 if (it is CancellationException) throw it
                 // transcript() signals a missing or empty caption track with IllegalStateException (via
