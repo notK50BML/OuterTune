@@ -1,7 +1,7 @@
 From 2b78ffb9460bb3a325aac3640afe3addab3a366a Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:25:56 +0000
-Subject: [PATCH 001/226] Fix liked-songs order, artwork resolution, and
+Subject: [PATCH 001/228] Fix liked-songs order, artwork resolution, and
  BetterLyrics; port Metrolist's sync engine
 
 Sync engine (app/utils/SyncUtils.kt, rewritten)
@@ -2288,7 +2288,7 @@ index 00000000..81d7f34c
 From d72c2384c7c6f7f35d42263c61608427ab6f45d0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Wed, 5 Aug 2026 13:27:40 +0000
-Subject: [PATCH 002/226] Add patch notes
+Subject: [PATCH 002/228] Add patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2456,7 +2456,7 @@ index 00000000..28c797a0
 From 51b36712b098f7bb23ee326eaff6135dc906f148 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:02:38 +0000
-Subject: [PATCH 003/226] Fix nested Result in likeSong retry and wrong
+Subject: [PATCH 003/228] Fix nested Result in likeSong retry and wrong
  songMapsToPlaylist overload
 
 Both found in review of the sync engine port.
@@ -2522,7 +2522,7 @@ index f5230a89..27f97bf7 100644
 From 1c74c5b2931f3fc0dad4f2245970ee227a0e60bb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Thu, 6 Aug 2026 02:03:55 +0000
-Subject: [PATCH 004/226] Clarify build route in patch notes
+Subject: [PATCH 004/228] Clarify build route in patch notes
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_019qFVKGXMsRYppSVGRXPgBQ
@@ -2562,7 +2562,7 @@ index 2480f961..a43e5d3f 100644
 From a626d201015c8378281a0145b6b6c25f72689ed8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:12:23 +0000
-Subject: [PATCH 005/226] Remove the on-screen debug build overlay and per-song
+Subject: [PATCH 005/228] Remove the on-screen debug build overlay and per-song
  video ids
 
 MainActivity drew a red four-line build-info column over the UI whenever
@@ -2654,7 +2654,7 @@ index d192b930..7d500840 100644
 From 81da606bb34c6f3ade5689eabe82f5adaa31bf29 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:51:11 +0000
-Subject: [PATCH 006/226] Stop recomputing artwork URLs on every recomposition
+Subject: [PATCH 006/228] Stop recomputing artwork URLs on every recomposition
 
 resize() compiled two regexes on every call and, since the artwork helpers
 are now called from list item composables, that ran on every bind while
@@ -2742,7 +2742,7 @@ index d5068ac8..a848cde2 100644
 From c592f424bf604be631a04b888c85e5d5766afdae Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 05:55:21 +0000
-Subject: [PATCH 007/226] Report the liked-songs sync outcome instead of
+Subject: [PATCH 007/228] Report the liked-songs sync outcome instead of
  failing silently
 
 A liked-songs sync can decline to run (not signed in, category disabled,
@@ -2880,7 +2880,7 @@ index 27f97bf7..580a4a9c 100644
 From cb974ee9b74a5bbc669c7aae5979f631ae1dd03f Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 06:58:16 +0000
-Subject: [PATCH 008/226] Add Discord rich presence
+Subject: [PATCH 008/228] Add Discord rich presence
 
 Ported from reocat/OuterTune rather than Metrolist: it is already
 OuterTune-shaped, so it drops into the same Song entity and MusicService
@@ -4592,7 +4592,7 @@ index 7b851593..575e5dee 100755
 From 3d7e73f4384138acda4d489fb08f7fb6e7db13d8 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:33:59 +0000
-Subject: [PATCH 009/226] Keep the play button the same size when lyrics are
+Subject: [PATCH 009/228] Keep the play button the same size when lyrics are
  showing
 
 ControlsContent shrank the play/pause button from 72dp to 56dp whenever
@@ -4636,7 +4636,7 @@ index 83537f7a..113ca4e6 100644
 From e6a7d077e51927b7453319c06ee817fdfb7e76bb Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:47:47 +0000
-Subject: [PATCH 010/226] Add a Liquid player background
+Subject: [PATCH 010/228] Add a Liquid player background
 
 A slow breathing wash of colour taken from the current album art, offered
 alongside Follow theme / Gradient / Blur in Appearance settings. Three
@@ -4869,7 +4869,7 @@ index c6d8cb2e..9ce0f192 100644
 From a8df0fb2f6fcb034aef019039828fabc8a11f086 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 07:59:29 +0000
-Subject: [PATCH 011/226] Fix the Discord login hanging, and add a manual token
+Subject: [PATCH 011/228] Fix the Discord login hanging, and add a manual token
  fallback
 
 Two problems, both mine.
@@ -5074,7 +5074,7 @@ index 9ce0f192..0afd9445 100644
 From 28179f6627b818df372bd6c35569db3246c8e9a2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 08:43:48 +0000
-Subject: [PATCH 012/226] Tell the user when the Discord login cannot read a
+Subject: [PATCH 012/228] Tell the user when the Discord login cannot read a
  token
 
 The poll now gives up visibly. Discord does not reliably keep its token
@@ -5191,7 +5191,7 @@ index 0afd9445..8388e17e 100644
 From b115a3c6151e6c5bc3152cbe9f59345571415d47 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:15:48 +0000
-Subject: [PATCH 013/226] Fix Discord presence never appearing
+Subject: [PATCH 013/228] Fix Discord presence never appearing
 
 Two problems, and the first is why nothing showed at all.
 
@@ -5300,7 +5300,7 @@ index 6e9d8fcc..d9eaf365 100644
 From 41471144150ac4044b414073562c0871b2260181 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:22:31 +0000
-Subject: [PATCH 014/226] Fix aapt2 failure from an unescaped apostrophe
+Subject: [PATCH 014/228] Fix aapt2 failure from an unescaped apostrophe
 
 discord_login_failed contained a bare apostrophe in "Couldn't". Android
 string resources treat an unescaped apostrophe as an error, which aapt2
@@ -5334,7 +5334,7 @@ index 8388e17e..25f56c21 100644
 From a43ca5f6f22de995d939fa4b1d2c3f13090c68b1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 10:41:42 +0000
-Subject: [PATCH 015/226] Make Discord connection failures visible, and stop
+Subject: [PATCH 015/228] Make Discord connection failures visible, and stop
  the infinite wait
 
 Every failure in Kizzy went to java.util.logging, which is unreadable on a
@@ -5584,7 +5584,7 @@ index 2d7f99f5..90bac793 100644
 From 07a2e5a50acc0cb0df11ce52e1d423d498f6881c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:08:56 +0000
-Subject: [PATCH 016/226] Fix the presence progress bar sticking at zero, and
+Subject: [PATCH 016/228] Fix the presence progress bar sticking at zero, and
  link the artist
 
 Two causes for the stuck bar.
@@ -5687,7 +5687,7 @@ index 8652b7c0..92770533 100644
 From 2d4ea9713dbaed9cb91007acc414445ded1dc283 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:10:54 +0000
-Subject: [PATCH 017/226] Stop reporting the previous track's position to
+Subject: [PATCH 017/228] Stop reporting the previous track's position to
  Discord
 
 player.currentPosition can still refer to the outgoing item while a track
@@ -5830,7 +5830,7 @@ index 92770533..1fd386f5 100644
 From 88282929bce159d868436d86dffe057c1df437aa Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Fri, 7 Aug 2026 11:15:27 +0000
-Subject: [PATCH 018/226] Point in-app links at this fork
+Subject: [PATCH 018/228] Point in-app links at this fork
 
 Every link that pointed at OuterTune/OuterTune now points at
 notK50BML/OuterTune, so the About screen, setup wizard, attribution
@@ -5965,7 +5965,7 @@ index 3f52f92e..ea1302e1 160000
 From 29d64b528b3e4a3e67328e728f5e17e1e3262a2e Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:21:06 +0000
-Subject: [PATCH 019/226] Fix the Discord presence freezing on a track change
+Subject: [PATCH 019/228] Fix the Discord presence freezing on a track change
 
 Two writers were publishing presences: a collector on currentSong and the
 play/pause hook in onEvents. On a skip both fired, and whichever finished
@@ -6206,7 +6206,7 @@ index 227e9628..e843bb7d 100644
 From 68c8cca11e2be2b292e7183fcbd1a1603c249359 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:22:16 +0000
-Subject: [PATCH 020/226] Explain where to find the Discord token
+Subject: [PATCH 020/228] Explain where to find the Discord token
 
 The in-app login reads localStorage, which Discord's web client no longer
 reliably exposes, so the token dialog is the path that actually works and
@@ -6236,7 +6236,7 @@ index 035206ed..93e4b92b 100644
 From 8accab9fa4794ff43841d635f9bd4f584963a526 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:27:16 +0000
-Subject: [PATCH 021/226] Ask Discord's module registry for the token
+Subject: [PATCH 021/228] Ask Discord's module registry for the token
 
 The WebView login read localStorage, which Discord's client no longer
 reliably populates - that is why the login page just sat there. Push a
@@ -6423,7 +6423,7 @@ index 9244411c..4aea73d0 100644
 From 9bf9b0893dc14305c8d901845963ad95ec5f48f1 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:49:34 +0000
-Subject: [PATCH 022/226] Add app icon customisation
+Subject: [PATCH 022/228] Add app icon customisation
 
 Six launcher icons to choose from, declared as activity-aliases and
 switched by enabling one and disabling the rest - Android has no API for
@@ -7361,7 +7361,7 @@ index 93e4b92b..25673abe 100644
 From f08abb6af05a29207d5cb2d9757667b43cd32c79 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 08:53:08 +0000
-Subject: [PATCH 023/226] Add a frosted glass player background
+Subject: [PATCH 023/228] Add a frosted glass player background
 
 A new option alongside the existing ones, not a replacement for any of
 them: the album art blurred past recognition, with a soft scrim over it.
@@ -7742,7 +7742,7 @@ index 25673abe..d6c42efd 100644
 From 4cbfad6628b0c039d8fd30a78c629d4910f85987 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:06:43 +0000
-Subject: [PATCH 024/226] Turn the home search into a field, and thin out the
+Subject: [PATCH 024/228] Turn the home search into a field, and thin out the
  top bar
 
 The search was a magnifying glass in a row of five near-identical icons,
@@ -8030,7 +8030,7 @@ index d6c42efd..37748685 100644
 From f574fdee3230728c55951bf54a6e606aa2a2b410 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:19:36 +0000
-Subject: [PATCH 025/226] Add extended charts to Stats
+Subject: [PATCH 025/228] Add extended charts to Stats
 
 The overview has always stopped at six of each, which is a summary rather
 than a chart. A collapsible section below it now goes to 20, 50 or 100 -
@@ -8326,7 +8326,7 @@ index 37748685..10418352 100644
 From b0ad66c0df8ac06e5c5de6c055cb083535eec7d2 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 09:59:55 +0000
-Subject: [PATCH 026/226] Import player layouts from the layout editor
+Subject: [PATCH 026/228] Import player layouts from the layout editor
 
 Settings -> Appearance -> Player layout takes a file from the standalone
 editor. The portrait player's title block, progress block and transport
@@ -9299,7 +9299,7 @@ index 10418352..20ed4dc7 100644
 From 841345b6180d61f07301b2c3ba0e126733599298 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:08:06 +0000
-Subject: [PATCH 027/226] Add song recognition
+Subject: [PATCH 027/228] Add song recognition
 
 A microphone button beside the search field records about twelve seconds,
 computes a Shazam-compatible fingerprint on the device, and asks Shazam
@@ -11357,7 +11357,7 @@ index 00000000..1c59e9ca
 From 6797f6d5ec27e5897b93871760ca99f6a6e611e7 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:12:28 +0000
-Subject: [PATCH 028/226] Fix the stats charts
+Subject: [PATCH 028/228] Fix the stats charts
 
 Three separate problems, all visible at once, none of them the user's data.
 
@@ -11756,7 +11756,7 @@ index f7096084..a26b3be5 100644
 From da29d1cbc5d4036a37e6bb91ff02077473fa0d9d Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:19:27 +0000
-Subject: [PATCH 029/226] Let the stats charts rank by plays or by time
+Subject: [PATCH 029/228] Let the stats charts rank by plays or by time
 
 A chip row above the charts switches songs and artists together between
 time listened and number of plays. They genuinely disagree - a long track
@@ -12003,7 +12003,7 @@ index a26b3be5..3bc88bf8 100644
 From d3a960641e23d76ac319e370dfc18b7ced957dc9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Sat, 8 Aug 2026 10:33:05 +0000
-Subject: [PATCH 030/226] Position layout blocks by their centre, and allow
+Subject: [PATCH 030/228] Position layout blocks by their centre, and allow
  rotation
 
 Schema 3. x and y are now a block's centre rather than its top-left
@@ -12077,7 +12077,7 @@ index ee3a36c6..641eb5f5 100644
 From eeefb485380081522d5da12aeb6baef2adee3885 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:15:41 +0000
-Subject: [PATCH 031/226] Keep word timings when the lenient TTML parser is
+Subject: [PATCH 031/228] Keep word timings when the lenient TTML parser is
  used
 
 BetterLyrics returns documents OuterTune's strict TTML2 reader rejects, so
@@ -12418,7 +12418,7 @@ index 00000000..5d346a37
 From d670b7558539480528b314b4859afca3eb2c036d Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:25:38 +0000
-Subject: [PATCH 032/226] Rewrite the word-by-word lyrics sweep
+Subject: [PATCH 032/228] Rewrite the word-by-word lyrics sweep
 
 The karaoke path measured nothing and guessed everything. Progress across a
 line was the fraction of words completed, so the highlight advanced in equal
@@ -13236,7 +13236,7 @@ index 00000000..c9a8384c
 From b6f323393cfdbef8cf695cb8ac4b863f6f7e959b Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:21 +0000
-Subject: [PATCH 033/226] Fix the shazamkit build: requestTimeout is not an
+Subject: [PATCH 033/228] Fix the shazamkit build: requestTimeout is not an
  OkHttp setting
 
 :shazamkit:compileKotlin failed with "Unresolved reference 'requestTimeout'",
@@ -13290,7 +13290,7 @@ index 156d94ca..a909d4d5 100644
 From 96b442dafafaecb9fba1cdac15edc60d69a99871 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:33:37 +0000
-Subject: [PATCH 034/226] Let the user choose which lyric provider is preferred
+Subject: [PATCH 034/228] Let the user choose which lyric provider is preferred
 
 Lyrics came from whichever of the six providers answered first with a synced
 result. That is the fastest way to get lyrics and it is the right default, but
@@ -14114,7 +14114,7 @@ index 00000000..78961d0d
 From 620200df5ca480fece3378b5fb99557fc4f200cb Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sat, 8 Aug 2026 11:34:48 +0000
-Subject: [PATCH 035/226] Document the lyrics work in the patch notes
+Subject: [PATCH 035/228] Document the lyrics work in the patch notes
 
 ---
  PATCH_NOTES.md | 68 +++++++++++++++++++++++++++++++++++++++++++++++---
@@ -14219,7 +14219,7 @@ index a43e5d3f..85917675 100644
 From c108f6292a3d9ce969dac5145f6e35aa2634f8dd Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 00:55:18 +0000
-Subject: [PATCH 036/226] Fix the duplicate min_playback_duration_description
+Subject: [PATCH 036/228] Fix the duplicate min_playback_duration_description
  resource
 
 :app:mergeCoreReleaseResources failed with "Found item
@@ -14275,7 +14275,7 @@ index 78bb0691..f7636ae1 100644
 From c2a3403ccfe2ca060f6701a9ed439fb6b99567cd Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:02:38 +0000
-Subject: [PATCH 037/226] Colour the queue handle to match the player
+Subject: [PATCH 037/228] Colour the queue handle to match the player
  background
 
 While the queue sheet is collapsed, BottomSheet draws its background at zero
@@ -14506,7 +14506,7 @@ index 86483840..338957b0 100644
 From adc19d14959f24929fbbad52332af0a3d662618f Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 01:39:12 +0000
-Subject: [PATCH 038/226] Restore the artist queries the stats fix deleted
+Subject: [PATCH 038/228] Restore the artist queries the stats fix deleted
 
 :app:compileCoreReleaseKotlin failed with a page of unresolved references -
 artistByName, searchArtistSongs, artist - across DatabaseDao, AlbumsDao,
@@ -14623,7 +14623,7 @@ index 6a7034b5..5a8ef057 100644
 From bd7c3bab16f219e558a1994e77bca9f1616335be Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 039/226] Let the identify-a-song button be moved or hidden
+Subject: [PATCH 039/228] Let the identify-a-song button be moved or hidden
 
 Settings -> Appearance -> Display -> Identify a song button, with three
 choices: the top of the home screen, where it has always been; inside the
@@ -14832,7 +14832,7 @@ index f7636ae1..45596e34 100644
 From 1f6f4837a677e204308f94187988029836ca6cb1 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:33:57 +0000
-Subject: [PATCH 040/226] Colour the lyrics from the player background, not the
+Subject: [PATCH 040/228] Colour the lyrics from the player background, not the
  theme
 
 Lyrics are drawn on top of whatever the player is showing behind them, but they
@@ -14928,7 +14928,7 @@ index 1700c659..18a7575b 100644
 From b36f6c84ece2a1ae14da6fc1b6d8dd7298105319 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:39:45 +0000
-Subject: [PATCH 041/226] Stop the word sweep from silently doing nothing
+Subject: [PATCH 041/228] Stop the word sweep from silently doing nothing
 
 Three ways it could look dead, all fixed, none of them confirmed as the one -
 this is written without a device to reproduce on.
@@ -15037,7 +15037,7 @@ index 18a7575b..5e9b45d5 100644
 From 693f01fe5dd390930482e5d86eba452853e86564 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 042/226] Prefer word-timed lyrics over whichever provider
+Subject: [PATCH 042/228] Prefer word-timed lyrics over whichever provider
  answers first
 
 The word-by-word sweep was never engaging, and the renderer was not the reason:
@@ -15245,7 +15245,7 @@ index ed96011c..cfd6e83e 100644
 From d24a708e01e488fa9e14d7b13c07cbc28a5c3e74 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 02:48:00 +0000
-Subject: [PATCH 043/226] Start the chart queue at the song that was tapped
+Subject: [PATCH 043/228] Start the chart queue at the song that was tapped
 
 Tapping any song in Most played songs, or in the extended Top songs, played the
 number one track instead. Both built a queue from the whole chart and never said
@@ -15326,7 +15326,7 @@ index 48721417..3c284db3 100644
 From 4de8f80c2d0e1870f47ae70e9536123d78caba17 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:28:52 +0000
-Subject: [PATCH 044/226] Actually place the blocks an imported layout asks for
+Subject: [PATCH 044/228] Actually place the blocks an imported layout asks for
 
 The importer read every field in the file, validated it, showed it back in the
 settings summary, and then the player used two of them: whether a block is
@@ -15622,7 +15622,7 @@ index 00000000..aa2ecafb
 From 894c31dce0791c9fe9e6ba5ca6bf262507e15bf5 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 03:58:53 +0000
-Subject: [PATCH 045/226] Stop the layout dispatch from changing the built-in
+Subject: [PATCH 045/228] Stop the layout dispatch from changing the built-in
  player
 
 Two faults, both mine, both from making the action row a block.
@@ -15766,7 +15766,7 @@ index b793cb19..291d13ee 100644
 From e97e9ab2a637a886dc52d17072e6894f55fcc965 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Sun, 9 Aug 2026 08:18:05 +0000
-Subject: [PATCH 046/226] Pause the Discord presence instead of removing it
+Subject: [PATCH 046/228] Pause the Discord presence instead of removing it
 
 Pausing a song cleared the activity outright, so the card vanished from your
 profile and came back on resume. It now stays up with its timestamps dropped.
@@ -15897,7 +15897,7 @@ index 45596e34..58bf36a5 100644
 From 1b7cc6cced515b5d9e12108352fd1bbb2c5e400a Mon Sep 17 00:00:00 2001
 From: K50 <k50@example.com>
 Date: Mon, 10 Aug 2026 10:58:07 +0000
-Subject: [PATCH 047/226] Make landscape player full-width and hide navigation
+Subject: [PATCH 047/228] Make landscape player full-width and hide navigation
  rail
 
 ---
@@ -16008,7 +16008,7 @@ index d3568b6e..45152b97 100644
 From c30ff9d2297c02c9f00a960cfa3d52fb67c26b49 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:05 +0800
-Subject: [PATCH 048/226] Confirm nuke actions, and add a queue-beside-current
+Subject: [PATCH 048/228] Confirm nuke actions, and add a queue-beside-current
  toggle
 
 The debug nuke buttons deleted from the database immediately on click
@@ -16296,7 +16296,7 @@ index 58bf36a5..afc1ef7a 100644
 From 597f6d12682005dd013b1ce26b4c0ba4ca1e86c3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:15:24 +0800
-Subject: [PATCH 049/226] Show the YTM view count in the song details dialog
+Subject: [PATCH 049/228] Show the YTM view count in the song details dialog
 
 PlayerResponse.VideoDetails.viewCount was already being fetched for
 playback but never surfaced anywhere. Thread it into the Details
@@ -16372,7 +16372,7 @@ index afc1ef7a..97586a2d 100644
 From ec0ed9c906a860a1041728ee7e00829377329c69 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:38 +0800
-Subject: [PATCH 050/226] Keep the Discord card layout when paused, add an
+Subject: [PATCH 050/228] Keep the Discord card layout when paused, add an
  auto-clear timeout
 
 Pausing dropped both startTime and endTime, which also removes the
@@ -16591,7 +16591,7 @@ index e4422458..0c909c81 100644
 From 190777078da2b87b37afde506ec4b7be0bece185 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:16:59 +0800
-Subject: [PATCH 051/226] Paginate remote history and stop swallowing fetch
+Subject: [PATCH 051/228] Paginate remote history and stop swallowing fetch
  failures
 
 musicHistory() only ever read the first page - there was no
@@ -16821,7 +16821,7 @@ index 5881062b..881ebce5 100644
 From 7e7c02744b09806f6ec93595a0080bbe69f4b7a7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:17:20 +0800
-Subject: [PATCH 052/226] Fix the top bar landing under the status bar, and the
+Subject: [PATCH 052/228] Fix the top bar landing under the status bar, and the
  tablet rail covering the search bar
 
 Two separate inset bugs in SearchBarContainer, both stemming from the
@@ -16945,7 +16945,7 @@ index b33a6b87..d34f96c1 100644
 From e42e082eb4597778460388021ab139300ceba842 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:06 +0800
-Subject: [PATCH 053/226] Center the landscape player and give it a full-width
+Subject: [PATCH 053/228] Center the landscape player and give it a full-width
  queue handle
 
 Three related fixes in LandscapePlayer:
@@ -17091,7 +17091,7 @@ index 45152b97..c27e51f0 100644
 From 5fbeffca2f023b83af7a95adee9f871c58b8d1af Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 14:56:23 +0800
-Subject: [PATCH 054/226] Fix the black-screen player backgrounds, and give
+Subject: [PATCH 054/228] Fix the black-screen player backgrounds, and give
  FOLLOW_THEME a renderer
 
 Two bugs behind "the screens are all black":
@@ -17283,7 +17283,7 @@ index c27e51f0..095a91ff 100644
 From 4c7cc178a87eb5cca431fd75e42611cfc9a8e806 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:18:26 +0800
-Subject: [PATCH 055/226] Add a 12-band parametric equalizer
+Subject: [PATCH 055/228] Add a 12-band parametric equalizer
 
 A cascaded-biquad IIR filter bank (Robert Bristow-Johnson cookbook
 coefficients, pure Kotlin - no native library, negligible size cost),
@@ -18339,7 +18339,7 @@ index 0c909c81..4e867ee5 100644
 From e797442862bf0157d8845f1ae9cd6aabca2a2596 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:10 +0800
-Subject: [PATCH 056/226] Rework the equalizer into a full-screen panel, and
+Subject: [PATCH 056/228] Rework the equalizer into a full-screen panel, and
  add balance/more presets
 
 The EQ sheet's state used to live inside the transient 3-dot menu
@@ -19715,7 +19715,7 @@ index 4e867ee5..71024c63 100644
 From aaed54ebc59db357c1ea252b1f53430346490925 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:32 +0800
-Subject: [PATCH 057/226] Center the navigation rail and remove its logo header
+Subject: [PATCH 057/228] Center the navigation rail and remove its logo header
 
 The rail's own logo header anchored the item group to the top, and
 Modifier.verticalScroll() on the rail meant weight()-based centering
@@ -19811,7 +19811,7 @@ index 26330b96..703cac30 100644
 From ae4c0e852a9633d0745b66b4e581ea7c40877943 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:39:44 +0800
-Subject: [PATCH 058/226] Stop the Discord presence from still ticking forward
+Subject: [PATCH 058/228] Stop the Discord presence from still ticking forward
  while paused
 
 Kept timestamps set while paused so the progress-bar row stayed put
@@ -19865,7 +19865,7 @@ index 290d34fc..a6cf5a94 100644
 From 279ff971a7d849aca3d7233d902e043f06ceff94 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:40:07 +0800
-Subject: [PATCH 059/226] Show each song's own listen time/play count on the
+Subject: [PATCH 059/228] Show each song's own listen time/play count on the
  stats screen
 
 The stats screen already had a chip toggle to rank by time listened
@@ -20135,7 +20135,7 @@ index 71024c63..93e4840d 100644
 From 65fcf7ea20396f7b8c63ea664b80cc57dab0081e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:43:17 +0800
-Subject: [PATCH 060/226] Add shuffle to the equalizer's mini transport
+Subject: [PATCH 060/228] Add shuffle to the equalizer's mini transport
 
 Missed from the prev/play-pause/next row - shuffle belongs in the
 same "basic playback controls" set.
@@ -20182,7 +20182,7 @@ index 62aabc08..4e5e33a0 100644
 From 2487abfbac42e4d7c4e459e66e3fd860670d754e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 12 Aug 2026 15:53:25 +0800
-Subject: [PATCH 061/226] Fix the app freezing when opening a song's details
+Subject: [PATCH 061/228] Fix the app freezing when opening a song's details
  dialog
 
 The view-count fetch added in the details dialog ran straight from
@@ -20237,7 +20237,7 @@ index 64586602..18f0ecda 100644
 From 3a95c144fc2c5e1a9eff3b76c29bf8c647bf2998 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:20 +0800
-Subject: [PATCH 062/226] Add a compressor to the equalizer's audio pipeline
+Subject: [PATCH 062/228] Add a compressor to the equalizer's audio pipeline
 
 A simple feed-forward dynamics compressor (threshold/ratio/attack/release/makeup gain), applied after the band cascade and gated by the same master enabled switch.
 ---
@@ -20526,7 +20526,7 @@ index e24b0e5b..1ecfc377 100644
 From 0e7f72bfe3795078c27cace7a1cf64c7d6a6b1e9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:20:36 +0800
-Subject: [PATCH 063/226] Rework the equalizer panel: contrast color
+Subject: [PATCH 063/228] Rework the equalizer panel: contrast color
  everywhere, rotary dials, compressor UI, matching transport
 
 - Add a rotary dial control and use it for per-band frequency/gain in the band editor, plus quick bass/treble dials and an optional balance dial with a left/right readout.
@@ -21410,7 +21410,7 @@ index 560f2441..7f41aec8 100644
 From 7beb579012a2eae2708d7b25b14aa489b6f1b991 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:24:27 +0800
-Subject: [PATCH 064/226] Remove the Discord presence entirely while paused
+Subject: [PATCH 064/228] Remove the Discord presence entirely while paused
  instead of showing a paused card
 
 Superseded the earlier omit-timestamps fix: a paused/stopped player now calls stopActivity() immediately (same as no media loaded), rather than sending a 'Paused' card with a frozen layout. Removes the now-meaningless auto-clear-after-pause timer and setting along with it, since there's nothing left for it to clear.
@@ -21648,7 +21648,7 @@ index a6cf5a94..49e2e224 100644
 From 714a32d607075a8469f179cf2f836df0a165e75e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:28:35 +0800
-Subject: [PATCH 065/226] Remove the remote history tab
+Subject: [PATCH 065/228] Remove the remote history tab
 
 Local history is the only option now that the remote tab is gone, so collapse the History screen to render it directly instead of behind a source selector. Drops the now-dead remote-history fetch/continuation/pagination code from the view model, the innertube client, and the HistoryPage model.
 ---
@@ -22233,7 +22233,7 @@ index 881ebce5..00000000
 From 87e35ff9b182ab3763601459b1b7419c1600aaff Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:29:22 +0800
-Subject: [PATCH 066/226] Refine the equalizer's built-in presets to feel
+Subject: [PATCH 066/228] Refine the equalizer's built-in presets to feel
  closer to Poweramp's
 
 Loudness becomes a proper Fletcher-Munson smile curve, plus two more Poweramp-signature presets (Small Speakers, Full Bass & Treble).
@@ -22268,7 +22268,7 @@ index 1ecfc377..29258783 100644
 From 6599f83388470002e8e0728781efb89eba4efac7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:41:37 +0800
-Subject: [PATCH 067/226] Simplify the EQ's slider styling, dock its transport
+Subject: [PATCH 067/228] Simplify the EQ's slider styling, dock its transport
  like the queue, fix landscape lyrics overlap
 
 - Drop the per-feature slim/default slider-style picker in the equalizer - it's slim everywhere now, no setting to maintain.
@@ -22445,7 +22445,7 @@ index a9cbaa3a..780b4e56 100644
 From b60a0e6b355accc4f98a643c2d3b09b9855fa57c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 16:56:54 +0800
-Subject: [PATCH 068/226] Tweak equalizer gain values in 0.1 dB steps
+Subject: [PATCH 068/228] Tweak equalizer gain values in 0.1 dB steps
 
 Quantizes every gain-related dial/slider (band gain, bass/treble, compressor threshold/makeup) to 0.1 dB on change, and formats their labels to one decimal instead of rounding to a whole dB.
 ---
@@ -22562,7 +22562,7 @@ index 780b4e56..ae31fef8 100644
 From 18d546dfefdf5e7810c42b5b2a4d8276a16713e9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:00:19 +0800
-Subject: [PATCH 069/226] Let equalizer presets remember custom edits as named
+Subject: [PATCH 069/228] Let equalizer presets remember custom edits as named
  profiles
 
 Adds EqualizerProfile: every preset name doubles as a profile, with a factory curve (from the existing PRESETS gains) and, once Saved, a persisted custom override. The preset row becomes a profile selector (FilterChip, built-ins undeletable, custom ones removable), with Save / Save as new / Revert to saved / Revert to default actions for whichever profile is active - so tweaking a band while a preset is selected has somewhere to persist instead of being overwritten the next time that preset is tapped.
@@ -22809,7 +22809,7 @@ index ae31fef8..9d8066a5 100644
 From 8315eeaa51e7f393a48ef9060db0d8dfa97e6c01 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:18:05 +0800
-Subject: [PATCH 070/226] Make the Liquid player background audio-reactive
+Subject: [PATCH 070/228] Make the Liquid player background audio-reactive
 
 Adds VisualizerAnalyzer: cheap, no-FFT bass/mid/treble/transient extraction fed from the equalizer's existing audio tap (EqualizerAudioProcessor), published as a throttled ~30Hz StateFlow rather than per-sample. Gated by a visualizerEnabled flag so the extra sample decoding only happens while something's actually consuming it - the EQ's bypass path otherwise stays a cheap bulk buffer copy.
 
@@ -23285,7 +23285,7 @@ index f84b6af1..b0bd9449 100644
 From 66d35fb885448c681b133156cc48a0dbbab63752 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:19:25 +0800
-Subject: [PATCH 071/226] Fix missing WindowInsets.statusBars import breaking
+Subject: [PATCH 071/228] Fix missing WindowInsets.statusBars import breaking
  the build
 
 ---
@@ -23311,7 +23311,7 @@ index 13ce963c..cd838c70 100644
 From 2793e592ec3b4673452c452c0475bcfb96784fa6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:25:36 +0800
-Subject: [PATCH 072/226] Fix EQ crackle on boosted presets: automatic headroom
+Subject: [PATCH 072/228] Fix EQ crackle on boosted presets: automatic headroom
  pre-gain plus soft clipping
 
 Several adjacent bands boosted at once (Bass Boost, Loudness, Small Speakers) overlap enough that the summed signal clears 0dBFS well before any single band's own gain would suggest, and the previous hard coerceIn(-1f, 1f) turned that into audible crackle on transients.
@@ -23417,7 +23417,7 @@ index f2de06f8..cbf450a1 100644
 From 6a47502a196ae9ce4bdbcbce291286b6f59be96f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:41:57 +0800
-Subject: [PATCH 073/226] Bring back remote history
+Subject: [PATCH 073/228] Bring back remote history
 
 Reconsidered after removing it - the underlying fetch was already fixed (pagination, safe defaults instead of force-unwraps, failures surfaced via snackbar) before it got pulled entirely, so restoring the already-working version rather than rebuilding from scratch. Local/remote tab selector, HistoryPage/HistorySource, and YouTube.musicHistory()/musicHistoryContinuation() are all back exactly as they were right before removal.
 ---
@@ -24002,7 +24002,7 @@ index 00000000..881ebce5
 From 2786af5ffcd8635543297aea2ba9fe0672da5f56 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:43:44 +0800
-Subject: [PATCH 074/226] Remove orphaned strings left over from earlier
+Subject: [PATCH 074/228] Remove orphaned strings left over from earlier
  removals
 
 equalizer_slider_style, discord_rpc_clear_after_pause(_desc), never, and rpc_paused have had zero code references since the slider-style setting was dropped and the Discord paused-card behavior was removed - the resource shrinker already excludes them from the built APK, this is just source hygiene.
@@ -24052,7 +24052,7 @@ index 93e4840d..a2296ddb 100644
 From f07e6187272acfd83d65d222fb9fdd4c347efddd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 17:58:57 +0800
-Subject: [PATCH 075/226] Fix the rotary dials not responding, and the liquid
+Subject: [PATCH 075/228] Fix the rotary dials not responding, and the liquid
  visualiser rendering grey
 
 - RotaryDial's drag handler closed over the value parameter directly, but detectDragGestures runs in a coroutine that survives across separate physical drags - so every drag after the first computed its delta against a stale value from whenever that coroutine started, not the value the previous drag actually landed on. Fixed with rememberUpdatedState on both the value and the callback.
@@ -24337,7 +24337,7 @@ index cd838c70..57eac864 100644
 From c57830b50d84ec32f8f3db825c85a4f0c4010dc3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:08:48 +0800
-Subject: [PATCH 076/226] Add dial/slider toggle, Poweramp-style flat sliders,
+Subject: [PATCH 076/228] Add dial/slider toggle, Poweramp-style flat sliders,
  and value color gradient to the equalizer
 
 - New 'Use dials instead of sliders' setting: band gain, the band editor's frequency/gain, and bass/treble all switch between the rotary dials and a slider depending on it, alongside the existing separate balance dial/slider toggle.
@@ -25095,7 +25095,7 @@ index 08e5f268..4ca41321 100644
 From 0438f47404c40461a2874c038c477326e7b1bf02 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 13 Aug 2026 18:52:17 +0800
-Subject: [PATCH 077/226] Fix RotaryDial compile error: missing getValue import
+Subject: [PATCH 077/228] Fix RotaryDial compile error: missing getValue import
  for by rememberUpdatedState
 
 State<T> needs the androidx.compose.runtime.getValue extension in scope to be
@@ -25125,7 +25125,7 @@ index e89d3b26..f2e16144 100644
 From 481f3f8604c782be8e783e715a95586bdf8a08bf Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 06:48:30 +0800
-Subject: [PATCH 078/226] Fix EqualizerPanel compile error: opt in to
+Subject: [PATCH 078/228] Fix EqualizerPanel compile error: opt in to
  ExperimentalMaterial3Api on PowerampSlider/LabeledSlider
 
 Both call the Slider(track=, thumb=) overload directly but weren't annotated,
@@ -25162,7 +25162,7 @@ index 4ca41321..e37fcebe 100644
 From f70c492d54722b9e0f17898333177193ac5b248a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 14:46:35 +0800
-Subject: [PATCH 079/226] EQ visual overhaul + lyrics sync fix + miniplayer
+Subject: [PATCH 079/228] EQ visual overhaul + lyrics sync fix + miniplayer
  dismiss fix
 
 - Lyrics: findCurrentLineIndex no longer wraps a transient negative
@@ -26092,7 +26092,7 @@ index 57eac864..430b1aa6 100644
 From c1ecd79807f76e86a6a98d38f28cb5fecac21ed5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:38:42 +0800
-Subject: [PATCH 080/226] EQ tone controls rework, Liquid background v3,
+Subject: [PATCH 080/228] EQ tone controls rework, Liquid background v3,
  per-style text contrast
 
 - Bass/Treble dials now move every band at/below 250Hz or at/above
@@ -26881,7 +26881,7 @@ index b0bd9449..5d63ed4a 100644
 From a1ce2f01f37516900d6651c1ddfc58a23f946283 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 15:33:54 +0800
-Subject: [PATCH 081/226] EQ color scheme rework, bigger handle, fix Liquid
+Subject: [PATCH 081/228] EQ color scheme rework, bigger handle, fix Liquid
  alpha-flash
 
 - Sliders: track fill is always a fixed green, unfilled portion a
@@ -27425,7 +27425,7 @@ index 8a31b1e2..d9f55c41 100644
 From f63f416be751120896d32d4e0a371213aafa2208 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:03:07 +0800
-Subject: [PATCH 082/226] Layout editor schema v4: render individual
+Subject: [PATCH 082/228] Layout editor schema v4: render individual
  transport/action buttons
 
 - PlayerLayout.kt: bumped to SCHEMA_VERSION 4, fixed two bugs in the
@@ -28208,7 +28208,7 @@ index aa2ecafb..abbf50eb 100644
 From 72993ef1d551d6bb24ddbc7a9e92891d40a09dbe Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:29:09 +0800
-Subject: [PATCH 083/226] Fix the actual EQ handle, restore Liquid's flower
+Subject: [PATCH 083/228] Fix the actual EQ handle, restore Liquid's flower
  shape smaller and blurred
 
 - The player-screen handle that opens the EQ (EqualizerHandle in
@@ -28536,7 +28536,7 @@ index 1b5f123b..a430aaf5 100644
 From 1e0af9de0d1e6f92803f5ccbd246875c3a810cdd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 14 Aug 2026 16:13:28 +0800
-Subject: [PATCH 084/226] Add a Liquid shape setting: petal (spiky) or spheres
+Subject: [PATCH 084/228] Add a Liquid shape setting: petal (spiky) or spheres
  (soft)
 
 Rather than keep flip-flopping between the spiky "flower" and the soft
@@ -28946,7 +28946,7 @@ index 5d63ed4a..4f69ef2e 100644
 From 625d30c4587ba3679997a553b33d0ac3efbbbf85 Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Thu, 13 Aug 2026 17:37:53 +0900
-Subject: [PATCH 085/226] fix: prevent concurrent home pagination requests
+Subject: [PATCH 085/228] fix: prevent concurrent home pagination requests
 
 Set the loading flag only when no home pagination request is already running. Perform the check and update as a single operation so that simultaneous load-more requests start only one network call.
 
@@ -28998,7 +28998,7 @@ index 14d91ba2..22af1f35 100644
 From eab6876fd9ed8945d0e90fb0318e522a99a706db Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Thu, 13 Aug 2026 19:24:49 +0900
-Subject: [PATCH 086/226] fix: discard stale home load-more results
+Subject: [PATCH 086/228] fix: discard stale home load-more results
 
 A home load-more request can finish after a refresh or category change and append its sections to the newly displayed content.
 
@@ -29059,7 +29059,7 @@ index 22af1f35..5fb5e467 100644
 From f15fb9a2e23dda9c04a59058b602336eb959dade Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Fri, 14 Aug 2026 11:23:00 +0900
-Subject: [PATCH 087/226] fix: prevent crash when clearing the final queue
+Subject: [PATCH 087/228] fix: prevent crash when clearing the final queue
 
 ExoPlayer can report a prospective media item index when its timeline is empty.
 The lyrics target update treated that index as a valid item after the final queue was cleared and tried to read a nonexistent window.
@@ -29107,7 +29107,7 @@ index 801f1567..1a72918c 100644
 From cdf7aabebe05c1e900d30681069e5829dcdf3391 Mon Sep 17 00:00:00 2001
 From: yuuichi <6133780+yuuichi-s@users.noreply.github.com>
 Date: Sat, 15 Aug 2026 13:43:21 +0900
-Subject: [PATCH 088/226] fix: add cipher configs for current YouTube players
+Subject: [PATCH 088/228] fix: add cipher configs for current YouTube players
 
 Refresh the bundled player_configs.json from ZemerTeam/zemer-cipher.
 
@@ -29336,7 +29336,7 @@ index 80bcd9d7..f7e95cf6 100644
 From 52deb3a09c1a0e03d15ee17124eb8f4452737d7e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:36:42 +0800
-Subject: [PATCH 089/226] Fix garbled unsynced lyrics, make Liquid's idle
+Subject: [PATCH 089/228] Fix garbled unsynced lyrics, make Liquid's idle
  motion actually visible
 
 Unsynced lyrics were joined with joinToString { "${it.first}\n" } -
@@ -29441,7 +29441,7 @@ index ffec9482..4ab79472 100644
 From e96207dcc9603acc6fa37b81651bd49f9a29c8b1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:43:44 +0800
-Subject: [PATCH 090/226] Match the petal's colour to the playback controls,
+Subject: [PATCH 090/228] Match the petal's colour to the playback controls,
  soften its edges
 
 The petal was filled from the album-art extraction (falling back to
@@ -29530,7 +29530,7 @@ index 4ab79472..94974ded 100644
 From 468599ce694f328d6e737bec45a4cad0d4b6b60b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:59:46 +0800
-Subject: [PATCH 091/226] Make Liquid's text contrast follow the backdrop, not
+Subject: [PATCH 091/228] Make Liquid's text contrast follow the backdrop, not
  the cover art
 
 rememberPlayerOnBackgroundColor measured the raw album cover's
@@ -29620,7 +29620,7 @@ index 91703cd9..8847cc88 100644
 From 264bea8a150563be2e9fc7f11352fd67864021cc Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 13:59:58 +0800
-Subject: [PATCH 092/226] Fix two crashes that could abort playback/downloads
+Subject: [PATCH 092/228] Fix two crashes that could abort playback/downloads
  mid-stream
 
 format.contentLength!! in both MusicService's playback data source and
@@ -29713,7 +29713,7 @@ index 1a72918c..31e070b6 100644
 From fd90e1280934ef177a1e6c115ecc80caa186af3a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:01:56 +0800
-Subject: [PATCH 093/226] Size the artist header to the image's own shape, not
+Subject: [PATCH 093/228] Size the artist header to the image's own shape, not
  a forced 4:3 crop
 
 Artist images come in two real shapes: older channels have a square
@@ -29847,7 +29847,7 @@ index a848cde2..1511ea7e 100644
 From f61b13a9716cbf4d8a32b0f2b69da6df3489cc55 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:10:40 +0800
-Subject: [PATCH 094/226] Keep Bass/Balance/Treble as dials regardless of the
+Subject: [PATCH 094/228] Keep Bass/Balance/Treble as dials regardless of the
  slider toggle
 
 ToneControlsRow followed the panel-wide "use dials instead of
@@ -30012,7 +30012,7 @@ index ff04effa..a506385a 100644
 From 7611353e14486aa9d65679cfd136f47c0a2e137d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:21:03 +0800
-Subject: [PATCH 095/226] Fix Follow-theme's grey/black fallback, and a
+Subject: [PATCH 095/228] Fix Follow-theme's grey/black fallback, and a
  settings/behaviour mismatch
 
 extractGradientColors() routed through Score.score(), which is tuned
@@ -30101,7 +30101,7 @@ index 588b965e..8de5a1ec 100644
 From 7b7d513706663e13f4a03462c3e378f00342bc6e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:26:55 +0800
-Subject: [PATCH 096/226] Restructure the EQ panel into rounded cards, fix
+Subject: [PATCH 096/228] Restructure the EQ panel into rounded cards, fix
  contrast gaps
 
 Split the flat, divider-separated column into four rounded cards -
@@ -30717,7 +30717,7 @@ index a506385a..42e8eee2 100644
 From bee6a32d7f99b198186e56a7666873e42e027a96 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:35:51 +0800
-Subject: [PATCH 097/226] Fix Liquid's Theme-surface contrast being a no-op,
+Subject: [PATCH 097/228] Fix Liquid's Theme-surface contrast being a no-op,
  and its flat-black look
 
 rememberPlayerOnBackgroundColor's SURFACE branch returned themeFallback
@@ -30830,7 +30830,7 @@ index b17bbf17..41d1df99 100644
 From fcee136e31d0df59411f7e564f9ae652bddd1a81 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:32:14 +0800
-Subject: [PATCH 098/226] Recover unparseable lyrics on display, refetch once
+Subject: [PATCH 098/228] Recover unparseable lyrics on display, refetch once
  if they still fail
 
 PlayerConnection.resolveLyrics (the actual live display path) called
@@ -30940,7 +30940,7 @@ index 31f4381a..16bcf669 100644
 From d06847f9ffd5c48c81bbac2cf15809a7cb33fb28 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:45:03 +0800
-Subject: [PATCH 099/226] Detect letterboxing baked into artist photos, not
+Subject: [PATCH 099/228] Detect letterboxing baked into artist photos, not
  just file shape
 
 The previous fix (sizing the header to the URL's own aspect ratio)
@@ -31218,7 +31218,7 @@ index 1511ea7e..907e9c32 100644
 From c0705dd7fd4edefc7cff695a41cbb2c6fe9f806f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 15 Aug 2026 14:45:14 +0800
-Subject: [PATCH 100/226] Give Liquid's Theme-surface backdrop and blobs
+Subject: [PATCH 100/228] Give Liquid's Theme-surface backdrop and blobs
  distinct colour roles
 
 Theme surface's backdrop was a tinted elevated surface, which read as
@@ -31392,7 +31392,7 @@ index 41d1df99..0aa39aac 100644
 From 56805490d6d47176b1ef334114b63aeeb5ee3a2f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 10:41:18 +0800
-Subject: [PATCH 101/226] Two more defenses against error 2004 (bad HTTP status
+Subject: [PATCH 101/228] Two more defenses against error 2004 (bad HTTP status
  from googlevideo)
 
 Beyond the cipher-config refresh already in place:
@@ -31653,7 +31653,7 @@ index fd6be5d8..ee3fd0a0 100644
 From 11fea8ffed80e1fe147d898636e4ffe00079b2bd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 10:44:36 +0800
-Subject: [PATCH 102/226] Show seek back/forward in a custom layout even with
+Subject: [PATCH 102/228] Show seek back/forward in a custom layout even with
  the setting off
 
 A custom layout that explicitly asks for BlockId.SEEK_BACKWARD/
@@ -31758,7 +31758,7 @@ index 0aa39aac..1f6e26cd 100644
 From 63828ed1a4fe31c81988c99ee3f94336dbbf4c7a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:16:41 +0800
-Subject: [PATCH 103/226] Give the artist header more height, especially for
+Subject: [PATCH 103/228] Give the artist header more height, especially for
  wide/landscape photos
 
 Sizing the header box to the image's exact aspect ratio was correct in
@@ -31820,7 +31820,7 @@ index 39848100..b72ecf8e 100644
 From b1f02bc77e119bd77f3f26d0d878e9b5c17970ef Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:29:19 +0800
-Subject: [PATCH 104/226] Fix artist header image floating away from its title
+Subject: [PATCH 104/228] Fix artist header image floating away from its title
  text
 
 The previous commit made the header box deliberately taller than the
@@ -31872,7 +31872,7 @@ index b72ecf8e..e46407a3 100644
 From c58af37794f615772cfdeb31dcbb41bd20a26c4c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:34:44 +0800
-Subject: [PATCH 105/226] Fix Theme-surface backdrop blending into the player's
+Subject: [PATCH 105/228] Fix Theme-surface backdrop blending into the player's
  own controls
 
 The last fix made the backdrop plain colorScheme.primary to stop it
@@ -31952,7 +31952,7 @@ index 1f6e26cd..aba77ec9 100644
 From 9a73dd7e10a3b24a9088a310aa7c0899edaa2ff8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:38:43 +0800
-Subject: [PATCH 106/226] Add a Ferrofluid Liquid shape: a dark, glossy spiked
+Subject: [PATCH 106/228] Add a Ferrofluid Liquid shape: a dark, glossy spiked
  crown
 
 A third LiquidShapeStyle alongside Petal and Spheres, styled after
@@ -32174,7 +32174,7 @@ index 6241781d..c95aea58 100644
 From efea823e40b26a18cbc09bb84ae38ce6cb09b893 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 11:58:18 +0800
-Subject: [PATCH 107/226] Add opt-in AGSL GPU shaders: chromatic shock ripple
+Subject: [PATCH 107/228] Add opt-in AGSL GPU shaders: chromatic shock ripple
  and raymarched Ferrofluid
 
 The lightweight Canvas Liquid renderer can't do real refraction or a lit
@@ -32792,7 +32792,7 @@ index c95aea58..75ea979d 100644
 From 934a9612933682373c49a0e02b077bbcf8b2cccb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 12:18:29 +0800
-Subject: [PATCH 108/226] Fix compile error: missing getValue/setValue imports
+Subject: [PATCH 108/228] Fix compile error: missing getValue/setValue imports
  in the new shader files
 
 CI failed on LiquidChromaticShock.kt and LiquidFerrofluidGpu.kt: their
@@ -32842,7 +32842,7 @@ index 5154d04d..d45bf04f 100644
 From 6688e44da03f6976067974216a7e2ea98b376633 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 12:38:39 +0800
-Subject: [PATCH 109/226] Fix repeat button drifting from the right edge when
+Subject: [PATCH 109/228] Fix repeat button drifting from the right edge when
  seek buttons toggle
 
 Each control-row icon (shuffle, skip, seek, repeat) sat in its own
@@ -32917,7 +32917,7 @@ index 9f0de090..43047355 100644
 From 4e807b14f57cbf573adecd0ae5b23a4d8b6f7dc4 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 16 Aug 2026 13:13:40 +0800
-Subject: [PATCH 110/226] Lighten the GPU ferrofluid shader, and fix the Canvas
+Subject: [PATCH 110/228] Lighten the GPU ferrofluid shader, and fix the Canvas
  one's star-shaped crown
 
 GPU ferrofluid was too heavy for lower-end GPUs and still not visibly
@@ -33112,7 +33112,7 @@ index d45bf04f..7a67a1b6 100644
 From 5471b826b4ebfdc678da1edb824f634446e50263 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Mon, 17 Aug 2026 21:50:53 +0800
-Subject: [PATCH 111/226] Fix lyrics rendering silently dying partway through a
+Subject: [PATCH 111/228] Fix lyrics rendering silently dying partway through a
  song
 
 Two separate LaunchedEffects, both keyed on lyricsModel, own two different
@@ -33211,7 +33211,7 @@ index 2affc5a4..9233fa89 100644
 From 0221e13074998d0279565ce8531264aac243a4c4 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 09:14:22 +0000
-Subject: [PATCH 112/226] Stop battery saver from overriding word-by-word
+Subject: [PATCH 112/228] Stop battery saver from overriding word-by-word
  lyrics sync
 
 LyricKaraokeEnable is the person's own choice to turn word-by-word sync on;
@@ -33255,7 +33255,7 @@ index 9233fa89..0923c58c 100644
 From b4067fbfb2efca4ce73782689b4f0879fe946749 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 10:59:31 +0000
-Subject: [PATCH 113/226] Rotate the YouTube session identity as part of the
+Subject: [PATCH 113/228] Rotate the YouTube session identity as part of the
  existing source-error retry
 
 The retry in onPlayerError (from the earlier 'Two more defenses against
@@ -33469,7 +33469,7 @@ index cf7d973c..e6d55e74 100644
 From 32f5122eff7fb01003b693b6b884133fb4cf63c2 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 12:26:34 +0000
-Subject: [PATCH 114/226] Keep every stream request under googlevideo's
+Subject: [PATCH 114/228] Keep every stream request under googlevideo's
  connection-duration cutoff
 
 Confirmed independently of any auth/URL-freshness issue: temporarily
@@ -33548,7 +33548,7 @@ index 8723ca66..cf101cc5 100644
 From 3865665083d1bb3e9720e07c53bb8d74d7bed871 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 13:11:06 +0000
-Subject: [PATCH 115/226] Proactively refresh the streaming PoToken before it
+Subject: [PATCH 115/228] Proactively refresh the streaming PoToken before it
  actually goes stale
 
 Confirmed the CDN-connection-duration theory wrong: tightening chunk size
@@ -33661,7 +33661,7 @@ index 460ca782..aac787ba 100644
 From de4a8b4d5999660204c1b00f575ccfa1d9f429d9 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 12:19:59 +0000
-Subject: [PATCH 116/226] Stop the 'Failed to parse proxy url' toast on every
+Subject: [PATCH 116/228] Stop the 'Failed to parse proxy url' toast on every
  launch with no proxy set
 
 toInetSocketAddress() destructured split(":") with no length check, so a
@@ -33742,7 +33742,7 @@ index 148dda53..dc67714d 100644
 From e5b86a3c73281ce9b6d1b311ba5db9f7a4b24932 Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 23:27:54 +0000
-Subject: [PATCH 117/226] Use a PoToken-bearing client for playback streams
+Subject: [PATCH 117/228] Use a PoToken-bearing client for playback streams
 
 Every PoToken fix in this series so far - the session rotation, the 40s
 cache cap, invalidate()-before-refresh - operated on a token that was
@@ -33911,7 +33911,7 @@ index 00000000..5b91bee1
 From d8adc64bf15a31112b8edd7045c9bf0f32dd2b0d Mon Sep 17 00:00:00 2001
 From: claude <c@example.com>
 Date: Tue, 18 Aug 2026 23:28:07 +0000
-Subject: [PATCH 118/226] Validate streams with a ranged GET past the first
+Subject: [PATCH 118/228] Validate streams with a ranged GET past the first
  chunk
 
 validateStatus() issued a HEAD. googlevideo answers HEAD with 200 on
@@ -34095,7 +34095,7 @@ index 5b91bee1..00000000
 From f6674d826b1e2e9ac4a6fc4239ec6c70c56f8958 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:34:05 +0800
-Subject: [PATCH 119/226] Send Referer/Origin on stream requests, precache the
+Subject: [PATCH 119/228] Send Referer/Origin on stream requests, precache the
  next song's URL
 
 Every stream request only ever carried a User-Agent. googlevideo.com has
@@ -34508,7 +34508,7 @@ index 9a2be236..cbe76e1c 100644
 From bc26633879116fca119008a14cb5b8a9fc96cfd9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:42:23 +0800
-Subject: [PATCH 120/226] Send X-Goog-Visitor-Id header on every innertube API
+Subject: [PATCH 120/228] Send X-Goog-Visitor-Id header on every innertube API
  request
 
 visitorData was already in every request body's context.client field, but
@@ -34544,7 +34544,7 @@ index 49051c7d..d2dd5d7f 100644
 From 38a07293441396c4ff354901785a3a10fe12c85a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 19 Aug 2026 21:49:35 +0800
-Subject: [PATCH 121/226] Replay real playback-start telemetry: cpn +
+Subject: [PATCH 121/228] Replay real playback-start telemetry: cpn +
  watchtime/atr pings
 
 OuterTune's only playback ping fired at a song's END for local history
@@ -34881,7 +34881,7 @@ index ecdc8cde..54814a01 100644
 From 451a6e8b49d26c69edb92ad980fbae38514a930d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 20 Aug 2026 21:20:47 +0800
-Subject: [PATCH 122/226] Swiping the mini player down stops playback and
+Subject: [PATCH 122/228] Swiping the mini player down stops playback and
  dismisses it
 
 The mini player and the full player share one dismiss gesture (drag past
@@ -34969,7 +34969,7 @@ index 43047355..fecb5c13 100644
 From 07c3ff1b485abe735ea4470de2def4c1fde2f46a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 20 Aug 2026 21:28:07 +0800
-Subject: [PATCH 123/226] Bump NewPipeExtractor v0.26.3 -> v0.26.5
+Subject: [PATCH 123/228] Bump NewPipeExtractor v0.26.3 -> v0.26.5
 
 Two releases (and ~2 months) behind. Neither release's changelog calls
 out a targeted signature/throttling-parameter fix, so this isn't a
@@ -35002,7 +35002,7 @@ index f12ff0c0..fe38293f 100644
 From 16f95c74a4838544206a179b7943f7361d45e067 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:19:02 +0800
-Subject: [PATCH 124/226] Update stale client versions/UAs, fix client flags,
+Subject: [PATCH 124/228] Update stale client versions/UAs, fix client flags,
  tune HTTP client
 
 Several clients were up to a year out of date: WEB/WEB_REMIX/WEB_CREATOR/
@@ -35282,7 +35282,7 @@ index c2317a86..0b26b34d 100644
 From 7f8c042f9d01cf8797ed5bc078c90b9d4f6aaf86 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:24:59 +0800
-Subject: [PATCH 125/226] Skip WEB_REMIX for 5 min after its stream is rejected
+Subject: [PATCH 125/228] Skip WEB_REMIX for 5 min after its stream is rejected
  for a video
 
 MusicService's retry-on-source-error re-resolves from scratch, which
@@ -35424,7 +35424,7 @@ index fd2b0ffb..c494707b 100644
 From 03e25f0abb1b44cf0bbf0a06e3669a2154f94530 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:35:27 +0800
-Subject: [PATCH 126/226] Exclude the top system bar from the free-placement
+Subject: [PATCH 126/228] Exclude the top system bar from the free-placement
  player area
 
 Free-placement blocks (PlayerLayoutBlock's FreeBlock) measure
@@ -35489,7 +35489,7 @@ index fecb5c13..064c350f 100644
 From 36d74c2e537608db9f8707d17e87bb9671adcad0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:46:10 +0800
-Subject: [PATCH 127/226] Download full-res thumbnails independently, fall back
+Subject: [PATCH 127/228] Download full-res thumbnails independently, fall back
  on load failure
 
 Adds SongEntity.thumbnailPath (DB v21->22, additive nullable column) for
@@ -35971,7 +35971,7 @@ index 153e3e2e..c6f197d3 100644
 From d625310148632c714852b2cdb7570cb2f857de61 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:51:31 +0800
-Subject: [PATCH 128/226] Enrich an existing song's artists/genres instead of
+Subject: [PATCH 128/228] Enrich an existing song's artists/genres instead of
  discarding them
 
 insert(mediaMetadata) returned immediately whenever the SongEntity insert
@@ -36035,7 +36035,7 @@ index ff43ce9d..62be8457 100644
 From 82629577abc5af685e4e5bb067edcde8eb46c2a8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 20:57:01 +0800
-Subject: [PATCH 129/226] Add an Equalizer settings sub-page
+Subject: [PATCH 129/228] Add an Equalizer settings sub-page
 
 The dials-vs-sliders, contrast-color, and color-by-value toggles - and
 profile save/load/delete - previously only existed inside the in-player
@@ -36392,7 +36392,7 @@ index c6f197d3..dd8790fb 100644
 From 9432413a08abda047ed9b4197e94fb76e6b592ef Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:09:23 +0800
-Subject: [PATCH 130/226] Split combined "X & Y" credits and add featured
+Subject: [PATCH 130/228] Split combined "X & Y" credits and add featured
  artists, once verified
 
 Two cases where a song's credited artists were less complete than YTM
@@ -36620,7 +36620,7 @@ index 00000000..8347a5ee
 From 97208a52cd7079955f4c3c12f609d65be8e479fc Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:17:23 +0800
-Subject: [PATCH 131/226] Put the real equalizer controls in Settings, not just
+Subject: [PATCH 131/228] Put the real equalizer controls in Settings, not just
  its meta-settings
 
 The Equalizer settings page previously only exposed the dials/contrast-
@@ -36974,7 +36974,7 @@ index dd8790fb..406577bd 100644
 From 9c344b74223718c978358fd21cc85f841980b9cb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:27:30 +0800
-Subject: [PATCH 132/226] Make AutoEQ search actually search and apply real
+Subject: [PATCH 132/228] Make AutoEQ search actually search and apply real
  curves
 
 Replaces the AutoEQ placeholder with a working implementation: searches
@@ -37360,7 +37360,7 @@ index 406577bd..6e0a6c56 100644
 From 233587938733ac4a682f95675217e9a8284c21da Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:34:38 +0800
-Subject: [PATCH 133/226] Mint PoTokens against visitorData, never dataSyncId,
+Subject: [PATCH 133/228] Mint PoTokens against visitorData, never dataSyncId,
  even when logged in
 
 Every PoToken this app minted while signed in was tied to dataSyncId -
@@ -37483,7 +37483,7 @@ index c494707b..79dea755 100644
 From 303b09707ae8ba1844444c2a81e75e544a38b401 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 21 Aug 2026 21:39:20 +0800
-Subject: [PATCH 134/226] Fix compile error: Coil3's Chain.proceed() takes no
+Subject: [PATCH 134/228] Fix compile error: Coil3's Chain.proceed() takes no
  arguments
 
 Interceptor.Chain.proceed() is a no-arg suspend fun in Coil3 - to
@@ -37529,7 +37529,7 @@ index a65839a5..379e3e8b 100644
 From 54d0de9476629ac569da945f577cfbb4bdfc132d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 10:10:08 +0800
-Subject: [PATCH 135/226] Fix compressor settings reverting to default when
+Subject: [PATCH 135/228] Fix compressor settings reverting to default when
  picking a built-in EQ preset
 
 Selecting any built-in preset (Rock, Pop, etc.) applied
@@ -37595,7 +37595,7 @@ index 2fd56a59..dcd18882 100644
 From ccf2076c9fae668061510413bab14dee343546c5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 10:14:36 +0800
-Subject: [PATCH 136/226] Self-heal stale player cipher configs and expired
+Subject: [PATCH 136/228] Self-heal stale player cipher configs and expired
  download stream URLs
 
 Two related fixes for the same underlying failure mode (a resolved
@@ -37929,7 +37929,7 @@ index 8b076d2c..6eea6c21 100644
 From 1a03a4cd4393df3809e51c5f355441380decfa57 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:33:01 +0800
-Subject: [PATCH 137/226] Fix downloaded songs still streaming when downloaded
+Subject: [PATCH 137/228] Fix downloaded songs still streaming when downloaded
  mid-queue
 
 Playback resolution preferred the current queue's own cached MediaMetadata
@@ -37972,7 +37972,7 @@ index b7499dbf..0d573b4b 100644
 From fceaf1c61de3e614d339f443682762fffd4cfe3b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:40:29 +0800
-Subject: [PATCH 138/226] Fix downloaded thumbnails rendering as a black player
+Subject: [PATCH 138/228] Fix downloaded thumbnails rendering as a black player
  background
 
 CoilBitmapLoader.fetch() only handled paths under /storage/, and even then
@@ -38064,7 +38064,7 @@ index 4c438e21..c075215c 100644
 From 91fe2294ad4a55fa6e1bd7a0f38d1fef938f05e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 11:43:42 +0800
-Subject: [PATCH 139/226] Move thumbnail-download setting to Library & Content,
+Subject: [PATCH 139/228] Move thumbnail-download setting to Library & Content,
  add bulk download action
 
 The "download thumbnails automatically" toggle lived in Storage settings next
@@ -38285,7 +38285,7 @@ index 6e0a6c56..5d1e6625 100644
 From 8db6b82bb470773037b281c10e81da827c12142e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 18:57:58 +0800
-Subject: [PATCH 140/226] Strip/dedupe " - Topic" artist credits, clean up ones
+Subject: [PATCH 140/228] Strip/dedupe " - Topic" artist credits, clean up ones
  already added
 
 ArtistCreditEnricher resolves featured/split-credit artist names via YT
@@ -38529,7 +38529,7 @@ index 8347a5ee..e1a105e7 100644
 From 35ab06b140fc8b4f0061e428f0e84ba6e2e53a36 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 22 Aug 2026 19:14:24 +0800
-Subject: [PATCH 141/226] Fix compile errors in the stale-queue localPath
+Subject: [PATCH 141/228] Fix compile errors in the stale-queue localPath
  re-check
 
 database.song(id) returns the Song relation wrapper, not SongEntity, so the
@@ -38565,7 +38565,7 @@ index 0d573b4b..5573a2a0 100644
 From c86bbe7e3f7cee3870cbc5c1f11777133edda972 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:17 +0800
-Subject: [PATCH 142/226] Never replace a song's own artist credit, only add
+Subject: [PATCH 142/228] Never replace a song's own artist credit, only add
  confirmed extras behind it
 
 ArtistCreditEnricher used to delete a song's combined "X & Y" credit and
@@ -38711,7 +38711,7 @@ index e1a105e7..5a00d96a 100644
 From ab9635bb610f213d8343efa284acb7a407cbb055 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:29 +0800
-Subject: [PATCH 143/226] Fix two player crash risks around album/artist
+Subject: [PATCH 143/228] Fix two player crash risks around album/artist
  navigation
 
 - Player.kt's album-title tap read mediaMetadata!!.album!!.id inside the
@@ -38769,7 +38769,7 @@ index 064c350f..e12f4518 100644
 From 22ad94e73582f2b8284c88b1882727ad7289808a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:40 +0800
-Subject: [PATCH 144/226] Size the artist header photo's padding to whether
+Subject: [PATCH 144/228] Size the artist header photo's padding to whether
  it's letterboxed
 
 The header's extra headroom (HEADER_HEIGHT_BOOST) was applied by the same
@@ -38856,7 +38856,7 @@ index e46407a3..e9008404 100644
 From b7edc3c361b2d91330e58db4077d7e5b7099b49a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:03:51 +0800
-Subject: [PATCH 145/226] Add crossfade with a configurable fade-out duration
+Subject: [PATCH 145/228] Add crossfade with a configurable fade-out duration
 
 There's one ExoPlayer, not two, so this isn't a true overlapping crossfade -
 Crossfader instead fades the current track's volume out over the last
@@ -39158,7 +39158,7 @@ index 5d1e6625..89b921c9 100644
 From 2798e4ed71ba5774d748cb67dddb09ddf0f8456b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:07 +0800
-Subject: [PATCH 146/226] Never navigate to an artist with no real page
+Subject: [PATCH 146/228] Never navigate to an artist with no real page
 
 Every "view artist" action (the player's title-area link, its overflow
 menu, song/album menus, both the plain and thumbnailed artist picker
@@ -39386,7 +39386,7 @@ index e12f4518..878b48a1 100644
 From dc4e11c35207725370cd5fa4db4b11f6d8a0a8e3 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:18 +0800
-Subject: [PATCH 147/226] Show an artist's videos as a song list when they have
+Subject: [PATCH 147/228] Show an artist's videos as a song list when they have
  no songs of their own
 
 An artist page's "Videos" carousel and its "Songs" list both come from the
@@ -39567,7 +39567,7 @@ index 89b921c9..6f7af844 100644
 From 5de846af1942a948e7c7a633cb352b94e419e35a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:21:30 +0800
-Subject: [PATCH 148/226] Watch for a dead Discord RPC connection and
+Subject: [PATCH 148/228] Watch for a dead Discord RPC connection and
  force-reconnect it
 
 Kizzy's isRpcRunning()/isWebSocketConnected() only reflect whether connect()
@@ -39690,7 +39690,7 @@ index 632e7ffa..0e9acbaf 100644
 From c0ff0174478ba106c0bbf9404214e47154e62119 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:28:52 +0800
-Subject: [PATCH 149/226] Remove a combined artist credit once confirmed it
+Subject: [PATCH 149/228] Remove a combined artist credit once confirmed it
  doesn't exist, not just add around it
 
 The previous version never touched a song's own "X & Y" combined credit,
@@ -39836,7 +39836,7 @@ index 5a00d96a..ae9cc745 100644
 From 363230bdbb7b1618886104805e78d0f17f8daa0f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 12:42:12 +0800
-Subject: [PATCH 150/226] Fix compile error: write the 21->22 migration by hand
+Subject: [PATCH 150/228] Fix compile error: write the 21->22 migration by hand
  instead of relying on a missing schema snapshot
 
 CI failed with:
@@ -39912,7 +39912,7 @@ index a5528b74..2217a4d2 100644
 From 17e9f88c00b2abaf89a4667b284c50d0f58d0561 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 13:30:20 +0800
-Subject: [PATCH 151/226] Add automatic backup, so song stats survive an
+Subject: [PATCH 151/228] Add automatic backup, so song stats survive an
  uninstall without a manual step
 
 Backup and Restore already covers every setting and the whole database
@@ -40432,7 +40432,7 @@ index 6f7af844..08b9a051 100644
 From beb60ad104f181e9bb32fd188f497b37625b05a2 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 19:55:04 +0800
-Subject: [PATCH 152/226] Auto-create the automatic backup folder, add interval
+Subject: [PATCH 152/228] Auto-create the automatic backup folder, add interval
  units, and selective categories
 
 Replaces the SAF folder picker with Downloads/OuterTune Backup, created on
@@ -41161,7 +41161,7 @@ index 08b9a051..a433e677 100644
 From 262fb3b4b62f17a8bb4c0d5a45a3a5686f76b98f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 20:25:17 +0800
-Subject: [PATCH 153/226] Fix a crash-loop on launch: recreate the database on
+Subject: [PATCH 153/228] Fix a crash-loop on launch: recreate the database on
  a downgrade instead of crashing
 
 Logcat: "IllegalStateException: A migration from 24 to 23 was required but
@@ -41212,7 +41212,7 @@ index 2217a4d2..93349a54 100644
 From b2d95a3e27422742d000ce9bc4ca42d51070a3e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:39:33 +0800
-Subject: [PATCH 154/226] Recover the dropped v24 Topic-suffix work, so
+Subject: [PATCH 154/228] Recover the dropped v24 Topic-suffix work, so
  version-24 backups are compatible again
 
 A prior session's last 5 commits on this branch never actually made it into
@@ -41661,7 +41661,7 @@ index ae9cc745..bd395928 100644
 From a168f94231e073c8642461f4878349e4e736cca8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:42:17 +0800
-Subject: [PATCH 155/226] Merge a restored backup into the live database
+Subject: [PATCH 155/228] Merge a restored backup into the live database
  instead of replacing it outright
 
 Restore used to copy the backup's database file straight over the live one
@@ -41781,7 +41781,7 @@ index 85798d5f..398fc873 100644
 From c30c27e2e44accf5f603e8eb2205d890d2ad2e1c Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 21:55:19 +0800
-Subject: [PATCH 156/226] Fix compile error: writableDatabase.path is nullable
+Subject: [PATCH 156/228] Fix compile error: writableDatabase.path is nullable
 
 CI: "Argument type mismatch: actual type is 'String?', but 'String' was
 expected" at mergeDatabaseFile's liveDbPath argument. SupportSQLiteDatabase.path
@@ -41815,7 +41815,7 @@ index 398fc873..2fd26f26 100644
 From d01c1443ff74666fb0233c6b5e8ff46511453cca Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 22:23:51 +0800
-Subject: [PATCH 157/226] Simplify backup: drop the merge-restore and selective
+Subject: [PATCH 157/228] Simplify backup: drop the merge-restore and selective
  categories
 
 Both were real, standing risk: merge-restore ATTACHed the backup database
@@ -42282,7 +42282,7 @@ index a433e677..5b1d684a 100644
 From 75c1cc80bf058055d9ec58a885f1aaa6785c718d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Wed, 26 Aug 2026 22:24:01 +0800
-Subject: [PATCH 158/226] Write a safety backup before every irreversible
+Subject: [PATCH 158/228] Write a safety backup before every irreversible
  delete action
 
 Before any of the six "Nuke" database tools (Experimental > Developer
@@ -42442,7 +42442,7 @@ index 27e98a6f..7852145f 100644
 From c0a3db336bb57af5408dc3e528903d64ba47e04b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:32:59 +0800
-Subject: [PATCH 159/226] Move automatic backup off the playback path onto
+Subject: [PATCH 159/228] Move automatic backup off the playback path onto
  WorkManager
 
 writeAutoBackup (a WAL checkpoint plus a full copy of the live database)
@@ -42720,7 +42720,7 @@ index fe38293f..d1def5d3 100644
 From 9e5c06ab287824c8c22e1428da591d4a1f803b68 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:33:16 +0800
-Subject: [PATCH 160/226] Fix a torn-snapshot race in writeBackup, and merge
+Subject: [PATCH 160/228] Fix a torn-snapshot race in writeBackup, and merge
  duplicate artists more completely
 
 writeBackup ran PRAGMA wal_checkpoint(FULL) and then copied song.db as a
@@ -43010,7 +43010,7 @@ index e95f81f8..d5ef61cd 100644
 From 4f6d1f54b689e08bc707f28a16610ac336bc29e6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 09:33:29 +0800
-Subject: [PATCH 161/226] Add a way to move already-downloaded songs to a new
+Subject: [PATCH 161/228] Add a way to move already-downloaded songs to a new
  folder
 
 Changing the external download folder in Settings has never actually
@@ -43307,7 +43307,7 @@ index 5b1d684a..227736fc 100644
 From ea7e30d3563a47d504db1385bf6e4c4b0e1474bb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 10:37:07 +0800
-Subject: [PATCH 162/226] Bound download stream requests the same way playback
+Subject: [PATCH 162/228] Bound download stream requests the same way playback
  already is
 
 DownloadUtil's data source never got the connection-duration/PoToken-
@@ -43427,7 +43427,7 @@ index c534e7db..4bcd5c3f 100644
 From 987b648a9aafa8e6afa34105118e935ccb8ba048 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 10:44:16 +0800
-Subject: [PATCH 163/226] Tighten the proactive stream-URL refresh window to
+Subject: [PATCH 163/228] Tighten the proactive stream-URL refresh window to
  20s
 
 Field reports of playback dying with a source error around ~30s in,
@@ -43487,7 +43487,7 @@ index de63d528..9b11b540 100644
 From 07e2784015f77820baf6aff54970247ba1e7cadd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:07:55 +0800
-Subject: [PATCH 164/226] Make the userdebug variant debuggable, so adb -d
+Subject: [PATCH 164/228] Make the userdebug variant debuggable, so adb -d
  downgrades work on it
 
 Android 14+ refuses adb install -d (downgrade) unless the *currently
@@ -43535,7 +43535,7 @@ index ea1302e1..3f52f92e 160000
 From 0780a40dd9f0d29fc176e6b3d1ab691d76402d0b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:11:24 +0800
-Subject: [PATCH 165/226] Fix backup creation: run the WAL checkpoint before
+Subject: [PATCH 165/228] Fix backup creation: run the WAL checkpoint before
  the transaction, not inside it
 
 9fe9e9f9 wrapped both the checkpoint and the file copy in
@@ -43636,7 +43636,7 @@ index d5ef61cd..bc077914 100644
 From 0d85cb14ed7e6aaaf3e1e2c803ffb0d3e998f4e8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:43:08 +0800
-Subject: [PATCH 166/226] Fix a race in move-downloads that could re-point
+Subject: [PATCH 166/228] Fix a race in move-downloads that could re-point
  localMgr at the old folder
 
 The move handler called onDownloadPathChange(newUri) - rememberPreference's
@@ -43704,7 +43704,7 @@ index e3bbfdf9..5ad6d3af 100644
 From 0081dde0ed8a86d152b88ca62e64fcdf38db0715 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 13:53:50 +0800
-Subject: [PATCH 167/226] Fix downloads truncating to ~15s: drop the
+Subject: [PATCH 167/228] Fix downloads truncating to ~15s: drop the
  CHUNK_LENGTH subrange bound
 
 Verified against the actual vendored media3 source
@@ -43827,7 +43827,7 @@ index 4bcd5c3f..c6fbef59 100644
 From 10461905c939108a580bfc7366d6f95594b05830 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 15:11:53 +0800
-Subject: [PATCH 168/226] Fix Clear all downloads leaving DownloadManager's
+Subject: [PATCH 168/228] Fix Clear all downloads leaving DownloadManager's
  index stale
 
 It called downloadCache.removeResource(key) directly for every cache
@@ -43909,7 +43909,7 @@ index 5ad6d3af..c8bc66a5 100644
 From 75155cf46e571a8874bb56f9a955ca3965cdc55b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 15:15:50 +0800
-Subject: [PATCH 169/226] Add the VISIONOS client as a stream fallback, first
+Subject: [PATCH 169/228] Add the VISIONOS client as a stream fallback, first
  in line
 
 WEB_REMIX (MAIN_CLIENT) remains the primary client for metadata and the
@@ -43998,7 +43998,7 @@ index 0b26b34d..988918ca 100644
 From f00af2a4acfa0f594f55e12a4bfafbc271f982d5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 16:26:55 +0800
-Subject: [PATCH 170/226] Try VISIONOS before WEB_REMIX for streams, not just
+Subject: [PATCH 170/228] Try VISIONOS before WEB_REMIX for streams, not just
  as a fallback
 
 Keeps WEB_REMIX as MAIN_CLIENT (metadata, login-gated features - both
@@ -44056,7 +44056,7 @@ index e156413f..50a20c4d 100644
 From 9ce227162bb6703531a4c73124a219c93717666a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 16:40:28 +0800
-Subject: [PATCH 171/226] Raise the source-error retry cap from 1 to 5,
+Subject: [PATCH 171/228] Raise the source-error retry cap from 1 to 5,
  matching yuuichi-s/OuterTune
 
 Each retry only gets one more pass through the whole client try-order -
@@ -44174,7 +44174,7 @@ index 9b11b540..b54ef909 100644
 From 4720eeeef53ebc2da3a2161c6e84534f8bb181e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 19:40:08 +0800
-Subject: [PATCH 172/226] Fix VISIONOS being silently dropped from the stream
+Subject: [PATCH 172/228] Fix VISIONOS being silently dropped from the stream
  chain
 
 The VISIONOS client was added and put first, but playback still died ~60s in
@@ -44416,7 +44416,7 @@ index 3eb45f13..63250ae1 100644
 From 7ac0c314433e92f0c3e79f8bfb4deefd1bc70f07 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 19:40:21 +0800
-Subject: [PATCH 173/226] Refresh an existing artist's details on sync instead
+Subject: [PATCH 173/228] Refresh an existing artist's details on sync instead
  of only its like flag
 
 The subscribed-artists sync inserted a full ArtistEntity for an artist it had
@@ -44480,7 +44480,7 @@ index 580a4a9c..41dd9ab6 100644
 From 71fbec63ccae1c6b1ac7f53c62c7ee3bdd669422 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 20:48:55 +0800
-Subject: [PATCH 174/226] Fix ERROR_CODE_TIMEOUT (1003) I introduced in stream
+Subject: [PATCH 174/228] Fix ERROR_CODE_TIMEOUT (1003) I introduced in stream
  validation
 
 Stream resolution runs inside a runBlocking that ExoPlayer's
@@ -44612,7 +44612,7 @@ index 18c2d48f..c239cb49 100644
 From faabd682436dc82e1563da5cb56cebe5c001da4f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 21:41:31 +0800
-Subject: [PATCH 175/226] Never stream from WEB_REMIX; metadata only. Back off
+Subject: [PATCH 175/228] Never stream from WEB_REMIX; metadata only. Back off
  when Google throttles.
 
 Two problems, one cause: request volume.
@@ -44882,7 +44882,7 @@ index c239cb49..a6c92fbd 100644
 From f22d0e992345a252575363b8387aa2d0346412bb Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 21:42:34 +0800
-Subject: [PATCH 176/226] Keep WEB_REMIX reachable for streams, but only as the
+Subject: [PATCH 176/228] Keep WEB_REMIX reachable for streams, but only as the
  true last resort
 
 Refines the previous commit, which cut WEB_REMIX out of the stream chain
@@ -44990,7 +44990,7 @@ index a6c92fbd..4c209986 100644
 From eb58b72555e8aa2d47c465195a02bbe6de0c8c69 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:15:01 +0800
-Subject: [PATCH 177/226] Restore the Core-v0.18.2 stream architecture, and
+Subject: [PATCH 177/228] Restore the Core-v0.18.2 stream architecture, and
  drop the throttle cooldown
 
 Two things, both undoing my own damage from earlier in this session.
@@ -45198,7 +45198,7 @@ index 4c209986..0549cf74 100644
 From 3ce46e71c30d86f36e77bfbbe37c9c2d815aa5cd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:18:52 +0800
-Subject: [PATCH 178/226] Restore two more v0.18.2 behaviours, and log every
+Subject: [PATCH 178/228] Restore two more v0.18.2 behaviours, and log every
  client rejection at warn
 
 Comparing the restored chain against Core-v0.18.2 line by line turned up two
@@ -45355,7 +45355,7 @@ index 0549cf74..b2b9d843 100644
 From 9ea6b990df42256a0a7114b96124bd1fcb02a0b7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Thu, 27 Aug 2026 22:23:36 +0800
-Subject: [PATCH 179/226] Write the artist's current name back to the library
+Subject: [PATCH 179/228] Write the artist's current name back to the library
  when its page is opened
 
 Tapping an artist credited as "X" on a song could land on a page headed "Y".
@@ -45475,7 +45475,7 @@ index c044d3f2..f3d1acad 100644
 From b2ada2903a61e5980e4a9fc6643ef8cdcfe8daae Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 14:25:16 +0800
-Subject: [PATCH 180/226] Send each client's player request to the host that
+Subject: [PATCH 180/228] Send each client's player request to the host that
  client actually lives on
 
 Ported from MetrolistGroup/innertubex, whose extraction is the one known to
@@ -45699,7 +45699,7 @@ index fa8ef2f5..7b01eb19 100644
 From ef33ea626d414f4ef848d0c74b0bd60844a17ace Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:16:15 +0800
-Subject: [PATCH 181/226] Send a PoToken with VISIONOS's player request, so it
+Subject: [PATCH 181/228] Send a PoToken with VISIONOS's player request, so it
  stops being bot-blocked
 
 Captured over adb, on every track without exception:
@@ -45785,7 +45785,7 @@ index 7b01eb19..cb191dd1 100644
 From 2c0290e80cf3e445cb2caa7b07ca7f6c50ec43d9 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:25:20 +0800
-Subject: [PATCH 182/226] Strip "- Topic" on the two like-button artist inserts
+Subject: [PATCH 182/228] Strip "- Topic" on the two like-button artist inserts
  that still didn't
 
 Liking an artist from its own page or from the YouTube artist menu inserted
@@ -45859,7 +45859,7 @@ index fe342573..669e68aa 100644
 From 464d0a6e953005198c4b517487d590de07d6435b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:25:20 +0800
-Subject: [PATCH 183/226] Rework the GPU ferrofluid: skip empty space, theme
+Subject: [PATCH 183/228] Rework the GPU ferrofluid: skip empty space, theme
  its colours, make it move
 
 Three things, aimed at it being worth running on a desktop-class GPU (a WSA
@@ -46342,7 +46342,7 @@ index 946e19b4..465d23d7 100644
 From 65bae4a919110a3bfa7aa4e706970e8706d6fb27 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:35:48 +0800
-Subject: [PATCH 184/226] Move the setup wizard's backup/skip buttons above the
+Subject: [PATCH 184/228] Move the setup wizard's backup/skip buttons above the
  feature tour
 
 They sat after the logo, welcome text, four feature rows and a tip, so
@@ -46451,7 +46451,7 @@ index b1faa3f2..7c00e092 100644
 From 68d022c19ca72c14689aa7f82530f55b5b16e324 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:35:49 +0800
-Subject: [PATCH 185/226] Stop the download button blocking the UI thread on a
+Subject: [PATCH 185/228] Stop the download button blocking the UI thread on a
  preferences read
 
 Tapping Download froze the app. download() calls notifyIfWaitingForWifi() and
@@ -46551,7 +46551,7 @@ index c6fbef59..cb5897f1 100644
 From c2dd32cad9c9e78de66858d561432cb37beaa6ad Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:35:50 +0800
-Subject: [PATCH 186/226] Drop the blocking read from incrementPlayCount
+Subject: [PATCH 186/228] Drop the blocking read from incrementPlayCount
 
 It wrapped a Flow collection in runBlocking purely to learn whether this
 month's row existed, blocking the calling thread on Room emitting for a value
@@ -46623,7 +46623,7 @@ index 13fc3f10..7ae3697c 100644
 From a0ffcfbae23445c172d3d2302b524a95c1ab42d0 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 15:36:04 +0800
-Subject: [PATCH 187/226] Stop the artist thumbnail refresh re-triggering
+Subject: [PATCH 187/228] Stop the artist thumbnail refresh re-triggering
  itself and hammering YouTube
 
 The refresh loop collected the artist list and, for every artist missing a
@@ -46746,7 +46746,7 @@ index fd937b47..1e9cf090 100644
 From 784098a5a277bf1f98af68f4e44564c9aac8dec8 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 16:04:30 +0800
-Subject: [PATCH 188/226] Bind PoTokens to the identity of the client that
+Subject: [PATCH 188/228] Bind PoTokens to the identity of the client that
  presents them
 
 A PoToken is only honoured when it is bound to the same identity as the
@@ -46993,7 +46993,7 @@ index e6d55e74..d6f117de 100644
 From 16f31c83b7b8601480067333a02d8069d286ea1a Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 16:34:36 +0800
-Subject: [PATCH 189/226] Move a rejected WEB_REMIX to the back of the retry
+Subject: [PATCH 189/228] Move a rejected WEB_REMIX to the back of the retry
  order, not out of it
 
 A WEB_REMIX stream this video just had rejected was being skipped
@@ -47084,7 +47084,7 @@ index fbab64b1..ec1a6a23 100644
 From 018b4ffd0dfc7f870f6f8187edfadb3196760e79 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 16:57:58 +0800
-Subject: [PATCH 190/226] Swap the PoToken bindings into their correct roles
+Subject: [PATCH 190/228] Swap the PoToken bindings into their correct roles
 
 YouTube's current web PoToken enforcement is GVS-only, and the two
 tokens are not interchangeable: the token on the stream url must be
@@ -47395,7 +47395,7 @@ index cb191dd1..1c792b9e 100644
 From 8620077b4b4b7dd91abbb6871ef621a4d02fe170 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 17:18:36 +0800
-Subject: [PATCH 191/226] Resolve streams through MetrolistGroup/innertubex,
+Subject: [PATCH 191/228] Resolve streams through MetrolistGroup/innertubex,
  with Faraday cipher configs
 
 Adds innertubex as a dependency and routes stream resolution through its
@@ -47753,7 +47753,7 @@ index 33750239..cd46bcb5 100644
 From 269f191d57c5e2b2d1a7e54410383349b9ff7bb4 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 17:30:43 +0800
-Subject: [PATCH 192/226] Revert the PoToken orientation swap - it was wrong,
+Subject: [PATCH 192/228] Revert the PoToken orientation swap - it was wrong,
  and measurably so
 
 The previous swap put the video-bound token on the stream url and the
@@ -47852,7 +47852,7 @@ index 1bc69c10..42572e24 100644
 From 892dce92e89374081c794b5bb378027a57dcd4b1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 17:55:13 +0800
-Subject: [PATCH 193/226] Exclude innertubex's desktop artifact so the release
+Subject: [PATCH 193/228] Exclude innertubex's desktop artifact so the release
  build packages
 
 The JitPack-published Gradle metadata for innertubex does not resolve to
@@ -47901,7 +47901,7 @@ index c5eba0e6..2738df0e 100644
 From 99f232b3c0bdb3807d43fcc16813425d36118ef5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 18:26:50 +0800
-Subject: [PATCH 194/226] Give innertubex formats a codecs parameter, and stop
+Subject: [PATCH 194/228] Give innertubex formats a codecs parameter, and stop
  indexing a split blindly
 
 Three fatal IndexOutOfBoundsExceptions on Room's disk-io thread, all
@@ -48009,7 +48009,7 @@ index 37a07510..afaf5ee4 100644
 From e2f64b3a1d51b569522da53cc1e97be35b01ffe7 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 19:06:16 +0800
-Subject: [PATCH 195/226] Bound stream requests only for the clients that
+Subject: [PATCH 195/228] Bound stream requests only for the clients that
  require it
 
 Two failures with one cause, both of them mine.
@@ -48209,7 +48209,7 @@ index 00000000..6a9d84b3
 From ce29b03fddce28f17fb96ed9d37a0ddd86200cf5 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Fri, 28 Aug 2026 19:16:20 +0800
-Subject: [PATCH 196/226] Give the ferrofluid blobs a tint instead of pure
+Subject: [PATCH 196/228] Give the ferrofluid blobs a tint instead of pure
  black
 
 The blobs were rendering as flat black. baseColor was passed the surface
@@ -48256,7 +48256,7 @@ index 7bd3459d..4163cf1f 100644
 From 7196c1003865f631376a5d094138d227afcca926 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 09:42:50 +0800
-Subject: [PATCH 197/226] Group the appearance settings by subject instead of
+Subject: [PATCH 197/228] Group the appearance settings by subject instead of
  by leftovers
 
 The screen already drew its groups as cards, so the problem was not the
@@ -48481,7 +48481,7 @@ index 48aaec58..8aeb6b01 100644
 From 61ac8832e4e43c10192c91889d39caedde6d5a8b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 10:02:14 +0800
-Subject: [PATCH 198/226] Follow the stream from fetch to playback and match
+Subject: [PATCH 198/228] Follow the stream from fetch to playback and match
  Metrolist's handling
 
 Compared this app's audio path against Metrolist's, since theirs works on
@@ -48831,7 +48831,7 @@ index ac8f10de..f7b3752a 100644
 From 9af725a4b78097ddeb316a258a13a9f4b18f0233 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 11:37:39 +0800
-Subject: [PATCH 199/226] Bind the stream url's PoToken to the video id, as
+Subject: [PATCH 199/228] Bind the stream url's PoToken to the video id, as
  innertubex requires
 
 Playback died with a 403 on a media request - about a minute in on most
@@ -48952,7 +48952,7 @@ index f7b3752a..cd2cd67e 100644
 From e47a0ca671c2bc9080117f9b020b5fb1fc9a98ea Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 12:03:09 +0800
-Subject: [PATCH 200/226] Stop the EQ distorting everything, and run the bands
+Subject: [PATCH 200/228] Stop the EQ distorting everything, and run the bands
  it was skipping
 
 Five faults, found reading the signal path from queueInput outwards.
@@ -49441,7 +49441,7 @@ index 18f4fa56..fd3eb6d9 100644
 From ea33ae88ce1a449874d850a46314482a789c0da2 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 12:23:52 +0800
-Subject: [PATCH 201/226] Stop rotating visitorData while signed in - it was
+Subject: [PATCH 201/228] Stop rotating visitorData while signed in - it was
  flagging the session
 
 The logcat from the previous build shows every fallback client answering
@@ -49538,7 +49538,7 @@ index cd2cd67e..db5e7793 100644
 From b983c19399daa95f7aa8c33db528503549d12a95 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 13:56:40 +0800
-Subject: [PATCH 202/226] Credit a song with its album's artists when it has
+Subject: [PATCH 202/228] Credit a song with its album's artists when it has
  none of its own
 
 YTM regularly returns an album track with the album set but no per-track
@@ -49640,7 +49640,7 @@ index bd395928..eb393b88 100644
 From be5a481dfb25828e31617161622f26b9a2ab27ac Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 14:25:30 +0800
-Subject: [PATCH 203/226] Pass innertubex the five arguments it takes, not two
+Subject: [PATCH 203/228] Pass innertubex the five arguments it takes, not two
 
 extract() takes videoId, hints, excludedClients, audioQuality and
 clientPlaybackNonce. This passed the first two and left the rest on their
@@ -49879,7 +49879,7 @@ index db5e7793..ce25c9f9 100644
 From 4b7b77873f8cbdf39fb39ee92f3221df6c637a36 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 14:30:22 +0800
-Subject: [PATCH 204/226] Point the cipher config table at a url that exists
+Subject: [PATCH 204/228] Point the cipher config table at a url that exists
 
 The configured source was
 
@@ -49954,7 +49954,7 @@ index 996bca6f..6fe4388a 100644
 From 5cf32fa90df8048551956b405e73cbeae6cf0aea Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 15:31:33 +0800
-Subject: [PATCH 205/226] Take the stream engine from Metrolist v13.6.3
+Subject: [PATCH 205/228] Take the stream engine from Metrolist v13.6.3
  wholesale
 
 Every stream fix in this backlog has been tuning innertubex - token
@@ -66527,7 +66527,7 @@ index 00000000..588044b6
 From 8534368f650e3b5fad1b44da9d9c31759fdd764f Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 15:50:55 +0800
-Subject: [PATCH 206/226] Add an in-app updater, and let a build ship only the
+Subject: [PATCH 206/228] Add an in-app updater, and let a build ship only the
  languages it needs
 
 Two things, both about how this app gets onto the phone.
@@ -66918,7 +66918,7 @@ index 227736fc..38b95aa1 100644
 From c04f5f4191f20786cd318bf1207884a470e3f108 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 15:54:48 +0800
-Subject: [PATCH 207/226] Plant a Timber tree, and merge download headers
+Subject: [PATCH 207/228] Plant a Timber tree, and merge download headers
  instead of replacing them
 
 Two follow-ups from the first logcat of the ported engine.
@@ -67008,7 +67008,7 @@ index a4a7380d..88f0ef89 100644
 From bae3a335aeb884a0d9fd09d20909f74bdc5f56e6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 16:11:30 +0800
-Subject: [PATCH 208/226] Collapse a renamed artist's two credits, and give the
+Subject: [PATCH 208/228] Collapse a renamed artist's two credits, and give the
  updater its own screen
 
 An artist that renames itself upstream ends up credited twice on one
@@ -67438,7 +67438,7 @@ index 38b95aa1..af0403fb 100644
 From 1cdb4a73f4f708b310578dd5624ffe80d5822054 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 16:20:20 +0800
-Subject: [PATCH 209/226] Fall back to the running flavour when a release has
+Subject: [PATCH 209/228] Fall back to the running flavour when a release has
  no matching asset
 
 Asking for a flavour a release does not publish found no asset, and no
@@ -67522,7 +67522,7 @@ index e1814f24..5e2dd3dc 100644
 From 9dac6155a129b10c23ec9c64b9ac54c7ebfceadf Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sat, 29 Aug 2026 16:37:57 +0800
-Subject: [PATCH 210/226] Show a release's name rather than its tag in the
+Subject: [PATCH 210/228] Show a release's name rather than its tag in the
  updater
 
 This repo tags releases by flavour and names them by version - the tag is
@@ -67569,7 +67569,7 @@ index 5e2dd3dc..578a70dc 100644
 From 17826adea6f45287593d519d393cd0eb967e2001 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 09:32:11 +0800
-Subject: [PATCH 211/226] Ask for the whole file by range so downloads stop
+Subject: [PATCH 211/228] Ask for the whole file by range so downloads stop
  being paced
 
 Downloads worked but crawled, on songs that streamed instantly. The
@@ -67706,7 +67706,7 @@ index 1bcaf7b5..25a4ed51 100644
 From 039434c42d58b77c2c05a7c70a8d0a9892fa183e Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 09:35:32 +0800
-Subject: [PATCH 212/226] Give an album its artists back from its own tracks
+Subject: [PATCH 212/228] Give an album its artists back from its own tracks
 
 The mirror of the song-takes-from-album fallback, for the case where the
 album is the side missing the data. YTM returns some albums with no
@@ -67799,7 +67799,7 @@ index 25a4ed51..052b294c 100644
 From e33c5d0d9ffe4cdb6260ba4e63f8ed04eabbdcfa Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 10:09:44 +0800
-Subject: [PATCH 213/226] Make the artist enricher audible in release builds
+Subject: [PATCH 213/228] Make the artist enricher audible in release builds
 
 proguard-rules.pro strips android.util.Log.v and .d from release builds,
 and ArtistCreditEnricher logged exclusively with Log.d - so in a release
@@ -67925,7 +67925,7 @@ index 052b294c..4a1f8009 100644
 From c72d8eec2f0bd92a312941f03e9053a423848a9b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 10:19:28 +0800
-Subject: [PATCH 214/226] Drop a placeholder credit that already reads the same
+Subject: [PATCH 214/228] Drop a placeholder credit that already reads the same
  as a real one
 
 The rebrand case does not stay in the shape it starts in. It begins as
@@ -67989,7 +67989,7 @@ index 4a1f8009..c1145e59 100644
 From 9bfc01777e45a26c2ffbc7c1195724a301a331bf Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 10:27:29 +0800
-Subject: [PATCH 215/226] Stop stripTopicSuffix turning a "- Topic" channel
+Subject: [PATCH 215/228] Stop stripTopicSuffix turning a "- Topic" channel
  into a nameless artist
 
 YouTube produces auto-generated channels titled exactly "- Topic", for
@@ -68071,7 +68071,7 @@ index c1145e59..280e767d 100644
 From 113c48bb4df7a5d961066fdd7ecc1cce9e61b6e1 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 10:34:29 +0800
-Subject: [PATCH 216/226] Keep the credit whose channel actually has the song,
+Subject: [PATCH 216/228] Keep the credit whose channel actually has the song,
  not just the real one
 
 Two credits reading the same name are one artist listed twice, whatever
@@ -68191,7 +68191,7 @@ index 280e767d..5290fdbc 100644
 From 97e4ea4f8dcb1992f0848ae1ea2e4356bb165536 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 10:41:47 +0800
-Subject: [PATCH 217/226] Give the artist header a fixed square and crop into
+Subject: [PATCH 217/228] Give the artist header a fixed square and crop into
  it
 
 Following Metrolist's placement, which is why its artist pages look
@@ -68454,7 +68454,7 @@ index 669e68aa..5d139621 100644
 From 602f29b10abb2715d62ef0a53c7ca4eb6ee23113 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 10:54:12 +0800
-Subject: [PATCH 218/226] Colour the EQ bands by value, drop the contrast
+Subject: [PATCH 218/228] Colour the EQ bands by value, drop the contrast
  switch, use UK spelling
 
 The twelve band sliders were the one control in the panel that ignored
@@ -68794,7 +68794,7 @@ index a2296ddb..241732a2 100644
 From e32522e30c4fdb35cfff52d758be915df5d07a2d Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 11:14:02 +0800
-Subject: [PATCH 219/226] Let Stats count plays from this account's other
+Subject: [PATCH 219/228] Let Stats count plays from this account's other
  devices
 
 Stats could only see what this install recorded, so listening done in the
@@ -69094,7 +69094,7 @@ index c7751c7a..6ce250b4 100644
 From b505485e5632f155f5b5105fa6c4b92ba0287f71 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 11:35:43 +0800
-Subject: [PATCH 220/226] Delete the letterbox detector the artist header no
+Subject: [PATCH 220/228] Delete the letterbox detector the artist header no
  longer uses
 
 detectLetterboxContentBounds and naturalAspectRatioOrNull existed only to
@@ -69244,7 +69244,7 @@ index 907e9c32..1a2b66d4 100644
 From 67e3d17585e0bd36313998fe2fb85a2ef3d22afd Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 11:55:34 +0800
-Subject: [PATCH 221/226] Treat MPLAUC and UC as the one artist they are
+Subject: [PATCH 221/228] Treat MPLAUC and UC as the one artist they are
 
 The enricher's own log gave this away:
 
@@ -69454,7 +69454,7 @@ index ad1c95d5..bc34570d 100644
 From 30e1505ca0c0bed7b64234d35c2f980f48a64710 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 12:14:51 +0800
-Subject: [PATCH 222/226] Stop a bare "- Topic" channel overwriting the name it
+Subject: [PATCH 222/228] Stop a bare "- Topic" channel overwriting the name it
  has no name for
 
 A regression from the stripTopicSuffix fix, caught before it could bite.
@@ -69590,7 +69590,7 @@ index f3d1acad..06874e6c 100644
 From 5f5fe71e472c224dce101a8353782ce9b8d66fca Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 12:24:14 +0800
-Subject: [PATCH 223/226] Show the downloaded pin on a playlist row, which
+Subject: [PATCH 223/228] Show the downloaded pin on a playlist row, which
  nothing could reach
 
 The badge block opened with PlaylistIcon, marked as always shown, then
@@ -69664,7 +69664,7 @@ index 29581237..094400b2 100644
 From 64c480e54e4e256e14b0bf6cb1f8770717d28860 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 12:31:30 +0800
-Subject: [PATCH 224/226] Normalise artist ids where they are stored, and
+Subject: [PATCH 224/228] Normalise artist ids where they are stored, and
  relink on refresh
 
 This is why the credits kept resetting. The enricher was fixing them one
@@ -69940,7 +69940,7 @@ index 41dd9ab6..f544f1fa 100644
 From 190c3f73c6cbec53cceaae5efc37a1ac67eebe5b Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 13:05:01 +0800
-Subject: [PATCH 225/226] Repoint a credit whose channel is an empty Topic
+Subject: [PATCH 225/228] Repoint a credit whose channel is an empty Topic
  channel
 
 Confirmed against YouTube rather than inferred. The channel feed for the
@@ -70052,7 +70052,7 @@ index 6a89bb64..4122f464 100644
 From eb68ce80ee0c1d7a3970ad646e30b0299897b9e6 Mon Sep 17 00:00:00 2001
 From: claude <claude@local>
 Date: Sun, 30 Aug 2026 14:24:45 +0800
-Subject: [PATCH 226/226] Keep a song's two records of its album from
+Subject: [PATCH 226/228] Keep a song's two records of its album from
  disagreeing
 
 View album on a song opened a different album from the one the player
@@ -70149,6 +70149,2072 @@ index 02b1a142..46e73e76 100644
  
                  // nuke old artist
                  safeDeleteAlbum(old.id)
+-- 
+2.45.1.windows.1
+
+
+From ae69a6fd4a258cf63fe509fb9bb333eda321c034 Mon Sep 17 00:00:00 2001
+From: claude <claude@local>
+Date: Mon, 31 Aug 2026 18:54:45 +0800
+Subject: [PATCH 227/228] Merge the prefixed artist rows, not just the credits
+ pointing at them
+
+Rewriting credits was never going to hold, and this is why. The artist
+rows stored under the MPLA spelling survived in the artist table, and the
+song sync looks an artist up by name before it considers the id it was
+handed:
+
+    artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: generate()
+
+So a surviving prefixed row named i-dle was found by that lookup and its
+id handed straight back, putting the prefixed credit onto the song again.
+Normalising the incoming id never got a look in, because the incoming id
+was not what was being used. Every sync undid the previous repair, which
+is exactly the reverting and the returning duplicates.
+
+The rows themselves are now merged into the bare-id row for the same
+channel and deleted, so that lookup has nothing prefixed left to return.
+Colliding map rows are removed before the rest are moved: song_artist_map
+is keyed on (songId, artistId), so a song credited under both spellings
+cannot simply have one repointed onto the other.
+
+The lookup result is normalised too, rather than only the incoming id -
+cheap, and it means a prefixed row reappearing from anywhere still cannot
+reach a credit. The artists sync builds its rows from the remote id
+directly, so that is normalised at the point of construction as well.
+
+Verified by compiling coreRelease.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../com/dd3boh/outertune/db/DatabaseDao.kt    |  6 +--
+ .../com/dd3boh/outertune/db/daos/AlbumsDao.kt | 10 ++++-
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    | 19 ++++++++++
+ .../outertune/utils/ArtistCreditEnricher.kt   | 37 +++++++++++++++++++
+ .../com/dd3boh/outertune/utils/SyncUtils.kt   |  3 +-
+ 5 files changed, 70 insertions(+), 5 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+index b4cf5e16..657169db 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+@@ -187,7 +187,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+             // under this id from before this dedup existed, which a plain insert (and even this
+             // same lookup) could never fix on their own - see its own doc.
+             val cleanName = artist.name.stripTopicSuffix()
+-            val artistId = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId()
++            val artistId = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId()
+             insertOrHealArtist(
+                 ArtistEntity(
+                     id = artistId,
+@@ -277,7 +277,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+                 // doc for why a plain insert isn't enough on its own either.
+                 val cleanName = artist.name.stripTopicSuffix()
+                 ArtistEntity(
+-                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId(),
++                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
+                     name = cleanName
+                 )
+             }
+@@ -322,7 +322,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+                 // doc for why a plain insert isn't enough on its own either.
+                 val cleanName = artist.name.stripTopicSuffix()
+                 ArtistEntity(
+-                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId(),
++                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
+                     name = cleanName
+                 )
+             }
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
+index 788e52f4..c8e8fc38 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/AlbumsDao.kt
+@@ -282,7 +282,7 @@ interface AlbumsDao : ArtistsDao {
+                 // either.
+                 val cleanName = artist.name.stripTopicSuffix()
+                 ArtistEntity(
+-                    id = artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: ArtistEntity.generateArtistId(),
++                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
+                     name = cleanName
+                 )
+             }
+@@ -315,6 +315,14 @@ interface AlbumsDao : ArtistsDao {
+     @Query("UPDATE album_artist_map SET artistId = :newId WHERE artistId = :oldId")
+     fun updateAlbumArtistMap(oldId: String, newId: String)
+ 
++    /** The album-side counterpart of deleteCollidingSongArtistMaps - same key, same problem. */
++    @Query("""
++        DELETE FROM album_artist_map
++        WHERE artistId = :oldId
++          AND albumId IN (SELECT albumId FROM album_artist_map WHERE artistId = :newId)
++    """)
++    fun deleteCollidingAlbumArtistMaps(oldId: String, newId: String)
++
+     @Transaction
+     @Query("DELETE FROM song_artist_map WHERE songId = :songID")
+     fun unlinkSongArtists(songID: String)
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index 3a497d20..5cba56fd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -323,6 +323,25 @@ interface ArtistsDao {
+     @Transaction
+     @Query("UPDATE song_artist_map SET artistId = :newId WHERE artistId = :oldId")
+     fun updateSongArtistMap(oldId: String, newId: String)
++
++    /** Artist rows stored under the MPLA spelling of a channel id - see normalizeArtistId. */
++    @Query("SELECT * FROM artist WHERE id LIKE 'MPLAUC%'")
++    fun artistsWithPrefixedIds(): List<ArtistEntity>
++
++    /**
++     * Drops the credits that would collide before [updateSongArtistMap] moves the rest.
++     *
++     * song_artist_map is keyed on (songId, artistId), so a song credited under both spellings of
++     * one channel cannot simply have the prefixed row repointed onto the bare one - that is the
++     * duplicate key. Deleting the prefixed row for exactly those songs leaves the update with only
++     * the rows that can move.
++     */
++    @Query("""
++        DELETE FROM song_artist_map
++        WHERE artistId = :oldId
++          AND songId IN (SELECT songId FROM song_artist_map WHERE artistId = :newId)
++    """)
++    fun deleteCollidingSongArtistMaps(oldId: String, newId: String)
+     // endregion
+ 
+     // region Deletes
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+index 4122f464..90121d8c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+@@ -75,12 +75,49 @@ object ArtistCreditEnricher {
+      * refresh gesture. Those still run per song on playback, where one request is proportionate.
+      */
+     suspend fun relinkAll(database: MusicDatabase): Unit = withContext(Dispatchers.IO) {
++        mergePrefixedArtists(database)
++
+         val songIds = database.songIdsWithRepairableArtists()
+         if (songIds.isEmpty()) return@withContext
+         Timber.tag(TAG).d("relinking artists on ${songIds.size} song(s)")
+         songIds.forEach { enrich(database, it, allowNetwork = false) }
+     }
+ 
++    /**
++     * Merges every artist row stored under the MPLA spelling of a channel id into the bare-id row
++     * for that same channel, and deletes the prefixed one.
++     *
++     * Rewriting credits was not enough on its own, which is why the duplicates kept returning. The
++     * prefixed *rows* survived in the artist table, and the song sync looks an artist up by name
++     * before it considers the id it was handed:
++     *
++     *     artistByNameIgnoreCase(cleanName)?.id ?: artist.id?.normalizeArtistId() ?: generate()
++     *
++     * So a surviving prefixed row named "i-dle" was found by name and its id handed back, putting
++     * the prefixed credit onto the song again - normalising the incoming id never got a look in.
++     * The row itself has to go for that lookup to stop returning it.
++     */
++    private suspend fun mergePrefixedArtists(database: MusicDatabase) = withContext(Dispatchers.IO) {
++        val prefixed = database.artistsWithPrefixedIds()
++        if (prefixed.isEmpty()) return@withContext
++
++        prefixed.forEach { old ->
++            val newId = old.id.normalizeArtistId()
++            database.query {
++                // Keep whatever the bare-id row already holds; only create one when the channel is
++                // known solely under the prefixed spelling, carrying its name and picture across.
++                if (artistById(newId) == null) insert(old.copy(id = newId))
++                // Collisions first, then move the rest - see deleteCollidingSongArtistMaps.
++                deleteCollidingSongArtistMaps(old.id, newId)
++                updateSongArtistMap(old.id, newId)
++                deleteCollidingAlbumArtistMaps(old.id, newId)
++                updateAlbumArtistMap(old.id, newId)
++                safeDeleteArtist(old.id)
++            }
++            Timber.tag(TAG).d("merged artist row ${old.id} (\"${old.name}\") into $newId")
++        }
++    }
++
+     suspend fun enrich(
+         database: MusicDatabase,
+         songId: String,
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+index f544f1fa..45500c98 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/SyncUtils.kt
+@@ -29,6 +29,7 @@ import com.dd3boh.outertune.constants.YtmSyncConflictKey
+ import com.dd3boh.outertune.constants.YtmSyncContentKey
+ import com.dd3boh.outertune.constants.decodeSyncString
+ import com.dd3boh.outertune.db.MusicDatabase
++import com.dd3boh.outertune.db.normalizeArtistId
+ import com.dd3boh.outertune.db.entities.ArtistEntity
+ import com.dd3boh.outertune.db.entities.PlaylistEntity
+ import com.dd3boh.outertune.db.entities.PlaylistSongMap
+@@ -711,7 +712,7 @@ class SyncUtils @Inject constructor(
+                         if (localArtist == null) {
+                             insert(
+                                 ArtistEntity(
+-                                    id = remoteArtist.id,
++                                    id = remoteArtist.id.normalizeArtistId(),
+                                     name = remoteArtist.title,
+                                     thumbnailUrl = remoteArtist.thumbnail,
+                                     channelId = remoteArtist.channelId,
+-- 
+2.45.1.windows.1
+
+
+From 0f9f3f1ae860c6a399a45edd0e71d7d7be411e75 Mon Sep 17 00:00:00 2001
+From: t <t@l>
+Date: Mon, 31 Aug 2026 19:58:38 +0800
+Subject: [PATCH 228/228] Model the actual instability, cap the frame rate, and
+ make removals undoable
+
+Four unrelated pieces of work.
+
+The ferrofluid renderer was a ring of spheres orbiting each other, which is
+the generic Shadertoy metaball look rather than anything ferrofluid does.
+Real ferrofluid in a vertical magnetic field undergoes the Rosensweig
+instability: past a critical field strength the flat surface breaks into a
+regular hexagonal lattice of peaks, that being the packing that best
+balances surface tension, gravity and the field. So the scene is now a
+two-ring hexagonal lattice (1 + 6 + 12) of cusped peaks rising out of a
+shallow pool, with bass standing in for field strength - quiet leaves the
+surface near flat, loud drives the peaks up. The peaks are an exact rounded
+cone SDF rather than spheres, because a real peak has a broad foot and a
+near-point tip and blending spheres can only ever give mounds; the smin
+radius is tight for the same reason.
+
+The material was rebuilt too. Ferrofluid is magnetite in oil, so optically
+it is opaque black and essentially everything visible in real footage is
+reflection rather than diffuse shading: two sharp highlights, a Schlick
+Fresnel edge, and a reflected vertical gradient standing in for the room.
+That last one is two lines and does more for "liquid mirror" than any
+amount of extra lighting, because what makes a mirror look like a mirror is
+having something to reflect. The body is then deliberately tinted with the
+theme colour against physical accuracy - a black shape on a dark UI is just
+a hole, and the specular model is what identifies the material anyway.
+
+The render loop advanced time on every vsync, so the full per-pixel march
+ran at whatever the display does; a 120Hz phone paid twice the GPU of a
+60Hz one to animate a slow, heavily blurred blob that reads no differently
+either way. Frames are now dropped to a per-tier cap without touching the
+state, so no redraw happens for them. Time still comes from the vsync stamp
+rather than accumulating kept frames, so this slows the render rate without
+slowing the animation. A ULTRA tier is added for GPUs that want the cost.
+
+Downloads: per-file speed was already handled by the &range trick and
+stream resolution is cached, so the only lever left on a queue is how many
+run at once, 3 -> 5. Deliberately not higher - each concurrent download is
+another googlevideo connection carrying the same PoToken.
+
+Swiping a song out of the queue was silent and irreversible. It now says so
+and offers Undo, capturing the index and the queue up front so the song
+goes back where it was, and so a queue switch in the meantime cannot drop
+it into an unrelated list.
+
+Verified by compiling coreRelease. The AGSL itself compiles on device
+rather than at build time; it falls back to the Canvas version on failure.
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+---
+ .../25.json                                   | 1329 +++++++++++++++++
+ .../dd3boh/outertune/playback/DownloadUtil.kt |   10 +-
+ .../ui/player/LiquidFerrofluidGpu.kt          |  230 ++-
+ .../com/dd3boh/outertune/ui/player/Queue.kt   |   44 +-
+ .../screens/settings/fragments/PlayerFrag.kt  |    3 +-
+ app/src/main/res/values/strings.xml           |    1 +
+ 6 files changed, 1544 insertions(+), 73 deletions(-)
+ create mode 100644 app/schemas/com.dd3boh.outertune.db.InternalDatabase/25.json
+
+diff --git a/app/schemas/com.dd3boh.outertune.db.InternalDatabase/25.json b/app/schemas/com.dd3boh.outertune.db.InternalDatabase/25.json
+new file mode 100644
+index 00000000..e1609718
+--- /dev/null
++++ b/app/schemas/com.dd3boh.outertune.db.InternalDatabase/25.json
+@@ -0,0 +1,1329 @@
++{
++  "formatVersion": 1,
++  "database": {
++    "version": 25,
++    "identityHash": "c1d863fb1c05914793399d76fb753842",
++    "entities": [
++      {
++        "tableName": "song",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `duration` INTEGER NOT NULL, `thumbnailUrl` TEXT, `inLibrary` INTEGER, `isLocal` INTEGER NOT NULL DEFAULT false, `localPath` TEXT, `dateDownload` INTEGER, `thumbnailPath` TEXT, `liked` INTEGER NOT NULL, `likedDate` INTEGER, `trackNumber` INTEGER, `discNumber` INTEGER, `albumId` TEXT, `albumName` TEXT, `year` INTEGER, `date` INTEGER, `dateModified` INTEGER, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "duration",
++            "columnName": "duration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "thumbnailUrl",
++            "columnName": "thumbnailUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "inLibrary",
++            "columnName": "inLibrary",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "isLocal",
++            "columnName": "isLocal",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "false"
++          },
++          {
++            "fieldPath": "localPath",
++            "columnName": "localPath",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "dateDownload",
++            "columnName": "dateDownload",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "thumbnailPath",
++            "columnName": "thumbnailPath",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "liked",
++            "columnName": "liked",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "likedDate",
++            "columnName": "likedDate",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "trackNumber",
++            "columnName": "trackNumber",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "discNumber",
++            "columnName": "discNumber",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "albumId",
++            "columnName": "albumId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "albumName",
++            "columnName": "albumName",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "year",
++            "columnName": "year",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "date",
++            "columnName": "date",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "dateModified",
++            "columnName": "dateModified",
++            "affinity": "INTEGER"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_song_albumId",
++            "unique": false,
++            "columnNames": [
++              "albumId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_albumId` ON `${TABLE_NAME}` (`albumId`)"
++          },
++          {
++            "name": "index_song_localPath",
++            "unique": false,
++            "columnNames": [
++              "localPath"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_localPath` ON `${TABLE_NAME}` (`localPath`)"
++          }
++        ]
++      },
++      {
++        "tableName": "artist",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `thumbnailUrl` TEXT, `channelId` TEXT, `lastUpdateTime` INTEGER NOT NULL, `bookmarkedAt` INTEGER, `isLocal` INTEGER NOT NULL DEFAULT false, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "thumbnailUrl",
++            "columnName": "thumbnailUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "channelId",
++            "columnName": "channelId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "lastUpdateTime",
++            "columnName": "lastUpdateTime",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "bookmarkedAt",
++            "columnName": "bookmarkedAt",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "isLocal",
++            "columnName": "isLocal",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "false"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "album",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `playlistId` TEXT, `title` TEXT NOT NULL, `year` INTEGER, `thumbnailUrl` TEXT, `themeColor` INTEGER, `songCount` INTEGER NOT NULL, `duration` INTEGER NOT NULL, `lastUpdateTime` INTEGER NOT NULL, `bookmarkedAt` INTEGER, `isLocal` INTEGER NOT NULL DEFAULT false, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "year",
++            "columnName": "year",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "thumbnailUrl",
++            "columnName": "thumbnailUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "themeColor",
++            "columnName": "themeColor",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "songCount",
++            "columnName": "songCount",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "duration",
++            "columnName": "duration",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastUpdateTime",
++            "columnName": "lastUpdateTime",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "bookmarkedAt",
++            "columnName": "bookmarkedAt",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "isLocal",
++            "columnName": "isLocal",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "false"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "playlist",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `name` TEXT NOT NULL, `browseId` TEXT, `isEditable` INTEGER NOT NULL DEFAULT true, `bookmarkedAt` INTEGER, `thumbnailUrl` TEXT, `remoteSongCount` INTEGER, `playEndpointParams` TEXT, `shuffleEndpointParams` TEXT, `radioEndpointParams` TEXT, `isLocal` INTEGER NOT NULL DEFAULT false, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "name",
++            "columnName": "name",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "browseId",
++            "columnName": "browseId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isEditable",
++            "columnName": "isEditable",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "true"
++          },
++          {
++            "fieldPath": "bookmarkedAt",
++            "columnName": "bookmarkedAt",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "thumbnailUrl",
++            "columnName": "thumbnailUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "remoteSongCount",
++            "columnName": "remoteSongCount",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "playEndpointParams",
++            "columnName": "playEndpointParams",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "shuffleEndpointParams",
++            "columnName": "shuffleEndpointParams",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "radioEndpointParams",
++            "columnName": "radioEndpointParams",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isLocal",
++            "columnName": "isLocal",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "false"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "song_artist_map",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`songId` TEXT NOT NULL, `artistId` TEXT NOT NULL, `position` INTEGER NOT NULL, PRIMARY KEY(`songId`, `artistId`), FOREIGN KEY(`songId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`artistId`) REFERENCES `artist`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "songId",
++            "columnName": "songId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "artistId",
++            "columnName": "artistId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "position",
++            "columnName": "position",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "songId",
++            "artistId"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_song_artist_map_songId",
++            "unique": false,
++            "columnNames": [
++              "songId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_artist_map_songId` ON `${TABLE_NAME}` (`songId`)"
++          },
++          {
++            "name": "index_song_artist_map_artistId",
++            "unique": false,
++            "columnNames": [
++              "artistId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_artist_map_artistId` ON `${TABLE_NAME}` (`artistId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "songId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          },
++          {
++            "table": "artist",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "artistId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "song_album_map",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`songId` TEXT NOT NULL, `albumId` TEXT NOT NULL, `index` INTEGER NOT NULL, PRIMARY KEY(`songId`, `albumId`), FOREIGN KEY(`songId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`albumId`) REFERENCES `album`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "songId",
++            "columnName": "songId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "albumId",
++            "columnName": "albumId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "index",
++            "columnName": "index",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "songId",
++            "albumId"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_song_album_map_songId",
++            "unique": false,
++            "columnNames": [
++              "songId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_album_map_songId` ON `${TABLE_NAME}` (`songId`)"
++          },
++          {
++            "name": "index_song_album_map_albumId",
++            "unique": false,
++            "columnNames": [
++              "albumId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_album_map_albumId` ON `${TABLE_NAME}` (`albumId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "songId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          },
++          {
++            "table": "album",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "albumId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "album_artist_map",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`albumId` TEXT NOT NULL, `artistId` TEXT NOT NULL, `order` INTEGER NOT NULL, PRIMARY KEY(`albumId`, `artistId`), FOREIGN KEY(`albumId`) REFERENCES `album`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`artistId`) REFERENCES `artist`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "albumId",
++            "columnName": "albumId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "artistId",
++            "columnName": "artistId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "order",
++            "columnName": "order",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "albumId",
++            "artistId"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_album_artist_map_albumId",
++            "unique": false,
++            "columnNames": [
++              "albumId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_album_artist_map_albumId` ON `${TABLE_NAME}` (`albumId`)"
++          },
++          {
++            "name": "index_album_artist_map_artistId",
++            "unique": false,
++            "columnNames": [
++              "artistId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_album_artist_map_artistId` ON `${TABLE_NAME}` (`artistId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "album",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "albumId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          },
++          {
++            "table": "artist",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "artistId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "playlist_song_map",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `playlistId` TEXT NOT NULL, `songId` TEXT NOT NULL, `position` INTEGER NOT NULL, `setVideoId` TEXT, FOREIGN KEY(`playlistId`) REFERENCES `playlist`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`songId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "songId",
++            "columnName": "songId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "position",
++            "columnName": "position",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "setVideoId",
++            "columnName": "setVideoId",
++            "affinity": "TEXT"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_playlist_song_map_playlistId",
++            "unique": false,
++            "columnNames": [
++              "playlistId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_playlist_song_map_playlistId` ON `${TABLE_NAME}` (`playlistId`)"
++          },
++          {
++            "name": "index_playlist_song_map_songId",
++            "unique": false,
++            "columnNames": [
++              "songId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_playlist_song_map_songId` ON `${TABLE_NAME}` (`songId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "playlist",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "playlistId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          },
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "songId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "genre",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `browseId` TEXT, `bookmarkedAt` INTEGER, `thumbnailUrl` TEXT, `playEndpointParams` TEXT, `shuffleEndpointParams` TEXT, `radioEndpointParams` TEXT, `isLocal` INTEGER NOT NULL DEFAULT false, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "browseId",
++            "columnName": "browseId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "bookmarkedAt",
++            "columnName": "bookmarkedAt",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "thumbnailUrl",
++            "columnName": "thumbnailUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "playEndpointParams",
++            "columnName": "playEndpointParams",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "shuffleEndpointParams",
++            "columnName": "shuffleEndpointParams",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "radioEndpointParams",
++            "columnName": "radioEndpointParams",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "isLocal",
++            "columnName": "isLocal",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "false"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "queue",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER NOT NULL, `title` TEXT NOT NULL DEFAULT '', `shuffled` INTEGER NOT NULL, `queuePos` INTEGER NOT NULL, `lastSongPos` INTEGER NOT NULL DEFAULT -9223372036854775807, `index` INTEGER NOT NULL DEFAULT 0, `playlistId` TEXT, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true,
++            "defaultValue": "''"
++          },
++          {
++            "fieldPath": "shuffled",
++            "columnName": "shuffled",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "queuePos",
++            "columnName": "queuePos",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lastSongPos",
++            "columnName": "lastSongPos",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "-9223372036854775807"
++          },
++          {
++            "fieldPath": "index",
++            "columnName": "index",
++            "affinity": "INTEGER",
++            "notNull": true,
++            "defaultValue": "0"
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "TEXT"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "queue_song_map",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `queueId` INTEGER NOT NULL, `songId` TEXT NOT NULL, `index` INTEGER NOT NULL, `shuffledIndex` INTEGER NOT NULL, FOREIGN KEY(`queueId`) REFERENCES `queue`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`songId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "queueId",
++            "columnName": "queueId",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "songId",
++            "columnName": "songId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "index",
++            "columnName": "index",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "shuffledIndex",
++            "columnName": "shuffledIndex",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_queue_song_map_queueId",
++            "unique": false,
++            "columnNames": [
++              "queueId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_queue_song_map_queueId` ON `${TABLE_NAME}` (`queueId`)"
++          },
++          {
++            "name": "index_queue_song_map_songId",
++            "unique": false,
++            "columnNames": [
++              "songId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_queue_song_map_songId` ON `${TABLE_NAME}` (`songId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "queue",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "queueId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          },
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "songId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "song_genre_map",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`songId` TEXT NOT NULL, `genreId` TEXT NOT NULL, `index` INTEGER NOT NULL, PRIMARY KEY(`songId`, `genreId`), FOREIGN KEY(`songId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`genreId`) REFERENCES `genre`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "songId",
++            "columnName": "songId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "genreId",
++            "columnName": "genreId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "index",
++            "columnName": "index",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "songId",
++            "genreId"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_song_genre_map_songId",
++            "unique": false,
++            "columnNames": [
++              "songId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_genre_map_songId` ON `${TABLE_NAME}` (`songId`)"
++          },
++          {
++            "name": "index_song_genre_map_genreId",
++            "unique": false,
++            "columnNames": [
++              "genreId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_song_genre_map_genreId` ON `${TABLE_NAME}` (`genreId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "songId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          },
++          {
++            "table": "genre",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "genreId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "search_history",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `query` TEXT NOT NULL)",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "query",
++            "columnName": "query",
++            "affinity": "TEXT",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_search_history_query",
++            "unique": true,
++            "columnNames": [
++              "query"
++            ],
++            "orders": [],
++            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_search_history_query` ON `${TABLE_NAME}` (`query`)"
++          }
++        ]
++      },
++      {
++        "tableName": "format",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `itag` INTEGER NOT NULL, `mimeType` TEXT NOT NULL, `codecs` TEXT NOT NULL, `bitrate` INTEGER NOT NULL, `sampleRate` INTEGER, `bitsPerSample` INTEGER, `contentLength` INTEGER NOT NULL, `loudnessDb` REAL, `playbackTrackingUrl` TEXT, `extraComment` TEXT, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "itag",
++            "columnName": "itag",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "mimeType",
++            "columnName": "mimeType",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "codecs",
++            "columnName": "codecs",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "bitrate",
++            "columnName": "bitrate",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "sampleRate",
++            "columnName": "sampleRate",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "bitsPerSample",
++            "columnName": "bitsPerSample",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "contentLength",
++            "columnName": "contentLength",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "loudnessDb",
++            "columnName": "loudnessDb",
++            "affinity": "REAL"
++          },
++          {
++            "fieldPath": "playbackTrackingUrl",
++            "columnName": "playbackTrackingUrl",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "extraComment",
++            "columnName": "extraComment",
++            "affinity": "TEXT"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "lyrics",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `lyrics` TEXT NOT NULL, `provider` TEXT, `lastCheckedAt` INTEGER, `providerSignature` TEXT, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "lyrics",
++            "columnName": "lyrics",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "provider",
++            "columnName": "provider",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "lastCheckedAt",
++            "columnName": "lastCheckedAt",
++            "affinity": "INTEGER"
++          },
++          {
++            "fieldPath": "providerSignature",
++            "columnName": "providerSignature",
++            "affinity": "TEXT"
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      },
++      {
++        "tableName": "playCount",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`song` TEXT NOT NULL, `year` INTEGER NOT NULL, `month` INTEGER NOT NULL, `count` INTEGER NOT NULL, PRIMARY KEY(`song`, `year`, `month`))",
++        "fields": [
++          {
++            "fieldPath": "song",
++            "columnName": "song",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "year",
++            "columnName": "year",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "month",
++            "columnName": "month",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "count",
++            "columnName": "count",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "song",
++            "year",
++            "month"
++          ]
++        }
++      },
++      {
++        "tableName": "event",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `songId` TEXT NOT NULL, `timestamp` INTEGER NOT NULL, `playTime` INTEGER NOT NULL, FOREIGN KEY(`songId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "songId",
++            "columnName": "songId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "timestamp",
++            "columnName": "timestamp",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playTime",
++            "columnName": "playTime",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_event_songId",
++            "unique": false,
++            "columnNames": [
++              "songId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_event_songId` ON `${TABLE_NAME}` (`songId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "songId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "related_song_map",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, `songId` TEXT NOT NULL, `relatedSongId` TEXT NOT NULL, FOREIGN KEY(`songId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , FOREIGN KEY(`relatedSongId`) REFERENCES `song`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "songId",
++            "columnName": "songId",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "relatedSongId",
++            "columnName": "relatedSongId",
++            "affinity": "TEXT",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": true,
++          "columnNames": [
++            "id"
++          ]
++        },
++        "indices": [
++          {
++            "name": "index_related_song_map_songId",
++            "unique": false,
++            "columnNames": [
++              "songId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_related_song_map_songId` ON `${TABLE_NAME}` (`songId`)"
++          },
++          {
++            "name": "index_related_song_map_relatedSongId",
++            "unique": false,
++            "columnNames": [
++              "relatedSongId"
++            ],
++            "orders": [],
++            "createSql": "CREATE INDEX IF NOT EXISTS `index_related_song_map_relatedSongId` ON `${TABLE_NAME}` (`relatedSongId`)"
++          }
++        ],
++        "foreignKeys": [
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "songId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          },
++          {
++            "table": "song",
++            "onDelete": "CASCADE",
++            "onUpdate": "NO ACTION",
++            "columns": [
++              "relatedSongId"
++            ],
++            "referencedColumns": [
++              "id"
++            ]
++          }
++        ]
++      },
++      {
++        "tableName": "recent_activity",
++        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `title` TEXT NOT NULL, `thumbnail` TEXT, `explicit` INTEGER NOT NULL, `shareLink` TEXT NOT NULL, `type` TEXT NOT NULL, `playlistId` TEXT, `radioPlaylistId` TEXT, `shufflePlaylistId` TEXT, `date` INTEGER NOT NULL, PRIMARY KEY(`id`))",
++        "fields": [
++          {
++            "fieldPath": "id",
++            "columnName": "id",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "title",
++            "columnName": "title",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "thumbnail",
++            "columnName": "thumbnail",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "explicit",
++            "columnName": "explicit",
++            "affinity": "INTEGER",
++            "notNull": true
++          },
++          {
++            "fieldPath": "shareLink",
++            "columnName": "shareLink",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "type",
++            "columnName": "type",
++            "affinity": "TEXT",
++            "notNull": true
++          },
++          {
++            "fieldPath": "playlistId",
++            "columnName": "playlistId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "radioPlaylistId",
++            "columnName": "radioPlaylistId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "shufflePlaylistId",
++            "columnName": "shufflePlaylistId",
++            "affinity": "TEXT"
++          },
++          {
++            "fieldPath": "date",
++            "columnName": "date",
++            "affinity": "INTEGER",
++            "notNull": true
++          }
++        ],
++        "primaryKey": {
++          "autoGenerate": false,
++          "columnNames": [
++            "id"
++          ]
++        }
++      }
++    ],
++    "views": [
++      {
++        "viewName": "sorted_song_artist_map",
++        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT * FROM song_artist_map ORDER BY position"
++      },
++      {
++        "viewName": "sorted_song_album_map",
++        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT * FROM song_album_map ORDER BY `index`"
++      },
++      {
++        "viewName": "playlist_song_map_preview",
++        "createSql": "CREATE VIEW `${VIEW_NAME}` AS SELECT * FROM playlist_song_map WHERE position <= 3 ORDER BY position"
++      }
++    ],
++    "setupQueries": [
++      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
++      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'c1d863fb1c05914793399d76fb753842')"
++    ]
++  }
++}
+\ No newline at end of file
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+index ec3752b4..b69ba71e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/DownloadUtil.kt
+@@ -257,7 +257,15 @@ class DownloadUtil @Inject constructor(
+     val downloadNotificationHelper = DownloadNotificationHelper(context, ExoDownloadService.CHANNEL_ID)
+     val downloadManager: DownloadManager =
+         DownloadManager(context, databaseProvider, downloadCache, dataSourceFactory, Executor(Runnable::run)).apply {
+-            maxParallelDownloads = 3
++            // Per-file speed is already handled by the &range=0-<length> trick above, so the only
++            // lever left on a bulk queue is how many run at once. Each download is a single
++            // sequential stream that spends most of its life waiting on the network rather than
++            // saturating it, so three at a time leaves a decent connection idle. Five is a
++            // deliberate stopping point rather than a maximum: every concurrent download is a
++            // separate googlevideo connection carrying the same PoToken, and pushing that count
++            // high is a good way to attract the throttling and 403s this fork has already spent
++            // time escaping. This only affects queues - a single song downloads no faster.
++            maxParallelDownloads = 5
+             requirements = downloadRequirements(context.dataStore.get(DownloadOnWifiOnlyKey, true))
+             addListener(
+                 ExoDownloadService.TerminalStateNotificationHelper(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
+index 5dbd2105..e66065e5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/LiquidFerrofluidGpu.kt
+@@ -41,27 +41,45 @@ private const val TAG = "LiquidFerrofluidGpu"
+  * home on a desktop-class GPU (a WSA build on a PC), where the pixel budget the phone tiers are
+  * protecting simply isn't the constraint.
+  */
+-enum class FerrofluidQuality(val renderScale: Float, val maxSteps: Int) {
+-    /** Quarter-resolution, short march. For phones, or when battery matters more than the look. */
+-    LOW(0.35f, 20),
++enum class FerrofluidQuality(
++    val renderScale: Float,
++    val maxSteps: Int,
++    val targetFps: Int,
++    /** How many lattice sites are marched - see `activeSpikes` in [FERROFLUID_GPU_SHADER_SRC]. */
++    val activeSpikes: Int,
++) {
++    /** Quarter-resolution, short march, one ring. For phones, or when battery matters most. */
++    LOW(0.35f, 20, 24, 7),
++
++    /** Half-resolution, one ring. The default. */
++    MEDIUM(0.5f, 28, 30, 7),
+ 
+-    /** The previous fixed behaviour, kept as the default so nothing changes without asking. */
+-    MEDIUM(0.5f, 24),
++    /** Native resolution, both rings - for a desktop-class GPU, where this actually shines. */
++    HIGH(1.0f, 44, 60, 19),
+ 
+-    /** Native resolution and a long march - for a desktop-class GPU, where this actually shines. */
+-    HIGH(1.0f, 40),
++    /** Everything uncapped. Genuinely expensive; for a discrete GPU or a flagship Xclipse/Adreno. */
++    ULTRA(1.0f, 64, 60, 19),
+ }
+ 
+ /**
+  * Experimental, opt-in alternative to [LiquidShapeStyle.FERROFLUID]'s Canvas polygon: a genuine
+- * raymarched scene, the same technique Shadertoy-style GPU ferrofluid/metaball demos use, running
+- * as a single AGSL fragment shader rather than a flat 2D shape. Several blobby "spike" spheres are
+- * smooth-min blended into one connected crown SDF, marched per pixel, lit with a Fresnel/specular
+- * model - the same "genuinely black, sold by the highlight, not the fill" idea the lightweight
+- * version uses, just with a real surface normal instead of a 2D gradient standing in for one.
++ * raymarched scene running as a single AGSL fragment shader rather than a flat 2D shape.
+  *
+- * Three things about this version are worth knowing:
++ * This models what ferrofluid actually does, rather than the generic Shadertoy metaball look:
+  *
++ * - **The shape is the Rosensweig instability.** Put a ferrofluid pool in a vertical magnetic
++ *   field and past a critical strength the flat surface spontaneously breaks into a regular
++ *   *hexagonal lattice* of peaks - the packing that best balances surface tension, gravity and the
++ *   field. So the scene is a hexagonal array of cusped peaks rising from a shallow pool, with bass
++ *   playing the part of field strength, rather than a ring of blobs orbiting each other. See
++ *   `latticeSite`.
++ * - **The peaks are cones, not spheres.** A real peak has a broad foot and a near-point tip, and
++ *   blending spheres can only ever produce mounds. `sdRoundCone` is an exact cone SDF, and the
++ *   smin blend radius is deliberately tight so the feet meet the pool in a cusp.
++ * - **The material is almost pure specular.** Ferrofluid is magnetite in oil - optically it is
++ *   opaque black, and essentially everything visible in real footage is reflection, not diffuse
++ *   shading. So diffuse is a trace, and the surface is carried by two sharp highlights, a Schlick
++ *   Fresnel edge, and a cheap reflected vertical gradient standing in for the room.
+  * - **The empty space is skipped analytically.** The scene lives entirely inside a known bounding
+  *   sphere, so rather than marching from the camera and spending steps crossing vacuum, the ray is
+  *   intersected with that sphere in closed form and the march *starts at the surface*. Rays that
+@@ -71,13 +89,10 @@ enum class FerrofluidQuality(val renderScale: Float, val maxSteps: Int) {
+  * - **The colour comes from the theme.** Highlight and rim colours are uniforms fed from the
+  *   Material 3 scheme, so the crown belongs to whatever palette the app is currently wearing
+  *   instead of being hardcoded to one cold blue-grey.
+- * - **The crown moves.** Spikes orbit, and breathe outward and back in together (split/converge)
+- *   on a slow cycle that bass pushes along, so the shape travels rather than sitting in place
+- *   pulsing. See `orbit`/`spread` in [FERROFLUID_GPU_SHADER_SRC].
+  *
+  * Still real, sustained per-pixel GPU work: up to `maxSteps` scene evaluations per pixel, each
+- * blending SPIKES distance fields, plus four more for the normal at the hit point (tetrahedron
+- * technique, not six paired samples). Deliberately kept separate from and opt-in alongside the
++ * blending `activeSpikes` distance fields, plus four more for the normal at the hit point
++ * (tetrahedron technique, not six paired samples). Deliberately kept separate from and opt-in alongside the
+  * lightweight Canvas version (never replacing it) so battery/thermal impact stays comparable on a
+  * real device - which the lightweight polygon was written to avoid needing in the first place.
+  */
+@@ -88,6 +103,7 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
+     uniform float treble;
+     uniform float transient;
+     uniform int maxSteps;
++    uniform int activeSpikes;
+     // Material 3 roles, linear-ish sRGB components. highlightColor carries the specular glint and
+     // rimColor the Fresnel edge, so the crown reads as part of the current theme rather than a
+     // fixed cold grey.
+@@ -95,16 +111,19 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
+     uniform float3 rimColor;
+     uniform float3 baseColor;
+ 
+-    const int SPIKES = 5;
++    // A full two-ring hexagonal lattice: 1 centre + 6 + 12. The tier's activeSpikes decides how
++    // many are actually marched (early break in sceneDist), so the cheap tiers render the centre
++    // and first ring only - still a hexagon, just a smaller one, rather than a broken lattice.
++    const int SPIKES = 19;
+     // The ceiling, and a compile-time constant on purpose: AGSL follows GLSL ES 2.0 rules, where a
+     // loop's bound has to be a constant expression, so the quality tier cannot be the bound itself.
+     // It's applied as an early break inside the loop instead - a dynamic break is allowed, which
+     // the surface-hit test below already relies on.
+-    const int MAX_STEPS = 40;
++    const int MAX_STEPS = 64;
+     const float MAX_DIST = 6.0;
+     const float SURF_DIST = 0.008;
+     // Everything the scene can ever occupy fits in this sphere about the origin - the spike
+-    // centres reach at most ~0.75 out and their radii ~0.3, plus headroom for the pool below.
++    // pool reaches 0.80 in xz and 0.87 below, and the tallest peak tops out near y = 0.35.
+     const float BOUND_RADIUS = 1.45;
+ 
+     float sminCubic(float a, float b, float k) {
+@@ -112,37 +131,79 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
+         return mix(b, a, h) - k * h * (1.0 - h);
+     }
+ 
++    // Exact SDF for a vertical rounded cone (Inigo Quilez): base radius r1 at the origin tapering
++    // to tip radius r2 at height h. This is the shape that makes the difference - a real peak is a
++    // cusp with a broad foot and a near-point, not a sphere, and blending spheres could only ever
++    // give mounds.
++    float sdRoundCone(float3 p, float r1, float r2, float h) {
++        float2 q = float2(length(p.xz), p.y);
++        float b = (r1 - r2) / h;
++        float a = sqrt(max(1.0 - b * b, 0.0));
++        float k = dot(q, float2(-b, a));
++        if (k < 0.0) return length(q) - r1;
++        if (k > a * h) return length(q - float2(0.0, h)) - r2;
++        return dot(q, float2(a, b)) - r1;
++    }
++
++    // Rosensweig lattice. A ferrofluid pool in a vertical magnetic field does not throw up a ring
++    // of blobs: past a critical field strength the flat surface goes unstable and settles into a
++    // regular *hexagonal* array of peaks, because that is the packing that best balances surface
++    // tension, gravity and the field. Index 0 is the centre, 1..6 the first ring, and 7..18 the
++    // second - six at the corners plus six at the edge midpoints, which is what makes the outer
++    // ring part of the same hexagonal packing instead of just a wider circle of peaks.
++    float3 latticeSite(int i, float spacing, float spin) {
++        if (i == 0) return float3(0.0, 0.0, 0.0);
++        float ang;
++        float rad;
++        if (i <= 6) {
++            ang = float(i - 1) * 1.0471976;
++            rad = spacing;
++        } else if (i <= 12) {
++            ang = float(i - 7) * 1.0471976;
++            rad = spacing * 2.0;
++        } else {
++            ang = float(i - 13) * 1.0471976 + 0.5235988;
++            rad = spacing * 1.7320508;
++        }
++        ang += spin;
++        return float3(cos(ang) * rad, 0.0, sin(ang) * rad);
++    }
++
+     float spikeDist(float3 p, int i, float t) {
+-        float fi = float(i);
+-
+-        // Orbit: the whole crown rotates, and each spike also drifts around its own slot, so the
+-        // arrangement never settles into a fixed wheel.
+-        float orbit = fi * 6.2831853 / float(SPIKES)
+-            + t * 0.22
+-            + sin(t * 0.37 + fi * 2.1) * 0.28;
+-
+-        // Split/converge: one slow breath pushes every spike outward and draws it back in
+-        // together, with bass able to shove it wider. This is what makes the shape travel rather
+-        // than pulse in place - the radius the spikes sit at is itself moving.
+-        float spread = 0.42
+-            + 0.20 * sin(t * 0.31)
+-            + bass * 0.22
+-            + transient * 0.10;
+-
+-        float wobble = sin(t * 0.9 + fi * 1.7) * 0.08;
+-        float2 basePos = float2(cos(orbit), sin(orbit)) * (spread + wobble);
+-
+-        float height = 0.26 + bass * 1.3 + 0.07 * sin(t * 2.1 + fi * 2.3) + transient * 0.5;
+-        float3 center = float3(basePos.x, -0.2 + height * 0.42, basePos.y);
+-        float radius = 0.3 - height * 0.07;
+-        return length(p - center) - radius;
++        float spacing = 0.26;
++        // The lattice turns slowly as a whole. The peaks keep their slots relative to each other,
++        // which is the point - a hexagonal array that stays an array reads as a real instability,
++        // where independently wandering blobs read as lava lamp.
++        float3 site = latticeSite(i, spacing, t * 0.13);
++
++        // The applied field is strongest at the centre, so outer peaks are shorter and the crown
++        // domes. Bass plays the part of field strength: quiet leaves the surface nearly flat and
++        // loud drives the peaks up, which is exactly how the real instability responds.
++        float ringFall = 1.0 - clamp(length(site.xz) / (spacing * 2.4), 0.0, 1.0) * 0.55;
++        float field = bass + transient * 0.35;
++        // A ripple travelling outward from the centre, so the array breathes in sequence rather
++        // than every peak pumping in unison.
++        float ripple = 0.5 + 0.5 * sin(t * 1.1 - length(site.xz) * 5.0);
++        float h = max((0.10 + field * 0.62 + ripple * 0.05) * ringFall, 0.02);
++
++        float3 q = p - float3(site.x, -0.42, site.z);
++        return sdRoundCone(q, 0.135 * ringFall, 0.018, h);
+     }
+ 
+     float sceneDist(float3 p, float t) {
+-        float pool = length(float3(p.x, (p.y + 0.6) * 2.6, p.z)) - 0.58;
++        // The shallow pool the peaks rise out of. Dividing by the y-scale keeps the result a
++        // conservative *under*-estimate of the true distance: a squashed sphere written the naive
++        // way overestimates by the scale factor, and an overestimating SDF lets the march step
++        // straight through the surface it was meant to stop at.
++        float pool = (length(float3(p.x, (p.y + 0.62) * 3.2, p.z)) - 0.80) / 3.2;
+         float d = pool;
+         for (int i = 0; i < SPIKES; i++) {
+-            d = sminCubic(d, spikeDist(p, i, t), 0.32);
++            if (i >= activeSpikes) {
++                break;
++            }
++            // Tight blend radius. Real peaks meet the pool in a cusp; a wide smin would melt the
++            // feet together into one mound and undo the cone shape above.
++            d = sminCubic(d, spikeDist(p, i, t), 0.10);
+         }
+         return d;
+     }
+@@ -166,8 +227,10 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
+             return half4(0.0, 0.0, 0.0, 0.0);
+         }
+ 
+-        float3 rayOrigin = float3(0.0, 0.25, -2.2);
+-        float3 rayDir = normalize(float3(uv.x, -uv.y, 1.0));
++        // Raised and tilted down onto the pool. The old near-horizontal camera was fine for a ring
++        // of blobs, but a hexagonal array is only legible as one if you can see across it.
++        float3 rayOrigin = float3(0.0, 0.85, -2.2);
++        float3 rayDir = normalize(float3(uv.x, -uv.y - 0.55, 1.0));
+ 
+         // Analytic bounding-sphere entry. Solving this quadratic once is far cheaper than the
+         // several marching steps it would otherwise take to cross the empty space in front of the
+@@ -213,17 +276,45 @@ private const val FERROFLUID_GPU_SHADER_SRC = """
+         }
+ 
+         float3 normal = estimateNormal(hitPos, time);
+-        float3 lightDir = normalize(float3(0.5, 0.8, -0.6));
+-        float diffuse = max(dot(normal, lightDir), 0.0);
+         float3 viewDir = normalize(rayOrigin - hitPos);
+-        float3 halfDir = normalize(lightDir + viewDir);
+-        float specular = pow(max(dot(normal, halfDir), 0.0), 46.0);
+-        float fresnel = pow(1.0 - max(dot(normal, viewDir), 0.0), 3.0);
+ 
+-        float3 col = baseColor * (0.3 + diffuse * 0.7)
+-            + highlightColor * specular * 0.9
+-            + rimColor * fresnel * 0.45
+-            + treble * 0.06 * highlightColor;
++        // Ferrofluid is magnetite suspended in oil: for practical purposes it is opaque black.
++        // Essentially nothing you see on real footage of it is diffuse colour - it is all
++        // reflection. So the diffuse term here is a trace, and the surface is instead sold by two
++        // sharp highlights, a strong Fresnel edge, and a cheap environment reflection.
++        float3 keyDir = normalize(float3(0.5, 0.8, -0.6));
++        float3 fillDir = normalize(float3(-0.6, 0.35, -0.4));
++
++        float keySpec = pow(max(dot(normal, normalize(keyDir + viewDir)), 0.0), 150.0);
++        float fillSpec = pow(max(dot(normal, normalize(fillDir + viewDir)), 0.0), 40.0);
++        float diffuse = max(dot(normal, keyDir), 0.0);
++
++        // Schlick Fresnel with a dielectric F0. A near-black dielectric is almost mirror-like at
++        // grazing angles, which is why the silhouette and the flanks of the peaks in real footage
++        // are so much brighter than the surfaces facing you.
++        float cosTheta = clamp(dot(normal, viewDir), 0.0, 1.0);
++        float fresnel = 0.04 + 0.96 * pow(1.0 - cosTheta, 5.0);
++
++        // A stand-in environment: reflect the view vector and read a vertical gradient, bright
++        // above and dark below. Two lines, no texture, and it does more for "this is a liquid
++        // mirror" than any amount of extra lighting would - because the thing that actually makes
++        // a mirror look like a mirror is having something to reflect.
++        float3 reflDir = reflect(-viewDir, normal);
++        float envUp = clamp(reflDir.y * 0.5 + 0.5, 0.0, 1.0);
++        float3 env = mix(baseColor * 0.15, rimColor, envUp * envUp);
++
++        // Real ferrofluid is black, and a physically honest version of this was black too - which
++        // left it with nothing to contrast against a dark UI, since a black shape on a dark
++        // background is just a hole. So the body is deliberately tinted with the theme's base
++        // colour and given a real diffuse term: a *coloured* liquid metal rather than a literal
++        // one. The specular model above is untouched, and that is what still reads as ferrofluid -
++        // the tight highlights and the Fresnel-bright flanks do the identifying, not the fill.
++        float3 col = baseColor * 0.18
++            + baseColor * diffuse * 0.45
++            + env * fresnel * 1.4
++            + highlightColor * keySpec * 1.5
++            + highlightColor * fillSpec * 0.30
++            + rimColor * treble * 0.05;
+ 
+         return half4(col, 1.0);
+     }
+@@ -282,16 +373,28 @@ fun FerrofluidGpuOrFallback(
+     val currentBase by rememberUpdatedState(baseColor)
+     val renderScale = quality.renderScale
+ 
+-    LaunchedEffect(isActive) {
++    // The march is re-run for every pixel every time elapsedSeconds changes, and the Canvas below
++    // reads it - so the rate this advances at *is* the render frame rate. Left uncapped it followed
++    // the display, meaning a 120Hz phone paid twice the GPU of a 60Hz one to animate a slow,
++    // heavily-blurred blob that reads no differently either way. Frames arriving sooner than the
++    // tier's interval are dropped without touching the state, so no redraw happens for them.
++    //
++    // Wall-clock time is still read straight from the vsync stamp rather than accumulated from the
++    // frames we kept, so dropping frames slows the render rate without slowing the animation.
++    val frameIntervalNanos = 1_000_000_000L / quality.targetFps
++    LaunchedEffect(isActive, frameIntervalNanos) {
+         if (!isActive) return@LaunchedEffect
+-        var lastFrameNanos = 0L
++        var startNanos = 0L
++        var lastEmitNanos = 0L
+         while (true) {
+             withFrameNanos { nanos ->
+-                if (lastFrameNanos != 0L) {
+-                    val deltaSeconds = (nanos - lastFrameNanos) / 1_000_000_000f
+-                    elapsedSeconds += deltaSeconds
++                if (startNanos == 0L) {
++                    startNanos = nanos
++                    lastEmitNanos = nanos
++                } else if (nanos - lastEmitNanos >= frameIntervalNanos) {
++                    lastEmitNanos = nanos
++                    elapsedSeconds = (nanos - startNanos) / 1_000_000_000f
+                 }
+-                lastFrameNanos = nanos
+             }
+         }
+     }
+@@ -324,6 +427,7 @@ fun FerrofluidGpuOrFallback(
+         shader.setFloatUniform("treble", currentTreble)
+         shader.setFloatUniform("transient", currentTransient)
+         shader.setIntUniform("maxSteps", quality.maxSteps)
++        shader.setIntUniform("activeSpikes", quality.activeSpikes)
+         shader.setFloatUniform("highlightColor", currentHighlight.red, currentHighlight.green, currentHighlight.blue)
+         shader.setFloatUniform("rimColor", currentRim.red, currentRim.green, currentRim.blue)
+         shader.setFloatUniform("baseColor", currentBase.red, currentBase.green, currentBase.blue)
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
+index cbfc8574..bb3530fd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Queue.kt
+@@ -66,6 +66,8 @@ import androidx.compose.material.icons.rounded.SkipPrevious
+ import androidx.compose.material3.Checkbox
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.SnackbarDuration
++import androidx.compose.material3.SnackbarResult
+ import androidx.compose.material3.NavigationBarDefaults
+ import androidx.compose.material3.SwipeToDismissBox
+ import androidx.compose.material3.SwipeToDismissBoxValue
+@@ -115,6 +117,7 @@ import androidx.navigation.NavController
+ import com.dd3boh.outertune.LocalMenuState
+ import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
+ import com.dd3boh.outertune.LocalPlayerConnection
++import com.dd3boh.outertune.LocalSnackbarHostState
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.CONTENT_TYPE_SONG
+ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+@@ -373,6 +376,37 @@ fun BoxScope.QueueContent(
+     val mutableSongs = remember { mutableStateListOf<MediaMetadata>() }
+     val lazySongsListState = rememberLazyListState()
+ 
++    // Swiping a row out of the queue used to be silent and irreversible - one stray horizontal
++    // drag and the song was gone, with nothing on screen to even say what had happened. The song
++    // and the index it sat at are captured before the removal so the snackbar's action can put it
++    // back exactly where it was rather than on the end.
++    //
++    // The queue object is captured up front too: by the time Undo is tapped the user may well have
++    // switched queues, and re-inserting into whatever is current then would drop the song into an
++    // unrelated list.
++    val snackbarHostState = LocalSnackbarHostState.current
++    val removeSongWithUndo: (Int) -> Unit = { index ->
++        val removed = mutableSongs.getOrNull(index)
++        val sourceQueue = qb.getCurrentQueue()
++        if (removed != null && sourceQueue != null && qb.removeCurrentQueueSong(index)) {
++            playerConnection.player.removeMediaItem(index)
++            mutableSongs.removeAt(index)
++            coroutineScope.launch {
++                val result = snackbarHostState.showSnackbar(
++                    message = context.getString(R.string.removed_song_from_queue, removed.title),
++                    actionLabel = context.getString(R.string.undo),
++                    withDismissAction = true,
++                    duration = SnackbarDuration.Short,
++                )
++                if (result == SnackbarResult.ActionPerformed) {
++                    // addSongsToQueue clamps the position itself and re-syncs the player through
++                    // setCurrQueue, so this is the whole undo - no separate player insert.
++                    qb.addSongsToQueue(sourceQueue, index, listOf(removed))
++                }
++            }
++        }
++    }
++
+     // multiselect
+     var inSelectMode by remember {
+         mutableStateOf(false)
+@@ -764,19 +798,13 @@ fun BoxScope.QueueContent(
+                         confirmValueChange = { dismissValue ->
+                             when (dismissValue) {
+                                 SwipeToDismissBoxValue.StartToEnd -> {
+-                                    if (qb.removeCurrentQueueSong(index)) {
+-                                        playerConnection.player.removeMediaItem(index)
+-                                        mutableSongs.removeAt(index)
+-                                    }
++                                    removeSongWithUndo(index)
+                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                     return@rememberSwipeToDismissBoxState true
+                                 }
+ 
+                                 SwipeToDismissBoxValue.EndToStart -> {
+-                                    if (qb.removeCurrentQueueSong(index)) {
+-                                        playerConnection.player.removeMediaItem(index)
+-                                        mutableSongs.removeAt(index)
+-                                    }
++                                    removeSongWithUndo(index)
+                                     haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                     return@rememberSwipeToDismissBoxState true
+                                 }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index 465d23d7..ffb1198a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -606,7 +606,8 @@ fun PlayerBackgroundFrag() {
+                 when (it) {
+                     FerrofluidQuality.LOW -> "Low - cheapest, for phones on battery"
+                     FerrofluidQuality.MEDIUM -> "Medium - the default"
+-                    FerrofluidQuality.HIGH -> "High - full resolution, for a desktop GPU"
++                    FerrofluidQuality.HIGH -> "High - full resolution, full hexagonal lattice"
++                    FerrofluidQuality.ULTRA -> "Ultra - longest march, for a discrete or flagship GPU"
+                 }
+             },
+             values = FerrofluidQuality.entries,
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 241732a2..20ac1c1e 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -197,6 +197,7 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <!-- Snackbar -->
+     <string name="playlist_imported">Playlist imported</string>
+     <string name="removed_song_from_playlist">Removed \"%s\" from playlist</string>
++    <string name="removed_song_from_queue">Removed \"%s\" from queue</string>
+     <string name="playlist_synced">Playlist synced</string>
+     <string name="undo">Undo</string>
+ 
 -- 
 2.45.1.windows.1
 
