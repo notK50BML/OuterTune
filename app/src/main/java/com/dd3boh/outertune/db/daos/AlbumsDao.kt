@@ -323,6 +323,11 @@ interface AlbumsDao : ArtistsDao {
     """)
     fun deleteCollidingAlbumArtistMaps(oldId: String, newId: String)
 
+    /** Drops every artist credit on one album, so it can be rewritten from its tracks. */
+    @Transaction
+    @Query("DELETE FROM album_artist_map WHERE albumId = :albumId")
+    fun unlinkAlbumArtists(albumId: String)
+
     @Transaction
     @Query("DELETE FROM song_artist_map WHERE songId = :songID")
     fun unlinkSongArtists(songID: String)

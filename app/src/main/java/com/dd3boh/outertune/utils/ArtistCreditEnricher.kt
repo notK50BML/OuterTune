@@ -354,7 +354,6 @@ object ArtistCreditEnricher {
     private suspend fun backfillAlbumArtists(database: MusicDatabase, song: Song) {
         val albumId = song.album?.id ?: song.song.albumId ?: return
         val album = database.album(albumId).first() ?: return
-        if (album.artists.isNotEmpty()) return
 
         val tracks = database.albumSongs(albumId).first().filter { it.artists.isNotEmpty() }
         if (tracks.isEmpty()) return
@@ -373,10 +372,41 @@ object ArtistCreditEnricher {
             return
         }
 
+        // An album that already had credits used to be left alone, which is why "view album" could
+        // show the right album under the wrong artist indefinitely: the album's credits come from
+        // YouTube's album page and can point at a Topic channel or the other spelling of a channel
+        // id, and nothing ever reconciled them against the song credits this class had just
+        // repaired. The song was right, the album was wrong, and only the album was reachable from
+        // the album page.
+        val stored = album.artists
+        val storedIds = stored.map { it.id.normalizeArtistId() }.toSet()
+        val sharedIds = shared.map { it.id.normalizeArtistId() }.toSet()
+        if (stored.isNotEmpty()) {
+            if (storedIds == sharedIds) return
+
+            // Only the *id* is repaired, never the identity: rewriting is allowed only when the
+            // album and its tracks already name the same artists and merely disagree about which
+            // channel that is. If the names genuinely differ this is a compilation, a collaboration
+            // or a label credit, and the album's own answer is the better one - so leave it.
+            val storedNames = stored.map { it.name.stripTopicSuffix().trim().lowercase() }.toSet()
+            val sharedNames = shared.map { it.name.stripTopicSuffix().trim().lowercase() }.toSet()
+            if (storedNames != sharedNames) {
+                Timber.tag(TAG).d(
+                    "[$albumId] album credits $storedNames but its tracks credit $sharedNames - " +
+                        "different artists, not a bad id, so leaving it"
+                )
+                return
+            }
+            database.query { unlinkAlbumArtists(albumId) }
+            Timber.tag(TAG).d("[$albumId] album credited $storedIds but its tracks credit $sharedIds - repointing")
+        }
+
         shared.forEachIndexed { index, artist ->
             database.insert(AlbumArtistMap(albumId = albumId, artistId = artist.id.normalizeArtistId(), order = index))
         }
-        Timber.tag(TAG).d("[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
+        if (stored.isEmpty()) {
+            Timber.tag(TAG).d("[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
+        }
     }
 
     /**
