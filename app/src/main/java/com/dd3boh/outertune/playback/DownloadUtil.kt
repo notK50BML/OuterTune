@@ -12,6 +12,9 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.media3.database.DatabaseProvider
 import androidx.media3.datasource.HttpDataSource
 import androidx.media3.datasource.ResolvingDataSource
+import androidx.media3.datasource.DataSpec
+import androidx.media3.datasource.cache.CacheWriter
+import androidx.media3.datasource.cache.ContentMetadata
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheSpan
 import androidx.media3.datasource.cache.SimpleCache
@@ -394,18 +397,102 @@ class DownloadUtil @Inject constructor(
         }
     }
 
+    /**
+     * The whole song, in bytes, if [cache] holds every one of them - null otherwise.
+     *
+     * Coverage has to be checked rather than assumed. A cache holds whatever spans happened to be
+     * read, so a song skipped halfway through leaves a real but incomplete entry, and treating that
+     * as a copy of the song would produce a truncated download.
+     */
+    private fun cachedLengthOrNull(cache: SimpleCache, mediaId: String): Long? {
+        val contentLength = ContentMetadata.getContentLength(cache.getContentMetadata(mediaId))
+        if (contentLength <= 0) return null
+        return contentLength.takeIf { cache.getCachedBytes(mediaId, 0, it) == it }
+    }
+
+    /**
+     * Copies a song the player has already streamed out of the play cache and into the download
+     * cache, then drops the play cache's copy.
+     *
+     * Downloading a song you had just listened to used to fetch the whole thing again over the
+     * network, and then keep both copies: the download cache's, and the play cache's, which lingers
+     * until the LRU evictor gets round to it. The bytes are identical and they are already on the
+     * device, so the download is pure waste and the second copy is pure waste twice over.
+     *
+     * This deliberately runs *before* the download request rather than instead of it. Media3 still
+     * owns the download - its index is what the downloaded state in the UI is read from - so the
+     * request is still sent; it simply finds everything already cached and completes without
+     * touching the network. Seeding rather than short-circuiting keeps one code path for downloads
+     * instead of two, and means a partial or failed transfer just falls back to downloading.
+     *
+     * Returns true when the song was transferred.
+     */
+    private fun promoteCachedSong(mediaId: String): Boolean {
+        val contentLength = cachedLengthOrNull(playerCache, mediaId) ?: return false
+        if (downloadCache.isCached(mediaId, 0, contentLength)) return true
+
+        return try {
+            val dataSpec = DataSpec.Builder()
+                .setUri(mediaId.toUri())
+                .setKey(mediaId)
+                .setPosition(0)
+                .setLength(contentLength)
+                .build()
+            // Upstream is the play cache with no upstream of its own, so this cannot silently fall
+            // through to the network: coverage was checked above, and if that check were ever wrong
+            // the read fails and we fall back to a normal download rather than writing a hole.
+            val writer = CacheDataSource.Factory()
+                .setCache(downloadCache)
+                .setUpstreamDataSourceFactory(
+                    CacheDataSource.Factory()
+                        .setCache(playerCache)
+                        .setCacheWriteDataSinkFactory(null)
+                )
+                .createDataSource()
+            CacheWriter(writer, dataSpec, null, null).cache()
+            releasePlayerCacheCopy(mediaId)
+            Log.d(TAG, "Moved $mediaId from the play cache into downloads - no fetch needed")
+            true
+        } catch (e: Exception) {
+            reportException(e)
+            false
+        }
+    }
+
+    /**
+     * Drops the play cache's copy of a song that now lives in the download cache.
+     *
+     * Playback reads the download cache first and only falls through to the play cache on a miss,
+     * so once a song is downloaded its cached copy can never be read again - it is duplicated bytes
+     * occupying the LRU budget that songs which are *not* downloaded have to share.
+     *
+     * Best-effort on purpose. removeResource throws if a span is currently locked, which is exactly
+     * the case where the player is reading the song right now, and a failure here costs nothing:
+     * the copy simply survives until the evictor reclaims it in the ordinary way.
+     */
+    private fun releasePlayerCacheCopy(mediaId: String) {
+        try {
+            playerCache.removeResource(mediaId)
+        } catch (e: Exception) {
+            if (DOWNLOAD_DEBUG) Log.d(TAG, "Play cache copy of $mediaId is in use, leaving it: ${e.message}")
+        }
+    }
+
     private fun downloadSong(id: String, title: String) {
         if (downloads.value[id] != null) return
-        val downloadRequest = DownloadRequest.Builder(id, id.toUri())
-            .setCustomCacheKey(id)
-            .setData(title.toByteArray())
-            .build()
-        DownloadService.sendAddDownload(
-            context,
-            ExoDownloadService::class.java,
-            downloadRequest,
-            false
-        )
+        CoroutineScope(dlCoroutine).launch {
+            promoteCachedSong(id)
+            val downloadRequest = DownloadRequest.Builder(id, id.toUri())
+                .setCustomCacheKey(id)
+                .setData(title.toByteArray())
+                .build()
+            DownloadService.sendAddDownload(
+                context,
+                ExoDownloadService::class.java,
+                downloadRequest,
+                false
+            )
+        }
     }
 
     fun resumeDownloadsOnStart() {
@@ -454,7 +541,11 @@ class DownloadUtil @Inject constructor(
 
         val output = ByteArrayOutputStream()
         try {
-            for (span in spans) {
+            // Sorted by position, because getCachedSpans returns a Set and iteration order is not
+            // file order. A song held as more than one span - anything that was paused, seeked or
+            // resumed while caching - would otherwise be reassembled with its pieces shuffled, and
+            // the result is a file of exactly the right size that does not play.
+            for (span in spans.sortedBy { it.position }) {
                 val file: File? = span.file
                 FileInputStream(file).use { fis ->
                     fis.copyTo(output)
@@ -762,6 +853,12 @@ class DownloadUtil @Inject constructor(
 
                     CoroutineScope(Dispatchers.IO).launch {
                         if (download.state == Download.STATE_COMPLETED) {
+                            // The song is in the download cache now, and playback reads that cache
+                            // before the play cache, so any copy still sitting in the play cache
+                            // can never be read again - it is only taking LRU budget away from
+                            // songs that are not downloaded. Covers downloads that were fetched
+                            // normally; a promoted one released its copy already.
+                            releasePlayerCacheCopy(download.request.id)
                             val updateTime =
                                 Instant.ofEpochMilli(download.updateTimeMs).atZone(ZoneOffset.UTC).toLocalDateTime()
                             database.updateDownloadStatus(download.request.id, updateTime)
