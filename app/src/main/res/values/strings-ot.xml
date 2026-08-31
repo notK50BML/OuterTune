@@ -307,9 +307,6 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="flat_subfolders_description">Disable to preserve the file structure as on disk</string>
     <string name="show_artist_videos_as_songs_title">Show artist videos as songs</string>
     <string name="show_artist_videos_as_songs_description">When an artist page has no songs of its own, lay out its videos like a song list instead of a grid</string>
-    <string name="playlist_search_button_title">Search button in playlists</string>
-    <string name="playlist_search_button_never">Never show</string>
-    <string name="playlist_search_button_from">Playlists with %1$d or more songs</string>
     <string name="lyrics_estimated_word_sync_title">Estimated word-by-word (beta)</string>
     <string name="lyrics_estimated_word_sync_description">Spread the karaoke highlight across each line by word length, so it works on ordinary line-synced lyrics. Less accurate than real word timings, but available for almost every song</string>
     <string name="disable_lm_confirm">Are you sure you want to disable local media features? Your library contents will not be affected.</string>
