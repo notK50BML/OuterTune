@@ -1,6 +1,6 @@
 # OuterTune
 
-[![OuterTune app icon](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/outertune.webp)](https://github.com/yuuichi-s/OuterTune/blob/dev/assets/outertune.webp)
+[![OuterTune app icon](https://github.com/OuterTune/OuterTune/blob/lite/assets/outertune.webp)](https://github.com/OuterTune/OuterTune/blob/lite/assets/outertune.webp)
 
 [![Release](https://img.shields.io/github/v/release/notK50BML/OuterTune?include_prereleases)](https://github.com/notK50BML/OuterTune/releases) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
