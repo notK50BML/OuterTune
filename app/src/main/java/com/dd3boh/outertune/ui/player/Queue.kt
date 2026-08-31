@@ -374,6 +374,8 @@ fun BoxScope.QueueContent(
      * SONG LIST
      */
     val mutableSongs = remember { mutableStateListOf<MediaMetadata>() }
+    /** Which song the list last auto-scrolled to, so a reorder does not count as a track change. */
+    var lastScrolledToSongId by remember { mutableStateOf<String?>(null) }
     val lazySongsListState = rememberLazyListState()
 
     // Swiping a row out of the queue used to be silent and irreversible - one stray horizontal
@@ -547,7 +549,14 @@ fun BoxScope.QueueContent(
             addAll(queueWindows.mapIndexedNotNull { index, w -> w.mediaItem.metadata?.copy(composeUidWorkaround = index.toDouble()) })
         }
 
-        if (currentWindowIndex != -1 && !isSearching) {
+        // Only when the song being played actually changed. This effect also runs for a queue that
+        // was merely rearranged, and scrolling then yanked the list away to the playing song the
+        // instant a drag was dropped - so the one place you were certainly looking at was the one
+        // place it would not leave you. Following a track change is still wanted; following an edit
+        // is not.
+        val playingId = queueWindows.getOrNull(currentWindowIndex)?.mediaItem?.mediaId
+        if (currentWindowIndex != -1 && !isSearching && playingId != lastScrolledToSongId) {
+            lastScrolledToSongId = playingId
             lazySongsListState.scrollToItem(currentWindowIndex)
         }
 
@@ -833,7 +842,17 @@ fun BoxScope.QueueContent(
                     val content = @Composable {
                         MediaMetadataListItem(
                             mediaMetadata = window,
-                            isActive = (index == currentWindowIndex && !detachedHead) || index == detachedQueue?.getQueuePosShuffled(),
+                            // Matched on the song's uid rather than its row position. Dragging
+                            // reorders this list immediately but deliberately leaves the player
+                            // alone until the drop, so during a drag the row at
+                            // currentWindowIndex is no longer the song that is playing - and the
+                            // now-playing animation would jump to whichever song had been shuffled
+                            // into that slot. The uid is stamped from the player's own index when
+                            // the list is built, so it still points at the right song mid-drag, and
+                            // it distinguishes two copies of one song where an id comparison could
+                            // not.
+                            isActive = (window.composeUidWorkaround == currentWindowIndex.toDouble() && !detachedHead) ||
+                                index == detachedQueue?.getQueuePosShuffled(),
                             isPlaying = isPlaying && !detachedHead,
                             trailingContent = {
                                 if (inSelectMode) {
@@ -883,7 +902,11 @@ fun BoxScope.QueueContent(
                                             onCheckedChange(window.hashCode() !in selectedItems)
                                         } else {
                                             coroutineScope.launch(Dispatchers.Main) {
-                                                if (index == currentWindowIndex && !detachedHead) {
+                                                // Same uid match as isActive above, so that tapping
+                                                // the song that is actually playing toggles it
+                                                // rather than seeking to whatever now sits at its
+                                                // old index.
+                                                if (window.composeUidWorkaround == currentWindowIndex.toDouble() && !detachedHead) {
                                                     playerConnection.player.togglePlayPause()
                                                 } else {
                                                     val index = index // race condition...?
