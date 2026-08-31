@@ -604,9 +604,9 @@ fun PlayerBackgroundFrag() {
             onValueSelected = onLiquidFerrofluidQualityChange,
             valueText = {
                 when (it) {
-                    FerrofluidQuality.LOW -> "Low - cheapest, for phones on battery"
+                    FerrofluidQuality.LOW -> "Low - fewest droplets, for phones on battery"
                     FerrofluidQuality.MEDIUM -> "Medium - the default"
-                    FerrofluidQuality.HIGH -> "High - full resolution, full hexagonal lattice"
+                    FerrofluidQuality.HIGH -> "High - full resolution, more droplets"
                     FerrofluidQuality.ULTRA -> "Ultra - longest march, for a discrete or flagship GPU"
                 }
             },

@@ -478,10 +478,19 @@ object ArtistCreditEnricher {
         if (!allowNetwork) return null
         val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()?.items
             ?: return null
-        return results.filterIsInstance<ArtistItem>()
-            .firstOrNull {
+        val candidates = results.filterIsInstance<ArtistItem>()
+            .filter {
                 it.title.stripTopicSuffix().equals(name, ignoreCase = true) && !it.thumbnail.isNullOrBlank()
             }
+        // YouTube generally carries both the artist's real channel and the auto-generated
+        // "X - Topic" one, and search does not reliably put the real one first - so taking the
+        // first match was a coin flip. The Topic channel is only a bucket for auto-uploads: it has
+        // no About, no meaningful subscriber count, and frequently not even the artist's full
+        // discography, so linking a song to it gives a much worse artist page for no reason.
+        // Prefer the real channel whenever both came back, and fall back to Topic only when that
+        // is genuinely all that exists (which for smaller artists it often is).
+        return candidates.firstOrNull { it.title.stripTopicSuffix() == it.title }
+            ?: candidates.firstOrNull()
     }
 
     /**
