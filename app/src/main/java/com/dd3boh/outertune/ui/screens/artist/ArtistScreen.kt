@@ -153,9 +153,22 @@ fun ArtistScreen(
         }
     }
 
+    // Picks the starting view once, and then leaves it alone.
+    //
+    // libraryArtist is a database flow, so it re-emits whenever the artist row is written - and it
+    // is written right after the YouTube fetch lands, by refreshLibraryArtist, as well as by the
+    // artist repair on launch. This used to assign showLocal on every one of those emissions, so
+    // tapping "from your library" was silently undone a moment later and the screen went back to
+    // the remote view, which was still loading. From the outside that is a library tab that takes
+    // forever and never arrives - the local content was ready the whole time, the choice to show it
+    // just kept being thrown away.
+    var pickedInitialView by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(libraryArtist) {
-        // always show local page for local artists. Show local page remote artist when offline
-        showLocal = libraryArtist?.artist?.isLocal == true
+        if (pickedInitialView) return@LaunchedEffect
+        val artist = libraryArtist ?: return@LaunchedEffect
+        // Local artists have no remote page to show, so they start on the local one.
+        showLocal = artist.artist.isLocal
+        pickedInitialView = true
     }
 
     val artistHead = @Composable {
