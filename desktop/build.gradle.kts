@@ -1,13 +1,15 @@
 /*
- * A plain JVM spike, deliberately not an application.
+ * The desktop client, and the probes that established it was possible.
  *
- * The point of this module is to establish, against the real engine rather than from reasoning,
- * exactly how far a desktop build can get before it needs a browser. :innertube is already
- * kotlin("jvm") with no Android imports, so the whole API layer is expected to work here
- * untouched; what cannot work yet is anything that needs BotGuard, because that runs in a WebView.
+ * Plain kotlin("jvm") plus the Compose *compiler* plugin, rather than the Compose Multiplatform
+ * Gradle plugin. That plugin mostly supplies a `compose.desktop` DSL and dependency aliases, and
+ * its releases track a Kotlin version behind the one this project builds with - taking the
+ * artifacts directly avoids that skew entirely. The compiler plugin doing the real work is the same
+ * one :app already uses.
  */
 plugins {
     kotlin("jvm")
+    alias(libs.plugins.compose.compiler)
 }
 
 kotlin {
@@ -19,15 +21,31 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
-    // Pure-Java AAC decoder. If this resolves and decodes, a desktop build needs no native audio
-    // library at all - see AudioDecodeProbe.
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
+
+    // Playback, proven by the probes below: a pure-Java demux/decode chain, so the desktop build
+    // has no native audio dependency to bundle.
     implementation("com.tianscar.javasound:jaad:0.9.4")
-    // Pure-Java ISO-BMFF parser that understands fragmented MP4 (moof/trun), which JAAD's own
-    // MP4 reader does not - see FragmentedMp4Probe.
     implementation("org.mp4parser:isoparser:1.9.56")
+
+    // Compose Multiplatform for desktop. desktop-jvm pulls runtime, foundation, ui and material3.
+    implementation("org.jetbrains.compose.desktop:desktop-jvm:1.8.2")
+    implementation("org.jetbrains.compose.material3:material3:1.8.2")
+    // The Skiko native renderer. Normally the Compose Multiplatform Gradle plugin picks the right
+    // one for the host; without that plugin it has to be named, or the window opens and then dies
+    // on a missing skiko-windows-x64.dll. Pinned to the version desktop-jvm 1.8.2 resolves.
+    implementation("org.jetbrains.skiko:skiko-awt-runtime-windows-x64:0.9.4.2")
 }
 
-/** So the probe can be run straight from Gradle: `gradlew :desktop:probe --args="<videoId>"`. */
+/** `gradlew :desktop:run` - the desktop client itself. */
+tasks.register<JavaExec>("run") {
+    group = "application"
+    description = "Runs the OuterTune desktop client."
+    mainClass.set("com.dd3boh.outertune.desktop.MainKt")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+/** `gradlew :desktop:probe --args="<videoId>"` - how far does a desktop build get unaided? */
 tasks.register<JavaExec>("probe") {
     group = "verification"
     description = "Reports how far a desktop build gets before it needs a browser engine."
