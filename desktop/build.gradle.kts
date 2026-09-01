@@ -37,12 +37,28 @@ dependencies {
     implementation("org.jetbrains.skiko:skiko-awt-runtime-windows-x64:0.9.4.2")
 }
 
-/** `gradlew :desktop:run` - the desktop client itself. */
+/**
+ * `gradlew :desktop:run` - the desktop client itself.
+ *
+ * The heap is capped, and that is worth explaining rather than tuning silently. A JVM left alone
+ * sizes its maximum heap at a quarter of physical RAM and then keeps whatever it has claimed, so on
+ * a large machine a small app reports a startling number that is mostly unused reservation. Capping
+ * it makes the process honest about what it needs, and this one needs very little: a song is a few
+ * megabytes and the cover cache is bounded.
+ *
+ * SerialGC because the alternative is worse here for the same reason - the throughput collectors
+ * run several threads and hold larger structures, which buys nothing for a heap this size and shows
+ * up directly in the footprint.
+ *
+ * Note that running through Gradle is itself the larger cost: the Gradle and Kotlin daemons account
+ * for several times what the app uses, and none of that exists when a built jar is run directly.
+ */
 tasks.register<JavaExec>("run") {
     group = "application"
     description = "Runs the OuterTune desktop client."
     mainClass.set("com.dd3boh.outertune.desktop.MainKt")
     classpath = sourceSets["main"].runtimeClasspath
+    jvmArgs("-Xmx320m", "-XX:+UseSerialGC", "-XX:MaxMetaspaceSize=192m")
 }
 
 /** `gradlew :desktop:probe --args="<videoId>"` - how far does a desktop build get unaided? */
