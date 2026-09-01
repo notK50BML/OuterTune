@@ -108,3 +108,30 @@ tasks.register("sizeReport") {
         }
     }
 }
+
+/**
+ * `gradlew :desktop:fatJar` - one runnable jar, for handing to someone who just wants to run it.
+ *
+ * Everything on the runtime classpath is unpacked into it, Skiko's native library included, so it
+ * needs nothing but a JRE 21. Signature files from the dependencies are excluded: several ship
+ * signed jars, and a merged jar carrying their signatures fails verification at startup with an
+ * error that says nothing about the real cause.
+ *
+ * Deliberately not committed to the repository. It is around 45MB of build output that changes with
+ * every commit, and git keeps every version of it forever.
+ */
+tasks.register<Jar>("fatJar") {
+    group = "distribution"
+    description = "Builds a single runnable jar (java -jar outertune-desktop.jar)."
+    archiveFileName.set("outertune-desktop.jar")
+    manifest { attributes("Main-Class" to "com.dd3boh.outertune.desktop.MainKt") }
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+    from(sourceSets["main"].output)
+    dependsOn(configurations.runtimeClasspath)
+    from({
+        configurations.runtimeClasspath.get()
+            .filter { it.name.endsWith("jar") }
+            .map { zipTree(it) }
+    })
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/versions/9/module-info.class")
+}

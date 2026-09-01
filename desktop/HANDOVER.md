@@ -139,3 +139,22 @@ The player still uses emoji glyphs (▶ ⏸ ⏮ ⏭ 🔀 🔁) for its controls.
 `org.jetbrains.compose.material:material-icons-extended`. That dependency was added and then removed
 again rather than left sitting unused: it is ~11MB for a handful of icons, which matters against a
 42MB total, so add it back at the same moment the icons are actually wired up.
+
+## Icons
+
+`OuterTuneIcons` holds the app's own vector paths, lifted verbatim from the Android module's
+`res/drawable` vectors, so the desktop controls are the same shapes the phone draws rather than
+lookalikes. `material-icons-extended` was tried and dropped: ~11MB for a handful of glyphs that
+would have been *less* correct than these. Android's XML vector format cannot be read off Android,
+but only the path carries meaning and `PathParser` reads exactly that.
+
+## Running it without Gradle
+
+```
+gradlew :desktop:fatJar
+java -jar desktop/build/libs/outertune-desktop.jar
+```
+
+One jar, ~43MB, needs only a JRE 21. The jar is deliberately not committed - it is build output that
+changes with every commit, and git would keep every version of it forever. Attach it to a release
+instead.

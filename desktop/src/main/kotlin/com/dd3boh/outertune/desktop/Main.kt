@@ -26,6 +26,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Divider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -430,13 +432,20 @@ private fun PlayerBar(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                TextButton(onClick = onToggleLike) { Text(if (liked) "♥" else "♡") }
+                LikeButton(liked = liked, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = onToggleLike)
             }
-            TextButton(onClick = onPrevious, enabled = queue.hasPrevious) { Text("⏮") }
-            TextButton(onClick = onTogglePause, enabled = song != null) {
-                Text(if (playback is PlaybackState.Paused) "▶" else "⏸")
+            IconButton(onClick = onPrevious, enabled = queue.hasPrevious) {
+                Icon(OuterTuneIcons.skipPrevious, "Previous")
             }
-            TextButton(onClick = onNext, enabled = queue.hasNext) { Text("⏭") }
+            IconButton(onClick = onTogglePause, enabled = song != null) {
+                Icon(
+                    if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
+                    contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
+                )
+            }
+            IconButton(onClick = onNext, enabled = queue.hasNext) {
+                Icon(OuterTuneIcons.skipNext, "Next")
+            }
         }
     }
 }

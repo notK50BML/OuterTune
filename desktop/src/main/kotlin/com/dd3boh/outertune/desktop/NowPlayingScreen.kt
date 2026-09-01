@@ -19,8 +19,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -80,7 +83,9 @@ fun NowPlayingScreen(
             .background(Brush.verticalGradient(listOf(top, bottom)))
             .padding(28.dp),
     ) {
-        TextButton(onClick = onClose) { Text("▼  Back", color = onBackground) }
+        IconButton(onClick = onClose) {
+        Icon(OuterTuneIcons.close, contentDescription = "Back", tint = onBackground)
+    }
 
         // Cover beside the controls rather than above them. A desktop window is wide and short, so
         // stacking wastes the width and squeezes the art into whatever height is left; side by side
@@ -133,22 +138,34 @@ fun NowPlayingScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    TextButton(onClick = onToggleShuffle) {
-                        Text(if (queue.shuffled) "🔀 On" else "🔀 Off", color = onBackground)
+                    IconButton(onClick = onToggleShuffle) {
+                        Icon(
+                            OuterTuneIcons.shuffle,
+                            contentDescription = "Shuffle",
+                            // Dimmed rather than hidden when off: a control that disappears is
+                            // harder to find again than one that is plainly inactive.
+                            tint = onBackground.copy(alpha = if (queue.shuffled) 1f else 0.4f),
+                        )
                     }
-                    Button(onClick = onPrevious, enabled = queue.hasPrevious) { Text("⏮") }
-                    Button(onClick = onTogglePause) {
-                        Text(if (playback is PlaybackState.Paused) "▶" else "⏸")
+                    IconButton(onClick = onPrevious, enabled = queue.hasPrevious) {
+                        Icon(OuterTuneIcons.skipPrevious, "Previous", tint = onBackground)
                     }
-                    Button(onClick = onNext, enabled = queue.hasNext) { Text("⏭") }
-                    TextButton(onClick = onCycleRepeat) {
-                        Text(
-                            when (queue.repeat) {
-                                RepeatMode.OFF -> "🔁 Off"
-                                RepeatMode.ALL -> "🔁 All"
-                                RepeatMode.ONE -> "🔂 One"
-                            },
-                            color = onBackground,
+                    // The one filled control, because play/pause is the button being reached for.
+                    FilledIconButton(onClick = onTogglePause, modifier = Modifier.size(64.dp)) {
+                        Icon(
+                            if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
+                            contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
+                            modifier = Modifier.size(32.dp),
+                        )
+                    }
+                    IconButton(onClick = onNext, enabled = queue.hasNext) {
+                        Icon(OuterTuneIcons.skipNext, "Next", tint = onBackground)
+                    }
+                    IconButton(onClick = onCycleRepeat) {
+                        Icon(
+                            if (queue.repeat == RepeatMode.ONE) OuterTuneIcons.repeatOne else OuterTuneIcons.repeat,
+                            contentDescription = "Repeat",
+                            tint = onBackground.copy(alpha = if (queue.repeat == RepeatMode.OFF) 0.4f else 1f),
                         )
                     }
                     LikeButton(liked = liked, tint = onBackground, onClick = onToggleLike)
@@ -178,10 +195,11 @@ fun LikeButton(liked: Boolean, tint: Color, onClick: () -> Unit) {
         targetValue = if (liked) 1.25f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
     )
-    TextButton(onClick = onClick) {
-        Text(
-            text = if (liked) "♥" else "♡",
-            color = colour,
+    IconButton(onClick = onClick) {
+        Icon(
+            imageVector = if (liked) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder,
+            contentDescription = if (liked) "Unlike" else "Like",
+            tint = colour,
             modifier = Modifier.scale(scale),
         )
     }
