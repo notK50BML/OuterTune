@@ -68,3 +68,27 @@ tasks.register<JavaExec>("fmp4Probe") {
     mainClass.set("com.dd3boh.outertune.desktop.FragmentedMp4Probe")
     classpath = sourceSets["main"].runtimeClasspath
 }
+
+/**
+ * `gradlew :desktop:sizeReport` - what the shipped app would actually weigh.
+ *
+ * Worth being able to ask rather than estimate. Compose Desktop's floor is Skiko, its native
+ * renderer, and that is per-platform: a Windows build carries the Windows one and nothing else,
+ * which is the single biggest line and the one that cannot be optimised away while the UI is
+ * Compose.
+ */
+tasks.register("sizeReport") {
+    group = "verification"
+    description = "Totals the runtime classpath, largest first."
+    val classpath = sourceSets["main"].runtimeClasspath
+    doLast {
+        val jars = classpath.files.filter { it.isFile }.sortedByDescending { it.length() }
+        val total = jars.sumOf { it.length() }
+        println("=== runtime classpath: ${jars.size} jars, %.1f MB total ===".format(total / 1048576.0))
+        jars.take(12).forEach { println("  %7.1f MB  %s".format(it.length() / 1048576.0, it.name)) }
+        val rest = jars.drop(12)
+        if (rest.isNotEmpty()) {
+            println("  %7.1f MB  (%d more)".format(rest.sumOf { it.length() } / 1048576.0, rest.size))
+        }
+    }
+}

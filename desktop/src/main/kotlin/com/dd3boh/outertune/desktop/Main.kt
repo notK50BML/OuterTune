@@ -243,18 +243,23 @@ private fun RecentlyPlayed(recent: List<StoredSong>, onPlay: (StoredSong) -> Uni
         )
         LazyColumn {
             items(recent) { song ->
-                Column(
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable { onPlay(song) }
-                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
                 ) {
-                    Text(song.title, fontWeight = FontWeight.Medium)
-                    Text(
-                        text = song.artists.ifBlank { "Unknown artist" },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Artwork(song.thumbnail)
+                    Column {
+                        Text(song.title, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = song.artists.ifBlank { "Unknown artist" },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
@@ -349,22 +354,27 @@ private fun formatTime(ms: Long): String {
 
 @Composable
 private fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit) {
-    Column(
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onPlay)
-            .padding(vertical = 10.dp, horizontal = 4.dp),
+            .padding(vertical = 6.dp, horizontal = 4.dp),
     ) {
-        Text(
-            song.title,
-            fontWeight = FontWeight.Medium,
-            color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-        )
-        Text(
-            text = song.artists.joinToString { it.name }.ifBlank { "Unknown artist" },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Artwork(song.thumbnail)
+        Column {
+            Text(
+                song.title,
+                fontWeight = FontWeight.Medium,
+                color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = song.artists.joinToString { it.name }.ifBlank { "Unknown artist" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -373,6 +383,7 @@ private fun SongItem.stored() = StoredSong(
     id = id,
     title = title,
     artists = artists.joinToString { it.name },
+    thumbnail = thumbnail,
 )
 
 /**
@@ -388,7 +399,7 @@ private fun StoredSong.toSongItem() = SongItem(
     artists = emptyList(),
     album = null,
     duration = null,
-    thumbnail = "",
+    thumbnail = thumbnail,
     explicit = false,
     endpoint = null,
 )

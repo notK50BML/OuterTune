@@ -14,6 +14,8 @@ data class StoredSong(
     val id: String,
     val title: String,
     val artists: String,
+    /** Optional so a library written before covers existed still loads. */
+    val thumbnail: String = "",
 )
 
 /**
@@ -86,8 +88,10 @@ class LibraryStore(directory: File = defaultDirectory()) {
         return runCatching {
             file.readLines().mapNotNull { line ->
                 val parts = line.split('\t')
+                // Four fields now, three before covers were stored. A short line is read rather
+                // than discarded, so an existing library keeps working across the change.
                 if (parts.size < 3 || parts[0].isBlank()) null
-                else StoredSong(parts[0], parts[1], parts[2])
+                else StoredSong(parts[0], parts[1], parts[2], parts.getOrElse(3) { "" })
             }
         }.getOrDefault(emptyList())
     }
@@ -96,7 +100,8 @@ class LibraryStore(directory: File = defaultDirectory()) {
         runCatching {
             file.writeText(
                 songs.joinToString("\n") { song ->
-                    listOf(song.id, song.title, song.artists).joinToString("\t") { it.replace('\t', ' ') }
+                    listOf(song.id, song.title, song.artists, song.thumbnail)
+                        .joinToString("\t") { it.replace('\t', ' ') }
                 }
             )
         }
