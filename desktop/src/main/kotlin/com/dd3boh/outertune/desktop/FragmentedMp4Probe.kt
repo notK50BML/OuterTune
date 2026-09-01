@@ -26,6 +26,13 @@ import org.mp4parser.boxes.sampleentry.AudioSampleEntry
 import org.mp4parser.boxes.iso14496.part1.objectdescriptors.AudioSpecificConfig
 import org.mp4parser.boxes.iso14496.part14.ESDescriptorBox
 import java.io.ByteArrayInputStream
+import java.io.File
+import javax.sound.sampled.AudioFileFormat
+import javax.sound.sampled.AudioFormat
+import javax.sound.sampled.AudioInputStream
+import javax.sound.sampled.AudioSystem
+import javax.sound.sampled.DataLine
+import javax.sound.sampled.SourceDataLine
 import java.nio.channels.Channels
 import java.nio.channels.SeekableByteChannel
 
@@ -131,6 +138,9 @@ object FragmentedMp4Probe {
 
             val decoder = Decoder.create(config)
             val buffer = SampleBuffer()
+            // Kept so the result can be listened to - a frame count proves the decoder ran, it does
+            // not prove the output is the song.
+            val pcm = java.io.ByteArrayOutputStream()
             var frames = 0
             var pcmBytes = 0L
             var sampleRate = 0
@@ -138,6 +148,7 @@ object FragmentedMp4Probe {
                 decoder.decodeFrame(sample, buffer)
                 if (buffer.data.isNotEmpty()) {
                     pcmBytes += buffer.data.size
+                    pcm.write(buffer.data)
                     sampleRate = buffer.sampleRate
                     frames++
                 }
@@ -153,9 +164,59 @@ object FragmentedMp4Probe {
             println()
             println("  PASS - fragmented MP4 demuxes and decodes in pure Java.")
             println("  A desktop build can ship as one jar with no native audio library.")
+            println()
+            checkAudioOutput(sampleRate, buffer.channels)
+            writeWav(pcm.toByteArray(), sampleRate, buffer.channels)
         } catch (e: Throwable) {
             println("  FAILED - ${e::class.simpleName}: ${e.message}")
             e.stackTrace.take(3).forEach { println("           at $it") }
+        }
+    }
+
+    /**
+     * Whether this machine will actually accept the PCM the decoder produces.
+     *
+     * Decoding to PCM and having somewhere to send it are different claims. javax.sound is part of
+     * the JDK, but a given format still has to be supported by an available mixer, so this asks
+     * rather than assumes - and it only opens a line, it does not play anything, because a probe
+     * should not start making noise on someone's machine unannounced.
+     */
+    private fun checkAudioOutput(sampleRate: Int, channels: Int) {
+        val format = AudioFormat(sampleRate.toFloat(), 16, channels, true, false)
+        val info = DataLine.Info(SourceDataLine::class.java, format)
+        if (!AudioSystem.isLineSupported(info)) {
+            println("  audio out:       NOT SUPPORTED for ${sampleRate}Hz ${channels}ch by any mixer")
+            return
+        }
+        try {
+            (AudioSystem.getLine(info) as SourceDataLine).use { line ->
+                line.open(format)
+                println("  audio out:       OK - javax.sound opened a ${sampleRate}Hz ${channels}ch line")
+            }
+        } catch (e: Exception) {
+            println("  audio out:       FAILED to open - ${e::class.simpleName}: ${e.message}")
+        }
+    }
+
+    /**
+     * Writes the decoded PCM out as a WAV, so the result can be listened to.
+     *
+     * Frame counts and byte totals show the decoder ran and produced correctly sized output; they
+     * cannot show that the output is the song rather than noise. This is the part a person can
+     * check, and it costs one file.
+     */
+    private fun writeWav(pcm: ByteArray, sampleRate: Int, channels: Int) {
+        val out = File(System.getProperty("java.io.tmpdir"), "outertune-desktop-decode.wav")
+        try {
+            val format = AudioFormat(sampleRate.toFloat(), 16, channels, true, false)
+            val frames = pcm.size.toLong() / format.frameSize
+            AudioInputStream(ByteArrayInputStream(pcm), format, frames).use { stream ->
+                AudioSystem.write(stream, AudioFileFormat.Type.WAVE, out)
+            }
+            println("  wrote:           ${out.absolutePath}")
+            println("                   (play it - it should be the song, not noise)")
+        } catch (e: Exception) {
+            println("  wav write FAILED - ${e::class.simpleName}: ${e.message}")
         }
     }
 
