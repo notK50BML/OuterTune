@@ -72,6 +72,9 @@ class DesktopPlayer {
         /** AAC-LC in MP4 at ~130kbps: the format every working client offers with a direct URL. */
         const val ITAG_AAC_MEDIUM = 140
 
+        /** Samples per AAC-LC frame - fixed by the codec, which is what makes seeking arithmetic. */
+        const val FRAME_SAMPLES = 1024L
+
         /**
          * Clients to try, in order, until one yields a stream that actually fetches.
          *
@@ -111,10 +114,33 @@ class DesktopPlayer {
      */
     var onFinished: (() -> Unit)? = null
 
+    /** How far through the track playback has actually reached, and how long it is, in ms. */
+    val positionMs = MutableStateFlow(0L)
+    val durationMs = MutableStateFlow(0L)
+
+    /**
+     * A seek the decode loop has not acted on yet, in ms.
+     *
+     * Seeking is close to free here, and that is a direct consequence of fetching the whole song
+     * before playing it: every AAC frame is already in memory and each one is a fixed 1024 samples,
+     * so a target time is just an index. Streaming playback would remove the wait before a track
+     * starts and take this with it - the frames past the current point would no longer exist yet.
+     * Worth stating because it makes the two a trade rather than an obvious upgrade.
+     */
+    @Volatile
+    private var pendingSeekMs: Long? = null
+
+    fun seekTo(ms: Long) {
+        pendingSeekMs = ms.coerceIn(0, durationMs.value)
+    }
+
     fun play(scope: CoroutineScope, videoId: String, title: String) {
         stop()
         // Reset explicitly: a new track must never inherit the last one's paused state.
         paused = false
+        positionMs.value = 0
+        durationMs.value = 0
+        pendingSeekMs = null
         state.value = PlaybackState.Loading(title)
         job = scope.launch(Dispatchers.IO) {
             try {
@@ -270,20 +296,47 @@ class DesktopPlayer {
         val decoder = Decoder.create(config)
         val buffer = SampleBuffer()
         var open: SourceDataLine? = null
+        var sampleRate = 0
 
-        for (sample in samples) {
+        // Where the line's own frame counter stood when the current segment began, and what track
+        // time that corresponded to. Position is read from the line rather than from how much has
+        // been written, because writing runs ahead of playing by however much the line has buffered
+        // - reporting written frames would show a position a second or so into the future.
+        var lineFrameBase = 0L
+        var trackMsBase = 0L
+
+        var index = 0
+        while (index < samples.size) {
             if (!currentCoroutineContext().isActive) break
             // Held here rather than by the audio line, which does not reliably block a write.
             while (paused && currentCoroutineContext().isActive) delay(50)
             if (!currentCoroutineContext().isActive) break
-            decoder.decodeFrame(sample, buffer)
+
+            pendingSeekMs?.let { target ->
+                pendingSeekMs = null
+                if (sampleRate > 0) {
+                    // Every AAC-LC frame is exactly 1024 samples, so a time is an index.
+                    index = ((target * sampleRate / 1000) / FRAME_SAMPLES).toInt().coerceIn(0, samples.lastIndex)
+                    open?.let {
+                        // Drop what is buffered, or the seek would be heard a second late.
+                        it.flush()
+                        lineFrameBase = it.longFramePosition
+                    }
+                    trackMsBase = index.toLong() * FRAME_SAMPLES * 1000 / sampleRate
+                    positionMs.value = trackMsBase
+                }
+            }
+
+            decoder.decodeFrame(samples[index], buffer)
+            index++
             val pcm = buffer.data
             if (pcm.isEmpty()) continue
 
             if (open == null) {
                 // Everything about the format comes from the decoder itself - see the class doc.
+                sampleRate = buffer.sampleRate
                 val format = AudioFormat(
-                    buffer.sampleRate.toFloat(),
+                    sampleRate.toFloat(),
                     buffer.bitsPerSample,
                     buffer.channels,
                     true,
@@ -292,8 +345,13 @@ class DesktopPlayer {
                 open = (AudioSystem.getLine(DataLine.Info(SourceDataLine::class.java, format)) as SourceDataLine)
                     .also { it.open(format); it.start() }
                 line = open
+                durationMs.value = samples.size.toLong() * FRAME_SAMPLES * 1000 / sampleRate
             }
             open.write(pcm, 0, pcm.size)
+
+            open.let {
+                positionMs.value = trackMsBase + (it.longFramePosition - lineFrameBase) * 1000 / sampleRate
+            }
         }
         // Let whatever is buffered finish rather than cutting the last fraction of a second off.
         if (currentCoroutineContext().isActive) open?.drain()

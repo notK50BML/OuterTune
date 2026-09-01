@@ -22,6 +22,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -59,10 +60,11 @@ import kotlinx.coroutines.withContext
  * scaffolding.
  *
  * What is deliberately missing, so it is not mistaken for finished: no real database - the library
- * is a text file, see [LibraryStore] - no playlists, no seeking. A song is also fetched in full before it starts, so there is a wait of a
- * second or two on a big track - the upside being that once audio starts there is no network left
- * to fail, so a mid-song 403 cannot happen. Streaming playback would remove the wait and introduce
- * exactly that failure, and is a change to [DesktopPlayer] rather than to this file.
+ * is a text file, see [LibraryStore] - and no playlists. A song is fetched in full before it starts,
+ * so there is a wait of a second or two on a big track. That is a trade rather than a defect:
+ * holding the whole song means there is no network left to fail once audio starts, so a mid-song 403
+ * cannot happen, and it is what makes seeking arithmetic instead of a re-request. Streaming would
+ * remove the wait and give both of those up.
  */
 fun main() = application {
     // Set here because it needs no network call, and search will not work without it - YouTube
@@ -96,6 +98,8 @@ private fun SearchAndPlay(player: DesktopPlayer) {
     val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.stored()) }) }
     val queue by playerQueue.state.collectAsState()
     val recent by library.recentlyPlayed.collectAsState()
+    val position by player.positionMs.collectAsState()
+    val duration by player.durationMs.collectAsState()
     // Read so that liking a song recomposes the heart; the store's own flow is the source of truth.
     val likedSongs by library.liked.collectAsState()
 
@@ -175,6 +179,9 @@ private fun SearchAndPlay(player: DesktopPlayer) {
             onPrevious = playerQueue::previous,
             liked = queue.current?.let { library.isLiked(it.id) } == true,
             onToggleLike = { queue.current?.let { library.toggleLiked(it.stored()) } },
+            positionMs = position,
+            durationMs = duration,
+            onSeek = player::seekTo,
         )
 
         error?.let {
@@ -264,6 +271,9 @@ private fun NowPlaying(
     onPrevious: () -> Unit,
     liked: Boolean,
     onToggleLike: () -> Unit,
+    positionMs: Long,
+    durationMs: Long,
+    onSeek: (Long) -> Unit,
 ) {
     val label = when (playback) {
         is PlaybackState.Idle -> null
@@ -273,14 +283,17 @@ private fun NowPlaying(
         is PlaybackState.Failed -> "Could not play \"${playback.title}\" - ${playback.reason}"
     } ?: return
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+    Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 12.dp)
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .padding(12.dp),
+    ) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth(),
     ) {
         Text(
             text = label,
@@ -308,6 +321,30 @@ private fun NowPlaying(
             Button(onClick = onStop) { Text("Stop") }
         }
     }
+
+    // Only once a duration is known: a slider with no length to scrub over is a decoration.
+    if (durationMs > 0) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+        ) {
+            Text(formatTime(positionMs), style = MaterialTheme.typography.bodySmall)
+            Slider(
+                value = positionMs.coerceIn(0, durationMs).toFloat(),
+                onValueChange = { onSeek(it.toLong()) },
+                valueRange = 0f..durationMs.toFloat(),
+                modifier = Modifier.weight(1f),
+            )
+            Text(formatTime(durationMs), style = MaterialTheme.typography.bodySmall)
+        }
+    }
+    }
+}
+
+private fun formatTime(ms: Long): String {
+    val totalSeconds = ms / 1000
+    return "%d:%02d".format(totalSeconds / 60, totalSeconds % 60)
 }
 
 @Composable
