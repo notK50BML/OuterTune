@@ -37,6 +37,15 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.foundation.focusable
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
@@ -137,7 +146,32 @@ private fun SearchAndPlay(player: DesktopPlayer) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    // Media keys, but only when the search box does not have focus. Space has to keep typing a
+    // space while someone is searching, and the arrows have to keep moving the caret - a shortcut
+    // that eats the text field is worse than no shortcut.
+    var searchFocused by remember { mutableStateOf(false) }
+    val keys = remember { FocusRequester() }
+    LaunchedEffect(Unit) { runCatching { keys.requestFocus() } }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .focusRequester(keys)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (searchFocused || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.Spacebar -> { player.togglePause(); true }
+                    Key.MediaPlayPause -> { player.togglePause(); true }
+                    Key.DirectionRight -> { player.seekTo(position + 10_000); true }
+                    Key.DirectionLeft -> { player.seekTo(position - 10_000); true }
+                    Key.MediaNext -> { playerQueue.next(); true }
+                    Key.MediaPrevious -> { playerQueue.previous(); true }
+                    else -> false
+                }
+            },
+    ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -148,7 +182,9 @@ private fun SearchAndPlay(player: DesktopPlayer) {
                 onValueChange = { query = it },
                 label = { Text("Search YouTube Music") },
                 singleLine = true,
-                modifier = Modifier.weight(1f),
+                modifier = Modifier
+                    .weight(1f)
+                    .onFocusChanged { searchFocused = it.isFocused },
             )
             Button(onClick = ::search, enabled = !searching) { Text("Search") }
         }
