@@ -131,6 +131,19 @@ object StackProbe {
                     firstUsable = name to client
                     firstUsableUrl = audio.first { !it.url.isNullOrBlank() }.url
                 }
+
+                // What the formats actually are decides the whole playback story on desktop, and it
+                // is not a detail that can be assumed: a container and codec that javax.sound can be
+                // taught to decode in pure Java means the desktop build ships as a single jar, while
+                // anything else means bundling a native library (VLC, GStreamer) and the packaging
+                // problem that comes with it. So list them rather than guess.
+                if (status == "OK" && audio.isNotEmpty()) {
+                    audio.sortedByDescending { it.bitrate }.take(4).forEach { format ->
+                        val kbps = format.bitrate / 1000
+                        val protection = if (format.url.isNullOrBlank()) "cipher" else "direct"
+                        println("      ${format.itag}  ${format.mimeType.substringBefore(';').padEnd(11)} ${kbps.toString().padStart(4)} kbps  $protection")
+                    }
+                }
             }.onFailure {
                 println("  $label FAILED - ${it::class.simpleName}: ${it.message}")
             }

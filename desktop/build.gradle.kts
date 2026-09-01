@@ -19,6 +19,9 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    // Pure-Java AAC decoder. If this resolves and decodes, a desktop build needs no native audio
+    // library at all - see AudioDecodeProbe.
+    implementation("com.tianscar.javasound:jaad:0.9.4")
 }
 
 /** So the probe can be run straight from Gradle: `gradlew :desktop:probe --args="<videoId>"`. */
@@ -26,5 +29,13 @@ tasks.register<JavaExec>("probe") {
     group = "verification"
     description = "Reports how far a desktop build gets before it needs a browser engine."
     mainClass.set("com.dd3boh.outertune.desktop.StackProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+/** `gradlew :desktop:decodeProbe --args="<videoId>"` - does desktop playback need native code? */
+tasks.register<JavaExec>("decodeProbe") {
+    group = "verification"
+    description = "Fetches AAC audio and decodes it in pure Java, to decide if a native audio library is needed."
+    mainClass.set("com.dd3boh.outertune.desktop.AudioDecodeProbe")
     classpath = sourceSets["main"].runtimeClasspath
 }
