@@ -616,7 +616,16 @@ fun PlayerBackgroundFrag() {
             },
             values = FerrofluidQuality.entries,
         )
+    }
 
+    // Its own AnimatedVisibility rather than sharing the one above. AnimatedVisibility lays its
+    // content out in a Box, so two preferences inside a single block are drawn on top of each
+    // other instead of one under the next.
+    AnimatedVisibility(
+        visible = playerBackground == PlayerBackgroundStyle.LIQUID &&
+            liquidShapeStyle == LiquidShapeStyle.FERROFLUID &&
+            liquidFerrofluidGpu
+    ) {
         EnumListPreference(
             title = { Text("Ferrofluid reactivity") },
             icon = { Icon(Icons.Rounded.GraphicEq, null) },
@@ -630,6 +639,7 @@ fun PlayerBackgroundFrag() {
                     FerrofluidReactivity.EXTREME -> "Extreme - flies apart on every beat"
                 }
             },
+            values = FerrofluidReactivity.entries,
         )
     }
 }

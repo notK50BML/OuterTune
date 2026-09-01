@@ -125,6 +125,7 @@ import com.dd3boh.outertune.constants.OobeStatusKey
 import com.dd3boh.outertune.constants.PureBlackKey
 import com.dd3boh.outertune.constants.SlimNavBarKey
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.utils.ArtistCreditEnricher
 import com.dd3boh.outertune.extensions.tabMode
 import com.dd3boh.outertune.playback.DownloadUtil
 import com.dd3boh.outertune.playback.MediaControllerViewModel
@@ -259,6 +260,19 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         lifecycle.addObserver(controllerViewModel)
         lifecycleScope.launch { accountImageFetcher.fetchOnce() }
+
+        // Repair stored artist credits on every launch, not only after a library sync.
+        //
+        // This used to run at the end of the remote-songs sync alone, on the reasoning that the
+        // sync is what writes the fault. True, but it left the repair unreachable on any device
+        // where that sync does not run - auto-sync switched off, or simply inside its cooldown -
+        // so a library carrying the damage from an earlier version stayed broken indefinitely and
+        // no amount of reinstalling or updating touched it. Tying a fix for existing data to the
+        // thing that causes new data was the mistake.
+        //
+        // Safe to run unconditionally: it asks YouTube nothing, and only reads the songs whose
+        // stored rows actually show the fault, so a healthy library costs two indexed queries.
+        lifecycleScope.launch { ArtistCreditEnricher.relinkAll(database) }
         controllerViewModel.addControllerCallback(lifecycle) { controller, _ ->
             playerConnection = PlayerConnection(controllerViewModel, database)
         }
@@ -399,6 +413,17 @@ class MainActivity : ComponentActivity() {
                         remember(
                             bottomInset,
                             playerBottomSheetState.isDismissed,
+                            // Both read below, and neither used to be a key. showNavRail decides
+                            // whether a navigation bar's height is added to the bottom inset, and
+                            // it flips whenever the player is expanded in landscape - so the insets
+                            // kept whatever value they had been built with and could be a whole
+                            // navigation bar out of step with what was actually on screen. That is
+                            // the queue handle suddenly sitting down level with the system buttons.
+                            // isLandscape is keyed too: it feeds showNavRail, and the branch below
+                            // reads it directly.
+                            showNavRail,
+                            isLandscape,
+                            tabMode,
                         ) {
                             // TODO: Navbar is shown in all screens except for oobe (which doesn't use these insets). Idk what do to tbh
                             var bottom = bottomInset + if (!showNavRail) NavigationBarHeight else 0.dp
