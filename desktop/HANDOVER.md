@@ -106,3 +106,36 @@ In the order last discussed:
    `android.media.audiofx.Equalizer`. Neither exists here. The good news is that `DesktopPlayer`
    already has the PCM in hand frame by frame, which is exactly what a visualiser needs and exactly
    where a software EQ would sit - so both are real work, but on ground that is already prepared.
+
+## Is this "a Compose Multiplatform app"? (asked, and worth answering properly)
+
+Effectively yes, minus the Gradle plugin. It uses Compose Multiplatform's own artifacts
+(`org.jetbrains.compose.*`) and the Compose compiler plugin — it just does not apply the
+`org.jetbrains.compose` Gradle plugin, whose releases track a Kotlin version behind this project's.
+
+What that plugin would add, and what it costs:
+
+- **`compose.desktop` DSL and `packageMsi`/`packageDmg`.** Genuinely useful when packaging, which is
+  not done yet.
+- **Automatic Skiko selection.** Currently named explicitly; the plugin would pick it per host.
+- **A Kotlin version constraint.** This is the reason it was skipped, and the reason to check before
+  adopting: if the plugin still lags the project's Kotlin, adopting it means downgrading Kotlin for
+  the whole repo — `:app` included — which is not a trade worth making for packaging convenience.
+
+So the honest answer is: adopt it when packaging, *if* its Kotlin support has caught up. It is a
+build-config change of a few lines, not a rewrite, and nothing in the source depends on the
+difference.
+
+A separate question is whether `:app` and `:desktop` should share a Compose Multiplatform *source
+set* so screens are written once. That is a much larger change: `:app`'s composables are wired to
+Hilt, Room, DataStore and MediaSession throughout, so sharing them means abstracting all four behind
+`expect`/`actual` first. Worth wanting; not worth starting without deciding to do it properly.
+
+## Immediate next step
+
+The player still uses emoji glyphs (▶ ⏸ ⏮ ⏭ 🔀 🔁) for its controls. The intent is to use the same
+`Icons.Rounded` set the Android player uses — `PlayArrow`, `Pause`, `SkipNext`, `SkipPrevious`,
+`Shuffle`, `Repeat`, `RepeatOne`, `Favorite`/`FavoriteBorder` — via
+`org.jetbrains.compose.material:material-icons-extended`. That dependency was added and then removed
+again rather than left sitting unused: it is ~11MB for a handful of icons, which matters against a
+42MB total, so add it back at the same moment the icons are actually wired up.
