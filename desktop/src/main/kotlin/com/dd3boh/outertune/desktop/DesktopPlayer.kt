@@ -66,9 +66,25 @@ sealed interface PlaybackState {
  */
 class DesktopPlayer {
 
-    /** AAC-LC in MP4 at ~130kbps: the one format every working client offers with a direct URL. */
     private companion object {
+        /** AAC-LC in MP4 at ~130kbps: the format every working client offers with a direct URL. */
         const val ITAG_AAC_MEDIUM = 140
+
+        /**
+         * Clients to try, in order, until one yields a stream that actually fetches.
+         *
+         * More than one because a single client is a single point of failure, and the way it fails
+         * is not at resolution time. googlevideo hands over a perfectly well-formed URL and then
+         * answers 403 when it is fetched - the URL being issued says nothing about whether it will
+         * be served. Which client a given track will serve varies by track, so the only way to know
+         * is to try, and the Android app re-resolves through other clients for the same reason.
+         */
+        val CLIENTS = listOf(
+            YouTubeClient.IOS,
+            YouTubeClient.ANDROID_VR_NO_AUTH,
+            YouTubeClient.VISIONOS,
+            YouTubeClient.ANDROID_VR_1_43_32,
+        )
     }
 
     val state = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
@@ -84,10 +100,12 @@ class DesktopPlayer {
         state.value = PlaybackState.Loading(title)
         job = scope.launch(Dispatchers.IO) {
             try {
-                val audio = resolveAndFetch(videoId)
-                if (audio == null) {
-                    state.value = PlaybackState.Failed(title, "no playable audio format was offered")
-                    return@launch
+                val audio = when (val outcome = resolveAndFetch(videoId)) {
+                    is Resolved.Audio -> outcome.bytes
+                    is Resolved.Failure -> {
+                        state.value = PlaybackState.Failed(title, outcome.reason)
+                        return@launch
+                    }
                 }
                 state.value = PlaybackState.Playing(title)
                 stream(audio)
@@ -120,25 +138,73 @@ class DesktopPlayer {
         line = null
     }
 
+    /** Either the song's bytes, or a reason specific enough to act on. */
+    private sealed interface Resolved {
+        data class Audio(val bytes: ByteArray) : Resolved
+        data class Failure(val reason: String) : Resolved
+    }
+
     /**
-     * The song's bytes, or null if YouTube offered nothing usable.
+     * The song's bytes, or why not.
+     *
+     * The reasons are kept distinct on purpose. "No audio format" previously covered the player
+     * request failing, YouTube refusing the client, the response carrying only ciphered formats, and
+     * itag 140 simply being absent - four different problems with four different fixes, reported
+     * identically. The most likely of them is not even about formats: without visitorData YouTube
+     * refuses players with "Video unavailable", which is indistinguishable from a missing format
+     * unless the status is actually read.
      *
      * Asked for as an explicit range: googlevideo paces a plain progressive request at roughly
      * playback speed, so without one this takes about as long as the song lasts.
      */
-    private suspend fun resolveAndFetch(videoId: String): ByteArray? {
-        val client = YouTubeClient.IOS
-        val format = YouTube.player(videoId, client = client).getOrNull()
-            ?.streamingData?.adaptiveFormats
-            ?.firstOrNull { it.itag == ITAG_AAC_MEDIUM && !it.url.isNullOrBlank() }
-            ?: return null
+    private suspend fun resolveAndFetch(videoId: String): Resolved {
+        val failures = mutableListOf<String>()
+        for (client in CLIENTS) {
+            when (val outcome = resolveAndFetchWith(videoId, client)) {
+                is Resolved.Audio -> return outcome
+                is Resolved.Failure -> failures += "${client.clientName}: ${outcome.reason}"
+            }
+        }
+        // Every client's own reason, not just the last one - "403" from one client and "refused"
+        // from another are different problems, and collapsing them hides which is which.
+        return Resolved.Failure("no client could serve this track. ${failures.joinToString("; ")}")
+    }
+
+    private suspend fun resolveAndFetchWith(videoId: String, client: YouTubeClient): Resolved {
+        val response = YouTube.player(videoId, client = client).getOrElse {
+            return Resolved.Failure("player request failed - ${it::class.simpleName}: ${it.message}")
+        }
+
+        val status = response.playabilityStatus.status
+        if (status != "OK") {
+            val reason = response.playabilityStatus.reason?.let { ": $it" }.orEmpty()
+            return Resolved.Failure("YouTube refused this client ($status$reason)")
+        }
+
+        val audio = response.streamingData?.adaptiveFormats.orEmpty()
+            .filter { it.mimeType.startsWith("audio") }
+        if (audio.isEmpty()) {
+            return Resolved.Failure("the response carried no audio formats at all")
+        }
+
+        val format = audio.firstOrNull { it.itag == ITAG_AAC_MEDIUM && !it.url.isNullOrBlank() }
+            ?: audio.firstOrNull { it.mimeType.contains("mp4") && !it.url.isNullOrBlank() }
+            ?: return Resolved.Failure(
+                "no direct-URL AAC format; offered ${audio.joinToString { "itag ${it.itag}" }}"
+            )
 
         val length = format.contentLength
         val url = if (length != null && length > 0) "${format.url}&range=0-$length" else format.url!!
         val http = HttpClient(OkHttp)
         return try {
-            val response = http.get(url) { header("User-Agent", client.userAgent) }
-            if (response.status.value !in 200..299) null else response.body<ByteArray>()
+            val fetched = http.get(url) { header("User-Agent", client.userAgent) }
+            if (fetched.status.value !in 200..299) {
+                Resolved.Failure("stream fetch returned HTTP ${fetched.status.value}")
+            } else {
+                Resolved.Audio(fetched.body<ByteArray>())
+            }
+        } catch (e: Exception) {
+            Resolved.Failure("stream fetch failed - ${e::class.simpleName}: ${e.message}")
         } finally {
             http.close()
         }

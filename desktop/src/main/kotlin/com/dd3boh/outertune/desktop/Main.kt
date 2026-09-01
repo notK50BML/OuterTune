@@ -25,6 +25,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -61,13 +62,9 @@ import kotlinx.coroutines.withContext
  * to this file.
  */
 fun main() = application {
-    // The Android app does this in App.onCreate. Without it YouTube answers 400 INVALID_ARGUMENT,
-    // which reads like a platform problem and is not one.
-    remember {
-        YouTube.locale = YouTubeLocale(gl = "US", hl = "en")
-        runCatching { kotlinx.coroutines.runBlocking { YouTube.visitorData().getOrNull() } }
-            .getOrNull()?.let { YouTube.visitorData = it }
-    }
+    // Set here because it needs no network call, and search will not work without it - YouTube
+    // answers 400 INVALID_ARGUMENT, which reads like a platform problem and is not one.
+    remember { YouTube.locale = YouTubeLocale(gl = "US", hl = "en") }
 
     val player = remember { DesktopPlayer() }
     Window(
@@ -91,6 +88,21 @@ private fun SearchAndPlay(player: DesktopPlayer) {
     var searching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val playback by player.state.collectAsState()
+
+    // visitorData needs a network call, so it cannot be set the way locale is. It used to be
+    // fetched with runBlocking during composition, on the AWT thread, where a failure was silent -
+    // and a silent failure here does not look like one: search still works, because search only
+    // needs the locale, while every player request comes back refused. "Found the track, cannot
+    // play it" was that, and it was invisible because nothing reported the state of this call.
+    var session by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(Unit) {
+        session = withContext(Dispatchers.IO) {
+            YouTube.visitorData().fold(
+                onSuccess = { YouTube.visitorData = it; "ready" },
+                onFailure = { "no session - playback will be refused (${it::class.simpleName}: ${it.message})" },
+            )
+        }
+    }
 
     fun search() {
         val text = query.trim()
@@ -125,6 +137,23 @@ private fun SearchAndPlay(player: DesktopPlayer) {
                 modifier = Modifier.weight(1f),
             )
             Button(onClick = ::search, enabled = !searching) { Text("Search") }
+        }
+
+        // Shown only while connecting or when it failed - a working session needs no announcement.
+        when (val status = session) {
+            null -> Text(
+                "connecting…",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            "ready" -> Unit
+            else -> Text(
+                status,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = 8.dp),
+            )
         }
 
         NowPlaying(playback, onStop = player::stop)
