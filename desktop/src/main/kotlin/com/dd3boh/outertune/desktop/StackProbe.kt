@@ -9,6 +9,11 @@ package com.dd3boh.outertune.desktop
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeClient
 import com.zionhuang.innertube.models.YouTubeLocale
+import io.ktor.client.HttpClient
+import io.ktor.client.call.body
+import io.ktor.client.engine.okhttp.OkHttp
+import io.ktor.client.request.get
+import io.ktor.client.request.header
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -98,6 +103,9 @@ object StackProbe {
      */
     private suspend fun probePlayerClients(videoId: String) {
         println("--- player clients (no PoToken, no signatureTimestamp) ---")
+        // The first client that produced a real URL, kept so it can actually be fetched below.
+        var firstUsable: Pair<String, YouTubeClient>? = null
+        var firstUsableUrl: String? = null
         for ((name, client) in CANDIDATES) {
             val label = name.padEnd(32)
             val result = runCatching { YouTube.player(videoId, client = client) }.getOrElse {
@@ -118,6 +126,11 @@ object StackProbe {
                     else -> "NO AUDIO FORMATS (status OK, streamingData empty)"
                 }
                 println("  $label $verdict")
+
+                if (firstUsable == null && plain > 0) {
+                    firstUsable = name to client
+                    firstUsableUrl = audio.first { !it.url.isNullOrBlank() }.url
+                }
             }.onFailure {
                 println("  $label FAILED - ${it::class.simpleName}: ${it.message}")
             }
@@ -127,5 +140,49 @@ object StackProbe {
         println("A USABLE line means a desktop build can stream on that client with no browser.")
         println("NEEDS CIPHER means YouTube's player JS has to be executed somewhere.")
         println("REFUSED usually means a PoToken, which means BotGuard, which means a browser engine.")
+
+        val (name, client) = firstUsable ?: run {
+            println()
+            println("No client produced a URL, so there is nothing to fetch.")
+            return
+        }
+        println()
+        // The client's own headers travel with the URL: googlevideo has been observed refusing a
+        // fetch whose headers do not match the client the URL was issued to.
+        probeStreamFetch(firstUsableUrl!!, mapOf("User-Agent" to client.userAgent))
+        println("  (via $name)")
+    }
+
+    /**
+     * Fetches the first few bytes of a stream, because a URL is not the same thing as a stream.
+     *
+     * googlevideo hands out URLs that then answer 403 - that is exactly the failure this fork spent
+     * weeks on, and it is invisible at the point the URL is produced. So "USABLE" above is only a
+     * claim about the player response; this is the part that checks the claim, and until it passes
+     * nothing should be said about desktop playback working.
+     *
+     * A ranged request rather than a full one: enough to prove the CDN serves this client from this
+     * machine, without pulling a whole song to find out.
+     */
+    private suspend fun probeStreamFetch(url: String, headers: Map<String, String>) {
+        println("--- fetching actual audio bytes ---")
+        val client = HttpClient(OkHttp)
+        try {
+            val response = client.get(url) {
+                headers.forEach { (name, value) -> header(name, value) }
+                header("Range", "bytes=0-65535")
+            }
+            val bytes = response.body<ByteArray>()
+            val status = response.status.value
+            when {
+                bytes.isEmpty() -> println("  FAILED - HTTP $status but no body")
+                status in 200..299 -> println("  OK - HTTP $status, ${bytes.size} bytes of audio received")
+                else -> println("  FAILED - HTTP $status after ${bytes.size} bytes")
+            }
+        } catch (e: Exception) {
+            println("  FAILED - ${e::class.simpleName}: ${e.message}")
+        } finally {
+            client.close()
+        }
     }
 }
