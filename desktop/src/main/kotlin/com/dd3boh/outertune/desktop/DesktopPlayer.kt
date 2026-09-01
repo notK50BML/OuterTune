@@ -17,6 +17,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -96,8 +97,14 @@ class DesktopPlayer {
     @Volatile
     private var line: SourceDataLine? = null
 
+    /** Whether the decode loop is being held - see [togglePause] for why this is not just the line. */
+    @Volatile
+    private var paused = false
+
     fun play(scope: CoroutineScope, videoId: String, title: String) {
         stop()
+        // Reset explicitly: a new track must never inherit the last one's paused state.
+        paused = false
         state.value = PlaybackState.Loading(title)
         job = scope.launch(Dispatchers.IO) {
             try {
@@ -124,21 +131,25 @@ class DesktopPlayer {
     }
 
     /**
-     * Pauses or resumes, by stopping the audio line rather than the decoding.
+     * Pauses or resumes: the decode loop is held, and the line is stopped so it falls silent.
      *
-     * A stopped line keeps whatever it has buffered and stops draining it, so the decode loop
-     * simply blocks on its next write once that buffer fills, and picks up exactly where it left
-     * off when the line starts again. Nothing has to be tracked or rewound - which is why this is
-     * the pause and not a flag the decoder checks.
+     * Both halves are needed. Stopping the line alone was the first attempt, on the assumption that
+     * a write would block once the stopped line's buffer filled and the decoder would throttle
+     * itself. It does not block on Windows - the loop ran through every remaining sample in
+     * silence, reached the end and ended the track, so pausing appeared to delete the song. The
+     * decoder is held by [paused] now, and the line is only stopped so what is already buffered
+     * goes quiet immediately instead of playing on for a second.
      */
     fun togglePause() {
         val current = line ?: return
         when (val playing = state.value) {
             is PlaybackState.Playing -> {
+                paused = true
                 current.stop()
                 state.value = PlaybackState.Paused(playing.title)
             }
             is PlaybackState.Paused -> {
+                paused = false
                 current.start()
                 state.value = PlaybackState.Playing(playing.title)
             }
@@ -147,6 +158,7 @@ class DesktopPlayer {
     }
 
     fun stop() {
+        paused = false
         job?.cancel()
         job = null
         closeLine()
@@ -246,6 +258,9 @@ class DesktopPlayer {
         var open: SourceDataLine? = null
 
         for (sample in samples) {
+            if (!currentCoroutineContext().isActive) break
+            // Held here rather than by the audio line, which does not reliably block a write.
+            while (paused && currentCoroutineContext().isActive) delay(50)
             if (!currentCoroutineContext().isActive) break
             decoder.decodeFrame(sample, buffer)
             val pcm = buffer.data
