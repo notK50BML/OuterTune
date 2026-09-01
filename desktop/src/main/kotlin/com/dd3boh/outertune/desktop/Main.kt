@@ -17,12 +17,14 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -56,8 +58,8 @@ import kotlinx.coroutines.withContext
  * exactly which pieces of plumbing are needed, instead of discovering them after a week of
  * scaffolding.
  *
- * What is deliberately missing, so it is not mistaken for finished: no queue, no library, no
- * database, no seeking. A song is also fetched in full before it starts, so there is a wait of a
+ * What is deliberately missing, so it is not mistaken for finished: no real database - the library
+ * is a text file, see [LibraryStore] - no playlists, no seeking. A song is also fetched in full before it starts, so there is a wait of a
  * second or two on a big track - the upside being that once audio starts there is no network left
  * to fail, so a mid-song 403 cannot happen. Streaming playback would remove the wait and introduce
  * exactly that failure, and is a change to [DesktopPlayer] rather than to this file.
@@ -89,6 +91,13 @@ private fun SearchAndPlay(player: DesktopPlayer) {
     var searching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val playback by player.state.collectAsState()
+
+    val library = remember { LibraryStore() }
+    val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.stored()) }) }
+    val queue by playerQueue.state.collectAsState()
+    val recent by library.recentlyPlayed.collectAsState()
+    // Read so that liking a song recomposes the heart; the store's own flow is the source of truth.
+    val likedSongs by library.liked.collectAsState()
 
     // visitorData needs a network call, so it cannot be set the way locale is. It used to be
     // fetched with runBlocking during composition, on the AWT thread, where a failure was silent -
@@ -157,7 +166,16 @@ private fun SearchAndPlay(player: DesktopPlayer) {
             )
         }
 
-        NowPlaying(playback, onStop = player::stop, onTogglePause = player::togglePause)
+        NowPlaying(
+            playback = playback,
+            queue = queue,
+            onStop = playerQueue::clear,
+            onTogglePause = player::togglePause,
+            onNext = playerQueue::next,
+            onPrevious = playerQueue::previous,
+            liked = queue.current?.let { library.isLiked(it.id) } == true,
+            onToggleLike = { queue.current?.let { library.toggleLiked(it.stored()) } },
+        )
 
         error?.let {
             Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
@@ -169,16 +187,84 @@ private fun SearchAndPlay(player: DesktopPlayer) {
             }
         }
 
-        LazyColumn(modifier = Modifier.fillMaxSize()) {
-            items(results) { song ->
-                SongRow(song) { player.play(scope, song.id, song.title) }
+        Row(modifier = Modifier.fillMaxSize()) {
+            // Results, or - before a search has been run - what was played last time. An empty
+            // window with nothing but a search box gives no reason to believe the app remembers
+            // anything, which it now does.
+            Column(modifier = Modifier.weight(2f)) {
+                if (results.isNotEmpty()) {
+                    LazyColumn {
+                        itemsIndexed(results) { index, song ->
+                            SongRow(song, playing = song.id == queue.current?.id) {
+                                playerQueue.play(results, index)
+                            }
+                        }
+                    }
+                } else {
+                    RecentlyPlayed(recent) { stored ->
+                        playerQueue.play(listOf(stored.toSongItem()), 0)
+                    }
+                }
+            }
+
+            if (queue.songs.isNotEmpty()) {
+                Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                    Text(
+                        "Queue (${queue.index + 1}/${queue.songs.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                    LazyColumn {
+                        itemsIndexed(queue.songs) { index, song ->
+                            SongRow(song, playing = index == queue.index) { playerQueue.jumpTo(index) }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun NowPlaying(playback: PlaybackState, onStop: () -> Unit, onTogglePause: () -> Unit) {
+private fun RecentlyPlayed(recent: List<StoredSong>, onPlay: (StoredSong) -> Unit) {
+    if (recent.isEmpty()) return
+    Column {
+        Text(
+            "Recently played",
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(vertical = 8.dp),
+        )
+        LazyColumn {
+            items(recent) { song ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onPlay(song) }
+                        .padding(vertical = 10.dp, horizontal = 4.dp),
+                ) {
+                    Text(song.title, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = song.artists.ifBlank { "Unknown artist" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NowPlaying(
+    playback: PlaybackState,
+    queue: QueueState,
+    onStop: () -> Unit,
+    onTogglePause: () -> Unit,
+    onNext: () -> Unit,
+    onPrevious: () -> Unit,
+    liked: Boolean,
+    onToggleLike: () -> Unit,
+) {
     val label = when (playback) {
         is PlaybackState.Idle -> null
         is PlaybackState.Loading -> "Loading \"${playback.title}\"…"
@@ -205,28 +291,38 @@ private fun NowPlaying(playback: PlaybackState, onStop: () -> Unit, onTogglePaus
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
+        val active = playback is PlaybackState.Playing || playback is PlaybackState.Paused ||
+            playback is PlaybackState.Loading
+
+        if (active) {
+            TextButton(onClick = onToggleLike) { Text(if (liked) "♥" else "♡") }
+        }
+        Button(onClick = onPrevious, enabled = queue.hasPrevious) { Text("Prev") }
         if (playback is PlaybackState.Playing || playback is PlaybackState.Paused) {
             Button(onClick = onTogglePause) {
                 Text(if (playback is PlaybackState.Paused) "Resume" else "Pause")
             }
         }
-        if (playback is PlaybackState.Playing || playback is PlaybackState.Loading ||
-            playback is PlaybackState.Paused
-        ) {
+        Button(onClick = onNext, enabled = queue.hasNext) { Text("Next") }
+        if (active) {
             Button(onClick = onStop) { Text("Stop") }
         }
     }
 }
 
 @Composable
-private fun SongRow(song: SongItem, onPlay: () -> Unit) {
+private fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onPlay)
             .padding(vertical = 10.dp, horizontal = 4.dp),
     ) {
-        Text(song.title, fontWeight = FontWeight.Medium)
+        Text(
+            song.title,
+            fontWeight = FontWeight.Medium,
+            color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+        )
         Text(
             text = song.artists.joinToString { it.name }.ifBlank { "Unknown artist" },
             style = MaterialTheme.typography.bodySmall,
@@ -234,3 +330,28 @@ private fun SongRow(song: SongItem, onPlay: () -> Unit) {
         )
     }
 }
+
+/** The stored shape of a search result - only what the library needs to show it and replay it. */
+private fun SongItem.stored() = StoredSong(
+    id = id,
+    title = title,
+    artists = artists.joinToString { it.name },
+)
+
+/**
+ * A stored song back as a playable item.
+ *
+ * The artist list collapses to a single unnamed entry: the store keeps artist names as one display
+ * string rather than as structured artists, which is enough to show a row and enough to play it,
+ * and is exactly the kind of thing a real database would keep properly.
+ */
+private fun StoredSong.toSongItem() = SongItem(
+    id = id,
+    title = title,
+    artists = emptyList(),
+    album = null,
+    duration = null,
+    thumbnail = "",
+    explicit = false,
+    endpoint = null,
+)

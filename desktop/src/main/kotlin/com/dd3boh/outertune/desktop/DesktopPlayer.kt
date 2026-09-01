@@ -101,6 +101,16 @@ class DesktopPlayer {
     @Volatile
     private var paused = false
 
+    /**
+     * Called when a track reaches its end on its own.
+     *
+     * Deliberately not fired when playback is stopped or replaced, because those are the user
+     * choosing to leave the track and advancing the queue on them would be wrong. "The song ended"
+     * and "the song is no longer playing" are different events, and only the first should move a
+     * queue along.
+     */
+    var onFinished: (() -> Unit)? = null
+
     fun play(scope: CoroutineScope, videoId: String, title: String) {
         stop()
         // Reset explicitly: a new track must never inherit the last one's paused state.
@@ -118,8 +128,12 @@ class DesktopPlayer {
                 state.value = PlaybackState.Playing(title)
                 stream(audio)
                 // Only settle back to Idle if this job is still the current one; a stop() or a new
-                // play() has already set the state it wants.
-                if (currentCoroutineContext().isActive) state.value = PlaybackState.Idle
+                // play() has already set the state it wants. Reaching here with the job still
+                // active is the one case that genuinely means "the song ended".
+                if (currentCoroutineContext().isActive) {
+                    state.value = PlaybackState.Idle
+                    onFinished?.invoke()
+                }
             } catch (e: Throwable) {
                 if (currentCoroutineContext().isActive) {
                     state.value = PlaybackState.Failed(title, "${e::class.simpleName}: ${e.message}")
