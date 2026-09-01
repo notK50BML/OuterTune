@@ -161,15 +161,65 @@ object FragmentedMp4Probe {
             val seconds = frames * 1024.0 / (if (sampleRate > 0) sampleRate else 44100)
             println("  decoded:         $frames frames, $pcmBytes bytes of PCM")
             println("  audio:           ${sampleRate}Hz, ${buffer.channels}ch, ~%.1f s".format(seconds))
+            println("  byte order:      ${if (buffer.isBigEndian) "big-endian" else "little-endian"}")
+            // A crude but decisive check on whether this is music or noise. Real audio moves
+            // smoothly: successive samples are close together, so the mean absolute difference
+            // between them is small relative to their range. White noise - which is what byte-order
+            // or frame-alignment mistakes produce - jumps randomly across the full range on every
+            // sample. The byte totals cannot tell these apart, which is exactly how the first
+            // version of this probe reported success on static.
+            reportSignalPlausibility(pcm.toByteArray(), buffer.isBigEndian)
             println()
             println("  PASS - fragmented MP4 demuxes and decodes in pure Java.")
             println("  A desktop build can ship as one jar with no native audio library.")
             println()
-            checkAudioOutput(sampleRate, buffer.channels)
-            writeWav(pcm.toByteArray(), sampleRate, buffer.channels)
+            checkAudioOutput(sampleRate, buffer.channels, buffer.isBigEndian)
+            writeWav(pcm.toByteArray(), sampleRate, buffer.channels, buffer.isBigEndian)
         } catch (e: Throwable) {
             println("  FAILED - ${e::class.simpleName}: ${e.message}")
             e.stackTrace.take(3).forEach { println("           at $it") }
+        }
+    }
+
+    /**
+     * Says whether the PCM looks like audio or like noise, under each byte order.
+     *
+     * This exists because the first version of this probe declared success on static. Frame counts
+     * and byte totals only show the decoder emitted correctly *sized* output - they are blind to
+     * whether the bytes are in the right order, and a byte-order or sample-alignment mistake
+     * produces exactly the right number of exactly wrong bytes.
+     *
+     * The discriminator is smoothness. Music is a continuous waveform, so consecutive samples sit
+     * close to each other and the mean step between them is a small fraction of the range they
+     * cover. White noise jumps randomly across the whole range every sample, so its mean step is
+     * enormous by comparison. Measuring both interpretations of the same bytes tells us which byte
+     * order is correct rather than leaving it to be guessed.
+     */
+    private fun reportSignalPlausibility(pcm: ByteArray, decoderSaysBigEndian: Boolean) {
+        fun meanStep(bigEndian: Boolean): Double {
+            var previous = 0
+            var total = 0.0
+            var count = 0
+            var i = 0
+            while (i + 1 < pcm.size) {
+                val lo = pcm[i].toInt() and 0xFF
+                val hi = pcm[i + 1].toInt() and 0xFF
+                val sample = if (bigEndian) (lo shl 8 or hi).toShort() else (hi shl 8 or lo).toShort()
+                if (count > 0) total += kotlin.math.abs(sample - previous).toDouble()
+                previous = sample.toInt()
+                count++
+                i += 2
+            }
+            return if (count > 1) total / (count - 1) else 0.0
+        }
+
+        val little = meanStep(bigEndian = false)
+        val big = meanStep(bigEndian = true)
+        println("  mean sample step: little-endian %.0f, big-endian %.0f".format(little, big))
+        val likely = if (little <= big) "little-endian" else "big-endian"
+        println("  looks like audio when read as: $likely (smaller step = smoother waveform)")
+        if ((likely == "big-endian") != decoderSaysBigEndian) {
+            println("  WARNING - that disagrees with the decoder's own isBigEndian flag")
         }
     }
 
@@ -181,8 +231,8 @@ object FragmentedMp4Probe {
      * rather than assumes - and it only opens a line, it does not play anything, because a probe
      * should not start making noise on someone's machine unannounced.
      */
-    private fun checkAudioOutput(sampleRate: Int, channels: Int) {
-        val format = AudioFormat(sampleRate.toFloat(), 16, channels, true, false)
+    private fun checkAudioOutput(sampleRate: Int, channels: Int, bigEndian: Boolean) {
+        val format = AudioFormat(sampleRate.toFloat(), 16, channels, true, bigEndian)
         val info = DataLine.Info(SourceDataLine::class.java, format)
         if (!AudioSystem.isLineSupported(info)) {
             println("  audio out:       NOT SUPPORTED for ${sampleRate}Hz ${channels}ch by any mixer")
@@ -205,10 +255,12 @@ object FragmentedMp4Probe {
      * cannot show that the output is the song rather than noise. This is the part a person can
      * check, and it costs one file.
      */
-    private fun writeWav(pcm: ByteArray, sampleRate: Int, channels: Int) {
+    private fun writeWav(pcm: ByteArray, sampleRate: Int, channels: Int, bigEndian: Boolean) {
         val out = File(System.getProperty("java.io.tmpdir"), "outertune-desktop-decode.wav")
         try {
-            val format = AudioFormat(sampleRate.toFloat(), 16, channels, true, false)
+            // The decoder's own byte order, not an assumed one. Declaring little-endian over
+            // big-endian samples is a header that lies about correct data, and it plays as static.
+            val format = AudioFormat(sampleRate.toFloat(), 16, channels, true, bigEndian)
             val frames = pcm.size.toLong() / format.frameSize
             AudioInputStream(ByteArrayInputStream(pcm), format, frames).use { stream ->
                 AudioSystem.write(stream, AudioFileFormat.Type.WAVE, out)
