@@ -22,6 +22,9 @@ dependencies {
     // Pure-Java AAC decoder. If this resolves and decodes, a desktop build needs no native audio
     // library at all - see AudioDecodeProbe.
     implementation("com.tianscar.javasound:jaad:0.9.4")
+    // Pure-Java ISO-BMFF parser that understands fragmented MP4 (moof/trun), which JAAD's own
+    // MP4 reader does not - see FragmentedMp4Probe.
+    implementation("org.mp4parser:isoparser:1.9.56")
 }
 
 /** So the probe can be run straight from Gradle: `gradlew :desktop:probe --args="<videoId>"`. */
@@ -37,5 +40,13 @@ tasks.register<JavaExec>("decodeProbe") {
     group = "verification"
     description = "Fetches AAC audio and decodes it in pure Java, to decide if a native audio library is needed."
     mainClass.set("com.dd3boh.outertune.desktop.AudioDecodeProbe")
+    classpath = sourceSets["main"].runtimeClasspath
+}
+
+/** `gradlew :desktop:fmp4Probe --args="<videoId>"` - can pure Java demux what YouTube serves? */
+tasks.register<JavaExec>("fmp4Probe") {
+    group = "verification"
+    description = "Demuxes fragmented MP4 and decodes it, both in pure Java, end to end."
+    mainClass.set("com.dd3boh.outertune.desktop.FragmentedMp4Probe")
     classpath = sourceSets["main"].runtimeClasspath
 }
