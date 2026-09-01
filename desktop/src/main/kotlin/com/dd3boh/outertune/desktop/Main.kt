@@ -57,9 +57,10 @@ import kotlinx.coroutines.withContext
  * scaffolding.
  *
  * What is deliberately missing, so it is not mistaken for finished: no queue, no library, no
- * database, no seeking, no pause. A song is fetched in full before it starts, so there is a pause
- * of a second or two on a big track - streaming playback is a later change to [DesktopPlayer], not
- * to this file.
+ * database, no seeking. A song is also fetched in full before it starts, so there is a wait of a
+ * second or two on a big track - the upside being that once audio starts there is no network left
+ * to fail, so a mid-song 403 cannot happen. Streaming playback would remove the wait and introduce
+ * exactly that failure, and is a change to [DesktopPlayer] rather than to this file.
  */
 fun main() = application {
     // Set here because it needs no network call, and search will not work without it - YouTube
@@ -156,7 +157,7 @@ private fun SearchAndPlay(player: DesktopPlayer) {
             )
         }
 
-        NowPlaying(playback, onStop = player::stop)
+        NowPlaying(playback, onStop = player::stop, onTogglePause = player::togglePause)
 
         error?.let {
             Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(vertical = 8.dp))
@@ -177,11 +178,12 @@ private fun SearchAndPlay(player: DesktopPlayer) {
 }
 
 @Composable
-private fun NowPlaying(playback: PlaybackState, onStop: () -> Unit) {
+private fun NowPlaying(playback: PlaybackState, onStop: () -> Unit, onTogglePause: () -> Unit) {
     val label = when (playback) {
         is PlaybackState.Idle -> null
         is PlaybackState.Loading -> "Loading \"${playback.title}\"…"
         is PlaybackState.Playing -> "Playing \"${playback.title}\""
+        is PlaybackState.Paused -> "Paused \"${playback.title}\""
         is PlaybackState.Failed -> "Could not play \"${playback.title}\" - ${playback.reason}"
     } ?: return
 
@@ -203,7 +205,14 @@ private fun NowPlaying(playback: PlaybackState, onStop: () -> Unit) {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
         )
-        if (playback is PlaybackState.Playing || playback is PlaybackState.Loading) {
+        if (playback is PlaybackState.Playing || playback is PlaybackState.Paused) {
+            Button(onClick = onTogglePause) {
+                Text(if (playback is PlaybackState.Paused) "Resume" else "Pause")
+            }
+        }
+        if (playback is PlaybackState.Playing || playback is PlaybackState.Loading ||
+            playback is PlaybackState.Paused
+        ) {
             Button(onClick = onStop) { Text("Stop") }
         }
     }

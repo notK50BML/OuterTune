@@ -43,6 +43,7 @@ sealed interface PlaybackState {
     data object Idle : PlaybackState
     data class Loading(val title: String) : PlaybackState
     data class Playing(val title: String) : PlaybackState
+    data class Paused(val title: String) : PlaybackState
     data class Failed(val title: String, val reason: String) : PlaybackState
 }
 
@@ -119,6 +120,29 @@ class DesktopPlayer {
             } finally {
                 closeLine()
             }
+        }
+    }
+
+    /**
+     * Pauses or resumes, by stopping the audio line rather than the decoding.
+     *
+     * A stopped line keeps whatever it has buffered and stops draining it, so the decode loop
+     * simply blocks on its next write once that buffer fills, and picks up exactly where it left
+     * off when the line starts again. Nothing has to be tracked or rewound - which is why this is
+     * the pause and not a flag the decoder checks.
+     */
+    fun togglePause() {
+        val current = line ?: return
+        when (val playing = state.value) {
+            is PlaybackState.Playing -> {
+                current.stop()
+                state.value = PlaybackState.Paused(playing.title)
+            }
+            is PlaybackState.Paused -> {
+                current.start()
+                state.value = PlaybackState.Playing(playing.title)
+            }
+            else -> Unit
         }
     }
 
