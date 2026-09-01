@@ -182,6 +182,8 @@ private fun SearchAndPlay(player: DesktopPlayer) {
             positionMs = position,
             durationMs = duration,
             onSeek = player::seekTo,
+            onToggleShuffle = playerQueue::toggleShuffle,
+            onCycleRepeat = playerQueue::cycleRepeat,
         )
 
         error?.let {
@@ -208,8 +210,38 @@ private fun SearchAndPlay(player: DesktopPlayer) {
                         }
                     }
                 } else {
-                    RecentlyPlayed(recent) { stored ->
-                        playerQueue.play(listOf(stored.toSongItem()), 0)
+                    // Two lists rather than one, because liking songs that are never shown again is
+                    // a feature that only writes to a file.
+                    val shelves = listOfNotNull(
+                        ("Liked" to likedSongs).takeIf { likedSongs.isNotEmpty() },
+                        ("Recently played" to recent).takeIf { recent.isNotEmpty() },
+                    )
+                    if (shelves.isEmpty()) {
+                        Text(
+                            "Search for something to get started.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 24.dp),
+                        )
+                    } else {
+                        LazyColumn {
+                            shelves.forEach { (heading, songs) ->
+                                item {
+                                    Text(
+                                        heading,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp),
+                                    )
+                                }
+                                // The whole shelf is queued, so playing from Liked plays the lot
+                                // rather than one song and silence.
+                                itemsIndexed(songs) { index, song ->
+                                    StoredSongRow(song, playing = song.id == queue.current?.id) {
+                                        playerQueue.play(songs.map { it.toSongItem() }, index)
+                                    }
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -232,36 +264,29 @@ private fun SearchAndPlay(player: DesktopPlayer) {
     }
 }
 
+/** A row for a song out of the library, which keeps artists as one display string. */
 @Composable
-private fun RecentlyPlayed(recent: List<StoredSong>, onPlay: (StoredSong) -> Unit) {
-    if (recent.isEmpty()) return
-    Column {
-        Text(
-            "Recently played",
-            style = MaterialTheme.typography.titleSmall,
-            modifier = Modifier.padding(vertical = 8.dp),
-        )
-        LazyColumn {
-            items(recent) { song ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onPlay(song) }
-                        .padding(vertical = 6.dp, horizontal = 4.dp),
-                ) {
-                    Artwork(song.thumbnail)
-                    Column {
-                        Text(song.title, fontWeight = FontWeight.Medium)
-                        Text(
-                            text = song.artists.ifBlank { "Unknown artist" },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
+private fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: () -> Unit) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onPlay)
+            .padding(vertical = 6.dp, horizontal = 4.dp),
+    ) {
+        Artwork(song.thumbnail)
+        Column {
+            Text(
+                song.title,
+                fontWeight = FontWeight.Medium,
+                color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = song.artists.ifBlank { "Unknown artist" },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
@@ -279,6 +304,8 @@ private fun NowPlaying(
     positionMs: Long,
     durationMs: Long,
     onSeek: (Long) -> Unit,
+    onToggleShuffle: () -> Unit,
+    onCycleRepeat: () -> Unit,
 ) {
     val label = when (playback) {
         is PlaybackState.Idle -> null
@@ -342,6 +369,20 @@ private fun NowPlaying(
                 modifier = Modifier.weight(1f),
             )
             Text(formatTime(durationMs), style = MaterialTheme.typography.bodySmall)
+            // Beside the scrubber rather than with the transport buttons: these change what the
+            // queue does next, they do not act on the track playing now.
+            TextButton(onClick = onToggleShuffle) {
+                Text(if (queue.shuffled) "Shuffle on" else "Shuffle off")
+            }
+            TextButton(onClick = onCycleRepeat) {
+                Text(
+                    when (queue.repeat) {
+                        RepeatMode.OFF -> "Repeat off"
+                        RepeatMode.ALL -> "Repeat all"
+                        RepeatMode.ONE -> "Repeat one"
+                    }
+                )
+            }
         }
     }
     }
