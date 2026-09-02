@@ -215,6 +215,9 @@
         <button data-preset="compact">Compact</button>
         <button data-preset="artwork">Artwork first</button>
         <button data-preset="minimal">Minimal</button>
+        <button data-preset="airy">Airy</button>
+        <button data-preset="cinema">Cinema</button>
+        <button data-preset="dense">Everything</button>
         <button data-preset="freeStart">Free: start from stacked</button>
       </div>
     </div>
@@ -392,15 +395,28 @@ function actionMembers(scale, visible = true) {
   return ACTION_MEMBERS.map(id => ({ id, visible, scale, group: "actions" }));
 }
 
+/*
+ * Presets.
+ *
+ * The action cluster - sleep timer, like, equalizer, overflow - sits directly after the title in
+ * every one of these, because that is where the app puts it. Player.kt's own comment on the call
+ * site reads "action buttons for portrait (inline with title)". The editor used to place it in a
+ * strip below the transport row, which is not a layout the app ever draws, and made the preset look
+ * like a settings screen rather than a player.
+ *
+ * Shapes borrowed from players that have already answered these questions: Spotify keeps a small
+ * cover high with the transport low and a lot of air between; Apple Music leans on a very large
+ * cover with tight controls beneath it; Poweramp is the dense end, everything visible at once.
+ */
 const PRESETS = {
   default: {
     mode: "stack", spacing: 16, sidePadding: 24,
     blocks: [
       { id: "artwork", visible: true, size: 100, radius: 12 },
       { id: "info", visible: true, scale: 100, align: "start" },
+      ...actionMembers(100),
       { id: "progress", visible: true, scale: 100 },
       ...controlMembers(100),
-      ...actionMembers(100),
       { id: "queue", visible: true },
     ],
   },
@@ -409,9 +425,9 @@ const PRESETS = {
     blocks: [
       { id: "artwork", visible: true, size: 72, radius: 20 },
       { id: "info", visible: true, scale: 90, align: "center" },
+      ...actionMembers(85),
       { id: "progress", visible: true, scale: 100 },
       ...controlMembers(95),
-      ...actionMembers(85),
       { id: "queue", visible: true },
     ],
   },
@@ -420,8 +436,8 @@ const PRESETS = {
     blocks: [
       { id: "artwork", visible: true, size: 118, radius: 0 },
       { id: "info", visible: true, scale: 105, align: "center" },
-      ...controlMembers(110),
       { id: "progress", visible: true, scale: 100 },
+      ...controlMembers(110),
       ...actionMembers(100, false),
       { id: "queue", visible: true },
     ],
@@ -431,10 +447,50 @@ const PRESETS = {
     blocks: [
       { id: "artwork", visible: true, size: 88, radius: 999 },
       { id: "info", visible: true, scale: 100, align: "center" },
-      ...controlMembers(100),
-      { id: "progress", visible: false, scale: 100 },
       ...actionMembers(100, false),
+      { id: "progress", visible: false, scale: 100 },
+      ...controlMembers(100),
       { id: "queue", visible: false },
+    ],
+  },
+
+  // Small cover held high, controls pushed low, plenty of air between - the shape Spotify uses.
+  airy: {
+    mode: "stack", spacing: 30, sidePadding: 28,
+    blocks: [
+      { id: "artwork", visible: true, size: 84, radius: 10 },
+      { id: "info", visible: true, scale: 108, align: "start" },
+      ...actionMembers(95),
+      { id: "progress", visible: true, scale: 95 },
+      ...controlMembers(112),
+      { id: "queue", visible: true },
+    ],
+  },
+
+  // Cover as large as the frame allows with the controls tucked underneath - Apple Music's emphasis.
+  cinema: {
+    mode: "stack", spacing: 10, sidePadding: 6,
+    blocks: [
+      { id: "artwork", visible: true, size: 124, radius: 4 },
+      { id: "info", visible: true, scale: 100, align: "center" },
+      { id: "progress", visible: true, scale: 92 },
+      ...controlMembers(100),
+      ...actionMembers(85, false),
+      { id: "queue", visible: false },
+    ],
+  },
+
+  // Everything on at once, tight - the dense end, for people who want no hidden controls.
+  dense: {
+    mode: "stack", spacing: 6, sidePadding: 12,
+    blocks: [
+      { id: "artwork", visible: true, size: 62, radius: 8 },
+      { id: "info", visible: true, scale: 88, align: "start" },
+      ...actionMembers(80),
+      { id: "progress", visible: true, scale: 90 },
+      // The one preset that turns the seek buttons on, since its whole point is showing everything.
+      ...CONTROL_MEMBERS.map(id => ({ id, visible: true, scale: 88, group: "controls" })),
+      { id: "queue", visible: true },
     ],
   },
 };
@@ -730,7 +786,21 @@ function renderPreview() {
           node.innerHTML = `<div style="width:${w}px;height:${w}px;margin:0 auto">${blockMarkup(b, w)}</div>`;
         } else {
           node.innerHTML = blockMarkup(b, boxW);
-          if (b.id === "queue") node.style.marginTop = "auto";
+          if (b.id === "queue") {
+            /*
+             * Pinned to the bottom edge rather than pushed there by margin:auto.
+             *
+             * In the app this is the queue sheet's peek, which sits at the bottom of the window
+             * whatever else is on screen. As a flex item it was only at the bottom while the other
+             * blocks happened to fit - a large cover on a shorter screen pushed the column past the
+             * surface and the handle went off the bottom with it, which is not something the app
+             * can do.
+             */
+            node.style.position = "absolute";
+            node.style.left = state.sidePadding + "px";
+            node.style.right = state.sidePadding + "px";
+            node.style.bottom = "0";
+          }
         }
         const rot = get(b, "rot");
         if (rot) { node.style.transform = `rotate(${rot}deg)`; node.style.transformOrigin = "center"; }
@@ -787,10 +857,30 @@ function renderPreview() {
     }
   }
 
-  document.getElementById("stageNote").textContent =
-    previewAspect
-      ? "Checking on " + previewAspect.label + " — your design is still " + screen.width + "x" + screen.height
-      : "Previewing your screen, " + screen.width + "x" + screen.height;
+  const base = previewAspect
+    ? "Checking on " + previewAspect.label + " — your design is still " + screen.width + "x" + screen.height
+    : "Previewing your screen, " + screen.width + "x" + screen.height;
+
+  /*
+   * Say so when the column does not fit.
+   *
+   * The surface clips, so an over-full stacked layout used to just quietly lose its lowest blocks -
+   * the preview looked fine and the phone would not. Measured after layout, which is the only point
+   * the real heights are known.
+   */
+  let warning = "";
+  if (state.mode === "stack") {
+    const visible = [...surface.children].filter(n => n.offsetParent !== null && !n.querySelector(".queue"));
+    const used = visible.reduce((a, n) => a + n.getBoundingClientRect().height, 0)
+      + state.spacing * Math.max(visible.length - 1, 0) + state.sidePadding * 2;
+    const overflow = Math.round(used - boxH);
+    if (overflow > 0) {
+      warning = " — this is about " + overflow + "px too tall for the screen; the lowest blocks will be cut off.";
+    }
+  }
+  const note = document.getElementById("stageNote");
+  note.textContent = base + warning;
+  note.style.color = warning ? "var(--warn)" : "var(--ink-dim)";
 }
 
 function handleBlockClick(e, id) {
