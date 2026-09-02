@@ -466,11 +466,14 @@ function actionMembers(scale, visible = true) {
 /*
  * Presets.
  *
- * The action cluster - sleep timer, like, equalizer, overflow - sits directly after the title in
- * every one of these, because that is where the app puts it. Player.kt's own comment on the call
- * site reads "action buttons for portrait (inline with title)". The editor used to place it in a
- * strip below the transport row, which is not a layout the app ever draws, and made the preset look
- * like a settings screen rather than a player.
+ * The order in `default` is exactly the app's own DEFAULT_BLOCKS - artwork, info, progress,
+ * controls, actions, queue - taken from PlayerLayout.kt rather than from reading the player and
+ * guessing. An earlier version of this file moved the action cluster up to sit directly after the
+ * title, on the strength of a comment at one of ActionButtons()'s call sites reading "action
+ * buttons for portrait (inline with title)". That comment describes a conditional variant, guarded
+ * by `!compactWidth && artwork == null`, and not the default at all - so the presets were
+ * describing a layout the app only draws in one particular case. The default belongs below the
+ * transport row, which is where it started.
  *
  * Shapes borrowed from players that have already answered these questions: Spotify keeps a small
  * cover high with the transport low and a lot of air between; Apple Music leans on a very large
@@ -482,9 +485,9 @@ const PRESETS = {
     blocks: [
       { id: "artwork", visible: true, size: 100, radius: 12 },
       { id: "info", visible: true, scale: 100, align: "start" },
-      ...actionMembers(100),
       { id: "progress", visible: true, scale: 100 },
       ...controlMembers(100),
+      ...actionMembers(100),
       { id: "queue", visible: true },
     ],
   },
@@ -493,9 +496,9 @@ const PRESETS = {
     blocks: [
       { id: "artwork", visible: true, size: 72, radius: 20 },
       { id: "info", visible: true, scale: 90, align: "center" },
-      ...actionMembers(85),
       { id: "progress", visible: true, scale: 100 },
       ...controlMembers(95),
+      ...actionMembers(85),
       { id: "queue", visible: true },
     ],
   },
@@ -528,9 +531,9 @@ const PRESETS = {
     blocks: [
       { id: "artwork", visible: true, size: 84, radius: 10 },
       { id: "info", visible: true, scale: 108, align: "start" },
-      ...actionMembers(95),
       { id: "progress", visible: true, scale: 95 },
       ...controlMembers(112),
+      ...actionMembers(95),
       { id: "queue", visible: true },
     ],
   },
@@ -554,10 +557,10 @@ const PRESETS = {
     blocks: [
       { id: "artwork", visible: true, size: 62, radius: 8 },
       { id: "info", visible: true, scale: 88, align: "start" },
-      ...actionMembers(80),
       { id: "progress", visible: true, scale: 90 },
       // The one preset that turns the seek buttons on, since its whole point is showing everything.
       ...CONTROL_MEMBERS.map(id => ({ id, visible: true, scale: 88, group: "controls" })),
+      ...actionMembers(80),
       { id: "queue", visible: true },
     ],
   },
