@@ -4,7 +4,7 @@
 
 [![Release](https://img.shields.io/github/v/release/notK50BML/OuterTune?include_prereleases)](https://github.com/notK50BML/OuterTune/releases) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
-A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a dynamic audio visualiser, a free-position UI editor (still WIP), and much more. This player features extensive Material 3 customisation options and player styles for dynamic theming. 
+A music player which puts your personalised experience above all else. This app was engineered to be lightweight, yet feature-packed. Along with the functions of the original app, this fork also adds word-by-word lyrics, a completely free-placement UI editor, an audio visualiser, Discord rich presence and much more. This player also is heavily customisable and features a Material You design for accents and player colours for a dynamic theme. 
 
 I really, really need a cat.
 
@@ -54,6 +54,7 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Improved artist image placement by rendering a square picture and realigning (thanks to [Metrolist](https://github.com/metrolistgroup/metrolist))
 - Fixed the broken remote history page
 - Added a feature which allows remote listens to count to total song stats
+- Fixed a bug where only some songs would be added to a Youtube-synced playlist
 
 ### Lyrics
 
@@ -66,6 +67,8 @@ This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune
 - Improved lyrics pipeline
 - Fixed "cannot parse lyrics" errors
 - Fixed word-by-word lyrics rendering breaking when battery saver was enabled (now can be enabled under Lyrics > Advanced > Karaoke style lyrics)
+- Added a feature which allows word-by-word interpolation from line-synced lyrics
+- Added lyrics offset settings
 
 ### Navigation and menus
 
