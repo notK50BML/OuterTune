@@ -73,6 +73,7 @@ import com.dd3boh.outertune.constants.LyricClickable
 import com.dd3boh.outertune.constants.LyricFontSizeKey
 import com.dd3boh.outertune.constants.LyricEstimatedWordSync
 import com.dd3boh.outertune.constants.LyricKaraokeEnable
+import com.dd3boh.outertune.constants.LyricOffsetKey
 import com.dd3boh.outertune.constants.LyricUpdateSpeed
 import com.dd3boh.outertune.constants.LyricsPosition
 import com.dd3boh.outertune.constants.LyricsTextPositionKey
@@ -123,6 +124,10 @@ fun Lyrics(
     val lyricsClickable by rememberPreference(LyricClickable, true)
     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
     val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, false)
+    // Added to the playback position everywhere it is compared against a lyric time, so a file that
+    // is uniformly early or late can be pulled into place. Applied here rather than by rewriting the
+    // timestamps: the lyrics themselves are not wrong to store, only wrong to trust at face value.
+    val lyricOffset by rememberPreference(LyricOffsetKey, 0)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -230,7 +235,10 @@ fun Lyrics(
                 // Scrubbing has to move the highlight even while paused, which is why this no
                 // longer skips the whole tick when the player is stopped.
                 if (!playerConnection.isPlaying.value && !isSeeking) return@runCatching
-                currentLineIndex = findCurrentLineIndex(lines, sliderPosition ?: playerConnection.player.currentPosition)
+                currentLineIndex = findCurrentLineIndex(
+                    lines,
+                    (sliderPosition ?: playerConnection.player.currentPosition) + lyricOffset,
+                )
             }
         }
     }
@@ -248,13 +256,14 @@ fun Lyrics(
         if (!karaokeEnabled || !isSynced || lyricsModel == null) return@LaunchedEffect
         // Seed it before waiting for anything. Left at its initial zero the first frame draws an
         // entirely unswept line, which is indistinguishable from the sweep not working at all.
-        karaokePosition.longValue = sliderPositionProvider() ?: playerConnection.player.currentPosition
+        karaokePosition.longValue =
+            (sliderPositionProvider() ?: playerConnection.player.currentPosition) + lyricOffset
         var latchedPosition = Long.MIN_VALUE
         var latchedAt = 0L
         while (isActive) {
             val scrubbed = sliderPositionProvider()
             if (scrubbed != null) {
-                karaokePosition.longValue = scrubbed
+                karaokePosition.longValue = scrubbed + lyricOffset
                 latchedPosition = Long.MIN_VALUE // re-latch against the player once the scrub ends
             } else {
                 val now = System.currentTimeMillis()
@@ -264,7 +273,8 @@ fun Lyrics(
                     latchedAt = now
                 }
                 karaokePosition.longValue =
-                    latchedPosition + if (playerConnection.player.isPlaying) now - latchedAt else 0L
+                    latchedPosition + lyricOffset +
+                        if (playerConnection.player.isPlaying) now - latchedAt else 0L
             }
             // Frame-synced while something is moving, idle polling otherwise, so a paused player
             // with the lyrics open does not hold the choreographer awake.

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Reorder
 import androidx.compose.material.icons.rounded.Timeline
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Speed
 import androidx.compose.material.icons.rounded.TextFields
 import androidx.compose.material.icons.rounded.TextRotationAngledown
@@ -57,6 +58,7 @@ import com.dd3boh.outertune.constants.LyricClickable
 import com.dd3boh.outertune.constants.LyricFontSizeKey
 import com.dd3boh.outertune.constants.LyricEstimatedWordSync
 import com.dd3boh.outertune.constants.LyricKaraokeEnable
+import com.dd3boh.outertune.constants.LyricOffsetKey
 import com.dd3boh.outertune.constants.LyricSourcePrefKey
 import com.dd3boh.outertune.constants.LyricTrimKey
 import com.dd3boh.outertune.constants.LyricUpdateSpeed
@@ -359,6 +361,8 @@ fun ColumnScope.LyricSourceFrag() {
 fun ColumnScope.LyricAdvancedFrag() {
     val (lyricUpdateSpeed, onLyricsUpdateSpeedChange) = rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
     val (lyricsFancy, onLyricsFancyChange) = rememberPreference(LyricKaraokeEnable, false)
+    val (lyricOffset, onLyricOffsetChange) = rememberPreference(LyricOffsetKey, 0)
+    var showOffsetDialog by remember { mutableStateOf(false) }
     val (estimatedWordSync, onEstimatedWordSyncChange) = rememberPreference(LyricEstimatedWordSync, false)
     val (syncedLyricsClickable, onSyncedLyricsClickable) = rememberPreference(LyricClickable, defaultValue = true)
 
@@ -386,6 +390,13 @@ fun ColumnScope.LyricAdvancedFrag() {
             onCheckedChange = onLyricsFancyChange
         )
 
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.lyrics_offset_title)) },
+            description = stringResource(R.string.lyrics_offset_description, lyricOffset),
+            icon = { Icon(Icons.Rounded.Timer, null) },
+            onClick = { showOffsetDialog = true },
+        )
+
         SwitchPreference(
             title = { Text(stringResource(R.string.lyrics_estimated_word_sync_title)) },
             description = stringResource(R.string.lyrics_estimated_word_sync_description),
@@ -410,6 +421,22 @@ fun ColumnScope.LyricAdvancedFrag() {
                 }
             },
             isEnabled = lyricsFancy
+        )
+    }
+
+    if (showOffsetDialog) {
+        CounterDialog(
+            title = stringResource(R.string.lyrics_offset_title),
+            initialValue = lyricOffset,
+            // Five seconds either way. Wider than that is not a sync correction, it is the wrong
+            // lyrics file.
+            upperBound = 5000,
+            lowerBound = -5000,
+            unitDisplay = " ms",
+            onDismiss = { showOffsetDialog = false },
+            onConfirm = { onLyricOffsetChange(it); showOffsetDialog = false },
+            onReset = { onLyricOffsetChange(0) },
+            onCancel = { showOffsetDialog = false },
         )
     }
 }

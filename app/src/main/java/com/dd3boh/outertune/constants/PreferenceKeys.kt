@@ -182,6 +182,17 @@ val LyricKaraokeEnable = booleanPreferencesKey("lyricKaraokeEnable")
  * it only supplies the timings that setting's sweep consumes.
  */
 val LyricEstimatedWordSync = booleanPreferencesKey("lyricEstimatedWordSync")
+
+/**
+ * Milliseconds added to the playback position before deciding which lyric line is current.
+ *
+ * Positive shows lines earlier, negative later - which is the way round it needs to be, because the
+ * complaint is always "the words are late" or "the words are early" about the *lyrics*, not about
+ * the song. Corrects a badly timed lyric file rather than the playback, so it is stored per app
+ * rather than per song: the same source tends to be off by a similar amount across a library, and a
+ * per-song value would mean setting it again for every track.
+ */
+val LyricOffsetKey = intPreferencesKey("lyricOffset")
 val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
 val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
 val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")
