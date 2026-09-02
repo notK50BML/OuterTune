@@ -716,27 +716,39 @@ class RemoteLyricsAggregator(private val enabledCount: Int) {
      */
     fun offer(providerName: String, result: LyricsFetchResult, classifyFound: (String) -> FoundKind): Boolean {
         when (result) {
-            is LyricsFetchResult.Found -> when (classifyFound(result.raw)) {
-                // Word timings are strictly richer - a line-level renderer ignores the extra marks -
-                // so this is the one result worth stopping everything for.
-                FoundKind.WORD_SYNCED -> {
-                    if (adoptedWordSynced == null) {
-                        adoptedWordSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
+            // Cleaned here rather than in each provider, so every source gets the same treatment
+            // through one path. Only the universally safe part runs - speaker markers and music
+            // annotations - because the caption-specific line re-breaking would damage a real
+            // lyrics file, which is already broken where its author meant it to be. See cleanLyrics.
+            //
+            // Cleaned before classification as well as before storage: an annotation-only line is
+            // not evidence of lyrics, so judging the raw text could adopt a "lyric sheet" that is
+            // nothing but [Music] over and over.
+            is LyricsFetchResult.Found -> {
+                val cleaned = cleanLyrics(result.raw)
+                when (classifyFound(cleaned)) {
+                    // Word timings are strictly richer - a line-level renderer ignores the extra
+                    // marks - so this is the one result worth stopping everything for.
+                    FoundKind.WORD_SYNCED -> {
+                        if (adoptedWordSynced == null) {
+                            adoptedWordSynced = RemoteLyricsResult.Found(providerName, cleaned, synced = true)
+                        }
+                        return true
                     }
-                    return true
-                }
 
-                // Held rather than adopted: a slower provider may still come back with the same
-                // song in word-timed form, and that is worth the wait it costs.
-                FoundKind.SYNCED -> if (heldSynced == null) {
-                    heldSynced = RemoteLyricsResult.Found(providerName, result.raw, synced = true)
-                }
+                    // Held rather than adopted: a slower provider may still come back with the same
+                    // song in word-timed form, and that is worth the wait it costs.
+                    FoundKind.SYNCED -> if (heldSynced == null) {
+                        heldSynced = RemoteLyricsResult.Found(providerName, cleaned, synced = true)
+                    }
 
-                FoundKind.UNSYNCED -> if (heldUnsynced == null) {
-                    heldUnsynced = RemoteLyricsResult.Found(providerName, result.raw, synced = false)
-                }
+                    FoundKind.UNSYNCED -> if (heldUnsynced == null) {
+                        heldUnsynced = RemoteLyricsResult.Found(providerName, cleaned, synced = false)
+                    }
 
-                FoundKind.UNPARSEABLE -> nonNotFoundCount++ // not a usable result, but not an absence either
+                    // Not a usable result, but not an absence either.
+                    FoundKind.UNPARSEABLE -> nonNotFoundCount++
+                }
             }
 
             LyricsFetchResult.NotFound -> notFoundCount++

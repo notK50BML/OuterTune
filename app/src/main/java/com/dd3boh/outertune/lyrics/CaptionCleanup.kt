@@ -65,6 +65,31 @@ private val FIRST_STAMP = Regex("""\[(\d+):(\d{2})([.:]\d+)?]""")
  * Lines that empty out are kept as empty lines rather than dropped: their timestamps are still
  * real, and a lyric sheet with a gap where the singing stops is correct.
  */
+/**
+ * The cleanup that is safe for *any* lyrics source, whatever it is.
+ *
+ * Only two things happen here: `>>` speaker markers are dropped, and music/singing annotations are
+ * removed - or turned into the standard placeholder when a line is nothing else. Both are noise in
+ * a lyric sheet no matter which provider produced it, and neither can damage a line that does not
+ * contain them.
+ *
+ * Deliberately does **not** re-break lines. That is the one part of the caption treatment that must
+ * not be applied generally: a real lyrics file is already broken where the lyricist intended, and
+ * splitting its lines at sentence ends would cut "Hello. Is it me you're looking for?" in half.
+ * Captions have no such intent behind their breaks, which is why [cleanCaptionLyrics] is allowed to
+ * re-break them and this is not.
+ */
+fun cleanLyrics(raw: String): String =
+    raw.lines().joinToString("\n") { line ->
+        val match = LRC_LINE.matchEntire(line)
+        if (match == null) {
+            cleanCaptionText(line)
+        } else {
+            val (timestamps, text) = match.destructured
+            timestamps + cleanCaptionText(text)
+        }
+    }
+
 fun cleanCaptionLyrics(raw: String): String {
     val lines = raw.lines().map { line ->
         val match = LRC_LINE.matchEntire(line)
