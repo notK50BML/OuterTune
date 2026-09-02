@@ -141,6 +141,41 @@ class SyncUtils @Inject constructor(
     private val syncJob = SupervisorJob()
     private val scope = CoroutineScope(syncCoroutine + syncJob + exceptionHandler)
 
+    /**
+     * Adds songs to a remote playlist, on a scope that outlives whatever asked for it.
+     *
+     * This exists because the obvious place to do it - a coroutine launched from the dialog - is
+     * wrong in a way that only shows up in bulk. rememberCoroutineScope is tied to the composition,
+     * the dialog dismisses itself as soon as the local rows are written, and the scope is cancelled
+     * the moment it leaves the tree. One song beat the cancellation; a hundred did not, so most of a
+     * large selection silently never reached YouTube. That is exactly "some of them were added".
+     *
+     * Sequential and paced rather than parallel. Each add is a separate write to the same playlist,
+     * and firing a hundred at once is both a good way to be rate-limited and a good way to have
+     * them land out of order.
+     *
+     * Failures are counted rather than swallowed. The previous code discarded the Result of every
+     * call, so a playlist that YouTube refused looked identical to one that worked.
+     */
+    fun addToRemotePlaylist(browseId: String, songIds: List<String>) {
+        if (songIds.isEmpty()) return
+        scope.launch {
+            var failed = 0
+            for (songId in songIds) {
+                YouTube.addToPlaylist(browseId, songId).onFailure {
+                    failed++
+                    Log.e(TAG, "Failed to add $songId to remote playlist $browseId", it)
+                }
+                delay(REMOTE_PLAYLIST_ADD_DELAY_MS)
+            }
+            if (failed > 0) {
+                Log.w(TAG, "$failed of ${songIds.size} song(s) could not be added to $browseId")
+            } else {
+                Log.d(TAG, "Added ${songIds.size} song(s) to remote playlist $browseId")
+            }
+        }
+    }
+
     private val syncChannel = Channel<SyncOperation>(Channel.BUFFERED)
     private var processingJob: Job? = null
 
@@ -170,6 +205,12 @@ class SyncUtils @Inject constructor(
 
         /** Small pause between database writes so a large sync doesn't starve the UI. */
         private const val DB_OPERATION_DELAY_MS = 20L
+
+        /**
+         * Between consecutive adds to one remote playlist. Long enough not to look like a flood,
+         * short enough that a hundred songs is a few seconds rather than a minute.
+         */
+        private const val REMOTE_PLAYLIST_ADD_DELAY_MS = 60L
     }
 
     init {

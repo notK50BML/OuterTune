@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.TextUnitType
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.LocalDatabase
+import com.dd3boh.outertune.LocalSyncUtils
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.ListThumbnailSize
 import com.dd3boh.outertune.constants.PlaylistFilter
@@ -62,6 +63,15 @@ fun AddToPlaylistDialog(
 ) {
     val database = LocalDatabase.current
     val coroutineScope = rememberCoroutineScope()
+    val syncUtils = LocalSyncUtils.current
+
+    // The local rows and the remote playlist, together, so no caller can do one and forget the
+    // other - which is what happened to both duplicate-dialog paths below: they wrote the database
+    // and never told YouTube anything.
+    fun addRemotely(playlist: Playlist, ids: List<String>) {
+        if (playlist.playlist.isLocal) return
+        playlist.playlist.browseId?.let { syncUtils.addToRemotePlaylist(it, ids) }
+    }
 
     val (sortType, onSortTypeChange) = rememberEnumPreference(PlaylistSortTypeKey, PlaylistSortType.CREATE_DATE)
     val (sortDescending, onSortDescendingChange) = rememberPreference(PlaylistSortDescendingKey, true)
@@ -193,14 +203,9 @@ fun AddToPlaylistDialog(
                         } else {
                             onDismiss()
                             database.addSongToPlaylist(playlist, songIds!!)
-
-                            if (!playlist.playlist.isLocal) {
-                                playlist.playlist.browseId?.let { plist ->
-                                    songIds?.forEach {
-                                        YouTube.addToPlaylist(plist, it)
-                                    }
-                                }
-                            }
+                            // Handed to SyncUtils rather than looped here: this scope dies with the
+                            // dialog, which onDismiss() has just closed. See addToRemotePlaylist.
+                            addRemotely(playlist, songIds!!)
                         }
                     }
                 }
@@ -243,14 +248,9 @@ fun AddToPlaylistDialog(
                     onClick = {
                         showDuplicateDialog = false
                         onDismiss()
-                        database.transaction {
-                            addSongToPlaylist(
-                                selectedPlaylist!!,
-                                songIds!!.filter {
-                                    !duplicates.contains(it)
-                                }
-                            )
-                        }
+                        val toAdd = songIds!!.filterNot { duplicates.contains(it) }
+                        database.transaction { addSongToPlaylist(selectedPlaylist!!, toAdd) }
+                        addRemotely(selectedPlaylist!!, toAdd)
                     }
                 ) {
                     Text(stringResource(R.string.skip_duplicates))
@@ -260,9 +260,8 @@ fun AddToPlaylistDialog(
                     onClick = {
                         showDuplicateDialog = false
                         onDismiss()
-                        database.transaction {
-                            addSongToPlaylist(selectedPlaylist!!, songIds!!)
-                        }
+                        database.transaction { addSongToPlaylist(selectedPlaylist!!, songIds!!) }
+                        addRemotely(selectedPlaylist!!, songIds!!)
                     }
                 ) {
                     Text(stringResource(R.string.add_anyway))
