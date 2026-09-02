@@ -365,10 +365,18 @@ const ICON = {
   seek_forward:  "M160,760L160,200L520,480L160,760ZM520,760L520,200L880,480L520,760Z",
   sleep_timer:   "M524,800Q384,800 292,708Q200,616 200,480Q200,344 292,252Q384,160 524,160Q548,160 570,162Q592,164 614,169Q568,204 541,257Q514,310 514,372Q514,477 587,550Q660,623 765,623Q828,623 880,596Q853,690 776,745Q699,800 604,800Q564,800 524,800Z",
   equalizer:     "M160,760L160,440L280,440L280,760L160,760ZM420,760L420,200L540,200L540,760L420,760ZM680,760L680,560L800,560L800,760L680,760Z",
-  // The phone's own navigation marks, for the preview frame only.
-  navBack:       "M400,800L80,480L400,160L457,217L233,441L880,441L880,519L233,519L457,743L400,800Z",
-  navHome:       "M480,120Q629,120 734.5,225.5Q840,331 840,480Q840,629 734.5,734.5Q629,840 480,840Q331,840 225.5,734.5Q120,629 120,480Q120,331 225.5,225.5Q331,120 480,120Z",
-  navRecents:    "M200,200L760,200L760,760L200,760L200,200Z",
+  /*
+   * The phone's own navigation marks - the three shapes Android actually draws, not arrow icons.
+   *
+   * Sized so they read as equally heavy rather than being geometrically equal, which they cannot
+   * be: a triangle of the same bounding box as a square covers half its area and looks noticeably
+   * smaller, and a circle inscribed in that box covers about 79% and looks smaller again. The
+   * triangle is therefore given the largest box and the square the smallest, which is the same
+   * optical correction a type designer makes between a square and a round letter.
+   */
+  navRecents:    "M290,290L670,290L670,670L290,670L290,290Z",
+  navHome:       "M480,250A230,230 0 1,1 479.9,250Z",
+  navBack:       "M320,480L700,270L700,690L320,480Z",
   more:          "M480,800Q447,800 423.5,776.5Q400,753 400,720Q400,687 423.5,663.5Q447,640 480,640Q513,640 536.5,663.5Q560,687 560,720Q560,753 536.5,776.5Q513,800 480,800ZM480,560Q447,560 423.5,536.5Q400,513 400,480Q400,447 423.5,423.5Q447,400 480,400Q513,400 536.5,423.5Q560,447 560,480Q560,513 536.5,536.5Q513,560 480,560ZM480,320Q447,320 423.5,296.5Q400,273 400,240Q400,207 423.5,183.5Q447,160 480,160Q513,160 536.5,183.5Q560,207 560,240Q560,273 536.5,296.5Q513,320 480,320Z",
 };
 
@@ -842,11 +850,16 @@ function renderNav(heightPx, boxW) {
   }
   nav.style.height = heightPx + "px";
   if (navMode === "buttons") {
-    const g = 13;
+    /*
+     * Recents, home, back - left to right. That is the order Samsung ships and it is what most
+     * phones in the wild are set to; stock Android and Pixel reverse it, and every skin lets it be
+     * swapped. Cosmetic either way, since this strip is only here to make the preview read as a
+     * device.
+     */
     nav.innerHTML =
-      `<span class="btn">${svg(ICON.navBack, g, "#ffffff")}</span>` +
-      `<span class="btn">${svg(ICON.navHome, g, "#ffffff")}</span>` +
-      `<span class="btn">${svg(ICON.navRecents, g, "#ffffff")}</span>`;
+      `<span class="btn">${svg(ICON.navRecents, 11, "#ffffff")}</span>` +
+      `<span class="btn">${svg(ICON.navHome, 13, "#ffffff")}</span>` +
+      `<span class="btn">${svg(ICON.navBack, 14, "#ffffff")}</span>`;
   } else {
     nav.innerHTML = `<span class="pill"></span>`;
   }
