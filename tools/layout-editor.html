@@ -55,6 +55,15 @@
   .surface.free .blk { position: absolute; cursor: grab; touch-action: none; user-select: none; will-change: left, top, width; }
   .surface.free .blk:active { cursor: grabbing; }
   .surface.free .blk.snapped { outline: 2px solid var(--ok); outline-offset: 2px; border-radius: 4px; }
+  /* Alignment guides. The centre line is drawn solid and brighter than a block-to-block one, so
+     "centred on the screen" is distinguishable at a glance from "lined up with that other thing". */
+  .guide { position: absolute; pointer-events: none; z-index: 5; }
+  .guide.v { top: 0; bottom: 0; width: 0; border-left: 1px dashed var(--ok); }
+  .guide.h { left: 0; right: 0; height: 0; border-top: 1px dashed var(--ok); }
+  .guide.strong { opacity: 1; }
+  .guide.v.strong { border-left-style: solid; }
+  .guide.h.strong { border-top-style: solid; }
+  .guide:not(.strong) { opacity: .55; }
   .blk .handle {
     position: absolute; right: -6px; bottom: -6px; width: 15px; height: 15px;
     border-radius: 4px; background: var(--accent); cursor: ew-resize; display: none;
@@ -371,8 +380,14 @@ const DEFAULTS = { size: 100, radius: 12, scale: 100, align: "start", visible: t
  */
 const NOMINAL_PREVIEW_W = 330;
 
-/** Space between buttons in a transport row, in the same nominal pixels. */
-const BUTTON_GAP_PX = 14;
+/*
+ * Space between buttons in a transport row, as a fraction of the largest button in it.
+ *
+ * A fixed pixel gap looks right at one scale and crowded at another, because the eye reads spacing
+ * relative to the size of the things being separated. Tying it to the biggest control keeps the row
+ * looking equally spaced whatever the scale slider is set to.
+ */
+const BUTTON_GAP_RATIO = 0.42;
 
 /*
  * Roughly how tall each block is, as a percentage of the screen, before scale.
@@ -689,7 +704,9 @@ function seedFreePositions() {
         const box = ROLE_STYLE[MEMBER_ROLE[m.id].role].box * (get(m, "scale") / 100);
         return (box / NOMINAL_PREVIEW_W) * 100;
       });
-      const gapPctX = (BUTTON_GAP_PX / NOMINAL_PREVIEW_W) * 100;
+      const biggestBox = Math.max(...row.map(m =>
+        ROLE_STYLE[MEMBER_ROLE[m.id].role].box * (get(m, "scale") / 100)));
+      const gapPctX = ((biggestBox * BUTTON_GAP_RATIO) / NOMINAL_PREVIEW_W) * 100;
       const total = widthsPct.reduce((a, b) => a + b, 0) + gapPctX * (row.length - 1);
 
       let cursor = 50 - total / 2;
@@ -898,7 +915,19 @@ function renderPreview() {
         const anyMulti = unit.members.some(m => multiSelected.has(m.id));
         node.className = "blk" + (anySel ? " sel" : "") + (anyMulti ? " multisel" : "");
         node.dataset.group = unit.groupId;
-        const gap = CONTROL_MEMBERS.includes(unit.members[0].id) ? 14 : 24;
+        /*
+         * Measured from the button edges, not picked by eye.
+         *
+         * 14px was chosen when every control was drawn at the same nominal box, and it stopped
+         * being enough once play/pause became genuinely larger than its neighbours: a 52px circle
+         * with 14px either side reads as crowded next to 30px glyphs, because the eye judges the
+         * gap against the size of what it separates rather than in absolute pixels. Scaling the gap
+         * with the row's largest control keeps the spacing looking constant at any scale.
+         */
+        const isControls = CONTROL_MEMBERS.includes(unit.members[0].id);
+        const biggest = Math.max(...unit.members.map(m =>
+          ROLE_STYLE[MEMBER_ROLE[m.id].role].box * (get(m, "scale") / 100)));
+        const gap = Math.round(isControls ? biggest * 0.42 : biggest * 0.8);
         const inner = document.createElement("div");
         inner.className = "cluster";
         inner.style.gap = gap + "px";
@@ -984,9 +1013,44 @@ function handleBlockClick(e, id) {
   }
 }
 
+/*
+ * Guides, PowerPoint-style.
+ *
+ * A dashed line appears while a dragged block lines up with the player's centre, or with the centre
+ * of another block, and the drag snaps onto it. Without them the only feedback for "is this
+ * centred" was an outline colour, which says a block is aligned but not what it is aligned to.
+ */
+const SNAP_TOLERANCE_PCT = 1.4;
+
+function clearGuides() {
+  document.querySelectorAll("#surface .guide").forEach(n => n.remove());
+}
+
+function drawGuide(axis, atPct, strong) {
+  const g = document.createElement("div");
+  g.className = "guide " + axis + (strong ? " strong" : "");
+  if (axis === "v") g.style.left = atPct + "%"; else g.style.top = atPct + "%";
+  document.getElementById("surface").appendChild(g);
+}
+
+/**
+ * Candidate lines to snap against on one axis: the player's centre, and every other visible
+ * block's centre. The dragged block and anything moving with it are excluded - a block cannot
+ * align to itself, and a group moves as one so its members would all match each other.
+ */
+function snapCandidates(axis, movingIds) {
+  const centres = [{ at: 50, strong: true }];
+  for (const b of state.blocks) {
+    if (!b.visible || movingIds.has(b.id)) continue;
+    centres.push({ at: get(b, axis === "v" ? "x" : "y"), strong: false });
+  }
+  return centres;
+}
+
 function attachDrag(node, block, boxW, boxH) {
   let mode = null, sx = 0, sy = 0, ow = 0;
   let moving = [];
+  let movingIds = new Set();
 
   node.addEventListener("pointerdown", e => {
     mode = e.target.classList.contains("handle") ? "resize" : "move";
@@ -995,6 +1059,7 @@ function attachDrag(node, block, boxW, boxH) {
     moving = mode === "move" && block.group
       ? membersOf(block.group).map(b => ({ block: b, ox: get(b, "x"), oy: get(b, "y") }))
       : [{ block, ox: get(block, "x"), oy: get(block, "y") }];
+    movingIds = new Set(moving.map(m => m.block.id));
     if (!e.shiftKey) setSelected(block.id);
     node.setPointerCapture(e.pointerId);
     e.preventDefault();
@@ -1007,21 +1072,45 @@ function attachDrag(node, block, boxW, boxH) {
     const dyPct = ((e.clientY - sy) / boxH) * 100;
 
     if (mode === "move") {
-      let onCentre = false;
-      for (const m of moving) {
-        let x = m.ox + dxPct;
-        let y = m.oy + dyPct;
-        if (snap) {
-          if (m.block === block && Math.abs(x - 50) < 1.6) { x = 50; onCentre = true; }
-          else if (m.block === block) x = Math.round(x * 2) / 2;
-          y = Math.round(y * 2) / 2;
+      clearGuides();
+      // Half the dragged block's size, so it can be stopped at the edge rather than at its centre.
+      const rect = node.getBoundingClientRect();
+      const halfW = (rect.width / boxW) * 100 / 2;
+      const halfH = (rect.height / boxH) * 100 / 2;
+
+      let x = moving.find(m => m.block === block).ox + dxPct;
+      let y = moving.find(m => m.block === block).oy + dyPct;
+
+      if (snap) {
+        for (const c of snapCandidates("v", movingIds)) {
+          if (Math.abs(x - c.at) < SNAP_TOLERANCE_PCT) { x = c.at; drawGuide("v", c.at, c.strong); break; }
         }
-        m.block.x = round1(clamp(x, 0, 100));
-        m.block.y = round1(clamp(y, 0, 100));
+        for (const c of snapCandidates("h", movingIds)) {
+          if (Math.abs(y - c.at) < SNAP_TOLERANCE_PCT) { y = c.at; drawGuide("h", c.at, c.strong); break; }
+        }
+      }
+
+      /*
+       * Kept inside the player by its edges, not its centre.
+       *
+       * Clamping the centre to 0..100 let half of a block sit outside the area - the queue handle
+       * in particular could end up half under the navigation bar, which is exactly where it must
+       * not be. Bounding by the half-extent means a block stops when its edge reaches the edge.
+       */
+      x = clamp(x, halfW, 100 - halfW);
+      y = clamp(y, halfH, 100 - halfH);
+
+      const appliedDx = x - moving.find(m => m.block === block).ox;
+      const appliedDy = y - moving.find(m => m.block === block).oy;
+
+      for (const m of moving) {
+        // Every member shifts by the same amount, so a group keeps its internal arrangement.
+        m.block.x = round1(clamp(m.ox + appliedDx, 0, 100));
+        m.block.y = round1(clamp(m.oy + appliedDy, 0, 100));
         const n = document.querySelector(`#surface .blk[data-id="${m.block.id}"]`);
         if (n) { n.style.left = m.block.x + "%"; n.style.top = m.block.y + "%"; }
       }
-      node.classList.toggle("snapped", onCentre);
+      node.classList.toggle("snapped", document.querySelectorAll("#surface .guide").length > 0);
     } else {
       let w = ow + dxPct * 2;
       if (snap) w = Math.round(w * 2) / 2;
@@ -1035,6 +1124,7 @@ function attachDrag(node, block, boxW, boxH) {
   const end = e => {
     if (!mode) return;
     mode = null;
+    clearGuides();
     node.classList.remove("snapped");
     try { node.releasePointerCapture(e.pointerId); } catch (_) {}
     renderList();
