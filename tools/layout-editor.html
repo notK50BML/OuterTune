@@ -1,0 +1,1252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OuterTune Player Layout Editor</title>
+<style>
+  :root {
+    --bg: #101014;
+    --panel: #17171d;
+    --panel-2: #1e1e26;
+    --line: #2a2a34;
+    --ink: #e9e9ef;
+    --ink-dim: #9a9aa8;
+    --accent: #ed5564;
+    --ok: #4ec9a0;
+    --warn: #e8b64c;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  header {
+    padding: 16px 24px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  header h1 { font-size: 17px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--ink-dim); font-size: 13px; }
+  main {
+    display: grid; grid-template-columns: minmax(300px, 400px) 1fr;
+    gap: 28px; padding: 24px; align-items: start;
+  }
+  @media (max-width: 940px) { main { grid-template-columns: 1fr; } }
+
+  /* Sticky only makes sense in the two-column layout, where the stage sits in its own column
+     beside the scrolling sidebar. Once main collapses to one column below 940px, the stage is
+     just the first block in a single vertical flow - staying sticky there means it floats over
+     the sidebar's own content as the page scrolls instead of the two simply stacking normally. */
+  @media (min-width: 941px) {
+    .stage { position: sticky; top: 20px; }
+  }
+  .stage { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+  .phone {
+    border-radius: 30px; border: 8px solid #2a2a34; background: #000;
+    overflow: hidden; position: relative; box-shadow: 0 18px 50px rgba(0,0,0,.55);
+  }
+  .phone-bg { position: absolute; inset: 0; background: linear-gradient(160deg, #3a2b3f, #1b1b26 62%); }
+  .surface { position: absolute; inset: 0; overflow: hidden; }
+  .surface.stack { display: flex; flex-direction: column; }
+  .blk { position: relative; flex-shrink: 0; }
+  .blk.hidden { display: none; }
+  .blk.sel { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 4px; }
+  .blk.multisel { outline: 2px solid var(--warn); outline-offset: 2px; border-radius: 4px; }
+  .surface.free .blk { position: absolute; cursor: grab; touch-action: none; user-select: none; will-change: left, top, width; }
+  .surface.free .blk:active { cursor: grabbing; }
+  .surface.free .blk.snapped { outline: 2px solid var(--ok); outline-offset: 2px; border-radius: 4px; }
+  .blk .handle {
+    position: absolute; right: -6px; bottom: -6px; width: 15px; height: 15px;
+    border-radius: 4px; background: var(--accent); cursor: ew-resize; display: none;
+  }
+  .surface.free .blk.sel .handle { display: block; }
+  .cluster { display: flex; align-items: center; justify-content: center; }
+  .cluster .member.hidden { display: none; }
+
+  /* Neutral rather than a pink-purple gradient with "ART" written on it. A saturated placeholder
+     competes with the layout being judged - it reads as the loudest element on the screen, which is
+     the one thing a stand-in should never be - and no real cover looks like that. A soft surface
+     tone with the app's own music-note mark stands in for a cover without pretending to be one. */
+  .art { background: linear-gradient(150deg, #34343f, #23232c); display: grid; place-items: center; }
+  .art svg { opacity: .34; }
+  .info .t { font-weight: 600; }
+  .info .a { color: #c9c9d4; }
+  .bar { border-radius: 99px; background: #ffffff33; position: relative; }
+  .bar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 42%; background: #fff; border-radius: 99px; }
+  .times { display: flex; justify-content: space-between; color: #b3b3c0; margin-top: 3px; }
+  .b { border-radius: 50%; background: #ffffff22; display: grid; place-items: center; }
+  .b.main { background: #fff; color: #111; }
+  .ico { display: grid; place-items: center; opacity: .8; color: #b9b9c6; font-size: 13px; }
+  svg { display: block; }
+  .queue { display: flex; align-items: center; justify-content: center; gap: 6px; background: #ffffff14; border-radius: 12px 12px 0 0; color: #b3b3c0; font-size: 11px; height: 32px; }
+
+  .aspects { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
+  .aspects button { padding: 4px 9px; font-size: 12px; }
+  .aspects button.on { border-color: var(--accent); color: var(--accent); }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 4px; margin-bottom: 16px; }
+  .card > h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--ink-dim); margin: 14px 14px 8px; }
+  .row {
+    display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-radius: 10px;
+    background: var(--panel-2); margin: 6px; border: 1px solid transparent; border-left: 3px solid transparent;
+  }
+  .row.sel { border-color: var(--accent); }
+  .row.multisel { background: #2a2416; }
+  .row .grip { cursor: grab; color: var(--ink-dim); user-select: none; font-size: 15px; }
+  .row .grip.off { opacity: .25; cursor: default; }
+  .row .name { flex: 1; font-weight: 500; cursor: pointer; }
+  .row .grpdot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+  .row.dragging { opacity: .4; }
+  .row.over { box-shadow: 0 -2px 0 var(--accent); }
+  .knobs { padding: 2px 12px 12px 34px; display: none; }
+  .knobs.open { display: block; }
+  .knob { display: grid; grid-template-columns: 88px 1fr 48px; align-items: center; gap: 10px; margin: 8px 0; }
+  .knob label { color: var(--ink-dim); font-size: 12px; }
+  .knob output { font-variant-numeric: tabular-nums; color: var(--ink-dim); font-size: 12px; text-align: right; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=number], select {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 8px; padding: 6px 8px; font-size: 13px; width: 100%; font-family: inherit;
+  }
+  input[type=checkbox] { accent-color: var(--accent); width: 16px; height: 16px; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px 6px; }
+  .grid2 label { font-size: 12px; color: var(--ink-dim); display: block; margin-bottom: 4px; }
+
+  .modes { display: flex; gap: 8px; padding: 6px 14px 10px; }
+  .modes button { flex: 1; }
+  .modes button.on { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+
+  .btns { display: flex; gap: 8px; flex-wrap: wrap; padding: 6px; }
+  button {
+    background: var(--panel-2); color: var(--ink); border: 1px solid var(--line);
+    border-radius: 9px; padding: 8px 13px; font-size: 13px; cursor: pointer; font-family: inherit;
+  }
+  button:hover { border-color: var(--accent); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+  button:disabled { opacity: .35; cursor: default; }
+  button:disabled:hover { border-color: var(--line); }
+  .note { color: var(--ink-dim); font-size: 12px; padding: 2px 14px 12px; }
+  .note strong { color: var(--ink); font-weight: 600; }
+  .toast { font-size: 12px; min-height: 18px; padding: 0 14px 8px; color: var(--ok); }
+  .groupbar {
+    display: flex; align-items: center; gap: 8px; margin: 6px; padding: 8px 12px;
+    background: #2a2416; border: 1px solid var(--warn); border-radius: 10px; font-size: 13px;
+  }
+  .groupbar strong { color: var(--warn); }
+  .groupbar .btns { padding: 0; margin-left: auto; }
+  textarea {
+    width: 100%; height: 140px; background: #0c0c10; color: var(--ink); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>OuterTune &middot; Player Layout Editor</h1>
+  <span class="sub">Portrait player only &middot; landscape and tablet keep the built-in layout</span>
+</header>
+
+<main>
+  <div class="stage">
+    <div class="phone" id="phone">
+      <div class="phone-bg"></div>
+      <div class="surface" id="surface"></div>
+    </div>
+    <div class="aspects" id="aspects"></div>
+    <div class="sub" style="color:var(--ink-dim);font-size:12px;text-align:center;max-width:330px" id="stageNote"></div>
+  </div>
+
+  <div>
+    <div class="card">
+      <h2>Mode</h2>
+      <div class="modes">
+        <button data-mode="stack">Stacked</button>
+        <button data-mode="free">Free placement</button>
+      </div>
+      <div class="note" id="modeNote"></div>
+    </div>
+
+    <div class="card">
+      <h2>Your screen</h2>
+      <div class="grid2">
+        <div><label for="sw">Width (px)</label><input type="number" id="sw" min="240" max="4000" step="1"></div>
+        <div><label for="sh">Height (px)</label><input type="number" id="sh" min="320" max="6000" step="1"></div>
+      </div>
+      <div class="note">
+        Only the shape matters, not the pixel count — positions are stored as percentages, so a
+        layout built here holds on a bigger or smaller screen of the same proportions. Use the
+        buttons under the preview to check it on other shapes before you export.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Blocks</h2>
+      <div class="note" style="padding-top:8px">
+        Click a name to edit it. <strong>Shift-click</strong> more names to select several, then
+        <strong>Group</strong> them so they move, hide and show together — or <strong>Ungroup</strong>
+        a clustered one to set it free again.
+      </div>
+      <div id="groupbar"></div>
+      <div id="list"></div>
+      <div class="note" id="listNote"></div>
+    </div>
+
+    <div class="card" id="globalCard">
+      <h2>Overall</h2>
+      <div class="knobs open" style="padding-left:14px">
+        <div class="knob">
+          <label for="gap">Spacing</label>
+          <input type="range" id="gap" min="0" max="40" step="1">
+          <output id="gapOut"></output>
+        </div>
+        <div class="knob">
+          <label for="pad">Side padding</label>
+          <input type="range" id="pad" min="0" max="48" step="1">
+          <output id="padOut"></output>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Presets</h2>
+      <div class="btns">
+        <button data-preset="default">Default</button>
+        <button data-preset="compact">Compact</button>
+        <button data-preset="artwork">Artwork first</button>
+        <button data-preset="minimal">Minimal</button>
+        <button data-preset="freeStart">Free: start from stacked</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Layout file</h2>
+      <div class="btns">
+        <button class="primary" id="download">Download player-layout.json</button>
+        <button id="copy">Copy</button>
+        <button id="paste">Import from box below</button>
+      </div>
+      <div class="toast" id="toast"></div>
+      <div style="padding:0 6px 10px"><textarea id="json" spellcheck="false"></textarea></div>
+      <div class="note">In the app: Settings &rarr; Appearance &rarr; Player layout &rarr; Import.</div>
+    </div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+/*
+ * Schema 4. Two modes:
+ *
+ *   stack - an ordered column. Safe everywhere: nothing can overlap, nothing can fall off a
+ *           screen, and a taller or shorter phone just gets more or less breathing room.
+ *
+ *   free  - explicit placement. x and y are the block's CENTRE as a percentage of the player
+ *           area, not its top-left corner: moving the horizontal slider slides a block across
+ *           the screen rather than pinning its left edge, and a centred block stays centred when
+ *           it is resized. w is its width, also a percentage. Never pixels, which is what keeps
+ *           a layout usable on a screen it was not designed on. A phone of a different size but
+ *           the same proportions renders identically; a different aspect ratio stretches, which
+ *           is why the preview can be checked against other shapes.
+ *
+ * New in schema 4: the old single "controls" and "actions" blocks are gone as things you can
+ * still create - every button inside them (shuffle, previous, play/pause, next, repeat, sleep
+ * timer, like, equalizer, overflow menu) is its own block, with its own visibility and its own
+ * knobs. What used to be "the controls block" is now seven blocks that happen to share a
+ * `group` id, which is what makes them keep rendering as one strip in Stacked mode and keeps
+ * them moving together when you drag one of them in Free placement - Group/Ungroup in the
+ * Blocks panel is exactly that `group` id being set or cleared. A v3 file that still has the old
+ * monolithic ids imports fine: importJson() expands them into their members on the way in.
+ *
+ * Only the portrait player is described here. Landscape and tablet keep the built-in layout -
+ * they have genuinely different structures, and one set of coordinates cannot serve all three.
+ */
+const SCHEMA_VERSION = 4;
+
+const CONTROL_MEMBERS = ["shuffle", "seek_backward", "skip_previous", "play_pause", "seek_forward", "skip_next", "repeat"];
+const ACTION_MEMBERS = ["sleep_timer", "like", "equalizer", "menu"];
+
+const BLOCK_DEFS = [
+  { id: "artwork",  label: "Cover art",          knobs: ["size", "radius", "rot"] },
+  { id: "info",     label: "Title & artist",     knobs: ["scale", "align", "rot"] },
+  { id: "progress", label: "Progress bar",       knobs: ["scale", "rot"] },
+
+  { id: "shuffle",       label: "Shuffle",       knobs: ["scale", "rot"] },
+  { id: "seek_backward", label: "Seek back",     knobs: ["scale", "rot"] },
+  { id: "skip_previous", label: "Previous",      knobs: ["scale", "rot"] },
+  { id: "play_pause",    label: "Play / pause",  knobs: ["scale", "rot"], locked: true },
+  { id: "seek_forward",  label: "Seek forward",  knobs: ["scale", "rot"] },
+  { id: "skip_next",     label: "Next",          knobs: ["scale", "rot"] },
+  { id: "repeat",        label: "Repeat",        knobs: ["scale", "rot"] },
+
+  { id: "sleep_timer",   label: "Sleep timer",   knobs: ["scale", "rot"] },
+  { id: "like",          label: "Like",          knobs: ["scale", "rot"] },
+  { id: "equalizer",     label: "Equalizer",     knobs: ["scale", "rot"] },
+  { id: "menu",          label: "Overflow menu", knobs: ["scale", "rot"] },
+
+  { id: "queue",    label: "Queue handle",       knobs: ["rot"] },
+];
+
+/*
+ * Every icon on one coordinate system, and wherever possible the app's own artwork.
+ *
+ * Two things were wrong before. The transport glyphs were Material's rather than OuterTune's, so the
+ * preview showed buttons the app does not actually draw. And four of them - seek back, seek forward,
+ * sleep timer, equalizer - were drawn on a 24x24 grid while everything else used 960, which is why
+ * the control row looked uneven: an icon nominally "20px" on a 24 grid is enormously heavier than
+ * one on a 960 grid, so the row had no consistent optical weight no matter how the gaps were set.
+ *
+ * The paths marked APP are lifted verbatim from app/src/main/res/drawable, so the preview matches
+ * what the phone renders. The rest are Material Symbols on the same 960 grid, used because the app
+ * itself uses Material icons for those four.
+ *
+ * All are in the 0..960 space with y positive downward, matching the drawables. The Material Symbols
+ * convention of "0 -960 960 960" is deliberately NOT used here - mixing the two origins is what
+ * caused the original mess.
+ */
+const ICON = {
+  // APP - res/drawable
+  play:          "M320,760L320,200L760,480L320,760Z",
+  pause:         "M560,760L560,200L720,200L720,760L560,760ZM240,760L240,200L400,200L400,760L240,760Z",
+  next:          "M660,720L660,240L740,240L740,720L660,720ZM220,720L220,240L580,480L220,720Z",
+  prev:          "M220,720L220,240L300,240L300,720L220,720ZM740,720L380,480L740,240L740,720Z",
+  shuffle:       "M560,800L560,720L664,720L536,592L593,535L720,662L720,560L800,560L800,800L560,800ZM216,800L160,744L664,240L560,240L560,160L800,160L800,400L720,400L720,296L216,800ZM367,423L160,216L216,160L423,367L367,423Z",
+  repeat:        "M280,880L120,720L280,560L336,618L274,680L680,680L680,520L760,520L760,760L274,760L336,822L280,880ZM200,440L200,200L686,200L624,138L680,80L840,240L680,400L624,342L686,280L280,280L280,440L200,440Z",
+  heart:         "M480,840L422,788Q321,697 255,631Q189,565 150,512.5Q111,460 95.5,416Q80,372 80,326Q80,232 143,169Q206,106 300,106Q352,106 399,128Q446,150 480,190Q514,150 561,128Q608,106 660,106Q754,106 817,169Q880,232 880,326Q880,372 864.5,416Q849,460 810,512.5Q771,565 705,631Q639,697 538,788L480,840Z",
+  queue:         "M640,800Q590,800 555,765Q520,730 520,680Q520,630 555,595Q590,560 640,560Q651,560 661,561.5Q671,563 680,568L680,240L880,240L880,320L760,320L760,680Q760,730 725,765Q690,800 640,800ZM120,640L120,560L440,560L440,640L120,640ZM120,480L120,400L600,400L600,480L120,480ZM120,320L120,240L600,240L600,320L120,320Z",
+  note:          "M400,840Q334,840 287,793Q240,746 240,680Q240,614 287,567Q334,520 400,520Q423,520 442.5,525.5Q462,531 480,542L480,120L720,120L720,280L560,280L560,680Q560,746 513,793Q466,840 400,840Z",
+
+  // Material Symbols, redrawn on the same 960 grid - the app uses Material icons for these four.
+  seek_backward: "M800,760L440,480L800,200L800,760ZM440,760L80,480L440,200L440,760Z",
+  seek_forward:  "M160,760L160,200L520,480L160,760ZM520,760L520,200L880,480L520,760Z",
+  sleep_timer:   "M524,800Q384,800 292,708Q200,616 200,480Q200,344 292,252Q384,160 524,160Q548,160 570,162Q592,164 614,169Q568,204 541,257Q514,310 514,372Q514,477 587,550Q660,623 765,623Q828,623 880,596Q853,690 776,745Q699,800 604,800Q564,800 524,800Z",
+  equalizer:     "M160,760L160,440L280,440L280,760L160,760ZM420,760L420,200L540,200L540,760L420,760ZM680,760L680,560L800,560L800,760L680,760Z",
+  more:          "M480,800Q447,800 423.5,776.5Q400,753 400,720Q400,687 423.5,663.5Q447,640 480,640Q513,640 536.5,663.5Q560,687 560,720Q560,753 536.5,776.5Q513,800 480,800ZM480,560Q447,560 423.5,536.5Q400,513 400,480Q400,447 423.5,423.5Q447,400 480,400Q513,400 536.5,423.5Q560,447 560,480Q560,513 536.5,536.5Q513,560 480,560ZM480,320Q447,320 423.5,296.5Q400,273 400,240Q400,207 423.5,183.5Q447,160 480,160Q513,160 536.5,183.5Q560,207 560,240Q560,273 536.5,296.5Q513,320 480,320Z",
+};
+
+/** One renderer for every icon, so none of them can drift onto a different grid again. */
+function svg(path, px, color) {
+  return `<svg viewBox="0 0 960 960" width="${px}" height="${px}" fill="${color}" aria-hidden="true"><path d="${path}"/></svg>`;
+}
+
+const DEFAULTS = { size: 100, radius: 12, scale: 100, align: "start", visible: true, x: 50, y: 10, w: 84, rot: 0 };
+
+/*
+ * The phone width the button sizes in ROLE_STYLE are drawn against.
+ *
+ * Those sizes are pixels in the preview, but a layout is stored as percentages, so laying a row out
+ * needs one agreed width to convert through. The preview's own width changes with the aspect ratio
+ * being checked, which would make the seeded arrangement depend on which ratio happened to be
+ * selected - this keeps it stable.
+ */
+const NOMINAL_PREVIEW_W = 330;
+
+/** Space between buttons in a transport row, in the same nominal pixels. */
+const BUTTON_GAP_PX = 14;
+
+/*
+ * Roughly how tall each block is, as a percentage of the screen, before scale.
+ *
+ * Button ids are listed individually now that group heights are taken from the tallest member
+ * rather than from the group id - a user-made group has a generated id that was never in this
+ * table, so it silently fell back to the default and rows came out the wrong height.
+ */
+const NOMINAL_H = {
+  info: 7, progress: 5, queue: 4,
+  controls: 8, actions: 5,
+  shuffle: 5, seek_backward: 5, skip_previous: 6, play_pause: 8,
+  seek_forward: 5, skip_next: 6, repeat: 5,
+  sleep_timer: 5, like: 5, equalizer: 5, menu: 5,
+};
+
+const ASPECTS = [
+  { label: "19.5:9", w: 1170, h: 2532 },
+  { label: "20:9",   w: 1080, h: 2400 },
+  { label: "18:9",   w: 1080, h: 2160 },
+  { label: "16:9",   w: 1080, h: 1920 },
+  { label: "4:3",    w: 1600, h: 2133 },
+];
+
+// Every built-in preset lists each transport/action button as its own block (schema 4) rather
+// than the legacy "controls"/"actions" cluster ids expandLegacy() would turn these into anyway -
+// written out explicitly so opening a preset and dragging a single button (seek back, say) out
+// of its cluster needs no extra step to discover that the buttons are separable. controlMembers/
+// actionMembers just save repeating CONTROL_MEMBERS/ACTION_MEMBERS by hand in every preset.
+/*
+ * Seek back/forward default to hidden, because the app itself ships them off. A preset that shows
+ * them is not describing the default player, and it also crowds the transport row with seven
+ * controls when five is what the app actually draws.
+ */
+const HIDDEN_BY_DEFAULT = ["seek_backward", "seek_forward"];
+
+function controlMembers(scale, visible = true) {
+  return CONTROL_MEMBERS.map(id => ({
+    id,
+    visible: visible && !HIDDEN_BY_DEFAULT.includes(id),
+    scale,
+    group: "controls",
+  }));
+}
+function actionMembers(scale, visible = true) {
+  return ACTION_MEMBERS.map(id => ({ id, visible, scale, group: "actions" }));
+}
+
+const PRESETS = {
+  default: {
+    mode: "stack", spacing: 16, sidePadding: 24,
+    blocks: [
+      { id: "artwork", visible: true, size: 100, radius: 12 },
+      { id: "info", visible: true, scale: 100, align: "start" },
+      { id: "progress", visible: true, scale: 100 },
+      ...controlMembers(100),
+      ...actionMembers(100),
+      { id: "queue", visible: true },
+    ],
+  },
+  compact: {
+    mode: "stack", spacing: 8, sidePadding: 16,
+    blocks: [
+      { id: "artwork", visible: true, size: 72, radius: 20 },
+      { id: "info", visible: true, scale: 90, align: "center" },
+      { id: "progress", visible: true, scale: 100 },
+      ...controlMembers(95),
+      ...actionMembers(85),
+      { id: "queue", visible: true },
+    ],
+  },
+  artwork: {
+    mode: "stack", spacing: 14, sidePadding: 8,
+    blocks: [
+      { id: "artwork", visible: true, size: 118, radius: 0 },
+      { id: "info", visible: true, scale: 105, align: "center" },
+      ...controlMembers(110),
+      { id: "progress", visible: true, scale: 100 },
+      ...actionMembers(100, false),
+      { id: "queue", visible: true },
+    ],
+  },
+  minimal: {
+    mode: "stack", spacing: 22, sidePadding: 32,
+    blocks: [
+      { id: "artwork", visible: true, size: 88, radius: 999 },
+      { id: "info", visible: true, scale: 100, align: "center" },
+      ...controlMembers(100),
+      { id: "progress", visible: false, scale: 100 },
+      ...actionMembers(100, false),
+      { id: "queue", visible: false },
+    ],
+  },
+};
+
+let state = materialize(clone(PRESETS.default));
+let screen = { width: 1080, height: 2400 };
+let previewAspect = null;
+let selected = null;
+let multiSelected = new Set();
+
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+function defOf(id) { return BLOCK_DEFS.find(d => d.id === id); }
+function get(b, k) { return b[k] === undefined ? DEFAULTS[k] : b[k]; }
+function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+function round1(v) { return Math.round(v * 10) / 10; }
+function newGroupId() { return "g" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); }
+
+function activeScreen() { return previewAspect || screen; }
+
+function expandLegacy(blocks) {
+  const out = [];
+  for (const b of blocks) {
+    if (b.id === "controls" || b.id === "actions") {
+      const members = b.id === "controls" ? CONTROL_MEMBERS : ACTION_MEMBERS;
+      const gid = b.id;
+      for (const id of members) {
+        out.push({
+          id,
+          visible: b.visible !== false,
+          scale: get(b, "scale"),
+          rot: get(b, "rot"),
+          group: gid,
+        });
+      }
+    } else {
+      out.push(b);
+    }
+  }
+  return out;
+}
+
+function materialize(preset) {
+  return { ...preset, blocks: expandLegacy(preset.blocks) };
+}
+
+function groupOf(id) {
+  const b = state.blocks.find(x => x.id === id);
+  return b ? b.group || null : null;
+}
+
+function membersOf(groupId) {
+  return state.blocks.filter(b => b.group === groupId);
+}
+
+function groupColor(groupId) {
+  if (!groupId) return null;
+  let h = 0;
+  for (let i = 0; i < groupId.length; i++) h = (h * 31 + groupId.charCodeAt(i)) >>> 0;
+  return `hsl(${h % 360} 65% 55%)`;
+}
+
+function groupSelected() {
+  if (multiSelected.size < 2) return;
+  const gid = newGroupId();
+  for (const id of multiSelected) {
+    const b = state.blocks.find(x => x.id === id);
+    if (b) b.group = gid;
+  }
+  multiSelected.clear();
+  render();
+  toast("Grouped " + membersOf(gid).length + " blocks.");
+}
+
+function ungroup(groupId) {
+  if (!groupId) return;
+  for (const b of membersOf(groupId)) delete b.group;
+  render();
+  toast("Ungrouped.");
+}
+
+/** Whether a block is one of the small round transport/action buttons. */
+function isButton(id) {
+  return Object.prototype.hasOwnProperty.call(MEMBER_ROLE, id);
+}
+
+/** A block's natural height as a percentage of the screen, at its current scale. */
+function naturalHeightPct(b, widthPct) {
+  if (b.id === "artwork") return (widthPct * screen.width / 100) / screen.height * 100;
+  return (NOMINAL_H[b.id] || 6) * (get(b, "scale") / 100);
+}
+
+/*
+ * First positions for free placement, derived from the stacked order.
+ *
+ * A group is laid out as a row only when every member is one of the round buttons. That test used
+ * to be absent, and every group was treated as a button row: members were spread across the width
+ * and each given `w / max(count, 4)`. Group the cover with the title - a perfectly reasonable thing
+ * to want - and the cover came out at a fifth of the screen width, because it was being sized as
+ * though it were one of five buttons. Anything that is not a row of buttons is stacked instead,
+ * which is what the blocks themselves imply.
+ */
+function seedFreePositions() {
+  const pad = (state.sidePadding / (screen.width / 3)) * 100;
+  const gapPct = (state.spacing / (screen.height / 3)) * 100;
+  const w = round1(clamp(100 - pad * 2, 20, 100));
+  let y = 4;
+  const done = new Set();
+
+  const place = (b, widthPct) => {
+    b.w = widthPct;
+    b.x = 50;
+    const hPct = naturalHeightPct(b, widthPct);
+    b.y = round1(clamp(y + hPct / 2, 0, 100));
+    done.add(b.id);
+    y += hPct + gapPct;
+  };
+
+  for (const b of state.blocks) {
+    if (done.has(b.id)) continue;
+    if (b.x !== undefined && b.y !== undefined && b.w !== undefined) { done.add(b.id); continue; }
+
+    if (!b.group) { place(b, w); continue; }
+
+    const members = membersOf(b.group).filter(m => !done.has(m.id));
+    if (members.length === 0) { done.add(b.id); continue; }
+
+    if (members.every(m => isButton(m.id))) {
+      /*
+       * Spaced by the buttons' own widths, not by an even step.
+       *
+       * An even step assumes every button is the same size, and they are not - play/pause is 52px
+       * against 30px for a ghost icon. Dividing the span evenly therefore left the large button
+       * overlapping its neighbour by a few pixels while the small ones sat too far apart. Laying
+       * them out edge to edge with a fixed gap and centring the result cannot overlap by
+       * construction.
+       *
+       * Widths are converted through NOMINAL_PREVIEW_W so the stored percentages describe the same
+       * arrangement on a real phone, where the preview's own pixel size is irrelevant.
+       */
+      const visible = members.filter(m => m.visible !== false || m.id === "play_pause");
+      const row = visible.length ? visible : members;
+      const hPct = Math.max(...row.map(m => naturalHeightPct(m, w)));
+      const rowY = round1(clamp(y + hPct / 2, 0, 100));
+
+      const widthsPct = row.map(m => {
+        const box = ROLE_STYLE[MEMBER_ROLE[m.id].role].box * (get(m, "scale") / 100);
+        return (box / NOMINAL_PREVIEW_W) * 100;
+      });
+      const gapPctX = (BUTTON_GAP_PX / NOMINAL_PREVIEW_W) * 100;
+      const total = widthsPct.reduce((a, b) => a + b, 0) + gapPctX * (row.length - 1);
+
+      let cursor = 50 - total / 2;
+      row.forEach((m, i) => {
+        m.x = round1(clamp(cursor + widthsPct[i] / 2, 0, 100));
+        m.y = rowY;
+        m.w = round1(clamp(widthsPct[i], 4, 40));
+        cursor += widthsPct[i] + gapPctX;
+        done.add(m.id);
+      });
+      // Hidden members still need coordinates, or unhiding one later puts it at the origin.
+      members.filter(m => !done.has(m.id)).forEach(m => {
+        m.x = 50; m.y = rowY; m.w = 10; done.add(m.id);
+      });
+      y += hPct + gapPct;
+    } else {
+      // Mixed or full-width members: stack them, each at its own natural size.
+      members.forEach(m => place(m, w));
+    }
+  }
+}
+
+function blockHeightPct(b, scr) {
+  if (b.id === "artwork") {
+    const wPx = (get(b, "w") / 100) * scr.width;
+    return (wPx / scr.height) * 100;
+  }
+  return (NOMINAL_H[b.id] || 6) * (get(b, "scale") / 100);
+}
+
+/*
+ * How each control is drawn, as a table rather than a switch.
+ *
+ * The switch this replaces set box and glyph sizes per case, and they had drifted: 28/20 for most,
+ * 34/20 for the skips, 50/26 for play, and 28/18 for the two that used the other icon grid. Five
+ * different optical weights in one row, which no amount of adjusting the gap could tidy.
+ *
+ * Three roles instead, matching how the app actually presents them: play/pause is the primary
+ * target, the skips are solid secondary buttons, and everything else is a plain tinted glyph. The
+ * glyph is a fixed fraction of its box in every role, so the row keeps one rhythm at any scale.
+ */
+const MEMBER_ROLE = {
+  shuffle:       { icon: "shuffle",       role: "ghost" },
+  seek_backward: { icon: "seek_backward", role: "ghost" },
+  skip_previous: { icon: "prev",          role: "solid" },
+  play_pause:    { icon: "play",          role: "primary" },
+  seek_forward:  { icon: "seek_forward",  role: "ghost" },
+  skip_next:     { icon: "next",          role: "solid" },
+  repeat:        { icon: "repeat",        role: "ghost" },
+  sleep_timer:   { icon: "sleep_timer",   role: "ghost" },
+  like:          { icon: "heart",         role: "ghost" },
+  equalizer:     { icon: "equalizer",     role: "ghost" },
+  menu:          { icon: "more",          role: "ghost" },
+};
+
+const ROLE_STYLE = {
+  ghost:   { box: 30, glyph: 20, cls: "ico",    fill: "#b9b9c6" },
+  solid:   { box: 36, glyph: 21, cls: "b",      fill: "#ffffff" },
+  primary: { box: 52, glyph: 26, cls: "b main", fill: "#111111" },
+};
+
+function memberMarkup(b) {
+  const s = get(b, "scale") / 100;
+  const spec = MEMBER_ROLE[b.id];
+  if (!spec) return "";
+  const style = ROLE_STYLE[spec.role];
+  const box = Math.round(style.box * s);
+  const glyph = Math.round(style.glyph * s);
+  return `<div class="${style.cls}" style="width:${box}px;height:${box}px">` +
+    `${svg(ICON[spec.icon], glyph, style.fill)}</div>`;
+}
+
+function blockMarkup(b, boxW) {
+  const s = get(b, "scale") / 100;
+  if (b.id === "artwork") {
+    const r = Math.min(get(b, "radius") * (boxW / 360), boxW / 2);
+    // The note scales with the tile so it reads the same at any artwork size.
+    const note = Math.max(18, Math.round(boxW * 0.26));
+    return `<div class="art" style="width:100%;height:100%;border-radius:${r}px">${svg(ICON.note, note, "#cfcfe0")}</div>`;
+  }
+  if (b.id === "info") {
+    return `<div class="info" style="text-align:${get(b, "align") === "center" ? "center" : "left"}">
+      <div class="t" style="font-size:${15 * s}px">Track title</div>
+      <div class="a" style="font-size:${12 * s}px">Artist name</div></div>`;
+  }
+  if (b.id === "progress") {
+    return `<div><div class="bar" style="height:${4 * s}px"><i></i></div>
+      <div class="times" style="font-size:${10 * s}px"><span>1:12</span><span>3:45</span></div></div>`;
+  }
+  if (b.id === "queue") {
+    return `<div class="queue">${svg(ICON.queue, 13, "#b3b3c0")}<span>Queue</span></div>`;
+  }
+  return memberMarkup(b);
+}
+
+function layoutUnits(blocks) {
+  const seenGroups = new Set();
+  const units = [];
+  for (const b of blocks) {
+    if (b.group) {
+      if (seenGroups.has(b.group)) continue;
+      seenGroups.add(b.group);
+      units.push({ kind: "group", groupId: b.group, members: blocks.filter(x => x.group === b.group) });
+    } else {
+      units.push({ kind: "single", block: b });
+    }
+  }
+  return units;
+}
+
+function renderPreview() {
+  const scr = activeScreen();
+  const phone = document.getElementById("phone");
+  const surface = document.getElementById("surface");
+
+  const boxH = Math.round(clamp(320 * scr.height / scr.width, 380, 720));
+  const boxW = Math.round(boxH * scr.width / scr.height);
+  phone.style.width = boxW + "px";
+  phone.style.height = boxH + "px";
+
+  surface.className = "surface " + state.mode;
+  surface.innerHTML = "";
+
+  if (state.mode === "stack") {
+    surface.style.padding = state.sidePadding + "px";
+    surface.style.gap = state.spacing + "px";
+  } else {
+    surface.style.padding = "0";
+    surface.style.gap = "0";
+  }
+
+  if (state.mode === "stack") {
+    for (const unit of layoutUnits(state.blocks)) {
+      const node = document.createElement("div");
+      node.style.flex = "none";
+
+      if (unit.kind === "single") {
+        const b = unit.block;
+        const isSel = selected === b.id;
+        node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
+        node.dataset.id = b.id;
+        if (b.id === "artwork") {
+          const w = Math.round((boxW - state.sidePadding * 2) * get(b, "size") / 100);
+          node.innerHTML = `<div style="width:${w}px;height:${w}px;margin:0 auto">${blockMarkup(b, w)}</div>`;
+        } else {
+          node.innerHTML = blockMarkup(b, boxW);
+          if (b.id === "queue") node.style.marginTop = "auto";
+        }
+        const rot = get(b, "rot");
+        if (rot) { node.style.transform = `rotate(${rot}deg)`; node.style.transformOrigin = "center"; }
+        node.onclick = e => handleBlockClick(e, b.id);
+      } else {
+        const visibleMembers = unit.members.filter(m => m.visible !== false || m.id === "play_pause");
+        if (visibleMembers.length === 0) { node.classList.add("blk", "hidden"); surface.appendChild(node); continue; }
+        const anySel = unit.members.some(m => selected === m.id);
+        const anyMulti = unit.members.some(m => multiSelected.has(m.id));
+        node.className = "blk" + (anySel ? " sel" : "") + (anyMulti ? " multisel" : "");
+        node.dataset.group = unit.groupId;
+        const gap = CONTROL_MEMBERS.includes(unit.members[0].id) ? 14 : 24;
+        const inner = document.createElement("div");
+        inner.className = "cluster";
+        inner.style.gap = gap + "px";
+        for (const m of visibleMembers) {
+          const span = document.createElement("span");
+          span.className = "member";
+          span.dataset.id = m.id;
+          span.innerHTML = memberMarkup(m);
+          span.onclick = e => { e.stopPropagation(); handleBlockClick(e, m.id); };
+          inner.appendChild(span);
+        }
+        node.appendChild(inner);
+      }
+      surface.appendChild(node);
+    }
+  } else {
+    for (const b of state.blocks) {
+      const node = document.createElement("div");
+      const isSel = selected === b.id;
+      node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
+      if (b.group) node.style.boxShadow = `inset 0 0 0 1px ${groupColor(b.group)}55`;
+      node.dataset.id = b.id;
+      const w = get(b, "w");
+      node.style.left = get(b, "x") + "%";
+      node.style.top = get(b, "y") + "%";
+      node.style.transform = `translate(-50%, -50%) rotate(${get(b, "rot")}deg)`;
+      // A button is sized by its own artwork, not by a percentage of the screen. Forcing every
+      // block to w% made the round controls overlap: the icon inside is a fixed pixel size, so a
+      // 52px play button inside a block the layout had decided was 40px wide simply spilled over
+      // its neighbours. Buttons are content-sized and centred; only the full-width blocks - cover,
+      // title, progress, queue - take a width from the layout.
+      if (isButton(b.id)) {
+        node.style.width = "auto";
+      } else {
+        node.style.width = w + "%";
+        if (b.id === "artwork") node.style.height = blockHeightPct(b, scr) + "%";
+      }
+      node.innerHTML = blockMarkup(b, boxW * w / 100);
+      node.appendChild(Object.assign(document.createElement("div"), { className: "handle" }));
+      attachDrag(node, b, boxW, boxH);
+      surface.appendChild(node);
+    }
+  }
+
+  document.getElementById("stageNote").textContent =
+    previewAspect
+      ? "Checking on " + previewAspect.label + " — your design is still " + screen.width + "x" + screen.height
+      : "Previewing your screen, " + screen.width + "x" + screen.height;
+}
+
+function handleBlockClick(e, id) {
+  if (e.shiftKey) {
+    if (multiSelected.has(id)) multiSelected.delete(id); else multiSelected.add(id);
+    render();
+  } else {
+    select(id);
+  }
+}
+
+function attachDrag(node, block, boxW, boxH) {
+  let mode = null, sx = 0, sy = 0, ow = 0;
+  let moving = [];
+
+  node.addEventListener("pointerdown", e => {
+    mode = e.target.classList.contains("handle") ? "resize" : "move";
+    sx = e.clientX; sy = e.clientY;
+    ow = get(block, "w");
+    moving = mode === "move" && block.group
+      ? membersOf(block.group).map(b => ({ block: b, ox: get(b, "x"), oy: get(b, "y") }))
+      : [{ block, ox: get(block, "x"), oy: get(block, "y") }];
+    if (!e.shiftKey) setSelected(block.id);
+    node.setPointerCapture(e.pointerId);
+    e.preventDefault();
+  });
+
+  node.addEventListener("pointermove", e => {
+    if (!mode) return;
+    const snap = !e.shiftKey;
+    const dxPct = ((e.clientX - sx) / boxW) * 100;
+    const dyPct = ((e.clientY - sy) / boxH) * 100;
+
+    if (mode === "move") {
+      let onCentre = false;
+      for (const m of moving) {
+        let x = m.ox + dxPct;
+        let y = m.oy + dyPct;
+        if (snap) {
+          if (m.block === block && Math.abs(x - 50) < 1.6) { x = 50; onCentre = true; }
+          else if (m.block === block) x = Math.round(x * 2) / 2;
+          y = Math.round(y * 2) / 2;
+        }
+        m.block.x = round1(clamp(x, 0, 100));
+        m.block.y = round1(clamp(y, 0, 100));
+        const n = document.querySelector(`#surface .blk[data-id="${m.block.id}"]`);
+        if (n) { n.style.left = m.block.x + "%"; n.style.top = m.block.y + "%"; }
+      }
+      node.classList.toggle("snapped", onCentre);
+    } else {
+      let w = ow + dxPct * 2;
+      if (snap) w = Math.round(w * 2) / 2;
+      block.w = round1(clamp(w, 8, 100));
+      node.style.width = block.w + "%";
+      if (block.id === "artwork") node.style.height = blockHeightPct(block, activeScreen()) + "%";
+    }
+    queueJson();
+  });
+
+  const end = e => {
+    if (!mode) return;
+    mode = null;
+    node.classList.remove("snapped");
+    try { node.releasePointerCapture(e.pointerId); } catch (_) {}
+    renderList();
+    syncJson();
+  };
+  node.addEventListener("pointerup", end);
+  node.addEventListener("pointercancel", end);
+}
+
+function renderGroupBar() {
+  const bar = document.getElementById("groupbar");
+  bar.innerHTML = "";
+  if (multiSelected.size < 2) return;
+  const wrap = document.createElement("div");
+  wrap.className = "groupbar";
+  wrap.innerHTML = `<span><strong>${multiSelected.size} selected</strong> — group them so they move and hide together.</span>`;
+  const btns = document.createElement("div");
+  btns.className = "btns";
+  const g = document.createElement("button");
+  g.className = "primary";
+  g.textContent = "Group";
+  g.onclick = groupSelected;
+  const c = document.createElement("button");
+  c.textContent = "Clear selection";
+  c.onclick = () => { multiSelected.clear(); render(); };
+  btns.append(g, c);
+  wrap.appendChild(btns);
+  bar.appendChild(wrap);
+}
+
+function renderList() {
+  renderGroupBar();
+  const list = document.getElementById("list");
+  list.innerHTML = "";
+  const stacked = state.mode === "stack";
+
+  state.blocks.forEach((b, index) => {
+    const def = defOf(b.id);
+    if (!def) return;
+
+    const row = document.createElement("div");
+    row.className = "row" + (selected === b.id ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
+    row.draggable = stacked;
+    row.dataset.index = index;
+    if (b.group) row.style.borderLeftColor = groupColor(b.group);
+
+    const grip = document.createElement("span");
+    grip.className = "grip" + (stacked ? "" : " off");
+    grip.textContent = "≡";
+    grip.title = stacked ? "Drag to reorder" : "Order does not apply in free placement";
+    row.appendChild(grip);
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = b.visible;
+    cb.title = def.locked ? "Always shown - the player needs a way to pause" : "Visible";
+    cb.disabled = !!def.locked;
+    cb.onchange = () => { b.visible = cb.checked; render(); };
+    row.appendChild(cb);
+
+    if (b.group) {
+      const dot = document.createElement("span");
+      dot.className = "grpdot";
+      dot.style.background = groupColor(b.group);
+      dot.title = "Grouped with " + membersOf(b.group).length + " other block(s)";
+      row.appendChild(dot);
+    }
+
+    const name = document.createElement("span");
+    name.className = "name";
+    name.textContent = def.label;
+    name.onclick = e => handleBlockClick(e, b.id);
+    row.appendChild(name);
+
+    if (b.group) {
+      const ug = document.createElement("button");
+      ug.textContent = "Ungroup";
+      ug.title = "Free every block in this cluster to move independently";
+      ug.onclick = e => { e.stopPropagation(); ungroup(b.group); };
+      row.appendChild(ug);
+    }
+
+    if (stacked) {
+      row.addEventListener("dragstart", e => {
+        row.classList.add("dragging");
+        e.dataTransfer.setData("text/plain", String(index));
+        e.dataTransfer.effectAllowed = "move";
+      });
+      row.addEventListener("dragend", () => {
+        row.classList.remove("dragging");
+        document.querySelectorAll(".row.over").forEach(r => r.classList.remove("over"));
+      });
+      row.addEventListener("dragover", e => { e.preventDefault(); row.classList.add("over"); });
+      row.addEventListener("dragleave", () => row.classList.remove("over"));
+      row.addEventListener("drop", e => {
+        e.preventDefault();
+        row.classList.remove("over");
+        const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
+        if (Number.isNaN(from) || from === index) return;
+        const [moved] = state.blocks.splice(from, 1);
+        state.blocks.splice(index, 0, moved);
+        render();
+      });
+    }
+
+    list.appendChild(row);
+
+    const knobs = document.createElement("div");
+    knobs.className = "knobs" + (selected === b.id ? " open" : "");
+    if (stacked && def.knobs.includes("size")) knobs.appendChild(slider(b, "size", "Size", 40, 130, "%"));
+    if (def.knobs.includes("rot")) knobs.appendChild(slider(b, "rot", "Rotation", -45, 45, "°"));
+    if (def.knobs.includes("radius")) knobs.appendChild(slider(b, "radius", "Corners", 0, 160, "dp"));
+    if (def.knobs.includes("scale")) knobs.appendChild(slider(b, "scale", "Scale", 70, 130, "%"));
+    if (def.knobs.includes("align")) knobs.appendChild(alignPicker(b));
+    if (!stacked) {
+      knobs.appendChild(slider(b, "x", "Horizontal", 0, 100, "%"));
+      knobs.appendChild(slider(b, "y", "Vertical", 0, 100, "%"));
+      // Not offered for buttons: they are content-sized in free mode, so a width slider would be
+      // a control that visibly does nothing. Their size comes from Scale.
+      if (!isButton(b.id)) {
+        knobs.appendChild(slider(b, "w", b.id === "artwork" ? "Size" : "Width", 8, 100, "%"));
+      }
+    }
+    if (knobs.children.length) list.appendChild(knobs);
+  });
+
+  document.getElementById("listNote").innerHTML = stacked
+    ? "Order here is the order down the screen — a grouped cluster renders together wherever its " +
+      "<strong>first</strong> member sits. Hidden blocks stay listed so you can bring them back."
+    : "Drag blocks in the preview, or use the sliders. The <strong>square handle</strong> resizes. " +
+      "Blocks are positioned by their <strong>centre</strong>, so Horizontal slides them across " +
+      "the screen and resizing grows them both ways. Dragging a grouped block moves its whole " +
+      "cluster together. They snap to the middle and to half a percent — hold <strong>Shift</strong> " +
+      "for fine control (or to multi-select instead of dragging).";
+}
+
+function slider(block, key, label, min, max, unit) {
+  const wrap = document.createElement("div");
+  wrap.className = "knob";
+  const l = document.createElement("label");
+  l.textContent = label;
+  const input = document.createElement("input");
+  input.type = "range";
+  input.min = min; input.max = max; input.step = 1;
+  input.value = get(block, key);
+  const out = document.createElement("output");
+  out.textContent = get(block, key) + unit;
+  input.oninput = () => {
+    block[key] = parseInt(input.value, 10);
+    if (key === "x" || key === "y") block[key] = clamp(block[key], 0, 100);
+    if (key === "w") block[key] = clamp(block[key], 8, 100);
+    out.textContent = block[key] + unit;
+    renderPreview();
+    syncJson();
+  };
+  wrap.append(l, input, out);
+  return wrap;
+}
+
+function alignPicker(block) {
+  const wrap = document.createElement("div");
+  wrap.className = "knob";
+  const l = document.createElement("label");
+  l.textContent = "Align";
+  const sel = document.createElement("select");
+  for (const v of ["start", "center"]) {
+    const o = document.createElement("option");
+    o.value = v; o.textContent = v === "start" ? "Left" : "Centre";
+    if (get(block, "align") === v) o.selected = true;
+    sel.appendChild(o);
+  }
+  sel.onchange = () => { block.align = sel.value; render(); };
+  wrap.append(l, sel, document.createElement("output"));
+  return wrap;
+}
+
+function select(id, keepOpen) {
+  selected = (!keepOpen && selected === id) ? null : id;
+  multiSelected.clear();
+  render();
+}
+
+function setSelected(id) {
+  selected = id;
+  multiSelected.clear();
+  document.querySelectorAll("#surface .blk").forEach(n => {
+    const owns = n.dataset.id === id || (n.dataset.group && n.dataset.group === groupOf(id));
+    n.classList.toggle("sel", owns);
+  });
+  renderList();
+}
+
+let jsonFrame = 0;
+function queueJson() {
+  if (jsonFrame) return;
+  jsonFrame = requestAnimationFrame(() => { jsonFrame = 0; syncJson(); });
+}
+
+function toJson() {
+  const free = state.mode === "free";
+  return {
+    schemaVersion: SCHEMA_VERSION,
+    orientation: "portrait",
+    mode: state.mode,
+    anchor: "center",
+    designedFor: { width: screen.width, height: screen.height },
+    spacing: state.spacing,
+    sidePadding: state.sidePadding,
+    blocks: state.blocks.map(b => {
+      const def = defOf(b.id);
+      const out = { id: b.id, visible: !!b.visible };
+      if (b.group) out.group = b.group;
+      if (def.knobs.includes("radius")) out.radius = get(b, "radius");
+      if (def.knobs.includes("scale")) out.scale = get(b, "scale");
+      if (def.knobs.includes("align")) out.align = get(b, "align");
+      if (def.knobs.includes("rot")) out.rot = get(b, "rot");
+      if (free) {
+        out.x = get(b, "x"); out.y = get(b, "y"); out.w = get(b, "w");
+      } else if (def.knobs.includes("size")) {
+        out.size = get(b, "size");
+      }
+      return out;
+    }),
+  };
+}
+
+function syncJson() {
+  document.getElementById("json").value = JSON.stringify(toJson(), null, 2);
+}
+
+function importJson(text) {
+  let parsed;
+  try { parsed = JSON.parse(text); } catch (e) { return "That is not valid JSON."; }
+  if (!parsed || !Array.isArray(parsed.blocks)) return "No blocks found in that file.";
+  if (parsed.schemaVersion > SCHEMA_VERSION) return "That file is from a newer editor (v" + parsed.schemaVersion + ").";
+
+  const incoming = expandLegacy(parsed.blocks.map(clone));
+  const seen = new Set();
+  const blocks = [];
+  for (const b of incoming) {
+    if (defOf(b.id) && !seen.has(b.id)) { seen.add(b.id); blocks.push(b); }
+  }
+  for (const def of BLOCK_DEFS) {
+    if (!seen.has(def.id)) blocks.push({ id: def.id, visible: true });
+  }
+
+  state = {
+    mode: parsed.mode === "free" ? "free" : "stack",
+    spacing: clampNum(parsed.spacing, 0, 40, 16),
+    sidePadding: clampNum(parsed.sidePadding, 0, 48, 24),
+    blocks,
+  };
+  if (parsed.designedFor) {
+    screen = {
+      width: clampNum(parsed.designedFor.width, 240, 4000, 1080),
+      height: clampNum(parsed.designedFor.height, 320, 6000, 2400),
+    };
+  }
+  if (state.mode === "free") seedFreePositions();
+  selected = null;
+  multiSelected.clear();
+  previewAspect = null;
+  render();
+  return null;
+}
+
+function clampNum(v, min, max, fallback) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return fallback;
+  return clamp(Math.round(n), min, max);
+}
+
+function toast(msg, bad) {
+  const t = document.getElementById("toast");
+  t.textContent = msg;
+  t.style.color = bad ? "var(--accent)" : "var(--ok)";
+  setTimeout(() => { if (t.textContent === msg) t.textContent = ""; }, 3200);
+}
+
+function render() {
+  renderList();
+  renderPreview();
+  renderAspects();
+  syncControls();
+  syncJson();
+}
+
+function renderAspects() {
+  const wrap = document.getElementById("aspects");
+  wrap.innerHTML = "";
+  const mine = document.createElement("button");
+  mine.textContent = "My screen";
+  mine.className = previewAspect ? "" : "on";
+  mine.onclick = () => { previewAspect = null; render(); };
+  wrap.appendChild(mine);
+  for (const a of ASPECTS) {
+    const btn = document.createElement("button");
+    btn.textContent = a.label;
+    btn.className = previewAspect && previewAspect.label === a.label ? "on" : "";
+    btn.onclick = () => { previewAspect = a; render(); };
+    wrap.appendChild(btn);
+  }
+}
+
+function syncControls() {
+  document.getElementById("sw").value = screen.width;
+  document.getElementById("sh").value = screen.height;
+  document.getElementById("gap").value = state.spacing;
+  document.getElementById("pad").value = state.sidePadding;
+  document.getElementById("gapOut").textContent = state.spacing + "dp";
+  document.getElementById("padOut").textContent = state.sidePadding + "dp";
+  document.getElementById("globalCard").style.display = state.mode === "stack" ? "" : "none";
+  document.querySelectorAll("[data-mode]").forEach(b => {
+    b.className = b.dataset.mode === state.mode ? "on" : "";
+  });
+  document.getElementById("modeNote").innerHTML = state.mode === "stack"
+    ? "<strong>Stacked</strong> is the safe default: blocks sit in a column, so nothing overlaps and nothing can end up off-screen whatever the phone."
+    : "<strong>Free placement</strong> stores positions as percentages of the screen, so it scales with size — but a phone of a different <em>shape</em> will stretch it. Check the other ratios below the preview before exporting.";
+}
+
+document.getElementById("sw").oninput = e => {
+  screen.width = clampNum(e.target.value, 240, 4000, 1080);
+  renderPreview(); syncJson();
+};
+document.getElementById("sh").oninput = e => {
+  screen.height = clampNum(e.target.value, 320, 6000, 2400);
+  renderPreview(); syncJson();
+};
+document.getElementById("gap").oninput = e => {
+  state.spacing = parseInt(e.target.value, 10);
+  document.getElementById("gapOut").textContent = state.spacing + "dp";
+  renderPreview(); syncJson();
+};
+document.getElementById("pad").oninput = e => {
+  state.sidePadding = parseInt(e.target.value, 10);
+  document.getElementById("padOut").textContent = state.sidePadding + "dp";
+  renderPreview(); syncJson();
+};
+
+document.querySelectorAll("[data-mode]").forEach(btn => {
+  btn.onclick = () => {
+    state.mode = btn.dataset.mode;
+    if (state.mode === "free") seedFreePositions();
+    selected = null;
+    multiSelected.clear();
+    render();
+  };
+});
+
+document.querySelectorAll("[data-preset]").forEach(btn => {
+  btn.onclick = () => {
+    const key = btn.dataset.preset;
+    if (key === "freeStart") {
+      state.mode = "free";
+      state.blocks.forEach(b => { delete b.x; delete b.y; delete b.w; });
+      seedFreePositions();
+      toast("Froze the stacked layout into free placement.");
+    } else {
+      state = materialize(clone(PRESETS[key]));
+      toast("Loaded the " + btn.textContent.toLowerCase() + " preset.");
+    }
+    selected = null;
+    multiSelected.clear();
+    render();
+  };
+});
+
+document.getElementById("download").onclick = () => {
+  const blob = new Blob([JSON.stringify(toJson(), null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "player-layout.json";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("Saved player-layout.json");
+};
+
+document.getElementById("copy").onclick = async () => {
+  const text = JSON.stringify(toJson(), null, 2);
+  try {
+    await navigator.clipboard.writeText(text);
+    toast("Copied to the clipboard.");
+  } catch (e) {
+    document.getElementById("json").select();
+    toast("Selected it for you — press Ctrl+C.", true);
+  }
+};
+
+document.getElementById("paste").onclick = () => {
+  const err = importJson(document.getElementById("json").value);
+  toast(err || "Imported.", !!err);
+};
+
+render();
+</script>
+</body>
+</html>
