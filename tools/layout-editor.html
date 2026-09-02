@@ -78,6 +78,12 @@
   .b.main { background: #fff; color: #111; }
   .ico { display: grid; place-items: center; opacity: .8; color: #b9b9c6; font-size: 13px; }
   svg { display: block; }
+  /* The phone's own navigation affordance, drawn below the player area so the preview reads as a
+     device rather than a floating rectangle. Same height for both styles - see navMode. */
+  .nav { position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center;
+         justify-content: center; gap: 34px; pointer-events: none; }
+  .nav .pill { width: 38%; height: 4px; border-radius: 99px; background: #ffffff5c; }
+  .nav .btn { opacity: .45; }
   .queue { display: flex; align-items: center; justify-content: center; gap: 6px; background: #ffffff14; border-radius: 12px 12px 0 0; color: #b3b3c0; font-size: 11px; height: 32px; }
 
   .aspects { display: flex; gap: 6px; flex-wrap: wrap; justify-content: center; }
@@ -172,6 +178,22 @@
       <div class="grid2">
         <div><label for="sw">Width (px)</label><input type="number" id="sw" min="240" max="4000" step="1"></div>
         <div><label for="sh">Height (px)</label><input type="number" id="sh" min="320" max="6000" step="1"></div>
+      </div>
+      <div class="grid2" style="padding-top:0">
+        <div>
+          <label for="nav">Navigation</label>
+          <select id="nav">
+            <option value="gesture">Gesture bar</option>
+            <option value="buttons">Three buttons</option>
+          </select>
+        </div>
+        <div>
+          <label>&nbsp;</label>
+          <div class="note" style="padding:0;font-size:11px">
+            Only changes what is drawn at the bottom edge. The player area is the same either way,
+            so a layout works on both.
+          </div>
+        </div>
       </div>
       <div class="note">
         Only the shape matters, not the pixel count — positions are stored as percentages, so a
@@ -325,6 +347,10 @@ const ICON = {
   seek_forward:  "M160,760L160,200L520,480L160,760ZM520,760L520,200L880,480L520,760Z",
   sleep_timer:   "M524,800Q384,800 292,708Q200,616 200,480Q200,344 292,252Q384,160 524,160Q548,160 570,162Q592,164 614,169Q568,204 541,257Q514,310 514,372Q514,477 587,550Q660,623 765,623Q828,623 880,596Q853,690 776,745Q699,800 604,800Q564,800 524,800Z",
   equalizer:     "M160,760L160,440L280,440L280,760L160,760ZM420,760L420,200L540,200L540,760L420,760ZM680,760L680,560L800,560L800,760L680,760Z",
+  // The phone's own navigation marks, for the preview frame only.
+  navBack:       "M400,800L80,480L400,160L457,217L233,441L880,441L880,519L233,519L457,743L400,800Z",
+  navHome:       "M480,120Q629,120 734.5,225.5Q840,331 840,480Q840,629 734.5,734.5Q629,840 480,840Q331,840 225.5,734.5Q120,629 120,480Q120,331 225.5,225.5Q331,120 480,120Z",
+  navRecents:    "M200,200L760,200L760,760L200,760L200,200Z",
   more:          "M480,800Q447,800 423.5,776.5Q400,753 400,720Q400,687 423.5,663.5Q447,640 480,640Q513,640 536.5,663.5Q560,687 560,720Q560,753 536.5,776.5Q513,800 480,800ZM480,560Q447,560 423.5,536.5Q400,513 400,480Q400,447 423.5,423.5Q447,400 480,400Q513,400 536.5,423.5Q560,447 560,480Q560,513 536.5,536.5Q513,560 480,560ZM480,320Q447,320 423.5,296.5Q400,273 400,240Q400,207 423.5,183.5Q447,160 480,160Q513,160 536.5,183.5Q560,207 560,240Q560,273 536.5,296.5Q513,320 480,320Z",
 };
 
@@ -363,12 +389,22 @@ const NOMINAL_H = {
   sleep_timer: 5, like: 5, equalizer: 5, menu: 5,
 };
 
+/*
+ * Shapes to check a design against.
+ *
+ * `width`/`height`, not `w`/`h`. These used to be `w`/`h` while activeScreen() is read as
+ * `.width`/`.height` everywhere, so every dimension came out undefined the moment an aspect button
+ * was pressed: the preview's own size became NaN, the phone kept whatever size it already had, and
+ * the artwork's placeholder blew up because its glyph size was NaN too. The buttons appeared to do
+ * nothing except change the caption - checking a layout against another shape has never actually
+ * worked until now.
+ */
 const ASPECTS = [
-  { label: "19.5:9", w: 1170, h: 2532 },
-  { label: "20:9",   w: 1080, h: 2400 },
-  { label: "18:9",   w: 1080, h: 2160 },
-  { label: "16:9",   w: 1080, h: 1920 },
-  { label: "4:3",    w: 1600, h: 2133 },
+  { label: "19.5:9", width: 1170, height: 2532 },
+  { label: "20:9",   width: 1080, height: 2400 },
+  { label: "18:9",   width: 1080, height: 2160 },
+  { label: "16:9",   width: 1080, height: 1920 },
+  { label: "4:3",    width: 1600, height: 2133 },
 ];
 
 // Every built-in preset lists each transport/action button as its own block (schema 4) rather
@@ -497,6 +533,20 @@ const PRESETS = {
 
 let state = materialize(clone(PRESETS.default));
 let screen = { width: 1080, height: 2400 };
+
+/*
+ * How the phone's bottom edge is navigated - three buttons, or a gesture pill.
+ *
+ * Drawn so the preview looks like the phone it is being designed for, but deliberately taking the
+ * same height either way. Letting the two reserve different amounts would make a layout depend on
+ * which navigation the designer happened to be using, so the same file would sit differently on a
+ * button phone than on a gesture one. Keeping the player area identical is what makes a layout
+ * portable between them; only the affordance drawn below it changes.
+ */
+let navMode = "gesture";
+
+/** One inset for both styles - see navMode. The pill simply has more space around it. */
+const NAV_INSET_DP = 34;
 let previewAspect = null;
 let selected = null;
 let multiSelected = new Set();
@@ -750,6 +800,32 @@ function layoutUnits(blocks) {
   return units;
 }
 
+/*
+ * Draws the phone's navigation affordance under the player area.
+ *
+ * Three back/home/recents marks, or a single gesture pill. Purely presentational - it takes the
+ * same height either way, so switching does not move anything in the layout being designed.
+ */
+function renderNav(heightPx, boxW) {
+  const phone = document.getElementById("phone");
+  let nav = phone.querySelector(".nav");
+  if (!nav) {
+    nav = document.createElement("div");
+    nav.className = "nav";
+    phone.appendChild(nav);
+  }
+  nav.style.height = heightPx + "px";
+  if (navMode === "buttons") {
+    const g = 13;
+    nav.innerHTML =
+      `<span class="btn">${svg(ICON.navBack, g, "#ffffff")}</span>` +
+      `<span class="btn">${svg(ICON.navHome, g, "#ffffff")}</span>` +
+      `<span class="btn">${svg(ICON.navRecents, g, "#ffffff")}</span>`;
+  } else {
+    nav.innerHTML = `<span class="pill"></span>`;
+  }
+}
+
 function renderPreview() {
   const scr = activeScreen();
   const phone = document.getElementById("phone");
@@ -759,6 +835,16 @@ function renderPreview() {
   const boxW = Math.round(boxH * scr.width / scr.height);
   phone.style.width = boxW + "px";
   phone.style.height = boxH + "px";
+
+  /*
+   * The player area stops above the navigation affordance, and every percentage in a free layout is
+   * measured against that area rather than the whole screen - which is what the app does, since its
+   * player is inset by the system bars. Reserving it here is why a block placed at y=100 lands on
+   * the edge of the player and not underneath the navigation bar.
+   */
+  const navPx = Math.round((NAV_INSET_DP / 800) * boxH);
+  surface.style.bottom = navPx + "px";
+  renderNav(navPx, boxW);
 
   surface.className = "surface " + state.mode;
   surface.innerHTML = "";
@@ -857,9 +943,15 @@ function renderPreview() {
     }
   }
 
+  /*
+   * The old wording - "your design is still 1080x2400" - did not say what it was telling anyone.
+   * The point is that the *design* is unchanged and only the preview has been reshaped, so this
+   * says that instead: the file still targets your screen, this is a check on a different shape.
+   */
   const base = previewAspect
-    ? "Checking on " + previewAspect.label + " — your design is still " + screen.width + "x" + screen.height
-    : "Previewing your screen, " + screen.width + "x" + screen.height;
+    ? `Previewing a ${previewAspect.label} phone (${previewAspect.width}×${previewAspect.height}). ` +
+      `Your layout is unchanged and still targets ${screen.width}×${screen.height}.`
+    : `Previewing your screen, ${screen.width}×${screen.height}.`;
 
   /*
    * Say so when the column does not fit.
@@ -1148,7 +1240,9 @@ function toJson() {
     orientation: "portrait",
     mode: state.mode,
     anchor: "center",
-    designedFor: { width: screen.width, height: screen.height },
+    // Recorded so a layout says what it was designed against, even though the player area is the
+    // same either way - it is useful to know, and costs one field.
+    designedFor: { width: screen.width, height: screen.height, navigation: navMode },
     spacing: state.spacing,
     sidePadding: state.sidePadding,
     blocks: state.blocks.map(b => {
@@ -1200,6 +1294,9 @@ function importJson(text) {
       width: clampNum(parsed.designedFor.width, 240, 4000, 1080),
       height: clampNum(parsed.designedFor.height, 320, 6000, 2400),
     };
+    if (parsed.designedFor.navigation === "buttons" || parsed.designedFor.navigation === "gesture") {
+      navMode = parsed.designedFor.navigation;
+    }
   }
   if (state.mode === "free") seedFreePositions();
   selected = null;
@@ -1248,6 +1345,7 @@ function renderAspects() {
 }
 
 function syncControls() {
+  document.getElementById("nav").value = navMode;
   document.getElementById("sw").value = screen.width;
   document.getElementById("sh").value = screen.height;
   document.getElementById("gap").value = state.spacing;
@@ -1262,6 +1360,12 @@ function syncControls() {
     ? "<strong>Stacked</strong> is the safe default: blocks sit in a column, so nothing overlaps and nothing can end up off-screen whatever the phone."
     : "<strong>Free placement</strong> stores positions as percentages of the screen, so it scales with size — but a phone of a different <em>shape</em> will stretch it. Check the other ratios below the preview before exporting.";
 }
+
+document.getElementById("nav").onchange = e => {
+  navMode = e.target.value;
+  renderPreview();
+  syncJson();
+};
 
 document.getElementById("sw").oninput = e => {
   screen.width = clampNum(e.target.value, 240, 4000, 1080);
@@ -1284,8 +1388,25 @@ document.getElementById("pad").oninput = e => {
 
 document.querySelectorAll("[data-mode]").forEach(btn => {
   btn.onclick = () => {
+    const wasFree = state.mode === "free";
     state.mode = btn.dataset.mode;
-    if (state.mode === "free") seedFreePositions();
+    /*
+     * Entering free placement starts from the stacked layout on screen, rather than from whatever
+     * coordinates happen to be lying around.
+     *
+     * seedFreePositions skips any block that already has x/y/w, which is right while a free layout
+     * is being edited and wrong on the way in: a preset loaded while in stacked mode leaves the old
+     * preset's coordinates untouched, so switching to free showed the previous design rather than
+     * the one being looked at. Clearing them on entry means free placement always opens as a copy
+     * of the stack - the default layout, when that is what is loaded.
+     *
+     * Only on the transition into free, never while already there, so an arrangement being worked
+     * on is not thrown away by touching the mode buttons.
+     */
+    if (state.mode === "free" && !wasFree) {
+      state.blocks.forEach(b => { delete b.x; delete b.y; delete b.w; });
+      seedFreePositions();
+    }
     selected = null;
     multiSelected.clear();
     render();
@@ -1302,6 +1423,9 @@ document.querySelectorAll("[data-preset]").forEach(btn => {
       toast("Froze the stacked layout into free placement.");
     } else {
       state = materialize(clone(PRESETS[key]));
+      // A preset describes a stacked arrangement, so in free mode it has to be seeded into
+      // coordinates - otherwise loading one while in free placement appeared to do nothing.
+      if (state.mode === "free") seedFreePositions();
       toast("Loaded the " + btn.textContent.toLowerCase() + " preset.");
     }
     selected = null;
