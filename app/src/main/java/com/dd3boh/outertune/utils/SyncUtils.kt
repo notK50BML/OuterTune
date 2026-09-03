@@ -142,6 +142,19 @@ class SyncUtils @Inject constructor(
     private val scope = CoroutineScope(syncCoroutine + syncJob + exceptionHandler)
 
     /**
+     * browseId -> the in-flight [addToRemotePlaylist] job adding to it, if any.
+     *
+     * [executeSyncPlaylist] mirrors the local playlist to whatever YouTube currently reports,
+     * including deleting local rows YouTube doesn't have. addToRemotePlaylist is deliberately
+     * paced (see its doc), so right after a bulk add there is a real window where most songs
+     * are only local. A sync that lands in that window - the user tapping resync to check, or
+     * the periodic full sync - was reading that in-between state as ground truth and deleting
+     * everything not yet posted. Joining this before syncing makes the mirror wait for the add
+     * it would otherwise race.
+     */
+    private val pendingPlaylistAdds = ConcurrentHashMap<String, Job>()
+
+    /**
      * Adds songs to a remote playlist, on a scope that outlives whatever asked for it.
      *
      * This exists because the obvious place to do it - a coroutine launched from the dialog - is
@@ -159,7 +172,7 @@ class SyncUtils @Inject constructor(
      */
     fun addToRemotePlaylist(browseId: String, songIds: List<String>) {
         if (songIds.isEmpty()) return
-        scope.launch {
+        val job = scope.launch {
             var failed = 0
             for (songId in songIds) {
                 YouTube.addToPlaylist(browseId, songId).onFailure {
@@ -174,6 +187,11 @@ class SyncUtils @Inject constructor(
                 Log.d(TAG, "Added ${songIds.size} song(s) to remote playlist $browseId")
             }
         }
+        pendingPlaylistAdds[browseId] = job
+        // Two-arg remove: only clears the entry if it still points at this job, so an overlapping
+        // second add to the same playlist (which overwrites the entry with its own job) doesn't
+        // get its tracking wiped out by the first add finishing after it.
+        job.invokeOnCompletion { pendingPlaylistAdds.remove(browseId, job) }
     }
 
     private val syncChannel = Channel<SyncOperation>(Channel.BUFFERED)
@@ -896,6 +914,10 @@ class SyncUtils @Inject constructor(
     }
 
     private suspend fun executeSyncPlaylist(browseId: String, playlistId: String) = withContext(Dispatchers.IO) {
+        // Wait out any add still landing on this playlist before treating YouTube's answer as
+        // the full picture - see pendingPlaylistAdds.
+        pendingPlaylistAdds[browseId]?.join()
+
         if (!context.isInternetConnected()) return@withContext
 
         val playlistPage = withRetry { YouTube.playlist(browseId).completed().getOrThrow() }

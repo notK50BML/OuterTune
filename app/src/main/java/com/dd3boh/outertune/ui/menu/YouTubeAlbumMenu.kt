@@ -233,14 +233,6 @@ fun YouTubeAlbumMenu(
         AddToPlaylistDialog(
             navController = navController,
             songIds = album?.songs?.map { it.id }.orEmpty(),
-            onPreAdd = { playlist ->
-                playlist.playlist.browseId?.let { playlistId ->
-                    album?.album?.playlistId?.let { addPlaylistId ->
-                        YouTube.addPlaylistToPlaylist(playlistId, addPlaylistId)
-                    }
-                }
-                emptyList()
-            },
             onDismiss = { showChoosePlaylistDialog = false }
         )
     }

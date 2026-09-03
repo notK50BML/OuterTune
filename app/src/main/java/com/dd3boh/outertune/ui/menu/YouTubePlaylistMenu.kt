@@ -312,10 +312,10 @@ fun YouTubePlaylistMenu(
         AddToPlaylistDialog(
             navController = navController,
             songIds = null,
-            onPreAdd = { targetPlaylist ->
+            onPreAdd = { _ ->
                 val allSongs = songs
                     .ifEmpty {
-                        YouTube.playlist(targetPlaylist.id).completed().getOrNull()?.songs.orEmpty()
+                        YouTube.playlist(playlist.id).completed().getOrNull()?.songs.orEmpty()
                     }.map {
                         it.toMediaMetadata()
                     }
@@ -323,10 +323,10 @@ fun YouTubePlaylistMenu(
                     allSongs.forEach(::insert)
                 }
 
-                targetPlaylist.playlist.browseId?.let { playlistId ->
-                    YouTube.addPlaylistToPlaylist(playlistId, targetPlaylist.id)
-                }
-
+                // Remote sync is handled by addRemotely() after the duplicate check below,
+                // so it can respect the user's skip/add-anyway choice. A bulk
+                // addPlaylistToPlaylist() call here would merge everything server-side before
+                // that choice is even shown, making it a no-op for the remote account.
                 allSongs.map { it.id }
             },
             onDismiss = { showChoosePlaylistDialog = false }

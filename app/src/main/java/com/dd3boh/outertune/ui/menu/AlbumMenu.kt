@@ -296,14 +296,6 @@ fun AlbumMenu(
         AddToPlaylistDialog(
             navController = navController,
             songIds = songs.map { it.id },
-            onPreAdd = { playlist ->
-                playlist.playlist.browseId?.let { playlistId ->
-                    album.album.playlistId?.let { addPlaylistId ->
-                        YouTube.addPlaylistToPlaylist(playlistId, addPlaylistId)
-                    }
-                }
-                songs.map { it.id }
-            },
             onDismiss = {
                 showChoosePlaylistDialog = false
             }
