@@ -46,8 +46,18 @@ class MediaPlaybackBridge(
             )
         }
 
+    /**
+     * Whether audio is actually coming out, not merely whether it was asked for.
+     *
+     * Media3's own [Player.isPlaying] - ready, wanted, and not suppressed - rather than
+     * `playWhenReady`, and the difference matters most in the case it looks like it would not.
+     * While the host is rebuffering, `playWhenReady` stays true but the position stops advancing, so
+     * a follower told "playing" keeps projecting forward and runs ahead by however long the stall
+     * lasted, then gets yanked back by a seek once the gap is noticed. Reporting the truth instead
+     * pauses the follower for the same moment and they resume together.
+     */
     override val isPlaying: Boolean
-        get() = player.playWhenReady && player.playbackState != Player.STATE_ENDED
+        get() = player.isPlaying
 
     override val speed: Float
         get() = player.playbackParameters.speed

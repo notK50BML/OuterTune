@@ -219,7 +219,11 @@ private class SocketPeerLink(
             // straight to the socket would put them in separate TCP segments now that Nagle is off -
             // two packets and an extra round of latency for every single frame.
             for (build in outgoing) {
-                val bytes = Protocol.encode(build(nowUs()))
+                // Encoding is not allowed to take the link down. It should not fail - the encoder
+                // bounds every field it writes - but a frame that somehow will not encode is worth
+                // exactly one dropped frame, and the next one carries whole state anyway. Losing the
+                // session instead, over a song title, is not a trade worth making.
+                val bytes = runCatching { Protocol.encode(build(nowUs())) }.getOrNull() ?: continue
                 output.writeShort(bytes.size)
                 output.write(bytes)
                 output.flush()

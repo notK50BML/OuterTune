@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.listentogether
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -103,5 +104,53 @@ class ProtocolTest {
         val decoded = roundTrip(frame)
         assertNotNull(decoded)
         assertTrue((decoded as Protocol.Frame.Track).title.length <= 512)
+    }
+
+    @Test
+    fun `a long multi-byte title survives instead of killing the frame`() {
+        // The case the two tests above miss between them: one checks multi-byte, the other checks
+        // long, and neither checks long *and* multi-byte. Truncating by characters rather than bytes
+        // puts 1536 bytes behind a limit that means 512, so the frame either overflows the encode
+        // buffer - taking the connection down - or fails the length check and is dropped, leaving
+        // the follower permanently unaware of what is playing.
+        val frame = Protocol.Frame.Track(
+            videoId = "abc",
+            title = "夜".repeat(600),
+            artist = "🎵".repeat(400),
+            durationMs = 200_000,
+            isLocal = false,
+        )
+        val decoded = roundTrip(frame)
+        assertNotNull("a long multi-byte title must not drop the frame", decoded)
+        val track = decoded as Protocol.Frame.Track
+        assertEquals(200_000, track.durationMs)
+        assertTrue(track.title.startsWith("夜"))
+        assertTrue(track.artist.startsWith("🎵"))
+    }
+
+    @Test
+    fun `truncation does not split a character in half`() {
+        // A cut at an arbitrary byte index leaves a dangling UTF-8 sequence, which decodes to a
+        // replacement character - a title ending in a stray diamond.
+        for (length in 200..600) {
+            val decoded = roundTrip(Protocol.Frame.Track("id", "あ".repeat(length), "", 1L, false))
+            val title = (decoded as Protocol.Frame.Track).title
+            assertFalse("length $length produced �", title.contains('�'))
+        }
+    }
+
+    @Test
+    fun `a maximal frame still fits the encode buffer`() {
+        // Every string at its limit at once. If the buffer were sized by guess rather than derived
+        // from the limits, this is where it would throw - out of encode, into the write loop, and
+        // the link would die with a song title as the cause.
+        val frame = Protocol.Frame.Track(
+            videoId = "v".repeat(2000),
+            title = "t".repeat(2000),
+            artist = "a".repeat(2000),
+            durationMs = Long.MAX_VALUE,
+            isLocal = true,
+        )
+        assertNotNull(roundTrip(frame))
     }
 }

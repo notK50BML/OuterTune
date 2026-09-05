@@ -104,8 +104,25 @@ object Protocol {
         data class Bye(val reason: Byte) : Frame
     }
 
-    /** Longest string a frame will encode or accept, so a malformed length cannot allocate wildly. */
+    /**
+     * Longest string a frame will encode or accept, **in bytes**.
+     *
+     * Bytes rather than characters, and the distinction is not pedantry. The length prefix is a byte
+     * count, so a limit measured in characters does not constrain what actually goes on the wire: 512
+     * characters of Japanese is 1536 bytes, which both overflows the encode buffer and fails this
+     * check on the way back in. The failure is invisible - the frame is dropped and the follower
+     * simply never learns what is playing.
+     */
     private const val MAX_STRING = 512
+
+    /**
+     * Encode buffer size, derived rather than guessed.
+     *
+     * The largest frame is a TRACK: a type byte, three length-prefixed strings, a long and a flag.
+     * Deriving it means adding a field cannot silently overflow the buffer, which would throw out of
+     * [encode] and take the connection down with it.
+     */
+    private const val MAX_ENCODED = 1 + 3 * (2 + MAX_STRING) + 16
 
     fun encode(frame: Frame): ByteArray = when (frame) {
         is Frame.Hello -> buffer(Type.HELLO) { putInt(frame.protocolVersion); putString(frame.deviceName) }
@@ -162,19 +179,36 @@ object Protocol {
     }.getOrNull()
 
     private inline fun buffer(type: Byte, body: ByteBuffer.() -> Unit): ByteArray {
-        // Sized generously and trimmed, rather than computed per frame: the largest frame is a few
-        // hundred bytes and getting a hand-computed size wrong is a buffer overflow.
-        val b = ByteBuffer.allocate(2048)
+        // One size for every frame, trimmed afterwards, rather than computed per frame - a
+        // hand-computed size that is wrong is a buffer overflow, and this one is derived from the
+        // limits it has to respect.
+        val b = ByteBuffer.allocate(MAX_ENCODED)
         b.put(type)
         b.body()
         return ByteArray(b.position()).also { b.rewind(); b.get(it) }
     }
 
     private fun ByteBuffer.putString(value: String) {
-        val encoded = value.take(MAX_STRING).toByteArray(StandardCharsets.UTF_8)
+        val encoded = truncateToBytes(value, MAX_STRING)
         // Length-prefixed rather than delimited: a title can contain any byte a delimiter might use.
         putShort(encoded.size.toShort())
         put(encoded)
+    }
+
+    /**
+     * Encodes [value], cut to at most [maxBytes] without splitting a character in half.
+     *
+     * Cutting the byte array at an arbitrary index would leave a dangling UTF-8 sequence, and the
+     * decoder would render it as a replacement character - a title ending in a stray diamond. So the
+     * cut backs up over continuation bytes, which are the ones matching 10xxxxxx, until it lands on
+     * the start of a character.
+     */
+    private fun truncateToBytes(value: String, maxBytes: Int): ByteArray {
+        val full = value.toByteArray(StandardCharsets.UTF_8)
+        if (full.size <= maxBytes) return full
+        var end = maxBytes
+        while (end > 0 && (full[end].toInt() and 0xC0) == 0x80) end--
+        return full.copyOf(end)
     }
 
     private fun ByteBuffer.getString(): String {

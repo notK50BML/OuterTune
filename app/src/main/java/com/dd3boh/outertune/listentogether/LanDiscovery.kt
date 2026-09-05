@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
 import java.net.InetAddress
 
 /** One change to the set of visible hosts, so a single coroutine can own the collected result. */
@@ -156,7 +157,13 @@ class LanDiscovery(private val context: Context) {
             for (event in events) {
                 when (event) {
                     is DiscoveryEvent.Found -> {
-                        val resolved = resolveOne(manager, event.service) ?: continue
+                        // Bounded, because NsdManager is not obliged to call back at all and
+                        // sometimes does not. Since resolves are serialised, one that never returns
+                        // would stall the queue permanently - the first host would appear and no
+                        // other would ever be found, with nothing logged to explain it.
+                        val resolved = withTimeoutOrNull(RESOLVE_TIMEOUT_MS) {
+                            resolveOne(manager, event.service)
+                        } ?: continue
                         val host = resolved.toDiscoveredHost() ?: continue
                         if (host.name == excluding) continue
                         found[resolved.serviceName] = host
@@ -287,6 +294,9 @@ class LanDiscovery(private val context: Context) {
          * refusing a peer with a message beats being invisible to it.
          */
         const val SERVICE_TYPE = "_outertune._tcp"
+
+        /** Longest a single resolve may take before the queue moves on without it. */
+        const val RESOLVE_TIMEOUT_MS = 6_000L
         const val TAG = "LanDiscovery"
     }
 }

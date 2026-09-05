@@ -287,10 +287,45 @@ class SessionTest {
     }
 
     @Test
+    fun `ticks from a host with nothing playing do not move this device`() = runBlocking {
+        val scope = scope()
+        try {
+            // The follower is already playing something the user chose.
+            val bridge = FakeBridge(::nowUs).apply {
+                start(SharedTrack("mine", "My song", "Artist", 200_000, false), 90_000)
+            }
+            val follower = FollowerSession(scope, bridge, ::nowUs, "Pixel 8")
+            val link = FakeLink(::nowUs)
+            scope.launch { follower.run(link) }
+            withTimeout(TIMEOUT) { while (link.sent.isEmpty()) delay(10) }
+
+            link.deliver(Protocol.Frame.Welcome(Protocol.VERSION, "Living room"))
+            repeat(6) {
+                val t = nowUs()
+                link.deliver(Protocol.Frame.Pong(t, t, t), atUs = t)
+            }
+            // A host with an empty queue sends ticks and no track at all. Without a guard the
+            // follower would take these positions as authoritative for whatever it happened to be
+            // playing, and seek the user's own song to a timestamp that means nothing.
+            repeat(5) { link.deliver(Protocol.Frame.Tick(0, nowUs(), true, 1f)) }
+            delay(400)
+
+            assertEquals("must not seek a song the host never named", 0, bridge.seeks)
+            assertEquals("mine", bridge.currentTrack?.videoId)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `a host playing a local file is shown, not chased`() = runBlocking {
         val scope = scope()
         try {
-            val bridge = FakeBridge(::nowUs)
+            // Already playing something, so the assertion below is about behaviour rather than
+            // about a player that happened to be idle.
+            val bridge = FakeBridge(::nowUs).apply {
+                start(SharedTrack("mine", "My song", "Artist", 200_000, false), 30_000)
+            }
             val follower = FollowerSession(scope, bridge, ::nowUs, "Pixel 8")
             val link = FakeLink(::nowUs)
             scope.launch { follower.run(link) }
@@ -302,10 +337,13 @@ class SessionTest {
             delay(300)
 
             // There is nothing to fetch, so retrying every tick would be a failure loop with no
-            // possible outcome. Showing what the host is on is the whole of the correct behaviour.
+            // possible outcome.
             assertEquals(0, bridge.playTrackCalls)
             assertTrue(follower.state.value.unavailable)
             assertEquals("Home recording", follower.state.value.track?.title)
+            // And it stops rather than carrying on with whatever was playing before, which would
+            // leave it audibly out of step with the session it says it is in.
+            assertFalse(bridge.isPlaying)
         } finally {
             scope.cancel()
         }

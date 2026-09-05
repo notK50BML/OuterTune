@@ -61,6 +61,8 @@ class ListenTogetherManager @Inject constructor(
     private var bridge: PlaybackBridge? = null
     private var hostSession: HostSession? = null
     private var followerSession: FollowerSession? = null
+    /** Volatile because the socket binds on an IO thread and everything else here runs on Main. */
+    @Volatile
     private var advertisement: LanDiscovery.Advertisement? = null
     private var sessionJobs = mutableListOf<Job>()
 
@@ -115,6 +117,7 @@ class ListenTogetherManager @Inject constructor(
         hostSession = session
         sessionJobs += scope.launch { session.listeners.collect { _listeners.value = it } }
 
+        val started = generation
         val links = LanTransport.listen(
             scope = scope,
             nowUs = ::nowUs,
@@ -122,11 +125,33 @@ class ListenTogetherManager @Inject constructor(
                 // Advertised only once the socket is actually listening. Announcing first would
                 // publish a port that briefly refuses connections, and a follower that tried in that
                 // window would see a failure with no explanation.
-                advertisement = discovery.advertise(port)
-                Log.i(TAG, "hosting on port $port")
+                //
+                // Hopped back onto the main scope rather than advertised straight from the bind
+                // thread, so this cannot interleave with stop(). Otherwise a user who taps start and
+                // then immediately stop leaves the device advertised on the network forever: stop
+                // ran while advertisement was still null, and the assignment landed afterwards.
+                scope.launch {
+                    if (generation == started) {
+                        advertisement = discovery.advertise(port)
+                        Log.i(TAG, "hosting on port $port")
+                    }
+                }
             },
         )
-        sessionJobs += scope.launch { links.collect { session.accept(it) } }
+        sessionJobs += scope.launch {
+            try {
+                links.collect { session.accept(it) }
+            } catch (e: Exception) {
+                // The accept loop reports a failure to bind by failing the flow. A SupervisorJob
+                // stops that killing its siblings, but the exception would still reach the default
+                // handler and take the app down, so it is caught and shown instead.
+                Log.e(TAG, "hosting stopped", e)
+                if (generation == started) {
+                    _error.value = "Could not start sharing on this network"
+                    stop()
+                }
+            }
+        }
         session.start()
         _mode.value = ListenTogetherMode.HOSTING
     }

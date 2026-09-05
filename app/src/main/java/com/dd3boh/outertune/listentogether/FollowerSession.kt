@@ -204,17 +204,27 @@ class FollowerSession(
     }
 
     private fun onTick(tick: Protocol.Frame.Tick) {
-        val target = wanted
-        // A local file on the host cannot be fetched here. Shown, and then left alone - retrying
-        // every second would be a failure loop with no possible outcome.
-        if (target != null && target.isLocal) return
+        // Nothing is known about what the host is playing, so there is nothing to follow.
+        //
+        // This is not hypothetical: a host with an empty queue sends ticks and no track at all, and
+        // without this guard the follower would take its own unrelated song and seek it to the
+        // host's position - moving music the user chose, to a timestamp that means nothing.
+        val target = wanted ?: return
+
+        if (target.isLocal) {
+            // A file on the host's storage cannot be fetched, so there is nothing to play along to.
+            // Stopping is the honest response: carrying on with whatever was playing before would
+            // leave the follower audibly out of step with the session it says it is in.
+            if (bridge.isPlaying) bridge.setPlayWhenReady(false)
+            return
+        }
 
         val offset = sync.offsetUs
         if (offset == null || sync.sampleCount < MIN_SAMPLES) return
 
         val hostPosition = SyncMath.hostPositionNowMs(tick, offset, nowUs()) ?: return
 
-        if (target != null && bridge.currentTrack?.videoId != target.videoId) {
+        if (bridge.currentTrack?.videoId != target.videoId) {
             startTrack(target, hostPosition)
             return
         }
