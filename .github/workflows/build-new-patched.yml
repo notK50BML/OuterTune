@@ -52,6 +52,10 @@ on:
         description: "versionCode (blank = one higher than the last build). Android refuses an upgrade whose code is not higher than the installed one."
         required: false
         default: ""
+      locales:
+        description: "Languages to keep, comma separated (e.g. en,ja,zh-rCN). Blank keeps all 50, which is about 1.4MB of strings."
+        required: false
+        default: ""
 
 jobs:
   build:
@@ -323,7 +327,22 @@ jobs:
       - name: Build ${{ inputs.variant }}
         run: |
           set -o pipefail
-          ./gradlew assemble${{ inputs.variant }} --stacktrace -DskipFormatKtlint 2>&1 | tee build.log
+
+          # The app is translated into 50 languages and ships all of them by default, which is right
+          # for a release anyone might install and roughly 1.4MB of strings nobody asked for in a
+          # build made for one person. The Gradle side has always supported filtering; nothing
+          # exposed it.
+          #
+          # English is added by the build whatever is asked for, since it is the base resource -
+          # dropping it would leave any string a chosen language happens not to translate with
+          # nothing to fall back to.
+          GRADLE_ARGS=""
+          if [ -n "${{ inputs.locales }}" ]; then
+            GRADLE_ARGS="-Plocales=${{ inputs.locales }}"
+            echo "::notice::Keeping only these languages: ${{ inputs.locales }} (plus English)"
+          fi
+
+          ./gradlew assemble${{ inputs.variant }} $GRADLE_ARGS --stacktrace -DskipFormatKtlint 2>&1 | tee build.log
 
       # Gradle prints compiler errors early and then buries them under a stack trace hundreds of
       # lines long, so neither end of a failed log contains them. Put them somewhere that needs no
@@ -427,6 +446,11 @@ jobs:
             echo "| Previous build | ${{ steps.version.outputs.previous }} |"
             echo "| Variant | \`${{ inputs.variant }}\` |"
             echo "| Patch | \`${{ inputs.patch_file }}\` |"
+            if [ -n "${{ inputs.locales }}" ]; then
+              echo "| Languages | \`${{ inputs.locales }}\` + English |"
+            else
+              echo "| Languages | all 50 |"
+            fi
             echo "| Workflow run | #${{ github.run_number }} |"
             echo
             echo "### APKs"
