@@ -647,10 +647,20 @@ class MainActivity : ComponentActivity() {
                                         AlbumScreen(navController, scrollBehavior)
                                     }
                                     composable(
-                                        route = "artist/{artistId}",
+                                        // songId is optional and says which song led here, so the
+                                        // screen can tell a channel that actually lists that song
+                                        // from one merely named the same. Callers that have no
+                                        // particular song - an album, a search result - leave it
+                                        // out and nothing changes for them.
+                                        route = "artist/{artistId}?songId={songId}",
                                         arguments = listOf(
                                             navArgument("artistId") {
                                                 type = NavType.StringType
+                                            },
+                                            navArgument("songId") {
+                                                type = NavType.StringType
+                                                nullable = true
+                                                defaultValue = null
                                             }
                                         )
                                     ) {

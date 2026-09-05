@@ -325,7 +325,7 @@ fun PlayerMenu(
         ) {
             val singleArtistId = linkableArtists.singleOrNull()?.takeIf { it.hasArtistPage }?.id
             if (singleArtistId != null) {
-                navController.navigate("artist/$singleArtistId")
+                navController.navigate("artist/$singleArtistId?songId=${mediaMetadata.id}")
                 playerBottomSheetState.collapseSoft()
                 onDismiss()
             } else {
@@ -435,6 +435,7 @@ fun PlayerMenu(
         ArtistDialog(
             navController = navController,
             artists = linkableArtists,
+            fromSongId = mediaMetadata.id,
             onDismiss = {
                 playerBottomSheetState.collapseSoft()
                 showSelectArtistDialog = false

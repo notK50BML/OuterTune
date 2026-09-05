@@ -314,7 +314,7 @@ fun SongMenu(
         ) {
             val singleArtistId = linkableArtists.singleOrNull()?.takeIf { it.isYouTubeArtist }?.id
             if (singleArtistId != null) {
-                navController.navigate("artist/$singleArtistId")
+                navController.navigate("artist/$singleArtistId?songId=${song.id}")
                 onDismiss()
             } else {
                 showSelectArtistDialog = true
@@ -436,6 +436,7 @@ fun SongMenu(
         ArtistDialog(
             navController = navController,
             artists = linkableArtists,
+            fromSongId = song.id,
             onDismiss = { showSelectArtistDialog = false }
         )
     }

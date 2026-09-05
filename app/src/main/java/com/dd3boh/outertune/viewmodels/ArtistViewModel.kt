@@ -39,6 +39,15 @@ class ArtistViewModel @Inject constructor(
     private val requestedArtistId = savedStateHandle.get<String>("artistId")!!
 
     /**
+     * The song that led here, when one did.
+     *
+     * Turns a vague question into an exact one. "Does this channel list any songs" is a guess at
+     * whether it is the right channel; "does this channel list *this* song" is the thing actually
+     * being asked when someone taps view artist on a track.
+     */
+    private val fromSongId = savedStateHandle.get<String>("songId")
+
+    /**
      * The id this screen was navigated with, in the spelling the database stores.
      *
      * YouTube gives an artist's channel two spellings - the bare `UC…` and an `MPLAUC…` form it
@@ -165,7 +174,7 @@ class ArtistViewModel @Inject constructor(
      * of all of them.
      */
     private suspend fun preferChannelWithSongs(page: ArtistPage): ArtistPage {
-        if (page.hasSongsSection()) return page
+        if (page.satisfies()) return page
         val name = page.artist.title.stripTopicSuffix()
         if (name.isBlank() || TOPIC_SUFFIX.containsMatchIn(name)) return page
 
@@ -175,12 +184,30 @@ class ArtistViewModel @Inject constructor(
         for (candidate in candidates) {
             if (!candidate.isYouTubeArtist) continue
             val better = YouTube.artist(candidate.id.normalizeArtistId()).getOrNull() ?: continue
-            if (!better.hasSongsSection()) continue
-            Log.i(TAG, "\"$name\" $artistId lists no songs; ${candidate.id} does - showing that")
+            if (!better.satisfies()) continue
+            Log.i(TAG, "\"$name\" $artistId does not list ${fromSongId ?: "any song"}; ${candidate.id} does - showing that")
             libraryArtistId.value = candidate.id
             return better
         }
         return page
+    }
+
+    /**
+     * Whether this page is a good enough answer to stop looking.
+     *
+     * With a song in hand, that means listing *that song* - anywhere on the page, not only in the
+     * Songs shelf, since a track can legitimately appear under Singles instead and a channel that
+     * has it at all is the one worth showing.
+     *
+     * Without one, it falls back to the weaker test of listing any songs at all, which is the best
+     * that can be said about a channel reached from an album or a search result.
+     */
+    private fun ArtistPage.satisfies(): Boolean {
+        val wanted = fromSongId
+        if (wanted != null) {
+            return sections.any { section -> section.items.any { it is SongItem && it.id == wanted } }
+        }
+        return hasSongsSection()
     }
 
     /** The same test the screen uses to decide whether a section is the Songs shelf. */

@@ -31,6 +31,14 @@ fun ArtistDialog(
     navController: NavController,
     artists: List<MediaMetadata.Artist>,
     onDismiss: () -> Unit,
+    /**
+     * The song this choice is about, when there is one.
+     *
+     * Picking from this list chooses a *name*, not a channel - and one artist can have several
+     * channels, only some of which list the song. Passing it on lets the artist screen prefer a
+     * channel that actually has it.
+     */
+    fromSongId: String? = null,
 ) {
     ListDialog(
         onDismiss = onDismiss
@@ -41,7 +49,7 @@ fun ArtistDialog(
                 modifier = Modifier
                     .height(ListItemHeight)
                     .clickable(enabled = artist.hasArtistPage) {
-                        navController.navigate("artist/${artist.id}")
+                        navController.navigate("artist/${artist.id}" + (fromSongId?.let { "?songId=$it" } ?: ""))
                         onDismiss()
                     }
                     .alpha(if (artist.hasArtistPage) 1f else 0.5f)
@@ -73,6 +81,8 @@ fun ArtistDialog(
     navController: NavController,
     artists: List<ArtistEntity>,
     onDismiss: () -> Unit,
+    /** See the other overload. */
+    fromSongId: String? = null,
 ) {
     ListDialog(
         onDismiss = onDismiss
@@ -86,7 +96,7 @@ fun ArtistDialog(
                 modifier = Modifier
                     .height(ListItemHeight)
                     .clickable(enabled = artist.isYouTubeArtist) {
-                        navController.navigate("artist/${artist.id}")
+                        navController.navigate("artist/${artist.id}" + (fromSongId?.let { "?songId=$it" } ?: ""))
                         onDismiss()
                     }
                     .alpha(if (artist.isYouTubeArtist) 1f else 0.5f)
