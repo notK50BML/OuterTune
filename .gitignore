@@ -108,8 +108,3 @@ lint/tmp/
 .DS_Store
 
 /ffMetadataEx
-
-# Generated deliverables, not sources. Tracking one makes every regeneration
-# embed the previous copy of itself and double in size.
-outertune-metrolist-engine.patch
-CHANGELOG-current.md
