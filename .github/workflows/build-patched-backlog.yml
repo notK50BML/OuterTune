@@ -75,16 +75,43 @@ jobs:
           fi
 
           # Everything needed to tell a bad base apart from a bad patch file, printed before
-          # anything can go wrong. The expected sha256 is the one for the current patch; if
-          # it differs, the file in this repo is not the file that was generated.
+          # anything can go wrong. Measured, never hardcoded: an expected size written down by
+          # hand goes stale the first time the patch is regenerated, and then it reports every
+          # correct patch as wrong - which is worse than not checking at all.
           echo "===== BASE ====="
           git rev-parse HEAD
           git log --oneline -3
           echo "===== PATCH FILE ====="
           sha256sum "$PATCH"
-          echo "expected: 3dcfd0497345a489252ad328b3d38f35f3e2cbf766488ec57a44b9c12e2112cf"
-          echo "lines: $(wc -l < "$PATCH")  (expected 44172)   bytes: $(wc -c < "$PATCH")  (expected 2196054)"
-          echo "commits in patch: $(grep -c '^From ' "$PATCH")  (expected 171)"
+          echo "commits: $(grep -c '^From ' "$PATCH")   lines: $(wc -l < "$PATCH")   bytes: $(wc -c < "$PATCH")"
+
+          # git format-patch --base records the commit the patch was built against. Checking it
+          # turns the single most common failure into one line instead of a wall of rejected diff:
+          # the patch is fine, this checkout is simply not where it starts from.
+          #
+          # That happens for an ordinary reason. This workflow is dispatched against a branch, and
+          # a branch that already contains the patch's commits is not a valid base for replaying
+          # them - every commit would be "already present", and the skip loop below would run out
+          # long before it reached the end.
+          WANT_BASE="$(sed -n 's/^base-commit: //p' "$PATCH" | tail -1)"
+          if [ -n "$WANT_BASE" ]; then
+            echo "patch base: $WANT_BASE"
+            if ! git cat-file -e "${WANT_BASE}^{commit}" 2>/dev/null; then
+              echo "::error::This checkout does not contain the commit this patch was built on."
+              echo "::error::Wanted $WANT_BASE - it is not in this repository's history."
+              exit 1
+            fi
+            if [ "$(git rev-parse HEAD)" != "$WANT_BASE" ]; then
+              echo "::notice::HEAD is $(git rev-parse --short HEAD); the patch starts from $(git rev-parse --short "$WANT_BASE"). Moving there."
+              # Copied out first: the base predates the patch file being tracked, so resetting to
+              # it would delete the very file about to be applied.
+              cp "$PATCH" /tmp/patch.mbox
+              git reset --hard "$WANT_BASE"
+              PATCH=/tmp/patch.mbox
+            fi
+          else
+            echo "patch declares no base commit - applying against this checkout as-is."
+          fi
           echo "================"
 
           git config user.name "github-actions"
