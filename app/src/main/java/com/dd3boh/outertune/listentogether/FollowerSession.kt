@@ -12,6 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -296,10 +297,6 @@ class FollowerSession(
             anchor.update(bridge.positionMs())
             delay(POLL_INTERVAL_MS)
         }
-    }
-
-    private inline fun MutableStateFlow<FollowerState>.update(block: (FollowerState) -> FollowerState) {
-        value = block(value)
     }
 
     private companion object {

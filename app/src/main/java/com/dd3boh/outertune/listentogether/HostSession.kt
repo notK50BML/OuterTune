@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArrayList
 
 /** A follower currently in the session, for display. */
@@ -38,8 +39,17 @@ class HostSession(
     private val hostName: String,
 ) {
 
+    /**
+     * Every accepted connection, greeted or not.
+     *
+     * Separate from [greeted] because a peer that connects and then says nothing - a stalled
+     * handshake, a port scanner, an app killed mid-connect - still holds a socket and a coroutine.
+     * Tracking only the ones that completed a handshake would leak those on stop.
+     */
     private val links = CopyOnWriteArrayList<PeerLink>()
-    private val names = mutableMapOf<PeerLink, String>()
+
+    /** Peers that have introduced themselves, mapped to their name. Only these receive broadcasts. */
+    private val greeted = ConcurrentHashMap<PeerLink, String>()
     private val anchor = PositionAnchor(nowUs)
     private var broadcastJob: Job? = null
 
@@ -64,12 +74,13 @@ class HostSession(
         broadcastJob = null
         links.forEach { it.close(Protocol.ByeReason.HOST_STOPPED) }
         links.clear()
-        names.clear()
+        greeted.clear()
         _listeners.value = emptyList()
     }
 
     /** Takes on a newly accepted connection. The handshake happens here, not at the transport. */
     fun accept(link: PeerLink) {
+        links.addIfAbsent(link)
         scope.launch {
             try {
                 link.incoming.collect { (frame, receivedAtUs) ->
@@ -93,8 +104,7 @@ class HostSession(
                     return
                 }
                 link.send(Protocol.Frame.Welcome(Protocol.VERSION, hostName))
-                names[link] = frame.deviceName
-                links.addIfAbsent(link)
+                greeted[link] = frame.deviceName
                 publishListeners()
                 // Immediately, rather than at the next tick. A follower that joins just after a
                 // broadcast would otherwise sit silent for a full second wondering if it worked.
@@ -118,12 +128,14 @@ class HostSession(
 
     private fun drop(link: PeerLink) {
         links.remove(link)
-        names.remove(link)
+        greeted.remove(link)
         publishListeners()
     }
 
     private fun publishListeners() {
-        _listeners.value = links.map { Listener(names[it] ?: "Unknown", it.remoteAddress) }
+        // Only greeted peers. A half-open connection is not a listener, and showing one would be a
+        // phantom entry nobody could account for.
+        _listeners.value = greeted.entries.map { Listener(it.value, it.key.remoteAddress) }
     }
 
     /** Counts down to the next repeat of an unchanged track. Starts at zero so one goes out first. */
@@ -197,7 +209,7 @@ class HostSession(
     }
 
     private fun broadcast(frame: Protocol.Frame) {
-        links.forEach { it.send(frame) }
+        greeted.keys.forEach { it.send(frame) }
     }
 
     private companion object {

@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -64,6 +63,16 @@ class ListenTogetherManager @Inject constructor(
     private var followerSession: FollowerSession? = null
     private var advertisement: LanDiscovery.Advertisement? = null
     private var sessionJobs = mutableListOf<Job>()
+
+    /**
+     * Bumped whenever a session ends or a new one starts.
+     *
+     * A session coroutine that is cancelled still runs its finally block, and it may do so after the
+     * next session has already started - so a departing follower would reset the mode of the session
+     * that replaced it. Comparing against the generation it was started in makes late cleanup
+     * harmless.
+     */
+    private var generation = 0
 
     /**
      * Handed the player when the service has one, and null when it goes away.
@@ -146,13 +155,16 @@ class ListenTogetherManager @Inject constructor(
         _error.value = null
         _mode.value = ListenTogetherMode.FOLLOWING
 
+        val started = generation
         sessionJobs += scope.launch {
             val link = try {
                 LanTransport.connect(host.address, host.port, scope, ::nowUs)
             } catch (e: Exception) {
                 Log.e(TAG, "could not reach ${host.name}", e)
-                _error.value = "Could not reach ${host.name}"
-                _mode.value = ListenTogetherMode.OFF
+                if (generation == started) {
+                    _error.value = "Could not reach ${host.name}"
+                    _mode.value = ListenTogetherMode.OFF
+                }
                 return@launch
             }
 
@@ -165,14 +177,17 @@ class ListenTogetherManager @Inject constructor(
                 session.run(link)
             } finally {
                 mirror.cancel()
-                followerSession = null
-                if (_mode.value == ListenTogetherMode.FOLLOWING) _mode.value = ListenTogetherMode.OFF
+                if (generation == started) {
+                    followerSession = null
+                    _mode.value = ListenTogetherMode.OFF
+                }
             }
         }
     }
 
     /** Ends whatever is running. Safe to call when nothing is. */
     fun stop() {
+        generation++
         hostSession?.stop()
         hostSession = null
         followerSession?.leave()

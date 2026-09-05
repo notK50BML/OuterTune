@@ -464,6 +464,29 @@ class SessionTest {
     }
 
     @Test
+    fun `a connection that never introduces itself is still cleaned up`() = runBlocking {
+        val scope = scope()
+        try {
+            val host = HostSession(scope, FakeBridge(::nowUs), ::nowUs, "Living room")
+            val silent = FakeLink(::nowUs)
+            host.accept(silent)
+            delay(200)
+
+            // Never greeted, so not a listener and not sent anything...
+            assertTrue(host.listeners.value.isEmpty())
+            assertTrue(silent.sent.isEmpty())
+
+            host.stop()
+            // ...but it still holds a socket and a coroutine, so it has to be closed. Tracking only
+            // peers that completed a handshake would leak a stalled connect, a port scan, or an app
+            // killed halfway through joining.
+            assertTrue("a silent connection must not be left open", silent.closeCalled)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
     fun `stopping the session tells every follower why`() = runBlocking {
         val scope = scope()
         try {

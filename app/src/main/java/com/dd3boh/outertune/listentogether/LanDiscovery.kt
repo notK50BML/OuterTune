@@ -22,6 +22,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.net.InetAddress
 
+/** One change to the set of visible hosts, so a single coroutine can own the collected result. */
+private sealed interface DiscoveryEvent {
+    data class Found(val service: NsdServiceInfo) : DiscoveryEvent
+    data class Lost(val serviceName: String) : DiscoveryEvent
+}
+
 /** A host found on the network, ready to be joined. */
 data class DiscoveredHost(
     val name: String,
@@ -129,22 +135,36 @@ class LanDiscovery(private val context: Context) {
             return@callbackFlow
         }
 
-        val found = LinkedHashMap<String, DiscoveredHost>()
         send(emptyList())
 
-        // Resolution is serialised through this queue rather than started from the discovery
-        // callback directly. Before API 34 the platform allows exactly one resolve in flight, and a
-        // second one started while the first is pending fails with "listener already in use" - which
-        // is easy to hit, because services are found in a burst and the natural code resolves each
-        // as it arrives. The symptom is that the first host appears and the rest silently never do.
-        val toResolve = Channel<NsdServiceInfo>(Channel.UNLIMITED)
+        // Both kinds of change go through one queue, and one coroutine owns the map.
+        //
+        // Two reasons, and they are independent. Resolution has to be serialised because before API
+        // 34 the platform allows exactly one resolve in flight, and a second one started while the
+        // first is pending fails with "listener already in use" - easy to hit, since services are
+        // found in a burst and the natural code resolves each as it arrives. The symptom is that the
+        // first host appears and the rest silently never do.
+        //
+        // The map has to be owned by one thread because NSD delivers its callbacks on a binder
+        // thread while resolution completes on a coroutine. Mutating a LinkedHashMap from both, and
+        // iterating it to publish, is a ConcurrentModificationException waiting for the moment a
+        // device leaves the network just as another is being resolved.
+        val events = Channel<DiscoveryEvent>(Channel.UNLIMITED)
 
         val worker = launch {
-            for (service in toResolve) {
-                val resolved = resolveOne(manager, service) ?: continue
-                val host = resolved.toDiscoveredHost() ?: continue
-                if (host.name == excluding) continue
-                found[resolved.serviceName] = host
+            val found = LinkedHashMap<String, DiscoveredHost>()
+            for (event in events) {
+                when (event) {
+                    is DiscoveryEvent.Found -> {
+                        val resolved = resolveOne(manager, event.service) ?: continue
+                        val host = resolved.toDiscoveredHost() ?: continue
+                        if (host.name == excluding) continue
+                        found[resolved.serviceName] = host
+                    }
+                    // Keyed by service name because that is all a "lost" event carries - there is
+                    // no address on it to match against.
+                    is DiscoveryEvent.Lost -> if (found.remove(event.serviceName) == null) continue
+                }
                 trySend(found.values.toList())
             }
         }
@@ -153,15 +173,11 @@ class LanDiscovery(private val context: Context) {
             override fun onServiceFound(service: NsdServiceInfo) {
                 if (service.serviceType?.trimEnd('.') != SERVICE_TYPE.trimEnd('.')) return
                 if (service.serviceName == excluding) return
-                toResolve.trySend(service)
+                events.trySend(DiscoveryEvent.Found(service))
             }
 
             override fun onServiceLost(service: NsdServiceInfo) {
-                // Keyed by service name because that is all a "lost" event carries - there is no
-                // address on it to match against.
-                if (found.remove(service.serviceName) != null) {
-                    trySend(found.values.toList())
-                }
+                events.trySend(DiscoveryEvent.Lost(service.serviceName ?: return))
             }
 
             override fun onDiscoveryStarted(serviceType: String) = Unit
@@ -187,7 +203,7 @@ class LanDiscovery(private val context: Context) {
 
         awaitClose {
             worker.cancel()
-            toResolve.close()
+            events.close()
             // Multicast browsing is not free - it keeps the radio busier than idle - so stopping
             // promptly when the screen goes away matters for battery, not just tidiness.
             runCatching { manager.stopServiceDiscovery(listener) }
