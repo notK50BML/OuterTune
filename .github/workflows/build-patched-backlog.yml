@@ -335,11 +335,36 @@ jobs:
       # Gradle prints compiler errors early and then buries them under a stack trace hundreds of
       # lines long, so neither end of a failed log contains them. Put them somewhere that needs no
       # scrolling at all: the run's summary page, and red annotations at the top of it.
+      # Reports why the job failed. It must never fail itself: this step runs only when something
+      # has already gone wrong, and a reporter that dies takes the real cause off the screen and
+      # replaces it with its own error. That is exactly what used to happen, in two ways.
       - name: What actually failed
         if: failure()
+        # No -e. A diagnostic that aborts on the first command returning non-zero is a diagnostic
+        # that stops working the moment there is nothing to find.
+        shell: bash {0}
         run: |
-          ERRORS="$(grep -aE '^e: |^error: |^ERROR: ' build.log | head -60 || true)"
-          TASKS="$(grep -aE '^> Task .* FAILED' build.log | head -20 || true)"
+          # The build step writes build.log, so its absence means the build never started and the
+          # failure is upstream - the patch, the SDK licences, the signing key. Grepping a file
+          # that was never created reported "No such file or directory" as though the missing log
+          # were the problem, which is the least useful thing it could have said.
+          if [ ! -f build.log ]; then
+            {
+              echo "## Failed before the build started"
+              echo
+              echo "There is no \`build.log\`, so the Build step never ran and the compiler was"
+              echo "never involved. The cause is in an earlier step - open the first red one above."
+              echo "Most often that is **Apply patch**."
+            } >> "$GITHUB_STEP_SUMMARY"
+            echo "::error::The build never started - the failure is in an earlier step. Check Apply patch."
+            echo "No build.log: the build never ran. See the first failed step above."
+            # Zero on purpose. The job is already failing because of the step that actually broke;
+            # failing again here would only add a second, misleading entry on top of it.
+            exit 0
+          fi
+
+          ERRORS="$(grep -aE '^e: |^error: |^ERROR: ' build.log | head -60)"
+          TASKS="$(grep -aE '^> Task .* FAILED' build.log | head -20)"
 
           {
             echo "## Build failed"
@@ -356,13 +381,26 @@ jobs:
               echo '```'
             else
               echo "No compiler errors in the log - the failure was somewhere else."
+              echo
+              echo "Last 40 lines of the build:"
+              echo '```'
+              tail -40 build.log
+              echo '```'
             fi
           } >> "$GITHUB_STEP_SUMMARY"
 
           # Also as annotations, which GitHub pins to the top of the run page in red.
-          echo "$ERRORS" | while IFS= read -r line; do
-            [ -n "$line" ] && echo "::error::$line"
-          done
+          #
+          # Guarded by the emptiness check rather than looping over nothing. Piping an empty string
+          # into the loop still yields one blank line, and `[ -n "$line" ] && echo` then returns 1
+          # for it - the loop body's last command, so the loop failed, so the pipeline failed, and
+          # under `set -e` the whole step died. Which meant this reporter broke in precisely the
+          # case it exists for: a failure that is not a compiler error.
+          if [ -n "$ERRORS" ]; then
+            printf '%s\n' "$ERRORS" | while IFS= read -r line; do
+              if [ -n "$line" ]; then echo "::error::$line"; fi
+            done
+          fi
 
           echo "================== COMPILER ERRORS =================="
           echo "${ERRORS:-(none)}"
