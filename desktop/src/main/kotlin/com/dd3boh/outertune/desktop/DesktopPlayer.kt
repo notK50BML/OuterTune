@@ -134,6 +134,16 @@ class DesktopPlayer {
      */
     val spectrum = VisualizerTap(VISUALIZER_BANDS)
 
+    /**
+     * The equaliser, applied to every block on its way to the output line.
+     *
+     * Lives here rather than behind the line because there is nowhere else it could go: Java Sound
+     * has no effect chain, so the only opportunity to shape the audio is between the decoder and
+     * the write. That is also the reason this is a real implementation rather than a binding to
+     * something the platform provides, the way it is on Android.
+     */
+    val equalizer = Equalizer()
+
     /** The line's frame position, which is what [VisualizerTap.sample] needs. */
     fun playedFrames(): Long = line?.longFramePosition ?: 0L
 
@@ -351,6 +361,10 @@ class DesktopPlayer {
                         framesWritten = it.longFramePosition
                         spectrum.reset()
                         analyzer?.reset()
+                        // The filters remember the last two samples they saw, which now belong to
+                        // audio that was thrown away. Carrying that across a jump makes the first
+                        // moments after a seek ring with the passage before it.
+                        equalizer.reset()
                     }
                     trackMsBase = index.toLong() * FRAME_SAMPLES * 1000 / sampleRate
                     positionMs.value = trackMsBase
@@ -386,6 +400,20 @@ class DesktopPlayer {
                 framesWritten = 0L
                 spectrum.reset()
             }
+
+            // Equalised first, so what follows describes the audio that will actually be played.
+            // In particular the visualiser measures the signal *after* this, which is the only
+            // arrangement that is not confusing: boosting the bass should move the bass bars. It is
+            // also in place, on the buffer already destined for the line, so there is no extra copy
+            // of every block in the hot path.
+            equalizer.process(
+                bytes = pcm,
+                length = pcm.size,
+                bitsPerSample = buffer.bitsPerSample,
+                channels = buffer.channels,
+                bigEndian = buffer.isBigEndian,
+                sampleRate = sampleRate,
+            )
 
             // Analysed before the write, and queued against the frame position at which this block
             // will actually be heard rather than shown immediately. The line buffers close to a

@@ -174,6 +174,7 @@ private fun App(player: DesktopPlayer) {
             onClose = { showFullPlayer = false },
             spectrum = player.spectrum,
             playedFrames = player::playedFrames,
+            equalizer = player.equalizer,
         )
         return
     }

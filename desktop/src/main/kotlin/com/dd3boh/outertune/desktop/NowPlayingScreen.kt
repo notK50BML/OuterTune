@@ -29,6 +29,9 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -72,6 +75,7 @@ fun NowPlayingScreen(
     onClose: () -> Unit,
     spectrum: VisualizerTap? = null,
     playedFrames: () -> Long = { 0L },
+    equalizer: Equalizer? = null,
 ) {
     val song = queue.current
     val (primary, secondary) = rememberArtworkColours(song?.thumbnail)
@@ -130,6 +134,27 @@ fun NowPlayingScreen(
                         active = playback is PlaybackState.Playing,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Folded away by default. Twelve sliders is the largest thing on this screen, and
+                // most of the time nobody is adjusting them - a player that opens on its equaliser
+                // has its priorities the wrong way round.
+                if (equalizer != null) {
+                    var showEq by remember { mutableStateOf(false) }
+                    TextButton(onClick = { showEq = !showEq }) {
+                        Text(
+                            text = if (showEq) "Hide equaliser" else "Equaliser",
+                            color = onBackground,
+                        )
+                    }
+                    if (showEq) {
+                        EqualizerPanel(
+                            equalizer = equalizer,
+                            accent = onBackground,
+                            onColour = onBackground,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
 
                 if (durationMs > 0) {

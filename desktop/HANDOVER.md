@@ -101,10 +101,45 @@ In the order last discussed:
 
 1. **UI** — recreating the Android player's look (see the caveat above about copying it).
 2. **Queue refinements** — reordering, save-as-playlist, queue persistence across restarts.
-3. ~~**Visualiser**~~ - done, see below. **EQ** is still open, and sits at exactly the same point
-   in the chain: `DesktopPlayer.stream()` holds the decoded PCM immediately before writing it to the
-   line, which is where a software biquad bank would go. Android's `android.media.audiofx.Equalizer`
-   has no equivalent off Android, so this is a real implementation rather than a binding.
+3. ~~**Visualiser and EQ**~~ - both done, see below.
+
+## The equaliser
+
+`Equalizer.kt` - twelve peaking biquads, applied to the decoded PCM in place immediately before it
+is written to the output line. That is not a design preference: Java Sound has no effect chain, so
+between the decoder and the write is the only place audio can be shaped at all. It is a real
+implementation rather than a binding to something the platform provides, which is what Android's
+`audiofx.Equalizer` is.
+
+Applied *before* the visualiser measures the signal, which is the only arrangement that is not
+confusing - boosting the bass should move the bass bars.
+
+Three things it would be easy to get wrong, each with a test:
+
+- **Every channel needs its own filters.** A biquad remembers two input and two output samples, so
+  running one filter across an interleaved stream feeds left's history into right's output and back.
+  That is not a subtle degradation, it is a comb filter smeared across the stereo image. The test
+  feeds a tone to one channel only and fails if the silent one comes out loud.
+- **Byte order applies on the way out too.** The decoder returns big-endian; reading one way and
+  writing the other is not an error, it is noise.
+- **Clamp, do not wrap.** A boosted band can exceed full scale, and an integer that overflows goes
+  from loudest positive to loudest negative - heard as a crack, not as distortion.
+
+Band centres match the Android app's `EqualizerSettings.DEFAULT_FREQUENCIES` exactly, so a set of
+gains means the same thing on both and presets could move between them.
+
+### These two should share a module
+
+`Equalizer.kt`'s biquad and the Android module's `audio/Biquad.kt` are the same filter written twice,
+including two pieces of hardening - the NaN clamp and the denormal flush - that were learned there
+rather than reasoned about here. They agree by inspection, which is not a way to keep two files in
+step.
+
+The reason they are not shared yet: the Android one reaches `EqualizerSettings`, which parses with
+`org.json` - built into Android, an extra artifact here, and one that clashes with the platform copy
+if added carelessly. The fix is a pure-JVM module holding `Biquad`, `Compressor`, `EqualizerSettings`
+and `EqualizerProfile`, keeping their current package names so no import in `:app` changes. Worth
+doing deliberately; not worth doing halfway in the middle of something else.
 
 ## The visualiser, and the one thing that makes it work
 
