@@ -11,8 +11,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
 import androidx.compose.foundation.layout.asPaddingValues
+import android.content.res.Configuration
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -59,6 +62,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -192,12 +196,32 @@ fun ArtistScreen(
             // cost and a small one: these are artist portraits and channel banners, and the middle
             // of one is the part worth seeing. In exchange the header is the same size for every
             // artist, the name always lands in the same place, and nothing reflows after load.
+            // A full-width square is right in portrait and far too much in landscape, where the
+            // width is the long edge: the header becomes taller than the screen, so opening an
+            // artist fills the display with one very bright picture and nothing else. Capping it to
+            // a fraction of the screen height keeps the shape recognisable while leaving the songs
+            // visible, which is what the page is actually for.
+            val configuration = LocalConfiguration.current
+            val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+            val maxHeaderHeight = (configuration.screenHeightDp * 0.42f).dp
+
             Column {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .then(
-                            if (thumbnail != null) Modifier.aspectRatio(1f) else Modifier
+                            when {
+                                thumbnail == null -> Modifier
+                                landscape -> Modifier.heightIn(max = maxHeaderHeight)
+                                else -> Modifier.aspectRatio(1f)
+                            }
+                        )
+                        .then(
+                            // heightIn alone leaves the Box wrapping its content, and a cropped
+                            // image has no intrinsic height to wrap - so the cap needs something to
+                            // apply to.
+                            if (thumbnail != null && landscape) Modifier.height(maxHeaderHeight)
+                            else Modifier
                         )
                 ) {
                     if (thumbnail != null) {

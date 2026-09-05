@@ -130,6 +130,87 @@ class DriftCorrectorTest {
     }
 
     @Test
+    fun `closing a gap takes few changes of rate, not one per tick`() {
+        // Each change of rate reconfigures the audio pipeline, and on many devices that is heard as
+        // a click. Refining the rate every second as the gap shrinks therefore produces a string of
+        // small artefacts - which is the microstutter the correction exists to avoid. This pins the
+        // count, because the naive version passes every other test in this file while sounding bad.
+        val clock = FakeClock()
+        val c = corrector(clock)
+        var host = 200.0
+        var follower = 0.0
+        var speed = 1f
+        var changes = 0
+
+        repeat(30) {
+            when (val correction = c.correct((host - follower).toLong(), true, host.toLong())) {
+                is Correction.Nudge -> { speed = correction.speed; changes++ }
+                is Correction.Seek -> Unit
+                Correction.Hold -> Unit
+            }
+            clock.advanceMs(1_000)
+            host += 1_000
+            follower += 1_000 * speed
+        }
+
+        assertTrue("took $changes rate changes to close 200ms", changes <= 4)
+        assertTrue("did not converge", abs(host - follower) < 30)
+        assertEquals("should end at normal speed", 1f, speed)
+    }
+
+    @Test
+    fun `returning to normal speed is never deferred by the dwell`() {
+        // The dwell delays refining a rate. It must not delay giving the rate back: a follower that
+        // has caught up should stop running fast immediately, or it overshoots and has to correct
+        // the other way.
+        val clock = FakeClock()
+        val c = corrector(clock)
+        assertTrue(c.correct(150, playing = true, hostPositionMs = 0) is Correction.Nudge)
+        clock.advanceMs(200)
+        assertEquals(Correction.Nudge(1f), c.correct(2, playing = true, hostPositionMs = 0))
+    }
+
+    @Test
+    fun `a standing offset stops being seeked at`() {
+        // The case that made a session unlistenable. If the two devices put sound out at different
+        // delays - Bluetooth against speakers, most obviously - the gap is invisible to both
+        // players' clocks and no seek can close it. Seeking anyway is an interruption every couple
+        // of seconds, forever. After a couple of attempts it has to stop trying.
+        val clock = FakeClock()
+        val c = corrector(clock)
+        var seeks = 0
+        var nudges = 0
+
+        repeat(20) {
+            when (c.correct(400, playing = true, hostPositionMs = 50_000)) {
+                is Correction.Seek -> seeks++
+                is Correction.Nudge -> nudges++
+                Correction.Hold -> Unit
+            }
+            // Past the settle window each time, so nothing is suppressed for that reason.
+            clock.advanceMs(2_000)
+        }
+
+        assertTrue("kept seeking at an offset seeking cannot fix: $seeks", seeks <= 2)
+        assertTrue("gave up entirely instead of nudging", nudges >= 1)
+    }
+
+    @Test
+    fun `a genuine large gap is still seeked`() {
+        // The limit above must not break the case seeking is for: joining mid-song, or a track
+        // change, where one jump is exactly right.
+        val clock = FakeClock()
+        val c = corrector(clock)
+        assertEquals(Correction.Seek(90_000), c.correct(4_000, playing = true, hostPositionMs = 90_000))
+
+        // And once the gap is actually closed, the allowance is restored for next time.
+        clock.advanceMs(2_000)
+        c.correct(5, playing = true, hostPositionMs = 90_000)
+        clock.advanceMs(2_000)
+        assertEquals(Correction.Seek(95_000), c.correct(4_000, playing = true, hostPositionMs = 95_000))
+    }
+
+    @Test
     fun `a real gap closes silently and the rate returns to normal`() {
         // The case the whole design is for: a follower a fifth of a second behind, corrected without
         // a single seek and without the rate ever leaving the inaudible range.

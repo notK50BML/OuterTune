@@ -123,6 +123,20 @@ class FollowerSession(
     private var trackSettleUntilUs = 0L
 
     /**
+     * How far ahead of the host to aim, in milliseconds.
+     *
+     * Set by the user, because the app cannot measure it. Everything else here compares two players'
+     * reported positions, and neither of those is what is actually audible - each device puts sound
+     * out some time after its player says so, and Bluetooth alone can add a fifth of a second. Two
+     * devices can therefore agree exactly on position and still sound apart. This shifts the target
+     * so they can be made to agree on the part that matters.
+     *
+     * Volatile because it is written from the settings screen and read on every tick.
+     */
+    @Volatile
+    var offsetMs: Long = 0L
+
+    /**
      * Joins a session over an already-connected link. Returns when the session ends.
      *
      * Suspends for the whole session rather than returning immediately, so the caller's scope owns
@@ -222,7 +236,10 @@ class FollowerSession(
         val offset = sync.offsetUs
         if (offset == null || sync.sampleCount < MIN_SAMPLES) return
 
-        val hostPosition = SyncMath.hostPositionNowMs(tick, offset, nowUs()) ?: return
+        // The user's offset is added to where the host is, so aiming ahead means targeting a
+        // position further into the song - which is what makes this device run early and cancel its
+        // own output delay.
+        val hostPosition = (SyncMath.hostPositionNowMs(tick, offset, nowUs()) ?: return) + offsetMs
 
         if (bridge.currentTrack?.videoId != target.videoId) {
             startTrack(target, hostPosition)

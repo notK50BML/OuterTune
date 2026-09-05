@@ -79,6 +79,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
+import com.dd3boh.outertune.db.namesAnArtist
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalDownloadUtil
 import com.dd3boh.outertune.LocalPlayerConnection
@@ -148,6 +149,23 @@ fun PlayerMenu(
     var showChoosePlaylistDialog by rememberSaveable {
         mutableStateOf(false)
     }
+    /**
+     * The credits worth offering as "view artist".
+     *
+     * YouTube attributes an upload to an auto-generated channel titled exactly "- Topic" alongside
+     * the artist's real one, so a song is routinely credited to both. That channel's page does not
+     * even carry the right name, and the song being looked for sits under the real artist - so it
+     * should never be what a tap lands on, nor an option in the picker.
+     *
+     * Filtering also removes a needless choice: a song credited to one real artist and one topic
+     * channel now links straight through instead of asking which of the two was meant.
+     *
+     * Falls back to the unfiltered list when every credit is nameless, since an empty picker helps
+     * nobody.
+     */
+    val linkableArtists = mediaMetadata.artists.filter { it.name.namesAnArtist() }
+        .ifEmpty { mediaMetadata.artists }
+
     var showSelectArtistDialog by rememberSaveable {
         mutableStateOf(false)
     }
@@ -305,7 +323,7 @@ fun PlayerMenu(
             title = R.string.view_artist,
             enabled = mediaMetadata.artists.any { it.hasArtistPage }
         ) {
-            val singleArtistId = mediaMetadata.artists.singleOrNull()?.takeIf { it.hasArtistPage }?.id
+            val singleArtistId = linkableArtists.singleOrNull()?.takeIf { it.hasArtistPage }?.id
             if (singleArtistId != null) {
                 navController.navigate("artist/$singleArtistId")
                 playerBottomSheetState.collapseSoft()
@@ -416,7 +434,7 @@ fun PlayerMenu(
     if (showSelectArtistDialog) {
         ArtistDialog(
             navController = navController,
-            artists = mediaMetadata.artists,
+            artists = linkableArtists,
             onDismiss = {
                 playerBottomSheetState.collapseSoft()
                 showSelectArtistDialog = false

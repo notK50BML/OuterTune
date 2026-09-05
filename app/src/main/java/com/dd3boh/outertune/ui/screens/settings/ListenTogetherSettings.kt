@@ -37,6 +37,13 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import com.dd3boh.outertune.constants.ListenTogetherOffsetKey
+import com.dd3boh.outertune.ui.dialog.CounterDialog
+import com.dd3boh.outertune.utils.rememberPreference
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -80,6 +87,30 @@ fun ListenTogetherSettings(
     // recomposes every second as the drift figure updates - so left inline it would be main-thread
     // IO on a one-second timer.
     val deviceName = remember { manager.deviceName() }
+
+    val (offsetMs, onOffsetChange) = rememberPreference(ListenTogetherOffsetKey, 0)
+    var showOffsetDialog by remember { mutableStateOf(false) }
+
+    // Pushed into the manager whenever it changes, including on first composition, so a value set
+    // in a previous session is in force before anyone joins. Applied live, which is the only
+    // practical way to tune it: the right number depends on the audio route and can only be found
+    // by listening.
+    LaunchedEffect(offsetMs) { manager.offsetMs = offsetMs.toLong() }
+
+    if (showOffsetDialog) {
+        CounterDialog(
+            title = stringResource(R.string.lt_offset_title),
+            initialValue = offsetMs,
+            // Half a second either way. Beyond that the problem is not output latency.
+            upperBound = 500,
+            lowerBound = -500,
+            unitDisplay = " ms",
+            onDismiss = { showOffsetDialog = false },
+            onConfirm = { onOffsetChange(it); showOffsetDialog = false },
+            onReset = { onOffsetChange(0) },
+            onCancel = { showOffsetDialog = false },
+        )
+    }
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -224,6 +255,15 @@ fun ListenTogetherSettings(
 
         Spacer(modifier = Modifier.height(16.dp))
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            // Offered whatever the current mode is: it is a property of this device's audio, not of
+            // a session, and being able to set it before joining beats discovering mid-song that it
+            // is needed.
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.lt_offset_title)) },
+                description = stringResource(R.string.lt_offset_description, offsetMs),
+                icon = { Icon(Icons.Rounded.Timer, null) },
+                onClick = { showOffsetDialog = true },
+            )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.lt_how_it_works)) },
                 description = stringResource(R.string.lt_how_it_works_summary),

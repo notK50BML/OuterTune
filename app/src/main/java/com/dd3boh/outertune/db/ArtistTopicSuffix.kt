@@ -50,3 +50,22 @@ fun String.stripTopicSuffix(): String {
     // rather than wrong.
     return stripped.ifBlank { trim() }
 }
+
+/**
+ * Whether this credit names an actual artist, rather than an auto-generated channel with no name.
+ *
+ * YouTube produces channels titled exactly "- Topic" for songs whose artist name came through
+ * empty. [stripTopicSuffix] deliberately leaves such a title alone rather than reducing it to a
+ * blank - stripping is meant to tidy a name, not delete one - so the suffix surviving the strip is
+ * precisely the tell that there was no name in front of it.
+ *
+ * Such a credit is a real row and a real channel, so it cannot simply be deleted, but it should
+ * never be what a "view artist" tap lands on. Its page is the auto-generated one: the right name is
+ * not even on it, and the song being looked for is filed under the artist's actual channel. When a
+ * song is credited to both - which is common, since the topic channel is how YouTube attributes the
+ * upload - the one that names somebody is the one worth linking to.
+ */
+fun String.namesAnArtist(): Boolean {
+    val stripped = stripTopicSuffix()
+    return stripped.isNotBlank() && !TOPIC_SUFFIX.containsMatchIn(stripped)
+}

@@ -193,6 +193,19 @@ val LyricEstimatedWordSync = booleanPreferencesKey("lyricEstimatedWordSync")
  * per-song value would mean setting it again for every track.
  */
 val LyricOffsetKey = intPreferencesKey("lyricOffset")
+
+/**
+ * Milliseconds a follower aims ahead of the host in a listen-together session.
+ *
+ * A correction the app cannot make for itself. Sync is measured between the two players' reported
+ * positions, but neither of those is what anybody hears: each device puts sound out some time after
+ * its player says so, and how long depends on the device, and on whether it is going through
+ * speakers, wired headphones or Bluetooth - which alone can be a fifth of a second. So two devices
+ * can agree perfectly on position and still be audibly apart, and nothing in the protocol can see
+ * it. Positive values make this device run ahead, which is the usual direction: a follower on
+ * Bluetooth is late.
+ */
+val ListenTogetherOffsetKey = intPreferencesKey("listenTogetherOffset")
 val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
 val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
 val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")

@@ -101,6 +101,19 @@ class ListenTogetherManager @Inject constructor(
     fun deviceName(): String = discovery.deviceName()
 
     /**
+     * How far ahead of the host this device should aim, in milliseconds.
+     *
+     * Applied live, so a listener can adjust it while a session is running and hear the result -
+     * which is the only practical way to set it, since the right value depends on the audio route
+     * and nothing can measure it from here.
+     */
+    var offsetMs: Long = 0L
+        set(value) {
+            field = value
+            followerSession?.offsetMs = value
+        }
+
+    /**
      * Hosts on the network so other devices can find and follow.
      *
      * The port is chosen by the OS and then advertised, rather than fixed. A hard-coded port that
@@ -196,6 +209,7 @@ class ListenTogetherManager @Inject constructor(
             }
 
             val session = FollowerSession(scope, bridge, ::nowUs, deviceName())
+            session.offsetMs = offsetMs
             followerSession = session
             val mirror = launch {
                 session.state.collect { state ->

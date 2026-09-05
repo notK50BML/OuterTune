@@ -55,6 +55,12 @@ class DriftCorrector(private val nowUs: () -> Long) {
     private var appliedSpeed = 1f
     private var settleUntilUs = 0L
 
+    /** Earliest the rate may be changed again. See the dwell in [correct]. */
+    private var rateHeldUntilUs = 0L
+
+    /** Seeks since the gap was last actually closed - the tell for a standing offset. */
+    private var consecutiveSeeks = 0
+
     /**
      * @param errorMs how far ahead the host is. Positive means the follower is behind and must speed
      *   up; negative means it has run ahead and must ease off.
@@ -76,18 +82,44 @@ class DriftCorrector(private val nowUs: () -> Long) {
 
         val magnitude = abs(errorMs)
 
-        if (magnitude >= SEEK_THRESHOLD_MS) {
-            correcting = false
-            appliedSpeed = 1f
-            settleUntilUs = nowUs() + SETTLE_US
-            return Correction.Seek(hostPositionMs)
+        // Returning to normal is always allowed, and is checked before anything that could defer it.
+        // Hysteresis: start correcting at HOLD_BAND but do not stop until well inside it, or a gap
+        // sitting on the boundary switches the rate on and off every tick.
+        val threshold = if (correcting) TIGHT_BAND_MS else HOLD_BAND_MS
+        if (magnitude < threshold) {
+            consecutiveSeeks = 0
+            return stopCorrecting()
         }
 
-        // Hysteresis: start correcting at HOLD_BAND, but do not stop until well inside it. Using one
-        // threshold for both would mean a gap hovering at the boundary switches the rate on and off
-        // every tick, which is both pointless and audible.
-        val threshold = if (correcting) TIGHT_BAND_MS else HOLD_BAND_MS
-        if (magnitude < threshold) return stopCorrecting()
+        if (magnitude >= SEEK_THRESHOLD_MS) {
+            // A gap this large is normally a track change or a join, and one seek fixes it. But if
+            // seeking keeps not fixing it, the gap is not drift - it is a standing difference the
+            // player's own clock cannot see, most often that the two devices put sound out at
+            // different delays. Seeking against that never converges and is heard every time, so
+            // after a few attempts it stops and hands the problem to the rate instead, which at
+            // least is inaudible. The user-set offset is the real cure; this only stops the app
+            // making it worse in the meantime.
+            if (consecutiveSeeks < MAX_CONSECUTIVE_SEEKS) {
+                consecutiveSeeks++
+                correcting = false
+                appliedSpeed = 1f
+                rateHeldUntilUs = 0L
+                settleUntilUs = nowUs() + SETTLE_US
+                return Correction.Seek(hostPositionMs)
+            }
+        } else {
+            consecutiveSeeks = 0
+        }
+
+        // A rate, once chosen, is kept for a while rather than recomputed every tick.
+        //
+        // This is the difference between a correction that is heard and one that is not. Every
+        // change of rate reconfigures the audio pipeline, and on many devices that is a click or a
+        // dropout - so continuously refining the rate as the gap shrinks produces a string of small
+        // artefacts, which is precisely the microstutter it was supposed to avoid. Recomputing
+        // eight times to close a fifth of a second is eight chances to be heard; three is better,
+        // and the gap closes just as surely.
+        if (nowUs() < rateHeldUntilUs) return Correction.Hold
 
         correcting = true
         // Proportional: aim to close the gap over TIME_CONSTANT_MS rather than as fast as possible.
@@ -95,11 +127,10 @@ class DriftCorrector(private val nowUs: () -> Long) {
         val offset = (errorMs.toDouble() / TIME_CONSTANT_MS).coerceIn(-MAX_NUDGE, MAX_NUDGE)
         val target = (1.0 + offset).toFloat()
 
-        // Only report a change worth making. Every speed change reconfigures the audio pipeline, and
-        // on some devices that is audible, so re-setting a rate that is already right for the sake
-        // of a rounding difference is a real cost for no benefit.
+        // Still worth nothing if it barely differs from what is already applied.
         if (abs(target - appliedSpeed) < MIN_SPEED_STEP) return Correction.Hold
         appliedSpeed = target
+        rateHeldUntilUs = nowUs() + RATE_DWELL_US
         return Correction.Nudge(target)
     }
 
@@ -113,11 +144,14 @@ class DriftCorrector(private val nowUs: () -> Long) {
         correcting = false
         appliedSpeed = 1f
         settleUntilUs = 0L
+        rateHeldUntilUs = 0L
+        consecutiveSeeks = 0
     }
 
     /** Back to normal rate, but only emitting a change if one is actually needed. */
     private fun stopCorrecting(): Correction {
         correcting = false
+        rateHeldUntilUs = 0L
         if (appliedSpeed == 1f) return Correction.Hold
         appliedSpeed = 1f
         return Correction.Nudge(1f)
@@ -154,5 +188,22 @@ class DriftCorrector(private val nowUs: () -> Long) {
 
         /** How long the player's position is untrustworthy after a seek. */
         const val SETTLE_US = 1_500_000L
+
+        /**
+         * How long a chosen rate is kept before it may be refined.
+         *
+         * Matched to the time constant, so one rate is expected to do most of the work before it is
+         * reconsidered. Shorter and the corrections stack up audibly; much longer and a gap that
+         * changes direction takes too long to notice.
+         */
+        const val RATE_DWELL_US = 3_000_000L
+
+        /**
+         * Seeks tolerated before concluding the gap is not something seeking can fix.
+         *
+         * Two covers the honest cases - a track change, a join mid-song - without letting a standing
+         * offset turn into an interruption every couple of seconds forever.
+         */
+        const val MAX_CONSECUTIVE_SEEKS = 2
     }
 }
