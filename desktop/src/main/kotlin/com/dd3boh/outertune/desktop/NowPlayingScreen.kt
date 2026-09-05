@@ -70,6 +70,8 @@ fun NowPlayingScreen(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onClose: () -> Unit,
+    spectrum: VisualizerTap? = null,
+    playedFrames: () -> Long = { 0L },
 ) {
     val song = queue.current
     val (primary, secondary) = rememberArtworkColours(song?.thumbnail)
@@ -114,7 +116,21 @@ fun NowPlayingScreen(
                     overflow = TextOverflow.Ellipsis,
                 )
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Above the progress bar rather than behind the cover. It is a readout of the
+                // sound, and it belongs with the other readouts of the sound - and behind the art it
+                // would have to be faded so far to keep the cover legible that there would be
+                // nothing left to see.
+                if (spectrum != null) {
+                    SpectrumBars(
+                        tap = spectrum,
+                        playedFrames = playedFrames,
+                        color = onBackground,
+                        active = playback is PlaybackState.Playing,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
                 if (durationMs > 0) {
                     Slider(

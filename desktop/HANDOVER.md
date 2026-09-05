@@ -101,11 +101,32 @@ In the order last discussed:
 
 1. **UI** — recreating the Android player's look (see the caveat above about copying it).
 2. **Queue refinements** — reordering, save-as-playlist, queue persistence across restarts.
-3. **Visualiser and EQ.** Both are further from free than they look, and for the same reason as
-   the player layout: the visualiser reads Media3's audio processor, and the EQ is Android's
-   `android.media.audiofx.Equalizer`. Neither exists here. The good news is that `DesktopPlayer`
-   already has the PCM in hand frame by frame, which is exactly what a visualiser needs and exactly
-   where a software EQ would sit - so both are real work, but on ground that is already prepared.
+3. ~~**Visualiser**~~ - done, see below. **EQ** is still open, and sits at exactly the same point
+   in the chain: `DesktopPlayer.stream()` holds the decoded PCM immediately before writing it to the
+   line, which is where a software biquad bank would go. Android's `android.media.audiofx.Equalizer`
+   has no equivalent off Android, so this is a real implementation rather than a binding.
+
+## The visualiser, and the one thing that makes it work
+
+`AudioSpectrum.kt` (FFT, PCM decode, log-spaced bands), `VisualizerTap.kt` (alignment), drawn by
+`Visualizer.kt`. 27 tests cover the DSP against signals whose answer is known in advance, because
+none of it can be checked by looking: an FFT with a transposed index, a byte order taken the wrong
+way round, or a missing sign extension all produce bars that move plausibly in time with the music.
+
+The part worth not undoing is `VisualizerTap`. Audio is written to the output line well before it is
+heard - the line buffers close to a second - so a spectrum computed when a block is decoded describes
+music that has not reached the speakers. Drawn directly, the bars lead the sound by about a second:
+they jump before the kick and settle before the note ends, which reads as a fault rather than as a
+decoration. So each spectrum is tagged with the frame position at which it becomes audible, and held
+until the line reports having played that far.
+
+This is the same lag `DesktopPlayer` already corrects for when reporting position, by reading the
+line's own frame counter instead of counting what it has written. A seek re-anchors both, since
+flushing the line discards audio that was written but never played.
+
+Bands are spaced logarithmically and levels are in decibels, because pitch and loudness both are.
+Linear bins put six of the seven audible octaves into the top quarter of the display and squash
+everything a listener would call the bass into the first bar.
 
 ## Is this "a Compose Multiplatform app"? (asked, and worth answering properly)
 

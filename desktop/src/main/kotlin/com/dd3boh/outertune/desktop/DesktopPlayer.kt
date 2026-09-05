@@ -66,6 +66,12 @@ sealed interface PlaybackState {
  * Decoding happens frame by frame as the line consumes them, rather than decoding the whole song
  * up front. A four minute track is about 42MB of PCM, and there is no reason to hold it.
  */
+/** Bars in the visualiser. Enough to show shape, few enough that each one is readable. */
+const val VISUALIZER_BANDS = 28
+
+/** Room for any block a decoder might return, well past the 1024 an AAC-LC frame carries. */
+private const val MONO_BUFFER_SAMPLES = 8192
+
 class DesktopPlayer {
 
     private companion object {
@@ -117,6 +123,19 @@ class DesktopPlayer {
     /** How far through the track playback has actually reached, and how long it is, in ms. */
     val positionMs = MutableStateFlow(0L)
     val durationMs = MutableStateFlow(0L)
+
+    /**
+     * Spectrum of what is currently audible, for the visualiser.
+     *
+     * Fed from the decode loop and read by the UI. It is a tap rather than a flow of arrays because
+     * a spectrum arrives about forty times a second and the UI redraws at its own rate; the two do
+     * not need to be coupled, and emitting a new array each time would make this the app's largest
+     * source of garbage.
+     */
+    val spectrum = VisualizerTap(VISUALIZER_BANDS)
+
+    /** The line's frame position, which is what [VisualizerTap.sample] needs. */
+    fun playedFrames(): Long = line?.longFramePosition ?: 0L
 
     /**
      * A seek the decode loop has not acted on yet, in ms.
@@ -297,6 +316,10 @@ class DesktopPlayer {
         val buffer = SampleBuffer()
         var open: SourceDataLine? = null
         var sampleRate = 0
+        var analyzer: SpectrumAnalyzer? = null
+        var mono: DoubleArray? = null
+        /** Frames handed to the line so far, which is when each block becomes audible. */
+        var framesWritten = 0L
 
         // Where the line's own frame counter stood when the current segment began, and what track
         // time that corresponded to. Position is read from the line rather than from how much has
@@ -321,6 +344,13 @@ class DesktopPlayer {
                         // Drop what is buffered, or the seek would be heard a second late.
                         it.flush()
                         lineFrameBase = it.longFramePosition
+                        // Everything written but not yet played has just been discarded, so the
+                        // running total no longer describes anything real. Re-anchoring it to what
+                        // the line has actually played puts the visualiser back in step; without
+                        // this it stays permanently ahead by however much was thrown away.
+                        framesWritten = it.longFramePosition
+                        spectrum.reset()
+                        analyzer?.reset()
                     }
                     trackMsBase = index.toLong() * FRAME_SAMPLES * 1000 / sampleRate
                     positionMs.value = trackMsBase
@@ -346,7 +376,42 @@ class DesktopPlayer {
                     .also { it.open(format); it.start() }
                 line = open
                 durationMs.value = samples.size.toLong() * FRAME_SAMPLES * 1000 / sampleRate
+                analyzer = SpectrumAnalyzer(sampleRate, bands = VISUALIZER_BANDS)
+                // Generous rather than exactly one AAC frame. A frame is 1024 samples, but SBR
+                // hands back double that and Pcm.toMono clamps to whatever it is given - so a tight
+                // buffer would silently analyse half of each block and read as a quieter, duller
+                // spectrum than the music actually is.
+                mono = DoubleArray(MONO_BUFFER_SAMPLES)
+                // The line has played nothing yet, so what is written first becomes audible first.
+                framesWritten = 0L
+                spectrum.reset()
             }
+
+            // Analysed before the write, and queued against the frame position at which this block
+            // will actually be heard rather than shown immediately. The line buffers close to a
+            // second, so a spectrum drawn when its audio is decoded leads the sound by about that
+            // much - the bars jump before the kick and settle before the note ends. See
+            // VisualizerTap for the full reasoning; it is the same lag the position readout above
+            // already corrects for by reading the line instead of counting what was written.
+            analyzer?.let { spectrumOf ->
+                val target = mono
+                if (target != null) {
+                    val frames = Pcm.toMono(
+                        bytes = pcm,
+                        offset = 0,
+                        length = pcm.size,
+                        bitsPerSample = buffer.bitsPerSample,
+                        channels = buffer.channels,
+                        bigEndian = buffer.isBigEndian,
+                        out = target,
+                    )
+                    if (frames > 0) {
+                        spectrum.submit(framesWritten, spectrumOf.analyze(target, frames))
+                        framesWritten += frames
+                    }
+                }
+            }
+
             open.write(pcm, 0, pcm.size)
 
             open.let {

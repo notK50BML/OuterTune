@@ -172,6 +172,8 @@ private fun App(player: DesktopPlayer) {
             onToggleShuffle = playerQueue::toggleShuffle,
             onCycleRepeat = playerQueue::cycleRepeat,
             onClose = { showFullPlayer = false },
+            spectrum = player.spectrum,
+            playedFrames = player::playedFrames,
         )
         return
     }

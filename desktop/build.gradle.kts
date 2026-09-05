@@ -35,6 +35,14 @@ dependencies {
     // one for the host; without that plugin it has to be named, or the window opens and then dies
     // on a missing skiko-windows-x64.dll. Pinned to the version desktop-jvm 1.8.2 resolves.
     implementation("org.jetbrains.skiko:skiko-awt-runtime-windows-x64:0.9.4.2")
+
+    // The DSP behind the visualiser is ordinary maths, and ordinary maths is worth checking: an FFT
+    // that is subtly wrong still produces bars that move.
+    testImplementation("junit:junit:4.13.2")
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnit()
 }
 
 /**
