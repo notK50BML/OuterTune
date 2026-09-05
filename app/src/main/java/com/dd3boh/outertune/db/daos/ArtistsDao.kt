@@ -96,6 +96,27 @@ interface ArtistsDao {
     """)
     fun artistWithSongsByNameIgnoreCase(name: String, excludingId: String): ArtistEntity?
 
+    /**
+     * Every other artist row sharing this name, most-stocked first.
+     *
+     * YouTube gives one real-world artist several channels, and they are not interchangeable: one
+     * may carry the full Songs listing while another has only Singles and EPs, even though both are
+     * named correctly and both are real. Deciding between them means being able to see all of them.
+     *
+     * Ordered by how many library songs each holds, so the most likely candidate is tried first and
+     * the search usually stops after one.
+     */
+    @Query("""
+        SELECT artist.* FROM artist
+            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
+        WHERE artist.name = :name COLLATE NOCASE AND artist.id <> :excludingId
+        GROUP BY artist.id
+        ORDER BY COUNT(song.id) DESC
+        LIMIT :limit
+    """)
+    fun artistsByNameIgnoreCase(name: String, excludingId: String, limit: Int): List<ArtistEntity>
+
     @Query("""
         SELECT 
             artist.*,

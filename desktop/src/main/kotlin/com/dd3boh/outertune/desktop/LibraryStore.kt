@@ -8,6 +8,7 @@ package com.dd3boh.outertune.desktop
 
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
+import java.util.UUID
 
 /** One song as the desktop library stores it - enough to show it and to play it again. */
 data class StoredSong(
@@ -19,106 +20,148 @@ data class StoredSong(
 )
 
 /**
- * The desktop library: what has been played, and what has been liked.
- *
- * Backed by a small text file on purpose, and behind an interface narrow enough to replace.
- *
- * Choosing the real storage engine - Room's KMP support, SQLDelight, something else - is a decision
- * with consequences for schema migrations, threading and how much of the Android app's data layer
- * can eventually be shared. It is not a decision worth making as a side effect of wanting a
- * recently-played list, and it is not one that has to be made before anything else can be built. So
- * this stores what is needed now in the simplest thing that persists, and keeps the surface small
- * enough that swapping the backing store touches this file alone.
- *
- * What that costs, stated plainly rather than discovered later: no queries, no indices, no
- * migrations, and the whole library is held in memory and rewritten on every change. That is fine
- * for hundreds of songs and wrong for thousands, which is the point at which the real engine has to
- * be chosen rather than a moment sooner.
+ * Beside the user's other application data rather than next to the jar, so the library survives the
+ * app being moved or reinstalled.
  */
-class LibraryStore(directory: File = defaultDirectory()) {
+fun defaultDataDirectory(): File {
+    val base = System.getenv("LOCALAPPDATA")
+        ?: System.getenv("XDG_DATA_HOME")
+        ?: System.getProperty("user.home")
+    return File(base, "OuterTune")
+}
 
-    private val recentFile = File(directory, "recently-played.tsv")
-    private val likedFile = File(directory, "liked.tsv")
+/**
+ * The desktop library: what has been played, what has been liked, and playlists.
+ *
+ * Backed by SQLite now rather than by a pair of text files. The interface is unchanged, which was
+ * the point of keeping it narrow in the first place - the file store said the real engine had to be
+ * chosen at the point where "the whole library is held in memory and rewritten on every change"
+ * stopped being acceptable, and playlists are that point: a reorder rewriting every playlist to disk
+ * is not a design anyone would choose on purpose.
+ *
+ * The flows stay. Reads go to the database and the results are published through them, so the UI
+ * observes exactly as before, and nothing above this file knows the storage changed. What is no
+ * longer true is that everything lives in memory: the flows are a cache of the last read, not the
+ * library itself.
+ *
+ * Any existing text-file library is imported once on first run - see [importLegacyFiles]. Throwing
+ * away someone's liked songs because the storage improved would be a poor trade.
+ */
+class LibraryStore(
+    directory: File = defaultDataDirectory(),
+    private val db: Database = Database(File(directory, "library.db")),
+) {
 
     val recentlyPlayed = MutableStateFlow<List<StoredSong>>(emptyList())
     val liked = MutableStateFlow<List<StoredSong>>(emptyList())
+    val playlists = MutableStateFlow<List<StoredPlaylist>>(emptyList())
 
     init {
         directory.mkdirs()
-        recentlyPlayed.value = read(recentFile)
-        liked.value = read(likedFile)
+        importLegacyFiles(directory)
+        refreshAll()
     }
 
-    /**
-     * Records a play, most recent first, without duplicating a song already in the list.
-     *
-     * Re-playing something moves it to the top rather than adding a second entry: a list of the last
-     * fifty plays is far less useful than a list of the last fifty *songs* when one track has been
-     * on repeat.
-     */
     fun recordPlay(song: StoredSong) {
-        val updated = (listOf(song) + recentlyPlayed.value.filterNot { it.id == song.id }).take(MAX_RECENT)
-        recentlyPlayed.value = updated
-        write(recentFile, updated)
+        db.recordPlay(song, System.currentTimeMillis())
+        recentlyPlayed.value = db.recentlyPlayed(MAX_RECENT)
     }
 
     fun toggleLiked(song: StoredSong) {
-        val current = liked.value
-        val updated = if (current.any { it.id == song.id }) {
-            current.filterNot { it.id == song.id }
-        } else {
-            listOf(song) + current
-        }
-        liked.value = updated
-        write(likedFile, updated)
+        db.setLiked(song, liked = !isLiked(song.id), atMs = System.currentTimeMillis())
+        liked.value = db.likedSongs()
     }
 
     fun isLiked(id: String): Boolean = liked.value.any { it.id == id }
 
+    // ---- playlists -------------------------------------------------------------------------
+
+    fun createPlaylist(name: String): String {
+        val id = UUID.randomUUID().toString()
+        db.createPlaylist(id, name, System.currentTimeMillis())
+        playlists.value = db.playlists()
+        return id
+    }
+
+    fun renamePlaylist(id: String, name: String) {
+        db.renamePlaylist(id, name)
+        playlists.value = db.playlists()
+    }
+
+    fun deletePlaylist(id: String) {
+        db.deletePlaylist(id)
+        playlists.value = db.playlists()
+    }
+
+    fun addToPlaylist(playlistId: String, song: StoredSong) {
+        db.addToPlaylist(playlistId, song)
+        playlists.value = db.playlists()
+    }
+
+    fun removeFromPlaylist(playlistId: String, songId: String) {
+        db.removeFromPlaylist(playlistId, songId)
+        playlists.value = db.playlists()
+    }
+
     /**
-     * Tab-separated, one song per line.
+     * Not a flow.
      *
-     * Tabs rather than commas because titles and artist names contain commas constantly and tabs
-     * essentially never; any that do appear are stripped on write, so a stray tab cannot shift every
-     * later field on the line. A malformed line is skipped rather than aborting the load - a library
-     * that half-loads is better than one that refuses to open because of a single bad row.
+     * A playlist's contents are read when its screen opens and not otherwise, so a flow per playlist
+     * would be state to keep in step for no benefit. The list of playlists is a flow because it is
+     * on screen while it changes.
      */
-    private fun read(file: File): List<StoredSong> {
+    fun playlistSongs(playlistId: String): List<StoredSong> = db.playlistSongs(playlistId)
+
+    fun reorderPlaylist(playlistId: String, songIdsInOrder: List<String>) {
+        db.reorderPlaylist(playlistId, songIdsInOrder)
+    }
+
+    fun refreshAll() {
+        recentlyPlayed.value = db.recentlyPlayed(MAX_RECENT)
+        liked.value = db.likedSongs()
+        playlists.value = db.playlists()
+    }
+
+    fun close() = db.close()
+
+    /**
+     * Moves a text-file library into the database, once.
+     *
+     * The files are renamed rather than deleted, so a failed import can be looked at, and so this
+     * cannot run twice and duplicate anything. Timestamps are synthesised from list order, which is
+     * all the old format recorded - it kept most-recent-first and nothing else.
+     */
+    private fun importLegacyFiles(directory: File) {
+        val recent = File(directory, "recently-played.tsv")
+        val likedFile = File(directory, "liked.tsv")
+        if (!recent.exists() && !likedFile.exists()) return
+
+        val now = System.currentTimeMillis()
+        db.transaction {
+            readLegacy(recent).forEachIndexed { index, song ->
+                // Descending, so the first line - the most recently played - keeps that position.
+                db.recordPlay(song, now - index)
+            }
+            readLegacy(likedFile).forEachIndexed { index, song ->
+                db.setLiked(song, liked = true, atMs = now - index)
+            }
+        }
+        runCatching { recent.renameTo(File(directory, "recently-played.tsv.imported")) }
+        runCatching { likedFile.renameTo(File(directory, "liked.tsv.imported")) }
+    }
+
+    private fun readLegacy(file: File): List<StoredSong> {
         if (!file.exists()) return emptyList()
         return runCatching {
             file.readLines().mapNotNull { line ->
                 val parts = line.split('\t')
-                // Four fields now, three before covers were stored. A short line is read rather
-                // than discarded, so an existing library keeps working across the change.
-                if (parts.size < 3 || parts[0].isBlank()) null
-                else StoredSong(parts[0], parts[1], parts[2], parts.getOrElse(3) { "" })
+                if (parts.size < 3) return@mapNotNull null
+                StoredSong(parts[0], parts[1], parts[2], parts.getOrElse(3) { "" })
             }
         }.getOrDefault(emptyList())
     }
 
-    private fun write(file: File, songs: List<StoredSong>) {
-        runCatching {
-            file.writeText(
-                songs.joinToString("\n") { song ->
-                    listOf(song.id, song.title, song.artists, song.thumbnail)
-                        .joinToString("\t") { it.replace('\t', ' ') }
-                }
-            )
-        }
-    }
-
     private companion object {
         const val MAX_RECENT = 50
-
-        /**
-         * Beside the user's other application data rather than next to the jar, so the library
-         * survives the app being moved or reinstalled.
-         */
-        fun defaultDirectory(): File {
-            val base = System.getenv("LOCALAPPDATA")
-                ?: System.getenv("XDG_DATA_HOME")
-                ?: System.getProperty("user.home")
-            return File(base, "OuterTune")
-        }
     }
 }

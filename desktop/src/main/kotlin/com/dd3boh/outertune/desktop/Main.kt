@@ -125,6 +125,22 @@ private fun App(player: DesktopPlayer) {
     var searchFocused by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
 
+    val playlists by library.playlists.collectAsState()
+    var showPlaylists by remember { mutableStateOf(false) }
+    var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
+    var addingToPlaylist by remember { mutableStateOf<StoredSong?>(null) }
+
+    // Read when the open playlist changes, and re-read whenever the playlist list does - which is
+    // what changes after an add, a removal or a reorder. A flow per playlist would be more state to
+    // keep in step for something only ever looked at one at a time.
+    val openPlaylistSongs = remember(openPlaylist?.id, playlists) {
+        openPlaylist?.let { library.playlistSongs(it.id) } ?: emptyList()
+    }
+
+    // The open playlist is re-read from the list so its song count stays current in the header, and
+    // so it disappears cleanly if deleted from elsewhere.
+    val selectedPlaylist = openPlaylist?.let { open -> playlists.firstOrNull { it.id == open.id } }
+
     // visitorData needs a network call, so it cannot be set the way locale is. Its failure used to
     // be silent, which does not look like a failure: search keeps working because search only needs
     // the locale, while every player request comes back refused.
@@ -156,6 +172,16 @@ private fun App(player: DesktopPlayer) {
 
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
     val toggleLike = { queue.current?.let { library.toggleLiked(it.stored()) }; Unit }
+
+    addingToPlaylist?.let { song ->
+        AddToPlaylistDialog(
+            song = song,
+            playlists = playlists,
+            onDismiss = { addingToPlaylist = null },
+            onAdd = { library.addToPlaylist(it.id, song) },
+            onCreateAndAdd = { name -> library.addToPlaylist(library.createPlaylist(name), song) },
+        )
+    }
 
     if (showFullPlayer) {
         NowPlayingScreen(
@@ -213,18 +239,57 @@ private fun App(player: DesktopPlayer) {
                     onFocusChange = { searchFocused = it },
                     searching = searching,
                 )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = 8.dp),
+                ) {
+                    TextButton(onClick = {
+                        showPlaylists = !showPlaylists
+                        // Closing the pane forgets which playlist was open, so returning to it
+                        // starts at the list rather than wherever it was left weeks ago.
+                        if (!showPlaylists) openPlaylist = null
+                    }) {
+                        Text(if (showPlaylists) "← Library" else "Playlists")
+                    }
+                }
                 SessionStatus(session)
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
-                Content(
-                    results = results,
-                    liked = liked,
-                    recent = recent,
-                    currentId = queue.current?.id,
-                    onPlayResult = { index -> playerQueue.play(results, index) },
-                    onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toSongItem() }, index) },
-                )
+                if (showPlaylists) {
+                    PlaylistsPane(
+                        playlists = playlists,
+                        selected = selectedPlaylist,
+                        songsInSelected = openPlaylistSongs,
+                        currentId = queue.current?.id,
+                        onSelect = { openPlaylist = it },
+                        onCreate = { library.createPlaylist(it) },
+                        onRename = { playlist, name -> library.renamePlaylist(playlist.id, name) },
+                        onDelete = { library.deletePlaylist(it.id) },
+                        onPlay = { songs, index -> playerQueue.play(songs.map { it.toSongItem() }, index) },
+                        onRemoveSong = { playlist, song -> library.removeFromPlaylist(playlist.id, song.id) },
+                        onMoveSong = { playlist, from, to ->
+                            val ids = openPlaylistSongs.map { it.id }.toMutableList()
+                            if (to in ids.indices) {
+                                ids.add(to, ids.removeAt(from))
+                                library.reorderPlaylist(playlist.id, ids)
+                                // The reorder does not touch the playlist list, so nothing would
+                                // re-read the songs. Touching it is what makes the new order appear.
+                                library.refreshAll()
+                            }
+                        },
+                    )
+                } else {
+                    Content(
+                        results = results,
+                        liked = liked,
+                        recent = recent,
+                        currentId = queue.current?.id,
+                        onPlayResult = { index -> playerQueue.play(results, index) },
+                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toSongItem() }, index) },
+                        onAddToPlaylist = { addingToPlaylist = it },
+                    )
+                }
             }
 
             if (queue.songs.isNotEmpty()) {
@@ -303,11 +368,20 @@ private fun Content(
     currentId: String?,
     onPlayResult: (Int) -> Unit,
     onPlayStored: (List<StoredSong>, Int) -> Unit,
+    onAddToPlaylist: (StoredSong) -> Unit,
 ) {
     if (results.isNotEmpty()) {
         LazyColumn(modifier = Modifier.fillMaxSize()) {
             itemsIndexed(results) { index, song ->
-                SongRow(song, playing = song.id == currentId) { onPlayResult(index) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        SongRow(song, playing = song.id == currentId) { onPlayResult(index) }
+                    }
+                    // On the row rather than behind a context menu: filing a song is something done
+                    // while looking at search results, and a right-click menu on desktop Compose is
+                    // extra machinery for a single action.
+                    TextButton(onClick = { onAddToPlaylist(song.stored()) }) { Text("+") }
+                }
             }
         }
         return
@@ -341,7 +415,12 @@ private fun Content(
             // The whole shelf is queued, so playing from Liked plays the lot rather than one song
             // followed by silence.
             itemsIndexed(songs) { index, song ->
-                StoredSongRow(song, playing = song.id == currentId) { onPlayStored(songs, index) }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        StoredSongRow(song, playing = song.id == currentId) { onPlayStored(songs, index) }
+                    }
+                    TextButton(onClick = { onAddToPlaylist(song) }) { Text("+") }
+                }
             }
         }
     }
@@ -485,7 +564,7 @@ private fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit
 
 /** A row for a song out of the library, which keeps artists as one display string. */
 @Composable
-private fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: () -> Unit) {
+internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),

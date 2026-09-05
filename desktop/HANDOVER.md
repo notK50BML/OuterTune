@@ -75,8 +75,7 @@ and is the thing to avoid.
 
 ## What is genuinely missing
 
-- **A real database.** See above.
-- **Playlists**, of any kind.
+- **Signing in to YouTube Music.** The only large piece left - see below.
 - **Signing in to YouTube Music.** The API layer supports it (`YouTube.cookie`), but acquiring the
   cookie is the problem: on Android that is a WebView login. On desktop it means embedding a browser
   (the thing point 1 says is not otherwise needed), driving the system browser, or pasting a cookie
@@ -102,6 +101,45 @@ In the order last discussed:
 1. **UI** — recreating the Android player's look (see the caveat above about copying it).
 2. **Queue refinements** — reordering, save-as-playlist, queue persistence across restarts.
 3. ~~**Visualiser and EQ**~~ - both done, see below.
+
+## Storage
+
+`Database.kt` - SQLite through the JDBC driver, with the SQL written out rather than generated. No
+Gradle plugin and no code generator, for the same reason this module takes Compose as artifacts: both
+pin versions that drift against the Kotlin this project builds with, and neither earns that for a
+schema this size. SQLite specifically because the Android side is already SQLite, so a schema and a
+query mean the same thing there.
+
+The published sqlite-jdbc jar carries native binaries for eleven platforms. `fatJar` keeps only the
+host's, which is the difference between +2.5MB and +14MB.
+
+Things worth not undoing:
+
+- **One connection, one lock.** Several connections mean a write in one is invisible to a read
+  already in flight in another, and the failure is a lock timeout under exactly the conditions
+  hardest to reproduce. Reentrant, and `transaction` counts its depth so a nested call joins the
+  outer one instead of committing it early.
+- **`user_version`, not a migrations table.** Already there, atomic with the transaction that sets
+  it, and cannot itself need migrating. Each step is written to be safe to re-run, because a
+  migration that fails halfway leaves the version unchanged and will be attempted again.
+- **An upsert never blanks what it does not know.** A song re-encountered from a sparse source - a
+  queue entry, a search result - would otherwise erase a cover a richer source had supplied.
+- **Positions are renumbered after a removal.** Leaving a hole reads fine in order, so it looks
+  correct, but the next insert is computed from `MAX(position)` and the gap grows.
+
+An existing text-file library is imported once on first run and the files renamed rather than
+deleted, so a failed import can be looked at and a second run cannot duplicate anything.
+
+## Playlists
+
+Create, rename, delete, add, remove, reorder - all persisted. Reordering is buttons rather than
+drag: drag-to-reorder is what it wants to be and needs its own gesture handling, an animated
+placeholder and autoscroll. The buttons reorder correctly today and nothing about them has to be
+undone to add dragging later.
+
+`reorderPlaylist` deletes and re-inserts inside one transaction rather than updating positions one
+at a time, because the song is part of a unique constraint and the position is not - moving one song
+would collide with whatever currently holds its destination.
 
 ## The equaliser
 

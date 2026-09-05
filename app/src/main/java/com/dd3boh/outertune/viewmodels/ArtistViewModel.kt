@@ -15,6 +15,7 @@ import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.ui.utils.resize
 import com.dd3boh.outertune.utils.reportException
 import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.pages.ArtistPage
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -88,6 +89,7 @@ class ArtistViewModel @Inject constructor(
                     if (requestedArtistId == artistId) throw failure
                     YouTube.artist(requestedArtistId).getOrThrow()
                 }
+                .map { page -> preferChannelWithSongs(page) }
                 .onSuccess {
                     artistPage = it
                     // Write the authoritative name/picture back to the library row. This screen
@@ -143,6 +145,49 @@ class ArtistViewModel @Inject constructor(
     }
 
     /**
+     * Swaps to a same-named channel that actually lists songs, when this one does not.
+     *
+     * YouTube gives one real-world artist several channels, and they are not equivalent. A song can
+     * be credited to a channel whose page carries only Singles and EPs while another channel, named
+     * identically and equally real, carries the full Songs listing including that very song. Landing
+     * on the first is technically correct and useless: the song that was tapped is nowhere on the
+     * page it led to.
+     *
+     * So a page with no Songs section is treated as a candidate rather than an answer, and the other
+     * channels of that name are tried. The first that lists songs wins; if none does, the original
+     * stands, because a page with singles on it beats no page at all.
+     *
+     * A Songs section is recognised the same way the screen recognises one - items that are songs
+     * carrying an album - so this cannot disagree with what is about to be rendered.
+     *
+     * Bounded to [MAX_CHANNEL_CANDIDATES] extra fetches. This runs while the user is looking at a
+     * loading spinner, and a name shared by many artists must not turn opening a page into a survey
+     * of all of them.
+     */
+    private suspend fun preferChannelWithSongs(page: ArtistPage): ArtistPage {
+        if (page.hasSongsSection()) return page
+        val name = page.artist.title.stripTopicSuffix()
+        if (name.isBlank() || TOPIC_SUFFIX.containsMatchIn(name)) return page
+
+        val candidates = withContext(Dispatchers.IO) {
+            database.artistsByNameIgnoreCase(name, artistId, MAX_CHANNEL_CANDIDATES)
+        }
+        for (candidate in candidates) {
+            if (!candidate.isYouTubeArtist) continue
+            val better = YouTube.artist(candidate.id.normalizeArtistId()).getOrNull() ?: continue
+            if (!better.hasSongsSection()) continue
+            Log.i(TAG, "\"$name\" $artistId lists no songs; ${candidate.id} does - showing that")
+            libraryArtistId.value = candidate.id
+            return better
+        }
+        return page
+    }
+
+    /** The same test the screen uses to decide whether a section is the Songs shelf. */
+    private fun ArtistPage.hasSongsSection(): Boolean =
+        sections.any { (it.items.firstOrNull() as? SongItem)?.album != null }
+
+    /**
      * Points the library sections at the row that actually holds this artist's songs.
      *
      * YouTube gives one real-world artist more than one channel - an auto-generated "- Topic" one
@@ -175,5 +220,14 @@ class ArtistViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "ArtistViewModel"
+
+        /**
+         * Other channels of the same name to try before giving up.
+         *
+         * Each one is a network round trip taken while the user watches a spinner. Two is enough for
+         * the case this exists for - an artist with a topic channel, a real channel and occasionally
+         * a second real one - without turning a common name into a survey.
+         */
+        private const val MAX_CHANNEL_CANDIDATES = 2
     }
 }

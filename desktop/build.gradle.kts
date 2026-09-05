@@ -36,6 +36,20 @@ dependencies {
     // on a missing skiko-windows-x64.dll. Pinned to the version desktop-jvm 1.8.2 resolves.
     implementation("org.jetbrains.skiko:skiko-awt-runtime-windows-x64:0.9.4.2")
 
+    // SQLite, through the pure-JDBC driver.
+    //
+    // Chosen over SQLDelight or Room-KMP for the same reason this module takes Compose as artifacts
+    // rather than as a Gradle plugin: neither needs a plugin or a code generator to work, and both
+    // of those pin versions that drift against the Kotlin this project builds with.
+    //
+    // SQLite specifically, rather than H2 or HSQLDB, because the Android side is already SQLite -
+    // so a schema and a query written here mean the same thing there, which is what would make
+    // sharing a data layer possible later rather than a rewrite.
+    //
+    // The published jar carries native binaries for every platform it supports, which is about 12MB
+    // for the eleven that will never run. fatJar keeps only the one for the host - see below.
+    implementation("org.xerial:sqlite-jdbc:3.50.1.0")
+
     // The DSP behind the visualiser is ordinary maths, and ordinary maths is worth checking: an FFT
     // that is subtly wrong still produces bars that move.
     testImplementation("junit:junit:4.13.2")
@@ -142,4 +156,17 @@ tasks.register<Jar>("fatJar") {
             .map { zipTree(it) }
     })
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/versions/9/module-info.class")
+
+    // sqlite-jdbc ships a native library per platform in one jar - Linux on four architectures,
+    // macOS, FreeBSD, Android, and so on. A jar built to be run on Windows carries about 12MB of
+    // binaries that cannot execute on it. Keeping only the host's is the single largest saving
+    // available here, and it is free.
+    //
+    // Nothing else in the build looks at these paths, so the risk is confined to this task: if the
+    // wrong one were dropped the jar fails loudly at the first query rather than subtly later.
+    exclude("org/sqlite/native/Linux/**")
+    exclude("org/sqlite/native/Linux-Android/**")
+    exclude("org/sqlite/native/Linux-Musl/**")
+    exclude("org/sqlite/native/Mac/**")
+    exclude("org/sqlite/native/FreeBSD/**")
 }
