@@ -264,16 +264,25 @@ interface AlbumsDao : ArtistsDao {
 
     @Transaction
     fun insert(albumItem: AlbumItem) {
-        if (insert(AlbumEntity(
-                id = albumItem.browseId,
-                playlistId = albumItem.playlistId,
-                title = albumItem.title,
-                year = albumItem.year,
-                thumbnailUrl = albumItem.thumbnail,
-                songCount = 0,
-                duration = 0
-            )) == -1L
-        ) return
+        // The artist mapping below runs even when the album row already existed, which is why the
+        // insert's result is no longer a reason to stop here. An album first cached from a sparse
+        // source - a search result, a home row - can arrive with no artists at all, and returning on
+        // the OnConflictStrategy.IGNORE conflict silently discarded the richer credits of every
+        // later, better source. The album then keeps no artist link, so its page has nothing to
+        // point at. The same fix was already made for songs in DatabaseDao.insert(mediaMetadata);
+        // the album path was missed.
+        //
+        // Safe to re-run: the artist insert heals rather than duplicates, and AlbumArtistMap is
+        // IGNORE on [albumId, artistId], so this only ever adds a mapping that was missing.
+        insert(AlbumEntity(
+            id = albumItem.browseId,
+            playlistId = albumItem.playlistId,
+            title = albumItem.title,
+            year = albumItem.year,
+            thumbnailUrl = albumItem.thumbnail,
+            songCount = 0,
+            duration = 0
+        ))
         albumItem.artists
             ?.map { artist ->
                 // See the identical dedup in DatabaseDao.insert(mediaMetadata, ...)'s own doc for

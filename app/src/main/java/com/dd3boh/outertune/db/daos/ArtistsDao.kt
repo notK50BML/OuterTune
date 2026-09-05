@@ -70,6 +70,32 @@ interface ArtistsDao {
     @Query("SELECT * FROM artist WHERE isLocal = 1 AND name LIKE '%' || :name || '%'")
     fun localArtistsByNameFuzzy(name: String): List<ArtistEntity>
 
+    /**
+     * A different artist row with the same name that actually holds library songs.
+     *
+     * For the case where a credit and a page disagree about which channel an artist is. YouTube
+     * gives the same real-world artist more than one channel - most often an auto-generated
+     * "- Topic" one alongside their real one - and the library keeps whichever id it happened to
+     * see first. Opening the page for the other one then shows the right name and nothing else,
+     * because the songs are mapped to the id that was seen first.
+     *
+     * `HAVING COUNT(song.id) > 0` is what makes this safe to act on: it will not return an artist
+     * who has nothing either, so the worst case is that nothing is found and the page is left
+     * exactly as it was. Ordered by song count so the row with the strongest claim wins when a name
+     * really is shared by more than one artist.
+     */
+    @Query("""
+        SELECT artist.* FROM artist
+            LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
+        WHERE artist.name = :name COLLATE NOCASE AND artist.id <> :excludingId
+        GROUP BY artist.id
+        HAVING COUNT(song.id) > 0
+        ORDER BY COUNT(song.id) DESC
+        LIMIT 1
+    """)
+    fun artistWithSongsByNameIgnoreCase(name: String, excludingId: String): ArtistEntity?
+
     @Query("""
         SELECT 
             artist.*,

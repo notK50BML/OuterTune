@@ -45,13 +45,13 @@ on:
         required: true
         default: "outertune-backlog.patch"
       version_name:
-        description: "versionName for this build (blank = leave whatever the patch set)"
+        description: "versionName (blank = same as the last build)"
         required: false
-        default: "0.17"
+        default: ""
       version_code:
-        description: "versionCode - must be HIGHER than the build you already have installed, or Android refuses the upgrade"
+        description: "versionCode (blank = one higher than the last build). Android refuses an upgrade whose code is not higher than the installed one."
         required: false
-        default: "94"
+        default: ""
 
 jobs:
   build:
@@ -180,18 +180,73 @@ jobs:
           echo "Applied commits:"
           git log --oneline -8
 
-      # Runs whether or not the version commit applied, so there is exactly one place that
-      # decides what this build calls itself. Leave the inputs blank to accept whatever the
-      # patch set.
+      # What the last successful run of this workflow called itself. Restored by prefix rather than
+      # by an exact key, so it always finds the most recent one without anybody having to know its
+      # number. A miss is not a failure - the step below falls back to what the patch declares.
+      #
+      # Caches are scoped to the branch that wrote them, so running this from a branch that has
+      # never built starts its own count rather than inheriting the default branch's.
+      - name: Recall the last build's version
+        uses: actions/cache/restore@v4
+        with:
+          path: .build-version
+          key: otver-build-patched-backlog-${{ github.run_number }}-${{ github.run_attempt }}
+          restore-keys: |
+            otver-build-patched-backlog-
+
+      # One place decides what this build calls itself.
+      #
+      # Left blank, both inputs continue from the previous build: the same name, one higher code.
+      # That is the point - Android refuses to install an upgrade whose versionCode is not higher
+      # than the installed one, and a number typed from memory is precisely the thing that gets that
+      # wrong. Filling either in overrides it for this run, and the next run continues from there.
       - name: Set version
+        id: version
         run: |
           set -e
-          if [ -n "${{ inputs.version_name }}" ]; then
-            sed -i -E 's/^([[:space:]]*)versionName = .*/\1versionName = "${{ inputs.version_name }}"/' app/build.gradle.kts
+          # What the patched tree declares, as both the floor and the fallback.
+          TREE_NAME="$(sed -nE 's/^[[:space:]]*versionName = "(.*)"/\1/p' app/build.gradle.kts | head -1)"
+          TREE_CODE="$(sed -nE 's/^[[:space:]]*versionCode = ([0-9]+)/\1/p' app/build.gradle.kts | head -1)"
+          TREE_CODE="${TREE_CODE:-0}"
+
+          # What the previous run recorded, if the cache had it.
+          PREV_NAME="$(sed -n 's/^name=//p' .build-version 2>/dev/null | head -1)"
+          PREV_CODE="$(sed -n 's/^code=//p' .build-version 2>/dev/null | head -1)"
+
+          if [ -n "$PREV_CODE" ]; then
+            PREVIOUS="${PREV_NAME:-?} (code $PREV_CODE)"
+          else
+            PREVIOUS="none recorded, starting from the patch ($TREE_NAME, code $TREE_CODE)"
           fi
-          if [ -n "${{ inputs.version_code }}" ]; then
-            sed -i -E 's/^([[:space:]]*)versionCode = .*/\1versionCode = ${{ inputs.version_code }}/' app/build.gradle.kts
+
+          NAME="${{ inputs.version_name }}"
+          [ -n "$NAME" ] || NAME="${PREV_NAME:-$TREE_NAME}"
+
+          CODE="${{ inputs.version_code }}"
+          if [ -z "$CODE" ]; then
+            # The floor applies only when the number is derived, never when it was asked for: a
+            # patch that raises the version itself must not be silently undone by a stale count,
+            # while an explicit number is a deliberate choice and is left exactly as given.
+            BASE="${PREV_CODE:-$TREE_CODE}"
+            [ "$TREE_CODE" -gt "$BASE" ] && BASE="$TREE_CODE"
+            CODE=$((BASE + 1))
           fi
+
+          sed -i -E "s/^([[:space:]]*)versionName = .*/\1versionName = \"$NAME\"/" app/build.gradle.kts
+          sed -i -E "s/^([[:space:]]*)versionCode = .*/\1versionCode = $CODE/" app/build.gradle.kts
+
+          # Written now rather than after the build, but the save step is conditional on success -
+          # so a build that fails never burns a version number.
+          printf 'name=%s\ncode=%s\n' "$NAME" "$CODE" > .build-version
+
+          {
+            echo "name=$NAME"
+            echo "code=$CODE"
+            echo "previous=$PREVIOUS"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Previous build: $PREVIOUS"
+          echo "This build:     $NAME (code $CODE)"
           grep -nE "version(Code|Name) = " app/build.gradle.kts
 
       - name: Set up JDK 21
@@ -286,14 +341,55 @@ jobs:
           echo "${ERRORS:-(none)}"
           echo "===================================================="
 
+      # Only on success, so a failed build does not consume a version number and leave a gap.
+      - name: Remember this version for the next build
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .build-version
+          key: otver-build-patched-backlog-${{ github.run_number }}-${{ github.run_attempt }}
+
+      # What this run actually produced, on the run's summary page and as a notice pinned to the
+      # top of it. Without this, the only way to find out which version an APK is, is to download
+      # it and read the filename.
+      - name: Build notice
+        if: success()
+        run: |
+          set -e
+          NAME="${{ steps.version.outputs.name }}"
+          CODE="${{ steps.version.outputs.code }}"
+          echo "::notice::OuterTune $NAME, versionCode $CODE (${{ inputs.variant }}) - previous build was ${{ steps.version.outputs.previous }}"
+          {
+            echo "## OuterTune $NAME - versionCode $CODE"
+            echo
+            echo "| | |"
+            echo "| --- | --- |"
+            echo "| Version name | \`$NAME\` |"
+            echo "| Version code | \`$CODE\` |"
+            echo "| Previous build | ${{ steps.version.outputs.previous }} |"
+            echo "| Variant | \`${{ inputs.variant }}\` |"
+            echo "| Patch | \`${{ inputs.patch_file }}\` |"
+            echo "| Workflow run | #${{ github.run_number }} |"
+            echo
+            echo "### APKs"
+            echo
+            echo "| File | Size |"
+            echo "| --- | --- |"
+            find app/build/outputs/apk -name '*.apk' | sort | while IFS= read -r apk; do
+              printf '| `%s` | %s |\n' "$(basename "$apk")" "$(du -h "$apk" | cut -f1)"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
       - name: Remove signing material
         if: always()
         run: rm -f release.jks keystore.properties
 
+      # The version is in the artifact name as well as inside the APKs, so several downloads
+      # sitting in the same folder can still be told apart.
       - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: outertune-${{ inputs.variant }}
+          name: outertune-${{ inputs.variant }}-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
           path: app/build/outputs/apk/**/*.apk
           if-no-files-found: error
 
