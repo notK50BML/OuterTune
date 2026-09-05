@@ -118,6 +118,10 @@ class FollowerSession(
     private var wanted: SharedTrack? = null
     private var loading = false
 
+    /** The last song handed to the player, and how long to wait before believing it did not take. */
+    private var startedVideoId: String? = null
+    private var trackSettleUntilUs = 0L
+
     /**
      * Joins a session over an already-connected link. Returns when the session ends.
      *
@@ -128,6 +132,8 @@ class FollowerSession(
         this.link = link
         sync.reset()
         corrector.reset()
+        startedVideoId = null
+        trackSettleUntilUs = 0L
         _state.value = FollowerState()
 
         link.send(Protocol.Frame.Hello(Protocol.VERSION, deviceName))
@@ -247,8 +253,22 @@ class FollowerSession(
         }
     }
 
+    /**
+     * Loads the song the host is on, if it is not already loading or just loaded.
+     *
+     * The settle window is not politeness, it is the difference between working and not. Handing a
+     * queue to the player returns long before the player reports the new song - the queue has to be
+     * built and the media item prepared - so the next tick still sees the old track and would ask
+     * for the same song again, and again, restarting it from the host's position every second for as
+     * long as buffering takes. Which is precisely while the user is watching it fail.
+     *
+     * Keyed on the video id, so a host that genuinely skips to a different song is followed at once
+     * rather than being ignored for the rest of the window.
+     */
     private fun startTrack(track: SharedTrack, positionMs: Long) {
         if (loading) return
+        if (track.videoId == startedVideoId && nowUs() < trackSettleUntilUs) return
+        startedVideoId = track.videoId
         loading = true
         // Launched rather than awaited inside the frame handler: finding and buffering a song can
         // take seconds, and blocking there would stall every tick and pong behind it - including the
@@ -260,6 +280,7 @@ class FollowerSession(
                 false
             }
             loading = false
+            trackSettleUntilUs = nowUs() + TRACK_SETTLE_US
             corrector.reset()
             anchor.reset(bridge.positionMs())
             _state.update { it.copy(missingTrack = !ok) }
@@ -310,5 +331,13 @@ class FollowerSession(
 
         /** While paused, positions may differ by this much before it is worth seeking. */
         const val PAUSED_TOLERANCE_MS = 150
+
+        /**
+         * How long the player is given to actually switch song before it is asked again.
+         *
+         * Long enough to cover a slow buffer, short enough that a genuinely failed load is retried
+         * while the user is still waiting rather than never.
+         */
+        const val TRACK_SETTLE_US = 5_000_000L
     }
 }

@@ -60,6 +60,15 @@ private class FakeBridge(private val nowUs: () -> Long) : PlaybackBridge {
         private set
     var trackFound = true
 
+    /**
+     * Makes the fake report the old song for a while after being handed a new one.
+     *
+     * Real behaviour, not a contrivance: handing a queue to the service returns long before the
+     * player reports the new song, because the queue still has to be built and the item prepared.
+     * A fake that switched instantly would hide every bug that lives in that window.
+     */
+    var reportsNewTrackImmediately = true
+
     /** The exact position, for a test to check against. A real player has no such method. */
     fun truePositionMs(): Long {
         if (!isPlaying) return basePositionMs
@@ -103,7 +112,9 @@ private class FakeBridge(private val nowUs: () -> Long) : PlaybackBridge {
         // Loading a song is not instant, and pretending it is would skip the window in which the
         // follower must not act on ticks.
         delay(150)
-        currentTrack = SharedTrack(videoId, "Title", "Artist", 240_000, false)
+        if (reportsNewTrackImmediately) {
+            currentTrack = SharedTrack(videoId, "Title", "Artist", 240_000, false)
+        }
         basePositionMs = positionMs
         baseAtUs = nowUs()
         isPlaying = true
@@ -458,6 +469,79 @@ class SessionTest {
             assertTrue("host should have carried on", hostBridge.truePositionMs() > before)
             withTimeout(TIMEOUT) { host.listeners.first { it.isEmpty() } }
             Unit
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `a song still loading is not requested over and over`() = runBlocking {
+        val scope = scope()
+        try {
+            // The player has been handed the song but has not reported it yet - the ordinary state
+            // of affairs for a second or two while it buffers.
+            val bridge = FakeBridge(::nowUs).apply { reportsNewTrackImmediately = false }
+            val follower = FollowerSession(scope, bridge, ::nowUs, "Pixel 8")
+            val link = FakeLink(::nowUs)
+            scope.launch { follower.run(link) }
+            withTimeout(TIMEOUT) { while (link.sent.isEmpty()) delay(10) }
+
+            link.deliver(Protocol.Frame.Welcome(Protocol.VERSION, "Living room"))
+            link.deliver(Protocol.Frame.Track("abc", "Song", "Artist", 240_000, false))
+            repeat(6) {
+                val t = nowUs()
+                link.deliver(Protocol.Frame.Pong(t, t, t), atUs = t)
+            }
+
+            // A tick a second, as the host really sends them.
+            repeat(4) {
+                link.deliver(Protocol.Frame.Tick(30_000, nowUs(), true, 1f))
+                delay(400)
+            }
+
+            // Without the settle window each of these would ask for the song again, restarting it
+            // from the host's position every second for as long as buffering took - which is exactly
+            // while the user is watching and concluding the feature is broken.
+            assertEquals("the song must be requested once, not once per tick", 1, bridge.playTrackCalls)
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `a host skipping to another song is followed at once`() = runBlocking {
+        val scope = scope()
+        try {
+            val bridge = FakeBridge(::nowUs).apply { reportsNewTrackImmediately = false }
+            val follower = FollowerSession(scope, bridge, ::nowUs, "Pixel 8")
+            val link = FakeLink(::nowUs)
+            scope.launch { follower.run(link) }
+            withTimeout(TIMEOUT) { while (link.sent.isEmpty()) delay(10) }
+
+            link.deliver(Protocol.Frame.Welcome(Protocol.VERSION, "Living room"))
+            repeat(6) {
+                val t = nowUs()
+                link.deliver(Protocol.Frame.Pong(t, t, t), atUs = t)
+            }
+            link.deliver(Protocol.Frame.Track("abc", "First", "Artist", 240_000, false))
+            link.deliver(Protocol.Frame.Tick(30_000, nowUs(), true, 1f))
+            withTimeout(TIMEOUT) { while (bridge.playTrackCalls < 1) delay(20) }
+
+            // A different song, well inside the settle window. The guard is keyed on the video id
+            // precisely so this is not mistaken for the same request arriving twice.
+            link.deliver(Protocol.Frame.Track("xyz", "Second", "Artist", 200_000, false))
+
+            // Ticks keep coming, as a host really sends them. That matters: if the change lands
+            // while the previous load is still in flight it is not acted on immediately, and the
+            // next tick is what picks it up - the whole-state-every-frame design repairing itself
+            // rather than a queue of pending changes that could get out of order.
+            withTimeout(5_000) {
+                while (bridge.playTrackCalls < 2) {
+                    link.deliver(Protocol.Frame.Tick(0, nowUs(), true, 1f))
+                    delay(200)
+                }
+            }
+            assertEquals(2, bridge.playTrackCalls)
         } finally {
             scope.cancel()
         }
