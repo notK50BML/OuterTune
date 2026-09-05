@@ -43,7 +43,7 @@ on:
       patch_file:
         description: "Patch file in the repo root to apply"
         required: true
-        default: "outertune-backlog.patch"
+        default: "outertune-metrolist-engine.patch"
       version_name:
         description: "versionName (blank = same as the last build)"
         required: false
