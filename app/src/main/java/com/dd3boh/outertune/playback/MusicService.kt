@@ -128,6 +128,8 @@ import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.models.MultiQueueObject
 import com.dd3boh.outertune.models.toMediaMetadata
 import com.dd3boh.outertune.playback.queues.ListQueue
+import com.dd3boh.outertune.listentogether.ListenTogetherManager
+import com.dd3boh.outertune.listentogether.MediaPlaybackBridge
 import com.dd3boh.outertune.playback.queues.Queue
 import com.dd3boh.outertune.playback.queues.YouTubeQueue
 import com.dd3boh.outertune.utils.ArtistCreditEnricher
@@ -192,6 +194,9 @@ class MusicService : MediaLibraryService(),
 
     @Inject
     lateinit var database: MusicDatabase
+
+    @Inject
+    lateinit var listenTogether: ListenTogetherManager
 
     // Parent of every service coroutine scope. Cancelled once in onDestroy() so no scope outlives the
     // service. Each scope owns a SupervisorJob child of this so a failure in one coroutine neither
@@ -422,6 +427,14 @@ class MusicService : MediaLibraryService(),
                 // misc
                 setOffloadEnabled(dataStore.get(AudioOffloadKey, false))
             }
+
+        // The player is the one thing a listen-together session cannot do without, so the bridge is
+        // handed over here and withdrawn in onDestroy. The manager is a singleton and outlives this
+        // service, which is why it holds a nullable bridge rather than a player it might otherwise
+        // still be using after the service is gone.
+        listenTogether.attachPlayer(
+            MediaPlaybackBridge(player, database) { queue -> playQueue(queue, replace = true) }
+        )
 
         EqualizerSettings.parse(dataStore.get(EqualizerSettingsKey, ""))
             .onSuccess { equalizerAudioProcessor.setSettings(it) }
@@ -1671,6 +1684,10 @@ class MusicService : MediaLibraryService(),
             discordRpc?.closeRPC()
         }
         discordRpc = null
+
+        // Before the player is released, not after: a session still ticking against a released
+        // player would crash on its next poll.
+        listenTogether.attachPlayer(null)
 
         mediaSession.player.stop()
         mediaSession.release()

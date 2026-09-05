@@ -183,6 +183,7 @@ import com.dd3boh.outertune.ui.screens.settings.LibrarySettings
 import com.dd3boh.outertune.ui.screens.settings.LocalPlayerSettings
 import com.dd3boh.outertune.ui.screens.settings.LyricsSettings
 import com.dd3boh.outertune.ui.screens.settings.PlayerLayoutSettings
+import com.dd3boh.outertune.ui.screens.settings.ListenTogetherSettings
 import com.dd3boh.outertune.ui.screens.settings.PlayerSettings
 import com.dd3boh.outertune.ui.screens.settings.PrivacySettings
 import com.dd3boh.outertune.ui.screens.settings.SettingsScreen
@@ -767,6 +768,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("settings/player") {
                                         PlayerSettings(navController, scrollBehavior)
+                                    }
+                                    composable("settings/listen_together") {
+                                        ListenTogetherSettings(navController, scrollBehavior)
                                     }
                                     composable("settings/player/equalizer") {
                                         EqualizerSettingsScreen(navController, scrollBehavior)

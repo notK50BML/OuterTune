@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.Restore
@@ -119,6 +120,12 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.player_and_audio)) },
                 icon = { Icon(Icons.Rounded.PlayArrow, null) },
                 onClick = { navController.navigate("settings/player") }
+            )
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.lt_title)) },
+                description = stringResource(R.string.lt_summary),
+                icon = { Icon(Icons.Rounded.Cast, null) },
+                onClick = { navController.navigate("settings/listen_together") }
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
