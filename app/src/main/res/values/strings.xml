@@ -378,4 +378,11 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_track_unavailable">That song could not be found on this device.</string>
     <string name="lt_how_it_works">How it works</string>
     <string name="lt_how_it_works_summary">Everything stays on your local network — nothing is sent over the internet. Audio is not streamed between devices; each one plays the song itself and keeps time with the host.</string>
+    <string name="lt_needs_playback">Start playing something first</string>
+    <string name="lt_unreachable">Could not reach %1$s</string>
+    <string name="lt_host_failed">Could not start sharing on this network</string>
+    <string name="lt_ended">The session ended</string>
+    <string name="lt_ended_host_stopped">The host stopped sharing</string>
+    <string name="lt_ended_version">That device is running a different version of OuterTune</string>
+    <string name="lt_ended_rejected">The host declined the connection</string>
 </resources>

@@ -9,6 +9,8 @@ package com.dd3boh.outertune.listentogether
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.StringRes
+import com.dd3boh.outertune.R
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -107,7 +109,7 @@ class ListenTogetherManager @Inject constructor(
      */
     fun startHosting() {
         val bridge = bridge ?: run {
-            _error.value = "Start playing something first"
+            _error.value = context.getString(R.string.lt_needs_playback)
             return
         }
         stop()
@@ -147,7 +149,7 @@ class ListenTogetherManager @Inject constructor(
                 // handler and take the app down, so it is caught and shown instead.
                 Log.e(TAG, "hosting stopped", e)
                 if (generation == started) {
-                    _error.value = "Could not start sharing on this network"
+                    _error.value = context.getString(R.string.lt_host_failed)
                     stop()
                 }
             }
@@ -173,7 +175,7 @@ class ListenTogetherManager @Inject constructor(
     /** Joins [host], following whatever it plays until [stop] or the host leaves. */
     fun join(host: DiscoveredHost) {
         val bridge = bridge ?: run {
-            _error.value = "Playback is not ready yet"
+            _error.value = context.getString(R.string.lt_needs_playback)
             return
         }
         stop()
@@ -187,7 +189,7 @@ class ListenTogetherManager @Inject constructor(
             } catch (e: Exception) {
                 Log.e(TAG, "could not reach ${host.name}", e)
                 if (generation == started) {
-                    _error.value = "Could not reach ${host.name}"
+                    _error.value = context.getString(R.string.lt_unreachable, host.name)
                     _mode.value = ListenTogetherMode.OFF
                 }
                 return@launch
@@ -195,7 +197,16 @@ class ListenTogetherManager @Inject constructor(
 
             val session = FollowerSession(scope, bridge, ::nowUs, deviceName())
             followerSession = session
-            val mirror = launch { session.state.collect { _followerState.value = it } }
+            val mirror = launch {
+                session.state.collect { state ->
+                    _followerState.value = state
+                    // Surfaced rather than swallowed. This is the entire reason BYE carries a reason
+                    // at all: without it, a host that stops sharing and a WiFi drop look identical
+                    // from here - the session simply vanishes and the user is left guessing which
+                    // happened and whether retrying would help.
+                    state.endedReason?.let { _error.value = context.getString(byeMessage(it)) }
+                }
+            }
             try {
                 // Suspends for the whole session, so this coroutine's lifetime is the session's and
                 // cancelling it is a complete teardown.
@@ -236,6 +247,14 @@ class ListenTogetherManager @Inject constructor(
      * uptime-based clocks do not.
      */
     private fun nowUs(): Long = SystemClock.elapsedRealtimeNanos() / 1_000
+
+    @StringRes
+    private fun byeMessage(reason: Byte): Int = when (reason) {
+        Protocol.ByeReason.HOST_STOPPED -> R.string.lt_ended_host_stopped
+        Protocol.ByeReason.VERSION_MISMATCH -> R.string.lt_ended_version
+        Protocol.ByeReason.REJECTED -> R.string.lt_ended_rejected
+        else -> R.string.lt_ended
+    }
 
     private companion object {
         const val TAG = "ListenTogether"

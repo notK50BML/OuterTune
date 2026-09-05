@@ -49,7 +49,6 @@ import androidx.navigation.NavController
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.listentogether.ListenTogetherMode
-import com.dd3boh.outertune.listentogether.Protocol
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
@@ -71,10 +70,16 @@ fun ListenTogetherSettings(
     val follower by manager.followerState.collectAsStateWithLifecycle()
     val error by manager.error.collectAsStateWithLifecycle()
 
-    // Remembered so the browse survives recomposition but not the screen. Collection starting and
-    // stopping with this composable is what keeps multicast off the radio the rest of the time.
-    val hostsFlow = remember { viewModel.discoverHosts() }
+    // Keyed on mode, not remembered once. Browsing needs to know this device's own advertised name
+    // in order to leave it out, and that name does not exist until hosting starts - a flow built
+    // before then would offer the host the chance to follow itself.
+    val hostsFlow = remember(mode) { viewModel.discoverHosts() }
     val hosts by hostsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+
+    // Resolved once. It reads a system setting through the ContentResolver, and this screen
+    // recomposes every second as the drift figure updates - so left inline it would be main-thread
+    // IO on a one-second timer.
+    val deviceName = remember { manager.deviceName() }
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -98,7 +103,7 @@ fun ListenTogetherSettings(
                 PreferenceGroupTitle(title = stringResource(R.string.lt_sharing))
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     PreferenceEntry(
-                        title = { Text(manager.deviceName()) },
+                        title = { Text(deviceName) },
                         description = stringResource(R.string.lt_sharing_as),
                         icon = { Icon(Icons.Rounded.CastConnected, null) },
                         onClick = {},
