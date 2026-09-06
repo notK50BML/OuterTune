@@ -132,6 +132,44 @@ client - and does it reach the library, liked songs and playlists, or only a sub
 A on user experience by a wide margin and is worth the auth-path work. If the answer is "only the
 Data API", it collapses for the same reason ordinary OAuth does.
 
+### C-bis. OAuth → cookies, which would remove the need for a Bearer path
+
+Worth knowing while researching C, because it changes what a positive answer would be worth.
+
+A token and a cookie are not as far apart as they look. Google has a documented-by-observation path
+for turning one into the other, which is how Chrome and Android sign you into Google *websites* after
+you have signed into the *device*:
+
+1. Obtain an access token with the scope `https://www.google.com/accounts/OAuthLogin`.
+2. `GET https://accounts.google.com/OAuthLogin?source=…&issueuberauth=1` with that token, which
+   returns an opaque "uberauth" string.
+3. `GET https://accounts.google.com/MergeSession?uberauth=…` (or the `oauth/multilogin` endpoint),
+   whose response carries `Set-Cookie` for the Google domains — **including `SAPISID`**.
+
+If that still works, device OAuth would not need a Bearer path in `InnerTube` at all. It would mint
+an ordinary cookie session, and every existing code path would work unchanged. That is a much
+smaller change than adding a second authentication mode, and it removes the "does the TV client
+reach the library or only a subset" question entirely, because the result is indistinguishable from
+signing in normally.
+
+**The likely blocker, and the thing to check:** `OAuthLogin` has historically been a *first-party
+scope* — grantable only to Google's own client IDs (Chrome, the Android account manager), not to a
+client you create in Google Cloud. If that is still true, this only works with a well-known
+first-party client ID, which is precisely what Google restricted for third parties, and it collapses
+back into C.
+
+So the two questions are really one question asked twice:
+
+- **For C:** can a self-created *TVs and Limited Input devices* client get a token InnerTube accepts?
+- **For C-bis:** can any token you can legitimately obtain carry the `OAuthLogin` scope?
+
+If either is yes, sign-in becomes a code on screen instead of a file to export. If both are no, then
+A and B are the whole of what is available, and that is worth knowing definitively rather than
+suspecting.
+
+I am flagging this as recalled rather than verified. The endpoints are not documented by Google and
+have changed before; treat the shape as a lead to test, not as a spec.
+
 ### D. Embed Chromium (JCEF) — works, and costs ~150MB
 
 Reliable, and the same flow as Android. It undoes the thing this port has been careful about: the
@@ -144,10 +182,13 @@ spike had simply never set `locale`/`visitorData`. Only sign-in ever needed a br
 
 ## Suggested order
 
-1. **A** now - it is small, certain, and unblocks everything else immediately.
-2. **B for Firefox** as a convenience on top, since the SQLite driver is already there.
-3. **C** if the question above comes back positive. That is the one worth your research.
-4. **D** only if C fails and the paste flow proves genuinely unacceptable.
+1. ~~**A**~~ — done. `CookieImport.kt`, 13 tests.
+2. ~~**B for Firefox**~~ — done. `FirefoxCookies.kt`, 10 tests. One button, no export, no file
+   picker, for anyone who uses Firefox. Chrome deliberately not attempted: app-bound encryption
+   since Chrome 127 ties the key to the Chrome process, and chasing that is a commitment to keep
+   chasing it.
+3. **C / C-bis** if either question comes back positive. That is the research.
+4. **D** only if both fail and the file flow proves genuinely unacceptable.
 
 ## Whichever is chosen
 
