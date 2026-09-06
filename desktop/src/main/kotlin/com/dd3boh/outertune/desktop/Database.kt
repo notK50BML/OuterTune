@@ -130,6 +130,21 @@ class Database(file: File) {
                     st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_playlist_song ON playlist_song(playlistId, position)")
                 }
             }
+            if (current < 2) {
+                connection.createStatement().use { st ->
+                    // Small, opaque values that are neither library content nor user settings -
+                    // today the signed-in session, tomorrow whatever else has to survive a restart
+                    // without earning a table of its own.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS credential (
+                            key   TEXT PRIMARY KEY NOT NULL,
+                            value TEXT NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -375,6 +390,42 @@ class Database(file: File) {
         }
     }
 
+    // ---- credentials -----------------------------------------------------------------------
+
+    /**
+     * Stores a small opaque value, or removes it when [value] is null.
+     *
+     * Deliberately not encrypted, and deliberately said out loud rather than implied. Encrypting it
+     * needs a key, the key would have to live beside the thing it protects, and a lock whose key is
+     * taped to the door is decoration - it would only make the storage look safer than it is.
+     * Anything able to read this file can already read everything else in the user's profile.
+     */
+    fun putCredential(key: String, value: String?) = synchronized(lock) {
+        if (value == null) {
+            connection.prepareStatement("DELETE FROM credential WHERE key = ?").use { st ->
+                st.setString(1, key)
+                st.executeUpdate()
+            }
+        } else {
+            connection.prepareStatement(
+                "INSERT INTO credential (key, value) VALUES (?, ?) " +
+                    "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+            ).use { st ->
+                st.setString(1, key)
+                st.setString(2, value)
+                st.executeUpdate()
+            }
+        }
+        Unit
+    }
+
+    fun credential(key: String): String? = synchronized(lock) {
+        connection.prepareStatement("SELECT value FROM credential WHERE key = ?").use { st ->
+            st.setString(1, key)
+            st.executeQuery().use { if (it.next()) it.getString(1) else null }
+        }
+    }
+
     fun close() = synchronized(lock) { connection.close() }
 
     // ---- internals -------------------------------------------------------------------------
@@ -429,7 +480,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 1
+        const val SCHEMA_VERSION = 2
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

@@ -49,8 +49,17 @@ fun defaultDataDirectory(): File {
  */
 class LibraryStore(
     directory: File = defaultDataDirectory(),
-    private val db: Database = Database(File(directory, "library.db")),
+    /**
+     * Exposed because the signed-in session lives in the same file.
+     *
+     * One database rather than two: a second file would need its own lock, its own migrations and
+     * its own decision about what happens when one exists and the other does not, all so that a
+     * single string could live somewhere else.
+     */
+    val database: Database = Database(File(directory, "library.db")),
 ) {
+    private val db = database
+
 
     val recentlyPlayed = MutableStateFlow<List<StoredSong>>(emptyList())
     val liked = MutableStateFlow<List<StoredSong>>(emptyList())

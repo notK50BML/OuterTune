@@ -109,6 +109,7 @@ fun main() = application {
 private fun App(player: DesktopPlayer) {
     val scope = rememberCoroutineScope()
     val library = remember { LibraryStore() }
+    val account = remember { Account(library.database) }
     val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.stored()) }) }
 
     val playback by player.state.collectAsState()
@@ -127,6 +128,7 @@ private fun App(player: DesktopPlayer) {
 
     val playlists by library.playlists.collectAsState()
     var showPlaylists by remember { mutableStateOf(false) }
+    var showAccount by remember { mutableStateOf(false) }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var addingToPlaylist by remember { mutableStateOf<StoredSong?>(null) }
 
@@ -152,6 +154,10 @@ private fun App(player: DesktopPlayer) {
                 onFailure = { "no session - playback will be refused (${it::class.simpleName}: ${it.message})" },
             )
         }
+        // After visitorData, not alongside it: verifying a stored session is itself a request, and
+        // one made without visitorData is refused - so restoring first would report a perfectly good
+        // session as expired.
+        account.restore()
     }
 
     fun search() {
@@ -244,6 +250,13 @@ private fun App(player: DesktopPlayer) {
                     modifier = Modifier.padding(top = 8.dp),
                 ) {
                     TextButton(onClick = {
+                        showAccount = !showAccount
+                        if (showAccount) { showPlaylists = false; openPlaylist = null }
+                    }) {
+                        Text(if (showAccount) "← Library" else "Account")
+                    }
+                    TextButton(onClick = {
+                        showAccount = false
                         showPlaylists = !showPlaylists
                         // Closing the pane forgets which playlist was open, so returning to it
                         // starts at the list rather than wherever it was left weeks ago.
@@ -256,7 +269,9 @@ private fun App(player: DesktopPlayer) {
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
-                if (showPlaylists) {
+                if (showAccount) {
+                    AccountPane(account)
+                } else if (showPlaylists) {
                     PlaylistsPane(
                         playlists = playlists,
                         selected = selectedPlaylist,
