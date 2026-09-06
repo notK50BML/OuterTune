@@ -145,6 +145,40 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 3) {
+                connection.createStatement().use { st ->
+                    // Artists as rows rather than a joined string on the song. The string is still
+                    // there and still shown - see StoredSong - but a name cannot be clicked until
+                    // something knows which channel it belongs to.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS artist (
+                            id   TEXT PRIMARY KEY NOT NULL,
+                            name TEXT NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS song_artist (
+                            songId   TEXT NOT NULL REFERENCES song(id) ON DELETE CASCADE,
+                            artistId TEXT NOT NULL REFERENCES artist(id) ON DELETE CASCADE,
+                            position INTEGER NOT NULL,
+                            PRIMARY KEY (songId, artistId)
+                        )
+                        """.trimIndent()
+                    )
+                    // Read one song at a time, in credit order - "who is on this track" is the only
+                    // question this table is ever asked from the player.
+                    st.executeUpdate(
+                        "CREATE INDEX IF NOT EXISTS idx_song_artist ON song_artist(songId, position)"
+                    )
+                    // And the reverse, for an artist's own page.
+                    st.executeUpdate(
+                        "CREATE INDEX IF NOT EXISTS idx_song_artist_by_artist ON song_artist(artistId)"
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -212,6 +246,7 @@ class Database(file: File) {
             st.setLong(5, durationMs)
             st.executeUpdate()
         }
+        writeCreditsLocked(song)
     }
 
     fun recordPlay(song: StoredSong, atMs: Long) = synchronized(lock) {
@@ -431,6 +466,87 @@ class Database(file: File) {
     // ---- internals -------------------------------------------------------------------------
 
     /** [upsertSong]'s body, for callers already holding the lock - it is not reentrant-safe to nest. */
+    /**
+     * Writes a song's credits, when it has any.
+     *
+     * Skipped entirely for a song with none rather than clearing what is there. A song arriving from
+     * a sparse source carries no structured artists, and treating that as "this song has no artists"
+     * would erase credits a richer source had already supplied - the same rule the thumbnail follows
+     * a few lines up, and for the same reason.
+     */
+    private fun writeCreditsLocked(song: StoredSong) {
+        if (song.artistList.isEmpty()) return
+
+        connection.prepareStatement(
+            "INSERT INTO artist (id, name) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name"
+        ).use { st ->
+            song.artistList.forEach { artist ->
+                st.setString(1, artist.id)
+                st.setString(2, artist.name)
+                st.addBatch()
+            }
+            st.executeBatch()
+        }
+        // Replaced rather than merged: the credits that came with the song are the credits, and
+        // leaving an old one behind would show somebody who is no longer on the track.
+        connection.prepareStatement("DELETE FROM song_artist WHERE songId = ?").use { st ->
+            st.setString(1, song.id)
+            st.executeUpdate()
+        }
+        connection.prepareStatement(
+            "INSERT INTO song_artist (songId, artistId, position) VALUES (?, ?, ?)"
+        ).use { st ->
+            song.artistList.forEachIndexed { index, artist ->
+                st.setString(1, song.id)
+                st.setString(2, artist.id)
+                st.setInt(3, index)
+                st.addBatch()
+            }
+            st.executeBatch()
+        }
+    }
+
+    /** The credits for a set of songs, in one query rather than one per song. */
+    private fun creditsForLocked(songIds: List<String>): Map<String, List<StoredArtist>> {
+        if (songIds.isEmpty()) return emptyMap()
+        val placeholders = songIds.joinToString(",") { "?" }
+        val out = HashMap<String, MutableList<StoredArtist>>()
+        connection.prepareStatement(
+            """
+            SELECT sa.songId, a.id, a.name
+            FROM song_artist sa JOIN artist a ON a.id = sa.artistId
+            WHERE sa.songId IN ($placeholders)
+            ORDER BY sa.songId, sa.position
+            """.trimIndent()
+        ).use { st ->
+            songIds.forEachIndexed { index, id -> st.setString(index + 1, id) }
+            st.executeQuery().use { rs ->
+                while (rs.next()) {
+                    out.getOrPut(rs.getString(1)) { mutableListOf() }
+                        .add(StoredArtist(rs.getString(2), rs.getString(3)))
+                }
+            }
+        }
+        return out
+    }
+
+    /** Songs in the library credited to an artist, most recently played first. */
+    fun songsByArtist(artistId: String): List<StoredSong> = synchronized(lock) {
+        connection.prepareStatement(
+            """
+            SELECT s.id, s.title, s.artists, s.thumbnail
+            FROM song_artist sa
+                JOIN song s ON s.id = sa.songId
+                LEFT JOIN play_history h ON h.songId = s.id
+            WHERE sa.artistId = ?
+            ORDER BY COALESCE(h.playedAt, 0) DESC
+            """.trimIndent()
+        ).use { st ->
+            st.setString(1, artistId)
+            st.executeQuery().use { it.toSongs() }
+        }
+    }
+
     private fun upsertSongLocked(song: StoredSong) {
         connection.prepareStatement(
             """
@@ -448,6 +564,7 @@ class Database(file: File) {
             st.setString(4, song.thumbnail)
             st.executeUpdate()
         }
+        writeCreditsLocked(song)
     }
 
     private fun compactPositionsLocked(playlistId: String) {
@@ -472,15 +589,27 @@ class Database(file: File) {
         }
     }
 
-    private fun ResultSet.toSongs(): List<StoredSong> = buildList {
-        while (next()) {
-            add(StoredSong(getString(1), getString(2), getString(3), getString(4)))
+    /**
+     * Rows to songs, with their credits attached.
+     *
+     * The credits are fetched in one further query for the whole page rather than one per song. A
+     * shelf of fifty songs would otherwise be fifty-one round trips to satisfy a list nobody has
+     * scrolled yet.
+     */
+    private fun ResultSet.toSongs(): List<StoredSong> {
+        val songs = buildList {
+            while (next()) {
+                add(StoredSong(getString(1), getString(2), getString(3), getString(4)))
+            }
         }
+        if (songs.isEmpty()) return songs
+        val credits = creditsForLocked(songs.map { it.id })
+        return songs.map { song -> song.copy(artistList = credits[song.id].orEmpty()) }
     }
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

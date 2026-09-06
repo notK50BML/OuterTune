@@ -10,6 +10,25 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.util.UUID
 
+/**
+ * One artist credit.
+ *
+ * [id] is a YouTube channel where there is one. Where there is not - a credit that arrived as a bare
+ * name - a `local:` id stands in, so the row has a key without pretending it points anywhere. That
+ * distinction is the whole of [linkable]: a name with nowhere to go should not be underlined as
+ * though it had somewhere to go.
+ */
+data class StoredArtist(val id: String, val name: String) {
+    val linkable: Boolean get() = !id.startsWith(LOCAL_PREFIX)
+
+    companion object {
+        const val LOCAL_PREFIX = "local:"
+
+        /** A credit with no channel behind it, keyed by name so the same name is the same row. */
+        fun unlinked(name: String) = StoredArtist(LOCAL_PREFIX + name.lowercase(), name)
+    }
+}
+
 /** One song as the desktop library stores it - enough to show it and to play it again. */
 data class StoredSong(
     val id: String,
@@ -17,6 +36,14 @@ data class StoredSong(
     val artists: String,
     /** Optional so a library written before covers existed still loads. */
     val thumbnail: String = "",
+    /**
+     * The credits as separate entries, where they are known.
+     *
+     * Kept alongside the display string rather than replacing it: every song already stored has the
+     * string and nothing else, and a library that showed "Unknown artist" for everything recorded
+     * before this existed would be a poor trade for making names clickable.
+     */
+    val artistList: List<StoredArtist> = emptyList(),
 )
 
 /**
@@ -120,6 +147,14 @@ class LibraryStore(
      * on screen while it changes.
      */
     fun playlistSongs(playlistId: String): List<StoredSong> = db.playlistSongs(playlistId)
+
+    /**
+     * What the library already holds by an artist.
+     *
+     * Not a flow, for the same reason a playlist's songs are not: it is read when the artist's page
+     * opens and not otherwise.
+     */
+    fun songsByArtist(artistId: String): List<StoredSong> = db.songsByArtist(artistId)
 
     fun reorderPlaylist(playlistId: String, songIdsInOrder: List<String>) {
         db.reorderPlaylist(playlistId, songIdsInOrder)

@@ -91,6 +91,7 @@ fun NowPlayingScreen(
     playedFrames: () -> Long = { 0L },
     equalizer: Equalizer? = null,
     onJumpToQueueIndex: (Int) -> Unit = {},
+    onOpenArtist: (StoredArtist) -> Unit = {},
 ) {
     // Held here rather than inside the drawer: the handle at the top and the button in the actions
     // row both open the same panel, exactly as they do on Android, and two copies of the state would
@@ -161,12 +162,14 @@ fun NowPlayingScreen(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Text(
-                    text = song?.artists?.joinToString { it.name }?.ifBlank { "Unknown artist" } ?: "",
+                ArtistNames(
+                    artists = song?.artists.orEmpty().map { artist ->
+                        artist.id?.let { StoredArtist(it, artist.name) } ?: StoredArtist.unlinked(artist.name)
+                    },
+                    fallback = song?.artists?.joinToString { it.name } ?: "",
+                    colour = onBackground.copy(alpha = 0.75f),
                     style = MaterialTheme.typography.titleMedium,
-                    color = onBackground.copy(alpha = 0.75f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    onClick = onOpenArtist,
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))

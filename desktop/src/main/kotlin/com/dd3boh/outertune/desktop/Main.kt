@@ -110,7 +110,7 @@ private fun App(player: DesktopPlayer) {
     val scope = rememberCoroutineScope()
     val library = remember { LibraryStore() }
     val account = remember { Account(library.database) }
-    val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.stored()) }) }
+    val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.toStored()) }) }
 
     val playback by player.state.collectAsState()
     val queue by playerQueue.state.collectAsState()
@@ -129,6 +129,16 @@ private fun App(player: DesktopPlayer) {
     val playlists by library.playlists.collectAsState()
     var showPlaylists by remember { mutableStateOf(false) }
     var showAccount by remember { mutableStateOf(false) }
+    var openArtist by remember { mutableStateOf<StoredArtist?>(null) }
+
+    // Opening an artist closes the player, because the artist page is where the user is going and
+    // the full-window player would otherwise cover it entirely.
+    val openArtistPage = { artist: StoredArtist ->
+        openArtist = artist
+        showFullPlayer = false
+        showAccount = false
+        showPlaylists = false
+    }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var addingToPlaylist by remember { mutableStateOf<StoredSong?>(null) }
 
@@ -177,7 +187,7 @@ private fun App(player: DesktopPlayer) {
     }
 
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
-    val toggleLike = { queue.current?.let { library.toggleLiked(it.stored()) }; Unit }
+    val toggleLike = { queue.current?.let { library.toggleLiked(it.toStored()) }; Unit }
 
     addingToPlaylist?.let { song ->
         AddToPlaylistDialog(
@@ -208,6 +218,7 @@ private fun App(player: DesktopPlayer) {
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
             onJumpToQueueIndex = { playerQueue.jumpTo(it) },
+            onOpenArtist = openArtistPage,
         )
         return
     }
@@ -270,7 +281,17 @@ private fun App(player: DesktopPlayer) {
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
-                if (showAccount) {
+                val artist = openArtist
+                if (artist != null) {
+                    ArtistPane(
+                        artist = artist,
+                        library = library,
+                        currentId = queue.current?.id,
+                        onBack = { openArtist = null },
+                        onPlay = { songs, index -> playerQueue.play(songs, index) },
+                        onAddToPlaylist = { addingToPlaylist = it },
+                    )
+                } else if (showAccount) {
                     AccountPane(account)
                 } else if (showPlaylists) {
                     PlaylistsPane(
@@ -282,7 +303,7 @@ private fun App(player: DesktopPlayer) {
                         onCreate = { library.createPlaylist(it) },
                         onRename = { playlist, name -> library.renamePlaylist(playlist.id, name) },
                         onDelete = { library.deletePlaylist(it.id) },
-                        onPlay = { songs, index -> playerQueue.play(songs.map { it.toSongItem() }, index) },
+                        onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index) },
                         onRemoveSong = { playlist, song -> library.removeFromPlaylist(playlist.id, song.id) },
                         onMoveSong = { playlist, from, to ->
                             val ids = openPlaylistSongs.map { it.id }.toMutableList()
@@ -302,7 +323,7 @@ private fun App(player: DesktopPlayer) {
                         recent = recent,
                         currentId = queue.current?.id,
                         onPlayResult = { index -> playerQueue.play(results, index) },
-                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toSongItem() }, index) },
+                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index) },
                         onAddToPlaylist = { addingToPlaylist = it },
                     )
                 }
@@ -396,7 +417,7 @@ private fun Content(
                     // On the row rather than behind a context menu: filing a song is something done
                     // while looking at search results, and a right-click menu on desktop Compose is
                     // extra machinery for a single action.
-                    TextButton(onClick = { onAddToPlaylist(song.stored()) }) { Text("+") }
+                    TextButton(onClick = { onAddToPlaylist(song.toStored()) }) { Text("+") }
                 }
             }
         }
@@ -549,7 +570,7 @@ private fun PlayerBar(
 }
 
 @Composable
-private fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit) {
+internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -615,11 +636,16 @@ private fun formatClock(ms: Long): String {
 }
 
 /** The stored shape of a search result - only what the library needs to show it and replay it. */
-private fun SongItem.stored() = StoredSong(
+internal fun SongItem.toStored() = StoredSong(
     id = id,
     title = title,
     artists = artists.joinToString { it.name },
     thumbnail = thumbnail,
+    // Kept as separate entries as well as a joined string. The string is what gets shown when
+    // nothing better is known; these are what make a name clickable.
+    artistList = artists.map { artist ->
+        artist.id?.let { StoredArtist(it, artist.name) } ?: StoredArtist.unlinked(artist.name)
+    },
 )
 
 /**
@@ -630,10 +656,14 @@ private fun SongItem.stored() = StoredSong(
  * and returning an empty list instead made every song played from the library show "Unknown artist"
  * while it was playing, which is worse than lossy: it is wrong about something it knows.
  */
-private fun StoredSong.toSongItem() = SongItem(
+internal fun StoredSong.toItem() = SongItem(
     id = id,
     title = title,
-    artists = artists.takeIf { it.isNotBlank() }?.let { listOf(Artist(name = it, id = null)) }.orEmpty(),
+    // Structured credits where the library has them, falling back to the display string for
+    // anything stored before it did.
+    artists = artistList.takeIf { it.isNotEmpty() }
+        ?.map { Artist(name = it.name, id = it.id.takeIf { id -> !id.startsWith(StoredArtist.LOCAL_PREFIX) }) }
+        ?: artists.takeIf { it.isNotBlank() }?.let { listOf(Artist(name = it, id = null)) }.orEmpty(),
     album = null,
     duration = null,
     thumbnail = thumbnail,
