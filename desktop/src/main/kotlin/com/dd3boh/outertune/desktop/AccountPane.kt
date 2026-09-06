@@ -65,6 +65,8 @@ fun AccountPane(
     // Listed once rather than on every recomposition: it touches the filesystem, and this screen
     // recomposes whenever the sign-in state changes.
     val firefoxProfiles = remember { runCatching { FirefoxCookies.profiles() }.getOrDefault(emptyList()) }
+    val browserAvailable = remember { runCatching { ChromeSignIn.isAvailable() }.getOrDefault(false) }
+    var browserStep by remember { mutableStateOf<String?>(null) }
 
     Column(
         modifier = modifier
@@ -127,6 +129,37 @@ fun AccountPane(
                 Text("Checking…", style = MaterialTheme.typography.bodyMedium)
             }
             Spacer(modifier = Modifier.height(12.dp))
+        }
+
+        // First, because it asks the least: no export, no file, and the sign-in happens in a real
+        // browser where everything Google puts in the way of it works.
+        if (browserAvailable) {
+            Text("Sign in with your browser", style = MaterialTheme.typography.labelLarge)
+            Text(
+                browserStep ?: "Opens a browser window. Sign in there and it will finish by itself.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Button(
+                enabled = !busy,
+                onClick = {
+                    scope.launch {
+                        busy = true
+                        account.signInWithBrowser { step ->
+                            browserStep = when (step) {
+                                ChromeSignIn.Progress.Launching -> "Opening the browser…"
+                                ChromeSignIn.Progress.WaitingForSignIn ->
+                                    "Waiting for you to sign in. Leave the browser open."
+                                ChromeSignIn.Progress.Reading -> "Signing in…"
+                            }
+                        }
+                        browserStep = null
+                        busy = false
+                    }
+                },
+            ) { Text("Open browser") }
+            Spacer(modifier = Modifier.height(16.dp))
         }
 
         // Only offered if Firefox is actually there. An option that cannot work is worse than no

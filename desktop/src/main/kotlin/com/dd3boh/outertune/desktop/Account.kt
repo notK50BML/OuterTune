@@ -37,8 +37,9 @@ sealed interface AccountState {
  * Owns the signed-in session.
  *
  * The credential is a Google web session cookie, not a token - see SIGN-IN.md for why, and why no
- * OAuth flow produces one. Three ways in, all landing on the same string:
+ * OAuth flow produces one. Four ways in, all landing on the same string:
  *
+ * - sign in inside the user's own browser, read back over the DevTools Protocol ([ChromeSignIn]),
  * - read straight out of Firefox ([FirefoxCookies]),
  * - a `cookies.txt` export from any browser ([CookieImport]),
  * - pasted by hand, for anyone who already has it.
@@ -110,9 +111,22 @@ class Account(private val db: Database) {
         )
     }
 
-    /** The three ways a credential can arrive, as one place so the screen has no logic in it. */
+    /** The four ways a credential can arrive, in one place so the screen has no logic in it. */
     suspend fun signInFromFirefox(profile: FirefoxCookies.Profile): AccountState =
         applyImport(withContext(Dispatchers.IO) { FirefoxCookies.read(profile) })
+
+    /**
+     * Opens the user's own browser and waits for them to sign in there.
+     *
+     * The best of the routes when a Chromium is installed: nothing to export, nothing to find, and
+     * the sign-in happens in a real browser so everything Google puts in the way of it works. See
+     * [ChromeSignIn] for why that is possible without bundling one.
+     */
+    suspend fun signInWithBrowser(onProgress: (ChromeSignIn.Progress) -> Unit = {}): AccountState {
+        val cookie = ChromeSignIn.signIn(onProgress = onProgress)
+            ?: return AccountState.Expired("Sign-in was not completed.").also { state.value = it }
+        return signIn(cookie)
+    }
 
     suspend fun signInFromFile(file: File): AccountState =
         applyImport(withContext(Dispatchers.IO) { CookieImport.fromFile(file) })

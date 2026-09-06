@@ -50,6 +50,15 @@ dependencies {
     // for the eleven that will never run. fatJar keeps only the one for the host - see below.
     implementation("org.xerial:sqlite-jdbc:3.50.1.0")
 
+    // For the DevTools Protocol, which is JSON over a WebSocket. Both halves are already here -
+    // OkHttp arrives under ktor-client-okhttp and has a WebSocket client - but they arrive
+    // transitively, and a compile-time dependency on something another module happens to pull in is
+    // a build that breaks the day that module changes its mind.
+    implementation("com.squareup.okhttp3:okhttp:5.3.2")
+    // Only the runtime JSON tree is used - parseToJsonElement and JsonObject - so the
+    // serialization compiler plugin is not needed here.
+    implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+
     // The DSP behind the visualiser is ordinary maths, and ordinary maths is worth checking: an FFT
     // that is subtly wrong still produces bars that move.
     testImplementation("junit:junit:4.13.2")
