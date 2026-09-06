@@ -141,6 +141,9 @@ private fun App(player: DesktopPlayer) {
         showAccount = false
         showPlaylists = false
     }
+    // Read once at startup and written through as they change - see Settings.
+    val settings = remember(library) { Settings(library.settings) }
+
     var showDetails by remember { mutableStateOf(false) }
 
     // Fetched for whatever is playing, whether or not the pane is open. Waiting until it is opened
@@ -150,19 +153,22 @@ private fun App(player: DesktopPlayer) {
     var lyrics by remember { mutableStateOf<Lyrics?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     val nowPlaying = queue.current
-    LaunchedEffect(nowPlaying?.id, duration) {
+    LaunchedEffect(nowPlaying?.id, duration, settings.lyricsOffsetMs) {
         lyrics = null
         val song = nowPlaying ?: return@LaunchedEffect
         // Held off until the duration is known, because LrcLib matches on it - asking with zero
         // gets the wrong version of a song as often as it gets nothing.
         if (duration <= 0) return@LaunchedEffect
         lyricsLoading = true
-        lyrics = lyricsRepository.lyricsFor(
+        val fetched = lyricsRepository.lyricsFor(
             songId = song.id,
             title = song.title,
             artist = song.artists.firstOrNull()?.name.orEmpty(),
             durationMs = duration,
         )
+        // Applied on the way out rather than baked into the cache, so changing the offset does not
+        // mean re-fetching, and so a cached file is still the file the provider sent.
+        lyrics = fetched?.shiftedBy(settings.lyricsOffsetMs.toLong())
         lyricsLoading = false
     }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
@@ -251,7 +257,9 @@ private fun App(player: DesktopPlayer) {
             onToggleShuffle = playerQueue::toggleShuffle,
             onCycleRepeat = playerQueue::cycleRepeat,
             onClose = { showFullPlayer = false },
-            spectrum = player.spectrum,
+            // Passed only when it is switched on - the pane shows nothing when the tap is null,
+            // so the setting is enforced by simply not handing it over.
+            spectrum = player.spectrum.takeIf { settings.showVisualizer },
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
             timeStretch = player.timeStretch,
@@ -260,6 +268,10 @@ private fun App(player: DesktopPlayer) {
             // so nothing here promises a feature that has not been written - see PlayerActions.
             lyrics = lyrics,
             lyricsLoading = lyricsLoading,
+            showSeekButtons = settings.showSeekButtons,
+            lyricsOnCoverClick = settings.lyricsOnCoverClick,
+            backgroundStyle = settings.background,
+            colourByValue = settings.colourByValue,
             actions = PlayerActions(
                 onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
                 onAddToPlaylist = queue.current?.let { song -> { addingToPlaylist = song.toStored() } },
@@ -322,7 +334,7 @@ private fun App(player: DesktopPlayer) {
                         showAccount = !showAccount
                         if (showAccount) { showPlaylists = false; openPlaylist = null }
                     }) {
-                        Text(if (showAccount) "← Library" else "Account")
+                        Text(if (showAccount) "← Library" else "Settings")
                     }
                     TextButton(onClick = {
                         showAccount = false
@@ -349,7 +361,16 @@ private fun App(player: DesktopPlayer) {
                         onAddToPlaylist = { addingToPlaylist = it },
                     )
                 } else if (showAccount) {
-                    AccountPane(account)
+                    SettingsPane(
+                        settings = settings,
+                        account = account,
+                        libraryPath = library.databasePath,
+                        onBack = { showAccount = false },
+                        onClearLyricsCache = {
+                            queue.current?.id?.let(lyricsRepository::forget)
+                            lyrics = null
+                        },
+                    )
                 } else if (showPlaylists) {
                     PlaylistsPane(
                         playlists = playlists,

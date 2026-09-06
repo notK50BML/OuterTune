@@ -103,6 +103,13 @@ fun EqualizerPanel(
     modifier: Modifier = Modifier,
     timeStretch: TimeStretch? = null,
     compressor: Compressor? = null,
+    /**
+     * Whether controls take their colour from their own value.
+     *
+     * Off, everything uses [accent]. It is a strong look and the first thing worth being able to
+     * turn off, which is why it became a setting rather than staying a constant.
+     */
+    colourByValue: Boolean = true,
 ) {
     var enabled by remember { mutableStateOf(equalizer.enabled) }
     var bands by remember { mutableStateOf(equalizer.bands()) }
@@ -191,12 +198,12 @@ fun EqualizerPanel(
 
         if (timeStretch != null) {
             Spacer(modifier = Modifier.height(18.dp))
-            PlaybackDials(timeStretch = timeStretch, accent = accent, onColour = onColour)
+            PlaybackDials(timeStretch, accent, onColour, colourByValue)
         }
 
         if (compressor != null) {
             Spacer(modifier = Modifier.height(18.dp))
-            CompressorSection(compressor = compressor, accent = accent, onColour = onColour)
+            CompressorSection(compressor, accent, onColour, colourByValue)
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -206,7 +213,11 @@ fun EqualizerPanel(
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             bands.forEachIndexed { index, band ->
-                val bandColour = ValueGradient.forValue(band.gainDb, -rangeFor(bands)..rangeFor(bands))
+                val bandColour = if (colourByValue) {
+                    ValueGradient.forValue(band.gainDb, -rangeFor(bands)..rangeFor(bands))
+                } else {
+                    accent
+                }
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.width(56.dp),
@@ -385,7 +396,15 @@ private fun AutoEqSearch(
  * are set by reading numbers rather than by listening.
  */
 @Composable
-private fun CompressorSection(compressor: Compressor, accent: Color, onColour: Color) {
+private fun CompressorSection(
+    compressor: Compressor,
+    accent: Color,
+    onColour: Color,
+    colourByValue: Boolean,
+) {
+    fun colourFor(value: Float, range: ClosedFloatingPointRange<Float>) =
+        if (colourByValue) ValueGradient.forValue(value, range) else accent
+
     var enabled by remember { mutableStateOf(compressor.enabled) }
     var threshold by remember { mutableStateOf(compressor.thresholdDb) }
     var ratio by remember { mutableStateOf(compressor.ratio) }
@@ -432,7 +451,7 @@ private fun CompressorSection(compressor: Compressor, accent: Color, onColour: C
                     value = attack,
                     onValueChange = { attack = it; compressor.attackMs = it },
                     valueRange = Compressor.MIN_ATTACK_MS..Compressor.MAX_ATTACK_MS,
-                    color = ValueGradient.forValue(attack, Compressor.MIN_ATTACK_MS..Compressor.MAX_ATTACK_MS),
+                    color = colourFor(attack, Compressor.MIN_ATTACK_MS..Compressor.MAX_ATTACK_MS),
                     textColor = onColour,
                     label = "Attack",
                     // Sub-millisecond attacks are a real setting, and "0 ms" would read as off.
@@ -445,7 +464,7 @@ private fun CompressorSection(compressor: Compressor, accent: Color, onColour: C
                     value = release,
                     onValueChange = { release = it; compressor.releaseMs = it },
                     valueRange = Compressor.MIN_RELEASE_MS..Compressor.MAX_RELEASE_MS,
-                    color = ValueGradient.forValue(release, Compressor.MIN_RELEASE_MS..Compressor.MAX_RELEASE_MS),
+                    color = colourFor(release, Compressor.MIN_RELEASE_MS..Compressor.MAX_RELEASE_MS),
                     textColor = onColour,
                     label = "Release",
                     valueLabel = "%.0f ms".format(release),
@@ -457,7 +476,7 @@ private fun CompressorSection(compressor: Compressor, accent: Color, onColour: C
                     value = ratio,
                     onValueChange = { ratio = it; compressor.ratio = it },
                     valueRange = Compressor.MIN_RATIO..Compressor.MAX_RATIO,
-                    color = ValueGradient.forValue(ratio, Compressor.MIN_RATIO..Compressor.MAX_RATIO),
+                    color = colourFor(ratio, Compressor.MIN_RATIO..Compressor.MAX_RATIO),
                     textColor = onColour,
                     label = "Ratio",
                     valueLabel = "%.1f:1".format(ratio),
@@ -472,7 +491,7 @@ private fun CompressorSection(compressor: Compressor, accent: Color, onColour: C
                     value = threshold,
                     onValueChange = { threshold = it; compressor.thresholdDb = it },
                     valueRange = Compressor.MIN_THRESHOLD_DB..Compressor.MAX_THRESHOLD_DB,
-                    color = ValueGradient.forValue(threshold, Compressor.MIN_THRESHOLD_DB..Compressor.MAX_THRESHOLD_DB),
+                    color = colourFor(threshold, Compressor.MIN_THRESHOLD_DB..Compressor.MAX_THRESHOLD_DB),
                     textColor = onColour,
                     label = "Threshold",
                     valueLabel = "%.1f dB".format(threshold),
@@ -484,7 +503,7 @@ private fun CompressorSection(compressor: Compressor, accent: Color, onColour: C
                     value = makeup,
                     onValueChange = { makeup = it; compressor.makeupGainDb = it },
                     valueRange = Compressor.MIN_MAKEUP_DB..Compressor.MAX_MAKEUP_DB,
-                    color = ValueGradient.forValue(makeup, Compressor.MIN_MAKEUP_DB..Compressor.MAX_MAKEUP_DB),
+                    color = colourFor(makeup, Compressor.MIN_MAKEUP_DB..Compressor.MAX_MAKEUP_DB),
                     textColor = onColour,
                     label = "Makeup gain",
                     valueLabel = "+%.1f dB".format(makeup),
@@ -558,7 +577,15 @@ private fun GainReductionMeter(compressor: Compressor, accent: Color, onColour: 
  * retune and starts being audible as being slightly out.
  */
 @Composable
-private fun PlaybackDials(timeStretch: TimeStretch, accent: Color, onColour: Color) {
+private fun PlaybackDials(
+    timeStretch: TimeStretch,
+    accent: Color,
+    onColour: Color,
+    colourByValue: Boolean,
+) {
+    fun colourFor(value: Float, range: ClosedFloatingPointRange<Float>) =
+        if (colourByValue) ValueGradient.forValue(value, range) else accent
+
     // Mirrored into composition state for the same reason the gains are: the audio thread reads the
     // TimeStretch continuously, and having the UI poll it would put two threads on the same field
     // for no benefit.

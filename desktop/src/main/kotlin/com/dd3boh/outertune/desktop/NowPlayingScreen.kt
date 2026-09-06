@@ -75,6 +75,8 @@ import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.unit.max
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -127,6 +129,9 @@ fun NowPlayingScreen(
     actions: PlayerActions = PlayerActions(),
     lyrics: Lyrics? = null,
     lyricsLoading: Boolean = false,
+    lyricsOnCoverClick: Boolean = true,
+    backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
+    colourByValue: Boolean = true,
     onDownload: (() -> Unit)? = null,
     equalizer: Equalizer? = null,
     /** Tempo and pitch, if the player exposes them. Null hides the dials rather than faking them. */
@@ -164,7 +169,13 @@ fun NowPlayingScreen(
     // cover of what is now playing is the more useful thing to land on.
     var showLyrics by remember(song?.id) { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
+    Box(modifier = Modifier.fillMaxSize()) {
+    PlayerBackground(
+        style = backgroundStyle,
+        thumbnail = song?.thumbnail,
+        top = top,
+        bottom = bottom,
+    )
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -233,7 +244,7 @@ fun NowPlayingScreen(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null,
-                    ) { showLyrics = !showLyrics },
+                    ) { if (lyricsOnCoverClick) showLyrics = !showLyrics },
             ) {
                 if (showLyrics) {
                     LyricsPane(
@@ -488,6 +499,7 @@ fun NowPlayingScreen(
                 equalizer = equalizer,
                 timeStretch = timeStretch,
                 compressor = compressor,
+                colourByValue = colourByValue,
                 onColour = onBackground,
                 background = bottom,
                 open = equalizerOpen,
@@ -512,6 +524,67 @@ fun NowPlayingScreen(
 }
 
 /**
+ * What sits behind the player.
+ *
+ * All four styles are driven by the cover, because the player being tinted by whatever is playing is
+ * the one thing about the Android player's look that carries across - Android draws it with a
+ * `RuntimeShader`, which does not exist off Android, so this is the intent rather than the code.
+ *
+ * The two blurred styles paint the cover itself rather than colours sampled from it. That is a
+ * different effect and worth having both: a gradient is calm and always legible, while the blurred
+ * cover keeps the artwork's own shapes and is far more striking on art with strong composition. The
+ * scrim over them is not decoration - white text over an unscrimmed blurred cover is unreadable on
+ * anything pale, and the whole point of taking colours from the art is that they are unpredictable.
+ */
+@Composable
+private fun PlayerBackground(
+    style: BackgroundStyle,
+    thumbnail: String?,
+    top: Color,
+    bottom: Color,
+) {
+    when (style) {
+        BackgroundStyle.Gradient ->
+            Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom))))
+
+        BackgroundStyle.Solid ->
+            Box(modifier = Modifier.fillMaxSize().background(top))
+
+        BackgroundStyle.BlurredCover, BackgroundStyle.Frosted -> {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                // Sized to the longer edge so the square cover covers a landscape window with no
+                // gaps, and blurred hard enough that the crop is not readable as a crop.
+                val side = max(maxWidth, maxHeight)
+                Box(contentAlignment = Alignment.Center, modifier = Modifier.fillMaxSize()) {
+                    Artwork(
+                        thumbnail,
+                        size = side,
+                        cornerRadius = 0.dp,
+                        modifier = Modifier.blur(BLUR_RADIUS),
+                    )
+                }
+                // Frosted adds a pale translucent pane over the blur, which is what makes it read as
+                // glass rather than as an out-of-focus photograph; the plain blurred style just gets
+                // enough darkening to keep the text legible.
+                val scrim = if (style == BackgroundStyle.Frosted) {
+                    Brush.verticalGradient(
+                        listOf(top.copy(alpha = 0.55f), bottom.copy(alpha = 0.75f)),
+                    )
+                } else {
+                    Brush.verticalGradient(
+                        listOf(Color.Black.copy(alpha = 0.45f), Color.Black.copy(alpha = 0.65f)),
+                    )
+                }
+                Box(modifier = Modifier.fillMaxSize().background(scrim))
+            }
+        }
+    }
+}
+
+/** Enough blur that the cover reads as colour and shape rather than as a picture behind the text. */
+private val BLUR_RADIUS = 60.dp
+
+/**
  * The equaliser, over the whole window.
  *
  * Full window, not a drawer sharing the screen with the player. The panel holds a response graph,
@@ -528,6 +601,7 @@ private fun EqualizerOverlay(
     equalizer: Equalizer,
     timeStretch: TimeStretch?,
     compressor: Compressor?,
+    colourByValue: Boolean,
     onColour: Color,
     background: Color,
     open: Boolean,
@@ -574,6 +648,7 @@ private fun EqualizerOverlay(
                     modifier = Modifier.padding(horizontal = 40.dp, vertical = 8.dp),
                     timeStretch = timeStretch,
                     compressor = compressor,
+                    colourByValue = colourByValue,
                 )
             }
         }

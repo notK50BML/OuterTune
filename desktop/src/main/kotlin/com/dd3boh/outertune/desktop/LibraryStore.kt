@@ -78,7 +78,7 @@ fun defaultDataDirectory(): File {
  * away someone's liked songs because the storage improved would be a poor trade.
  */
 class LibraryStore(
-    directory: File = defaultDataDirectory(),
+    private val directory: File = defaultDataDirectory(),
     /**
      * Exposed because the signed-in session lives in the same file.
      *
@@ -89,6 +89,22 @@ class LibraryStore(
     val database: Database = Database(File(directory, "library.db")),
 ) {
     private val db = database
+
+    /** Where the library file lives, so the settings screen can say where a backup would come from. */
+    val databasePath: String get() = File(directory, "library.db").absolutePath
+
+    /**
+     * Settings, stored beside the library.
+     *
+     * Same file as everything else, so backing up a library backs up how it was set up too - a
+     * separate preferences file would be one more thing to remember and one more thing to lose.
+     */
+    val settings: SettingsStore = object : SettingsStore {
+        override fun get(key: String): String? = db.setting(key)
+        override fun put(key: String, value: String) {
+            db.putSetting(key, value)
+        }
+    }
 
     /** What has already been looked up for a song, or null if nothing has. */
     fun cachedLyrics(songId: String): CachedLyrics? = db.lyrics(songId)

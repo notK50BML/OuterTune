@@ -200,6 +200,21 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 5) {
+                connection.createStatement().use { st ->
+                    // A key/value table rather than a column per setting. Settings are read one at a
+                    // time by name and never queried against each other, and a column per setting
+                    // would mean a migration for every new checkbox.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS setting (
+                            key   TEXT PRIMARY KEY NOT NULL,
+                            value TEXT NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -241,6 +256,24 @@ class Database(file: File) {
         } finally {
             transactionDepth = 0
             connection.autoCommit = true
+        }
+    }
+
+    /** One stored setting, or null if it has never been written. */
+    fun setting(key: String): String? = synchronized(lock) {
+        connection.prepareStatement("SELECT value FROM setting WHERE key = ?").use { st ->
+            st.setString(1, key)
+            st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
+        }
+    }
+
+    fun putSetting(key: String, value: String) = synchronized(lock) {
+        connection.prepareStatement(
+            "INSERT INTO setting (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        ).use { st ->
+            st.setString(1, key)
+            st.setString(2, value)
+            st.executeUpdate()
         }
     }
 
@@ -664,7 +697,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 4
+        const val SCHEMA_VERSION = 5
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

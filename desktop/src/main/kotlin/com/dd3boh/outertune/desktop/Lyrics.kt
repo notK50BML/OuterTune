@@ -28,6 +28,18 @@ data class LyricLine(val timeMs: Long?, val text: String)
  */
 data class Lyrics(val lines: List<LyricLine>, val synced: Boolean, val source: String) {
     val isEmpty: Boolean get() = lines.isEmpty()
+
+    /**
+     * The same lyrics, every line moved by [ms].
+     *
+     * Applied when the lyrics are handed to the player rather than when they are cached, so that
+     * changing the offset costs nothing and the cached copy stays as the provider sent it. Plain
+     * lyrics are returned untouched - there is nothing to shift.
+     */
+    fun shiftedBy(ms: Long): Lyrics {
+        if (ms == 0L || !synced) return this
+        return copy(lines = lines.map { it.copy(timeMs = it.timeMs?.plus(ms)) })
+    }
 }
 
 /**
