@@ -188,6 +188,31 @@ private fun Heading(text: String) {
  * ellipsises as a sentence. A Row would break between names and leave "Artist A," on one line with
  * nothing after it.
  */
+/**
+ * Where each credit sits in the rendered string, so a click can be mapped back to a name.
+ *
+ * Separated out and tested because getting it wrong is invisible: every name still renders, the
+ * underlines still appear, and clicking one simply opens a different artist. That is a far worse
+ * failure than a crash, and it is the exact bug this whole feature was asked for to fix.
+ *
+ * The separator is counted on `index > 0`, matching the string builder. Counting it on "the cursor
+ * has moved" instead - which is what this did - agrees for every real credit list and disagrees the
+ * moment a name is empty, because then the builder appends ", " and the cursor has not moved, and
+ * every range after it is two characters adrift.
+ */
+internal fun creditRanges(artists: List<StoredArtist>): List<Pair<IntRange, StoredArtist>> {
+    var cursor = 0
+    return artists.mapIndexed { index, artist ->
+        if (index > 0) cursor += SEPARATOR.length
+        val start = cursor
+        cursor += artist.name.length
+        start until cursor to artist
+    }
+}
+
+/** What goes between two credits. Shared so the ranges and the rendered text cannot disagree. */
+internal const val SEPARATOR = ", "
+
 @Composable
 fun ArtistNames(
     artists: List<StoredArtist>,
@@ -211,7 +236,7 @@ fun ArtistNames(
 
     val text = buildAnnotatedString {
         artists.forEachIndexed { index, artist ->
-            if (index > 0) append(", ")
+            if (index > 0) append(SEPARATOR)
             if (artist.linkable) {
                 withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append(artist.name) }
             } else {
@@ -221,15 +246,7 @@ fun ArtistNames(
     }
 
     // Ranges recomputed alongside the string, so a click maps back to the credit it landed on.
-    val ranges = remember(artists) {
-        var cursor = 0
-        artists.map { artist ->
-            if (cursor > 0) cursor += 2
-            val start = cursor
-            cursor += artist.name.length
-            start until cursor to artist
-        }
-    }
+    val ranges = remember(artists) { creditRanges(artists) }
 
     androidx.compose.foundation.text.ClickableText(
         text = text,
