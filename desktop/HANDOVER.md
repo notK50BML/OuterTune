@@ -167,8 +167,70 @@ Three things it would be easy to get wrong, each with a test:
 - **Clamp, do not wrap.** A boosted band can exceed full scale, and an integer that overflows goes
   from loudest positive to loudest negative - heard as a crack, not as distortion.
 
-Band centres match the Android app's `EqualizerSettings.DEFAULT_FREQUENCIES` exactly, so a set of
-gains means the same thing on both and presets could move between them.
+Band centres match the Android app's `EqualizerSettings.DEFAULT_FREQUENCIES` exactly when the bank
+holds this app's own twelve, so a set of gains means the same thing on both.
+
+### Band shapes
+
+`EqBand.type` is `PEAKING`, `LOW_SHELF` or `HIGH_SHELF`. Peaking alone was enough while every band
+came from the twelve-slider layout; it is not enough for an AutoEQ correction, which almost always
+opens with a low shelf and closes with a high one - a headphone's error at the extremes is a tilt
+across a region, not a bump at a frequency, and approximating a shelf with a peaking filter gets the
+centre right and then falls away exactly where the correction was supposed to keep going.
+
+### The response graph
+
+`EqResponse.kt` evaluates the bank's transfer function on the unit circle; `EqGraph.kt` draws it,
+coloured warm-to-cool along the frequency axis. It is deliberately *not* a curve drawn through the
+slider tops: the bands overlap, so two neighbouring +6dB sliders make one large hump rather than two
+small ones, and only the real combined response shows that. One test puts a tone through the actual
+`Equalizer` and asserts the graph agrees within 1dB, which is what stops the two drifting apart.
+
+### AutoEQ
+
+`AutoEq.kt` queries oratory1990's measurements from the AutoEq repository through GitHub's contents
+API and parses `ParametricEQ.txt`. The parser is deliberately identical to the Android app's
+`utils/AutoEqRepository.kt`, so the same headphone loads the same numbers on both; only the HTTP
+client and JSON parser differ.
+
+Two things the tests pin down, both of which are ways to be wrong quietly:
+
+- **The preamp line is not folded into the bands.** It is one global attenuation. Subtracting it from
+  every band's gain does not move the curve down - a peaking filter's gain only acts around its own
+  centre, so every band AutoEQ specified at 0dB becomes a real cut and the result is a comb of dips.
+  The Android side made this mistake and corrected it.
+- **Pass filters are dropped, not read as peaking.** That would put a bump exactly where the file
+  asked for a rolloff.
+
+Directory listings are cached for the session. Search fires 400ms after typing stops, because each
+query is up to three requests and an unauthenticated GitHub rate limit does not survive one
+headphone name typed at speed.
+
+### Dynamics and time
+
+`Compressor.kt` is a port of the app's `audio/Compressor.kt`, unchanged - pure Kotlin, so it needed
+nothing. All five controls are exposed plus a gain reduction meter, because threshold and ratio state
+a rule and only the meter shows that rule's effect on this track.
+
+`TimeStretch.kt` is tempo and pitch, independently: WSOLA to change duration without touching pitch,
+then cubic resampling by the pitch ratio, with the stretch pre-divided so tempo lands where asked.
+
+Two bugs in it were found by measuring the output, not by reading the code, and both would have been
+easy to talk oneself out of:
+
+- The similarity search scanned left to right and kept the first maximum. A periodic signal matches
+  every period, so a search window a few periods wide has many *equal* optima and the leftmost won
+  every time - pulling the analysis position back by nearly the search radius per frame. 1.5x came
+  out at 1.04x. It now searches outward from centre so ties resolve to the smallest nudge.
+- The analysis grid advanced from the *chosen* position rather than its own fixed grid, so nudges
+  accumulated. That put 1.5x at 2.02x and half speed at forty-four times the audio.
+
+Order in the pipeline is equaliser, then compressor, then stretcher. The compressor is after the
+equaliser so it reacts to the tone that will be heard, and before the stretcher because its attack
+and release are milliseconds of *music* - after it, a 10ms attack would cover 15ms of song at 1.5x.
+
+Position reporting is scaled by tempo and rebased whenever tempo changes, since a fixed number of
+line frames per second stops meaning a fixed number of song seconds.
 
 ### These two should share a module
 
@@ -179,8 +241,10 @@ step.
 
 The reason they are not shared yet: the Android one reaches `EqualizerSettings`, which parses with
 `org.json` - built into Android, an extra artifact here, and one that clashes with the platform copy
-if added carelessly. The fix is a pure-JVM module holding `Biquad`, `Compressor`, `EqualizerSettings`
-and `EqualizerProfile`, keeping their current package names so no import in `:app` changes. Worth
+if added carelessly. The fix is a pure-JVM module holding `Biquad`, `Compressor`, `EqualizerSettings`,
+`EqualizerProfile` and the AutoEQ parser, keeping their current package names so no import in `:app`
+changes. `Compressor.kt` and the AutoEQ parser are now duplicated too, which makes the case stronger
+than it was: three files agreeing by inspection is not a way to keep anything in step. Worth
 doing deliberately; not worth doing halfway in the middle of something else.
 
 ## The visualiser, and the one thing that makes it work
@@ -231,12 +295,12 @@ Hilt, Room, DataStore and MediaSession throughout, so sharing them means abstrac
 
 ## Immediate next step
 
-The player still uses emoji glyphs (▶ ⏸ ⏮ ⏭ 🔀 🔁) for its controls. The intent is to use the same
-`Icons.Rounded` set the Android player uses — `PlayArrow`, `Pause`, `SkipNext`, `SkipPrevious`,
-`Shuffle`, `Repeat`, `RepeatOne`, `Favorite`/`FavoriteBorder` — via
-`org.jetbrains.compose.material:material-icons-extended`. That dependency was added and then removed
-again rather than left sitting unused: it is ~11MB for a handful of icons, which matters against a
-42MB total, so add it back at the same moment the icons are actually wired up.
+The elaborate GPU visualiser, and background themes (frosted glass and friends), then lyrics. The
+fluid/ferrofluid visualiser style was asked for and is not built; the current one is bars.
+
+Nothing on the desktop side uses the signed-in account yet - no home feed, no user library, no
+server-side playlists. Sign-in works by four routes (see SIGN-IN.md) and then the session sits
+unused. That is the largest gap between this and the Android app.
 
 ## Icons
 
