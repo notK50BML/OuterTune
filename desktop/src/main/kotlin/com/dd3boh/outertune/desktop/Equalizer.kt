@@ -126,6 +126,14 @@ class Equalizer {
 
     fun bands(): List<EqBand> = bands
 
+    /**
+     * The rate the filters are currently built for, or 44100 before anything has played.
+     *
+     * The response curve is frequency-dependent on this, so a graph drawn against an assumed rate
+     * would be subtly wrong at the top end for anything that is not CD audio.
+     */
+    val sampleRate: Int get() = configuredRate.takeIf { it > 0 } ?: 44_100
+
     /** Replaces the bands. Takes effect on the next block. */
     fun setBands(newBands: List<EqBand>) {
         bands = newBands
@@ -235,13 +243,34 @@ class Equalizer {
 
         val DEFAULT_BANDS: List<EqBand> = DEFAULT_FREQUENCIES.map { EqBand(freqHz = it) }
 
-        /** Gains only, over the default frequencies - matching the Android app's preset names. */
+        /**
+         * Gains over [DEFAULT_FREQUENCIES], by name.
+         *
+         * Sixteen rather than the five this started with, because a preset row is only useful if
+         * the thing someone wants is plausibly in it - with five, every one of them is a starting
+         * point to be dragged away from, which is the same as having none.
+         *
+         * Deliberately modest: nothing here moves a band more than 6dB. Preset curves that look
+         * dramatic on a graph mostly just make the track louder, and then everything gets compared
+         * against a louder version of itself and judged better.
+         */
         val PRESETS: Map<String, List<Float>> = mapOf(
             "Flat" to List(12) { 0f },
             "Bass boost" to listOf(6f, 6f, 5f, 4f, 2f, 0f, 0f, 0f, 0f, 0f, 0f, 0f),
+            "Bass cut" to listOf(-6f, -6f, -5f, -3f, -1f, 0f, 0f, 0f, 0f, 0f, 0f, 0f),
             "Treble boost" to listOf(0f, 0f, 0f, 0f, 0f, 0f, 1f, 2f, 3f, 4f, 5f, 5f),
+            "Treble cut" to listOf(0f, 0f, 0f, 0f, 0f, 0f, -1f, -2f, -3f, -4f, -5f, -5f),
             "Vocal" to listOf(-2f, -2f, -1f, 0f, 2f, 4f, 4f, 3f, 1f, 0f, -1f, -1f),
             "Loudness" to listOf(5f, 5f, 4f, 2f, 0f, -1f, 0f, 1f, 3f, 4f, 4f, 3f),
+            "Rock" to listOf(5f, 4f, 3f, 1f, -1f, -1f, 0f, 2f, 3f, 4f, 4f, 3f),
+            "Pop" to listOf(-1f, -1f, 0f, 2f, 4f, 4f, 3f, 1f, 0f, -1f, -1f, -1f),
+            "Jazz" to listOf(4f, 3f, 1f, 2f, -1f, -1f, 0f, 1f, 2f, 3f, 3f, 3f),
+            "Classical" to listOf(4f, 3f, 3f, 2f, -1f, -1f, 0f, 2f, 3f, 3f, 3f, 4f),
+            "Electronic" to listOf(5f, 4f, 1f, 0f, -2f, 2f, 0f, 1f, 3f, 4f, 4f, 4f),
+            "Hip-hop" to listOf(6f, 5f, 4f, 2f, 1f, -1f, 1f, -1f, 2f, 3f, 3f, 3f),
+            "Acoustic" to listOf(4f, 4f, 3f, 1f, 2f, 1f, 2f, 3f, 3f, 2f, 2f, 1f),
+            "Late night" to listOf(3f, 3f, 2f, 1f, 2f, 3f, 3f, 2f, 1f, 0f, -1f, -2f),
+            "Podcast" to listOf(-4f, -4f, -2f, 0f, 3f, 4f, 4f, 3f, 1f, 0f, -2f, -3f),
         )
     }
 }

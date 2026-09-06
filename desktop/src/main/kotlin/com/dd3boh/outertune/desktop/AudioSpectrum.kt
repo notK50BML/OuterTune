@@ -95,6 +95,52 @@ class Fft(val size: Int) {
 object Pcm {
 
     /**
+     * Splits interleaved 16-bit PCM into one float array per channel, scaled to -1..1.
+     *
+     * Channels are separated rather than processed interleaved because every stage that follows
+     * indexes by sample position - a WSOLA search stepping through an interleaved buffer would be
+     * correlating left against right on every odd offset.
+     */
+    fun deinterleave(bytes: ByteArray, frames: Int, channels: Int, bigEndian: Boolean): Array<FloatArray> {
+        val out = Array(channels) { FloatArray(frames) }
+        for (f in 0 until frames) {
+            for (c in 0 until channels) {
+                val at = (f * channels + c) * 2
+                val value = if (bigEndian) {
+                    ((bytes[at].toInt() shl 8) or (bytes[at + 1].toInt() and 0xFF)).toShort()
+                } else {
+                    ((bytes[at + 1].toInt() shl 8) or (bytes[at].toInt() and 0xFF)).toShort()
+                }
+                out[c][f] = value / 32768f
+            }
+        }
+        return out
+    }
+
+    /** The inverse of [deinterleave], clamping rather than wrapping on overflow. */
+    fun interleave(channelData: Array<FloatArray>, channels: Int, bigEndian: Boolean): ByteArray {
+        val frames = channelData[0].size
+        val out = ByteArray(frames * channels * 2)
+        for (f in 0 until frames) {
+            for (c in 0 until channels) {
+                // Clamped, not wrapped. A sample that has been pushed past full scale by
+                // interpolation overshoot should sit at the rail; letting it wrap turns a moment of
+                // overshoot into a full-amplitude click, which is far louder than the overshoot.
+                val scaled = (channelData[c][f] * 32767f).coerceIn(-32768f, 32767f).toInt()
+                val at = (f * channels + c) * 2
+                if (bigEndian) {
+                    out[at] = ((scaled shr 8) and 0xFF).toByte()
+                    out[at + 1] = (scaled and 0xFF).toByte()
+                } else {
+                    out[at] = (scaled and 0xFF).toByte()
+                    out[at + 1] = ((scaled shr 8) and 0xFF).toByte()
+                }
+            }
+        }
+        return out
+    }
+
+    /**
      * Writes up to [out].size mono samples and returns how many were written.
      *
      * Channels are averaged rather than taking the left one. A track mixed with the bass hard to one

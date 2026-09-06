@@ -217,6 +217,7 @@ private fun App(player: DesktopPlayer) {
             spectrum = player.spectrum,
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
+            timeStretch = player.timeStretch,
             onJumpToQueueIndex = { playerQueue.jumpTo(it) },
             onOpenArtist = openArtistPage,
         )

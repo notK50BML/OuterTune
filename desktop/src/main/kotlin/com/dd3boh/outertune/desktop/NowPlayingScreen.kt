@@ -63,6 +63,8 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -100,6 +102,8 @@ fun NowPlayingScreen(
     spectrum: VisualizerTap? = null,
     playedFrames: () -> Long = { 0L },
     equalizer: Equalizer? = null,
+    /** Tempo and pitch, if the player exposes them. Null hides the dials rather than faking them. */
+    timeStretch: TimeStretch? = null,
     onJumpToQueueIndex: (Int) -> Unit = {},
     onOpenArtist: (StoredArtist) -> Unit = {},
     /**
@@ -134,6 +138,7 @@ fun NowPlayingScreen(
         if (equalizer != null) {
             EqualizerDrawer(
                 equalizer = equalizer,
+                timeStretch = timeStretch,
                 onColour = onBackground,
                 open = equalizerOpen,
                 onToggle = { equalizerOpen = !equalizerOpen },
@@ -334,6 +339,7 @@ fun NowPlayingScreen(
 @Composable
 private fun ColumnScope.EqualizerDrawer(
     equalizer: Equalizer,
+    timeStretch: TimeStretch?,
     onColour: Color,
     open: Boolean,
     onToggle: () -> Unit,
@@ -343,12 +349,26 @@ private fun ColumnScope.EqualizerDrawer(
             color = Color.Black.copy(alpha = 0.35f),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            EqualizerPanel(
-                equalizer = equalizer,
-                accent = onColour,
-                onColour = onColour,
-                modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
-            )
+            // Capped and scrollable rather than free to take whatever it wants. The panel is
+            // roughly 560dp tall now, which on a short window would leave the player as a strip of
+            // buttons - and the equaliser is not what someone came to this screen for. Seven tenths
+            // leaves the cover and controls recognisable at any window height, and the scroll means
+            // capping it never hides a band.
+            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .heightIn(max = maxHeight * 0.7f)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    EqualizerPanel(
+                        equalizer = equalizer,
+                        accent = onColour,
+                        onColour = onColour,
+                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
+                        timeStretch = timeStretch,
+                    )
+                }
+            }
         }
     }
 

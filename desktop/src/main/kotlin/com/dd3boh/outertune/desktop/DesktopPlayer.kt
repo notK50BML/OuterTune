@@ -144,6 +144,14 @@ class DesktopPlayer {
      */
     val equalizer = Equalizer()
 
+    /**
+     * Tempo and pitch, independently adjustable.
+     *
+     * Sits after the equaliser and before the line, so the equaliser's band frequencies still mean
+     * what they say - filtering after a pitch shift would move every band by the shift.
+     */
+    val timeStretch = TimeStretch()
+
     /** The line's frame position, which is what [VisualizerTap.sample] needs. */
     fun playedFrames(): Long = line?.longFramePosition ?: 0L
 
@@ -337,6 +345,11 @@ class DesktopPlayer {
         // - reporting written frames would show a position a second or so into the future.
         var lineFrameBase = 0L
         var trackMsBase = 0L
+        // The tempo the current base was measured under. Changing tempo changes how much song one
+        // second of output line represents, so the elapsed part has to be rebased at the moment it
+        // changes - scaling the whole elapsed span by the new tempo would retroactively rewrite
+        // however long has already been played at the old one.
+        var baseTempo = 1f
 
         var index = 0
         while (index < samples.size) {
@@ -365,8 +378,10 @@ class DesktopPlayer {
                         // audio that was thrown away. Carrying that across a jump makes the first
                         // moments after a seek ring with the passage before it.
                         equalizer.reset()
+                        timeStretch.reset()
                     }
                     trackMsBase = index.toLong() * FRAME_SAMPLES * 1000 / sampleRate
+                    baseTempo = timeStretch.tempo
                     positionMs.value = trackMsBase
                 }
             }
@@ -415,6 +430,23 @@ class DesktopPlayer {
                 sampleRate = sampleRate,
             )
 
+            // Then tempo and pitch. After the equaliser so the band frequencies keep their
+            // meaning, and before the analysis and the write so both describe the same audio: this
+            // stage changes the block's length, and measuring the pre-stretch buffer would drift
+            // the visualiser further out of step with every block.
+            val stretched = timeStretch.process(
+                bytes = pcm,
+                length = pcm.size,
+                bitsPerSample = buffer.bitsPerSample,
+                channels = buffer.channels,
+                bigEndian = buffer.isBigEndian,
+                sampleRate = sampleRate,
+            )
+            // The stretcher buffers about a frame before it can emit anything, so early blocks come
+            // back empty. Writing zero bytes is harmless but analysing them is not - it would submit
+            // an empty spectrum and read as a gap in the music.
+            if (stretched.isEmpty()) continue
+
             // Analysed before the write, and queued against the frame position at which this block
             // will actually be heard rather than shown immediately. The line buffers close to a
             // second, so a spectrum drawn when its audio is decoded leads the sound by about that
@@ -425,9 +457,9 @@ class DesktopPlayer {
                 val target = mono
                 if (target != null) {
                     val frames = Pcm.toMono(
-                        bytes = pcm,
+                        bytes = stretched,
                         offset = 0,
-                        length = pcm.size,
+                        length = stretched.size,
                         bitsPerSample = buffer.bitsPerSample,
                         channels = buffer.channels,
                         bigEndian = buffer.isBigEndian,
@@ -440,10 +472,21 @@ class DesktopPlayer {
                 }
             }
 
-            open.write(pcm, 0, pcm.size)
+            open.write(stretched, 0, stretched.size)
 
             open.let {
-                positionMs.value = trackMsBase + (it.longFramePosition - lineFrameBase) * 1000 / sampleRate
+                val tempo = timeStretch.tempo
+                if (tempo != baseTempo) {
+                    trackMsBase +=
+                        ((it.longFramePosition - lineFrameBase) * 1000.0 * baseTempo / sampleRate).toLong()
+                    lineFrameBase = it.longFramePosition
+                    baseTempo = tempo
+                }
+                // Scaled by tempo: the line plays a fixed number of frames per second, but at 1.5x
+                // each of those frames carries one and a half frames' worth of song, so an unscaled
+                // readout would crawl and the progress bar would never reach the end of the track.
+                positionMs.value =
+                    trackMsBase + ((it.longFramePosition - lineFrameBase) * 1000.0 * tempo / sampleRate).toLong()
             }
         }
         // Let whatever is buffered finish rather than cutting the last fraction of a second off.
