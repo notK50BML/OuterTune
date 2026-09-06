@@ -75,11 +75,15 @@ and is the thing to avoid.
 
 ## What is genuinely missing
 
-- **Signing in to YouTube Music.** The only large piece left - see below.
-- **Signing in to YouTube Music.** The API layer supports it (`YouTube.cookie`), but acquiring the
-  cookie is the problem: on Android that is a WebView login. On desktop it means embedding a browser
-  (the thing point 1 says is not otherwise needed), driving the system browser, or pasting a cookie
-  by hand. Worth deciding on before starting.
+- ~~**Signing in to YouTube Music.**~~ Done - Firefox, a `cookies.txt` file, or pasting. See
+  SIGN-IN.md for why it is a cookie rather than a token, and what would have to be true for device
+  OAuth to replace it.
+- **The account is signed in but nothing uses it yet.** That is the next real piece: the home feed,
+  the user's own library and playlists, subscriptions. The credential works and `accountInfo` proves
+  it; nothing else calls an authenticated endpoint.
+- **`DATASYNC_ID`.** It comes from JavaScript on the page, so the desktop has no way to read it. On a
+  Google account carrying several YouTube channels, the default channel is used. Degraded, not
+  broken, and worth remembering before chasing a bug report about the wrong library appearing.
 - **The Android player layout.** `Player.kt` is 1754 lines with 108 Android imports, and reaches for
   `LocalPlayerConnection` (MediaController), `rememberPreference` (DataStore), haptics and window
   insets throughout. The liquid/ferrofluid background is `android.graphics.RuntimeShader`, which does
