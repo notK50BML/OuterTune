@@ -137,6 +137,25 @@ object OuterTuneIcons {
      */
     val expandLess by icon("M480,439L278,650L216,586L480,310L744,586L682,650L480,439Z")
 
+    /**
+     * The overflow menu's three dots.
+     *
+     * Three circles rather than three squares, drawn as arc pairs. Deliberately narrow - a vertical
+     * ellipsis is 160 units wide against 676 tall, and widening it to satisfy a "fills the viewport"
+     * rule would make it something other than the glyph everyone recognises.
+     */
+    val moreVert by icon(
+        "M402,220 A78,78 0 1,0 558,220 A78,78 0 1,0 402,220 Z" +
+            "M402,480 A78,78 0 1,0 558,480 A78,78 0 1,0 402,480 Z" +
+            "M402,740 A78,78 0 1,0 558,740 A78,78 0 1,0 402,740 Z"
+    )
+
+    /** An arrow into a tray: download, kept beside the like button where songs are acted on. */
+    val download by icon(
+        "M440,160 L520,160 L520,486 L624,382 L680,440 L480,640 L280,440 L336,382 L440,486 Z" +
+            "M240,720 L720,720 L720,800 L240,800 Z"
+    )
+
     /** Every icon by name, so a test can check them all rather than the ones somebody remembered. */
     internal val all: Map<String, ImageVector>
         get() = mapOf(
@@ -152,6 +171,8 @@ object OuterTuneIcons {
             "close" to close,
             "queueMusic" to queueMusic,
             "expandLess" to expandLess,
+            "moreVert" to moreVert,
+            "download" to download,
             "fastForward" to fastForward,
             "fastRewind" to fastRewind,
             "equalizer" to equalizer,

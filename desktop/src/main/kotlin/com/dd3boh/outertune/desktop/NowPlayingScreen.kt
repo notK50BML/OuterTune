@@ -65,6 +65,13 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -84,6 +91,7 @@ import androidx.compose.ui.unit.dp
  * a pale background, and white-on-white is unreadable; this is the same reasoning as the Android
  * app's auto text contrast, applied here because the same problem exists.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 fun NowPlayingScreen(
     playback: PlaybackState,
@@ -99,8 +107,19 @@ fun NowPlayingScreen(
     onToggleShuffle: () -> Unit,
     onCycleRepeat: () -> Unit,
     onClose: () -> Unit,
+    /**
+     * The spectrum bars, if they are wanted.
+     *
+     * Off by default now. Sitting between the credits and the seek bar they read as something the
+     * player was doing rather than something the song was, and they pushed the controls down the
+     * column for it. The tap is still built and still cheap, so this becomes a setting rather than a
+     * deletion the moment there is a settings screen to put it in.
+     */
     spectrum: VisualizerTap? = null,
     playedFrames: () -> Long = { 0L },
+    /** What the overflow menu offers. Items with no callback do not appear - see [PlayerActions]. */
+    actions: PlayerActions = PlayerActions(),
+    onDownload: (() -> Unit)? = null,
     equalizer: Equalizer? = null,
     /** Tempo and pitch, if the player exposes them. Null hides the dials rather than faking them. */
     timeStretch: TimeStretch? = null,
@@ -127,10 +146,24 @@ fun NowPlayingScreen(
     val bottom by animateColorAsState(secondary.darken(0.75f))
     val onBackground = contentColourFor(top)
 
+    // Two states, not three. The queue either is not in the way or has the window; a middle
+    // "peeking" step meant the bar took two clicks to get back from, which is one more than a
+    // toggle should ever need.
+    var queueOpen by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(top, bottom))),
+            // Scrolling up at the top of the player pulls the equaliser down, which is the gesture
+            // the drawer's own handle implies and the one that was missing - the handle could only
+            // be clicked, so "scroll up to see it" simply did nothing.
+            .onPointerEvent(PointerEventType.Scroll) { event ->
+                if (equalizer == null) return@onPointerEvent
+                val scrolled = event.changes.first().scrollDelta.y
+                if (scrolled < 0f && !equalizerOpen) equalizerOpen = true
+                else if (scrolled > 0f && equalizerOpen) equalizerOpen = false
+            },
     ) {
         // Pulled down from the top edge rather than sitting among the controls, which is where the
         // Android player keeps it. An equaliser is something adjusted once and then left alone, so a
@@ -147,28 +180,47 @@ fun NowPlayingScreen(
             )
         }
 
+        BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        // Everything below is sized against the window rather than in fixed dp, and that is the fix
+        // for a player that looked wrong at every size. Android runs at a density of two or three,
+        // so a 72dp play button is a couple of hundred physical pixels and the cover beside it is
+        // maybe five times that. A desktop window runs at density one: the cover, being a fraction
+        // of the window, grew to nine hundred pixels while the play button stayed at seventy-two.
+        // Same code, same numbers, and a button that had become a speck next to a wall of album art.
+        val scale = (maxWidth / 1100.dp).coerceIn(1f, 2.2f)
+        val coverMax = 360.dp * scale
+        val playSize = 72.dp * scale
+        val playIcon = 36.dp * scale
+        val transportSize = 52.dp * scale
+        val transportIcon = 30.dp * scale
+        val actionSize = 40.dp * scale
+        val actionIcon = 24.dp * scale
+
         Row(
             verticalAlignment = Alignment.Top,
             modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
+                .fillMaxSize()
                 .padding(horizontal = 28.dp),
         ) {
-            IconButton(onClick = onClose) {
-                Icon(OuterTuneIcons.close, contentDescription = "Back", tint = onBackground)
+            IconButton(onClick = onClose, modifier = Modifier.size(transportSize)) {
+                Icon(
+                    OuterTuneIcons.close,
+                    contentDescription = "Back",
+                    tint = onBackground,
+                    modifier = Modifier.size(transportIcon),
+                )
             }
 
             Spacer(modifier = Modifier.width(8.dp))
 
-            // The cover takes whatever height the window gives it, rather than a fixed size. A
-            // desktop window is resized constantly and a 360dp square looked like a postage stamp
-            // the moment anyone maximised it - the art should be as large as the window is tall,
-            // which is what the Android landscape player does.
+            // Capped rather than filling whatever it is given. A square as tall as the window is
+            // most of the window, and it was taking that room from the controls - which are the part
+            // anyone actually reaches for.
             BoxWithConstraints(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier.fillMaxHeight().weight(1f),
             ) {
-                val side = min(maxHeight - 24.dp, maxWidth)
+                val side = min(min(maxHeight - 24.dp, maxWidth), coverMax)
                 Artwork(song?.thumbnail, size = side.coerceAtLeast(120.dp))
             }
 
@@ -186,7 +238,10 @@ fun NowPlayingScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = song?.title ?: "Nothing playing",
-                            style = MaterialTheme.typography.headlineMedium,
+                            style = MaterialTheme.typography.headlineMedium.copy(
+                                fontSize = MaterialTheme.typography.headlineMedium.fontSize * scale,
+                                lineHeight = MaterialTheme.typography.headlineMedium.lineHeight * scale,
+                            ),
                             fontWeight = FontWeight.Bold,
                             color = onBackground,
                             maxLines = 2,
@@ -198,35 +253,42 @@ fun NowPlayingScreen(
                             },
                             fallback = song?.artists?.joinToString { it.name } ?: "",
                             colour = onBackground.copy(alpha = 0.75f),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleMedium.copy(
+                                fontSize = MaterialTheme.typography.titleMedium.fontSize * scale,
+                            ),
                             onClick = onOpenArtist,
                         )
                     }
                     ActionButtons(
                         liked = liked,
-                        showEqualizer = equalizer != null,
+                        actions = actions.copy(onEqualizer = actions.onEqualizer ?: onToggleEqualizer),
                         onToggleLike = onToggleLike,
-                        onToggleEqualizer = onToggleEqualizer,
+                        onDownload = onDownload,
+                        tint = onBackground,
+                        buttonSize = actionSize,
+                        iconSize = actionIcon,
                     )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-
-                if (spectrum != null) {
-                    SpectrumBars(
-                        tap = spectrum,
-                        playedFrames = playedFrames,
-                        color = onBackground,
-                        active = playback is PlaybackState.Playing,
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                }
 
                 if (durationMs > 0) {
                     Slider(
                         value = positionMs.coerceIn(0, durationMs).toFloat(),
                         onValueChange = { onSeek(it.toLong()) },
                         valueRange = 0f..durationMs.toFloat(),
+                        // Coloured by how far through the track it is, on the same yellow-green-blue
+                        // scale as every dial and band slider in the equaliser - so "where in its
+                        // range is this" looks the same wherever it is being asked.
+                        colors = SliderDefaults.colors(
+                            thumbColor = ValueGradient.forValue(
+                                positionMs.toFloat(), 0f..durationMs.toFloat(),
+                            ),
+                            activeTrackColor = ValueGradient.forValue(
+                                positionMs.toFloat(), 0f..durationMs.toFloat(),
+                            ),
+                            inactiveTrackColor = onBackground.copy(alpha = 0.22f),
+                        ),
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Row(
@@ -250,19 +312,27 @@ fun NowPlayingScreen(
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(onClick = onToggleShuffle) {
+                        IconButton(onClick = onToggleShuffle, modifier = Modifier.size(transportSize)) {
                             Icon(
                                 OuterTuneIcons.shuffle,
                                 contentDescription = "Shuffle",
                                 // Dimmed rather than hidden when off: a control that disappears is
                                 // harder to find again than one that is plainly inactive.
                                 tint = onBackground.copy(alpha = if (queue.shuffled) 1f else 0.4f),
+                                modifier = Modifier.size(transportIcon),
                             )
                         }
                     }
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(onClick = onPrevious, enabled = queue.hasPrevious) {
-                            Icon(OuterTuneIcons.skipPrevious, "Previous", tint = onBackground)
+                        IconButton(
+                            onClick = onPrevious,
+                            enabled = queue.hasPrevious,
+                            modifier = Modifier.size(transportSize),
+                        ) {
+                            Icon(
+                                OuterTuneIcons.skipPrevious, "Previous",
+                                tint = onBackground, modifier = Modifier.size(transportIcon),
+                            )
                         }
                     }
                     // Off unless asked for, which is how the Android player ships - its seek
@@ -279,11 +349,23 @@ fun NowPlayingScreen(
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     // The one filled control, because play/pause is the button being reached for.
-                    FilledIconButton(onClick = onTogglePause, modifier = Modifier.size(72.dp)) {
+                    //
+                    // Its shape carries the state as well as its glyph: a circle while paused, a
+                    // rounded square while playing. Two things saying the same thing is not
+                    // redundancy here - the shape is readable from across a room and out of the
+                    // corner of an eye, where a small triangle and a small pair of bars are not.
+                    val playCorner by animateDpAsState(
+                        if (playback is PlaybackState.Paused) playSize / 2 else playSize * 0.28f
+                    )
+                    FilledIconButton(
+                        onClick = onTogglePause,
+                        shape = RoundedCornerShape(playCorner),
+                        modifier = Modifier.size(playSize),
+                    ) {
                         Icon(
                             if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
                             contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
-                            modifier = Modifier.size(36.dp),
+                            modifier = Modifier.size(playIcon),
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
@@ -298,16 +380,24 @@ fun NowPlayingScreen(
                         }
                     }
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(onClick = onNext, enabled = queue.hasNext) {
-                            Icon(OuterTuneIcons.skipNext, "Next", tint = onBackground)
+                        IconButton(
+                            onClick = onNext,
+                            enabled = queue.hasNext,
+                            modifier = Modifier.size(transportSize),
+                        ) {
+                            Icon(
+                                OuterTuneIcons.skipNext, "Next",
+                                tint = onBackground, modifier = Modifier.size(transportIcon),
+                            )
                         }
                     }
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(onClick = onCycleRepeat) {
+                        IconButton(onClick = onCycleRepeat, modifier = Modifier.size(transportSize)) {
                             Icon(
                                 if (queue.repeat == RepeatMode.ONE) OuterTuneIcons.repeatOne else OuterTuneIcons.repeat,
                                 contentDescription = "Repeat",
                                 tint = onBackground.copy(alpha = if (queue.repeat == RepeatMode.OFF) 0.4f else 1f),
+                                modifier = Modifier.size(transportIcon),
                             )
                         }
                     }
@@ -319,14 +409,28 @@ fun NowPlayingScreen(
                 }
             }
         }
+        }
 
-        // Along the bottom edge, opened by the bar itself - the shape the Android player's queue
-        // sheet has. Anchored to the window rather than placed in the controls column so it is in
-        // the same place whatever the window size, which is what makes it findable without looking.
-        QueueSheet(
+        QueueBar(
             queue = queue,
             onColour = onBackground,
-            onJump = onJumpToQueueIndex,
+            open = queueOpen,
+            onToggle = { queueOpen = !queueOpen },
+        )
+    }
+
+        // Over the player rather than inside the column, so opening it covers the window the way the
+        // Android sheet does instead of squeezing the controls into whatever is left.
+        QueueOverlay(
+            queue = queue,
+            onColour = onBackground,
+            background = bottom,
+            open = queueOpen,
+            onClose = { queueOpen = false },
+            onJump = {
+                onJumpToQueueIndex(it)
+                queueOpen = false
+            },
         )
     }
 }
@@ -396,126 +500,152 @@ private fun ColumnScope.EqualizerDrawer(
 }
 
 /**
- * The queue, along the bottom.
+ * The queue's handle, along the bottom edge.
  *
- * Three states rather than two, because a queue is asked two different questions. Closed it is a
- * chevron and what is playing next, which answers the common one without taking any room. Peeking -
- * one click - shows a few entries, which answers "what is coming up" without covering the player.
- * Open covers most of the window, for actually working through a long queue.
+ * A chevron above the queue's name, centred, which is what the Android player shows there. The name
+ * rather than the next song: where the music came from is the thing a single line can usefully say,
+ * and what is coming next is about to be visible anyway.
  *
- * No "Show"/"Hide" label. The bar is the control, and a word saying so is a word explaining an
- * affordance that is already obvious - which reads as an unpressable button sitting next to a
- * pressable bar.
- *
- * Blended rather than panelled: a scrim that deepens with the state, so at rest it is barely there
- * over the artwork and only becomes a surface once it has content to hold.
+ * Darkens under the pointer. That hover step is doing the work a "Show"/"Hide" label used to do
+ * badly - the label sat next to the bar looking like an unpressable button beside a pressable one,
+ * while the bar itself gave no sign it could be clicked at all.
  */
 @Composable
-private fun QueueSheet(
+private fun QueueBar(
     queue: QueueState,
     onColour: Color,
-    onJump: (Int) -> Unit,
+    open: Boolean,
+    onToggle: () -> Unit,
 ) {
-    var state by remember { mutableStateOf(QueueSheetState.Closed) }
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
-
-    // Deepens as it opens, and a little on hover. The hover step is what makes the bar read as
-    // something that can be clicked without a word saying so.
-    val scrim by animateFloatAsState(
-        when {
-            state == QueueSheetState.Open -> 0.55f
-            state == QueueSheetState.Peek -> 0.4f
-            hovered -> 0.28f
-            else -> 0.12f
-        }
-    )
-    val chevron by animateFloatAsState(if (state == QueueSheetState.Closed) 0f else 180f)
-
-    val listHeight by animateDpAsState(
-        when (state) {
-            QueueSheetState.Closed -> 0.dp
-            QueueSheetState.Peek -> 132.dp
-            QueueSheetState.Open -> 360.dp
-        }
-    )
+    val scrim by animateFloatAsState(if (hovered) 0.3f else 0.12f)
+    val chevron by animateFloatAsState(if (open) 180f else 0f)
 
     Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier
             .fillMaxWidth()
             .background(Color.Black.copy(alpha = scrim))
-            // A flick decides between peeking and opening, so the gesture matches the intent: a
-            // small drag asks to see a little, a decisive one asks for the lot.
+            .hoverable(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
+            // Flicking up opens it, the same gesture as the sheet on the phone. Any upward throw
+            // counts rather than one crossing a distance threshold, because the bar is only a few
+            // tens of pixels tall and there is nowhere to drag from within it.
             .draggable(
                 orientation = Orientation.Vertical,
                 state = rememberDraggableState { },
-                onDragStopped = { velocity ->
-                    state = when {
-                        velocity < -800f -> QueueSheetState.Open
-                        velocity > 800f -> QueueSheetState.Closed
-                        else -> state
-                    }
-                },
-            ),
+                onDragStopped = { velocity -> if (velocity < -300f) onToggle() },
+            )
+            .padding(vertical = 8.dp),
     ) {
-        // Centred, chevron above the name, matching the Android player's collapsed handle. The
-        // whole strip is the target rather than the chevron alone - a 24dp glyph is a small thing
-        // to hit with a mouse, and the row is already reserved for this.
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier
-                .fillMaxWidth()
-                .hoverable(interaction)
-                .clickable(interactionSource = interaction, indication = null) {
-                    // One click steps through rather than toggling, so the same gesture that opens
-                    // it a little opens it fully next time.
-                    state = when (state) {
-                        QueueSheetState.Closed -> QueueSheetState.Peek
-                        QueueSheetState.Peek -> QueueSheetState.Open
-                        QueueSheetState.Open -> QueueSheetState.Closed
-                    }
-                }
-                .padding(vertical = 6.dp),
-        ) {
-            Icon(
-                OuterTuneIcons.expandLess,
-                contentDescription = if (state == QueueSheetState.Closed) "Show queue" else "Hide queue",
-                tint = onColour.copy(alpha = 0.85f),
-                modifier = Modifier.size(20.dp).rotate(chevron),
-            )
-            Text(
-                text = if (state == QueueSheetState.Closed) queue.title
-                else "${queue.title}  ${queue.orderPosition + 1}/${queue.songs.size}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = onColour.copy(alpha = 0.85f),
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        Icon(
+            OuterTuneIcons.expandLess,
+            contentDescription = "Show queue",
+            tint = onColour.copy(alpha = 0.85f),
+            modifier = Modifier.size(20.dp).rotate(chevron),
+        )
+        Text(
+            text = queue.title,
+            style = MaterialTheme.typography.bodyMedium,
+            color = onColour.copy(alpha = 0.85f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
 
-        if (listHeight > 0.dp) {
-            LazyColumn(modifier = Modifier.fillMaxWidth().height(listHeight)) {
+/**
+ * The queue itself, over the whole window.
+ *
+ * Full window rather than a panel along the bottom, because that is what the sheet on the phone
+ * does and because a queue is read a screenful at a time - a strip showing four entries answers
+ * "what is next" and nothing else, which the closed bar already answers in one line.
+ *
+ * Slides rather than appears. The motion is what says where it came from and, more usefully, where
+ * it will go back to; a panel that simply materialises over the player leaves no hint that the
+ * player is still underneath.
+ */
+@Composable
+private fun QueueOverlay(
+    queue: QueueState,
+    onColour: Color,
+    background: Color,
+    open: Boolean,
+    onClose: () -> Unit,
+    onJump: (Int) -> Unit,
+) {
+    AnimatedVisibility(
+        visible = open,
+        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                // Opaque, unlike the closed bar's scrim. A translucent list over album art is a
+                // list that cannot be read.
+                .background(background)
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { },
+                    onDragStopped = { velocity -> if (velocity > 300f) onClose() },
+                ),
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClose)
+                    .padding(vertical = 10.dp),
+            ) {
+                Icon(
+                    OuterTuneIcons.expandLess,
+                    contentDescription = "Hide queue",
+                    tint = onColour.copy(alpha = 0.85f),
+                    modifier = Modifier.size(20.dp).rotate(180f),
+                )
+                Text(
+                    text = "${queue.title}  ${queue.orderPosition + 1}/${queue.songs.size}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = onColour,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
                 // Play order, not the order added: with shuffle on, the list should read as what is
                 // coming next, which is the only thing a queue is for.
                 itemsIndexed(queue.order) { position, index ->
                     val song = queue.songs.getOrNull(index) ?: return@itemsIndexed
+                    val current = position == queue.orderPosition
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { onJump(index) }
-                            .padding(horizontal = 28.dp, vertical = 6.dp),
+                            .padding(horizontal = 36.dp, vertical = 8.dp),
                     ) {
-                        Artwork(song.thumbnail, size = 32.dp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Text(
-                            text = song.title,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = onColour.copy(alpha = if (position == queue.orderPosition) 1f else 0.7f),
-                            fontWeight = if (position == queue.orderPosition) FontWeight.Bold else FontWeight.Normal,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Artwork(song.thumbnail, size = 44.dp)
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column {
+                            Text(
+                                text = song.title,
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = onColour.copy(alpha = if (current) 1f else 0.75f),
+                                fontWeight = if (current) FontWeight.Bold else FontWeight.Normal,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                            Text(
+                                text = song.artists.joinToString { it.name },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = onColour.copy(alpha = 0.55f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
             }
@@ -523,48 +653,82 @@ private fun QueueSheet(
     }
 }
 
-private enum class QueueSheetState { Closed, Peek, Open }
-
 /** What the seek buttons move by - the same five seconds the Android player uses. */
 private const val SEEK_STEP_MS = 5_000L
 
 /**
- * The song's own controls: like, equaliser, and the overflow menu.
+ * The song's own controls: like, download, equaliser, and the overflow menu.
  *
- * Filled circles rather than bare icons, which is what Player.kt's ActionButtons draws - a 36dp
- * circle of the primary colour holding a 24dp icon in onPrimary, seven density-independent pixels
- * apart. The fill is doing real work here: these sit over album artwork, where a bare tinted glyph
- * competes with whatever happens to be behind it, and a solid disc does not.
+ * Filled circles rather than bare icons, which is what Player.kt's ActionButtons draws - a disc of
+ * the primary colour holding an icon in onPrimary, seven density-independent pixels apart. The fill
+ * is doing real work: these sit over album artwork, where a bare tinted glyph competes with whatever
+ * happens to be behind it, and a solid disc does not.
  *
- * No sleep timer. Android leads with one; the desktop player has no sleep timer to offer yet, and a
- * button that opens nothing is worse than an absent one.
+ * Sized by the caller rather than fixed at 36dp, for the same reason the transport row is - see the
+ * scale note in the player body.
  */
 @Composable
 private fun ActionButtons(
     liked: Boolean,
-    showEqualizer: Boolean,
+    actions: PlayerActions,
     onToggleLike: () -> Unit,
-    onToggleEqualizer: () -> Unit,
+    onDownload: (() -> Unit)?,
+    tint: Color,
+    buttonSize: Dp,
+    iconSize: Dp,
 ) {
     Spacer(modifier = Modifier.width(10.dp))
 
-    ActionButton(onClick = onToggleLike) {
+    ActionButton(onClick = onToggleLike, size = buttonSize) {
         Icon(
             imageVector = if (liked) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder,
             contentDescription = if (liked) "Unlike" else "Like",
             tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(24.dp),
+            modifier = Modifier.size(iconSize),
         )
     }
 
-    if (showEqualizer) {
+    // Beside the like button rather than only in the menu. Liking and saving a song are the two
+    // things done to a track while it plays, and one of them being two clicks deeper than the other
+    // is an accident of where each happened to be added.
+    if (onDownload != null) {
         Spacer(modifier = Modifier.width(7.dp))
-        ActionButton(onClick = onToggleEqualizer) {
+        ActionButton(onClick = onDownload, size = buttonSize) {
+            Icon(
+                OuterTuneIcons.download,
+                contentDescription = "Download",
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(iconSize),
+            )
+        }
+    }
+
+    if (actions.onEqualizer != null) {
+        Spacer(modifier = Modifier.width(7.dp))
+        ActionButton(onClick = actions.onEqualizer, size = buttonSize) {
             Icon(
                 OuterTuneIcons.equalizer,
                 contentDescription = "Equaliser",
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(24.dp),
+                modifier = Modifier.size(iconSize),
+            )
+        }
+    }
+
+    if (actions.any) {
+        Spacer(modifier = Modifier.width(7.dp))
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier
+                .size(buttonSize)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+        ) {
+            PlayerOverflowMenu(
+                actions = actions,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                buttonSize = buttonSize,
+                iconSize = iconSize,
             )
         }
     }
@@ -572,11 +736,11 @@ private fun ActionButtons(
 
 /** One filled disc, sized and coloured as Android's action buttons are. */
 @Composable
-private fun ActionButton(onClick: () -> Unit, content: @Composable () -> Unit) {
+private fun ActionButton(onClick: () -> Unit, size: Dp, content: @Composable () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
-            .size(36.dp)
+            .size(size)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.primary)
             .clickable(onClick = onClick),

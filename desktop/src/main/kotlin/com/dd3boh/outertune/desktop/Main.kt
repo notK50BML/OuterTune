@@ -35,6 +35,8 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.darkColorScheme
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -139,6 +141,7 @@ private fun App(player: DesktopPlayer) {
         showAccount = false
         showPlaylists = false
     }
+    var showDetails by remember { mutableStateOf(false) }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var addingToPlaylist by remember { mutableStateOf<StoredSong?>(null) }
 
@@ -189,6 +192,17 @@ private fun App(player: DesktopPlayer) {
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
     val toggleLike = { queue.current?.let { library.toggleLiked(it.toStored()) }; Unit }
 
+    if (showDetails) {
+        queue.current?.let { song ->
+            SongDetailsDialog(
+                song = song,
+                durationMs = duration,
+                onDismiss = { showDetails = false },
+                onCopyLink = { copyToClipboard(watchUrl(song.id)) },
+            )
+        }
+    }
+
     addingToPlaylist?.let { song ->
         AddToPlaylistDialog(
             song = song,
@@ -219,6 +233,22 @@ private fun App(player: DesktopPlayer) {
             equalizer = player.equalizer,
             timeStretch = player.timeStretch,
             compressor = player.compressor,
+            // Only what the desktop build can actually do. Absent callbacks mean absent menu items,
+            // so nothing here promises a feature that has not been written - see PlayerActions.
+            actions = PlayerActions(
+                onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
+                onAddToPlaylist = queue.current?.let { song -> { addingToPlaylist = song.toStored() } },
+                onViewArtist = queue.current?.artists?.firstOrNull()?.let { artist ->
+                    {
+                        openArtistPage(
+                            artist.id?.let { StoredArtist(it, artist.name) }
+                                ?: StoredArtist.unlinked(artist.name)
+                        )
+                    }
+                },
+                onShare = queue.current?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
+                onDetails = queue.current?.let { { showDetails = true } },
+            ),
             onJumpToQueueIndex = { playerQueue.jumpTo(it) },
             onOpenArtist = openArtistPage,
         )
@@ -635,6 +665,68 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: (
 private fun formatClock(ms: Long): String {
     val seconds = ms / 1000
     return "%d:%02d".format(seconds / 60, seconds % 60)
+}
+
+/**
+ * What is actually playing, in plain terms.
+ *
+ * Mostly here to answer "why does this one sound different" and "is this the version I think it is".
+ * The video id is included and copyable because it is the only thing that identifies a track
+ * unambiguously when two uploads share a title.
+ */
+@Composable
+private fun SongDetailsDialog(
+    song: SongItem,
+    durationMs: Long,
+    onDismiss: () -> Unit,
+    onCopyLink: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Details") },
+        text = {
+            Column {
+                DetailRow("Title", song.title)
+                DetailRow("Artists", song.artists.joinToString { it.name }.ifBlank { "Unknown" })
+                DetailRow("Video ID", song.id)
+                if (durationMs > 0) DetailRow("Duration", formatClock(durationMs))
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = { TextButton(onClick = onCopyLink) { Text("Copy link") } },
+    )
+}
+
+@Composable
+private fun DetailRow(label: String, value: String) {
+    Row(modifier = Modifier.padding(vertical = 3.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.width(96.dp),
+        )
+        // Selectable, so the video id can be taken out by hand as well as by the copy button.
+        SelectionContainer { Text(text = value, style = MaterialTheme.typography.bodyMedium) }
+    }
+}
+
+/** The public watch page for a video id - what "Share" puts on the clipboard. */
+internal fun watchUrl(videoId: String) = "https://music.youtube.com/watch?v=$videoId"
+
+/**
+ * Puts [text] on the system clipboard.
+ *
+ * Straight to AWT rather than through a Compose clipboard manager: this is a desktop-only build, the
+ * call is one line, and wrapping it would add an abstraction over something with exactly one
+ * implementation. Failures are swallowed because a headless or locked clipboard is the environment's
+ * business, not a reason to interrupt playback with an error.
+ */
+internal fun copyToClipboard(text: String) {
+    runCatching {
+        java.awt.Toolkit.getDefaultToolkit().systemClipboard
+            .setContents(java.awt.datatransfer.StringSelection(text), null)
+    }
 }
 
 /** The stored shape of a search result - only what the library needs to show it and replay it. */

@@ -23,10 +23,12 @@ import androidx.compose.ui.unit.dp
 /**
  * The equaliser's response, drawn.
  *
- * Coloured along its length rather than in one colour: warm at the bass end, cool at the treble end.
- * That is not decoration - it is the axis label. A frequency axis needs to be read at a glance while
- * dragging a slider, and a gradient says "this end is the low end" without spending vertical space
- * on tick marks, which is the space the curve itself needs.
+ * Coloured by height, not by frequency. A point sitting high on the curve is blue, one sitting low
+ * is yellow, through green at the zero line - the same rule and the same three colours the dials and
+ * band sliders use, so "blue means turned up" means one thing everywhere in the panel. The gradient
+ * runs down the canvas rather than across it, which is what makes a boost read as blue wherever in
+ * the spectrum it happens to be; a horizontal gradient would have coloured by frequency instead and
+ * said nothing at all about the setting.
  *
  * The curve is the filter bank's real combined response - see [EqResponse] - so it shows what
  * overlapping bands actually do to each other rather than tracing the slider tops.
@@ -89,15 +91,19 @@ fun EqGraph(
         fill.lineTo(size.width, midY)
         fill.close()
 
-        val spectrum = Brush.horizontalGradient(
-            0f to Color(0xFFFFC24B),
-            0.5f to Color(0xFF5BD6A0),
-            1f to Color(0xFF5B9CFF),
+        // Anchored to the plotted range rather than to the canvas, so a point at +6dB is the same
+        // colour whether or not some other band happens to be pushing the range wider.
+        val byHeight = Brush.verticalGradient(
+            0f to ValueGradient.HIGH,
+            0.5f to ValueGradient.MID,
+            1f to ValueGradient.LOW,
+            startY = yFor(rangeDb),
+            endY = yFor(-rangeDb),
         )
 
         // Filled to the zero line as well as stroked. The area is what carries the shape at a
         // glance; the stroke is what makes it precise.
-        drawPath(path = fill, brush = spectrum, alpha = 0.18f)
-        drawPath(path = path, brush = spectrum, style = Stroke(width = 2.5f))
+        drawPath(path = fill, brush = byHeight, alpha = 0.18f)
+        drawPath(path = path, brush = byHeight, style = Stroke(width = 2.5f))
     }
 }

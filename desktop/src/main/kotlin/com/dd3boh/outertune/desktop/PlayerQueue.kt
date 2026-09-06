@@ -86,6 +86,29 @@ class PlayerQueue(
         startCurrent()
     }
 
+    /**
+     * Puts [song] straight after whatever is playing.
+     *
+     * Inserted into the play order rather than appended to it, so with shuffle on it is still the
+     * next thing heard - appending would drop it at a random point, which is not what "add to queue"
+     * means to anyone who just chose a song.
+     *
+     * Every later index shifts by one, so the order list has to be rewritten rather than just having
+     * an entry pushed into it.
+     */
+    fun playNext(song: SongItem) {
+        val previous = state.value
+        if (previous.songs.isEmpty()) {
+            play(listOf(song), 0, previous.title)
+            return
+        }
+        val insertAt = previous.index + 1
+        val songs = previous.songs.toMutableList().apply { add(insertAt, song) }
+        val order = previous.order.map { if (it >= insertAt) it + 1 else it }.toMutableList()
+        order.add(previous.orderPosition + 1, insertAt)
+        state.value = previous.copy(songs = songs, order = order)
+    }
+
     fun next() {
         val queue = state.value
         if (queue.repeat == RepeatMode.ONE) {

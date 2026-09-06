@@ -30,6 +30,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -189,30 +191,43 @@ private fun Heading(text: String) {
  * nothing after it.
  */
 /**
- * Where each credit sits in the rendered string, so a click can be mapped back to a name.
+ * One credit as it should be shown and what happens when it is clicked.
  *
- * Separated out and tested because getting it wrong is invisible: every name still renders, the
- * underlines still appear, and clicking one simply opens a different artist. That is a far worse
- * failure than a crash, and it is the exact bug this whole feature was asked for to fix.
- *
- * The separator is counted on `index > 0`, matching the string builder. Counting it on "the cursor
- * has moved" instead - which is what this did - agrees for every real credit list and disagrees the
- * moment a name is empty, because then the builder appends ", " and the cursor has not moved, and
- * every range after it is two characters adrift.
+ * [linked] is whether there is a real channel behind the name. It drives the underline only - both
+ * kinds are clickable. That is deliberate: a credit that arrived as a bare name still has a page
+ * worth opening, made of whatever the library already holds by that artist, and refusing the click
+ * meant that on any song whose credits came back without channel ids - which is most of them from
+ * some sources - nothing on the line responded to the pointer at all. Underlining only the linked
+ * ones keeps the distinction visible without making half the line dead.
  */
-internal fun creditRanges(artists: List<StoredArtist>): List<Pair<IntRange, StoredArtist>> {
-    var cursor = 0
-    return artists.mapIndexed { index, artist ->
-        if (index > 0) cursor += SEPARATOR.length
-        val start = cursor
-        cursor += artist.name.length
-        start until cursor to artist
-    }
+data class ArtistCredit(val artist: StoredArtist, val linked: Boolean)
+
+/**
+ * The credits for a song, ready to draw.
+ *
+ * Falls back to the joined display string when there are no structured credits, so a song stored
+ * before the library kept them still shows its artist rather than "Unknown artist" - it just has
+ * one credit instead of several.
+ */
+fun creditsFor(artists: List<StoredArtist>, fallback: String): List<ArtistCredit> {
+    if (artists.isNotEmpty()) return artists.map { ArtistCredit(it, it.linkable) }
+    val trimmed = fallback.trim()
+    if (trimmed.isEmpty()) return emptyList()
+    return listOf(ArtistCredit(StoredArtist.unlinked(trimmed), linked = false))
 }
 
-/** What goes between two credits. Shared so the ranges and the rendered text cannot disagree. */
-internal const val SEPARATOR = ", "
-
+/**
+ * A song's credits, each name its own clickable target.
+ *
+ * Separate Text composables in a Row rather than one string with click offsets mapped back to
+ * ranges. The offset approach worked in a test and not in the app, and even when it works it is a
+ * silent failure waiting to happen - get the arithmetic wrong by two and clicking one artist opens
+ * a different one, with nothing on screen to suggest anything is amiss. A composable per name cannot
+ * be off by two.
+ *
+ * It also buys the thing a desktop expects and the annotated string could not give: the pointer
+ * turns into a hand over each name, so the line advertises itself as clickable before it is clicked.
+ */
 @Composable
 fun ArtistNames(
     artists: List<StoredArtist>,
@@ -222,9 +237,10 @@ fun ArtistNames(
     onClick: (StoredArtist) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    if (artists.isEmpty()) {
+    val credits = remember(artists, fallback) { creditsFor(artists, fallback) }
+    if (credits.isEmpty()) {
         Text(
-            text = fallback.ifBlank { "Unknown artist" },
+            text = "Unknown artist",
             style = style,
             color = colour,
             maxLines = 1,
@@ -234,31 +250,23 @@ fun ArtistNames(
         return
     }
 
-    val text = buildAnnotatedString {
-        artists.forEachIndexed { index, artist ->
-            if (index > 0) append(SEPARATOR)
-            if (artist.linkable) {
-                withStyle(SpanStyle(textDecoration = TextDecoration.Underline)) { append(artist.name) }
-            } else {
-                append(artist.name)
+    Row(modifier = modifier) {
+        credits.forEachIndexed { index, credit ->
+            if (index > 0) {
+                Text(text = ", ", style = style, color = colour, maxLines = 1)
             }
+            Text(
+                text = credit.artist.name,
+                style = style.copy(
+                    textDecoration = if (credit.linked) TextDecoration.Underline else null,
+                ),
+                color = colour,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable { onClick(credit.artist) },
+            )
         }
     }
-
-    // Ranges recomputed alongside the string, so a click maps back to the credit it landed on.
-    val ranges = remember(artists) { creditRanges(artists) }
-
-    androidx.compose.foundation.text.ClickableText(
-        text = text,
-        style = style.copy(color = colour),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        onClick = { offset ->
-            ranges.firstOrNull { offset in it.first }
-                ?.second
-                ?.takeIf { it.linkable }
-                ?.let(onClick)
-        },
-        modifier = modifier,
-    )
 }

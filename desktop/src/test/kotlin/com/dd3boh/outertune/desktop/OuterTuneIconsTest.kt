@@ -98,10 +98,19 @@ class OuterTuneIconsTest {
     fun `every icon fills a sensible part of the viewport`() {
         // Too small and it looks lost beside the others; too large and it has no margin and reads as
         // heavier. Both are the kind of thing noticed only once the row is assembled.
+        //
+        // The rule is on the icon's longest side, not on both. It used to demand 300 in each
+        // direction, which was fine while every icon was a chunky transport glyph and wrong the
+        // moment a vertical ellipsis arrived: three dots in a column are about 160 units wide
+        // against 676 tall, and widening them to pass would produce something that is no longer the
+        // glyph anyone recognises. The short side still has a floor, because an icon that is a hair
+        // in one direction is a mistake rather than a shape.
         OuterTuneIcons.allPaths.forEach { (name, path) ->
             val b = boundsOf(path)
-            assertTrue("$name is only ${b.width} wide", b.width >= 300f)
-            assertTrue("$name is only ${b.height} tall", b.height >= 300f)
+            val longest = maxOf(b.width, b.height)
+            val shortest = minOf(b.width, b.height)
+            assertTrue("$name is only ${b.width} by ${b.height}", longest >= 300f)
+            assertTrue("$name is only $shortest across its short side", shortest >= 100f)
             assertTrue("$name is ${b.width} wide, filling the viewport edge to edge", b.width <= 900f)
             assertTrue("$name is ${b.height} tall, filling the viewport edge to edge", b.height <= 900f)
         }

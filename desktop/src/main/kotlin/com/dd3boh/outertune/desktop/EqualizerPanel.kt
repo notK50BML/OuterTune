@@ -206,6 +206,7 @@ fun EqualizerPanel(
             horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
             bands.forEachIndexed { index, band ->
+                val bandColour = ValueGradient.forValue(band.gainDb, -rangeFor(bands)..rangeFor(bands))
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     modifier = Modifier.width(56.dp),
@@ -231,9 +232,13 @@ fun EqualizerPanel(
                                 )
                             },
                             valueRange = -rangeFor(bands)..rangeFor(bands),
+                            // Coloured by where this band sits, like every other control here, so
+                            // the twelve of them together read as the shape of the curve without
+                            // anyone tracing the thumb positions.
                             colors = SliderDefaults.colors(
-                                thumbColor = accent,
-                                activeTrackColor = accent,
+                                thumbColor = bandColour,
+                                activeTrackColor = bandColour,
+                                inactiveTrackColor = onColour.copy(alpha = 0.18f),
                             ),
                             modifier = Modifier.rotateVertical(SLIDER_LENGTH),
                         )
@@ -413,76 +418,79 @@ private fun CompressorSection(compressor: Compressor, accent: Color, onColour: C
 
         Spacer(modifier = Modifier.height(10.dp))
 
-        Box(modifier = Modifier.graphicsLayer { alpha = if (enabled) 1f else 0.45f }) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(20.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Dial(
-                    label = "Threshold",
-                    value = threshold,
-                    valueRange = Compressor.MIN_THRESHOLD_DB..Compressor.MAX_THRESHOLD_DB,
-                    onValueChange = { threshold = it; compressor.thresholdDb = it },
-                    step = 0.5f,
-                    coarseStep = 5f,
-                    default = Compressor.DEFAULT_THRESHOLD_DB,
-                    readout = { "%.0f dB".format(it) },
-                    accent = accent,
-                    onColour = onColour,
-                    size = 64.dp,
-                )
-                Dial(
-                    label = "Ratio",
-                    value = ratio,
-                    valueRange = Compressor.MIN_RATIO..Compressor.MAX_RATIO,
-                    onValueChange = { ratio = it; compressor.ratio = it },
-                    step = 0.1f,
-                    coarseStep = 1f,
-                    default = Compressor.DEFAULT_RATIO,
-                    readout = { "%.1f:1".format(it) },
-                    accent = accent,
-                    onColour = onColour,
-                    size = 64.dp,
-                )
-                Dial(
-                    label = "Attack",
+        // Two rows, each spread evenly across the full width, which is how the mobile panel lays
+        // these out. Five knobs in one left-aligned row read as a strip bolted on beside the
+        // heading rather than as the compressor's own controls; spread over two rows they read as
+        // a unit, and each knob gets room for its label and readout.
+        //
+        // Shown only while the compressor is on, again as on mobile. Five disabled dials taking up
+        // a third of the panel to say "not in use" is a poor trade for the space.
+        if (enabled) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                RotaryDial(
                     value = attack,
-                    valueRange = Compressor.MIN_ATTACK_MS..Compressor.MAX_ATTACK_MS,
                     onValueChange = { attack = it; compressor.attackMs = it },
+                    valueRange = Compressor.MIN_ATTACK_MS..Compressor.MAX_ATTACK_MS,
+                    color = ValueGradient.forValue(attack, Compressor.MIN_ATTACK_MS..Compressor.MAX_ATTACK_MS),
+                    textColor = onColour,
+                    label = "Attack",
+                    // Sub-millisecond attacks are a real setting, and "0 ms" would read as off.
+                    valueLabel = if (attack < 10f) "%.1f ms".format(attack) else "%.0f ms".format(attack),
                     step = 0.5f,
                     coarseStep = 10f,
                     default = Compressor.DEFAULT_ATTACK_MS,
-                    // Sub-millisecond attacks are a real setting, and "0 ms" would read as off.
-                    readout = { if (it < 10f) "%.1f ms".format(it) else "%.0f ms".format(it) },
-                    accent = accent,
-                    onColour = onColour,
-                    size = 64.dp,
                 )
-                Dial(
-                    label = "Release",
+                RotaryDial(
                     value = release,
-                    valueRange = Compressor.MIN_RELEASE_MS..Compressor.MAX_RELEASE_MS,
                     onValueChange = { release = it; compressor.releaseMs = it },
+                    valueRange = Compressor.MIN_RELEASE_MS..Compressor.MAX_RELEASE_MS,
+                    color = ValueGradient.forValue(release, Compressor.MIN_RELEASE_MS..Compressor.MAX_RELEASE_MS),
+                    textColor = onColour,
+                    label = "Release",
+                    valueLabel = "%.0f ms".format(release),
                     step = 5f,
                     coarseStep = 50f,
                     default = Compressor.DEFAULT_RELEASE_MS,
-                    readout = { "%.0f ms".format(it) },
-                    accent = accent,
-                    onColour = onColour,
-                    size = 64.dp,
                 )
-                Dial(
-                    label = "Makeup",
+                RotaryDial(
+                    value = ratio,
+                    onValueChange = { ratio = it; compressor.ratio = it },
+                    valueRange = Compressor.MIN_RATIO..Compressor.MAX_RATIO,
+                    color = ValueGradient.forValue(ratio, Compressor.MIN_RATIO..Compressor.MAX_RATIO),
+                    textColor = onColour,
+                    label = "Ratio",
+                    valueLabel = "%.1f:1".format(ratio),
+                    step = 0.1f,
+                    coarseStep = 1f,
+                    default = Compressor.DEFAULT_RATIO,
+                )
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
+                RotaryDial(
+                    value = threshold,
+                    onValueChange = { threshold = it; compressor.thresholdDb = it },
+                    valueRange = Compressor.MIN_THRESHOLD_DB..Compressor.MAX_THRESHOLD_DB,
+                    color = ValueGradient.forValue(threshold, Compressor.MIN_THRESHOLD_DB..Compressor.MAX_THRESHOLD_DB),
+                    textColor = onColour,
+                    label = "Threshold",
+                    valueLabel = "%.1f dB".format(threshold),
+                    step = 0.5f,
+                    coarseStep = 5f,
+                    default = Compressor.DEFAULT_THRESHOLD_DB,
+                )
+                RotaryDial(
                     value = makeup,
-                    valueRange = Compressor.MIN_MAKEUP_DB..Compressor.MAX_MAKEUP_DB,
                     onValueChange = { makeup = it; compressor.makeupGainDb = it },
+                    valueRange = Compressor.MIN_MAKEUP_DB..Compressor.MAX_MAKEUP_DB,
+                    color = ValueGradient.forValue(makeup, Compressor.MIN_MAKEUP_DB..Compressor.MAX_MAKEUP_DB),
+                    textColor = onColour,
+                    label = "Makeup gain",
+                    valueLabel = "+%.1f dB".format(makeup),
                     step = 0.25f,
                     coarseStep = 3f,
                     default = Compressor.DEFAULT_MAKEUP_DB,
-                    readout = { "+%.1f dB".format(it) },
-                    accent = accent,
-                    onColour = onColour,
-                    size = 64.dp,
                 )
             }
         }
@@ -557,51 +565,46 @@ private fun PlaybackDials(timeStretch: TimeStretch, accent: Color, onColour: Col
     var tempo by remember { mutableStateOf(timeStretch.tempo) }
     var pitch by remember { mutableStateOf(timeStretch.pitchSemitones) }
 
+    val tempoRange = TimeStretch.MIN_TEMPO..TimeStretch.MAX_TEMPO
+    val pitchRange = TimeStretch.MIN_SEMITONES..TimeStretch.MAX_SEMITONES
+
     Row(
-        horizontalArrangement = Arrangement.spacedBy(28.dp),
+        horizontalArrangement = Arrangement.SpaceEvenly,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        Dial(
-            label = "Tempo",
+        RotaryDial(
             value = tempo,
-            valueRange = TimeStretch.MIN_TEMPO..TimeStretch.MAX_TEMPO,
-            onValueChange = {
-                tempo = it
-                timeStretch.tempo = it
-            },
-            // Half a percent a notch. The fine adjustment this control exists for is the couple of
-            // percent that brings a track into step with something else, and a dial that moves in
-            // five percent jumps cannot express it.
+            onValueChange = { tempo = it; timeStretch.tempo = it },
+            valueRange = tempoRange,
+            color = ValueGradient.forValue(tempo, tempoRange),
+            textColor = onColour,
+            label = "Tempo",
+            valueLabel = "%.0f%%".format(tempo * 100),
+            // Half a percent a notch. The fine adjustment this exists for is the couple of percent
+            // that brings a track into step with something else, and a dial moving in five percent
+            // jumps cannot express it.
             step = 0.005f,
             coarseStep = 0.05f,
-            default = 1f,
-            readout = { "%.0f%%".format(it * 100) },
-            accent = accent,
-            onColour = onColour,
+            centeredAt = 1f,
         )
-        Dial(
-            label = "Pitch",
+        RotaryDial(
             value = pitch,
-            valueRange = TimeStretch.MIN_SEMITONES..TimeStretch.MAX_SEMITONES,
-            onValueChange = {
-                pitch = it
-                timeStretch.pitchSemitones = it
-            },
+            onValueChange = { pitch = it; timeStretch.pitchSemitones = it },
+            valueRange = pitchRange,
+            color = ValueGradient.forValue(pitch, pitchRange),
+            textColor = onColour,
+            label = "Pitch",
+            valueLabel = "%+.1f st".format(pitch),
             step = 0.1f,
             coarseStep = 1f,
-            default = 0f,
-            readout = { "%+.1f st".format(it) },
-            accent = accent,
-            onColour = onColour,
+            centeredAt = 0f,
         )
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = "Scroll to turn, shift to move faster, double-click to reset.",
-                style = MaterialTheme.typography.bodySmall,
-                color = onColour.copy(alpha = 0.6f),
-            )
-        }
+        Text(
+            text = "Scroll to turn.\nShift for coarse steps.\nDouble-click to reset.",
+            style = MaterialTheme.typography.bodySmall,
+            color = onColour.copy(alpha = 0.6f),
+        )
     }
 }
 
