@@ -170,6 +170,57 @@ suspecting.
 I am flagging this as recalled rather than verified. The endpoints are not documented by Google and
 have changed before; treat the shape as a lead to test, not as a spec.
 
+### E. Drive the browser the user already has, over CDP — the best of the list
+
+Suggested by `yt-dlp-getpot-wpc`, which is a PO Token provider rather than an authenticator - but the
+*technique* it uses is the piece that was missing here. It drives a real Chrome with `nodriver`
+instead of shipping one.
+
+That inverts the problem. The reason B is hard for Chrome is app-bound encryption: the cookie store's
+key is tied to the Chrome process, so reading the file is a fight. But there is no need to read the
+file. **Ask Chrome instead.** The Chrome DevTools Protocol exposes `Network.getAllCookies`, and a
+browser answering a question about its own cookies is not decrypting anything.
+
+The flow:
+
+1. Launch the Chrome the user already has, with `--remote-debugging-port=<n>` and
+   `--user-data-dir=<a directory of OuterTune's own>`.
+2. Open `music.youtube.com` in it. The user signs in - real Chrome, so BotGuard, reCAPTCHA, 2FA and
+   passkeys all work, because it *is* the browser Google expects.
+3. Read the cookies over CDP once `SAPISID` appears.
+4. Close it.
+
+**Cost: nothing.** No embedded browser, no bundled Chromium, no native dependency. CDP is JSON over a
+WebSocket, and `ktor-client-okhttp` already brings OkHttp, which has a WebSocket client. Against
+option D's ~150MB, this is a few hundred lines.
+
+The separate `--user-data-dir` is not a workaround, it is *required*: since Chrome 136, remote
+debugging switches are ignored on the default profile precisely so that malware cannot attach to a
+real profile and extract cookies. A non-default directory gets a different encryption key. So the
+restriction that makes B hard is the same one that forces E into the shape that works - and the
+shape that works is also the honest one, because the session is created in a profile belonging to
+this app rather than lifted out of the user's own.
+
+What it costs the user: signing in once inside a fresh profile, rather than reusing a session they
+already have. That is a real difference from B, and worth it - it works on Chrome, Edge and any
+Chromium, and it does not break when Google changes how sign-in looks, because nothing here is
+parsing or automating the sign-in at all.
+
+What to check before building it:
+
+- Chrome must be findable. On Windows that is the registry or the usual Program Files paths; Edge is
+  a fallback and is present on every Windows install.
+- The debugging port must be chosen free and bound to loopback only. Anything that can reach that
+  port can drive the browser.
+- The profile directory is a credential store of its own once signed in. It should be deleted after
+  the cookie is taken, or the app has quietly acquired a second copy of the session it did not need
+  to keep.
+- If no Chromium is installed at all, A and B are still there. This is an addition, not a
+  replacement.
+
+**This is now the one I would build next**, ahead of C - it is certain, it is cheap, and unlike C it
+does not depend on a question about Google's policy that neither of us has been able to settle.
+
 ### D. Embed Chromium (JCEF) — works, and costs ~150MB
 
 Reliable, and the same flow as Android. It undoes the thing this port has been careful about: the
@@ -187,8 +238,9 @@ spike had simply never set `locale`/`visitorData`. Only sign-in ever needed a br
    picker, for anyone who uses Firefox. Chrome deliberately not attempted: app-bound encryption
    since Chrome 127 ties the key to the Chrome process, and chasing that is a commitment to keep
    chasing it.
-3. **C / C-bis** if either question comes back positive. That is the research.
-4. **D** only if both fail and the file flow proves genuinely unacceptable.
+3. **E** next - see above. Certain, cheap, and it does not hang on an unsettled question.
+4. **C / C-bis** if either question ever comes back positive. Would still be the nicest flow.
+5. **D** now almost certainly never: E gets the same reliability for none of the size.
 
 ## Whichever is chosen
 
