@@ -11,6 +11,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.dp
+import kotlin.properties.PropertyDelegateProvider
+import kotlin.properties.ReadOnlyProperty
 
 /**
  * OuterTune's own icons, taken from the Android app's vector drawables.
@@ -31,6 +33,16 @@ import androidx.compose.ui.unit.dp
  * "on" counterpart so the pair match in weight when placed side by side.
  */
 object OuterTuneIcons {
+
+    /**
+     * Every path string, by the name it was given.
+     *
+     * Declared before the icons, and that is not style: an object's initialisers run top to bottom,
+     * so a map declared below the first `by icon(...)` would still be null when that call tried to
+     * record into it. The failure is a NullPointerException during class initialisation, which
+     * surfaces as the whole screen refusing to draw.
+     */
+    private val paths = LinkedHashMap<String, String>()
 
     val play by icon("M320,760L320,200L760,480L320,760Z")
 
@@ -81,19 +93,95 @@ object OuterTuneIcons {
     )
 
     /**
+     * Two triangles, no bar - the same glyphs Android reaches for with `Icons.Rounded.FastRewind`
+     * and `FastForward` on the seek buttons either side of play.
+     *
+     * Drawn on the 960 grid rather than copied from a drawable, because the app has no drawable for
+     * these - it uses the Material set. Each triangle is the one already in [skipNext], so the pair
+     * match the rest of the transport row in weight, and the geometry is checked by test: the group
+     * spans 100..860 horizontally and 230..730 vertically, both centred on 480.
+     */
+    val fastForward by icon(
+        "M100,730L100,230L460,480L100,730Z" +
+            "M500,730L500,230L860,480L500,730Z"
+    )
+
+    val fastRewind by icon(
+        "M860,730L860,230L500,480L860,730Z" +
+            "M460,730L460,230L100,480L460,730Z"
+    )
+
+    /**
+     * Three bars of different heights, standing on a common baseline.
+     *
+     * Bottom-aligned rather than centred individually, because an equaliser's bars rise from a floor
+     * - centring each one would read as a bar chart of nothing in particular. The group spans
+     * 160..800 in both directions, so it sits centred in the viewport like every other icon here.
+     */
+    val equalizer by icon(
+        "M160,800L160,520L280,520L280,800L160,800Z" +
+            "M420,800L420,160L540,160L540,800L420,800Z" +
+            "M680,800L680,400L800,400L800,800L680,800Z"
+    )
+
+    /** Every icon by name, so a test can check them all rather than the ones somebody remembered. */
+    internal val all: Map<String, ImageVector>
+        get() = mapOf(
+            "play" to play,
+            "pause" to pause,
+            "skipNext" to skipNext,
+            "skipPrevious" to skipPrevious,
+            "shuffle" to shuffle,
+            "repeat" to repeat,
+            "repeatOne" to repeatOne,
+            "favorite" to favorite,
+            "favoriteBorder" to favoriteBorder,
+            "close" to close,
+            "queueMusic" to queueMusic,
+            "fastForward" to fastForward,
+            "fastRewind" to fastRewind,
+            "equalizer" to equalizer,
+        )
+
+    /** The path strings, so a test can measure the geometry rather than trust the rendering. */
+    internal val allPaths: Map<String, String>
+        get() = paths.toMap()
+
+    /**
      * Built once and reused. An ImageVector is immutable and parsing the path is not free, so a
      * property that rebuilt on every read would re-parse on every recomposition of every row.
      */
-    private fun icon(pathData: String) = lazy {
-        ImageVector.Builder(
-            defaultWidth = 24.dp,
-            defaultHeight = 24.dp,
-            viewportWidth = 960f,
-            viewportHeight = 960f,
-        ).apply {
-            // White, so that Icon's own tint is what actually colours it - a tint multiplies, and a
-            // path filled with anything darker would come out muddy wherever it was tinted.
-            addPath(PathParser().parsePathString(pathData).toNodes(), fill = SolidColor(Color.White))
-        }.build()
-    }
+    /**
+     * Declares an icon, and registers its path under the name of the property holding it.
+     *
+     * A delegate *provider* rather than a plain lazy, so the property name is available at the
+     * moment the delegate is created. That is what keeps [paths] honest: there is no second list of
+     * names to fall out of step, and an icon added tomorrow is covered by the geometry test without
+     * anyone remembering to add it.
+     *
+     * Registration happens at construction; the ImageVector itself is still built lazily, because
+     * parsing is not free and a property that re-parsed on every read would do so on every
+     * recomposition of every row.
+     */
+    private fun icon(pathData: String) =
+        PropertyDelegateProvider<Any?, ReadOnlyProperty<Any?, ImageVector>> { _, property ->
+            paths[property.name] = pathData
+            val vector = lazy {
+                ImageVector.Builder(
+                    defaultWidth = 24.dp,
+                    defaultHeight = 24.dp,
+                    viewportWidth = 960f,
+                    viewportHeight = 960f,
+                ).apply {
+                    // White, so that Icon's own tint is what actually colours it - a tint
+                    // multiplies, and a path filled with anything darker would come out muddy
+                    // wherever it was tinted.
+                    addPath(
+                        PathParser().parsePathString(pathData).toNodes(),
+                        fill = SolidColor(Color.White),
+                    )
+                }.build()
+            }
+            ReadOnlyProperty { _, _ -> vector.value }
+        }
 }

@@ -31,6 +31,7 @@ import io.ktor.client.call.body
 import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Image
 import java.util.Collections
@@ -54,22 +55,66 @@ import java.util.Collections
  */
 internal object ArtworkCache {
     private const val MAX_ENTRIES = 60
-    private val images = Collections.synchronizedMap(HashMap<String, ImageBitmap>())
+    private val images = Collections.synchronizedMap(LinkedHashMap<String, ImageBitmap>())
     private val client by lazy { HttpClient(OkHttp) }
 
+    /**
+     * Fetches [url], retrying a transient failure.
+     *
+     * The retry is the point. Without it a single hiccup - a dropped connection, a slow CDN edge -
+     * left that cover blank permanently, because the composable only asks again when the song
+     * changes. Which is exactly the shape of "the art does not load for some songs": not a broken
+     * URL, just one request that went wrong and was never repeated.
+     *
+     * Three attempts with a short backoff. Beyond that the cover genuinely is not coming, and
+     * hammering the CDN for it helps nobody.
+     */
     suspend fun load(url: String): ImageBitmap? {
         if (url.isBlank()) return null
         images[url]?.let { return it }
         return withContext(Dispatchers.IO) {
-            runCatching {
-                val bytes: ByteArray = client.get(url).body()
-                Image.makeFromEncoded(bytes).toComposeImageBitmap()
-            }.getOrNull()?.also {
-                if (images.size >= MAX_ENTRIES) images.clear()
-                images[url] = it
+            repeat(ATTEMPTS) { attempt ->
+                val image = runCatching {
+                    val bytes: ByteArray = client.get(url).body()
+                    Image.makeFromEncoded(bytes).toComposeImageBitmap()
+                }.getOrNull()
+                if (image != null) {
+                    put(url, image)
+                    return@withContext image
+                }
+                if (attempt < ATTEMPTS - 1) delay(RETRY_DELAY_MS * (attempt + 1))
             }
+            null
         }
     }
+
+    /** Whatever is already decoded for this cover at any size, or null. */
+    fun cachedVariant(baseUrl: String): ImageBitmap? {
+        if (baseUrl.isBlank()) return null
+        val prefix = baseUrl.sizeKey()
+        synchronized(images) {
+            // Scanned rather than indexed. The map holds sixty entries at most, so this is cheaper
+            // than maintaining a second structure - and it runs once per cover, not per frame.
+            return images.entries.firstOrNull { it.key.sizeKey() == prefix }?.value
+        }
+    }
+
+    private fun put(url: String, image: ImageBitmap) {
+        synchronized(images) {
+            // Oldest out, rather than everything out. Clearing wholesale threw away covers that were
+            // on screen, so a long scroll made the list refetch what it was already showing.
+            if (images.size >= MAX_ENTRIES) {
+                images.keys.firstOrNull()?.let { images.remove(it) }
+            }
+            images[url] = image
+        }
+    }
+
+    /** The part of a URL that identifies the cover rather than the size asked for. */
+    private fun String.sizeKey(): String = substringBefore("=w").substringBefore("=s")
+
+    private const val ATTEMPTS = 3
+    private const val RETRY_DELAY_MS = 400L
 }
 
 /**
@@ -167,10 +212,21 @@ fun Artwork(url: String?, size: Dp = 48.dp, modifier: Modifier = Modifier) {
     // Requested at twice the drawn size, so it stays sharp on a high-DPI display and when the
     // window is scaled. Rounded up to a sane step rather than the exact dp, so a handful of sizes
     // are requested across the app instead of one cached image per pixel dimension.
-    val pixels = remember(size) { ((size.value.toInt() * 2 + 63) / 64 * 64).coerceIn(64, 720) }
-    var image by remember(url, pixels) { mutableStateOf<ImageBitmap?>(null) }
+    val pixels = remember(size) { ((size.value.toInt() * 2 + 63) / 64 * 64).coerceIn(64, 1024) }
+
+    // Starts from whatever is already decoded for this cover at *any* size, which is usually the
+    // small one a list row fetched a moment ago. Opening the player then shows the art immediately
+    // and sharpens when the large version lands, instead of showing an empty tile for as long as a
+    // fresh full-size download takes. The size is part of the URL, so the large and small versions
+    // are different requests and nothing else would connect them.
+    var image by remember(url, pixels) {
+        mutableStateOf(url?.let { ArtworkCache.cachedVariant(it) })
+    }
     LaunchedEffect(url, pixels) {
-        image = url?.takeIf { it.isNotBlank() }?.let { ArtworkCache.load(it.atSize(pixels)) }
+        url?.takeIf { it.isNotBlank() }?.let { ArtworkCache.load(it.atSize(pixels)) }
+            // Only replaced on success: a failed upgrade must not blank a placeholder that is
+            // already showing something correct, merely lower resolution.
+            ?.let { image = it }
     }
 
     Box(

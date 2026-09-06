@@ -207,6 +207,7 @@ private fun App(player: DesktopPlayer) {
             spectrum = player.spectrum,
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
+            onJumpToQueueIndex = { playerQueue.jumpTo(it) },
         )
         return
     }
