@@ -142,6 +142,29 @@ private fun App(player: DesktopPlayer) {
         showPlaylists = false
     }
     var showDetails by remember { mutableStateOf(false) }
+
+    // Fetched for whatever is playing, whether or not the pane is open. Waiting until it is opened
+    // would mean a spinner every single time, and the lookup is two requests that are then cached
+    // for good - so doing it eagerly costs one round trip per new song and makes the pane instant.
+    val lyricsRepository = remember(library) { LyricsRepository(library) }
+    var lyrics by remember { mutableStateOf<Lyrics?>(null) }
+    var lyricsLoading by remember { mutableStateOf(false) }
+    val nowPlaying = queue.current
+    LaunchedEffect(nowPlaying?.id, duration) {
+        lyrics = null
+        val song = nowPlaying ?: return@LaunchedEffect
+        // Held off until the duration is known, because LrcLib matches on it - asking with zero
+        // gets the wrong version of a song as often as it gets nothing.
+        if (duration <= 0) return@LaunchedEffect
+        lyricsLoading = true
+        lyrics = lyricsRepository.lyricsFor(
+            songId = song.id,
+            title = song.title,
+            artist = song.artists.firstOrNull()?.name.orEmpty(),
+            durationMs = duration,
+        )
+        lyricsLoading = false
+    }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var addingToPlaylist by remember { mutableStateOf<StoredSong?>(null) }
 
@@ -235,6 +258,8 @@ private fun App(player: DesktopPlayer) {
             compressor = player.compressor,
             // Only what the desktop build can actually do. Absent callbacks mean absent menu items,
             // so nothing here promises a feature that has not been written - see PlayerActions.
+            lyrics = lyrics,
+            lyricsLoading = lyricsLoading,
             actions = PlayerActions(
                 onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
                 onAddToPlaylist = queue.current?.let { song -> { addingToPlaylist = song.toStored() } },

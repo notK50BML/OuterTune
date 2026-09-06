@@ -29,6 +29,9 @@ data class StoredArtist(val id: String, val name: String) {
     }
 }
 
+/** Lyrics as they were stored: the raw LRC (or plain text) and which provider gave it. */
+data class CachedLyrics(val text: String, val source: String)
+
 /** One song as the desktop library stores it - enough to show it and to play it again. */
 data class StoredSong(
     val id: String,
@@ -86,6 +89,19 @@ class LibraryStore(
     val database: Database = Database(File(directory, "library.db")),
 ) {
     private val db = database
+
+    /** What has already been looked up for a song, or null if nothing has. */
+    fun cachedLyrics(songId: String): CachedLyrics? = db.lyrics(songId)
+
+    /**
+     * Remembers a lookup, including one that found nothing.
+     *
+     * Storing the miss matters as much as storing the hit: songs without lyrics are common, and
+     * without a record of the miss every play of an instrumental asks both providers again.
+     */
+    fun cacheLyrics(songId: String, text: String, source: String) = db.putLyrics(songId, text, source)
+
+    fun clearLyrics(songId: String) = db.deleteLyrics(songId)
 
 
     val recentlyPlayed = MutableStateFlow<List<StoredSong>>(emptyList())

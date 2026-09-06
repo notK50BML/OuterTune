@@ -18,6 +18,10 @@ kotlin {
 
 dependencies {
     implementation(project(":innertube"))
+    // Both are kotlin("jvm") modules built on ktor, the same as everything else here, so the
+    // desktop uses them as they are. Nothing about lyrics needed porting.
+    implementation(project(":lrclib"))
+    implementation(project(":kugou"))
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")

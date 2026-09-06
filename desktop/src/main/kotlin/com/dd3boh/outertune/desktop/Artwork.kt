@@ -222,7 +222,19 @@ fun rememberArtworkColours(url: String?): Pair<Color, Color> {
  * would reflow every row it lands in, so the list would jitter as it scrolled.
  */
 @Composable
-fun Artwork(url: String?, size: Dp = 48.dp, modifier: Modifier = Modifier) {
+fun Artwork(
+    url: String?,
+    size: Dp = 48.dp,
+    modifier: Modifier = Modifier,
+    /**
+     * Corner rounding.
+     *
+     * A parameter because the right amount depends entirely on how big the thing is drawn. Four
+     * pixels reads as "slightly softened" on a 44dp queue row and as a hard square on a cover
+     * filling half the window - the radius has to grow with the art for the corner to look the same.
+     */
+    cornerRadius: Dp = 4.dp,
+) {
     // Requested at twice the drawn size, so it stays sharp on a high-DPI display and when the
     // window is scaled. Rounded up to a sane step rather than the exact dp, so a handful of sizes
     // are requested across the app instead of one cached image per pixel dimension.
@@ -246,7 +258,7 @@ fun Artwork(url: String?, size: Dp = 48.dp, modifier: Modifier = Modifier) {
     Box(
         modifier = modifier
             .size(size)
-            .clip(RoundedCornerShape(4.dp))
+            .clip(RoundedCornerShape(cornerRadius))
             .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant),
     ) {
         image?.let {

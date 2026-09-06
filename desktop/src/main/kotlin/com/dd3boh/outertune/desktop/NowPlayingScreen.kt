@@ -72,6 +72,9 @@ import androidx.compose.animation.slideOutVertically
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -91,7 +94,10 @@ import androidx.compose.ui.unit.dp
  * a pale background, and white-on-white is unreadable; this is the same reasoning as the Android
  * app's auto text contrast, applied here because the same problem exists.
  */
-@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+@OptIn(
+    androidx.compose.ui.ExperimentalComposeUiApi::class,
+    androidx.compose.material3.ExperimentalMaterial3Api::class,
+)
 @Composable
 fun NowPlayingScreen(
     playback: PlaybackState,
@@ -119,6 +125,8 @@ fun NowPlayingScreen(
     playedFrames: () -> Long = { 0L },
     /** What the overflow menu offers. Items with no callback do not appear - see [PlayerActions]. */
     actions: PlayerActions = PlayerActions(),
+    lyrics: Lyrics? = null,
+    lyricsLoading: Boolean = false,
     onDownload: (() -> Unit)? = null,
     equalizer: Equalizer? = null,
     /** Tempo and pitch, if the player exposes them. Null hides the dials rather than faking them. */
@@ -151,6 +159,11 @@ fun NowPlayingScreen(
     // toggle should ever need.
     var queueOpen by remember { mutableStateOf(false) }
 
+    // Reset whenever the song changes. Lyrics left open across a track change would show the
+    // previous song's words while the new one plays, which is worse than showing nothing - and the
+    // cover of what is now playing is the more useful thing to land on.
+    var showLyrics by remember(song?.id) { mutableStateOf(false) }
+
     Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
     Column(
         modifier = Modifier
@@ -169,17 +182,6 @@ fun NowPlayingScreen(
         // Android player keeps it. An equaliser is something adjusted once and then left alone, so a
         // button for it beside play and pause gives it standing it has not earned - and twelve
         // sliders is the largest thing on this screen.
-        if (equalizer != null) {
-            EqualizerDrawer(
-                equalizer = equalizer,
-                timeStretch = timeStretch,
-                compressor = compressor,
-                onColour = onBackground,
-                open = equalizerOpen,
-                onToggle = { equalizerOpen = !equalizerOpen },
-            )
-        }
-
         BoxWithConstraints(modifier = Modifier.weight(1f).fillMaxWidth()) {
         // Everything below is sized against the window rather than in fixed dp, and that is the fix
         // for a player that looked wrong at every size. Android runs at a density of two or three,
@@ -217,11 +219,42 @@ fun NowPlayingScreen(
             // most of the window, and it was taking that room from the controls - which are the part
             // anyone actually reaches for.
             BoxWithConstraints(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.fillMaxHeight().weight(1f),
+                // Toward the left of its column rather than centred in it. Centred, the back button
+                // on one side and the wide gap before the controls on the other pushed the art into
+                // the middle of the window, which left it reading as belonging to the controls
+                // rather than balancing them.
+                contentAlignment = Alignment.CenterStart,
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .weight(1f)
+                    // Clicking the cover swaps it for the lyrics, which is how the Android player
+                    // does it. No button is spent on a thing the cover itself can be.
+                    .pointerHoverIcon(PointerIcon.Hand)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                    ) { showLyrics = !showLyrics },
             ) {
-                val side = min(min(maxHeight - 24.dp, maxWidth), coverMax)
-                Artwork(song?.thumbnail, size = side.coerceAtLeast(120.dp))
+                if (showLyrics) {
+                    LyricsPane(
+                        lyrics = lyrics,
+                        loading = lyricsLoading,
+                        positionMs = positionMs,
+                        onSeek = onSeek,
+                        onColour = onBackground,
+                        fontSize = 20.sp * scale,
+                        modifier = Modifier.fillMaxHeight(),
+                    )
+                } else {
+                    val side = min(min(maxHeight - 24.dp, maxWidth), coverMax)
+                    Artwork(
+                        song?.thumbnail,
+                        size = side.coerceAtLeast(120.dp),
+                        // Proportional to the art rather than fixed, so it reads the same at any
+                        // window size - see the note on the parameter.
+                        cornerRadius = side * 0.045f,
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.width(36.dp))
@@ -261,7 +294,10 @@ fun NowPlayingScreen(
                     }
                     ActionButtons(
                         liked = liked,
-                        actions = actions.copy(onEqualizer = actions.onEqualizer ?: onToggleEqualizer),
+                        actions = actions.copy(
+                            onEqualizer = actions.onEqualizer ?: onToggleEqualizer,
+                            onToggleLyrics = { showLyrics = !showLyrics },
+                        ),
                         onToggleLike = onToggleLike,
                         onDownload = onDownload,
                         tint = onBackground,
@@ -273,22 +309,47 @@ fun NowPlayingScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 if (durationMs > 0) {
+                    // A thin line with a small mark on it, not a Material slider with a lozenge
+                    // thumb and a chunky track. This is a readout that happens to be draggable - it
+                    // is looked at constantly and touched rarely, so it should be quiet.
+                    //
+                    // Plain, too. The value gradient is for controls whose setting means something,
+                    // and "how far through the song" is not a setting - colouring it implied the
+                    // start of a track was a low value of something and the end a high one.
                     Slider(
                         value = positionMs.coerceIn(0, durationMs).toFloat(),
                         onValueChange = { onSeek(it.toLong()) },
                         valueRange = 0f..durationMs.toFloat(),
-                        // Coloured by how far through the track it is, on the same yellow-green-blue
-                        // scale as every dial and band slider in the equaliser - so "where in its
-                        // range is this" looks the same wherever it is being asked.
-                        colors = SliderDefaults.colors(
-                            thumbColor = ValueGradient.forValue(
-                                positionMs.toFloat(), 0f..durationMs.toFloat(),
-                            ),
-                            activeTrackColor = ValueGradient.forValue(
-                                positionMs.toFloat(), 0f..durationMs.toFloat(),
-                            ),
-                            inactiveTrackColor = onBackground.copy(alpha = 0.22f),
-                        ),
+                        track = { state ->
+                            val fraction = if (durationMs > 0) {
+                                (state.value / durationMs.toFloat()).coerceIn(0f, 1f)
+                            } else {
+                                0f
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(3.dp)
+                                    .clip(CircleShape)
+                                    .background(onBackground.copy(alpha = 0.22f)),
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(fraction)
+                                        .height(3.dp)
+                                        .clip(CircleShape)
+                                        .background(onBackground),
+                                )
+                            }
+                        },
+                        thumb = {
+                            Box(
+                                modifier = Modifier
+                                    .size(11.dp)
+                                    .clip(CircleShape)
+                                    .background(onBackground),
+                            )
+                        },
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Row(
@@ -419,6 +480,21 @@ fun NowPlayingScreen(
         )
     }
 
+        // Over the player rather than inside the column, and for the same reason as the queue: an
+        // equaliser sharing the window with the player got a strip to fit twelve sliders, five
+        // knobs, a graph and a search box into, and squeezed the player to a sliver to do it.
+        if (equalizer != null) {
+            EqualizerOverlay(
+                equalizer = equalizer,
+                timeStretch = timeStretch,
+                compressor = compressor,
+                onColour = onBackground,
+                background = bottom,
+                open = equalizerOpen,
+                onClose = { equalizerOpen = false },
+            )
+        }
+
         // Over the player rather than inside the column, so opening it covers the window the way the
         // Android sheet does instead of squeezing the controls into whatever is left.
         QueueOverlay(
@@ -436,66 +512,71 @@ fun NowPlayingScreen(
 }
 
 /**
- * The equaliser, behind a handle at the top edge.
+ * The equaliser, over the whole window.
  *
- * Closed it is a thin grab bar; open it slides the panel down over the player. That is the Android
- * arrangement, and it is right for the same reason there: the equaliser is set once and then
- * forgotten, so it should be reachable without being present.
+ * Full window, not a drawer sharing the screen with the player. The panel holds a response graph,
+ * sixteen presets, an AutoEQ search, twelve band sliders, two playback knobs and five compressor
+ * knobs; giving it a slice of the window meant it got a scrollbar and the player got a sliver, and
+ * neither was usable. It is also the right shape for what it is - the equaliser is opened, adjusted,
+ * and closed again, and nothing on the player needs watching while that happens.
+ *
+ * Slides down from the top, since that is the edge its handle lives on and where scrolling up
+ * summons it from.
  */
 @Composable
-private fun ColumnScope.EqualizerDrawer(
+private fun EqualizerOverlay(
     equalizer: Equalizer,
     timeStretch: TimeStretch?,
     compressor: Compressor?,
     onColour: Color,
+    background: Color,
     open: Boolean,
-    onToggle: () -> Unit,
+    onClose: () -> Unit,
 ) {
-    AnimatedVisibility(visible = open) {
-        Surface(
-            color = Color.Black.copy(alpha = 0.35f),
-            modifier = Modifier.fillMaxWidth(),
+    AnimatedVisibility(
+        visible = open,
+        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                // Opaque. Twelve sliders and a response curve over album art is not readable.
+                .background(background)
+                .draggable(
+                    orientation = Orientation.Vertical,
+                    state = rememberDraggableState { },
+                    onDragStopped = { velocity -> if (velocity < -300f) onClose() },
+                ),
         ) {
-            // Capped and scrollable rather than free to take whatever it wants. The panel is
-            // roughly 560dp tall now, which on a short window would leave the player as a strip of
-            // buttons - and the equaliser is not what someone came to this screen for. Seven tenths
-            // leaves the cover and controls recognisable at any window height, and the scroll means
-            // capping it never hides a band.
-            BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-                Box(
-                    modifier = Modifier
-                        .heightIn(max = maxHeight * 0.7f)
-                        .verticalScroll(rememberScrollState()),
-                ) {
-                    EqualizerPanel(
-                        equalizer = equalizer,
-                        accent = onColour,
-                        onColour = onColour,
-                        modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
-                        timeStretch = timeStretch,
-                        compressor = compressor,
-                    )
-                }
+            // The handle it was opened from, at the top, dragged the other way to close - the same
+            // affordance reversed rather than a separate close button doing the same job.
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onClose)
+                    .padding(vertical = 10.dp),
+            ) {
+                Icon(
+                    OuterTuneIcons.expandLess,
+                    contentDescription = "Close equaliser",
+                    tint = onColour.copy(alpha = 0.85f),
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+
+            Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+                EqualizerPanel(
+                    equalizer = equalizer,
+                    accent = onColour,
+                    onColour = onColour,
+                    modifier = Modifier.padding(horizontal = 40.dp, vertical = 8.dp),
+                    timeStretch = timeStretch,
+                    compressor = compressor,
+                )
             }
         }
-    }
-
-    Box(
-        contentAlignment = Alignment.Center,
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(22.dp)
-            .clickable(onClick = onToggle),
-    ) {
-        // A grab bar rather than a labelled button. It reads as "there is more up here" without
-        // spending a word on it, and it is the same affordance the Android player uses.
-        Box(
-            modifier = Modifier
-                .width(if (open) 56.dp else 40.dp)
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-                .background(onColour.copy(alpha = if (open) 0.7f else 0.35f)),
-        )
     }
 }
 

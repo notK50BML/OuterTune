@@ -179,6 +179,27 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 4) {
+                connection.createStatement().use { st ->
+                    // Cached because a song is played more than once and its words do not change.
+                    // Without this, opening the lyrics pane is two network round trips every time,
+                    // and the pane sits blank for a second on a song already looked up.
+                    //
+                    // A miss is cached too, as an empty text with source 'none'. Songs without
+                    // lyrics are common, and re-asking both providers on every play of an
+                    // instrumental is the most wasteful case there is.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS lyrics (
+                            songId    TEXT PRIMARY KEY NOT NULL REFERENCES song(id) ON DELETE CASCADE,
+                            text      TEXT NOT NULL,
+                            source    TEXT NOT NULL,
+                            fetchedAt INTEGER NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -220,6 +241,40 @@ class Database(file: File) {
         } finally {
             transactionDepth = 0
             connection.autoCommit = true
+        }
+    }
+
+    /** What is stored for a song's lyrics, if anything has been looked up. */
+    fun lyrics(songId: String): CachedLyrics? = synchronized(lock) {
+        connection.prepareStatement("SELECT text, source FROM lyrics WHERE songId = ?").use { st ->
+            st.setString(1, songId)
+            st.executeQuery().use { rs ->
+                if (rs.next()) CachedLyrics(rs.getString(1), rs.getString(2)) else null
+            }
+        }
+    }
+
+    fun putLyrics(songId: String, text: String, source: String) = synchronized(lock) {
+        connection.prepareStatement(
+            """
+            INSERT INTO lyrics (songId, text, source, fetchedAt)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(songId) DO UPDATE SET
+                text = excluded.text, source = excluded.source, fetchedAt = excluded.fetchedAt
+            """.trimIndent()
+        ).use { st ->
+            st.setString(1, songId)
+            st.setString(2, text)
+            st.setString(3, source)
+            st.setLong(4, System.currentTimeMillis())
+            st.executeUpdate()
+        }
+    }
+
+    fun deleteLyrics(songId: String) = synchronized(lock) {
+        connection.prepareStatement("DELETE FROM lyrics WHERE songId = ?").use { st ->
+            st.setString(1, songId)
+            st.executeUpdate()
         }
     }
 
@@ -609,7 +664,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 3
+        const val SCHEMA_VERSION = 4
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }
