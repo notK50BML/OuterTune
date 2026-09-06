@@ -22,7 +22,20 @@ data class EqBand(
     val freqHz: Float,
     val gainDb: Float = 0f,
     val q: Float = 1.0f,
+    val type: EqBandType = EqBandType.PEAKING,
 )
+
+/**
+ * What shape a band is.
+ *
+ * Peaking alone was enough while every band came from this app's own twelve-slider layout. It is not
+ * enough for a correction curve fetched from AutoEQ: those almost always open with a low shelf to
+ * set the bass level and close with a high shelf, because a headphone's error at the extremes is a
+ * tilt across a whole region rather than a bump at one frequency. Approximating a shelf with a
+ * peaking filter gets the centre right and then falls away again exactly where the correction was
+ * supposed to keep going.
+ */
+enum class EqBandType { PEAKING, LOW_SHELF, HIGH_SHELF }
 
 /**
  * A second-order IIR section, and the sample history it needs.
@@ -73,6 +86,59 @@ private class Biquad {
         b2 = nb2 / na0
         a1 = na1 / na0
         a2 = na2 / na0
+    }
+
+    /**
+     * Sets the coefficients for a low or high shelf at [freqHz].
+     *
+     * RBJ cookbook again, and the two shelves are the same expression with the sign of the
+     * `(A - 1) * cos(w0)` terms flipped and the numerator and denominator swapped - which is why
+     * they are written together rather than as two functions that would drift apart.
+     *
+     * The shelf slope is taken from [q] the way the cookbook's S parameter relates to it, so a
+     * ParametricEQ.txt Q means here what it means in Equalizer APO and in AutoEQ's own plots.
+     */
+    fun setShelf(freqHz: Float, gainDb: Float, q: Float, sampleRate: Int, low: Boolean) {
+        if (sampleRate <= 0 || freqHz <= 0f || freqHz >= sampleRate / 2f) {
+            b0 = 1f; b1 = 0f; b2 = 0f; a1 = 0f; a2 = 0f
+            return
+        }
+        val a = 10.0.pow(gainDb / 40.0)
+        val w0 = 2.0 * Math.PI * freqHz / sampleRate
+        val cosw0 = cos(w0)
+        val alpha = sin(w0) / (2.0 * q.coerceAtLeast(0.05f))
+        // The cookbook's shelf term. Guarded because A + 1 - (A - 1)cos(w0) can go very slightly
+        // negative under rounding at extreme gains, and a NaN here would poison the filter for the
+        // rest of the track.
+        val sqrtTerm = 2.0 * kotlin.math.sqrt(a) * alpha
+
+        val na0: Double; val na1: Double; val na2: Double
+        val nb0: Double; val nb1: Double; val nb2: Double
+        if (low) {
+            nb0 = a * ((a + 1) - (a - 1) * cosw0 + sqrtTerm)
+            nb1 = 2 * a * ((a - 1) - (a + 1) * cosw0)
+            nb2 = a * ((a + 1) - (a - 1) * cosw0 - sqrtTerm)
+            na0 = (a + 1) + (a - 1) * cosw0 + sqrtTerm
+            na1 = -2 * ((a - 1) + (a + 1) * cosw0)
+            na2 = (a + 1) + (a - 1) * cosw0 - sqrtTerm
+        } else {
+            nb0 = a * ((a + 1) + (a - 1) * cosw0 + sqrtTerm)
+            nb1 = -2 * a * ((a - 1) + (a + 1) * cosw0)
+            nb2 = a * ((a + 1) + (a - 1) * cosw0 - sqrtTerm)
+            na0 = (a + 1) - (a - 1) * cosw0 + sqrtTerm
+            na1 = 2 * ((a - 1) - (a + 1) * cosw0)
+            na2 = (a + 1) - (a - 1) * cosw0 - sqrtTerm
+        }
+
+        if (na0 == 0.0 || !na0.isFinite()) {
+            b0 = 1f; b1 = 0f; b2 = 0f; a1 = 0f; a2 = 0f
+            return
+        }
+        b0 = (nb0 / na0).toFloat()
+        b1 = (nb1 / na0).toFloat()
+        b2 = (nb2 / na0).toFloat()
+        a1 = (na1 / na0).toFloat()
+        a2 = (na2 / na0).toFloat()
     }
 
     fun process(x0: Float): Float {
@@ -159,7 +225,13 @@ class Equalizer {
         for (chain in filters) {
             chain.forEachIndexed { i, filter ->
                 val band = current[i]
-                filter.setPeaking(band.freqHz, band.gainDb, band.q, sampleRate)
+                when (band.type) {
+                    EqBandType.PEAKING -> filter.setPeaking(band.freqHz, band.gainDb, band.q, sampleRate)
+                    EqBandType.LOW_SHELF ->
+                        filter.setShelf(band.freqHz, band.gainDb, band.q, sampleRate, low = true)
+                    EqBandType.HIGH_SHELF ->
+                        filter.setShelf(band.freqHz, band.gainDb, band.q, sampleRate, low = false)
+                }
             }
         }
         configuredRate = sampleRate

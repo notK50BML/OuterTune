@@ -41,13 +41,34 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.draw.clip
+import androidx.compose.material3.AssistChip
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
 
-/** Range each band may be moved. Wider than this stops being tone and starts being damage. */
+/**
+ * Range the band sliders cover by default.
+ *
+ * Wider than this, by hand, stops being tone and starts being damage. A fetched AutoEQ correction
+ * can legitimately exceed it though - see [rangeFor] - so this is the floor rather than a limit.
+ */
 private const val MAX_GAIN_DB = 12f
+
+/**
+ * The range to draw, given what the bands actually hold.
+ *
+ * Fixed at twelve, a loaded correction asking for sixteen would show its slider pinned at the top
+ * and read as a milder curve than the one being applied. Rounded up to whole decibels so the scale
+ * does not shift by a fraction every time a slider moves.
+ */
+private fun rangeFor(bands: List<EqBand>): Float =
+    maxOf(MAX_GAIN_DB, kotlin.math.ceil(bands.maxOfOrNull { kotlin.math.abs(it.gainDb) } ?: 0f))
 
 /**
  * How tall each band slider stands.
@@ -134,8 +155,14 @@ fun EqualizerPanel(
                 sampleRate = equalizer.sampleRate,
                 onColour = onColour,
                 height = 150.dp,
-                rangeDb = MAX_GAIN_DB,
+                rangeDb = rangeFor(bands),
             )
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        AutoEqSearch(accent = accent, onColour = onColour) { fetched, name ->
+            apply(fetched, name)
         }
 
         Spacer(modifier = Modifier.height(14.dp))
@@ -203,7 +230,7 @@ fun EqualizerPanel(
                                     "",
                                 )
                             },
-                            valueRange = -MAX_GAIN_DB..MAX_GAIN_DB,
+                            valueRange = -rangeFor(bands)..rangeFor(bands),
                             colors = SliderDefaults.colors(
                                 thumbColor = accent,
                                 activeTrackColor = accent,
@@ -212,15 +239,128 @@ fun EqualizerPanel(
                         )
                     }
                     Text(
-                        text = if (band.freqHz >= 1000f) {
-                            "${(band.freqHz / 1000f).roundToInt()}k"
-                        } else {
-                            band.freqHz.roundToInt().toString()
+                        // A loaded correction puts bands at 1050Hz or 3300Hz, not at round
+                        // numbers, so "3k" would label two different bands identically. One decimal
+                        // above a kilohertz keeps them distinguishable without going to four digits.
+                        text = when {
+                            band.freqHz >= 10_000f -> "${(band.freqHz / 1000f).roundToInt()}k"
+                            band.freqHz >= 1000f -> "%.1fk".format(band.freqHz / 1000f)
+                            else -> band.freqHz.roundToInt().toString()
                         },
                         style = MaterialTheme.typography.labelSmall,
                         fontSize = 10.sp,
                         textAlign = TextAlign.Center,
                         color = onColour.copy(alpha = 0.7f),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Search AutoEQ for a headphone correction and load it.
+ *
+ * A correction curve is not a preset - it is a measurement of one specific pair of headphones, and
+ * it is the single most effective thing anyone can do to how their music sounds. Everything else in
+ * this panel is taste; this is a known error being cancelled.
+ *
+ * Search runs after a pause rather than on every keystroke. Each query is up to three GitHub
+ * requests, and firing them per character would exhaust an unauthenticated rate limit inside one
+ * headphone name - the listings are cached for the session, but the first pass through has to fetch
+ * them.
+ */
+@Composable
+private fun AutoEqSearch(
+    accent: Color,
+    onColour: Color,
+    onApply: (List<EqBand>, String) -> Unit,
+) {
+    var query by remember { mutableStateOf("") }
+    var results by remember { mutableStateOf<List<AutoEq.Headphone>>(emptyList()) }
+    var searching by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    LaunchedEffect(query) {
+        if (query.length < 3) {
+            results = emptyList()
+            failed = false
+            return@LaunchedEffect
+        }
+        // Cancelled and restarted on every keystroke, so only the pause after the last one gets
+        // this far.
+        delay(400)
+        searching = true
+        failed = false
+        results = runCatching { AutoEq.search(query) }
+            .onFailure { failed = true }
+            .getOrDefault(emptyList())
+        searching = false
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text(
+                text = "AutoEQ",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = onColour,
+            )
+            OutlinedTextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Search headphones", color = onColour.copy(alpha = 0.5f)) },
+                singleLine = true,
+                textStyle = MaterialTheme.typography.bodyMedium,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = onColour,
+                    unfocusedTextColor = onColour,
+                    focusedBorderColor = accent,
+                    unfocusedBorderColor = onColour.copy(alpha = 0.3f),
+                    cursorColor = accent,
+                ),
+                modifier = Modifier.weight(1f),
+            )
+        }
+
+        val status = when {
+            searching -> "Searching..."
+            failed -> "Could not reach AutoEQ. Check the connection and try again."
+            query.length in 1..2 -> "Keep typing..."
+            query.length >= 3 && results.isEmpty() -> "Nothing found for \"$query\" in oratory1990's measurements."
+            else -> null
+        }
+        if (status != null) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(status, style = MaterialTheme.typography.bodySmall, color = onColour.copy(alpha = 0.6f))
+        }
+
+        if (results.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            ) {
+                // Capped, and the cap is stated rather than silently truncating: a search for "HD"
+                // matches most of Sennheiser's catalogue, and a row of two hundred chips is not a
+                // list anyone reads.
+                results.take(30).forEach { headphone ->
+                    AssistChip(
+                        onClick = {
+                            scope.launch {
+                                val curve = AutoEq.fetchCurve(headphone)
+                                if (curve != null) onApply(curve, headphone.name) else failed = true
+                            }
+                        },
+                        label = { Text(headphone.name, maxLines = 1) },
+                    )
+                }
+                if (results.size > 30) {
+                    Text(
+                        text = "+${results.size - 30} more - narrow the search",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = onColour.copy(alpha = 0.6f),
                     )
                 }
             }

@@ -52,7 +52,7 @@ object EqResponse {
             }
             var db = 0.0
             bands.forEach { band ->
-                if (band.gainDb != 0f) db += peakingGainDb(band, hz, sampleRate)
+                if (band.gainDb != 0f) db += bandGainDb(band, hz, sampleRate)
             }
             out[i] = db.toFloat()
         }
@@ -63,26 +63,50 @@ object EqResponse {
     fun frequencyAt(fraction: Float): Double = MIN_HZ * (MAX_HZ / MIN_HZ).pow(fraction.toDouble())
 
     /**
-     * One peaking section's contribution at [hz], in decibels.
+     * One section's contribution at [hz], in decibels.
      *
-     * The coefficients are computed exactly as [Equalizer] computes them, because a graph derived
-     * from a second implementation of the same formula is a graph of a different filter the moment
-     * either drifts.
+     * The coefficients are computed exactly as [Equalizer] computes them, for every band shape,
+     * because a graph derived from a second implementation of the same formula is a graph of a
+     * different filter the moment either drifts.
      */
-    private fun peakingGainDb(band: EqBand, hz: Double, sampleRate: Int): Double {
+    private fun bandGainDb(band: EqBand, hz: Double, sampleRate: Int): Double {
         if (band.freqHz <= 0f || band.freqHz >= sampleRate / 2f) return 0.0
 
         val a = 10.0.pow(band.gainDb / 40.0)
         val w0 = 2.0 * PI * band.freqHz / sampleRate
         val cosw0 = cos(w0)
         val alpha = sin(w0) / (2.0 * band.q.coerceAtLeast(0.05f))
+        val sqrtTerm = 2.0 * sqrt(a) * alpha
 
-        val b0 = 1 + alpha * a
-        val b1 = -2 * cosw0
-        val b2 = 1 - alpha * a
-        val a0 = 1 + alpha / a
-        val a1 = -2 * cosw0
-        val a2 = 1 - alpha / a
+        val b0: Double; val b1: Double; val b2: Double
+        val a0: Double; val a1: Double; val a2: Double
+        when (band.type) {
+            EqBandType.PEAKING -> {
+                b0 = 1 + alpha * a
+                b1 = -2 * cosw0
+                b2 = 1 - alpha * a
+                a0 = 1 + alpha / a
+                a1 = -2 * cosw0
+                a2 = 1 - alpha / a
+            }
+            EqBandType.LOW_SHELF -> {
+                b0 = a * ((a + 1) - (a - 1) * cosw0 + sqrtTerm)
+                b1 = 2 * a * ((a - 1) - (a + 1) * cosw0)
+                b2 = a * ((a + 1) - (a - 1) * cosw0 - sqrtTerm)
+                a0 = (a + 1) + (a - 1) * cosw0 + sqrtTerm
+                a1 = -2 * ((a - 1) + (a + 1) * cosw0)
+                a2 = (a + 1) + (a - 1) * cosw0 - sqrtTerm
+            }
+            EqBandType.HIGH_SHELF -> {
+                b0 = a * ((a + 1) + (a - 1) * cosw0 + sqrtTerm)
+                b1 = -2 * a * ((a - 1) + (a + 1) * cosw0)
+                b2 = a * ((a + 1) + (a - 1) * cosw0 - sqrtTerm)
+                a0 = (a + 1) - (a - 1) * cosw0 + sqrtTerm
+                a1 = 2 * ((a - 1) - (a + 1) * cosw0)
+                a2 = (a + 1) - (a - 1) * cosw0 - sqrtTerm
+            }
+        }
+        if (a0 == 0.0 || !a0.isFinite()) return 0.0
 
         val w = 2.0 * PI * hz / sampleRate
         // |H(e^jw)| for a normalised biquad. Written out rather than with a complex type: it is two
