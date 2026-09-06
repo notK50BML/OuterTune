@@ -218,6 +218,7 @@ private fun App(player: DesktopPlayer) {
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
             timeStretch = player.timeStretch,
+            compressor = player.compressor,
             onJumpToQueueIndex = { playerQueue.jumpTo(it) },
             onOpenArtist = openArtistPage,
         )

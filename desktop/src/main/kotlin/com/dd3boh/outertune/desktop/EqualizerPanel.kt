@@ -36,6 +36,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -76,6 +81,7 @@ fun EqualizerPanel(
     onColour: Color,
     modifier: Modifier = Modifier,
     timeStretch: TimeStretch? = null,
+    compressor: Compressor? = null,
 ) {
     var enabled by remember { mutableStateOf(equalizer.enabled) }
     var bands by remember { mutableStateOf(equalizer.bands()) }
@@ -161,6 +167,11 @@ fun EqualizerPanel(
             PlaybackDials(timeStretch = timeStretch, accent = accent, onColour = onColour)
         }
 
+        if (compressor != null) {
+            Spacer(modifier = Modifier.height(18.dp))
+            CompressorSection(compressor = compressor, accent = accent, onColour = onColour)
+        }
+
         Spacer(modifier = Modifier.height(18.dp))
 
         Row(
@@ -214,6 +225,176 @@ fun EqualizerPanel(
                 }
             }
         }
+    }
+}
+
+/**
+ * The compressor: a switch, five dials, and a meter showing what it is doing.
+ *
+ * All five controls, not a single "amount" slider. A compressor with one knob is guessing at four
+ * values on the user's behalf, and the four it has to guess are exactly the ones that decide whether
+ * it sounds like control or like pumping. Anyone who does not want them can leave the switch off.
+ *
+ * The meter is the part that makes the rest legible. Threshold and ratio describe a rule; gain
+ * reduction is the rule's actual effect on this track, second by second, and without it the dials
+ * are set by reading numbers rather than by listening.
+ */
+@Composable
+private fun CompressorSection(compressor: Compressor, accent: Color, onColour: Color) {
+    var enabled by remember { mutableStateOf(compressor.enabled) }
+    var threshold by remember { mutableStateOf(compressor.thresholdDb) }
+    var ratio by remember { mutableStateOf(compressor.ratio) }
+    var attack by remember { mutableStateOf(compressor.attackMs) }
+    var release by remember { mutableStateOf(compressor.releaseMs) }
+    var makeup by remember { mutableStateOf(compressor.makeupGainDb) }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Switch(
+                checked = enabled,
+                onCheckedChange = {
+                    enabled = it
+                    compressor.enabled = it
+                },
+            )
+            Text(
+                text = "Compressor",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = onColour,
+                modifier = Modifier.weight(1f),
+            )
+            GainReductionMeter(compressor = compressor, accent = accent, onColour = onColour)
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Box(modifier = Modifier.graphicsLayer { alpha = if (enabled) 1f else 0.45f }) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(20.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Dial(
+                    label = "Threshold",
+                    value = threshold,
+                    valueRange = Compressor.MIN_THRESHOLD_DB..Compressor.MAX_THRESHOLD_DB,
+                    onValueChange = { threshold = it; compressor.thresholdDb = it },
+                    step = 0.5f,
+                    coarseStep = 5f,
+                    default = Compressor.DEFAULT_THRESHOLD_DB,
+                    readout = { "%.0f dB".format(it) },
+                    accent = accent,
+                    onColour = onColour,
+                    size = 64.dp,
+                )
+                Dial(
+                    label = "Ratio",
+                    value = ratio,
+                    valueRange = Compressor.MIN_RATIO..Compressor.MAX_RATIO,
+                    onValueChange = { ratio = it; compressor.ratio = it },
+                    step = 0.1f,
+                    coarseStep = 1f,
+                    default = Compressor.DEFAULT_RATIO,
+                    readout = { "%.1f:1".format(it) },
+                    accent = accent,
+                    onColour = onColour,
+                    size = 64.dp,
+                )
+                Dial(
+                    label = "Attack",
+                    value = attack,
+                    valueRange = Compressor.MIN_ATTACK_MS..Compressor.MAX_ATTACK_MS,
+                    onValueChange = { attack = it; compressor.attackMs = it },
+                    step = 0.5f,
+                    coarseStep = 10f,
+                    default = Compressor.DEFAULT_ATTACK_MS,
+                    // Sub-millisecond attacks are a real setting, and "0 ms" would read as off.
+                    readout = { if (it < 10f) "%.1f ms".format(it) else "%.0f ms".format(it) },
+                    accent = accent,
+                    onColour = onColour,
+                    size = 64.dp,
+                )
+                Dial(
+                    label = "Release",
+                    value = release,
+                    valueRange = Compressor.MIN_RELEASE_MS..Compressor.MAX_RELEASE_MS,
+                    onValueChange = { release = it; compressor.releaseMs = it },
+                    step = 5f,
+                    coarseStep = 50f,
+                    default = Compressor.DEFAULT_RELEASE_MS,
+                    readout = { "%.0f ms".format(it) },
+                    accent = accent,
+                    onColour = onColour,
+                    size = 64.dp,
+                )
+                Dial(
+                    label = "Makeup",
+                    value = makeup,
+                    valueRange = Compressor.MIN_MAKEUP_DB..Compressor.MAX_MAKEUP_DB,
+                    onValueChange = { makeup = it; compressor.makeupGainDb = it },
+                    step = 0.25f,
+                    coarseStep = 3f,
+                    default = Compressor.DEFAULT_MAKEUP_DB,
+                    readout = { "+%.1f dB".format(it) },
+                    accent = accent,
+                    onColour = onColour,
+                    size = 64.dp,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * How much the compressor is pulling the signal down, right now.
+ *
+ * Polled on the frame clock rather than driven by the audio thread. The alternative is for the audio
+ * thread to write into composition state, which would make it responsible for scheduling
+ * recomposition - work on a thread with a hard deadline, in service of something the eye cannot
+ * resolve faster than this anyway.
+ *
+ * Falls back rather than snapping: gain reduction is spiky, and a meter that tracks it exactly reads
+ * as a flicker instead of a level. Rising is instant, because a peak that is not shown at its full
+ * height has not been shown.
+ */
+@Composable
+private fun GainReductionMeter(compressor: Compressor, accent: Color, onColour: Color) {
+    var shown by remember { mutableStateOf(0f) }
+    LaunchedEffect(compressor) {
+        while (true) {
+            withFrameMillis {
+                val now = -compressor.currentReductionDb
+                shown = if (now > shown) now else shown + (now - shown) * 0.25f
+            }
+        }
+    }
+
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Box(
+            modifier = Modifier
+                .width(110.dp)
+                .height(8.dp)
+                .clip(RoundedCornerShape(4.dp))
+                .background(onColour.copy(alpha = 0.15f)),
+        ) {
+            Box(
+                modifier = Modifier
+                    // Full scale at 24dB of reduction, which is more than any musical setting
+                    // reaches - so a meter near the end means something is set wrong.
+                    .fillMaxWidth((shown / 24f).coerceIn(0f, 1f))
+                    .height(8.dp)
+                    .background(accent),
+            )
+        }
+        Text(
+            text = "-%.1f dB".format(shown),
+            style = MaterialTheme.typography.labelSmall,
+            color = onColour.copy(alpha = 0.7f),
+        )
     }
 }
 

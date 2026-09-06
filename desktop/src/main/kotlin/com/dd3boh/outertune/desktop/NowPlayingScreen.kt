@@ -104,6 +104,7 @@ fun NowPlayingScreen(
     equalizer: Equalizer? = null,
     /** Tempo and pitch, if the player exposes them. Null hides the dials rather than faking them. */
     timeStretch: TimeStretch? = null,
+    compressor: Compressor? = null,
     onJumpToQueueIndex: (Int) -> Unit = {},
     onOpenArtist: (StoredArtist) -> Unit = {},
     /**
@@ -139,6 +140,7 @@ fun NowPlayingScreen(
             EqualizerDrawer(
                 equalizer = equalizer,
                 timeStretch = timeStretch,
+                compressor = compressor,
                 onColour = onBackground,
                 open = equalizerOpen,
                 onToggle = { equalizerOpen = !equalizerOpen },
@@ -340,6 +342,7 @@ fun NowPlayingScreen(
 private fun ColumnScope.EqualizerDrawer(
     equalizer: Equalizer,
     timeStretch: TimeStretch?,
+    compressor: Compressor?,
     onColour: Color,
     open: Boolean,
     onToggle: () -> Unit,
@@ -366,6 +369,7 @@ private fun ColumnScope.EqualizerDrawer(
                         onColour = onColour,
                         modifier = Modifier.padding(horizontal = 28.dp, vertical = 16.dp),
                         timeStretch = timeStretch,
+                        compressor = compressor,
                     )
                 }
             }

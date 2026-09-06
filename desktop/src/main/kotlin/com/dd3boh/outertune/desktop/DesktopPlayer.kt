@@ -145,6 +145,16 @@ class DesktopPlayer {
     val equalizer = Equalizer()
 
     /**
+     * Dynamics, between the equaliser and the stretcher.
+     *
+     * After the equaliser because a compressor should react to the tone that will be heard - boost
+     * the bass and the compressor ought to notice. Before the stretcher because its attack and
+     * release are in milliseconds of *music*: run it afterwards and a 10ms attack would mean 15ms of
+     * the song at 1.5x tempo, so the same settings would behave differently at different speeds.
+     */
+    val compressor = Compressor()
+
+    /**
      * Tempo and pitch, independently adjustable.
      *
      * Sits after the equaliser and before the line, so the equaliser's band frequencies still mean
@@ -378,6 +388,7 @@ class DesktopPlayer {
                         // audio that was thrown away. Carrying that across a jump makes the first
                         // moments after a seek ring with the passage before it.
                         equalizer.reset()
+                        compressor.reset()
                         timeStretch.reset()
                     }
                     trackMsBase = index.toLong() * FRAME_SAMPLES * 1000 / sampleRate
@@ -422,6 +433,15 @@ class DesktopPlayer {
             // also in place, on the buffer already destined for the line, so there is no extra copy
             // of every block in the hot path.
             equalizer.process(
+                bytes = pcm,
+                length = pcm.size,
+                bitsPerSample = buffer.bitsPerSample,
+                channels = buffer.channels,
+                bigEndian = buffer.isBigEndian,
+                sampleRate = sampleRate,
+            )
+
+            compressor.process(
                 bytes = pcm,
                 length = pcm.size,
                 bitsPerSample = buffer.bitsPerSample,
