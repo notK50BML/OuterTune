@@ -288,7 +288,7 @@ private fun App(player: DesktopPlayer) {
                         library = library,
                         currentId = queue.current?.id,
                         onBack = { openArtist = null },
-                        onPlay = { songs, index -> playerQueue.play(songs, index) },
+                        onPlay = { songs, index -> playerQueue.play(songs, index, artist.name) },
                         onAddToPlaylist = { addingToPlaylist = it },
                     )
                 } else if (showAccount) {
@@ -303,7 +303,7 @@ private fun App(player: DesktopPlayer) {
                         onCreate = { library.createPlaylist(it) },
                         onRename = { playlist, name -> library.renamePlaylist(playlist.id, name) },
                         onDelete = { library.deletePlaylist(it.id) },
-                        onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index) },
+                        onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, selectedPlaylist?.name ?: "Playlist") },
                         onRemoveSong = { playlist, song -> library.removeFromPlaylist(playlist.id, song.id) },
                         onMoveSong = { playlist, from, to ->
                             val ids = openPlaylistSongs.map { it.id }.toMutableList()
@@ -322,8 +322,8 @@ private fun App(player: DesktopPlayer) {
                         liked = liked,
                         recent = recent,
                         currentId = queue.current?.id,
-                        onPlayResult = { index -> playerQueue.play(results, index) },
-                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index) },
+                        onPlayResult = { index -> playerQueue.play(results, index, "Search results") },
+                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Liked songs") },
                         onAddToPlaylist = { addingToPlaylist = it },
                     )
                 }

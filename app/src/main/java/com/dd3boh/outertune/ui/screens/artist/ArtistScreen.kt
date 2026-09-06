@@ -203,7 +203,7 @@ fun ArtistScreen(
             // visible, which is what the page is actually for.
             val configuration = LocalConfiguration.current
             val landscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-            val maxHeaderHeight = (configuration.screenHeightDp * 0.42f).dp
+            val maxHeaderHeight = (configuration.screenHeightDp * 0.34f).dp
 
             Column {
                 Box(

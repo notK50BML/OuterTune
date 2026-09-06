@@ -25,6 +25,14 @@ data class QueueState(
      */
     val order: List<Int> = emptyList(),
     val orderPosition: Int = -1,
+    /**
+     * What this queue is, for the collapsed queue handle - "Liked songs", an album, a playlist.
+     *
+     * Where the songs came from is the one thing the handle can usefully say in a single line, and
+     * it is what the Android player shows there. Naming the source is more use than naming the next
+     * song, which is already about to be visible anyway.
+     */
+    val title: String = "Queue",
 ) {
     val current: SongItem? get() = songs.getOrNull(index)
 
@@ -62,7 +70,7 @@ class PlayerQueue(
      * queues everything after it - which is what makes a result list behave like an album rather
      * than a series of one-song sessions.
      */
-    fun play(songs: List<SongItem>, startIndex: Int) {
+    fun play(songs: List<SongItem>, startIndex: Int, title: String = "Queue") {
         if (startIndex !in songs.indices) return
         val previous = state.value
         val order = buildOrder(songs.indices.toList(), previous.shuffled, startIndex)
@@ -73,6 +81,7 @@ class PlayerQueue(
             repeat = previous.repeat,
             order = order,
             orderPosition = order.indexOf(startIndex),
+            title = title,
         )
         startCurrent()
     }

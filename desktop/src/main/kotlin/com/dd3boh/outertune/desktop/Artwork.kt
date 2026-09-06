@@ -88,14 +88,28 @@ internal object ArtworkCache {
         }
     }
 
-    /** Whatever is already decoded for this cover at any size, or null. */
-    fun cachedVariant(baseUrl: String): ImageBitmap? {
+    /**
+     * A decoded copy of this cover big enough to stand in for one [wantedPixels] across.
+     *
+     * The size floor is the point. Showing *any* cached copy meant a 96px thumbnail from a list row
+     * was blown up to fill a 700px player for as long as the real one took to arrive - a full-screen
+     * blur that reads as the app having broken rather than as loading. A blank tile is calmer than a
+     * bad image, so anything under half the target is refused and the space stays empty until
+     * something worth looking at arrives.
+     */
+    fun cachedVariant(baseUrl: String, wantedPixels: Int): ImageBitmap? {
         if (baseUrl.isBlank()) return null
         val prefix = baseUrl.sizeKey()
+        val floor = wantedPixels / 2
         synchronized(images) {
             // Scanned rather than indexed. The map holds sixty entries at most, so this is cheaper
             // than maintaining a second structure - and it runs once per cover, not per frame.
-            return images.entries.firstOrNull { it.key.sizeKey() == prefix }?.value
+            return images.entries
+                .filter { it.key.sizeKey() == prefix && it.value.width >= floor }
+                // The smallest that clears the bar, so an upgrade still visibly sharpens rather than
+                // starting from something already larger than needed.
+                .minByOrNull { it.value.width }
+                ?.value
         }
     }
 
@@ -220,7 +234,7 @@ fun Artwork(url: String?, size: Dp = 48.dp, modifier: Modifier = Modifier) {
     // fresh full-size download takes. The size is part of the URL, so the large and small versions
     // are different requests and nothing else would connect them.
     var image by remember(url, pixels) {
-        mutableStateOf(url?.let { ArtworkCache.cachedVariant(it) })
+        mutableStateOf(url?.let { ArtworkCache.cachedVariant(it, pixels) })
     }
     LaunchedEffect(url, pixels) {
         url?.takeIf { it.isNotBlank() }?.let { ArtworkCache.load(it.atSize(pixels)) }

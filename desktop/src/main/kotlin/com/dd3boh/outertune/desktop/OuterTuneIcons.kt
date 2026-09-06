@@ -124,6 +124,19 @@ object OuterTuneIcons {
             "M680,800L680,400L800,400L800,800L680,800Z"
     )
 
+    /**
+     * A single chevron pointing up, for the queue's own handle.
+     *
+     * One stroke, not two. The double chevron is Material's "expand less, all the way" and reads as
+     * a jump to the end; the queue opens in stages, so a single mark is the honest one.
+     *
+     * Material's expand_less, scaled about its own centre and lifted onto the grid centre: the
+     * stock glyph is a 480x296 mark sitting at y=564, which is fine in a toolbar row but reads as
+     * small and low when it is the only thing on its line. Here it spans 216..744 by 310..650, so
+     * its centre is (480, 480) like every other icon in the set and it carries a line of its own.
+     */
+    val expandLess by icon("M480,439L278,650L216,586L480,310L744,586L682,650L480,439Z")
+
     /** Every icon by name, so a test can check them all rather than the ones somebody remembered. */
     internal val all: Map<String, ImageVector>
         get() = mapOf(
@@ -138,6 +151,7 @@ object OuterTuneIcons {
             "favoriteBorder" to favoriteBorder,
             "close" to close,
             "queueMusic" to queueMusic,
+            "expandLess" to expandLess,
             "fastForward" to fastForward,
             "fastRewind" to fastRewind,
             "equalizer" to equalizer,
