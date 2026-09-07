@@ -25,13 +25,13 @@ full
 
 | Flavor  | Architecture support                | Version update checker | FFmpeg audio decoders |
 |---------|-------------------------------------|------------------------|-----------------------|
-| core    | arm64-v8a, armeabi-v7a, x86, x86_64 | ❌                      | ❌                     |
+| core    | arm64-v8a, armeabi-v7a, x86, x86_64 | ✅                      | ❌                     |
 | full    | arm64-v8a, armeabi-v7a, x86, x86_64 | ✅                      | ✅                     |
 
 Tag extraction uses TagLib in all flavors. The `full` flavor additionally bundles ffMetadataEx
 (prebuilt AAR at `prebuilt/ffMetadataEx-release.aar`) for the FFmpeg audio decoders, which enable
 playback of extended codecs (e.g. ALAC/APE/WavPack/DSD). No extra setup is required to build the
-`full` flavor.
+`full` flavor. The `full` flavour is also significantly larger as the prebuilt AAR is around 50mb.
 
 ## Building from the command line
 
