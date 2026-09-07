@@ -22,6 +22,9 @@ dependencies {
     // desktop uses them as they are. Nothing about lyrics needed porting.
     implementation(project(":lrclib"))
     implementation(project(":kugou"))
+    // Word-by-word timings, and its own TTML parser. Same story as the other two: a plain JVM
+    // module, so it is used rather than ported.
+    implementation(project(":betterlyrics"))
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")

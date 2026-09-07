@@ -89,6 +89,13 @@ fun SettingsPane(
 
         Section("Lyrics") {
             SettingSwitch(
+                title = "Word-by-word lyrics",
+                subtitle = "Asks BetterLyrics first, which times each word rather than each line. " +
+                    "Falls back to LRCLIB and KuGou either way.",
+                checked = settings.wordByWordLyrics,
+                onCheckedChange = { settings.wordByWordLyrics = it },
+            )
+            SettingSwitch(
                 title = "Click the cover for lyrics",
                 subtitle = "Swaps the album art for the words, and back.",
                 checked = settings.lyricsOnCoverClick,

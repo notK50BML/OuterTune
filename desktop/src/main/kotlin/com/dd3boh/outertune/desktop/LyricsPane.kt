@@ -34,6 +34,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.TextUnit
@@ -150,21 +154,69 @@ private fun SyncedLyrics(
                 // nothing, so a long gap reads as part of the song instead of as lyrics stopping.
                 Spacer(modifier = Modifier.height(fontSize.value.dp))
             } else {
-                Text(
-                    text = line.text,
-                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
-                    fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                    color = onColour.copy(alpha = alpha),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { line.timeMs?.let(onSeek) }
-                        .padding(horizontal = 24.dp, vertical = 6.dp),
-                )
+                val modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { line.timeMs?.let(onSeek) }
+                    .padding(horizontal = 24.dp, vertical = 6.dp)
+
+                if (active && line.words.isNotEmpty()) {
+                    Text(
+                        text = sungText(line, positionMs, onColour),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center,
+                        modifier = modifier,
+                    )
+                } else {
+                    Text(
+                        text = line.text,
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
+                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                        color = onColour.copy(alpha = alpha),
+                        textAlign = TextAlign.Center,
+                        modifier = modifier,
+                    )
+                }
             }
         }
     }
 }
+
+/**
+ * The active line with its words lit as they are sung.
+ *
+ * The word being sung fades in across its own duration rather than switching on at its start. A hard
+ * switch reads as a cursor stepping along the line - mechanical, and unforgiving of timings that are
+ * a few tens of milliseconds out, which most are. A fade lands as the voice arriving, and a small
+ * timing error becomes a slightly early glow instead of a visibly wrong jump.
+ *
+ * Words not yet sung stay clearly readable rather than nearly invisible. This is a line someone is
+ * reading ahead on; dimming the rest of it to a whisper would defeat the point of showing the whole
+ * line at all.
+ *
+ * Built as one string with per-word spans rather than a row of separate texts, so the line wraps and
+ * centres as a single paragraph - a Row of words would break at the wrong places and centre each
+ * fragment on its own.
+ */
+private fun sungText(line: LyricLine, positionMs: Long, onColour: Color): AnnotatedString =
+    buildAnnotatedString {
+        line.words.forEach { word ->
+            val alpha = when {
+                positionMs >= word.endMs -> 1f
+                positionMs < word.startMs -> UNSUNG_ALPHA
+                else -> {
+                    val span = (word.endMs - word.startMs).coerceAtLeast(1)
+                    val through = (positionMs - word.startMs).toFloat() / span
+                    UNSUNG_ALPHA + (1f - UNSUNG_ALPHA) * through.coerceIn(0f, 1f)
+                }
+            }
+            withStyle(SpanStyle(color = onColour.copy(alpha = alpha))) { append(word.text) }
+            if (word.trailingSpace) append(" ")
+        }
+    }
+
+/** How visible a word is before it has been sung. */
+private const val UNSUNG_ALPHA = 0.45f
 
 /** How long after a manual scroll before the lyrics start following the song again. */
 private const val BROWSE_GRACE_MS = 4_000L

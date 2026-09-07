@@ -153,13 +153,14 @@ private fun App(player: DesktopPlayer) {
     var lyrics by remember { mutableStateOf<Lyrics?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     val nowPlaying = queue.current
-    LaunchedEffect(nowPlaying?.id, duration, settings.lyricsOffsetMs) {
+    LaunchedEffect(nowPlaying?.id, duration, settings.lyricsOffsetMs, settings.wordByWordLyrics) {
         lyrics = null
         val song = nowPlaying ?: return@LaunchedEffect
         // Held off until the duration is known, because LrcLib matches on it - asking with zero
         // gets the wrong version of a song as often as it gets nothing.
         if (duration <= 0) return@LaunchedEffect
         lyricsLoading = true
+        lyricsRepository.useWordByWord = settings.wordByWordLyrics
         val fetched = lyricsRepository.lyricsFor(
             songId = song.id,
             title = song.title,

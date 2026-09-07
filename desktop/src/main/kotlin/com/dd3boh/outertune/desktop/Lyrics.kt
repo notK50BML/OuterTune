@@ -6,18 +6,42 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.dd3boh.betterlyrics.BetterLyrics
+import com.dd3boh.betterlyrics.TTMLParser
 import com.dd3boh.lrclib.LrcLib
 import com.zionhuang.kugou.KuGou
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 /**
+ * One word, and the window it is sung across.
+ *
+ * [endMs] is a real end rather than the next word's start. A sung word has a length - it is held,
+ * or clipped, or followed by a rest - and a highlight that runs from each word straight into the
+ * next one drifts ahead of the voice through anything slow.
+ */
+data class LyricWord(
+    val text: String,
+    val startMs: Long,
+    val endMs: Long,
+    val trailingSpace: Boolean = true,
+)
+
+/**
  * One line of a song, and when it is sung.
  *
  * [timeMs] is null for lyrics that arrived without timings. Those still display; they just do not
  * follow along, which is the honest presentation of what is known rather than a guess at a timing.
+ *
+ * [words] is populated only where the source actually carried per-word timings - TTML from
+ * BetterLyrics, or enhanced LRC. Empty means the line is timed as a whole, which is not the same as
+ * a line of one word and must not be rendered as though the first word lasts the whole line.
  */
-data class LyricLine(val timeMs: Long?, val text: String)
+data class LyricLine(
+    val timeMs: Long?,
+    val text: String,
+    val words: List<LyricWord> = emptyList(),
+) {}
 
 /**
  * A song's words.
@@ -30,6 +54,15 @@ data class Lyrics(val lines: List<LyricLine>, val synced: Boolean, val source: S
     val isEmpty: Boolean get() = lines.isEmpty()
 
     /**
+     * Whether any line carries word timings.
+     *
+     * Checked rather than assumed from the source: a TTML file can be line-timed only, and enhanced
+     * LRC is enhanced per line rather than per file, so "came from BetterLyrics" is not the same
+     * claim as "has words".
+     */
+    val wordSynced: Boolean get() = synced && lines.any { it.words.isNotEmpty() }
+
+    /**
      * The same lyrics, every line moved by [ms].
      *
      * Applied when the lyrics are handed to the player rather than when they are cached, so that
@@ -38,7 +71,16 @@ data class Lyrics(val lines: List<LyricLine>, val synced: Boolean, val source: S
      */
     fun shiftedBy(ms: Long): Lyrics {
         if (ms == 0L || !synced) return this
-        return copy(lines = lines.map { it.copy(timeMs = it.timeMs?.plus(ms)) })
+        return copy(
+            lines = lines.map { line ->
+                line.copy(
+                    timeMs = line.timeMs?.plus(ms),
+                    // The words move with their line. Shifting the line and leaving the words would
+                    // put the highlight and the line it is highlighting in different places.
+                    words = line.words.map { it.copy(startMs = it.startMs + ms, endMs = it.endMs + ms) },
+                )
+            }
+        )
     }
 }
 
@@ -88,7 +130,12 @@ object LrcParser {
                 return@forEach
             }
 
-            val text = WORD_TIMING.replace(line.substring(stamps.last().range.last + 1), "").trim()
+            val body = line.substring(stamps.last().range.last + 1)
+            val text = WORD_TIMING.replace(body, "").trim()
+            // Enhanced LRC marks each word with its own time. Read rather than discarded, so a
+            // provider that happens to send enhanced lines gets word-by-word highlighting for free -
+            // the format is far more common than the number of players that use it.
+            val words = parseWordTimings(body)
             stamps.forEach { stamp ->
                 val minutes = stamp.groupValues[1].toLong()
                 val seconds = stamp.groupValues[2].toLong()
@@ -101,17 +148,146 @@ object LrcParser {
                     2 -> fraction.toLong() * 10
                     else -> fraction.take(3).toLong()
                 }
-                timed += LyricLine((minutes * 60 + seconds) * 1000 + millis + offsetMs, text)
+                val at = (minutes * 60 + seconds) * 1000 + millis + offsetMs
+                // A repeated line's word times belong to its first occurrence, so they are moved to
+                // wherever this copy sits. Left alone, every repeat would highlight against the
+                // times of the first one and light up all at once.
+                val shift = at - ((words.firstOrNull()?.startMs ?: at) + offsetMs)
+                timed += LyricLine(
+                    timeMs = at,
+                    text = text,
+                    words = words.map {
+                        it.copy(
+                            startMs = it.startMs + offsetMs + shift,
+                            endMs = it.endMs + offsetMs + shift,
+                        )
+                    },
+                )
             }
         }
 
         if (timed.isNotEmpty()) {
             // Sorted because multi-timestamp lines are written where they first occur, so a repeated
             // chorus arrives out of order.
-            return Lyrics(timed.sortedBy { it.timeMs }, synced = true, source = source)
+            val sorted = timed.sortedBy { it.timeMs }
+            return Lyrics(closeFinalWords(sorted), synced = true, source = source)
         }
         return Lyrics(plain.map { LyricLine(null, it) }, synced = false, source = source)
     }
+
+    /**
+     * The word timings inside one enhanced-LRC line body.
+     *
+     * Each word runs until the next mark, and a mark with no text after it is an end mark rather
+     * than a word - which is how enhanced LRC closes a line, and how the converter in
+     * `:betterlyrics` writes one. Dropping those outright would leave every line's last word with no
+     * end but the following line's start, throwing away a time the file actually stated.
+     *
+     * A last word still left open is closed later against the next line - see [closeFinalWords].
+     */
+    private fun parseWordTimings(body: String): List<LyricWord> {
+        val marks = WORD_TIMING.findAll(body).toList()
+        if (marks.isEmpty()) return emptyList()
+
+        // Every mark with the text that follows it, empty text included.
+        val stamped = marks.mapIndexedNotNull { index, mark ->
+            val startMs = timestampToMs(mark.value.trim('<', '>')) ?: return@mapIndexedNotNull null
+            val from = mark.range.last + 1
+            val to = marks.getOrNull(index + 1)?.range?.first ?: body.length
+            startMs to body.substring(from, to)
+        }
+
+        return stamped.mapIndexedNotNull { index, (startMs, raw) ->
+            val word = raw.trim()
+            if (word.isEmpty()) return@mapIndexedNotNull null
+            LyricWord(
+                text = word,
+                startMs = startMs,
+                // Provisional when nothing follows; closeFinalWords resolves it.
+                endMs = stamped.getOrNull(index + 1)?.first ?: startMs,
+                trailingSpace = raw.endsWith(" "),
+            )
+        }
+    }
+
+    /** `mm:ss.xx` to milliseconds, sharing the fraction rules the line timestamps use. */
+    private fun timestampToMs(value: String): Long? {
+        val parts = value.split(':')
+        if (parts.size != 2) return null
+        val minutes = parts[0].toLongOrNull() ?: return null
+        val rest = parts[1].split('.', ':')
+        val seconds = rest[0].toLongOrNull() ?: return null
+        val fraction = rest.getOrNull(1).orEmpty()
+        val millis = when (fraction.length) {
+            0 -> 0L
+            1 -> (fraction.toLongOrNull() ?: 0L) * 100
+            2 -> (fraction.toLongOrNull() ?: 0L) * 10
+            else -> fraction.take(3).toLongOrNull() ?: 0L
+        }
+        return (minutes * 60 + seconds) * 1000 + millis
+    }
+
+    /**
+     * Gives each line's last word an end time.
+     *
+     * It runs until the next line begins, capped at a couple of seconds. Without the cap, the final
+     * word before an instrumental break would stay lit for the length of the break, which reads as
+     * the lyrics having frozen.
+     */
+    private fun closeFinalWords(lines: List<LyricLine>): List<LyricLine> =
+        lines.mapIndexed { index, line ->
+            val last = line.words.lastOrNull() ?: return@mapIndexed line
+            if (last.endMs > last.startMs) return@mapIndexed line
+            val nextLine = lines.getOrNull(index + 1)?.timeMs ?: (last.startMs + MAX_TRAILING_WORD_MS)
+            val end = minOf(nextLine, last.startMs + MAX_TRAILING_WORD_MS)
+            line.copy(words = line.words.dropLast(1) + last.copy(endMs = maxOf(end, last.startMs + 1)))
+        }
+
+    /** How long a line's final word may stay lit when nothing follows it soon. */
+    private const val MAX_TRAILING_WORD_MS = 2_000L
+
+    /**
+     * TTML with syllable timing, as BetterLyrics returns it.
+     *
+     * The parsing is `:betterlyrics`'s own - a real XML parse rather than a regex, which TTML needs:
+     * words are nested spans, timings appear on several namespaces, and background vocals are spans
+     * inside spans. This only converts its output into the shape the rest of the app uses.
+     *
+     * Background vocal lines are dropped for now. They are a second stream of words overlapping the
+     * main one, and showing them as ordinary lines would interleave two voices into one column of
+     * text that reads as neither.
+     */
+    fun parseTtml(ttml: String, source: String): Lyrics {
+        val parsed = runCatching { TTMLParser.parseTTML(ttml) }.getOrNull().orEmpty()
+        val lines = parsed
+            .filterNot { it.isBackground }
+            .map { line ->
+                LyricLine(
+                    timeMs = (line.startTime * 1000).toLong(),
+                    text = line.text,
+                    words = line.words.map { word ->
+                        LyricWord(
+                            text = word.text,
+                            startMs = (word.startTime * 1000).toLong(),
+                            endMs = (word.endTime * 1000).toLong(),
+                            trailingSpace = word.hasTrailingSpace,
+                        )
+                    },
+                )
+            }
+            .filter { it.text.isNotBlank() }
+        if (lines.isEmpty()) return Lyrics(emptyList(), synced = false, source = source)
+        return Lyrics(lines.sortedBy { it.timeMs }, synced = true, source = source)
+    }
+
+    /**
+     * Parses whatever a provider sent, whichever format it is in.
+     *
+     * Sniffed rather than taken from the source name, because the cache stores raw text and a stored
+     * source string is a claim about where it came from rather than about what it is.
+     */
+    fun parseAny(raw: String, source: String): Lyrics =
+        if (TTMLParser.looksLikeTtml(raw)) parseTtml(raw, source) else parse(raw, source)
 
     /**
      * Which line is being sung at [positionMs], or -1 before the first one.
@@ -155,6 +331,16 @@ object LrcParser {
  */
 class LyricsRepository(private val library: LibraryStore) {
 
+    /**
+     * Whether to ask BetterLyrics at all.
+     *
+     * A setting because it is the one provider that regularly refuses: its API answers 401 for songs
+     * it has not already cached, so on an unlucky run it costs a request per song and returns
+     * nothing. Worth having first when it works, and worth being able to switch off when it does
+     * not.
+     */
+    var useWordByWord: Boolean = true
+
     suspend fun lyricsFor(
         songId: String,
         title: String,
@@ -162,10 +348,28 @@ class LyricsRepository(private val library: LibraryStore) {
         durationMs: Long,
     ): Lyrics? = withContext(Dispatchers.IO) {
         library.cachedLyrics(songId)?.let { cached ->
-            return@withContext LrcParser.parse(cached.text, cached.source)
+            return@withContext LrcParser.parseAny(cached.text, cached.source)
         }
 
         val durationSeconds = (durationMs / 1000).toInt()
+
+        // BetterLyrics first, because word timings are strictly more than line timings - a
+        // word-timed file can always be shown as lines, and the reverse is not true. It is also the
+        // most likely to come back empty, which is why the other two follow rather than being
+        // skipped once it is asked.
+        if (useWordByWord) {
+            BetterLyrics.getLyrics(title, artist, durationSeconds).getOrNull()
+                ?.takeIf { it.isNotBlank() }
+                ?.let { ttml ->
+                    val parsed = LrcParser.parseTtml(ttml, BETTERLYRICS)
+                    // Only accepted if it actually parsed. TTML that yields no lines is a failure
+                    // dressed as a success, and caching it would poison the song until cleared.
+                    if (!parsed.isEmpty) {
+                        library.cacheLyrics(songId, ttml, BETTERLYRICS)
+                        return@withContext parsed
+                    }
+                }
+        }
 
         LrcLib.getLyrics(title, artist, durationSeconds).getOrNull()?.takeIf { it.isNotBlank() }
             ?.let { text ->
@@ -189,6 +393,7 @@ class LyricsRepository(private val library: LibraryStore) {
     fun forget(songId: String) = library.clearLyrics(songId)
 
     companion object {
+        const val BETTERLYRICS = "BetterLyrics"
         const val LRCLIB = "LRCLIB"
         const val KUGOU = "KuGou"
         const val NONE = "none"

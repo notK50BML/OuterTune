@@ -49,6 +49,16 @@ class Settings(private val store: SettingsStore) {
      */
     var showVisualizer by bool("player.visualizer", false)
 
+    /**
+     * Whether to ask BetterLyrics for word-by-word timings first.
+     *
+     * On. Word timings are strictly more than line timings - a word-timed file can always be shown
+     * as lines, and the reverse is not true. It is a setting because it is the one provider that
+     * regularly refuses: its API answers 401 for songs it has not already cached, so on an unlucky
+     * run it costs a request per song and returns nothing.
+     */
+    var wordByWordLyrics by bool("lyrics.wordByWord", true)
+
     /** Whether clicking the cover swaps it for the lyrics. */
     var lyricsOnCoverClick by bool("lyrics.coverClick", true)
 
