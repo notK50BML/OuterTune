@@ -29,6 +29,7 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -94,23 +95,46 @@ fun main() = application {
     remember { YouTube.locale = YouTubeLocale(gl = "US", hl = "en") }
 
     val player = remember { DesktopPlayer() }
+    // Built here rather than inside App, because the theme is chosen above App and needs the stored
+    // settings to do it. One instance either way - App only ever remembered them once.
+    val library = remember { LibraryStore() }
+    val settings = remember(library) { Settings(library.settings) }
+
     Window(
         onCloseRequest = { player.stop(); exitApplication() },
         title = "OuterTune",
         state = rememberWindowState(width = 1000.dp, height = 700.dp),
     ) {
-        MaterialTheme(colorScheme = darkColorScheme()) {
+        // Pushed up from App, which is where the playing song is known. A plain state rather than a
+        // flow: it changes once per track and is read once per frame.
+        var seed by remember { mutableStateOf<Color?>(null) }
+
+        val dark = when (settings.themeMode) {
+            ThemeMode.System -> isSystemInDarkTheme()
+            ThemeMode.Light -> false
+            ThemeMode.Dark -> true
+        }
+        // Animated, so a track change shifts the window rather than snapping it. The colours arrive
+        // a moment after the song does - the cover has to be fetched and sampled - and a hard cut
+        // lands as a flash of the wrong scheme followed by the right one.
+        val scheme = DynamicTheme.schemeFor(seed.takeIf { settings.dynamicTheme }, dark)
+
+        MaterialTheme(colorScheme = scheme) {
             Surface(modifier = Modifier.fillMaxSize()) {
-                App(player)
+                App(player, library, settings, onSeedChanged = { seed = it })
             }
         }
     }
 }
 
 @Composable
-private fun App(player: DesktopPlayer) {
+private fun App(
+    player: DesktopPlayer,
+    library: LibraryStore,
+    settings: Settings,
+    onSeedChanged: (Color?) -> Unit,
+) {
     val scope = rememberCoroutineScope()
-    val library = remember { LibraryStore() }
     val account = remember { Account(library.database) }
     val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.toStored()) }) }
 
@@ -128,6 +152,11 @@ private fun App(player: DesktopPlayer) {
     var searchFocused by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
 
+    // The colour the whole window is themed from. Sampled from the cover of what is playing, which
+    // is the desktop's nearest thing to Android seeding its scheme from the wallpaper.
+    val (artworkPrimary, _) = rememberArtworkColours(queue.current?.thumbnail)
+    LaunchedEffect(artworkPrimary) { onSeedChanged(artworkPrimary) }
+
     val playlists by library.playlists.collectAsState()
     var showPlaylists by remember { mutableStateOf(false) }
     var showAccount by remember { mutableStateOf(false) }
@@ -141,16 +170,18 @@ private fun App(player: DesktopPlayer) {
         showAccount = false
         showPlaylists = false
     }
-    // Read once at startup and written through as they change - see Settings.
-    val settings = remember(library) { Settings(library.settings) }
-
     // Handed over once. The player resolves audio, so it is the thing that knows how to fill the
     // cache, and it consults it before reaching for the network.
     LaunchedEffect(library) { player.downloads = library.downloads }
 
     // What the download button shows. Kept here rather than read from disk on every recomposition:
     // "is this downloaded" is a file check, and doing one per frame to colour a button is wasteful.
-    var downloadedIds by remember(library) { mutableStateOf(library.downloads.ids().toSet()) }
+    // Filled in off the main thread rather than read during composition: ids() is a database query
+    // plus a file check per row, and composition is not the place for either.
+    var downloadedIds by remember(library) { mutableStateOf(emptySet<String>()) }
+    LaunchedEffect(library) {
+        downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
+    }
     var downloading by remember { mutableStateOf<String?>(null) }
 
     var showDetails by remember { mutableStateOf(false) }
@@ -298,13 +329,15 @@ private fun App(player: DesktopPlayer) {
                 onDownload = queue.current?.let { song ->
                     {
                         if (song.id in downloadedIds) {
-                            library.downloads.delete(song.id)
                             downloadedIds = downloadedIds - song.id
+                            scope.launch { withContext(Dispatchers.IO) { library.downloads.delete(song.id) } }
                         } else if (downloading == null) {
                             downloading = song.id
                             scope.launch {
                                 player.download(song.id)
-                                downloadedIds = library.downloads.ids().toSet()
+                                downloadedIds = withContext(Dispatchers.IO) {
+                                    library.downloads.ids().toSet()
+                                }
                                 downloading = null
                             }
                         }

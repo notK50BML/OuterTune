@@ -187,7 +187,12 @@ fun NowPlayingScreen(
             // be clicked, so "scroll up to see it" simply did nothing.
             .onPointerEvent(PointerEventType.Scroll) { event ->
                 if (equalizer == null) return@onPointerEvent
-                val scrolled = event.changes.first().scrollDelta.y
+                val change = event.changes.first()
+                // Only a scroll nothing else wanted. This handler sits on the whole player, so
+                // without the check, scrolling the lyrics or the queue - both of which are inside it
+                // - would also drag the equaliser down over what was being read.
+                if (change.isConsumed) return@onPointerEvent
+                val scrolled = change.scrollDelta.y
                 if (scrolled < 0f && !equalizerOpen) equalizerOpen = true
                 else if (scrolled > 0f && equalizerOpen) equalizerOpen = false
             },

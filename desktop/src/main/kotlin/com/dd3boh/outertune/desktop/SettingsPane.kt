@@ -31,6 +31,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -58,6 +63,7 @@ fun SettingsPane(
     onDownloadsChanged: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val scope = rememberCoroutineScope()
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -138,6 +144,27 @@ fun SettingsPane(
         }
 
         Section("Appearance") {
+            Text("Theme", style = MaterialTheme.typography.bodyLarge)
+            ThemeMode.entries.forEach { mode ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { settings.themeMode = mode }
+                        .padding(vertical = 2.dp),
+                ) {
+                    RadioButton(selected = settings.themeMode == mode, onClick = { settings.themeMode = mode })
+                    Text(mode.label, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            SettingSwitch(
+                title = "Colour the app from the artwork",
+                subtitle = "The whole window takes its palette from the cover of what is playing, " +
+                    "the way the phone takes its own from the wallpaper.",
+                checked = settings.dynamicTheme,
+                onCheckedChange = { settings.dynamicTheme = it },
+            )
             SettingSwitch(
                 title = "Colour controls by value",
                 subtitle = "Yellow low, green middle, blue high, on dials and equaliser bands.",
@@ -173,8 +200,20 @@ fun SettingsPane(
         Section("Downloads") {
             // Recomputed when the screen is opened rather than watched. Nothing else changes it
             // while this is on screen, and a live total would mean stat-ing every file on a timer.
-            var total by remember { mutableStateOf(downloads.totalBytes()) }
-            var count by remember { mutableStateOf(downloads.ids().size) }
+            var total by remember { mutableStateOf(0L) }
+            var count by remember { mutableStateOf(0) }
+            // Same reasoning as the player's: totalBytes() stats every downloaded file, which is
+            // not something to do while laying out a screen.
+            LaunchedEffect(downloads) {
+                withContext(Dispatchers.IO) {
+                    val ids = downloads.ids()
+                    val bytes = downloads.totalBytes()
+                    withContext(Dispatchers.Main) {
+                        count = ids.size
+                        total = bytes
+                    }
+                }
+            }
             Text(
                 text = if (count == 0) {
                     "Nothing downloaded yet. The download button on the player keeps a song on disk."
@@ -192,10 +231,12 @@ fun SettingsPane(
             if (count > 0) {
                 TextButton(
                     onClick = {
-                        downloads.deleteAll()
                         total = 0
                         count = 0
-                        onDownloadsChanged()
+                        scope.launch {
+                            withContext(Dispatchers.IO) { downloads.deleteAll() }
+                            onDownloadsChanged()
+                        }
                     }
                 ) {
                     Text("Delete all downloads", color = MaterialTheme.colorScheme.error)

@@ -80,6 +80,18 @@ class Settings(private val store: SettingsStore) {
      */
     var colourByValue by bool("ui.colourByValue", true)
 
+    /**
+     * Whether the whole window takes its colours from the cover of what is playing.
+     *
+     * On. It is the desktop's answer to Material You - Android seeds from the wallpaper, which the
+     * system hands over; a desktop has no equivalent, but it does have a large picture on screen
+     * that the person chose. Off, the app keeps one fixed scheme.
+     */
+    var dynamicTheme by bool("ui.dynamicTheme", true)
+
+    /** Light, dark, or whatever the desktop is set to. */
+    var themeMode by enum("ui.themeMode", ThemeMode.System, ThemeMode.entries)
+
     /** How the player's background is drawn behind the cover's colours. */
     var background by enum("ui.background", BackgroundStyle.Gradient, BackgroundStyle.entries)
 

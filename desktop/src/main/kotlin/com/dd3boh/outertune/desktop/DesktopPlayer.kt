@@ -295,15 +295,19 @@ class DesktopPlayer {
      * streamed - one format-selection code path rather than two that can disagree about which itag
      * to take.
      */
-    suspend fun download(videoId: String): Result<Unit> {
-        downloads?.let { store ->
-            if (store.has(videoId)) return Result.success(Unit)
-            return when (val outcome = resolveAndFetch(videoId)) {
-                is Resolved.Audio -> store.save(videoId, outcome.bytes)
-                is Resolved.Failure -> Result.failure(IllegalStateException(outcome.reason))
-            }
+    suspend fun download(videoId: String): Result<Unit> = withContext(Dispatchers.IO) {
+        // On IO explicitly, and this is the whole reason the dispatcher is stated. Callers are UI
+        // code, so a Compose scope dispatches on the main thread - and everything inside here is
+        // blocking: a SQLite query to check, a multi-megabyte file write to save. Without this the
+        // window freezes for the length of the write, which does not look like a slow download. It
+        // looks like the app has hung.
+        val store = downloads
+            ?: return@withContext Result.failure(IllegalStateException("downloads are not set up"))
+        if (store.has(videoId)) return@withContext Result.success(Unit)
+        when (val outcome = resolveAndFetch(videoId)) {
+            is Resolved.Audio -> store.save(videoId, outcome.bytes)
+            is Resolved.Failure -> Result.failure(IllegalStateException(outcome.reason))
         }
-        return Result.failure(IllegalStateException("downloads are not set up"))
     }
 
     private suspend fun resolveAndFetch(videoId: String): Resolved {
