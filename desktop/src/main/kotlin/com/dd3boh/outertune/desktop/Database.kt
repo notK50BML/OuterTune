@@ -215,6 +215,26 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 6) {
+                connection.createStatement().use { st ->
+                    // An index over the files, not the files themselves. Audio lives on disk where
+                    // the operating system can page it; a blob column would load a whole song into
+                    // memory to answer "is this downloaded".
+                    //
+                    // Deliberately not a foreign key onto song: something can be downloaded before
+                    // it has ever been played, and a cascade delete would throw away the audio when
+                    // the library row was tidied.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS download (
+                            songId       TEXT PRIMARY KEY NOT NULL,
+                            sizeBytes    INTEGER NOT NULL,
+                            downloadedAt INTEGER NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -256,6 +276,45 @@ class Database(file: File) {
         } finally {
             transactionDepth = 0
             connection.autoCommit = true
+        }
+    }
+
+    /** The size recorded for a downloaded song, or null if it is not recorded as downloaded. */
+    fun download(songId: String): Long? = synchronized(lock) {
+        connection.prepareStatement("SELECT sizeBytes FROM download WHERE songId = ?").use { st ->
+            st.setString(1, songId)
+            st.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
+        }
+    }
+
+    fun putDownload(songId: String, sizeBytes: Long) = synchronized(lock) {
+        connection.prepareStatement(
+            """
+            INSERT INTO download (songId, sizeBytes, downloadedAt) VALUES (?, ?, ?)
+            ON CONFLICT(songId) DO UPDATE SET
+                sizeBytes = excluded.sizeBytes, downloadedAt = excluded.downloadedAt
+            """.trimIndent()
+        ).use { st ->
+            st.setString(1, songId)
+            st.setLong(2, sizeBytes)
+            st.setLong(3, System.currentTimeMillis())
+            st.executeUpdate()
+        }
+    }
+
+    fun deleteDownload(songId: String) = synchronized(lock) {
+        connection.prepareStatement("DELETE FROM download WHERE songId = ?").use { st ->
+            st.setString(1, songId)
+            st.executeUpdate()
+        }
+    }
+
+    /** Newest first, which is the order a downloads list wants to be read in. */
+    fun downloadIds(): List<String> = synchronized(lock) {
+        connection.prepareStatement("SELECT songId FROM download ORDER BY downloadedAt DESC").use { st ->
+            st.executeQuery().use { rs ->
+                buildList { while (rs.next()) add(rs.getString(1)) }
+            }
         }
     }
 
@@ -697,7 +756,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 5
+        const val SCHEMA_VERSION = 6
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

@@ -142,6 +142,14 @@ class DesktopPlayer {
      * the write. That is also the reason this is a real implementation rather than a binding to
      * something the platform provides, the way it is on Android.
      */
+    /**
+     * Downloaded audio, consulted before the network.
+     *
+     * Settable rather than a constructor parameter because the store needs the library directory,
+     * which is built after the player. Null simply means nothing is cached.
+     */
+    var downloads: Downloads? = null
+
     val equalizer = Equalizer()
 
     /**
@@ -280,7 +288,29 @@ class DesktopPlayer {
      * Asked for as an explicit range: googlevideo paces a plain progressive request at roughly
      * playback speed, so without one this takes about as long as the song lasts.
      */
+    /**
+     * Fetches [videoId]'s audio without playing it, and keeps it.
+     *
+     * The same resolve path playback uses, so a download is exactly the bytes that would have been
+     * streamed - one format-selection code path rather than two that can disagree about which itag
+     * to take.
+     */
+    suspend fun download(videoId: String): Result<Unit> {
+        downloads?.let { store ->
+            if (store.has(videoId)) return Result.success(Unit)
+            return when (val outcome = resolveAndFetch(videoId)) {
+                is Resolved.Audio -> store.save(videoId, outcome.bytes)
+                is Resolved.Failure -> Result.failure(IllegalStateException(outcome.reason))
+            }
+        }
+        return Result.failure(IllegalStateException("downloads are not set up"))
+    }
+
     private suspend fun resolveAndFetch(videoId: String): Resolved {
+        // A downloaded song never touches the network, and never asks YouTube whether it is still
+        // playable - which is the whole point of having downloaded it.
+        downloads?.read(videoId)?.let { return Resolved.Audio(it) }
+
         val failures = mutableListOf<String>()
         for (client in CLIENTS) {
             when (val outcome = resolveAndFetchWith(videoId, client)) {

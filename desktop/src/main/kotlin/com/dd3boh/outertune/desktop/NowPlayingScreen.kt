@@ -77,6 +77,7 @@ import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.max
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -130,6 +131,8 @@ fun NowPlayingScreen(
     lyrics: Lyrics? = null,
     lyricsLoading: Boolean = false,
     lyricsOnCoverClick: Boolean = true,
+    downloaded: Boolean = false,
+    downloading: Boolean = false,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
     colourByValue: Boolean = true,
     onDownload: (() -> Unit)? = null,
@@ -310,7 +313,9 @@ fun NowPlayingScreen(
                             onToggleLyrics = { showLyrics = !showLyrics },
                         ),
                         onToggleLike = onToggleLike,
-                        onDownload = onDownload,
+                        onDownload = actions.onDownload,
+                        downloaded = downloaded,
+                        downloading = downloading,
                         tint = onBackground,
                         buttonSize = actionSize,
                         iconSize = actionIcon,
@@ -829,6 +834,8 @@ private fun ActionButtons(
     actions: PlayerActions,
     onToggleLike: () -> Unit,
     onDownload: (() -> Unit)?,
+    downloaded: Boolean,
+    downloading: Boolean,
     tint: Color,
     buttonSize: Dp,
     iconSize: Dp,
@@ -850,12 +857,24 @@ private fun ActionButtons(
     if (onDownload != null) {
         Spacer(modifier = Modifier.width(7.dp))
         ActionButton(onClick = onDownload, size = buttonSize) {
-            Icon(
-                OuterTuneIcons.download,
-                contentDescription = "Download",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(iconSize),
-            )
+            when {
+                // A spinner in place of the glyph rather than beside it, so the button does not
+                // change size mid-download and shift everything after it along the row.
+                downloading -> CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    strokeWidth = 2.dp,
+                    modifier = Modifier.size(iconSize * 0.8f),
+                )
+                else -> Icon(
+                    OuterTuneIcons.download,
+                    contentDescription = if (downloaded) "Remove download" else "Download",
+                    // Dimmed once it is downloaded, which reads as "done" while keeping the button
+                    // where it was - swapping in a tick would make the row jump and would hide the
+                    // fact that pressing it again removes the file.
+                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = if (downloaded) 0.45f else 1f),
+                    modifier = Modifier.size(iconSize),
+                )
+            }
         }
     }
 

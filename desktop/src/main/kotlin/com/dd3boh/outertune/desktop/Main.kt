@@ -144,6 +144,15 @@ private fun App(player: DesktopPlayer) {
     // Read once at startup and written through as they change - see Settings.
     val settings = remember(library) { Settings(library.settings) }
 
+    // Handed over once. The player resolves audio, so it is the thing that knows how to fill the
+    // cache, and it consults it before reaching for the network.
+    LaunchedEffect(library) { player.downloads = library.downloads }
+
+    // What the download button shows. Kept here rather than read from disk on every recomposition:
+    // "is this downloaded" is a file check, and doing one per frame to colour a button is wasteful.
+    var downloadedIds by remember(library) { mutableStateOf(library.downloads.ids().toSet()) }
+    var downloading by remember { mutableStateOf<String?>(null) }
+
     var showDetails by remember { mutableStateOf(false) }
 
     // Fetched for whatever is playing, whether or not the pane is open. Waiting until it is opened
@@ -269,6 +278,8 @@ private fun App(player: DesktopPlayer) {
             // so nothing here promises a feature that has not been written - see PlayerActions.
             lyrics = lyrics,
             lyricsLoading = lyricsLoading,
+            downloaded = queue.current?.id in downloadedIds,
+            downloading = downloading != null && downloading == queue.current?.id,
             showSeekButtons = settings.showSeekButtons,
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
             backgroundStyle = settings.background,
@@ -282,6 +293,21 @@ private fun App(player: DesktopPlayer) {
                             artist.id?.let { StoredArtist(it, artist.name) }
                                 ?: StoredArtist.unlinked(artist.name)
                         )
+                    }
+                },
+                onDownload = queue.current?.let { song ->
+                    {
+                        if (song.id in downloadedIds) {
+                            library.downloads.delete(song.id)
+                            downloadedIds = downloadedIds - song.id
+                        } else if (downloading == null) {
+                            downloading = song.id
+                            scope.launch {
+                                player.download(song.id)
+                                downloadedIds = library.downloads.ids().toSet()
+                                downloading = null
+                            }
+                        }
                     }
                 },
                 onShare = queue.current?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
@@ -371,6 +397,8 @@ private fun App(player: DesktopPlayer) {
                             queue.current?.id?.let(lyricsRepository::forget)
                             lyrics = null
                         },
+                        downloads = library.downloads,
+                        onDownloadsChanged = { downloadedIds = library.downloads.ids().toSet() },
                     )
                 } else if (showPlaylists) {
                     PlaylistsPane(

@@ -90,6 +90,9 @@ class LibraryStore(
 ) {
     private val db = database
 
+    /** Downloaded audio, beside the library rather than next to the jar - same reasoning as the database. */
+    val downloads: Downloads by lazy { Downloads(File(directory, "downloads"), db) }
+
     /** Where the library file lives, so the settings screen can say where a backup would come from. */
     val databasePath: String get() = File(directory, "library.db").absolutePath
 

@@ -27,6 +27,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +54,8 @@ fun SettingsPane(
     libraryPath: String,
     onBack: () -> Unit,
     onClearLyricsCache: () -> Unit,
+    downloads: Downloads,
+    onDownloadsChanged: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -160,6 +166,39 @@ fun SettingsPane(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                }
+            }
+        }
+
+        Section("Downloads") {
+            // Recomputed when the screen is opened rather than watched. Nothing else changes it
+            // while this is on screen, and a live total would mean stat-ing every file on a timer.
+            var total by remember { mutableStateOf(downloads.totalBytes()) }
+            var count by remember { mutableStateOf(downloads.ids().size) }
+            Text(
+                text = if (count == 0) {
+                    "Nothing downloaded yet. The download button on the player keeps a song on disk."
+                } else {
+                    "$count ${if (count == 1) "song" else "songs"}, ${Downloads.formatSize(total)}"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            Text(
+                text = "Downloaded songs play without the network, and without asking YouTube " +
+                    "whether they are still available.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (count > 0) {
+                TextButton(
+                    onClick = {
+                        downloads.deleteAll()
+                        total = 0
+                        count = 0
+                        onDownloadsChanged()
+                    }
+                ) {
+                    Text("Delete all downloads", color = MaterialTheme.colorScheme.error)
                 }
             }
         }
