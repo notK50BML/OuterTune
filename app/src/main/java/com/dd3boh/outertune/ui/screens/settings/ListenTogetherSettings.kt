@@ -123,7 +123,10 @@ fun ListenTogetherSettings(
                 PreferenceEntry(
                     title = { Text(it) },
                     icon = { Icon(Icons.Rounded.Info, null) },
-                    onClick = {},
+                    // Tapping dismisses it. Without this the message stays until the next attempt to
+                    // host or join, so "could not reach Sam's Pixel" can sit above a working session
+                    // half an hour later and read as a current problem.
+                    onClick = { manager.clearError() },
                 )
             }
             Spacer(modifier = Modifier.height(16.dp))

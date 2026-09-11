@@ -12,6 +12,7 @@ import android.util.Log
 import androidx.annotation.StringRes
 import com.dd3boh.outertune.R
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -56,9 +57,20 @@ class ListenTogetherManager @Inject constructor(
     private val _followerState = MutableStateFlow(FollowerState())
     val followerState: StateFlow<FollowerState> = _followerState.asStateFlow()
 
-    /** Set when something failed in a way the user should be told about. Cleared on the next start. */
+    /** Set when something failed in a way the user should be told about. */
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    /**
+     * Dismisses the current message.
+     *
+     * Needed because the message otherwise stays on screen until the next attempt to host or join.
+     * "Could not reach Sam's Pixel" sitting above a working session, half an hour later, reads as a
+     * current problem rather than as something that happened once.
+     */
+    fun clearError() {
+        _error.value = null
+    }
 
     private var bridge: PlaybackBridge? = null
     private var hostSession: HostSession? = null
@@ -199,6 +211,11 @@ class ListenTogetherManager @Inject constructor(
         sessionJobs += scope.launch {
             val link = try {
                 LanTransport.connect(host.address, host.port, scope, ::nowUs)
+            } catch (e: CancellationException) {
+                // Cancellation is not a failure to reach the host, and swallowing it here would both
+                // report a connection error that did not happen and let this coroutine carry on
+                // running after it was told to stop. It has to keep propagating.
+                throw e
             } catch (e: Exception) {
                 Log.e(TAG, "could not reach ${host.name}", e)
                 if (generation == started) {

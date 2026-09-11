@@ -165,6 +165,11 @@ class FollowerSession(
             // A rate left applied would outlive the session and quietly play everything slightly
             // fast for the rest of the day.
             bridge.setPlaybackSpeed(1f)
+            // Closed here as well as by leave(). Reaching this point by cancellation rather than by
+            // the host hanging up leaves a socket whose reader lives in the manager's scope, not in
+            // this coroutine - so nothing else would ever shut it down. Closing twice is harmless;
+            // not closing at all leaks a connection for as long as the app runs.
+            link.close(null)
             this.link = null
             _state.update { it.copy(connected = false) }
         }
