@@ -135,7 +135,7 @@ object ChromeSignIn {
                 client.newCall(Request.Builder().url("http://127.0.0.1:$port/json/version").build())
                     .execute()
                     .use { response: Response ->
-                        val body = response.body?.string().orEmpty()
+                        val body = response.body.string().orEmpty()
                         Json.parseToJsonElement(body).jsonObject["webSocketDebuggerUrl"]
                             ?.jsonPrimitive?.content
                     }

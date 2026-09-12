@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Button
@@ -56,43 +57,81 @@ import com.zionhuang.innertube.pages.HomePage
 fun HomePane(
     state: HomeState,
     currentId: String?,
+    /** Saved songs, shown as a row of their own above the feed. */
+    liked: List<StoredSong>,
+    /** Recently played, likewise. */
+    recent: List<StoredSong>,
     onPlaySong: (List<SongItem>, Int) -> Unit,
+    onPlayStored: (List<StoredSong>, Int, String) -> Unit,
     onPlayList: (YTItem) -> Unit,
     onOpenArtist: (StoredArtist) -> Unit,
+    onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    when (state) {
-        HomeState.Loading -> Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            CircularProgressIndicator()
+    // One scrolling column with the local rows at the top, rather than the feed and the library
+    // sharing the window half and half. Splitting it meant neither got enough height to show a row
+    // and its labels, and the split did not move when one side had nothing in it.
+    LazyColumn(
+        modifier = modifier.fillMaxSize(),
+        contentPadding = PaddingValues(vertical = 16.dp),
+    ) {
+        if (liked.isNotEmpty()) {
+            item {
+                StoredRow(
+                    title = "Liked",
+                    songs = liked,
+                    currentId = currentId,
+                ) { index -> onPlayStored(liked, index, "Liked songs") }
+            }
         }
-
-        is HomeState.Empty -> Box(
-            modifier = modifier.fillMaxSize().padding(48.dp),
-            contentAlignment = Alignment.Center,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(
-                    text = state.message,
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                if (state.signedOut) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "Settings → Account",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                }
+        if (recent.isNotEmpty()) {
+            item {
+                StoredRow(
+                    title = "Recently played",
+                    songs = recent,
+                    currentId = currentId,
+                ) { index -> onPlayStored(recent, index, "Recently played") }
             }
         }
 
-        is HomeState.Ready -> LazyColumn(
-            modifier = modifier.fillMaxSize(),
-            contentPadding = PaddingValues(vertical = 16.dp),
-        ) {
-            items(state.sections) { section ->
+        when (state) {
+            HomeState.Loading -> item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().height(200.dp),
+                    contentAlignment = Alignment.Center,
+                ) { CircularProgressIndicator() }
+            }
+
+            is HomeState.Empty -> item {
+                Box(
+                    modifier = Modifier.fillMaxWidth().padding(48.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(
+                            text = state.message,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center,
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        // Signed out, the fix is somewhere else and saying where is the whole help.
+                        // Signed in, this is a request that failed and the only useful offer is to
+                        // make it again - a retry button where the pointer already is.
+                        if (state.signedOut) {
+                            Text(
+                                text = "Settings → Account",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        } else {
+                            Button(onClick = onRetry) { Text("Try again") }
+                        }
+                    }
+                }
+            }
+
+            is HomeState.Ready -> items(state.sections) { section ->
                 Section(
                     section = section,
                     currentId = currentId,
@@ -102,6 +141,66 @@ fun HomePane(
                 )
             }
         }
+    }
+}
+
+/**
+ * A row of songs the library already holds.
+ *
+ * Drawn as the same cards as the feed rather than as list rows, so the page reads as one thing.
+ * Liked and recent are the two lists looked for by name rather than browsed to, which is why they
+ * sit above the recommendations instead of below them.
+ */
+@Composable
+private fun StoredRow(
+    title: String,
+    songs: List<StoredSong>,
+    currentId: String?,
+    onPlay: (Int) -> Unit,
+) {
+    Column(modifier = Modifier.padding(bottom = 24.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 28.dp, bottom = 10.dp),
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 28.dp),
+        ) {
+            itemsIndexed(songs) { index, song ->
+                StoredCard(song = song, playing = song.id == currentId) { onPlay(index) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoredCard(song: StoredSong, playing: Boolean, onClick: () -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(CARD_WIDTH)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .clickable(onClick = onClick),
+    ) {
+        Artwork(song.thumbnail, size = CARD_WIDTH, cornerRadius = 8.dp)
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = song.title,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (playing) FontWeight.Bold else FontWeight.Normal,
+            color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+        )
+        Text(
+            text = song.artists,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
     }
 }
 

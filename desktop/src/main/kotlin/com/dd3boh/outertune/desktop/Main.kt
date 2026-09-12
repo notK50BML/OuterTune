@@ -25,7 +25,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -114,10 +114,10 @@ fun main() = application {
             ThemeMode.Light -> false
             ThemeMode.Dark -> true
         }
-        // Animated, so a track change shifts the window rather than snapping it. The colours arrive
-        // a moment after the song does - the cover has to be fetched and sampled - and a hard cut
-        // lands as a flash of the wrong scheme followed by the right one.
-        val scheme = DynamicTheme.schemeFor(seed.takeIf { settings.dynamicTheme }, dark)
+        // Eased rather than cut - see DynamicTheme.animated for why that is worth doing.
+        val scheme = DynamicTheme.animated(
+            DynamicTheme.schemeFor(seed.takeIf { settings.dynamicTheme }, dark)
+        )
 
         MaterialTheme(colorScheme = scheme) {
             Surface(modifier = Modifier.fillMaxSize()) {
@@ -157,7 +157,11 @@ private fun App(
     val homeFeed = remember { HomeFeed() }
     val accountState by account.state.collectAsState()
     var home by remember { mutableStateOf<HomeState>(HomeState.Loading) }
-    LaunchedEffect(accountState) {
+    // Bumped to ask again. Without it a feed that failed once - opened on a train, or while the
+    // network was still coming up - stayed failed until the app was restarted or the account
+    // changed, which is a long way to go for a transient error.
+    var homeAttempt by remember { mutableStateOf(0) }
+    LaunchedEffect(accountState, homeAttempt) {
         home = HomeState.Loading
         home = homeFeed.load(signedIn = accountState is AccountState.SignedIn)
     }
@@ -441,7 +445,15 @@ private fun App(
                             lyrics = null
                         },
                         downloads = library.downloads,
-                        onDownloadsChanged = { downloadedIds = library.downloads.ids().toSet() },
+                        onDownloadsChanged = {
+                            // Off the main thread like the other three. ids() is a query plus a file
+                            // check per row, and this one was missed when the others were moved.
+                            scope.launch {
+                                downloadedIds = withContext(Dispatchers.IO) {
+                                    library.downloads.ids().toSet()
+                                }
+                            }
+                        },
                     )
                 } else if (showPlaylists) {
                     PlaylistsPane(
@@ -470,11 +482,15 @@ private fun App(
                     // The feed is the landing page when nothing is being searched for. Liked and
                     // recent still live below it, since those are the two things looked for by name
                     // rather than browsed to.
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        Box(modifier = Modifier.weight(1f)) {
                             HomePane(
                                 state = home,
                                 currentId = queue.current?.id,
+                                liked = liked,
+                                recent = recent,
+                                onPlayStored = { songs, index, title ->
+                                    playerQueue.play(songs.map { it.toItem() }, index, title)
+                                },
+                                onRetry = { homeAttempt++ },
                                 onPlaySong = { songs, index ->
                                     playerQueue.play(songs, index, "Home")
                                 },
@@ -492,23 +508,6 @@ private fun App(
                                 },
                                 onOpenArtist = openArtistPage,
                             )
-                        }
-                        if (liked.isNotEmpty() || recent.isNotEmpty()) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                Content(
-                                    results = results,
-                                    liked = liked,
-                                    recent = recent,
-                                    currentId = queue.current?.id,
-                                    onPlayResult = { index -> playerQueue.play(results, index, "Search results") },
-                                    onPlayStored = { songs, index ->
-                                        playerQueue.play(songs.map { it.toItem() }, index, "Liked songs")
-                                    },
-                                    onAddToPlaylist = { addingToPlaylist = it },
-                                )
-                            }
-                        }
-                    }
                 } else {
                     Content(
                         results = results,
@@ -523,7 +522,7 @@ private fun App(
             }
 
             if (queue.songs.isNotEmpty()) {
-                Divider(modifier = Modifier.fillMaxHeight().width(1.dp))
+                HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
                 QueuePane(queue) { playerQueue.jumpTo(it) }
             }
         }

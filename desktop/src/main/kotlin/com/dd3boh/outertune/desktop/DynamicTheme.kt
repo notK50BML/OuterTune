@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.Composable
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -151,6 +154,48 @@ object DynamicTheme {
                 outlineVariant = tone(0.78f, sat = s * 0.2f),
             )
         }
+    }
+
+    /**
+     * [target], eased into rather than cut to.
+     *
+     * The comment that used to sit at the call site claimed this happened and nothing did it, which
+     * is worse than not having done it - a reader trusts the comment over the code. The reasoning
+     * was right, though: a cover's colours arrive a moment after the song does, because the image
+     * has to be fetched and sampled, so a hard switch lands as a flash of the wrong scheme followed
+     * by the right one.
+     *
+     * Only the roles that carry colour are animated. The rest are taken from [target] directly -
+     * animating forty fields to move the six that visibly change is work per frame for nothing.
+     */
+    @Composable
+    fun animated(target: ColorScheme, durationMillis: Int = 600): ColorScheme {
+        val spec = tween<Color>(durationMillis)
+
+        @Composable
+        fun ease(colour: Color) = animateColorAsState(colour, spec).value
+
+        return target.copy(
+            primary = ease(target.primary),
+            onPrimary = ease(target.onPrimary),
+            primaryContainer = ease(target.primaryContainer),
+            onPrimaryContainer = ease(target.onPrimaryContainer),
+            secondary = ease(target.secondary),
+            secondaryContainer = ease(target.secondaryContainer),
+            tertiary = ease(target.tertiary),
+            background = ease(target.background),
+            onBackground = ease(target.onBackground),
+            surface = ease(target.surface),
+            onSurface = ease(target.onSurface),
+            surfaceVariant = ease(target.surfaceVariant),
+            onSurfaceVariant = ease(target.onSurfaceVariant),
+            surfaceContainer = ease(target.surfaceContainer),
+            surfaceContainerHigh = ease(target.surfaceContainerHigh),
+            surfaceContainerHighest = ease(target.surfaceContainerHighest),
+            surfaceContainerLow = ease(target.surfaceContainerLow),
+            outline = ease(target.outline),
+            outlineVariant = ease(target.outlineVariant),
+        )
     }
 
     /**

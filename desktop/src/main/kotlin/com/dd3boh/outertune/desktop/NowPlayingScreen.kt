@@ -192,9 +192,11 @@ fun NowPlayingScreen(
                 // without the check, scrolling the lyrics or the queue - both of which are inside it
                 // - would also drag the equaliser down over what was being read.
                 if (change.isConsumed) return@onPointerEvent
-                val scrolled = change.scrollDelta.y
-                if (scrolled < 0f && !equalizerOpen) equalizerOpen = true
-                else if (scrolled > 0f && equalizerOpen) equalizerOpen = false
+                // Opening only. Closing by scrolling cannot work and used to be written here as
+                // though it did: once open, the panel covers the window as its own overlay, so this
+                // handler - which lives on the player underneath - never sees another scroll. It
+                // closes by its handle or by a flick upward, which is the direction it came from.
+                if (change.scrollDelta.y < 0f && !equalizerOpen) equalizerOpen = true
             },
     ) {
         // Pulled down from the top edge rather than sitting among the controls, which is where the

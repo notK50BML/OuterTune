@@ -111,5 +111,4 @@ val YTItem.subtitle: String
         is AlbumItem -> artists?.joinToString { it.name }.orEmpty()
         is PlaylistItem -> author?.name ?: songCountText.orEmpty()
         is ArtistItem -> "Artist"
-        else -> ""
     }
