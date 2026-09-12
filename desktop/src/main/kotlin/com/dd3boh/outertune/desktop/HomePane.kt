@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.ArtistItem
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.YTItem
@@ -65,6 +66,7 @@ fun HomePane(
     onPlayStored: (List<StoredSong>, Int, String) -> Unit,
     onPlayList: (YTItem) -> Unit,
     onOpenArtist: (StoredArtist) -> Unit,
+    onOpenAlbum: (String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -138,6 +140,7 @@ fun HomePane(
                     onPlaySong = onPlaySong,
                     onPlayList = onPlayList,
                     onOpenArtist = onOpenArtist,
+                    onOpenAlbum = onOpenAlbum,
                 )
             }
         }
@@ -211,6 +214,7 @@ private fun Section(
     onPlaySong: (List<SongItem>, Int) -> Unit,
     onPlayList: (YTItem) -> Unit,
     onOpenArtist: (StoredArtist) -> Unit,
+    onOpenAlbum: (String) -> Unit,
 ) {
     // Only what can be acted on, and recomputed per section rather than once for the page so the
     // song indices below line up with the list actually being shown.
@@ -248,6 +252,10 @@ private fun Section(
                             // an album rather than a series of one-song sessions.
                             is SongItem -> onPlaySong(songs, songs.indexOf(item).coerceAtLeast(0))
                             is ArtistItem -> onOpenArtist(StoredArtist(item.id, item.title))
+                            // An album opens rather than plays, now that there is a page for it -
+                            // clicking a cover to be shown the record is what every music app does,
+                            // and playing it outright removes the chance to look first.
+                            is AlbumItem -> onOpenAlbum(item.browseId)
                             else -> onPlayList(item)
                         }
                     },

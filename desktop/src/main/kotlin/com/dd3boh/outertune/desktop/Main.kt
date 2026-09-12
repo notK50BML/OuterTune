@@ -176,10 +176,28 @@ private fun App(
     var showAccount by remember { mutableStateOf(false) }
     var openArtist by remember { mutableStateOf<StoredArtist?>(null) }
 
+    // The album being looked at, by browse id, and whatever has been loaded for it. Two states
+    // rather than one: the id is what navigation sets, and the page is what arrives afterwards.
+    var openAlbumId by remember { mutableStateOf<String?>(null) }
+    var album by remember { mutableStateOf<AlbumState>(AlbumState.Loading) }
+    LaunchedEffect(openAlbumId) {
+        val id = openAlbumId ?: return@LaunchedEffect
+        album = AlbumState.Loading
+        album = loadAlbum(id)
+    }
+
     // Opening an artist closes the player, because the artist page is where the user is going and
     // the full-window player would otherwise cover it entirely.
     val openArtistPage = { artist: StoredArtist ->
         openArtist = artist
+        openAlbumId = null
+        showFullPlayer = false
+        showAccount = false
+        showPlaylists = false
+    }
+    val openAlbumPage = { browseId: String ->
+        openAlbumId = browseId
+        openArtist = null
         showFullPlayer = false
         showAccount = false
         showPlaylists = false
@@ -357,6 +375,9 @@ private fun App(
                         }
                     }
                 },
+                // Only when the song actually carries one. A menu entry that opens an empty page is
+                // worse than one that is not there.
+                onViewAlbum = queue.current?.album?.id?.let { id -> { openAlbumPage(id) } },
                 onShare = queue.current?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
                 onDetails = queue.current?.let { { showDetails = true } },
             ),
@@ -424,8 +445,25 @@ private fun App(
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
+                val albumId = openAlbumId
                 val artist = openArtist
-                if (artist != null) {
+                if (albumId != null) {
+                    AlbumPane(
+                        state = album,
+                        currentId = queue.current?.id,
+                        onBack = { openAlbumId = null },
+                        onPlay = { songs, index -> playerQueue.play(songs, index, albumTitle(album)) },
+                        onShuffle = { songs ->
+                            // Shuffled by handing the queue a shuffled list rather than by turning
+                            // the shuffle mode on: "shuffle this album" is a way of starting it, not
+                            // a setting that should still be on for whatever is played next.
+                            val order = songs.shuffled()
+                            if (order.isNotEmpty()) playerQueue.play(order, 0, albumTitle(album))
+                        },
+                        onOpenArtist = openArtistPage,
+                        onAddToPlaylist = { addingToPlaylist = it },
+                    )
+                } else if (artist != null) {
                     ArtistPane(
                         artist = artist,
                         library = library,
@@ -494,6 +532,7 @@ private fun App(
                                 onPlaySong = { songs, index ->
                                     playerQueue.play(songs, index, "Home")
                                 },
+                                onOpenAlbum = openAlbumPage,
                                 onPlayList = { item ->
                                     item.playlistIdOrNull?.let { playlistId ->
                                         scope.launch {
@@ -870,6 +909,10 @@ private fun DetailRow(label: String, value: String) {
         SelectionContainer { Text(text = value, style = MaterialTheme.typography.bodyMedium) }
     }
 }
+
+/** The album's name once it has loaded, for naming the queue it starts. */
+private fun albumTitle(state: AlbumState): String =
+    (state as? AlbumState.Ready)?.page?.album?.title ?: "Album"
 
 /** The public watch page for a video id - what "Share" puts on the clipboard. */
 internal fun watchUrl(videoId: String) = "https://music.youtube.com/watch?v=$videoId"
