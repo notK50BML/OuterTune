@@ -152,6 +152,16 @@ private fun App(
     var searchFocused by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
 
+    // The home feed. Reloaded when the account changes, because signed out it is a prompt to sign in
+    // and signed in it is a different page entirely - not a variation on the same one.
+    val homeFeed = remember { HomeFeed() }
+    val accountState by account.state.collectAsState()
+    var home by remember { mutableStateOf<HomeState>(HomeState.Loading) }
+    LaunchedEffect(accountState) {
+        home = HomeState.Loading
+        home = homeFeed.load(signedIn = accountState is AccountState.SignedIn)
+    }
+
     // The colour the whole window is themed from. Sampled from the cover of what is playing, which
     // is the desktop's nearest thing to Android seeding its scheme from the wallpaper.
     val (artworkPrimary, _) = rememberArtworkColours(queue.current?.thumbnail)
@@ -456,6 +466,49 @@ private fun App(
                             }
                         },
                     )
+                } else if (query.isBlank() && results.isEmpty()) {
+                    // The feed is the landing page when nothing is being searched for. Liked and
+                    // recent still live below it, since those are the two things looked for by name
+                    // rather than browsed to.
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            HomePane(
+                                state = home,
+                                currentId = queue.current?.id,
+                                onPlaySong = { songs, index ->
+                                    playerQueue.play(songs, index, "Home")
+                                },
+                                onPlayList = { item ->
+                                    item.playlistIdOrNull?.let { playlistId ->
+                                        scope.launch {
+                                            val songs = withContext(Dispatchers.IO) {
+                                                YouTube.queue(playlistId = playlistId).getOrNull()
+                                            }
+                                            if (!songs.isNullOrEmpty()) {
+                                                playerQueue.play(songs, 0, item.title)
+                                            }
+                                        }
+                                    }
+                                },
+                                onOpenArtist = openArtistPage,
+                            )
+                        }
+                        if (liked.isNotEmpty() || recent.isNotEmpty()) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                Content(
+                                    results = results,
+                                    liked = liked,
+                                    recent = recent,
+                                    currentId = queue.current?.id,
+                                    onPlayResult = { index -> playerQueue.play(results, index, "Search results") },
+                                    onPlayStored = { songs, index ->
+                                        playerQueue.play(songs.map { it.toItem() }, index, "Liked songs")
+                                    },
+                                    onAddToPlaylist = { addingToPlaylist = it },
+                                )
+                            }
+                        }
+                    }
                 } else {
                     Content(
                         results = results,
