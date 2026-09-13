@@ -51,8 +51,25 @@ object ClientProbe {
             "ANDROID_VR_1_65_10" to YouTubeClient.ANDROID_VR_1_65_10,
             "ANDROID_VR_1_43_32" to YouTubeClient.ANDROID_VR_1_43_32,
         )
+        // Mint a proof-of-origin token first, and report whether that was even possible. Every
+        // client was refused without one, so a probe that does not try with one only re-establishes
+        // what is already known.
+        val minter = PoTokenMinter()
+        val tokens = minter.tokensFor(videoId, sessionId = YouTube.visitorData!!)
+        if (tokens == null) {
+            println("!! could not mint a proof-of-origin token - is Chrome installed?")
+        } else {
+            println("minted: player=${tokens.playerRequest.take(24)}… streaming=${tokens.streamingData.take(24)}…")
+        }
+        println()
+
         all.forEach { (label, client) ->
-            val result = YouTube.player(videoId, client = client, authenticated = false)
+            val result = YouTube.player(
+                videoId,
+                client = client,
+                webPlayerPot = tokens?.playerRequest.takeIf { client.useWebPoTokens },
+                authenticated = false,
+            )
             result.fold(
                 onSuccess = { response ->
                     val status = response.playabilityStatus.status
@@ -61,7 +78,8 @@ object ClientProbe {
                         .filter { it.mimeType.startsWith("audio") }
                     val withUrls = audio.count { !it.url.isNullOrBlank() }
                     println("$label: $status ${if (reason.isBlank()) "" else "- $reason"}")
-                    println("    ${audio.size} audio formats, $withUrls with direct urls")
+                    println("    ${audio.size} audio formats, $withUrls with direct urls"
+                        + if (client.useWebPoTokens) " [sent a pot]" else "")
                     if (audio.isNotEmpty()) {
                         println("    itags: ${audio.joinToString { "${it.itag}${if (it.url.isNullOrBlank()) "(no url)" else ""}" }}")
                     }
