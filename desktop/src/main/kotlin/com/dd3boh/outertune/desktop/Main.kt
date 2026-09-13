@@ -69,6 +69,7 @@ import com.zionhuang.innertube.models.Artist
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.YouTubeLocale
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -216,6 +217,27 @@ private fun App(
     }
     var downloading by remember { mutableStateOf<String?>(null) }
 
+    // The sleep timer, and the countdown the button shows. Polled once a second rather than driven
+    // by an alarm: a second of imprecision does not matter here, and the readout has to be redrawn
+    // at about that rate anyway.
+    val sleepTimer = remember { SleepTimer() }
+    var sleepRemaining by remember { mutableStateOf<Long?>(null) }
+    var showSleepDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(sleepTimer) {
+        playerQueue.stopAtBoundary = { sleepTimer.songEnded() }
+        while (true) {
+            if (sleepTimer.dueNow()) player.pause()
+            sleepRemaining = when {
+                sleepTimer.deadlineMs != null -> sleepTimer.remainingMs()
+                // End-of-song has no countdown to show. Zero is the signal for "set, but not
+                // counting", which the button renders as a dash rather than as a time.
+                sleepTimer.pauseWhenSongEnds -> 0L
+                else -> null
+            }
+            delay(1000)
+        }
+    }
+
     var showDetails by remember { mutableStateOf(false) }
 
     // Fetched for whatever is playing, whether or not the pane is open. Waiting until it is opened
@@ -294,6 +316,20 @@ private fun App(
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
     val toggleLike = { queue.current?.let { library.toggleLiked(it.toStored()) }; Unit }
 
+    if (showSleepDialog) {
+        SleepTimerDialog(
+            timer = sleepTimer,
+            onDismiss = { showSleepDialog = false },
+            onChanged = {
+                sleepRemaining = when {
+                    sleepTimer.deadlineMs != null -> sleepTimer.remainingMs()
+                    sleepTimer.pauseWhenSongEnds -> 0L
+                    else -> null
+                }
+            },
+        )
+    }
+
     if (showDetails) {
         queue.current?.let { song ->
             SongDetailsDialog(
@@ -343,6 +379,8 @@ private fun App(
             lyricsLoading = lyricsLoading,
             onMoveInQueue = { from, to -> playerQueue.move(from, to) },
             onRemoveFromQueue = { position -> playerQueue.removeAt(position) },
+            sleepRemainingMs = sleepRemaining,
+            onSleepTimer = { showSleepDialog = true },
             downloaded = queue.current?.id in downloadedIds,
             downloading = downloading != null && downloading == queue.current?.id,
             showSeekButtons = settings.showSeekButtons,
@@ -910,6 +948,78 @@ private fun DetailRow(label: String, value: String) {
         // Selectable, so the video id can be taken out by hand as well as by the copy button.
         SelectionContainer { Text(text = value, style = MaterialTheme.typography.bodyMedium) }
     }
+}
+
+/**
+ * Setting the sleep timer.
+ *
+ * Presets rather than a picker. Nobody sets a sleep timer to forty-three minutes, and a list of
+ * plausible lengths is one click where a picker is several - which matters for a control whose
+ * entire audience is someone already in bed.
+ */
+@Composable
+private fun SleepTimerDialog(
+    timer: SleepTimer,
+    onDismiss: () -> Unit,
+    onChanged: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Sleep timer") },
+        text = {
+            Column {
+                if (timer.isActive) {
+                    Text(
+                        text = if (timer.deadlineMs != null) {
+                            "Stopping in ${SleepTimer.format(timer.remainingMs())}"
+                        } else {
+                            "Stopping at the end of this song"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+                SleepTimer.PRESET_MINUTES.forEach { minutes ->
+                    TextButton(
+                        onClick = {
+                            timer.start(minutes)
+                            onChanged()
+                            onDismiss()
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("$minutes minutes", modifier = Modifier.fillMaxWidth())
+                    }
+                }
+                TextButton(
+                    onClick = {
+                        timer.endOfSong()
+                        onChanged()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("End of this song", modifier = Modifier.fillMaxWidth())
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
+        dismissButton = {
+            // Only when there is something to cancel, so the dialog does not offer to undo nothing.
+            if (timer.isActive) {
+                TextButton(
+                    onClick = {
+                        timer.cancel()
+                        onChanged()
+                        onDismiss()
+                    }
+                ) {
+                    Text("Cancel timer", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+    )
 }
 
 /** The album's name once it has loaded, for naming the queue it starts. */

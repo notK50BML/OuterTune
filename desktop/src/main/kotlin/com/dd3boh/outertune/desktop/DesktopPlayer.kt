@@ -238,11 +238,7 @@ class DesktopPlayer {
     fun togglePause() {
         val current = line ?: return
         when (val playing = state.value) {
-            is PlaybackState.Playing -> {
-                paused = true
-                current.stop()
-                state.value = PlaybackState.Paused(playing.title)
-            }
+            is PlaybackState.Playing -> pause()
             is PlaybackState.Paused -> {
                 paused = false
                 current.start()
@@ -250,6 +246,21 @@ class DesktopPlayer {
             }
             else -> Unit
         }
+    }
+
+    /**
+     * Pauses, and does nothing if already paused.
+     *
+     * Separate from [togglePause] because some callers mean "stop" rather than "the other one". A
+     * sleep timer firing against a toggle would resume playback on anything already paused, which
+     * is the exact opposite of what it is for.
+     */
+    fun pause() {
+        val current = line ?: return
+        val playing = state.value as? PlaybackState.Playing ?: return
+        paused = true
+        current.stop()
+        state.value = PlaybackState.Paused(playing.title)
     }
 
     fun stop() {

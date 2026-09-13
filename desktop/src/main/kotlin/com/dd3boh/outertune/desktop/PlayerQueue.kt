@@ -135,8 +135,19 @@ class PlayerQueue(
 ) {
     val state = MutableStateFlow(QueueState())
 
+    /**
+     * Consulted at every track boundary; returning true stops instead of advancing.
+     *
+     * A hook rather than the queue knowing about sleep timers. "Stop after this one" is the only
+     * thing that has ever wanted it, but the queue's job is deciding what plays next, not deciding
+     * why something should not.
+     */
+    var stopAtBoundary: () -> Boolean = { false }
+
     init {
-        player.onFinished = { next() }
+        // Only at a natural end. A stop or a new selection also ends a track, and those are the user
+        // leaving the song - consulting the timer there would end a session nobody asked to end.
+        player.onFinished = { if (!stopAtBoundary()) next() }
     }
 
     /**

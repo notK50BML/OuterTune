@@ -137,6 +137,9 @@ fun NowPlayingScreen(
     lyricsOnCoverClick: Boolean = true,
     downloaded: Boolean = false,
     downloading: Boolean = false,
+    /** Time left on the sleep timer, or null when none is set. */
+    sleepRemainingMs: Long? = null,
+    onSleepTimer: (() -> Unit)? = null,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
     colourByValue: Boolean = true,
     onDownload: (() -> Unit)? = null,
@@ -333,6 +336,8 @@ fun NowPlayingScreen(
                         tint = onBackground,
                         buttonSize = actionSize,
                         iconSize = actionIcon,
+                        sleepRemainingMs = sleepRemainingMs,
+                        onSleepTimer = onSleepTimer,
                     )
                 }
 
@@ -935,8 +940,46 @@ private fun ActionButtons(
     tint: Color,
     buttonSize: Dp,
     iconSize: Dp,
+    sleepRemainingMs: Long?,
+    onSleepTimer: (() -> Unit)?,
 ) {
     Spacer(modifier = Modifier.width(10.dp))
+
+    // First, as on Android. When it is running it shows the time left rather than the moon: a timer
+    // whose whole purpose is "how long until the music stops" should answer that without being
+    // opened, and the widened pill is also how you can tell at a glance that one is set at all.
+    if (onSleepTimer != null) {
+        if (sleepRemainingMs != null) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .height(buttonSize)
+                    .clip(RoundedCornerShape(buttonSize / 2))
+                    .background(MaterialTheme.colorScheme.primary)
+                    .clickable(onClick = onSleepTimer)
+                    .padding(horizontal = 12.dp),
+            ) {
+                Text(
+                    // Zero means "set, but with no countdown" - the end-of-song mode. Showing it as
+                    // "0:00" would read as a timer that had already run out and done nothing.
+                    text = if (sleepRemainingMs > 0) SleepTimer.format(sleepRemainingMs) else "—",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    maxLines = 1,
+                )
+            }
+        } else {
+            ActionButton(onClick = onSleepTimer, size = buttonSize) {
+                Icon(
+                    OuterTuneIcons.bedtime,
+                    contentDescription = "Sleep timer",
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(iconSize),
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(7.dp))
+    }
 
     ActionButton(onClick = onToggleLike, size = buttonSize) {
         Icon(

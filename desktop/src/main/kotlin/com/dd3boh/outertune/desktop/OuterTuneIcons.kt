@@ -167,6 +167,13 @@ object OuterTuneIcons {
             "M160,520 L800,520 L800,600 L160,600 Z"
     )
 
+    /** A crescent: the sleep timer, which is what it means on every phone ever made. */
+    val bedtime by icon(
+        "M480,800q-133,0-226.5,-93.5T160,480q0,-133,93.5,-226.5T480,160q12,0,25,1t26,3" +
+            "q-57,40,-90.5,104T407,407q0,90,64,154t154,64q69,0,125,-33t105,-90q2,13,3,26t1,25" +
+            "q0,133,-93.5,226.5T480,800Z"
+    )
+
     /** Every icon by name, so a test can check them all rather than the ones somebody remembered. */
     internal val all: Map<String, ImageVector>
         get() = mapOf(
@@ -185,6 +192,7 @@ object OuterTuneIcons {
             "moreVert" to moreVert,
             "download" to download,
             "dragHandle" to dragHandle,
+            "bedtime" to bedtime,
             "fastForward" to fastForward,
             "fastRewind" to fastRewind,
             "equalizer" to equalizer,
