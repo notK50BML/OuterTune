@@ -99,6 +99,18 @@ tasks.register<JavaExec>("run") {
     jvmArgs("-Xmx320m", "-XX:+UseSerialGC", "-XX:MaxMetaspaceSize=192m")
 }
 
+/**
+ * `gradlew :desktop:clientProbe --args="<videoId>"` - what does each client say today?
+ *
+ * "No client worked" is the least useful error a player can give, and YouTube changes what it
+ * accepts without notice. This turns a guess into a reading.
+ */
+tasks.register<JavaExec>("clientProbe") {
+    group = "verification"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.dd3boh.outertune.desktop.ClientProbe")
+}
+
 /** `gradlew :desktop:probe --args="<videoId>"` - how far does a desktop build get unaided? */
 tasks.register<JavaExec>("probe") {
     group = "verification"

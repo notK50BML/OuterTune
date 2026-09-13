@@ -74,7 +74,9 @@ private const val MONO_BUFFER_SAMPLES = 8192
 
 class DesktopPlayer {
 
-    private companion object {
+    // Not private: ClientProbe reads CLIENTS, so "what does each client say today" is answered by
+    // asking the same list the player asks rather than by a second copy that can drift from it.
+    internal companion object {
         /** AAC-LC in MP4 at ~130kbps: the format every working client offers with a direct URL. */
         const val ITAG_AAC_MEDIUM = 140
 
@@ -90,7 +92,7 @@ class DesktopPlayer {
          * be served. Which client a given track will serve varies by track, so the only way to know
          * is to try, and the Android app re-resolves through other clients for the same reason.
          */
-        val CLIENTS = listOf(
+        internal val CLIENTS = listOf(
             YouTubeClient.IOS,
             YouTubeClient.ANDROID_VR_NO_AUTH,
             YouTubeClient.VISIONOS,
