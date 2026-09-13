@@ -341,6 +341,8 @@ private fun App(
             // so nothing here promises a feature that has not been written - see PlayerActions.
             lyrics = lyrics,
             lyricsLoading = lyricsLoading,
+            onMoveInQueue = { from, to -> playerQueue.move(from, to) },
+            onRemoveFromQueue = { position -> playerQueue.removeAt(position) },
             downloaded = queue.current?.id in downloadedIds,
             downloading = downloading != null && downloading == queue.current?.id,
             showSeekButtons = settings.showSeekButtons,

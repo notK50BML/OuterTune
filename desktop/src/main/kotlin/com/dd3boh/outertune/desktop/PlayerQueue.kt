@@ -42,6 +42,82 @@ data class QueueState(
 }
 
 /**
+ * The arithmetic behind reordering and removing, with no player attached.
+ *
+ * Separated out for the same reason the artist credit offsets were: it is the kind of logic that
+ * fails silently. Get it wrong and the queue still renders, still plays, and simply moves the wrong
+ * entry - or quietly changes which song is current while one is playing, which is the worst outcome
+ * because the music jumps for no reason the user can connect to what they did.
+ *
+ * Everything here works in *play-order positions* - what the queue list actually shows - rather than
+ * in indices into [QueueState.songs]. Those two are the same only until shuffle is turned on, and a
+ * function that takes one and means the other is a bug waiting for the first shuffled queue.
+ */
+internal object QueueEdit {
+
+    /**
+     * Moves the entry at play-order position [from] to [to].
+     *
+     * The current song stays current. Its position in the order shifts whenever the move steps over
+     * it, so it is found again by its song index rather than assumed to be where it was - dragging
+     * an entry from below the current one to above it moves everything in between by one, including
+     * the thing being listened to.
+     */
+    fun move(state: QueueState, from: Int, to: Int): QueueState {
+        if (from !in state.order.indices || to !in state.order.indices || from == to) return state
+        val currentSong = state.order.getOrNull(state.orderPosition)
+        val order = state.order.toMutableList()
+        order.add(to, order.removeAt(from))
+        val position = currentSong?.let(order::indexOf) ?: -1
+        return state.copy(
+            order = order,
+            orderPosition = if (position >= 0) position else state.orderPosition,
+        )
+    }
+
+    /**
+     * Removes the entry at play-order position [position].
+     *
+     * Two things have to move together. The song leaves [QueueState.songs], so every order entry
+     * pointing past it has to come down by one; and the order loses a slot, so a current position
+     * after the removal has to come down by one as well. Doing either without the other leaves the
+     * queue pointing at the wrong song.
+     *
+     * Removing the entry that is playing leaves [QueueState.orderPosition] where it was, so the song
+     * that moved up into that slot becomes current - which is what "remove this one" means when the
+     * thing removed is the thing playing. The caller is responsible for noticing that the current
+     * song changed and starting it.
+     */
+    fun removeAt(state: QueueState, position: Int): QueueState {
+        if (position !in state.order.indices) return state
+        val songIndex = state.order[position]
+
+        val songs = state.songs.toMutableList().apply { removeAt(songIndex) }
+        if (songs.isEmpty()) {
+            return QueueState(shuffled = state.shuffled, repeat = state.repeat, title = state.title)
+        }
+
+        val order = state.order
+            .filterIndexed { index, _ -> index != position }
+            .map { if (it > songIndex) it - 1 else it }
+
+        val orderPosition = when {
+            position < state.orderPosition -> state.orderPosition - 1
+            else -> state.orderPosition
+        }.coerceIn(0, order.lastIndex)
+
+        return state.copy(
+            songs = songs,
+            order = order,
+            orderPosition = orderPosition,
+            // Derived rather than carried over: the song this position points at may have a
+            // different index now that one was taken out from under it.
+            index = order[orderPosition],
+        )
+    }
+}
+
+/**
  * Owns the queue and drives [DesktopPlayer] from it.
  *
  * The player deliberately knows nothing about queues - it plays one song and reports when that song
@@ -107,6 +183,30 @@ class PlayerQueue(
         val order = previous.order.map { if (it >= insertAt) it + 1 else it }.toMutableList()
         order.add(previous.orderPosition + 1, insertAt)
         state.value = previous.copy(songs = songs, order = order)
+    }
+
+    /** Drag-to-reorder, in the play order the queue list shows. */
+    fun move(from: Int, to: Int) {
+        state.value = QueueEdit.move(state.value, from, to)
+    }
+
+    /**
+     * Takes one entry out of the queue.
+     *
+     * Restarts playback only when the song that was playing is the one removed. Comparing the
+     * current song before and after is what decides that, rather than comparing positions - a
+     * removal above the current entry changes its position without changing what is playing, and
+     * restarting there would interrupt a song for a change that did not touch it.
+     */
+    fun removeAt(position: Int) {
+        val before = state.value.current
+        val after = QueueEdit.removeAt(state.value, position)
+        state.value = after
+        if (after.songs.isEmpty()) {
+            player.stop()
+            return
+        }
+        if (after.current?.id != before?.id) startCurrent()
     }
 
     fun next() {

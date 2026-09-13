@@ -156,6 +156,17 @@ object OuterTuneIcons {
             "M240,720 L720,720 L720,800 L240,800 Z"
     )
 
+    /**
+     * Two stacked bars: the grip for dragging a queue row.
+     *
+     * Wide and short, which is the shape that reads as "grab here and move vertically" - the same
+     * convention every reorderable list uses, and the reason it needs no label.
+     */
+    val dragHandle by icon(
+        "M160,360 L800,360 L800,440 L160,440 Z" +
+            "M160,520 L800,520 L800,600 L160,600 Z"
+    )
+
     /** Every icon by name, so a test can check them all rather than the ones somebody remembered. */
     internal val all: Map<String, ImageVector>
         get() = mapOf(
@@ -173,6 +184,7 @@ object OuterTuneIcons {
             "expandLess" to expandLess,
             "moreVert" to moreVert,
             "download" to download,
+            "dragHandle" to dragHandle,
             "fastForward" to fastForward,
             "fastRewind" to fastRewind,
             "equalizer" to equalizer,

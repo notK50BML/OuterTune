@@ -78,6 +78,10 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.unit.max
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -141,6 +145,9 @@ fun NowPlayingScreen(
     timeStretch: TimeStretch? = null,
     compressor: Compressor? = null,
     onJumpToQueueIndex: (Int) -> Unit = {},
+    /** Drag-to-reorder and remove, both in play-order positions - see QueueEdit. */
+    onMoveInQueue: (Int, Int) -> Unit = { _, _ -> },
+    onRemoveFromQueue: (Int) -> Unit = {},
     onOpenArtist: (StoredArtist) -> Unit = {},
     /**
      * Whether the five-second seek buttons appear.
@@ -531,6 +538,8 @@ fun NowPlayingScreen(
                 onJumpToQueueIndex(it)
                 queueOpen = false
             },
+            onMove = onMoveInQueue,
+            onRemove = onRemoveFromQueue,
         )
     }
 }
@@ -742,6 +751,8 @@ private fun QueueOverlay(
     open: Boolean,
     onClose: () -> Unit,
     onJump: (Int) -> Unit,
+    onMove: (Int, Int) -> Unit,
+    onRemove: (Int) -> Unit,
 ) {
     AnimatedVisibility(
         visible = open,
@@ -782,22 +793,48 @@ private fun QueueOverlay(
                 )
             }
 
+            // Which row is being dragged, as a play-order position, and how far it has travelled
+            // since the last time it stepped. Held here rather than per row so a row can hand the
+            // drag on to its neighbour as it passes - the gesture belongs to the list, not to
+            // whichever composable happened to start it.
+            var dragging by remember { mutableStateOf(-1) }
+            var dragOffset by remember { mutableStateOf(0f) }
+            val rowHeightPx = with(LocalDensity.current) { QUEUE_ROW_HEIGHT.toPx() }
+
             LazyColumn(modifier = Modifier.fillMaxSize()) {
                 // Play order, not the order added: with shuffle on, the list should read as what is
                 // coming next, which is the only thing a queue is for.
-                itemsIndexed(queue.order) { position, index ->
+                //
+                // Keyed by song id so a composable follows its song across a reorder. Keyed by
+                // position instead, every row would be told it now holds different content the
+                // instant anything moved, and the drag in progress would be cancelled by its own
+                // first step.
+                itemsIndexed(queue.order, key = { _, index -> queue.songs.getOrNull(index)?.id ?: index }) { position, index ->
                     val song = queue.songs.getOrNull(index) ?: return@itemsIndexed
                     val current = position == queue.orderPosition
+                    val held = position == dragging
+
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
                             .fillMaxWidth()
+                            .height(QUEUE_ROW_HEIGHT)
+                            // Lifted while held, so the row being moved is visibly the one under the
+                            // pointer rather than one of several that shifted.
+                            .graphicsLayer {
+                                translationY = if (held) dragOffset else 0f
+                                shadowElevation = if (held) 12f else 0f
+                                alpha = if (held) 0.92f else 1f
+                            }
+                            .background(
+                                if (held) onColour.copy(alpha = 0.08f) else Color.Transparent
+                            )
                             .clickable { onJump(index) }
-                            .padding(horizontal = 36.dp, vertical = 8.dp),
+                            .padding(horizontal = 36.dp),
                     ) {
                         Artwork(song.thumbnail, size = 44.dp)
                         Spacer(modifier = Modifier.width(16.dp))
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = song.title,
                                 style = MaterialTheme.typography.bodyLarge,
@@ -814,6 +851,55 @@ private fun QueueOverlay(
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }
+
+                        IconButton(onClick = { onRemove(position) }) {
+                            Icon(
+                                OuterTuneIcons.close,
+                                contentDescription = "Remove from queue",
+                                tint = onColour.copy(alpha = 0.55f),
+                                modifier = Modifier.size(18.dp),
+                            )
+                        }
+
+                        // A handle rather than the whole row. The row is already a click target for
+                        // jumping to a song, and a list where pressing anything might mean "drag" is
+                        // a list that cannot be scrolled with confidence.
+                        Icon(
+                            OuterTuneIcons.dragHandle,
+                            contentDescription = "Reorder",
+                            tint = onColour.copy(alpha = 0.45f),
+                            modifier = Modifier
+                                .size(22.dp)
+                                .pointerHoverIcon(PointerIcon.Hand)
+                                .pointerInput(song.id) {
+                                    detectDragGestures(
+                                        onDragStart = {
+                                            dragging = position
+                                            dragOffset = 0f
+                                        },
+                                        onDragEnd = { dragging = -1; dragOffset = 0f },
+                                        onDragCancel = { dragging = -1; dragOffset = 0f },
+                                    ) { change, amount ->
+                                        change.consume()
+                                        dragOffset += amount.y
+                                        // Stepped a whole row at a time rather than continuously, so
+                                        // the list settles between moves instead of thrashing while
+                                        // the pointer crosses a boundary.
+                                        val steps = (dragOffset / rowHeightPx).toInt()
+                                        if (steps != 0 && dragging >= 0) {
+                                            val target = (dragging + steps)
+                                                .coerceIn(0, queue.order.lastIndex)
+                                            if (target != dragging) {
+                                                onMove(dragging, target)
+                                                dragging = target
+                                            }
+                                            // Whatever was consumed by the step is taken off, so the
+                                            // remainder still counts towards the next one.
+                                            dragOffset -= steps * rowHeightPx
+                                        }
+                                    }
+                                },
+                        )
                     }
                 }
             }
@@ -821,7 +907,10 @@ private fun QueueOverlay(
     }
 }
 
-/** What the seek buttons move by - the same five seconds the Android player uses. */
+/** Fixed, because the drag arithmetic above counts rows by height and has to be right about it. */
+private val QUEUE_ROW_HEIGHT = 60.dp
+
+/** What the seek buttons move by. */
 private const val SEEK_STEP_MS = 5_000L
 
 /**
