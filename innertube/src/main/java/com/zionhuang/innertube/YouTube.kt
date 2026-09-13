@@ -743,8 +743,30 @@ object YouTube {
         innerTube.deletePlaylist(WEB_REMIX, playlistId)
     }
 
-    suspend fun player(videoId: String, playlistId: String? = null, client: YouTubeClient, signatureTimestamp: Int? = null, webPlayerPot: String? = null): Result<PlayerResponse> = runCatching {
-        innerTube.player(client, videoId, playlistId, signatureTimestamp, webPlayerPot).body<PlayerResponse>()
+    /**
+     * @param authenticated whether to send the signed-in session with the request.
+     *
+     * Defaults to true, which is what every existing caller wants and what the app has always done.
+     * Pass false to fetch a stream anonymously.
+     *
+     * That is not a privacy nicety, it is a workaround for a real refusal. A client YouTube considers
+     * a "device" client - IOS, the VR ones - is expected to carry a proof-of-origin token once it
+     * authenticates. Without one, an authenticated player request comes back as "Sign in to confirm
+     * you're not a bot", so signing in makes playback *stop working* on a build that has no way to
+     * produce that token. Streaming needs no session at all, so the honest fix is not to send one.
+     */
+    suspend fun player(
+        videoId: String,
+        playlistId: String? = null,
+        client: YouTubeClient,
+        signatureTimestamp: Int? = null,
+        webPlayerPot: String? = null,
+        authenticated: Boolean = true,
+    ): Result<PlayerResponse> = runCatching {
+        innerTube.player(
+            client, videoId, playlistId, signatureTimestamp, webPlayerPot,
+            cookie = if (authenticated) innerTube.cookie else null,
+        ).body<PlayerResponse>()
     }
 
     fun getNewPipeStreamUrls(videoId: String): List<Pair<Int, String>> =

@@ -191,6 +191,13 @@ class InnerTube {
         playlistId: String?,
         signatureTimestamp: Int?,
         webPlayerPot: String?,
+        /**
+         * Overrides the shared cookie for this request only; null sends none.
+         *
+         * Defaulted to the shared one, so every existing caller behaves exactly as before. It exists
+         * for callers that must fetch a stream *without* authenticating - see [YouTube.player].
+         */
+        cookie: String? = this@InnerTube.cookie,
     ) = httpClient.post("player") {
         // A device client (ANDROID_VR, IOS, TVHTML5...) asking music.youtube.com for a player
         // response is a client/host pairing that doesn't occur in the wild, and Google's anti-abuse
@@ -202,7 +209,7 @@ class InnerTube {
         if (useWwwOrigin) {
             url(YouTubeClient.API_URL_YOUTUBE_WWW + "player")
         }
-        ytClient(client, setLogin = true, useWwwOrigin = useWwwOrigin)
+        ytClient(client, setLogin = true, cookie = cookie, useWwwOrigin = useWwwOrigin)
         setBody(
             PlayerBody(
                 context = client.toContext(locale, visitorData, dataSyncId).let {

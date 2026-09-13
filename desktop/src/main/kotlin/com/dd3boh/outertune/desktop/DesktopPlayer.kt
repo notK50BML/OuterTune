@@ -339,7 +339,11 @@ class DesktopPlayer {
     }
 
     private suspend fun resolveAndFetchWith(videoId: String, client: YouTubeClient): Resolved {
-        val response = YouTube.player(videoId, client = client).getOrElse {
+        // Anonymously, always. Signing in used to break playback outright: an authenticated device
+        // client is expected to carry a proof-of-origin token, and without one YouTube answers "Sign
+        // in to confirm you're not a bot" - so the account that was supposed to improve things was
+        // what stopped the music. Browsing still authenticates; only the stream fetch does not.
+        val response = YouTube.player(videoId, client = client, authenticated = false).getOrElse {
             return Resolved.Failure("player request failed - ${it::class.simpleName}: ${it.message}")
         }
 
