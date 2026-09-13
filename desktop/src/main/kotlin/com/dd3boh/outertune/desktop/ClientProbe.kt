@@ -54,12 +54,17 @@ object ClientProbe {
         // Mint a proof-of-origin token first, and report whether that was even possible. Every
         // client was refused without one, so a probe that does not try with one only re-establishes
         // what is already known.
-        val minter = PoTokenMinter()
-        val tokens = minter.tokensFor(videoId, sessionId = YouTube.visitorData!!)
-        if (tokens == null) {
+        // "nopot" skips minting, so the same run can be compared with and without one. Worth having
+        // as a switch rather than a code edit: the question "is the token what fixed this" is asked
+        // every time YouTube changes something, and the answer has to be measured each time.
+        val mint = args.getOrNull(1) != "nopot"
+        val minter = if (mint) PoTokenMinter() else null
+        val tokens = minter?.tokensFor(videoId, sessionId = YouTube.visitorData!!)
+        if (!mint) println("(minting skipped)")
+        if (mint && tokens == null) {
             println("!! could not mint a proof-of-origin token - is Chrome installed?")
         } else {
-            println("minted: player=${tokens.playerRequest.take(24)}… streaming=${tokens.streamingData.take(24)}…")
+            println("minted: player=${tokens?.playerRequest?.take(24)}… streaming=${tokens?.streamingData?.take(24)}…")
         }
         println()
 

@@ -99,6 +99,13 @@ tasks.register<JavaExec>("run") {
     jvmArgs("-Xmx320m", "-XX:+UseSerialGC", "-XX:MaxMetaspaceSize=192m")
 }
 
+/** `gradlew :desktop:cdpProbe` - the smallest thing CdpSession must do, step by step. */
+tasks.register<JavaExec>("cdpProbe") {
+    group = "verification"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.dd3boh.outertune.desktop.CdpProbe")
+}
+
 /**
  * `gradlew :desktop:clientProbe --args="<videoId>"` - what does each client say today?
  *

@@ -78,6 +78,35 @@ class CdpSession private constructor(
         return result["result"] as? JsonObject ?: error("evaluation returned nothing")
     }
 
+    /**
+     * Goes to [url] and waits until the document is there.
+     *
+     * Waits on the location rather than on a load event: a load event says a document finished
+     * loading, not that it is the one asked for, and the case being guarded against here is exactly
+     * a different document being present.
+     */
+    suspend fun navigate(url: String, timeoutMs: Long = 30_000) {
+        val id = nextId++
+        socket.send(
+            """{"id":$id,"sessionId":"$sessionId","method":"Page.navigate","params":{"url":"$url"}}"""
+        )
+        await(id, timeoutMs) ?: error("navigation to $url was not acknowledged")
+
+        val deadline = System.currentTimeMillis() + timeoutMs
+        while (System.currentTimeMillis() < deadline) {
+            val href = runCatching { evaluateString("document.location.href") }.getOrNull()
+            val ready = runCatching { evaluateString("document.readyState") }.getOrNull()
+            if (href != null && href.startsWith(url.substringBefore("/", url).ifEmpty { url }) &&
+                href.contains(url.removePrefix("https://").substringBefore("/")) &&
+                ready == "complete"
+            ) {
+                return
+            }
+            delay(250)
+        }
+        error("navigation to $url did not settle")
+    }
+
     /** The `value` of an evaluation, as a string, or null when it was not one. */
     suspend fun evaluateString(expression: String, timeoutMs: Long = 20_000): String? =
         (evaluate(expression, timeoutMs)["value"] as? JsonPrimitive)?.content
@@ -191,7 +220,20 @@ class CdpSession private constructor(
                 return@withContext null
             }
 
-            CdpSession(process, profile, socketClient, socket, incoming, sessionId)
+            val session = CdpSession(process, profile, socketClient, socket, incoming, sessionId)
+
+            // Navigate explicitly, rather than trusting the url given on the command line to land in
+            // the target we attached to. It does not: Chrome opens a blank tab first, and that is the
+            // page target that appears - so the session was talking to about:blank while the real
+            // page loaded in another tab. Evaluations all worked, which is what made this hard to
+            // see; only the *origin* was wrong, and origin is the one thing BotGuard cares about.
+            runCatching {
+                session.navigate(url)
+            }.onFailure {
+                session.close()
+                return@withContext null
+            }
+            session
         }
 
         private suspend fun awaitJson(client: OkHttpClient, url: String): JsonObject? {
