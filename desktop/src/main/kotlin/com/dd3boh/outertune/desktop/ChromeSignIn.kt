@@ -36,8 +36,9 @@ import java.util.concurrent.TimeUnit
  *
  * Reading Chrome's cookie *store* is a fight: since Chrome 127 it is under app-bound encryption
  * whose key is tied to the Chrome process. But there is no need to read the file. **Ask Chrome.**
- * `Network.getAllCookies` is a CDP method, and a browser answering a question about its own cookies
- * is not decrypting anything.
+ * `Storage.getCookies` is a CDP method, and a browser answering a question about its own cookies is
+ * not decrypting anything. (Not `Network.getAllCookies`, which is the one every example reaches for:
+ * that is a page-domain method, and this connects to the browser endpoint, which has no page.)
  *
  * So: launch the Chrome that is already installed, pointed at a profile directory of this app's own,
  * let the user sign in - it is real Chrome, so BotGuard, reCAPTCHA, 2FA and passkeys all work,
@@ -181,11 +182,22 @@ object ChromeSignIn {
             while (System.currentTimeMillis() < deadline) {
                 if (!currentCoroutineContext().isActive) return null
                 incoming.clear()
-                socket.send("""{"id":${id++},"method":"Network.getAllCookies"}""")
+                // Storage.getCookies, not Network.getAllCookies. Both read the whole jar, but
+                // Network is a *page* domain and this socket is the browser endpoint, which has no
+                // page attached - so the browser answers "'Network.getAllCookies' wasn't found" and
+                // does so forever. Storage is a browser-level domain and answers properly. The reply
+                // has the same shape either way, so nothing downstream cares which was asked.
+                socket.send("""{"id":${id++},"method":"Storage.getCookies"}""")
 
                 val reply = withContext(Dispatchers.IO) {
                     incoming.poll(5, TimeUnit.SECONDS)
                 }
+                // A protocol error is not "not signed in yet". Treating the two the same is what hid
+                // the wrong method name above: the flow polled a command that could never succeed and
+                // sat there until the five-minute timeout, looking to the user exactly like a sign-in
+                // that was being ignored. Failing here says so in seconds instead.
+                reply?.let(::protocolError)?.let { error("Chrome refused the request: $it") }
+
                 val cookie = reply?.let { extractSession(it) }
                 if (cookie != null) {
                     onProgress(Progress.Reading)
@@ -201,7 +213,20 @@ object ChromeSignIn {
     }
 
     /**
-     * Pulls a YouTube session out of a `Network.getAllCookies` reply, or null if there is not one yet.
+     * The message of a CDP error reply, or null if this is not one.
+     *
+     * Separated from [extractSession] because they answer different questions. "There is no session
+     * yet" is the normal state for most of this flow and means keep waiting; "that command does not
+     * exist" means the flow is broken and no amount of waiting will fix it.
+     */
+    internal fun protocolError(message: String): String? {
+        val root = runCatching { Json.parseToJsonElement(message) }.getOrNull() as? JsonObject ?: return null
+        val error = root["error"] as? JsonObject ?: return null
+        return (error["message"] as? JsonPrimitive)?.content ?: "unknown error"
+    }
+
+    /**
+     * Pulls a YouTube session out of a `Storage.getCookies` reply, or null if there is not one yet.
      *
      * The same set and the same rule as everywhere else: only YouTube and Google cookies, only the
      * session ones, and nothing counts as signed in without `SAPISID`.

@@ -146,4 +146,37 @@ class ChromeSignInTest {
         )
         assertEquals("SAPISID=a; SID=b", ChromeSignIn.extractSession(message))
     }
+
+    @Test
+    fun `a protocol error is reported rather than read as a missing session`() {
+        // The bug this exists for. The flow used to send Network.getAllCookies to the browser
+        // endpoint, which has no page attached, so Chrome answered "wasn't found" every time. The
+        // cookie parser safely returned null for that, the flow read it as "not signed in yet", and
+        // it waited out the whole five-minute timeout - which looked exactly like a sign-in being
+        // ignored. The two answers have to be distinguishable.
+        val notFound = """{"id":1,"error":{"code":-32601,"message":"'Network.getAllCookies' wasn't found"}}"""
+        assertEquals(
+            "'Network.getAllCookies' wasn't found",
+            ChromeSignIn.protocolError(notFound),
+        )
+        assertNull("an error reply is not a session", ChromeSignIn.extractSession(notFound))
+    }
+
+    @Test
+    fun `an ordinary reply is not an error`() {
+        // Waiting for the user to sign in is the normal state for most of this flow, and it must not
+        // be mistaken for a failure.
+        val empty = """{"id":1,"result":{"cookies":[]}}"""
+        assertNull(ChromeSignIn.protocolError(empty))
+        assertNull(ChromeSignIn.extractSession(empty))
+    }
+
+    @Test
+    fun `nonsense on the socket is neither an error nor a session`() {
+        // The browser sends events nobody asked for down the same socket.
+        listOf("not json at all", "[]", """{"method":"Target.targetCreated","params":{}}""").forEach {
+            assertNull(ChromeSignIn.protocolError(it))
+            assertNull(ChromeSignIn.extractSession(it))
+        }
+    }
 }
