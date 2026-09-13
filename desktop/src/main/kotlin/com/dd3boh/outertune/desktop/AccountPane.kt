@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -68,14 +66,15 @@ fun AccountPane(
     val browserAvailable = remember { runCatching { ChromeSignIn.isAvailable() }.getOrDefault(false) }
     var browserStep by remember { mutableStateOf<String?>(null) }
 
+    // Deliberately not scrollable. This is embedded in the settings page, which scrolls, and a
+    // vertical scroll inside another one is measured with an unbounded height - which Compose
+    // refuses outright, so opening settings threw rather than merely looking wrong. It was its own
+    // screen when it had its own scroll; it is a section now, and a section does not scroll itself.
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(top = 12.dp),
+            .padding(top = 4.dp),
     ) {
-        Text("Account", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
 
         when (val current = state) {
             is AccountState.SignedIn -> {
