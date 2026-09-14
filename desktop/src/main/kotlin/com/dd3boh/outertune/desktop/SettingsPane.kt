@@ -61,6 +61,7 @@ fun SettingsPane(
     onClearLyricsCache: () -> Unit,
     downloads: Downloads,
     onDownloadsChanged: () -> Unit,
+    library: LibraryStore,
     modifier: Modifier = Modifier,
 ) {
     val scope = rememberCoroutineScope()
@@ -251,7 +252,52 @@ fun SettingsPane(
                 checked = settings.keepHistory,
                 onCheckedChange = { settings.keepHistory = it },
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Merged into this library rather than replacing it, and safe to run twice - see
+            // BackupImport. The summary is spelled out rather than reduced to "done", because the
+            // interesting part of an import is what it did *not* bring across.
+            var importing by remember { mutableStateOf(false) }
+            var importResult by remember { mutableStateOf<ImportSummary?>(null) }
+
+            Text("Import from a phone backup", style = MaterialTheme.typography.bodyLarge)
+            Text(
+                text = "Reads the zip the Android app writes. Songs, liked songs and playlists are " +
+                    "added to what is already here; nothing is replaced, and importing the same " +
+                    "file twice changes nothing the second time.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                TextButton(
+                    enabled = !importing,
+                    onClick = {
+                        val file = chooseBackupFile() ?: return@TextButton
+                        importing = true
+                        importResult = null
+                        scope.launch {
+                            importResult = BackupImport.importFrom(file, library)
+                            importing = false
+                        }
+                    },
+                ) {
+                    Text(if (importing) "Importing…" else "Choose backup…")
+                }
+                importResult?.let { summary ->
+                    Text(
+                        text = summary.describe(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = if (summary.failed) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                        modifier = Modifier.padding(start = 8.dp),
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
             Text("Stored at", style = MaterialTheme.typography.bodyMedium)
             Text(
                 text = libraryPath,
@@ -268,6 +314,20 @@ fun SettingsPane(
 
         Spacer(modifier = Modifier.height(40.dp))
     }
+}
+
+/**
+ * The OS file picker, asking for a backup.
+ *
+ * Same `FileDialog` the sign-in flow uses, for the same reason: it is the native dialog, so it looks
+ * like every other open dialog on the machine and starts where the person last saved something.
+ */
+private fun chooseBackupFile(): java.io.File? {
+    val dialog = java.awt.FileDialog(null as java.awt.Frame?, "Choose a backup", java.awt.FileDialog.LOAD)
+    dialog.isVisible = true
+    val directory = dialog.directory ?: return null
+    val name = dialog.file ?: return null
+    return java.io.File(directory, name)
 }
 
 @Composable

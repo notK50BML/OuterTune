@@ -439,6 +439,19 @@ class Database(file: File) {
         }
     }
 
+    /** One song with its credits, or null if it was never recorded. */
+    fun song(id: String): StoredSong? = synchronized(lock) {
+        val song = connection.prepareStatement(
+            "SELECT id, title, artists, thumbnail FROM song WHERE id = ?"
+        ).use { statement ->
+            statement.setString(1, id)
+            statement.executeQuery().use { rows -> rows.toSongs().firstOrNull() }
+        } ?: return@synchronized null
+        // Inside the lock, like every other read here: the credits belong to the row just read, and
+        // fetching them after releasing it would let a concurrent write separate the two.
+        song.copy(artistList = creditsForLocked(listOf(song.id))[song.id].orEmpty())
+    }
+
     fun likedSongs(): List<StoredSong> = synchronized(lock) {
         connection.createStatement().use { st ->
             st.executeQuery(

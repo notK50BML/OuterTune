@@ -531,6 +531,7 @@ private fun App(
                             lyrics = null
                         },
                         downloads = library.downloads,
+                        library = library,
                         onDownloadsChanged = {
                             // Off the main thread like the other three. ids() is a query plus a file
                             // check per row, and this one was missed when the others were moved.
