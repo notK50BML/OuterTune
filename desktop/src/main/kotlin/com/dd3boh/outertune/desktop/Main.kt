@@ -65,6 +65,7 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.Artist
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.YouTubeLocale
@@ -162,6 +163,13 @@ private fun App(
     // network was still coming up - stayed failed until the app was restarted or the account
     // changed, which is a long way to go for a transient error.
     var homeAttempt by remember { mutableStateOf(0) }
+
+    // The playlists this account saved on YouTube. Fetched alongside the feed and on the same
+    // trigger, since both are answers to "who is signed in" and neither means anything without one.
+    var savedPlaylists by remember { mutableStateOf<List<PlaylistItem>>(emptyList()) }
+    LaunchedEffect(accountState, homeAttempt) {
+        savedPlaylists = if (accountState is AccountState.SignedIn) loadSavedPlaylists() else emptyList()
+    }
     LaunchedEffect(accountState, homeAttempt) {
         home = HomeState.Loading
         home = homeFeed.load(signedIn = accountState is AccountState.SignedIn)
@@ -545,6 +553,15 @@ private fun App(
                         onDelete = { library.deletePlaylist(it.id) },
                         onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, selectedPlaylist?.name ?: "Playlist") },
                         onRemoveSong = { playlist, song -> library.removeFromPlaylist(playlist.id, song.id) },
+                        saved = savedPlaylists,
+                        onPlaySaved = { playlist ->
+                            scope.launch {
+                                val songs = withContext(Dispatchers.IO) {
+                                    YouTube.queue(playlistId = playlist.id).getOrNull()
+                                }
+                                if (!songs.isNullOrEmpty()) playerQueue.play(songs, 0, playlist.title)
+                            }
+                        },
                         onMoveSong = { playlist, from, to ->
                             val ids = openPlaylistSongs.map { it.id }.toMutableList()
                             if (to in ids.indices) {

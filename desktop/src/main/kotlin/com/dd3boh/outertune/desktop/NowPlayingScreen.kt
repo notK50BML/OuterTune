@@ -82,6 +82,7 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -622,6 +623,7 @@ private val BLUR_RADIUS = 60.dp
  * Slides down from the top, since that is the edge its handle lives on and where scrolling up
  * summons it from.
  */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 private fun EqualizerOverlay(
     equalizer: Equalizer,
@@ -666,7 +668,33 @@ private fun EqualizerOverlay(
                 )
             }
 
-            Box(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+            // Scrolling past the bottom closes it, which is the gesture that got it here reversed.
+            // Accumulated rather than acted on immediately: a scroll that *ends* at the bottom would
+            // otherwise close the panel the moment it arrived there, so reaching the last band would
+            // dismiss the thing being reached for. A deliberate push past the end is a different
+            // motion from merely landing on it, and the threshold is what tells them apart.
+            val panelScroll = rememberScrollState()
+            var pastBottom by remember { mutableStateOf(0f) }
+            LaunchedEffect(open) { pastBottom = 0f }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .onPointerEvent(PointerEventType.Scroll) { event ->
+                        val scrolled = event.changes.first().scrollDelta.y
+                        val atBottom = panelScroll.value >= panelScroll.maxValue
+                        pastBottom = when {
+                            atBottom && scrolled > 0f -> pastBottom + scrolled
+                            // Any movement the other way is someone reading again, not leaving.
+                            else -> 0f
+                        }
+                        if (pastBottom >= CLOSE_OVERSCROLL) {
+                            pastBottom = 0f
+                            onClose()
+                        }
+                    }
+                    .verticalScroll(panelScroll),
+            ) {
                 EqualizerPanel(
                     equalizer = equalizer,
                     accent = onColour,
@@ -911,6 +939,14 @@ private fun QueueOverlay(
         }
     }
 }
+
+/**
+ * How far past the bottom of the equaliser counts as asking to leave.
+ *
+ * In scroll units rather than pixels, since that is what the wheel reports. Roughly three notches -
+ * enough that arriving at the end does not dismiss the panel, few enough that leaving is one gesture.
+ */
+private const val CLOSE_OVERSCROLL = 3f
 
 /** Fixed, because the drag arithmetic above counts rows by height and has to be right about it. */
 private val QUEUE_ROW_HEIGHT = 60.dp

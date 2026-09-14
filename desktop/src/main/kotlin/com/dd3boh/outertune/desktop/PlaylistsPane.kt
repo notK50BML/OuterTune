@@ -30,6 +30,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.width
+import com.zionhuang.innertube.models.PlaylistItem
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -56,8 +58,15 @@ fun PlaylistsPane(
     onPlay: (List<StoredSong>, Int) -> Unit,
     onRemoveSong: (StoredPlaylist, StoredSong) -> Unit,
     onMoveSong: (StoredPlaylist, Int, Int) -> Unit,
+    /** Playlists saved on YouTube. Empty when signed out, which is not an error. */
+    saved: List<PlaylistItem> = emptyList(),
+    onPlaySaved: (PlaylistItem) -> Unit = {},
 ) {
     var naming by remember { mutableStateOf<NameRequest?>(null) }
+    // Kept beside the local ones rather than on a tab of their own. They are the same kind of thing
+    // to the person looking for them, and a tab would mean knowing which of two places a playlist
+    // lives in before being able to find it.
+
 
     naming?.let { request ->
         NameDialog(
@@ -86,7 +95,9 @@ fun PlaylistsPane(
                 TextButton(onClick = { naming = NameRequest(null) }) { Text("New") }
             }
 
-            if (playlists.isEmpty()) {
+            // Both, not just the local ones. With saved playlists present and none made here, the
+            // old check bailed out and showed "No playlists yet" over a list that was not empty.
+            if (playlists.isEmpty() && saved.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
                         "No playlists yet.",
@@ -98,6 +109,67 @@ fun PlaylistsPane(
             }
 
             LazyColumn {
+                if (saved.isNotEmpty()) {
+                    item {
+                        Text(
+                            text = "Saved on YouTube",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 6.dp),
+                        )
+                    }
+                    itemsIndexed(saved) { _, playlist ->
+                        Card(
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surfaceVariant
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 3.dp)
+                                // Plays rather than opens. There is no page for an online playlist
+                                // yet, and a card that opens nothing is worse than one that does the
+                                // obvious thing with what it holds.
+                                .clickable { onPlaySaved(playlist) },
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.padding(10.dp),
+                            ) {
+                                Artwork(playlist.thumbnail, size = 40.dp, cornerRadius = 6.dp)
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        playlist.title,
+                                        style = MaterialTheme.typography.bodyLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                    Text(
+                                        listOfNotNull(
+                                            playlist.author?.name,
+                                            playlist.songCountText,
+                                        ).joinToString(" · ").ifBlank { "Playlist" },
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                    if (playlists.isNotEmpty()) {
+                        item {
+                            Text(
+                                text = "On this computer",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 16.dp, bottom = 6.dp),
+                            )
+                        }
+                    }
+                }
                 itemsIndexed(playlists) { _, playlist ->
                     Card(
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),

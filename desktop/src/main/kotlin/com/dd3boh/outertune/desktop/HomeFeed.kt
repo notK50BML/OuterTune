@@ -13,6 +13,7 @@ import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.YTItem
 import com.zionhuang.innertube.pages.HomePage
+import com.zionhuang.innertube.utils.completed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -79,6 +80,26 @@ class HomeFeed {
         HomeState.Ready(usable)
     }
 }
+
+/**
+ * The playlists this account has saved on YouTube.
+ *
+ * A different question from the home feed, and worth asking separately: the feed is what YouTube
+ * suggests, this is what the person chose and expects to find again. It needs the session, so signed
+ * out it is empty rather than an error - there is nothing wrong, there is just nobody to ask about.
+ *
+ * `completed()` follows the continuations, because a library is exactly the case where the first
+ * page is not the answer - anyone with more than a couple of dozen would silently lose the rest.
+ */
+suspend fun loadSavedPlaylists(): List<PlaylistItem> = withContext(Dispatchers.IO) {
+    YouTube.library(SAVED_PLAYLISTS_BROWSE_ID).completed().getOrNull()
+        ?.items
+        ?.filterIsInstance<PlaylistItem>()
+        .orEmpty()
+}
+
+/** YouTube Music's own id for "playlists you saved", which is what the app asks for too. */
+private const val SAVED_PLAYLISTS_BROWSE_ID = "FEmusic_liked_playlists"
 
 /**
  * Whether this app can do anything with an item.
