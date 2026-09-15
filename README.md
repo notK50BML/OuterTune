@@ -2,23 +2,23 @@
 
 [![OuterTune app icon](https://github.com/OuterTune/OuterTune/blob/lite/assets/outertune.webp)](https://github.com/OuterTune/OuterTune/blob/lite/assets/outertune.webp)
 
-[![Release](https://img.shields.io/github/v/release/notK50BML/OuterTune?include_prereleases)](https://github.com/notK50BML/OuterTune/releases) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
+[![Release](https://img.shields.io/github/v/release/notK50BML/OuterTune?include_prereleases)](https://github.com/notK50BML/OuterTune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
 A music player which puts your personalised experience above all else. This app was engineered to be lightweight, yet feature-packed. Along with the functions of the original app, this fork also adds word-by-word lyrics, a completely free-placement UI editor, an audio visualiser, Discord rich presence and much more. This player also is heavily customisable and features a Material You design for accents and player colours for a dynamic theme. 
 
 I really, really need a cat.
 
 > [!NOTE]
-> This is a fork based on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune), a fork of the original OuterTune repository.
+> This is a fork based on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/AsterTune), a fork of the original OuterTune repository.
 >
 > While APKs would be uploaded, beta or nightly releases are rare in APK form. If you want to get a fix for a problem as soon as possible or try out new features, please read the [wiki](https://github.com/notK50BML/OuterTune/wiki/Getting-started) for instructions on how to compile the APK yourself.
 >
-> I am also currently working on a Windows build of this app, so it is quite possible that android development may slow down a bit. To be honest though, this app already has more than enough features for most people, so adding more is probably counter-productive anyway. Of course, the android branch will still continue to receive maintenance updates and new features, but some time would be spent on the new windows build.
+> I am also currently working on a Windows build of this app, so it is quite possible that Android development may slow down a bit. To be honest though, this app already has more than enough features for most people, so adding more is probably counter-productive anyway. Of course, the android branch will still continue to receive maintenance updates and new features, but some time would be spent on the new Windows build.
 
 
 ## What This Fork Improves
 
-This fork builds on [yuuichi-s/OuterTune](https://github.com/yuuichi-s/OuterTune) with a focus on personalisation, YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
+This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune) with a focus on personalisation, YouTube Music playback stability, lyrics, navigation, a clean UI, and local music playback.
 
 ### Movable UI Elements
 - Added ability to configure UI elements
