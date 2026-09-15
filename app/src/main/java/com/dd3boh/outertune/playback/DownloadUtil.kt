@@ -173,7 +173,9 @@ class DownloadUtil @Inject constructor(
                 mediaId,
                 audioQuality = audioQuality,
                 connectivityManager = connectivityManager,
-                // See the dataSpec note below: a download is one whole-file request, so a client
+                // No contentHints: those steer the client list toward uploaded, live or kids
+                // content, and a download has none of that context to offer - the default list is
+                // the same one playback uses for an ordinary track.
             )
         }.getOrThrow()
         val format = playbackData.format

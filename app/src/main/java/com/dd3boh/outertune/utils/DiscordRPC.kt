@@ -62,23 +62,34 @@ class DiscordRPC(
             ?.takeIf { !it.isLocal }
             ?.let { "https://music.youtube.com/channel/${it.id}" }
 
+        // Every string goes through RpcText first. Discord validates these and rejects the *whole*
+        // presence when one is out of range - without trimming, and without saying so - so a track
+        // titled "4", or one carrying three features and a remix credit, produced no card at all.
+        // That looks exactly like rich presence being broken rather than like one unusual title.
+        //
+        // The artist line falls back rather than going out empty: a song with no credits would
+        // otherwise send a blank state, which is below the minimum and fails the same way.
         setActivity(
             name = context.getString(R.string.app_name).removeSuffix(" Debug"),
-            details = song.song.title,
+            details = RpcText.fit(song.song.title, fallback = context.getString(R.string.unknown)),
             detailsUrl = "https://music.youtube.com/watch?v=${song.song.id}",
-            state = song.artists.joinToString { it.name },
+            state = RpcText.fit(
+                song.artists.joinToString { it.name },
+                fallback = context.getString(R.string.unknown),
+            ),
             stateUrl = artistUrl,
             largeImage = song.song.thumbnailUrl?.let { RpcImage.ExternalImage(it) },
             smallImage = song.artists.firstOrNull()?.thumbnailUrl?.let { RpcImage.ExternalImage(it) },
             // Hover text only. Discord has no url slot for the large image, so the album
             // cannot be made clickable the way the title and artist can.
-            largeText = song.album?.title,
-            smallText = song.artists.firstOrNull()?.name,
+            largeText = RpcText.fit(song.album?.title),
+            smallText = RpcText.fit(song.artists.firstOrNull()?.name),
             buttons = listOf(
-                context.getString(R.string.rpc_listen_ytm) to
+                RpcText.fitButton(context.getString(R.string.rpc_listen_ytm)) to
                         "https://music.youtube.com/watch?v=${song.song.id}",
-                context.getString(R.string.rpc_visit, context.getString(R.string.app_name)) to
-                        "https://github.com/notK50BML/OuterTune"
+                RpcText.fitButton(
+                    context.getString(R.string.rpc_visit, context.getString(R.string.app_name))
+                ) to "https://github.com/notK50BML/OuterTune"
             ),
             type = Type.LISTENING,
             statusDisplayType = StatusDisplayType.STATE,
