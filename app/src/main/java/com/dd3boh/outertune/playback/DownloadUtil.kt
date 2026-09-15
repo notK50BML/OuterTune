@@ -492,7 +492,10 @@ class DownloadUtil @Inject constructor(
     private val enqueueScope = CoroutineScope(Dispatchers.IO.limitedParallelism(1))
 
     private fun downloadSong(id: String, title: String) {
-        if (downloads.value[id] != null) return
+        // An invalid entry is not a download. Guarding on null alone is what made a failed download
+        // permanent: the map held epoch zero, which is not null, so this returned and nothing was
+        // ever enqueued.
+        downloads.value[id]?.takeIf { it != STATE_INVALID }?.let { return }
         enqueueScope.launch {
             promoteCachedSong(id)
             val downloadRequest = DownloadRequest.Builder(id, id.toUri())
@@ -732,8 +735,22 @@ class DownloadUtil @Inject constructor(
 
         // new files
         val availableDownloads = dbDownloads.minus(missingFiles)
+        val poisoned = mutableListOf<String>()
         availableDownloads.forEach { s ->
-            result[s.song.id] = s.song.dateDownload!! // sql should cover our butts
+            val date = s.song.dateDownload!! // the query is IS NOT NULL, so this holds
+            if (date == STATE_INVALID) {
+                // Written by an older build, which stored a sentinel where it meant null. Left
+                // alone it keeps the song un-downloadable forever, so this clears it rather than
+                // only skipping it - a fix that stops creating bad rows still leaves every song
+                // already affected broken.
+                poisoned += s.song.id
+                return@forEach
+            }
+            result[s.song.id] = date
+        }
+        if (poisoned.isNotEmpty()) {
+            Log.i(TAG, "Clearing ${poisoned.size} songs stuck at an invalid download state")
+            database.transaction { poisoned.forEach { updateDownloadStatus(it, null) } }
         }
 
         downloads.value = result
@@ -787,7 +804,13 @@ class DownloadUtil @Inject constructor(
         var count = 0
         database.transaction {
             while (cursor.moveToNext()) {
-                updateDownloadStatus(cursor.download.request.id, stateToLocalDateTime(cursor.download))
+                // The nullable form. Writing stateToLocalDateTime's sentinel here is what poisoned
+                // the column: epoch zero is not null, so "IS NOT NULL" counted a failed download as
+                // a download and the song could never be queued again.
+                updateDownloadStatus(
+                    cursor.download.request.id,
+                    downloadDateFor(cursor.download.state, cursor.download.updateTimeMs),
+                )
                 count ++
             }
         }
@@ -905,13 +928,34 @@ private fun Throwable.isExpiredStreamError(): Boolean {
     return false
 }
 
-fun stateToLocalDateTime(download: Download): LocalDateTime {
-    return when (download.state) {
-        Download.STATE_COMPLETED -> {
-            Instant.ofEpochMilli(download.updateTimeMs).atZone(ZoneOffset.UTC).toLocalDateTime()
-        }
+/**
+ * What a Media3 download state means for `song.dateDownload`, or null for "not downloaded".
+ *
+ * Null rather than a sentinel, and that is the whole point of this function. `dateDownload` already
+ * has a value meaning "not downloaded" - NULL - and every query is written against it: the one that
+ * lists downloads is `dateDownload IS NOT NULL`. Writing a stand-in for "invalid" instead put a real
+ * timestamp of epoch zero in that column, which those queries happily returned, so a failed download
+ * came back as a download.
+ *
+ * What that cost: `downloadSong` refuses to enqueue a song the map already has an entry for, and the
+ * map is built from those queries. So a download that failed - or was stopped, or interrupted - left
+ * a row that made its song permanently un-downloadable. Tapping Download did nothing at all, with no
+ * error and no notification, and no amount of tapping would change it.
+ *
+ * Takes the state as an Int rather than a Download so it can be tested without Android: building a
+ * Download needs a DownloadRequest, which needs android.net.Uri, which is not available in a plain
+ * unit test.
+ */
+fun downloadDateFor(state: Int, updateTimeMs: Long): LocalDateTime? = when (state) {
+    Download.STATE_COMPLETED ->
+        Instant.ofEpochMilli(updateTimeMs).atZone(ZoneOffset.UTC).toLocalDateTime()
 
-        Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> STATE_DOWNLOADING
-        else -> STATE_INVALID
-    }
+    // Restarting counts as in flight. It used to fall into the catch-all below and be recorded as
+    // invalid, which briefly showed an active download as absent.
+    Download.STATE_DOWNLOADING, Download.STATE_QUEUED, Download.STATE_RESTARTING -> STATE_DOWNLOADING
+
+    else -> null
 }
+
+fun stateToLocalDateTime(download: Download): LocalDateTime =
+    downloadDateFor(download.state, download.updateTimeMs) ?: STATE_INVALID
