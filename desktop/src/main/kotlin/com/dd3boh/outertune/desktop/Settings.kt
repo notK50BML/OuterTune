@@ -119,6 +119,17 @@ class Settings(private val store: SettingsStore) {
     /** Whether to actually publish presence updates, independent of whether a token is stored. */
     var enableDiscordRpc by bool("discord.enabled", true)
 
+    // ---- Listen Together --------------------------------------------------------------------
+
+    /**
+     * How far ahead of the host a follower should aim, in milliseconds.
+     *
+     * The app cannot measure this itself - it only ever compares two players' reported positions,
+     * and neither of those is what is actually audible once output latency (a Bluetooth link alone
+     * can add a fifth of a second) is accounted for. Set by ear, and applied live so it can be.
+     */
+    var listenTogetherOffsetMs by int("listentogether.offsetMs", 0)
+
     // ------------------------------------------------------------------------------------------
 
     private fun bool(key: String, default: Boolean) =

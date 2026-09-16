@@ -29,6 +29,10 @@ dependencies {
     // anywhere in it - the gateway connection it opens is a plain websocket, so the phone and the
     // desktop can use the exact same client.
     implementation(project(":kizzy"))
+    // Listen Together's LAN discovery. The phone uses Android's NsdManager for the same DNS-SD
+    // browse/advertise this does; jmDNS is the equivalent on a plain JVM, and the only new
+    // dependency the whole feature needed - everything else in it was already platform-agnostic.
+    implementation("org.jmdns:jmdns:3.5.9")
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")

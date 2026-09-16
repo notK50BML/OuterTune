@@ -238,6 +238,19 @@ private fun App(
         )
     }
 
+    // Listen Together. One instance for the window's lifetime, same protocol the phone speaks -
+    // see ListenTogetherManager for why the scope has to be Swing-dispatched. The bridge is attached
+    // once player, playerQueue and library all exist, and detached on dispose so a session cannot
+    // outlive the window trying to touch a player that is gone.
+    val listenTogether = remember { ListenTogetherManager() }
+    DisposableEffect(listenTogether) {
+        listenTogether.attachPlayer(DesktopPlaybackBridge(player, playerQueue, library))
+        onDispose { listenTogether.attachPlayer(null) }
+    }
+    LaunchedEffect(settings.listenTogetherOffsetMs) {
+        listenTogether.offsetMs = settings.listenTogetherOffsetMs.toLong()
+    }
+
     // What the download button shows. Kept here rather than read from disk on every recomposition:
     // "is this downloaded" is a file check, and doing one per frame to colour a button is wasteful.
     // Filled in off the main thread rather than read during composition: ids() is a database query
@@ -547,6 +560,7 @@ private fun App(
                     SettingsPane(
                         settings = settings,
                         account = account,
+                        listenTogether = listenTogether,
                         libraryPath = library.databasePath,
                         onBack = { showAccount = false },
                         onClearLyricsCache = {

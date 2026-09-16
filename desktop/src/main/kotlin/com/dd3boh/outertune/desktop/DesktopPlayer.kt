@@ -191,13 +191,19 @@ class DesktopPlayer {
         pendingSeekMs = ms.coerceIn(0, durationMs.value)
     }
 
-    fun play(scope: CoroutineScope, videoId: String, title: String) {
+    /**
+     * @param startAtMs starts the track already this far in, once decoding has produced enough to
+     *   know the sample rate - see the seek-application code in [stream] for why an initial seek has
+     *   to be handled differently from a mid-playback one. Used by Listen Together to join a song
+     *   already in progress without a seek-from-zero being audible first.
+     */
+    fun play(scope: CoroutineScope, videoId: String, title: String, startAtMs: Long = 0L) {
         stop()
         // Reset explicitly: a new track must never inherit the last one's paused state.
         paused = false
         positionMs.value = 0
         durationMs.value = 0
-        pendingSeekMs = null
+        pendingSeekMs = startAtMs.takeIf { it > 0 }
         state.value = PlaybackState.Loading(title)
         job = scope.launch(Dispatchers.IO) {
             try {
@@ -420,8 +426,18 @@ class DesktopPlayer {
             if (!currentCoroutineContext().isActive) break
 
             pendingSeekMs?.let { target ->
-                pendingSeekMs = null
+                // Only cleared once actually applied. A seek requested before the very first frame
+                // is decoded arrives here with sampleRate still 0 - there is no rate yet to turn a
+                // millisecond target into a sample index. Clearing it anyway, as this used to,
+                // silently dropped it forever: the next iteration would never see it again. Leaving
+                // it set instead means the very next iteration - now that decoding frame 0 has
+                // established the rate - applies it, at the cost of one AAC-LC frame (~23ms) of the
+                // track's actual start briefly reaching the line before the flush below discards it,
+                // inaudible given a line has real output latency of its own before anything reaches
+                // a speaker. This is what makes starting a track already partway through - joining a
+                // Listen Together session mid-song - possible at all.
                 if (sampleRate > 0) {
+                    pendingSeekMs = null
                     // Every AAC-LC frame is exactly 1024 samples, so a time is an index.
                     index = ((target * sampleRate / 1000) / FRAME_SAMPLES).toInt().coerceIn(0, samples.lastIndex)
                     open?.let {

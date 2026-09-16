@@ -19,8 +19,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +37,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -59,6 +62,7 @@ import androidx.compose.ui.unit.dp
 fun SettingsPane(
     settings: Settings,
     account: Account,
+    listenTogether: ListenTogetherManager,
     libraryPath: String,
     onBack: () -> Unit,
     onClearLyricsCache: () -> Unit,
@@ -187,6 +191,194 @@ fun SettingsPane(
                         },
                     ) { Text("Save") }
                 }
+            }
+        }
+
+        Section("Listen Together") {
+            val mode by listenTogether.mode.collectAsState()
+            val listeners by listenTogether.listeners.collectAsState()
+            val follower by listenTogether.followerState.collectAsState()
+            val ltError by listenTogether.error.collectAsState()
+
+            // Keyed on mode, not remembered once. Browsing needs to know this device's own
+            // advertised name in order to leave it out, and that name does not exist until hosting
+            // starts - a flow built before then would offer the host the chance to follow itself.
+            val hostsFlow = remember(mode) { listenTogether.discoverHosts() }
+            val hosts by hostsFlow.collectAsState(initial = emptyList())
+            val deviceName = remember { listenTogether.deviceName() }
+
+            ltError?.let {
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { listenTogether.clearError() }
+                        .padding(vertical = 8.dp),
+                )
+            }
+
+            when (mode) {
+                ListenTogetherMode.HOSTING -> {
+                    Text(deviceName, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "Sharing what's playing on this network",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    TextButton(onClick = { listenTogether.stop() }) { Text("Stop sharing") }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Listeners (${listeners.size})",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (listeners.isEmpty()) {
+                        // Not an error, and worth saying so. The most common reason nobody has
+                        // joined is simply that nobody has opened this screen on the other device.
+                        Text(
+                            "Waiting for someone to join…",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    } else {
+                        listeners.forEach { listener ->
+                            Text("${listener.name} — ${listener.address}", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                }
+
+                ListenTogetherMode.FOLLOWING -> {
+                    Text(
+                        follower.hostName ?: "Connecting…",
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
+                    Text(
+                        followerStatus(follower.synced, follower.driftMs),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    follower.track?.let { track ->
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(track.title, style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            track.artist,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (follower.unavailable) {
+                        // A file on the host's own storage. There is nothing to fetch, so saying so
+                        // is the whole of the correct behaviour - retrying would never succeed.
+                        Text(
+                            "The host is playing a local file, which cannot be fetched from here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                    if (follower.missingTrack) {
+                        Text(
+                            "That song could not be found here.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    TextButton(onClick = { listenTogether.stop() }) { Text("Leave session") }
+                }
+
+                ListenTogetherMode.OFF -> {
+                    TextButton(
+                        enabled = listenTogether.canStart,
+                        onClick = { listenTogether.startHosting() },
+                    ) { Text("Start sharing") }
+                    Text(
+                        if (listenTogether.canStart) {
+                            "Others on this network can hear what plays here, kept in sync."
+                        } else {
+                            "Start playing something first."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Nearby",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    if (hosts.isEmpty()) {
+                        // The list only ever contains devices already sharing, so an empty list is
+                        // ambiguous between "still looking" and "nobody is sharing". Saying both,
+                        // with the one thing that can actually be checked, beats an endless spinner.
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.padding(vertical = 8.dp),
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                            Text(
+                                "Looking for devices sharing on this network…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    } else {
+                        hosts.forEach { host ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { listenTogether.join(host) }
+                                    .padding(vertical = 8.dp),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(host.name, style = MaterialTheme.typography.bodyMedium)
+                                    Text(
+                                        host.address.hostAddress,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("Timing offset", style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        "How far ahead of the host to aim. Set by ear - it corrects for this " +
+                            "device's own output latency, which nothing here can measure.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                RotaryDial(
+                    value = settings.listenTogetherOffsetMs.toFloat(),
+                    onValueChange = { settings.listenTogetherOffsetMs = it.toInt() },
+                    valueRange = -500f..500f,
+                    color = if (settings.colourByValue) {
+                        ValueGradient.forValue(settings.listenTogetherOffsetMs.toFloat(), -500f..500f)
+                    } else {
+                        MaterialTheme.colorScheme.primary
+                    },
+                    textColor = MaterialTheme.colorScheme.onSurface,
+                    dialSize = 68.dp,
+                    valueLabel = "${settings.listenTogetherOffsetMs} ms",
+                    step = 10f,
+                    coarseStep = 100f,
+                    centeredAt = 0f,
+                )
             }
         }
 
@@ -462,6 +654,19 @@ private fun Section(title: String, content: @Composable ColumnScopeMarker.() -> 
  * content having to declare it, and the sections do not need column-scoped modifiers anyway.
  */
 object ColumnScopeMarker
+
+/**
+ * How well a Listen Together follower is keeping up, in words rather than a number.
+ *
+ * A raw millisecond figure invites worrying about a value nothing here can be done about directly;
+ * the only distinction that matters to a listener is whether the two devices sound like one.
+ */
+private fun followerStatus(synced: Boolean, driftMs: Long): String = when {
+    !synced -> "Measuring the connection…"
+    kotlin.math.abs(driftMs) < 40 -> "In sync"
+    kotlin.math.abs(driftMs) < 250 -> "Adjusting…"
+    else -> "Catching up…"
+}
 
 @Composable
 private fun SettingSwitch(

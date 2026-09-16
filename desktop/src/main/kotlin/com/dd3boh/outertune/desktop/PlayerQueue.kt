@@ -157,7 +157,12 @@ class PlayerQueue(
      * queues everything after it - which is what makes a result list behave like an album rather
      * than a series of one-song sessions.
      */
-    fun play(songs: List<SongItem>, startIndex: Int, title: String = "Queue") {
+    /**
+     * @param startAtMs starts the chosen song already this far in, rather than from the beginning.
+     *   Only Listen Together uses a non-zero value, to join a song a host is already partway
+     *   through without seeking from zero first.
+     */
+    fun play(songs: List<SongItem>, startIndex: Int, title: String = "Queue", startAtMs: Long = 0L) {
         if (startIndex !in songs.indices) return
         val previous = state.value
         val order = buildOrder(songs.indices.toList(), previous.shuffled, startIndex)
@@ -170,7 +175,7 @@ class PlayerQueue(
             orderPosition = order.indexOf(startIndex),
             title = title,
         )
-        startCurrent()
+        startCurrent(startAtMs)
     }
 
     /**
@@ -308,9 +313,9 @@ class PlayerQueue(
         state.value = QueueState()
     }
 
-    private fun startCurrent() {
+    private fun startCurrent(startAtMs: Long = 0L) {
         val song = state.value.current ?: return
         onPlayed(song)
-        player.play(scope, song.id, song.title)
+        player.play(scope, song.id, song.title, startAtMs)
     }
 }
