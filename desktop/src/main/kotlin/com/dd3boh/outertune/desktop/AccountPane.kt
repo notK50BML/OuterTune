@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -80,18 +82,35 @@ fun AccountPane(
             is AccountState.SignedIn -> {
                 Card(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
-                        Text(current.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
-                        current.email?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = OuterTuneIcons.accountCircle,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 12.dp).size(24.dp),
                             )
+                            Column {
+                                Text(current.name, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                                current.email?.let {
+                                    Text(
+                                        it,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                    )
+                                }
+                            }
                         }
                         Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedButton(onClick = { account.signOut() }) { Text("Sign out") }
+                        OutlinedButton(onClick = { account.signOut() }) {
+                            Icon(
+                                imageVector = OuterTuneIcons.logout,
+                                contentDescription = null,
+                                modifier = Modifier.size(18.dp).padding(end = 6.dp),
+                            )
+                            Text("Sign out")
+                        }
                     }
                 }
                 return@Column

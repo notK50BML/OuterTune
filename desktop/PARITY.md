@@ -78,6 +78,15 @@ planned** (deliberately, with a reason).
 One scrolling page (`SettingsPane.kt`) rather than the phone's tree of sub-screens - see
 `HANDOVER.md` for why a desktop window earns that instead.
 
+Every row that exists today carries the same icon the phone shows next to it - `OuterTuneIcons` grew
+a "Settings rows" section for this, sourced from Google's published Material Symbols Outlined set
+(matching this file's existing family) rather than guessed at. The "Status" column below still says
+what it always said: an icon was added to what already exists, not a row invented to have somewhere
+to put an icon. Several rows the phone has - audio quality, crossfade, content language/country,
+sync mode and conflict resolution, proxy settings - have no desktop equivalent yet because the
+*feature* behind them doesn't exist here, and a settings row with nothing to control would be a lie
+rather than parity.
+
 | Android screen | Status | Notes |
 |---|---|---|
 | Appearance (theme, dynamic colour, dark mode) | done | Light/dark/system, dynamic colour from the cover, and the four background styles below |
@@ -89,7 +98,7 @@ One scrolling page (`SettingsPane.kt`) rather than the phone's tree of sub-scree
 | Privacy | not planned | Nothing here collects anything to have a privacy screen about |
 | Backup and restore | partial | Importing a phone backup is done; nothing exports one yet |
 | Account sync | done | Feeds the home feed, saved playlists, and library-song lookups |
-| Listen Together | **not yet** | The Android feature is done and works; the desktop has no transport for it. Worth doing, and the protocol is already written and tested |
+| Listen Together | done | Same protocol as the phone, byte-for-byte - `Protocol` through `FollowerSession` are ported verbatim. `LanDiscovery` uses jmDNS instead of `NsdManager`; a phone and this build can host or follow each other directly |
 | Discord rich presence | done | Token paste, test connection, enable switch, and the logged-in account name |
 | App icon / updater / about | mostly not applicable | |
 | Setup wizard | not planned | |
@@ -98,16 +107,14 @@ One scrolling page (`SettingsPane.kt`) rather than the phone's tree of sub-scree
 
 ## What I would do next, in order
 
-The home feed, downloads, albums, lyrics, settings, and Discord rich presence are all done now.
-This is what is left.
+The home feed, downloads, albums, lyrics, settings, Discord rich presence, and Listen Together are
+all done now. This is what is left.
 
-1. **Listen Together** — the protocol is already written and tested on the phone; the desktop has
-   no transport for it yet. The one remaining item explicitly asked for by name.
-2. **Queue reordering by drag**, rather than buttons - the arithmetic in `QueueEdit` does not change.
-3. **Gapless playback** - the player opens one `SourceDataLine` per track today.
-4. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
-5. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
-6. **The elaborate GPU visualiser** — deliberately last.
+1. **Queue reordering by drag**, rather than buttons - the arithmetic in `QueueEdit` does not change.
+2. **Gapless playback** - the player opens one `SourceDataLine` per track today.
+3. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
+4. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
+5. **The elaborate GPU visualiser** — deliberately last.
 
 ## Two things worth flagging
 

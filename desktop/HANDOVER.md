@@ -16,7 +16,8 @@ album art, liked songs, recently played, keyboard control (space, arrows, media 
 routes, see SIGN-IN.md), a signed-in home feed and the account's saved playlists, album and artist
 pages, downloads, local playlists, importing a phone backup, word-by-word lyrics, a full settings
 screen, dynamic theming from the cover, a twelve-band equaliser with AutoEQ/compressor/tempo-pitch,
-a sleep timer, and Discord rich presence. See `PARITY.md` for the full feature-by-feature accounting
+a sleep timer, Discord rich presence, and Listen Together with a phone or another desktop build on
+the same network. See `PARITY.md` for the full feature-by-feature accounting
 against the Android app - this paragraph is the summary, not the source of truth.
 
 **Nothing native is involved in playback.** No VLC, no GStreamer, no embedded browser.
@@ -97,9 +98,8 @@ elsewhere, and is the thing to avoid.
   not exist off Android — Skiko has `RuntimeEffect` and AGSL is SkSL-derived, so the shader itself
   could be ported, but not by copying the file. Recreating the layout is realistic; copying it is
   not.
-- **Listen Together.** The Android feature is done and works; the desktop has no transport for it.
-  The protocol is already written and tested on the phone, so this is a transport-and-UI problem
-  rather than a design one.
+- ~~**Listen Together.**~~ Done - `Protocol` through `FollowerSession` ported verbatim (they never
+  depended on Android), `LanDiscovery` rewritten against jmDNS. See `ListenTogetherManager.kt`.
 
 ## The pattern to keep
 
@@ -313,11 +313,7 @@ Hilt, Room, DataStore and MediaSession throughout, so sharing them means abstrac
 
 ## Immediate next step
 
-**Listen Together.** It is the one feature explicitly asked for by name that still has nothing here
-- the protocol is already written and tested on the phone, so this is about building a transport and
-a small UI for it on the desktop side, not designing the feature itself.
-
-After that: drag-to-reorder for the queue, gapless playback, and the elaborate GPU visualiser (the
+Drag-to-reorder for the queue, gapless playback, and the elaborate GPU visualiser (the
 fluid/ferrofluid style was asked for; the current one is bars). See `PARITY.md`'s "what I would do
 next" for the fuller ordering.
 

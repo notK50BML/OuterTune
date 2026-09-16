@@ -24,6 +24,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
@@ -44,6 +45,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
@@ -115,50 +117,45 @@ fun SettingsPane(
             }
 
             if (isLoggedIn) {
-                Text(
-                    text = settings.discordDisplayName.ifEmpty { settings.discordUsername },
-                    style = MaterialTheme.typography.bodyLarge,
+                SettingRow(
+                    title = settings.discordDisplayName.ifEmpty { settings.discordUsername },
+                    subtitle = settings.discordUsername.takeIf { it.isNotEmpty() }?.let { "@$it" },
+                    icon = OuterTuneIcons.accountCircle,
                 )
-                if (settings.discordUsername.isNotEmpty()) {
-                    Text(
-                        text = "@${settings.discordUsername}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
                 Spacer(modifier = Modifier.height(6.dp))
                 SettingSwitch(
                     title = "Show what's playing on Discord",
                     subtitle = "A card on the profile, the same one the phone app shows.",
                     checked = settings.enableDiscordRpc,
                     onCheckedChange = { settings.enableDiscordRpc = it },
+                    icon = OuterTuneIcons.discord,
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    TextButton(
-                        enabled = !testing,
-                        onClick = {
-                            testing = true
-                            connectionStatus = "Testing…"
-                            scope.launch {
-                                val rpc = KizzyRPC(settings.discordToken)
-                                connectionStatus = rpc.testConnection()
-                                rpc.closeRPC()
-                                testing = false
-                            }
-                        },
-                    ) { Text("Test connection") }
-                    TextButton(
-                        onClick = {
-                            settings.discordToken = ""
-                            settings.discordUsername = ""
-                            settings.discordDisplayName = ""
-                            connectionStatus = null
-                        },
-                    ) { Text("Log out") }
-                }
-                connectionStatus?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
+                SettingRow(
+                    title = if (testing) "Testing…" else "Test connection",
+                    subtitle = connectionStatus,
+                    icon = OuterTuneIcons.networkCheck,
+                    onClick = {
+                        if (testing) return@SettingRow
+                        testing = true
+                        connectionStatus = "Testing…"
+                        scope.launch {
+                            val rpc = KizzyRPC(settings.discordToken)
+                            connectionStatus = rpc.testConnection()
+                            rpc.closeRPC()
+                            testing = false
+                        }
+                    },
+                )
+                SettingRow(
+                    title = "Log out",
+                    icon = OuterTuneIcons.logout,
+                    onClick = {
+                        settings.discordToken = ""
+                        settings.discordUsername = ""
+                        settings.discordDisplayName = ""
+                        connectionStatus = null
+                    },
+                )
             } else {
                 Text(
                     text = "Signs a real Discord account in over the same connection the Discord " +
@@ -170,9 +167,11 @@ fun SettingsPane(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                TextButton(onClick = { pasting = !pasting }) {
-                    Text(if (pasting) "Hide" else "Paste a Discord token")
-                }
+                SettingRow(
+                    title = if (pasting) "Hide" else "Paste a Discord token",
+                    icon = OuterTuneIcons.key,
+                    onClick = { pasting = !pasting },
+                )
                 if (pasting) {
                     OutlinedTextField(
                         value = draft,
@@ -208,27 +207,26 @@ fun SettingsPane(
             val deviceName = remember { listenTogether.deviceName() }
 
             ltError?.let {
-                Text(
-                    text = it,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.error,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { listenTogether.clearError() }
-                        .padding(vertical = 8.dp),
+                SettingRow(
+                    title = it,
+                    icon = OuterTuneIcons.info,
+                    onClick = { listenTogether.clearError() },
+                    tint = MaterialTheme.colorScheme.error,
                 )
             }
 
             when (mode) {
                 ListenTogetherMode.HOSTING -> {
-                    Text(deviceName, style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Sharing what's playing on this network",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    SettingRow(
+                        title = deviceName,
+                        subtitle = "Sharing what's playing on this network",
+                        icon = OuterTuneIcons.castConnected,
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    TextButton(onClick = { listenTogether.stop() }) { Text("Stop sharing") }
+                    SettingRow(
+                        title = "Stop sharing",
+                        icon = OuterTuneIcons.stop,
+                        onClick = { listenTogether.stop() },
+                    )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         "Listeners (${listeners.size})",
@@ -246,28 +244,26 @@ fun SettingsPane(
                         )
                     } else {
                         listeners.forEach { listener ->
-                            Text("${listener.name} — ${listener.address}", style = MaterialTheme.typography.bodyMedium)
+                            SettingRow(
+                                title = listener.name,
+                                subtitle = listener.address,
+                                icon = OuterTuneIcons.person,
+                            )
                         }
                     }
                 }
 
                 ListenTogetherMode.FOLLOWING -> {
-                    Text(
-                        follower.hostName ?: "Connecting…",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        followerStatus(follower.synced, follower.driftMs),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    SettingRow(
+                        title = follower.hostName ?: "Connecting…",
+                        subtitle = followerStatus(follower.synced, follower.driftMs),
+                        icon = OuterTuneIcons.cast,
                     )
                     follower.track?.let { track ->
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(track.title, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            track.artist,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        SettingRow(
+                            title = track.title,
+                            subtitle = track.artist,
+                            icon = OuterTuneIcons.musicNote,
                         )
                     }
                     if (follower.unavailable) {
@@ -288,23 +284,23 @@ fun SettingsPane(
                             modifier = Modifier.padding(vertical = 8.dp),
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    TextButton(onClick = { listenTogether.stop() }) { Text("Leave session") }
+                    SettingRow(
+                        title = "Leave session",
+                        icon = OuterTuneIcons.stop,
+                        onClick = { listenTogether.stop() },
+                    )
                 }
 
                 ListenTogetherMode.OFF -> {
-                    TextButton(
-                        enabled = listenTogether.canStart,
-                        onClick = { listenTogether.startHosting() },
-                    ) { Text("Start sharing") }
-                    Text(
-                        if (listenTogether.canStart) {
+                    SettingRow(
+                        title = "Start sharing",
+                        subtitle = if (listenTogether.canStart) {
                             "Others on this network can hear what plays here, kept in sync."
                         } else {
                             "Start playing something first."
                         },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        icon = OuterTuneIcons.cast,
+                        onClick = { if (listenTogether.canStart) listenTogether.startHosting() },
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
@@ -330,22 +326,12 @@ fun SettingsPane(
                         }
                     } else {
                         hosts.forEach { host ->
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { listenTogether.join(host) }
-                                    .padding(vertical = 8.dp),
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(host.name, style = MaterialTheme.typography.bodyMedium)
-                                    Text(
-                                        host.address.hostAddress,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    )
-                                }
-                            }
+                            SettingRow(
+                                title = host.name,
+                                subtitle = host.address.hostAddress,
+                                icon = OuterTuneIcons.devices,
+                                onClick = { listenTogether.join(host) },
+                            )
                         }
                     }
                 }
@@ -354,6 +340,12 @@ fun SettingsPane(
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
+                Icon(
+                    imageVector = OuterTuneIcons.timer,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Timing offset", style = MaterialTheme.typography.bodyLarge)
                     Text(
@@ -388,12 +380,14 @@ fun SettingsPane(
                 subtitle = "Five-second skip either side of play. Off by default, as on the phone.",
                 checked = settings.showSeekButtons,
                 onCheckedChange = { settings.showSeekButtons = it },
+                icon = OuterTuneIcons.fastForward,
             )
             SettingSwitch(
                 title = "Visualiser",
                 subtitle = "Spectrum bars above the seek bar.",
                 checked = settings.showVisualizer,
                 onCheckedChange = { settings.showVisualizer = it },
+                icon = OuterTuneIcons.graphicEq,
             )
         }
 
@@ -404,14 +398,22 @@ fun SettingsPane(
                     "Falls back to LRCLIB and KuGou either way.",
                 checked = settings.wordByWordLyrics,
                 onCheckedChange = { settings.wordByWordLyrics = it },
+                icon = OuterTuneIcons.textRotationAngledown,
             )
             SettingSwitch(
                 title = "Click the cover for lyrics",
                 subtitle = "Swaps the album art for the words, and back.",
                 checked = settings.lyricsOnCoverClick,
                 onCheckedChange = { settings.lyricsOnCoverClick = it },
+                icon = OuterTuneIcons.lyrics,
             )
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
+                Icon(
+                    imageVector = OuterTuneIcons.timer,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                )
                 Column(modifier = Modifier.weight(1f)) {
                     Text("Timing offset", style = MaterialTheme.typography.bodyLarge)
                     Text(
@@ -438,11 +440,19 @@ fun SettingsPane(
                     centeredAt = 0f,
                 )
             }
-            TextButton(onClick = onClearLyricsCache) { Text("Clear cached lyrics") }
+            SettingRow(title = "Clear cached lyrics", icon = OuterTuneIcons.delete, onClick = onClearLyricsCache)
         }
 
         Section("Appearance") {
-            Text("Theme", style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = OuterTuneIcons.darkMode,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                )
+                Text("Theme", style = MaterialTheme.typography.bodyLarge)
+            }
             ThemeMode.entries.forEach { mode ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -462,15 +472,25 @@ fun SettingsPane(
                     "the way the phone takes its own from the wallpaper.",
                 checked = settings.dynamicTheme,
                 onCheckedChange = { settings.dynamicTheme = it },
+                icon = OuterTuneIcons.palette,
             )
             SettingSwitch(
                 title = "Colour controls by value",
                 subtitle = "Yellow low, green middle, blue high, on dials and equaliser bands.",
                 checked = settings.colourByValue,
                 onCheckedChange = { settings.colourByValue = it },
+                icon = OuterTuneIcons.colorLens,
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Text("Player background", style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = OuterTuneIcons.blurOn,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                )
+                Text("Player background", style = MaterialTheme.typography.bodyLarge)
+            }
             BackgroundStyle.entries.forEach { style ->
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -527,7 +547,10 @@ fun SettingsPane(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (count > 0) {
-                TextButton(
+                SettingRow(
+                    title = "Delete all downloads",
+                    icon = OuterTuneIcons.delete,
+                    tint = MaterialTheme.colorScheme.error,
                     onClick = {
                         total = 0
                         count = 0
@@ -535,10 +558,8 @@ fun SettingsPane(
                             withContext(Dispatchers.IO) { downloads.deleteAll() }
                             onDownloadsChanged()
                         }
-                    }
-                ) {
-                    Text("Delete all downloads", color = MaterialTheme.colorScheme.error)
-                }
+                    },
+                )
             }
         }
 
@@ -548,6 +569,7 @@ fun SettingsPane(
                 subtitle = "Records what has been played, which is what the recent list is made of.",
                 checked = settings.keepHistory,
                 onCheckedChange = { settings.keepHistory = it },
+                icon = OuterTuneIcons.history,
             )
             Spacer(modifier = Modifier.height(12.dp))
 
@@ -557,7 +579,15 @@ fun SettingsPane(
             var importing by remember { mutableStateOf(false) }
             var importResult by remember { mutableStateOf<ImportSummary?>(null) }
 
-            Text("Import from a phone backup", style = MaterialTheme.typography.bodyLarge)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = OuterTuneIcons.restore,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                )
+                Text("Import from a phone backup", style = MaterialTheme.typography.bodyLarge)
+            }
             Text(
                 text = "Reads the zip the Android app writes. Songs, liked songs and playlists are " +
                     "added to what is already here; nothing is replaced, and importing the same " +
@@ -668,12 +698,18 @@ private fun followerStatus(synced: Boolean, driftMs: Long): String = when {
     else -> "Catching up…"
 }
 
+/**
+ * @param icon Leading glyph, matching the icon Android's `PreferenceEntry`/`SwitchPreference` shows
+ *   in the same spot on the phone - see [OuterTuneIcons] and its per-icon "Android:" doc references.
+ *   Null for the handful of switches that are desktop-only and have no phone equivalent to match.
+ */
 @Composable
 private fun SettingSwitch(
     title: String,
     subtitle: String,
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
+    icon: ImageVector? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -684,6 +720,14 @@ private fun SettingSwitch(
             .clickable { onCheckedChange(!checked) }
             .padding(vertical = 8.dp),
     ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 16.dp).size(24.dp),
+            )
+        }
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge)
             Text(
@@ -695,4 +739,45 @@ private fun SettingSwitch(
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+}
+
+/**
+ * A clickable icon/title/subtitle row - the desktop's equivalent of Android's `PreferenceEntry`,
+ * built for the same reason [SettingSwitch] carries an icon: so a row looks like the one it mirrors
+ * on the phone rather than like a plain button with a caption.
+ */
+@Composable
+private fun SettingRow(
+    title: String,
+    subtitle: String? = null,
+    icon: ImageVector? = null,
+    onClick: (() -> Unit)? = null,
+    tint: androidx.compose.ui.graphics.Color = MaterialTheme.colorScheme.onSurface,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it }
+            .padding(vertical = 10.dp),
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = if (tint == MaterialTheme.colorScheme.onSurface) MaterialTheme.colorScheme.onSurfaceVariant else tint,
+                modifier = Modifier.padding(end = 16.dp).size(24.dp),
+            )
+        }
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge, color = tint)
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
 }
