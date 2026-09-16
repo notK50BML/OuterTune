@@ -19,13 +19,16 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.my.kizzy.rpc.KizzyRPC
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -83,6 +86,108 @@ fun SettingsPane(
             // The whole sign-in pane, unchanged, just relocated. Four routes and their explanations
             // are a lot of surface, and it reads better as one card here than as a destination.
             AccountPane(account = account)
+        }
+
+        Section("Discord") {
+            var pasting by remember { mutableStateOf(false) }
+            var draft by remember { mutableStateOf("") }
+            var testing by remember { mutableStateOf(false) }
+            var connectionStatus by remember { mutableStateOf<String?>(null) }
+            val isLoggedIn = settings.discordToken.isNotEmpty()
+
+            // Resolves who is signed in once a token appears, the same way the phone's settings
+            // screen does - so this shows a name rather than just "a token is set".
+            LaunchedEffect(settings.discordToken) {
+                if (settings.discordToken.isEmpty()) {
+                    settings.discordUsername = ""
+                    settings.discordDisplayName = ""
+                    return@LaunchedEffect
+                }
+                if (settings.discordUsername.isNotEmpty()) return@LaunchedEffect
+                KizzyRPC.getUserInfo(settings.discordToken).onSuccess { info ->
+                    settings.discordUsername = info.username
+                    settings.discordDisplayName = info.name
+                }
+            }
+
+            if (isLoggedIn) {
+                Text(
+                    text = settings.discordDisplayName.ifEmpty { settings.discordUsername },
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+                if (settings.discordUsername.isNotEmpty()) {
+                    Text(
+                        text = "@${settings.discordUsername}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                SettingSwitch(
+                    title = "Show what's playing on Discord",
+                    subtitle = "A card on the profile, the same one the phone app shows.",
+                    checked = settings.enableDiscordRpc,
+                    onCheckedChange = { settings.enableDiscordRpc = it },
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(
+                        enabled = !testing,
+                        onClick = {
+                            testing = true
+                            connectionStatus = "Testing…"
+                            scope.launch {
+                                val rpc = KizzyRPC(settings.discordToken)
+                                connectionStatus = rpc.testConnection()
+                                rpc.closeRPC()
+                                testing = false
+                            }
+                        },
+                    ) { Text("Test connection") }
+                    TextButton(
+                        onClick = {
+                            settings.discordToken = ""
+                            settings.discordUsername = ""
+                            settings.discordDisplayName = ""
+                            connectionStatus = null
+                        },
+                    ) { Text("Log out") }
+                }
+                connectionStatus?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            } else {
+                Text(
+                    text = "Signs a real Discord account in over the same connection the Discord " +
+                        "client itself uses - there is no bot or OAuth path to a \"currently " +
+                        "listening to\" card on your own profile. Discord's terms discourage " +
+                        "driving an account this way; that risk is yours to weigh, on the account " +
+                        "you paste a token from.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                TextButton(onClick = { pasting = !pasting }) {
+                    Text(if (pasting) "Hide" else "Paste a Discord token")
+                }
+                if (pasting) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it },
+                        label = { Text("Discord token") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Button(
+                        enabled = draft.isNotBlank(),
+                        onClick = {
+                            settings.discordToken = draft.trim().trim('"', '\'')
+                            draft = ""
+                            pasting = false
+                        },
+                    ) { Text("Save") }
+                }
+            }
         }
 
         Section("Playback") {

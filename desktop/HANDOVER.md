@@ -12,7 +12,12 @@ gradlew :desktop:run
 ```
 
 Working: search, play, pause/resume, stop, next/previous, seek, shuffle, repeat (off/all/one),
-album art, liked songs, recently played, keyboard control (space, arrows, media keys).
+album art, liked songs, recently played, keyboard control (space, arrows, media keys), sign-in (four
+routes, see SIGN-IN.md), a signed-in home feed and the account's saved playlists, album and artist
+pages, downloads, local playlists, importing a phone backup, word-by-word lyrics, a full settings
+screen, dynamic theming from the cover, a twelve-band equaliser with AutoEQ/compressor/tempo-pitch,
+a sleep timer, and Discord rich presence. See `PARITY.md` for the full feature-by-feature accounting
+against the Android app - this paragraph is the summary, not the source of truth.
 
 **Nothing native is involved in playback.** No VLC, no GStreamer, no embedded browser.
 
@@ -67,20 +72,22 @@ it and the window opens and immediately dies on a missing `skiko-windows-x64.dll
 
 ## Size
 
-`gradlew :desktop:sizeReport` prints it. Currently **42.5 MB of jars**, of which 9.6 MB is Skiko —
+`gradlew :desktop:sizeReport` prints it. Currently **56.5 MB of jars**, of which 9.6 MB is Skiko —
 the floor while the UI is Compose, and per-platform, so a Windows build carries only the Windows
-renderer. Shipping the jar keeps it around 40 MB (less minified); bundling a trimmed runtime with
-`jlink` adds roughly 40 MB. A full untrimmed JRE is what produces the 100 MB+ builds seen elsewhere,
-and is the thing to avoid.
+renderer. The next-largest single addition is `:kizzy` (Discord rich presence): not the module
+itself, which is a small websocket client, but its own dependency tree - ktor's content-negotiation,
+encoding and kotlinx-json serialization modules, none of which anything else here already pulled in.
+Shipping the jar keeps the total close to this (less minified); bundling a trimmed runtime with
+`jlink` adds roughly 40 MB on top. A full untrimmed JRE is what produces the 100 MB+ builds seen
+elsewhere, and is the thing to avoid.
 
 ## What is genuinely missing
 
 - ~~**Signing in to YouTube Music.**~~ Done - Firefox, a `cookies.txt` file, or pasting. See
   SIGN-IN.md for why it is a cookie rather than a token, and what would have to be true for device
   OAuth to replace it.
-- **The account is signed in but nothing uses it yet.** That is the next real piece: the home feed,
-  the user's own library and playlists, subscriptions. The credential works and `accountInfo` proves
-  it; nothing else calls an authenticated endpoint.
+- ~~**The account is signed in but nothing uses it yet.**~~ Done - the home feed, the account's own
+  saved playlists, and library-song lookups all use it now.
 - **`DATASYNC_ID`.** It comes from JavaScript on the page, so the desktop has no way to read it. On a
   Google account carrying several YouTube channels, the default channel is used. Degraded, not
   broken, and worth remembering before chasing a bug report about the wrong library appearing.
@@ -90,6 +97,9 @@ and is the thing to avoid.
   not exist off Android — Skiko has `RuntimeEffect` and AGSL is SkSL-derived, so the shader itself
   could be ported, but not by copying the file. Recreating the layout is realistic; copying it is
   not.
+- **Listen Together.** The Android feature is done and works; the desktop has no transport for it.
+  The protocol is already written and tested on the phone, so this is a transport-and-UI problem
+  rather than a design one.
 
 ## The pattern to keep
 
@@ -102,9 +112,12 @@ Verify the experience, not just the mechanism.
 
 In the order last discussed:
 
-1. **UI** — recreating the Android player's look (see the caveat above about copying it).
-2. **Queue refinements** — reordering, save-as-playlist, queue persistence across restarts.
+1. ~~**UI**~~ - recreated: full-window player, home feed, album/artist pages, settings, lyrics.
+2. **Queue refinements** — drag-to-reorder still open (buttons work today); save-as-playlist and
+   queue persistence across restarts are not built.
 3. ~~**Visualiser and EQ**~~ - both done, see below.
+4. ~~**Discord rich presence**~~ - done, see `DiscordPresence.kt`. `:kizzy` is `kotlin("jvm")` with
+   no Android dependency, so it is used as-is rather than ported.
 
 ## Storage
 
@@ -247,6 +260,11 @@ changes. `Compressor.kt` and the AutoEQ parser are now duplicated too, which mak
 than it was: three files agreeing by inspection is not a way to keep anything in step. Worth
 doing deliberately; not worth doing halfway in the middle of something else.
 
+`utils/RpcText.kt` joined the list with Discord rich presence - also pure Kotlin, also duplicated
+verbatim rather than shared, for the same "not worth doing halfway" reason. Unlike the others it
+reaches for nothing platform-specific at all, so it is the easiest of the four to fold into that
+module first, whenever it gets built.
+
 ## The visualiser, and the one thing that makes it work
 
 `AudioSpectrum.kt` (FFT, PCM decode, log-spaced bands), `VisualizerTap.kt` (alignment), drawn by
@@ -295,12 +313,13 @@ Hilt, Room, DataStore and MediaSession throughout, so sharing them means abstrac
 
 ## Immediate next step
 
-The elaborate GPU visualiser, and background themes (frosted glass and friends), then lyrics. The
-fluid/ferrofluid visualiser style was asked for and is not built; the current one is bars.
+**Listen Together.** It is the one feature explicitly asked for by name that still has nothing here
+- the protocol is already written and tested on the phone, so this is about building a transport and
+a small UI for it on the desktop side, not designing the feature itself.
 
-Nothing on the desktop side uses the signed-in account yet - no home feed, no user library, no
-server-side playlists. Sign-in works by four routes (see SIGN-IN.md) and then the session sits
-unused. That is the largest gap between this and the Android app.
+After that: drag-to-reorder for the queue, gapless playback, and the elaborate GPU visualiser (the
+fluid/ferrofluid style was asked for; the current one is bars). See `PARITY.md`'s "what I would do
+next" for the fuller ordering.
 
 ## Icons
 

@@ -25,6 +25,10 @@ dependencies {
     // Word-by-word timings, and its own TTML parser. Same story as the other two: a plain JVM
     // module, so it is used rather than ported.
     implementation(project(":betterlyrics"))
+    // Discord rich presence. Same story again: kotlin("jvm") on ktor, with no Android dependency
+    // anywhere in it - the gateway connection it opens is a plain websocket, so the phone and the
+    // desktop can use the exact same client.
+    implementation(project(":kizzy"))
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.okhttp)
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")

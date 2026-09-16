@@ -39,6 +39,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -214,6 +215,28 @@ private fun App(
     // Handed over once. The player resolves audio, so it is the thing that knows how to fill the
     // cache, and it consults it before reaching for the network.
     LaunchedEffect(library) { player.downloads = library.downloads }
+
+    // Discord rich presence. One instance for the window's lifetime, same client the phone app
+    // uses. Rebuilt whenever the stored token or the enable switch changes, and re-sent whenever
+    // the song or the playing/paused state does - see DiscordPresence for why those are the only
+    // two triggers, rather than anything tied to positionMs ticking every frame.
+    val discordPresence = remember { DiscordPresence(scope) }
+    DisposableEffect(discordPresence) {
+        discordPresence.start()
+        onDispose { discordPresence.shutdown() }
+    }
+    LaunchedEffect(settings.discordToken, settings.enableDiscordRpc) {
+        discordPresence.updateAuth(
+            settings.discordToken,
+            settings.enableDiscordRpc,
+            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, position),
+        )
+    }
+    LaunchedEffect(queue.current?.id, playback) {
+        discordPresence.requestUpdate(
+            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, position)
+        )
+    }
 
     // What the download button shows. Kept here rather than read from disk on every recomposition:
     // "is this downloaded" is a file check, and doing one per frame to colour a button is wasteful.

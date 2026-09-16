@@ -100,10 +100,32 @@ class Settings(private val store: SettingsStore) {
     /** Whether played songs are recorded at all. */
     var keepHistory by bool("library.history", true)
 
+    // ---- Discord rich presence ---------------------------------------------------------------
+
+    /**
+     * The Discord user token the gateway connection authenticates with.
+     *
+     * Same mechanism the phone uses: this drives a real account's presence over the same gateway a
+     * Discord client itself connects to, rather than anything Discord's developer portal issues -
+     * there is no legitimate bot/OAuth path to *someone's own* "currently listening to" card.
+     */
+    var discordToken by string("discord.token", "")
+
+    /** Filled in once, from [com.my.kizzy.rpc.KizzyRPC.getUserInfo], so the settings screen can
+     * show who is signed in instead of just "a token is set". */
+    var discordUsername by string("discord.username", "")
+    var discordDisplayName by string("discord.displayName", "")
+
+    /** Whether to actually publish presence updates, independent of whether a token is stored. */
+    var enableDiscordRpc by bool("discord.enabled", true)
+
     // ------------------------------------------------------------------------------------------
 
     private fun bool(key: String, default: Boolean) =
         setting(key, default, { it.toBooleanStrictOrNull() }, { it.toString() })
+
+    private fun string(key: String, default: String) =
+        setting(key, default, { it }, { it })
 
     private fun int(key: String, default: Int) =
         setting(key, default, { it.toIntOrNull() }, { it.toString() })

@@ -22,10 +22,10 @@ planned** (deliberately, with a reason).
 | Seek ±5s buttons | done | Off by default, as on Android |
 | Clickable artist credits | done | Every credit; underline marks ones with a real channel |
 | Queue sheet | done | Two states, full-window when open |
-| Queue reordering (drag to reorder) | **planned** | The Android queue is a `QueueBoard` with multi-queue support; desktop has one flat queue. Reordering first, multi-queue probably never |
+| Queue reordering | partial | Buttons, not drag - `QueueEdit` does the arithmetic in play-order positions. The Android queue is a `QueueBoard` with multi-queue support; desktop has one flat queue and multi-queue is not planned |
 | Swipe-to-skip on the cover | not planned | A pointer has buttons; there is nothing to swipe with |
-| Sleep timer | **planned** | Small: a coroutine that pauses at a deadline, plus the button Android shows first in its action row |
-| Lyrics | **planned — next** | Explicitly wanted. Needs a lyrics provider, a timed-line view, and the offset control the phone has |
+| Sleep timer | done | Deadline or end-of-song, polled once a second |
+| Lyrics | done | BetterLyrics word timings, falling back to LRCLIB/KuGou lines; offset control, click-to-swap with the cover |
 | Player layout editor | not planned | The phone's free-placement editor exists because phone screens vary wildly; a resizable window is a different problem |
 | Visualiser | partial | Bars exist and are wired but switched off — they read as noise between the credits and the seek bar. Returns as a setting |
 | "Elaborate" GPU visualiser | **planned** | Asked for, deferred deliberately until the rest settles |
@@ -54,58 +54,60 @@ planned** (deliberately, with a reason).
 | Search (YouTube) | done | |
 | Liked songs | done | |
 | Recently played | done | |
-| Playlists (create/rename/delete/reorder/add/remove) | done | Local only |
+| Playlists (create/rename/delete/reorder/add/remove) | done | Local, plus the account's own saved YouTube playlists loaded alongside the home feed |
 | Artist page | partial | Library songs plus remote songs. No albums tab, no "see all" |
-| Album page | **planned** | Nothing on the desktop opens an album. This blocks "View album" in the overflow menu |
-| Home feed | **planned** | The biggest single gap. Sign-in works and then the session sits unused — no home, no recommendations, no continue-listening |
+| Album page | done | Opens from search, home, and the overflow menu |
+| Home feed | done | Loads signed-in or signed-out; reloads on account change and on retry |
 | Explore / mood and genres | planned | Follows the home feed; same API surface |
 | History | **planned** | The database already records plays; this is mostly a screen |
 | Stats | planned | Depends on history |
-| Library albums / artists screens | planned | Needs album support first |
+| Library albums / artists screens | planned | Needs a dedicated library-browse screen; album pages themselves exist |
 | Local files and folders | planned | See local file playback |
 | Auto playlists (liked, downloaded, etc.) | partial | Liked exists as a section, not as a playlist |
-| Online playlists | planned | Needs the signed-in session used |
-| Downloads | **planned** | Blocks the download button, which was asked for beside the like button. Needs a download manager, a cache directory and a "downloaded" state on songs |
+| Online playlists | done | The account's saved playlists load and play; a local playlist is still local-only |
+| Backup import (from the phone) | done | Merges the phone's zip into this library - songs, likes, playlists. Safe to re-run |
+| Downloads | done | A download manager, a cache directory under the library, and a "downloaded" state the player consults before the network |
 | Song / album / playlist context menus | partial | The player has one; list rows do not |
 | Multi-select | planned | |
-| Sync with a YouTube account | **planned** | Sign-in is done, four ways. Nothing consumes it yet |
+| Sync with a YouTube account | done | Feeds the home feed, saved playlists, and library-song lookups |
+| Discord rich presence | done | `:kizzy` ported as-is - same gateway client the phone uses, no Android dependency in it to route around |
 | Recognition (identify a song) | not planned | Needs a microphone pipeline and a matching service |
 
 ## Settings
 
-The desktop has **no settings screen at all**. Everything is a hardcoded default. This is the second
-biggest gap after the home feed, and several things above are waiting on it — the visualiser toggle,
-the value-colour toggle, the seek-button toggle.
+One scrolling page (`SettingsPane.kt`) rather than the phone's tree of sub-screens - see
+`HANDOVER.md` for why a desktop window earns that instead.
 
-| Android screen | Desktop plan |
-|---|---|
-| Appearance (theme, dynamic colour, dark mode) | **planned** — including the frosted-glass and other backgrounds that were asked for |
-| Player settings | planned |
-| Lyrics settings | with lyrics |
-| Equaliser settings | partly in the panel already |
-| Library settings | planned |
-| Storage / cache | planned, with downloads |
-| Privacy | planned |
-| Backup and restore | planned — the SQLite file makes this easy |
-| Account sync | with the home feed |
-| Listen Together | **not yet** — the Android feature is done and works; the desktop has no transport for it. Worth doing, and the protocol is already written and tested |
-| Discord rich presence | planned — `:kizzy` is JVM code and should port |
-| App icon / updater / about | mostly not applicable |
-| Setup wizard | not planned |
+| Android screen | Status | Notes |
+|---|---|---|
+| Appearance (theme, dynamic colour, dark mode) | done | Light/dark/system, dynamic colour from the cover, and the four background styles below |
+| Player settings | partial | Seek buttons and the visualiser toggle exist; most of the rest has no equivalent yet |
+| Lyrics settings | done | Word-by-word toggle, click-to-swap, offset dial, clear cache |
+| Equaliser settings | done | In the equaliser panel itself, not this screen - presets, AutoEQ, saved profiles still planned |
+| Library settings | partial | History toggle and the backup importer; no per-source controls yet |
+| Storage / cache | done | Download count, total size, delete-all |
+| Privacy | not planned | Nothing here collects anything to have a privacy screen about |
+| Backup and restore | partial | Importing a phone backup is done; nothing exports one yet |
+| Account sync | done | Feeds the home feed, saved playlists, and library-song lookups |
+| Listen Together | **not yet** | The Android feature is done and works; the desktop has no transport for it. Worth doing, and the protocol is already written and tested |
+| Discord rich presence | done | Token paste, test connection, enable switch, and the logged-in account name |
+| App icon / updater / about | mostly not applicable | |
+| Setup wizard | not planned | |
 
 ---
 
 ## What I would do next, in order
 
-1. **Lyrics** — asked for explicitly, and the player has an obvious place for it.
-2. **A settings screen** — small in itself and unblocks a half-dozen toggles that are currently
-   decisions made on the user's behalf.
-3. **Backgrounds and themes** — frosted glass and friends; asked for, and needs settings first.
-4. **Downloads** — unblocks the download button and the offline story.
-5. **The home feed** — the largest gap, and the thing that makes signing in worth anything.
-6. **Albums** — unblocks "View album", library albums, and artist album tabs.
-7. **Queue reordering**, **sleep timer**, **gapless** — small, self-contained, each a day.
-8. **The elaborate GPU visualiser** — deliberately last.
+The home feed, downloads, albums, lyrics, settings, and Discord rich presence are all done now.
+This is what is left.
+
+1. **Listen Together** — the protocol is already written and tested on the phone; the desktop has
+   no transport for it yet. The one remaining item explicitly asked for by name.
+2. **Queue reordering by drag**, rather than buttons - the arithmetic in `QueueEdit` does not change.
+3. **Gapless playback** - the player opens one `SourceDataLine` per track today.
+4. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
+5. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
+6. **The elaborate GPU visualiser** — deliberately last.
 
 ## Two things worth flagging
 
