@@ -37,7 +37,7 @@ interface AlbumsDao : ArtistsDao {
     // region Gets
     @Transaction
     @Query("""
-        SELECT album.*, count(song.dateDownload) downloadCount
+        SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
         FROM album
             LEFT JOIN song ON song.albumId = album.id
         WHERE album.id = :id
@@ -50,10 +50,10 @@ interface AlbumsDao : ArtistsDao {
 
     @Transaction
     @Query("""
-        SELECT album.*, count(song.dateDownload) downloadCount
+        SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
         FROM album
             LEFT JOIN song ON song.albumId = album.id
-        WHERE album.title LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL)
+        WHERE album.title LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0)
         GROUP BY album.id
         LIMIT :previewSize
     """)
@@ -108,7 +108,7 @@ interface AlbumsDao : ArtistsDao {
 
     @Transaction
     @Query("""
-        SELECT album.*, count(song.dateDownload) downloadCount
+        SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
         FROM album
             LEFT JOIN song ON song.albumId = album.id
         WHERE album.id = :albumId
@@ -122,7 +122,7 @@ interface AlbumsDao : ArtistsDao {
 
     @Transaction
     @Query("""
-        SELECT album.*, count(song.dateDownload) downloadCount
+        SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
         FROM album
             JOIN song ON album.id = song.albumId
             JOIN event ON song.id = event.songId
@@ -135,7 +135,7 @@ interface AlbumsDao : ArtistsDao {
 
     @Transaction
     @Query("""
-        SELECT album.*, count(song.dateDownload) downloadCount
+        SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
         FROM album_artist_map 
             JOIN album ON album_artist_map.albumId = album.id
             JOIN song ON album_artist_map.albumId = song.albumId
@@ -147,7 +147,7 @@ interface AlbumsDao : ArtistsDao {
 
     @Transaction
     @Query("""
-        SELECT album.*, count(song.dateDownload) downloadCount
+        SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
         FROM album_artist_map
             JOIN album ON album_artist_map.albumId = album.id
             JOIN song ON album_artist_map.albumId = song.albumId
@@ -176,7 +176,7 @@ interface AlbumsDao : ArtistsDao {
         }
 
         val where = when (filter) {
-            AlbumFilter.DOWNLOADED -> "song.dateDownload IS NOT NULL"
+            AlbumFilter.DOWNLOADED -> "song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0"
             AlbumFilter.LIBRARY -> "song.inLibrary IS NOT NULL"
             AlbumFilter.LIKED -> "album.bookmarkedAt IS NOT NULL"
         } + if (localOnly == null) {
@@ -188,7 +188,7 @@ interface AlbumsDao : ArtistsDao {
         }
 
         val query = SimpleSQLiteQuery("""
-            SELECT album.*, count(song.dateDownload) downloadCount
+            SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
             FROM album
                 LEFT JOIN song_album_map ON album.id = song_album_map.albumId
                 LEFT JOIN song ON song.id = song_album_map.songId

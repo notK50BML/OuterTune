@@ -39,7 +39,7 @@ interface ArtistsDao {
         SELECT 
             artist.*,
             COUNT(song.id) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
             LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
@@ -121,11 +121,11 @@ interface ArtistsDao {
         SELECT 
             artist.*,
             COUNT(song.id) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
             LEFT JOIN song ON sam.songId = song.id
-        WHERE artist.name LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL)
+        WHERE artist.name LIKE '%' || :query || '%' AND (song.inLibrary IS NOT NULL OR song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0)
         GROUP BY artist.id
         HAVING songCount > 0
         ORDER BY artist.bookmarkedAt ASC
@@ -137,7 +137,7 @@ interface ArtistsDao {
         SELECT 
             artist.*,
             COUNT(song.id) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
             LEFT JOIN song ON sam.songId = song.id
@@ -182,7 +182,7 @@ interface ArtistsDao {
         SELECT
             artist.*,
             COUNT(DISTINCT sam.songId) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
             JOIN (SELECT sam.artistId AS rankedArtistId,
                          SUM(event.playTime) AS totalPlayTime,
@@ -215,7 +215,7 @@ interface ArtistsDao {
         }
 
         val where = when (filter) {
-            ArtistFilter.DOWNLOADED -> "song.dateDownload IS NOT NULL"
+            ArtistFilter.DOWNLOADED -> "song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0"
             ArtistFilter.LIBRARY -> "song.inLibrary IS NOT NULL"
             ArtistFilter.LIKED -> "artist.bookmarkedAt IS NOT NULL"
         } + if (localOnly == null) {
@@ -235,7 +235,7 @@ interface ArtistsDao {
             SELECT 
                 artist.*,
                 COUNT(song.id) AS songCount,
-                SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+                SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
             FROM artist
                 LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
                 LEFT JOIN song ON sam.songId = song.id
@@ -261,7 +261,7 @@ interface ArtistsDao {
         SELECT 
             artist.*,
             COUNT(song.id) AS songCount,
-            SUM(CASE WHEN song.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
             LEFT JOIN song ON sam.songId = song.id

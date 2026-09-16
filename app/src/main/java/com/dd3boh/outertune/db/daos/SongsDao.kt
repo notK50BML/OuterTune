@@ -351,29 +351,29 @@ interface SongsDao {
 
     // region Downloaded Songs Sort
     @Transaction
-    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL ORDER BY dateDownload")
+    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0 ORDER BY dateDownload")
     fun downloadNoLocalSongs(): Flow<List<Song>>
 
     @Transaction
-    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL ORDER BY inLibrary")
+    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0 ORDER BY inLibrary")
     fun downloadSongsByCreateDateAsc(): Flow<List<Song>>
 
     @Transaction
-    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL ORDER BY date")
+    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0 ORDER BY date")
     fun downloadSongsByReleaseDateAsc(): Flow<List<Song>>
 
     @Transaction
-    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL ORDER BY dateModified")
+    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0 ORDER BY dateModified")
     fun downloadSongsByDateModifiedAsc(): Flow<List<Song>>
 
     @Transaction
-    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0 ORDER BY title COLLATE NOCASE ASC")
     fun downloadSongsByNameAsc(): Flow<List<Song>>
 
     @Transaction
     @Query("""
         SELECT * FROM song
-        WHERE isLocal = 0 AND dateDownload IS NOT NULL
+        WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0
         ORDER BY (
             SELECT LOWER(GROUP_CONCAT(name, ''))
             FROM artist
@@ -386,11 +386,11 @@ interface SongsDao {
     @RewriteQueriesToDropUnusedColumns
     @Transaction
     @Query("""
-        SELECT song.*, (SELECT SUM(playCount.count) 
-            FROM playCount 
-            WHERE playCount.song = song.id) AS pc 
-        FROM song 
-        WHERE isLocal = 0 AND dateDownload IS NOT NULL
+        SELECT song.*, (SELECT SUM(playCount.count)
+            FROM playCount
+            WHERE playCount.song = song.id) AS pc
+        FROM song
+        WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0
         ORDER BY pc ASC
     """)
     fun downloadSongsByPlayCountAsc(): Flow<List<Song>>

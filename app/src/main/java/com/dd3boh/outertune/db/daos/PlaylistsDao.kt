@@ -35,7 +35,7 @@ interface PlaylistsDao {
         SELECT 
             p.*, 
             COUNT(psm.playlistId) AS songCount,
-            SUM(CASE WHEN s.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN s.dateDownload IS NOT NULL AND s.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM playlist p
             LEFT JOIN playlist_song_map psm ON p.id = psm.playlistId
             LEFT JOIN song s ON psm.songId = s.id
@@ -49,7 +49,7 @@ interface PlaylistsDao {
         SELECT 
             p.*, 
             COUNT(psm.playlistId) AS songCount,
-            SUM(CASE WHEN s.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN s.dateDownload IS NOT NULL AND s.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM playlist p
             LEFT JOIN playlist_song_map psm ON p.id = psm.playlistId
             LEFT JOIN song s ON psm.songId = s.id
@@ -63,7 +63,7 @@ interface PlaylistsDao {
         SELECT 
             p.*, 
             COUNT(psm.playlistId) AS songCount,
-            SUM(CASE WHEN s.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+            SUM(CASE WHEN s.dateDownload IS NOT NULL AND s.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM playlist p
             LEFT JOIN playlist_song_map psm ON p.id = psm.playlistId
             LEFT JOIN song s ON psm.songId = s.id
@@ -114,7 +114,7 @@ interface PlaylistsDao {
         }
 
         val having = when (filter) {
-            PlaylistFilter.DOWNLOADED -> "HAVING SUM(CASE WHEN s.dateDownload IS NOT NULL THEN 1 ELSE 0 END) > 0"
+            PlaylistFilter.DOWNLOADED -> "HAVING SUM(CASE WHEN s.dateDownload IS NOT NULL AND s.dateDownload IS NOT 0 THEN 1 ELSE 0 END) > 0"
             else -> ""
         }.let { base ->
             if (!localSongsOnly) base
@@ -132,7 +132,7 @@ interface PlaylistsDao {
             SELECT 
                 p.*, 
                 COUNT(psm.playlistId) AS songCount,
-                SUM(CASE WHEN s.dateDownload IS NOT NULL THEN 1 ELSE 0 END) AS downloadCount
+                SUM(CASE WHEN s.dateDownload IS NOT NULL AND s.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
             FROM playlist p
                 LEFT JOIN playlist_song_map psm ON p.id = psm.playlistId
                 LEFT JOIN song s ON psm.songId = s.id

@@ -71,6 +71,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -289,6 +291,18 @@ class DownloadUtil @Inject constructor(
     )
     val downloadMgr = DownloadManagerOt(localMgr)
     var isProcessingDownloads = MutableStateFlow(false)
+
+    /**
+     * Guards [scanDownloads] and [rescanDownloads] against each other specifically.
+     *
+     * Both used to share [isProcessingDownloads] as a plain "busy" flag with an early return on
+     * contention. rescanDownloads() runs unconditionally from init as soon as this class is
+     * constructed, so a scanDownloads() call landing while that was still in flight - which
+     * scanInit() does on every app start where the scan cooldown has expired - saw the flag
+     * already set and returned immediately, silently skipping the scan it was asked to do.
+     * A real mutex makes the second caller wait its turn instead of being dropped.
+     */
+    private val downloadScanMutex = Mutex()
 
     fun getDownload(songId: String): Flow<LocalDateTime?> = downloads.map { it[songId] }
 
@@ -707,54 +721,57 @@ class DownloadUtil @Inject constructor(
     /**
      * Rescan download directory and updates songs
      */
-    suspend fun rescanDownloads() {
+    suspend fun rescanDownloads() = downloadScanMutex.withLock {
         if (DOWNLOAD_DEBUG) Log.i(TAG, "+rescanDownloads()")
         isProcessingDownloads.value = true
-        val dbDownloads = database.downloadedOrQueuedSongs().first()
-        val result = mutableMapOf<String, LocalDateTime>()
+        try {
+            val dbDownloads = database.downloadedOrQueuedSongs().first()
+            val result = mutableMapOf<String, LocalDateTime>()
 
-        // get missing files not in custom downloads or in internal downloads, remove them
-        val missingFiles =
-            localMgr.getMissingFiles(dbDownloads.filterNot { it.song.dateDownload == null }).toMutableList()
-        if (DOWNLOAD_DEBUG) Log.d(TAG, "Found ${missingFiles.size}/${dbDownloads.size} songs not in custom download directories")
-        val cursor = downloadManager.downloadIndex.getDownloads()
-        while (cursor.moveToNext()) {
-            missingFiles.removeIf { it.id == cursor.download.request.id }
-        }
-        if (DOWNLOAD_DEBUG) Log.d(
-            TAG,
-            "Found ${missingFiles.size}/${dbDownloads.size} song not in custom download directories + internal cache. Removing these files now"
-        )
-
-        database.transaction {
-            missingFiles.forEach {
-                if (DOWNLOAD_DEBUG) Log.v(TAG, "Shedding: [${it.id}] ${it.song.title}")
-                removeDownloadSong(it.song.id)
+            // get missing files not in custom downloads or in internal downloads, remove them
+            val missingFiles =
+                localMgr.getMissingFiles(dbDownloads.filterNot { it.song.dateDownload == null }).toMutableList()
+            if (DOWNLOAD_DEBUG) Log.d(TAG, "Found ${missingFiles.size}/${dbDownloads.size} songs not in custom download directories")
+            val cursor = downloadManager.downloadIndex.getDownloads()
+            while (cursor.moveToNext()) {
+                missingFiles.removeIf { it.id == cursor.download.request.id }
             }
-        }
+            if (DOWNLOAD_DEBUG) Log.d(
+                TAG,
+                "Found ${missingFiles.size}/${dbDownloads.size} song not in custom download directories + internal cache. Removing these files now"
+            )
 
-        // new files
-        val availableDownloads = dbDownloads.minus(missingFiles)
-        val poisoned = mutableListOf<String>()
-        availableDownloads.forEach { s ->
-            val date = s.song.dateDownload!! // the query is IS NOT NULL, so this holds
-            if (date == STATE_INVALID) {
-                // Written by an older build, which stored a sentinel where it meant null. Left
-                // alone it keeps the song un-downloadable forever, so this clears it rather than
-                // only skipping it - a fix that stops creating bad rows still leaves every song
-                // already affected broken.
-                poisoned += s.song.id
-                return@forEach
+            database.transaction {
+                missingFiles.forEach {
+                    if (DOWNLOAD_DEBUG) Log.v(TAG, "Shedding: [${it.id}] ${it.song.title}")
+                    removeDownloadSong(it.song.id)
+                }
             }
-            result[s.song.id] = date
-        }
-        if (poisoned.isNotEmpty()) {
-            Log.i(TAG, "Clearing ${poisoned.size} songs stuck at an invalid download state")
-            database.transaction { poisoned.forEach { updateDownloadStatus(it, null) } }
-        }
 
-        downloads.value = result
-        isProcessingDownloads.value = false
+            // new files
+            val availableDownloads = dbDownloads.minus(missingFiles)
+            val poisoned = mutableListOf<String>()
+            availableDownloads.forEach { s ->
+                val date = s.song.dateDownload!! // the query is IS NOT NULL, so this holds
+                if (date == STATE_INVALID) {
+                    // Written by an older build, which stored a sentinel where it meant null. Left
+                    // alone it keeps the song un-downloadable forever, so this clears it rather than
+                    // only skipping it - a fix that stops creating bad rows still leaves every song
+                    // already affected broken.
+                    poisoned += s.song.id
+                    return@forEach
+                }
+                result[s.song.id] = date
+            }
+            if (poisoned.isNotEmpty()) {
+                Log.i(TAG, "Clearing ${poisoned.size} songs stuck at an invalid download state")
+                database.transaction { poisoned.forEach { updateDownloadStatus(it, null) } }
+            }
+
+            downloads.value = result
+        } finally {
+            isProcessingDownloads.value = false
+        }
         if (DOWNLOAD_DEBUG) Log.i(TAG, "-rescanDownloads()")
     }
 
@@ -767,55 +784,60 @@ class DownloadUtil @Inject constructor(
      */
     suspend fun scanDownloads() {
         if (DOWNLOAD_DEBUG) Log.i(TAG, "+scanDownloads()")
-        if (isProcessingDownloads.value) {
-            if (DOWNLOAD_DEBUG) Log.i(TAG, "-scanDownloads()")
-            return
-        }
-        isProcessingDownloads.value = true
-
+        // A separate withLock (rather than wrapping this whole function) so this suspends until
+        // any in-flight rescanDownloads() - notably the one launched unconditionally from init -
+        // finishes and then actually runs, instead of bailing out because the shared busy flag
+        // was still set. rescanDownloads() is called again below, after this lock is released, so
+        // the two never try to acquire the same non-reentrant mutex at once.
+        downloadScanMutex.withLock {
+            isProcessingDownloads.value = true
+            try {
 //            val scanner = LocalMediaScanner.getScanner(context, ScannerImpl.TAGLIB, SCANNER_OWNER_DL)
-        database.removeAllDownloadedSongs()
-        val timeNow = LocalDateTime.now()
+                database.removeAllDownloadedSongs()
+                val timeNow = LocalDateTime.now()
 
-        // add custom downloads
-        val availableFiles = localMgr.getAvailableFiles(false)
-        database.transaction {
-            availableFiles.forEach { f ->
-                try {
-                    val file = fileFromUri(context, f.value)
-                    if (file == null) throw (InvalidAudioFileException("Hello darkness my old friend"))
-                    // TODO: validate files in download folder
+                // add custom downloads
+                val availableFiles = localMgr.getAvailableFiles(false)
+                database.transaction {
+                    availableFiles.forEach { f ->
+                        try {
+                            val file = fileFromUri(context, f.value)
+                            if (file == null) throw (InvalidAudioFileException("Hello darkness my old friend"))
+                            // TODO: validate files in download folder
 //                        val format: FormatEntity? = scanner.advancedScan(f.value).format
 //                        if (format != null) {
 //                            database.upsert(format)
 //                        }
-                    registerDownloadSong(f.key, timeNow, file.absolutePath)
+                            registerDownloadSong(f.key, timeNow, file.absolutePath)
 
-                } catch (e: InvalidAudioFileException) {
-                    reportException(e)
+                        } catch (e: InvalidAudioFileException) {
+                            reportException(e)
+                        }
+                    }
                 }
-            }
-        }
 //            LocalMediaScanner.destroyScanner(SCANNER_OWNER_DL)
-        if (DOWNLOAD_DEBUG) Log.d(TAG, "Registered ${availableFiles.size} files from custom downloads")
+                if (DOWNLOAD_DEBUG) Log.d(TAG, "Registered ${availableFiles.size} files from custom downloads")
 
-        // add internal downloads
-        val cursor = downloadManager.downloadIndex.getDownloads()
-        var count = 0
-        database.transaction {
-            while (cursor.moveToNext()) {
-                // The nullable form. Writing stateToLocalDateTime's sentinel here is what poisoned
-                // the column: epoch zero is not null, so "IS NOT NULL" counted a failed download as
-                // a download and the song could never be queued again.
-                updateDownloadStatus(
-                    cursor.download.request.id,
-                    downloadDateFor(cursor.download.state, cursor.download.updateTimeMs),
-                )
-                count ++
+                // add internal downloads
+                val cursor = downloadManager.downloadIndex.getDownloads()
+                var count = 0
+                database.transaction {
+                    while (cursor.moveToNext()) {
+                        // The nullable form. Writing stateToLocalDateTime's sentinel here is what poisoned
+                        // the column: epoch zero is not null, so "IS NOT NULL" counted a failed download as
+                        // a download and the song could never be queued again.
+                        updateDownloadStatus(
+                            cursor.download.request.id,
+                            downloadDateFor(cursor.download.state, cursor.download.updateTimeMs),
+                        )
+                        count++
+                    }
+                }
+                if (DOWNLOAD_DEBUG) Log.d(TAG, "Registered $count files from internal downloads")
+            } finally {
+                isProcessingDownloads.value = false
             }
         }
-        if (DOWNLOAD_DEBUG) Log.d(TAG, "Registered $count files from internal downloads")
-        isProcessingDownloads.value = false
         if (DOWNLOAD_DEBUG) Log.d(TAG, "Database registration complete, triggering map registry rebuild")
         rescanDownloads()
         // Fire-and-forget: a batch of searches (one per song that actually has something to check
