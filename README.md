@@ -30,6 +30,10 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Improved presets
 - Note: As mentioned above, this project is still a work-in-progress, with known bugs and issues. This feature is working, but it is definitely nowhere near an alpha release.
 
+### Listen Together
+- Added ability to listen along to another person's device, as long as that device is still on the same network
+- Fixed a bug where the devices will fall out of sync because of lag from the host-side device
+
 ### Discord Rich Presence
 - Added rich presence (huge thanks to [reocat](https://github.com/reocat/OuterTune))
 - Added clickable song and artist
@@ -38,6 +42,7 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Added token login along with normal login
 - Added connection tester to diagnose any connection issues
 - Improved normal login authentication process
+- Fixed a bug where extremely short songs or songs with no artists would not display their rich presence cards
 
 ### YouTube Music
 
