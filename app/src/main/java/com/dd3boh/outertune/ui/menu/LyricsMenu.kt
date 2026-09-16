@@ -27,6 +27,7 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.SyncAlt
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -52,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.LyricOffsetKey
 import com.dd3boh.outertune.constants.LyricTrimKey
 import com.dd3boh.outertune.constants.MultilineLrcKey
 import com.dd3boh.outertune.db.entities.LyricsEntity
@@ -60,6 +62,7 @@ import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SettingsClickToReveal
 import com.dd3boh.outertune.ui.component.button.IconButton
+import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.dialog.ListDialog
 import com.dd3boh.outertune.ui.dialog.TextFieldDialog
@@ -86,6 +89,27 @@ fun LyricsMenu(
     val multilineLrc by rememberPreference(MultilineLrcKey, defaultValue = true)
     val lyricTrim by rememberPreference(LyricTrimKey, defaultValue = false)
     val parserOptions = LrcUtils.LrcParserOptions(lyricTrim, multilineLrc, "Unable to parse lyrics")
+
+    val (lyricOffset, onLyricOffsetChange) = rememberPreference(LyricOffsetKey, 0)
+    var showOffsetDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    if (showOffsetDialog) {
+        CounterDialog(
+            title = stringResource(R.string.lyrics_offset_title),
+            initialValue = lyricOffset,
+            // Five seconds either way. Wider than that is not a sync correction, it is the wrong
+            // lyrics file.
+            upperBound = 5000,
+            lowerBound = -5000,
+            unitDisplay = " ms",
+            onDismiss = { showOffsetDialog = false },
+            onConfirm = { onLyricOffsetChange(it); showOffsetDialog = false },
+            onReset = { onLyricOffsetChange(0) },
+            onCancel = { showOffsetDialog = false },
+        )
+    }
 
     var showEditDialog by rememberSaveable {
         mutableStateOf(false)
@@ -419,6 +443,12 @@ fun LyricsMenu(
             title = R.string.search,
         ) {
             showSearchDialog = true
+        }
+        GridMenuItem(
+            icon = Icons.Rounded.Timer,
+            title = R.string.lyrics_offset_title,
+        ) {
+            showOffsetDialog = true
         }
         if (lyricsProvider() != null) {
             // TODO: hide this for when lrc exists and lyrics is not in the database
