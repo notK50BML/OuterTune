@@ -113,8 +113,8 @@ Verify the experience, not just the mechanism.
 In the order last discussed:
 
 1. ~~**UI**~~ - recreated: full-window player, home feed, album/artist pages, settings, lyrics.
-2. **Queue refinements** — drag-to-reorder still open (buttons work today); save-as-playlist and
-   queue persistence across restarts are not built.
+2. **Queue refinements** — drag-to-reorder is done; save-as-playlist and queue persistence across
+   restarts are not built. The playlist editor still reorders by button rather than drag.
 3. ~~**Visualiser and EQ**~~ - both done, see below.
 4. ~~**Discord rich presence**~~ - done, see `DiscordPresence.kt`. `:kizzy` is `kotlin("jvm")` with
    no Android dependency, so it is used as-is rather than ported.
@@ -313,7 +313,8 @@ Hilt, Room, DataStore and MediaSession throughout, so sharing them means abstrac
 
 ## Immediate next step
 
-Drag-to-reorder for the queue, gapless playback, and the elaborate GPU visualiser (the
+Gapless playback, drag-to-reorder for the *playlist* editor (the queue already drags), and the
+elaborate GPU visualiser (the
 fluid/ferrofluid style was asked for; the current one is bars). See `PARITY.md`'s "what I would do
 next" for the fuller ordering.
 

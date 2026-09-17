@@ -22,7 +22,7 @@ planned** (deliberately, with a reason).
 | Seek ±5s buttons | done | Off by default, as on Android |
 | Clickable artist credits | done | Every credit; underline marks ones with a real channel |
 | Queue sheet | done | Two states, full-window when open |
-| Queue reordering | partial | Buttons, not drag - `QueueEdit` does the arithmetic in play-order positions. The Android queue is a `QueueBoard` with multi-queue support; desktop has one flat queue and multi-queue is not planned |
+| Queue reordering | done | Drag by a handle, stepped a row at a time; `QueueEdit` does the arithmetic in play-order positions. The Android queue is a `QueueBoard` with multi-queue support; desktop has one flat queue and multi-queue is not planned |
 | Swipe-to-skip on the cover | not planned | A pointer has buttons; there is nothing to swipe with |
 | Sleep timer | done | Deadline or end-of-song, polled once a second |
 | Lyrics | done | BetterLyrics word timings, falling back to LRCLIB/KuGou lines; offset control, click-to-swap with the cover |
@@ -110,8 +110,9 @@ rather than parity.
 The home feed, downloads, albums, lyrics, settings, Discord rich presence, and Listen Together are
 all done now. This is what is left.
 
-1. **Queue reordering by drag**, rather than buttons - the arithmetic in `QueueEdit` does not change.
-2. **Gapless playback** - the player opens one `SourceDataLine` per track today.
+1. **Gapless playback** - the player opens one `SourceDataLine` per track today.
+2. **Playlist reordering by drag**, rather than buttons - the queue already drags; the playlist
+   editor is the one list that still moves a row at a time by button.
 3. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
 4. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
 5. **The elaborate GPU visualiser** — deliberately last.
