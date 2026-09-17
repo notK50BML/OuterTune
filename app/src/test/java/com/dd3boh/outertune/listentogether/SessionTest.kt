@@ -410,7 +410,7 @@ class SessionTest {
             val host = HostSession(scope, hostBridge, ::nowUs, "Living room")
 
             val bound = CompletableDeferred<Int>()
-            val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }
+            val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }.links
             scope.launch { links.collect { host.accept(it) } }
             host.start()
 
@@ -448,7 +448,7 @@ class SessionTest {
             }
             val host = HostSession(scope, hostBridge, ::nowUs, "Living room")
             val bound = CompletableDeferred<Int>()
-            val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }
+            val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }.links
             scope.launch { links.collect { host.accept(it) } }
             host.start()
 
@@ -484,7 +484,7 @@ class SessionTest {
             }
             val host = HostSession(scope, hostBridge, ::nowUs, "Living room")
             val bound = CompletableDeferred<Int>()
-            val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }
+            val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }.links
             scope.launch { links.collect { host.accept(it) } }
             host.start()
 

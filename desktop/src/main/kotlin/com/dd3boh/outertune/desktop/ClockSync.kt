@@ -10,7 +10,7 @@ package com.dd3boh.outertune.desktop
  * Works out how far a follower's clock is from the host's, from ping/pong round trips.
  *
  * Ported unchanged from the Android app's `listentogether/ClockSync.kt` - pure arithmetic with no
- * platform dependency, so there was nothing to adapt.
+ * platform dependency, so there was nothing to adapt. Keep the two in step.
  *
  * The algorithm is NTP's, because the problem is NTP's. Four timestamps per exchange - the
  * follower's send, the host's receive, the host's send, the follower's receive - give both the
@@ -40,6 +40,9 @@ class ClockSync {
 
     private val samples = ArrayDeque<Sample>()
     private var smoothedOffsetUs: Long? = null
+
+    /** Rejections since the last accepted sample - the tell for a network that has changed for good. */
+    private var consecutiveRejections = 0
 
     data class Sample(val offsetUs: Long, val delayUs: Long)
 
@@ -71,10 +74,21 @@ class ClockSync {
 
         // Reject a sample that took far longer than what has been seen. Not the mean - one very slow
         // sample would drag the mean up and start admitting other slow ones.
+        //
+        // Only accepted samples enter the window, so the median describes the accepted history and
+        // nothing else. That is what makes rejection safe against a brief spike and dangerous
+        // against a lasting change: a follower that walks out of range of the router, and stays
+        // there, produces samples that are all worse than the old median forever. Every one would
+        // be rejected, the window would never roll over, and the estimate would stay pinned to
+        // conditions that no longer exist - while crystal drift kept accumulating against it, with
+        // the UI still reporting a healthy session. So a run of rejections is itself evidence that
+        // what counts as normal has moved, and the window is dropped so it can be measured again.
         val median = medianDelay()
         if (median != null && samples.size >= MIN_SAMPLES_FOR_OUTLIER_TEST && delay > median * OUTLIER_FACTOR) {
-            return false
+            if (++consecutiveRejections < MAX_CONSECUTIVE_REJECTIONS) return false
+            reset()
         }
+        consecutiveRejections = 0
 
         samples.addLast(Sample(offset, delay))
         while (samples.size > WINDOW) samples.removeFirst()
@@ -99,6 +113,7 @@ class ClockSync {
         samples.clear()
         smoothedOffsetUs = null
         bestDelayUs = null
+        consecutiveRejections = 0
     }
 
     private fun medianDelay(): Long? {
@@ -116,6 +131,15 @@ class ClockSync {
 
         /** How far past the median a delay may be before the sample is discarded. */
         const val OUTLIER_FACTOR = 3
+
+        /**
+         * Rejections in a row before the window is assumed to describe a network that is gone.
+         *
+         * High enough that a burst of interference is still ridden out - at one sample every two
+         * seconds, this is the better part of ten seconds of consistently worse round trips before
+         * anything is thrown away.
+         */
+        const val MAX_CONSECUTIVE_REJECTIONS = 5
 
         /** How much of a new best sample is taken. Low enough to be steady, high enough to track. */
         const val SMOOTHING = 0.35

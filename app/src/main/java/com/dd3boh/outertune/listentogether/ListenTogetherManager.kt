@@ -78,6 +78,16 @@ class ListenTogetherManager @Inject constructor(
     /** Volatile because the socket binds on an IO thread and everything else here runs on Main. */
     @Volatile
     private var advertisement: LanDiscovery.Advertisement? = null
+
+    /**
+     * The listening socket, while hosting.
+     *
+     * Held rather than left to the accept loop's own lifetime, because that loop cannot end on its
+     * own: it is parked in a blocking accept() that no amount of cancellation reaches. Without
+     * closing this on the way out, stopping and restarting sharing left the previous port bound and
+     * still answering.
+     */
+    private var listener: LanTransport.HostListener? = null
     private var sessionJobs = mutableListOf<Job>()
 
     /**
@@ -145,7 +155,7 @@ class ListenTogetherManager @Inject constructor(
         sessionJobs += scope.launch { session.listeners.collect { _listeners.value = it } }
 
         val started = generation
-        val links = LanTransport.listen(
+        val listening = LanTransport.listen(
             scope = scope,
             nowUs = ::nowUs,
             onBound = { port ->
@@ -165,9 +175,10 @@ class ListenTogetherManager @Inject constructor(
                 }
             },
         )
+        listener = listening
         sessionJobs += scope.launch {
             try {
-                links.collect { session.accept(it) }
+                listening.links.collect { session.accept(it) }
             } catch (e: Exception) {
                 // The accept loop reports a failure to bind by failing the flow. A SupervisorJob
                 // stops that killing its siblings, but the exception would still reach the default
@@ -255,12 +266,16 @@ class ListenTogetherManager @Inject constructor(
     /** Ends whatever is running. Safe to call when nothing is. */
     fun stop() {
         generation++
+        // Before the listener closes: this queues a BYE on each link, and the links' writers live
+        // on the long-lived scope precisely so they survive to flush it.
         hostSession?.stop()
         hostSession = null
         followerSession?.leave()
         followerSession = null
         advertisement?.close()
         advertisement = null
+        listener?.close()
+        listener = null
         sessionJobs.forEach { it.cancel() }
         sessionJobs.clear()
         _listeners.value = emptyList()

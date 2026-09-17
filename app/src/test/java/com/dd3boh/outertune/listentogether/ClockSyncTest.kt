@@ -8,6 +8,7 @@ package com.dd3boh.outertune.listentogether
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -106,6 +107,52 @@ class ClockSyncTest {
         val accepted = sync.exchange(now, 0L, outboundUs = 900_000, inboundUs = 900_000)
         assertFalse("a sample nearly two seconds slower should be rejected", accepted)
         assertEquals(before, sync.sampleCount)
+    }
+
+    @Test
+    fun `a network that gets worse and stays worse is eventually re-measured`() {
+        // The failure this exists for is silent and permanent. Only accepted samples enter the
+        // window, so the median describes the accepted history - and a follower that walks out of
+        // range and stays there produces samples that are all worse than that median forever.
+        // Rejecting every one of them would freeze the estimate at conditions that no longer exist,
+        // while crystal drift accumulated against it and the UI went on reporting a healthy
+        // session. A run of rejections has to be read as "normal has moved", not as noise.
+        val sync = ClockSync()
+        var now = 0L
+        repeat(8) {
+            sync.exchange(now, 1_000_000L, outboundUs = 2_000, inboundUs = 2_000)
+            now += 200_000
+        }
+        assertNotNull("should have an estimate from the good samples", sync.offsetUs)
+
+        // The path degrades by well over the outlier factor, and does not come back.
+        var accepted = 0
+        repeat(12) {
+            if (sync.exchange(now, 1_000_000L, outboundUs = 40_000, inboundUs = 40_000)) accepted++
+            now += 2_000_000
+        }
+        assertTrue(
+            "a lasting change in the network must be adopted, not rejected forever",
+            accepted > 0,
+        )
+    }
+
+    @Test
+    fun `a brief burst of slow samples is still ridden out`() {
+        // The other half of the same rule: a handful of bad samples in a row is interference, not a
+        // new normal, and must not throw away a window that is about to be useful again.
+        val sync = ClockSync()
+        var now = 0L
+        repeat(8) {
+            sync.exchange(now, 500_000L, outboundUs = 3_000, inboundUs = 3_000)
+            now += 200_000
+        }
+        val settled = sync.offsetUs
+        repeat(3) {
+            sync.exchange(now, 500_000L, outboundUs = 200_000, inboundUs = 200_000)
+            now += 200_000
+        }
+        assertEquals("a short burst should not disturb the estimate", settled, sync.offsetUs)
     }
 
     @Test

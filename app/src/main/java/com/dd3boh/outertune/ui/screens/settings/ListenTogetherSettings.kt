@@ -55,6 +55,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.TopBarInsets
+import com.dd3boh.outertune.listentogether.DiscoveredHost
 import com.dd3boh.outertune.listentogether.ListenTogetherMode
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
@@ -77,11 +78,16 @@ fun ListenTogetherSettings(
     val follower by manager.followerState.collectAsStateWithLifecycle()
     val error by manager.error.collectAsStateWithLifecycle()
 
-    // Keyed on mode, not remembered once. Browsing needs to know this device's own advertised name
-    // in order to leave it out, and that name does not exist until hosting starts - a flow built
-    // before then would offer the host the chance to follow itself.
-    val hostsFlow = remember(mode) { viewModel.discoverHosts() }
-    val hosts by hostsFlow.collectAsStateWithLifecycle(initialValue = emptyList())
+    // Only while there is something to browse for. The nearby list is rendered in the OFF branch
+    // alone, so browsing in the other two kept a multicast scan running for a list nobody could
+    // see - the exact battery cost the flow is built cold to avoid. It also sidesteps a latent
+    // oddity: the name a host excludes to avoid listing itself is read when the flow is built, and
+    // while hosting that is still null, because advertising happens later on the bind callback.
+    val hosts by if (mode == ListenTogetherMode.OFF) {
+        remember(mode) { viewModel.discoverHosts() }.collectAsStateWithLifecycle(initialValue = emptyList())
+    } else {
+        remember { mutableStateOf(emptyList<DiscoveredHost>()) }
+    }
 
     // Resolved once. It reads a system setting through the ContentResolver, and this screen
     // recomposes every second as the drift figure updates - so left inline it would be main-thread

@@ -114,6 +114,17 @@ class FollowerSession(
     private var pingJob: Job? = null
     private var pollJob: Job? = null
 
+    /**
+     * The in-flight track load, so leaving can cancel it.
+     *
+     * Tracked because [bridge.playTrack] takes seconds - a database miss means a network lookup and
+     * then buffering - and it ends by *replacing the user's queue*. Left to run after the session
+     * ended, it would hand someone the host's song some seconds after they tapped Leave, in a
+     * session they are no longer in. Worse, on service teardown it would reach a player that has
+     * since been released.
+     */
+    private var loadJob: Job? = null
+
     /** The track the host says it is on, which may not yet be the one loaded here. */
     private var wanted: SharedTrack? = null
     private var loading = false
@@ -162,6 +173,10 @@ class FollowerSession(
             // The incoming flow completing is the single disconnection signal, however it happened.
             pingJob?.cancel()
             pollJob?.cancel()
+            // Cancelled with the rest rather than left to finish: see loadJob. A load that lands
+            // after this point replaces the queue of someone who has already left.
+            loadJob?.cancel()
+            loadJob = null
             // A rate left applied would outlive the session and quietly play everything slightly
             // fast for the rest of the day.
             bridge.setPlaybackSpeed(1f)
@@ -305,13 +320,17 @@ class FollowerSession(
         // Launched rather than awaited inside the frame handler: finding and buffering a song can
         // take seconds, and blocking there would stall every tick and pong behind it - including the
         // clock samples needed to place the song correctly once it does load.
-        scope.launch {
+        loadJob = scope.launch {
             val ok = try {
                 bridge.playTrack(track.videoId, positionMs)
             } catch (e: Exception) {
                 false
             }
             loading = false
+            // The session can end during the load, and cancellation alone does not help here -
+            // playTrack has already handed the queue over by the time it returns. Checking the link
+            // is what stops a late load from reporting into state nobody is watching any more.
+            if (link?.isOpen != true) return@launch
             trackSettleUntilUs = nowUs() + TRACK_SETTLE_US
             corrector.reset()
             anchor.reset(bridge.positionMs())

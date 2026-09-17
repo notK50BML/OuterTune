@@ -51,7 +51,7 @@ class LanTransportTest {
             val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
             try {
                 val bound = CompletableDeferred<Int>()
-                val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }
+                val links = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }.links
                 val hostSide = scope.async { links.first() }
                 val port = withTimeout(TIMEOUT) { bound.await() }
                 val follower = LanTransport.connect(

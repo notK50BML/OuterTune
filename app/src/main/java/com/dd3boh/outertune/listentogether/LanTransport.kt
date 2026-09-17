@@ -24,6 +24,7 @@ import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * TCP transport for a listen-together session, over the local network.
@@ -88,11 +89,31 @@ object LanTransport {
     }
 
     /**
+     * A listening socket, the links arriving on it, and the way to shut it down.
+     *
+     * [close] is a separate thing from cancelling the coroutine, and has to be: the accept loop
+     * spends its life parked in `ServerSocket.accept()`, which is a blocking call rather than a
+     * suspension point, so cancellation cannot interrupt it. Closing the socket underneath it is
+     * the only thing that does.
+     */
+    class HostListener(
+        val links: Flow<PeerLink>,
+        private val shutdown: () -> Unit,
+    ) {
+        fun close() = shutdown()
+    }
+
+    /**
      * Listens for followers.
      *
-     * Emits one link per connection and keeps accepting until the scope is cancelled - including
+     * Emits one link per connection and keeps accepting until [HostListener.close] - including
      * after a follower disconnects, since a session that ended because one listener took a phone
      * call would be useless.
+     *
+     * The accepted links are given [scope] rather than a scope tied to this listener, and that is
+     * deliberate: a link's writer has to outlive the listener long enough to flush the BYE that
+     * [HostSession.stop] queues on the way out. Tying them together would close the sockets first
+     * and leave every follower unable to tell "the host stopped sharing" from "the network died".
      *
      * @param onBound reports the port actually bound, which may not be the one requested.
      */
@@ -101,9 +122,14 @@ object LanTransport {
         nowUs: () -> Long,
         port: Int = DEFAULT_PORT,
         onBound: (Int) -> Unit = {},
-    ): Flow<PeerLink> {
+    ): HostListener {
         val links = Channel<PeerLink>(Channel.BUFFERED)
-        scope.launch(Dispatchers.IO) {
+        // Held so close() can reach the socket, since binding happens off-thread and the caller
+        // may well ask to stop before it has finished.
+        val bound = AtomicReference<ServerSocket?>(null)
+        val closed = AtomicBoolean(false)
+
+        val job = scope.launch(Dispatchers.IO) {
             // The well-known port first, so a follower could in principle connect without discovery
             // at all. But port 0 - any free port - rather than failing if something already holds
             // it, because discovery advertises whichever port was actually granted.
@@ -117,6 +143,14 @@ object LanTransport {
                     return@launch
                 }
             }
+            bound.set(server)
+            // close() may have run while the bind was in flight, in which case it found nothing to
+            // close. Honour it here rather than leaving a socket listening that nobody can reach.
+            if (closed.get()) {
+                runCatching { server.close() }
+                links.close()
+                return@launch
+            }
             onBound(server.localPort)
             try {
                 while (true) {
@@ -124,13 +158,22 @@ object LanTransport {
                     links.send(SocketPeerLink(socket, nowUs, scope, READ_TIMEOUT_MS, MAX_FRAME))
                 }
             } catch (e: Exception) {
-                // accept() throws when the socket is closed on cancellation. Not an error.
+                // accept() throws when the socket is closed by close(). Not an error.
             } finally {
                 runCatching { server.close() }
                 links.close()
             }
         }
-        return links.receiveAsFlow()
+
+        return HostListener(links.receiveAsFlow()) {
+            closed.set(true)
+            // The socket first: that is what unblocks accept() and lets the loop reach its finally.
+            // Cancelling alone would leave the thread parked and the port held for the life of the
+            // process - which is what made a second Start sharing bind a different port, and left
+            // the old one still answering connections nobody was listening for.
+            runCatching { bound.get()?.close() }
+            job.cancel()
+        }
     }
 }
 
