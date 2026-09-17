@@ -244,6 +244,9 @@ class PlayerQueue(
         val after = QueueEdit.removeAt(state.value, position)
         state.value = after
         if (after.songs.isEmpty()) {
+            // Nothing left to come, so anything fetched ahead is just memory held for a queue that
+            // no longer exists.
+            player.dropPrefetch()
             player.stop()
             return
         }

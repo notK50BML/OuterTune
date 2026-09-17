@@ -204,6 +204,10 @@ class DesktopPlayer {
         // play() is where the handover happens, so reading the cache after tearing the old track
         // down would be reading it after this same call had a chance to invalidate it.
         val ready = prefetched?.takeIf { it.videoId == videoId }
+        // A prediction that missed - the user jumped somewhere else - is cancelled rather than just
+        // dropped. Letting it run finishes downloading a song nobody is going to hear, competing
+        // for the connection with the one they just asked for.
+        if (ready == null) prefetched?.bytes?.cancel()
         prefetched = null
         stop()
         // Reset explicitly: a new track must never inherit the last one's paused state.
