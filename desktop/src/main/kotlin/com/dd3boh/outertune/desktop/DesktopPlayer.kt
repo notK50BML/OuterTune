@@ -14,8 +14,10 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -198,6 +200,11 @@ class DesktopPlayer {
      *   already in progress without a seek-from-zero being audible first.
      */
     fun play(scope: CoroutineScope, videoId: String, title: String, startAtMs: Long = 0L) {
+        // Claimed before stop(), which is what makes a prefetched track actually save anything:
+        // play() is where the handover happens, so reading the cache after tearing the old track
+        // down would be reading it after this same call had a chance to invalidate it.
+        val ready = prefetched?.takeIf { it.videoId == videoId }
+        prefetched = null
         stop()
         // Reset explicitly: a new track must never inherit the last one's paused state.
         paused = false
@@ -207,7 +214,11 @@ class DesktopPlayer {
         state.value = PlaybackState.Loading(title)
         job = scope.launch(Dispatchers.IO) {
             try {
-                val audio = when (val outcome = resolveAndFetch(videoId)) {
+                // A prefetch that failed is discarded rather than reported: it ran minutes ago
+                // against whatever the network was doing then, and the right answer to a stale
+                // failure is to ask again now, not to refuse to play the song.
+                val prepared = ready?.bytes?.await()?.takeIf { it is Resolved.Audio }
+                val audio = when (val outcome = prepared ?: resolveAndFetch(videoId)) {
                     is Resolved.Audio -> outcome.bytes
                     is Resolved.Failure -> {
                         state.value = PlaybackState.Failed(title, outcome.reason)
@@ -269,6 +280,53 @@ class DesktopPlayer {
         paused = true
         current.stop()
         state.value = PlaybackState.Paused(playing.title)
+    }
+
+    /**
+     * One song's bytes, fetched before anything asked to play them.
+     *
+     * Held as the in-flight fetch rather than as the finished bytes, so a track that starts while
+     * its prefetch is still running waits for that one instead of kicking off a second identical
+     * download beside it.
+     */
+    private class Prefetched(val videoId: String, val bytes: Deferred<Resolved>)
+
+    @Volatile
+    private var prefetched: Prefetched? = null
+
+    /**
+     * Starts fetching [videoId] so that playing it later costs nothing.
+     *
+     * This is what closes the gap between tracks, and it is worth being precise about why. A song is
+     * fetched *in full* before it plays - a deliberate trade, since it makes seeking arithmetic and
+     * means no network remains to fail mid-song - so the gap at a track boundary is not the audio
+     * line reopening, which is milliseconds. It is the several seconds of download. Doing that
+     * download while the previous track is still playing removes all of it.
+     *
+     * Note this is not sample-accurate gapless playback: the line is still closed and reopened
+     * between tracks, and AAC's own encoder delay and padding are not trimmed, so a continuous
+     * album will still have a short seam. It is the difference between a few seconds of silence and
+     * a barely perceptible one, not between a seam and none.
+     */
+    fun prefetch(scope: CoroutineScope, videoId: String) {
+        if (prefetched?.videoId == videoId) return
+        prefetched?.bytes?.cancel()
+        prefetched = Prefetched(
+            videoId = videoId,
+            // runCatching inside, so this Deferred can never complete exceptionally. An async that
+            // fails propagates to its parent the moment it does, which would take down the scope
+            // driving playback - over a song nobody has asked for yet.
+            bytes = scope.async(Dispatchers.IO) {
+                runCatching { resolveAndFetch(videoId) }
+                    .getOrElse { Resolved.Failure("prefetch failed - ${it::class.simpleName}: ${it.message}") }
+            },
+        )
+    }
+
+    /** Throws away whatever was fetched ahead, for when the queue it was predicting no longer exists. */
+    fun dropPrefetch() {
+        prefetched?.bytes?.cancel()
+        prefetched = null
     }
 
     fun stop() {

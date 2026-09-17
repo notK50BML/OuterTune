@@ -59,6 +59,15 @@ every AAC frame is in memory at a fixed 1024 samples each, so **seeking is arith
 new range request. Streaming playback would remove the wait and give up both. Do it deliberately or
 not at all.
 
+The cost only really bit at track boundaries, and that part is now paid in advance:
+`DesktopPlayer.prefetch` fetches the next song while the current one plays, so the download is not
+what a listener hears between tracks. It is held as the in-flight `Deferred` rather than as bytes,
+so arriving early waits for the existing fetch instead of racing a second one, and it deliberately
+waits for the current track to reach `Playing` first - two whole-song downloads sharing a connection
+would make every track start slower to make the gap after it shorter. `QueueState.upcoming` decides
+what to fetch and mirrors `next()` branch for branch, which is what `UpcomingTrackTest` is for: name
+the wrong song and nothing breaks, the prefetch just never helps.
+
 **The library is a text file.** `LibraryStore` keeps recently-played and liked songs as TSV. This is
 a placeholder with a narrow surface, not an answer — choosing between Room-KMP and SQLDelight has
 consequences for migrations, threading, and how much of the Android data layer can eventually be

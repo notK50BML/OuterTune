@@ -8,7 +8,10 @@ package com.dd3boh.outertune.desktop
 
 import com.zionhuang.innertube.models.SongItem
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 
 enum class RepeatMode { OFF, ALL, ONE }
 
@@ -35,6 +38,25 @@ data class QueueState(
     val title: String = "Queue",
 ) {
     val current: SongItem? get() = songs.getOrNull(index)
+
+    /**
+     * What [PlayerQueue.next] would land on, without moving there.
+     *
+     * Exists so the next track can be fetched while this one is still playing. Deliberately mirrors
+     * next()'s branches rather than approximating them - a prefetch of the wrong song is not a
+     * broken queue, it is a silent waste of the download that was supposed to remove the gap, which
+     * is the kind of thing that looks like it works and simply never helps.
+     */
+    val upcoming: SongItem?
+        get() = when {
+            order.isEmpty() -> null
+            // Repeat-one replays this track, so this track is genuinely what comes next.
+            repeat == RepeatMode.ONE -> current
+            orderPosition < order.lastIndex -> songs.getOrNull(order[orderPosition + 1])
+            repeat == RepeatMode.ALL -> songs.getOrNull(order.first())
+            // The end, with repeat off: next() stops rather than wrapping, so nothing is coming.
+            else -> null
+        }
 
     /** Repeat makes both directions always available, since either end wraps. */
     val hasPrevious: Boolean get() = repeat != RepeatMode.OFF || orderPosition > 0
@@ -143,6 +165,9 @@ class PlayerQueue(
      * why something should not.
      */
     var stopAtBoundary: () -> Boolean = { false }
+
+    /** Watches for the current track to start, then fetches the next one. See [queuePrefetch]. */
+    private var prefetchJob: Job? = null
 
     init {
         // Only at a natural end. A stop or a new selection also ends a track, and those are the user
@@ -309,6 +334,10 @@ class PlayerQueue(
         else listOf(current) + (indices - current).shuffled()
 
     fun clear() {
+        prefetchJob?.cancel()
+        prefetchJob = null
+        // The queue it was predicting is gone, so holding a song's bytes for it is just memory.
+        player.dropPrefetch()
         player.stop()
         state.value = QueueState()
     }
@@ -317,5 +346,27 @@ class PlayerQueue(
         val song = state.value.current ?: return
         onPlayed(song)
         player.play(scope, song.id, song.title, startAtMs)
+        queuePrefetch()
+    }
+
+    /**
+     * Fetches whatever comes next, once this track is actually playing.
+     *
+     * The wait is the point. Both fetches are whole songs over the same connection, and the one the
+     * user is waiting to hear should not be sharing bandwidth with one they will not need for
+     * another three minutes - starting them together would make every track start slower in order to
+     * make the gap after it shorter.
+     */
+    private fun queuePrefetch() {
+        prefetchJob?.cancel()
+        prefetchJob = scope.launch {
+            // Failure is an exit, not something to wait out: a track that never starts has no
+            // successor worth predicting, and next() will re-derive it if playback recovers.
+            val started = player.state.first {
+                it is PlaybackState.Playing || it is PlaybackState.Failed
+            }
+            if (started !is PlaybackState.Playing) return@launch
+            state.value.upcoming?.let { player.prefetch(scope, it.id) }
+        }
     }
 }

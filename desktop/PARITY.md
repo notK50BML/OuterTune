@@ -43,7 +43,7 @@ planned** (deliberately, with a reason).
 | Compressor | done | Full five controls plus a gain-reduction meter the phone does not have |
 | Tempo / pitch | done | WSOLA; the phone uses ExoPlayer's own |
 | Bass/treble/balance tone knobs | **planned** | `ToneControlsRow` on the phone. Balance needs a per-channel gain stage the desktop pipeline does not have yet |
-| Gapless / crossfade | **planned** | The desktop player opens one `SourceDataLine` per track, so there is a real gap. Needs the next track decoded ahead and the line kept open |
+| Gapless / crossfade | partial | The next track is fetched while the current one plays, which removes the several seconds of download that was most of the gap. Not sample-accurate gapless: the line is still reopened per track and AAC's encoder delay/padding are not trimmed, so a continuous album still has a short seam. Crossfade is not started |
 | Audio normalisation | not planned yet | Nothing has asked for it |
 | Local file playback | **planned** | Android scans folders and plays local files. The desktop decodes AAC from YouTube only — a local-file path needs a decoder per format |
 
@@ -110,9 +110,11 @@ rather than parity.
 The home feed, downloads, albums, lyrics, settings, Discord rich presence, and Listen Together are
 all done now. This is what is left.
 
-1. **Gapless playback** - the player opens one `SourceDataLine` per track today.
-2. **Playlist reordering by drag**, rather than buttons - the queue already drags; the playlist
+1. **Playlist reordering by drag**, rather than buttons - the queue already drags; the playlist
    editor is the one list that still moves a row at a time by button.
+2. **True gapless** - prefetching removed the download from the track boundary, but the line is
+   still reopened per track and AAC delay/padding are not trimmed. Closing the rest means keeping
+   one line open across tracks of matching format and reading the encoder's own padding counts.
 3. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
 4. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
 5. **The elaborate GPU visualiser** — deliberately last.
