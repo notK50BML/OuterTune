@@ -79,7 +79,7 @@ class MediaPlaybackBridge(
         player.playbackParameters = PlaybackParameters(speed, 1f)
     }
 
-    override suspend fun playTrack(videoId: String, positionMs: Long): Boolean {
+    override suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean {
         val metadata = withContext(Dispatchers.IO) {
             // The local database first. A song already in the library - downloaded, or simply seen
             // before - starts immediately and works with no connection at all, where a network
@@ -90,11 +90,15 @@ class MediaPlaybackBridge(
 
         // Started at the host's position rather than from the beginning and seeked afterwards: a
         // seek right after a load is an extra rebuffer, and it would be heard.
+        //
+        // Read here rather than taken as an argument, and that is the point of it being a function:
+        // the lookup above can take seconds, during which the host kept playing. A position decided
+        // before it would land the follower exactly that far behind.
         playQueue(
             ListQueue(
                 title = metadata.title,
                 items = listOf(metadata),
-                position = positionMs.coerceAtLeast(0),
+                position = positionMs().coerceAtLeast(0),
             )
         )
         return true

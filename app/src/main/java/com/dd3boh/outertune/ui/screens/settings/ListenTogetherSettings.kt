@@ -76,6 +76,7 @@ fun ListenTogetherSettings(
     val mode by manager.mode.collectAsStateWithLifecycle()
     val listeners by manager.listeners.collectAsStateWithLifecycle()
     val follower by manager.followerState.collectAsStateWithLifecycle()
+    val reconnecting by manager.reconnecting.collectAsStateWithLifecycle()
     val error by manager.error.collectAsStateWithLifecycle()
 
     // Only while there is something to browse for. The nearby list is rendered in the OFF branch
@@ -182,7 +183,14 @@ fun ListenTogetherSettings(
                 ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                     PreferenceEntry(
                         title = { Text(follower.hostName ?: stringResource(R.string.lt_connecting)) },
-                        description = followerStatus(follower.synced, follower.driftMs),
+                        // While reconnecting, the drift figure describes a link that is gone.
+                        // Saying what is actually happening beats reporting a stale measurement as
+                        // though the session were still keeping time.
+                        description = if (reconnecting) {
+                            stringResource(R.string.lt_reconnecting)
+                        } else {
+                            followerStatus(follower.synced, follower.driftMs)
+                        },
                         icon = { Icon(Icons.Rounded.Cast, null) },
                         onClick = {},
                     )

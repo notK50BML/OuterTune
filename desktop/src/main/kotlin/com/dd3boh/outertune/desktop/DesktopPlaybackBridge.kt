@@ -85,7 +85,7 @@ class DesktopPlaybackBridge(
         player.timeStretch.tempo = speed
     }
 
-    override suspend fun playTrack(videoId: String, positionMs: Long): Boolean {
+    override suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean {
         val item = withContext(Dispatchers.IO) {
             // The local library first. A song already known here - played before, or downloaded -
             // starts immediately and needs no network at all, where looking it up on YouTube first
@@ -98,7 +98,11 @@ class DesktopPlaybackBridge(
         // this device's own queue was, which is the correct trade for "play what the host plays".
         // Started at the host's position via startAtMs rather than from zero and seeked afterward -
         // a seek right after a fresh load is an extra rebuffer, and it would be heard.
-        playerQueue.play(listOf(item), 0, title = "Listening along", startAtMs = positionMs)
+        //
+        // The position is read here rather than taken as an argument, after the lookup above: the
+        // host kept playing throughout it, and a value decided beforehand would land this device
+        // exactly that far behind. See PlaybackBridge.playTrack.
+        playerQueue.play(listOf(item), 0, title = "Listening along", startAtMs = positionMs())
         return true
     }
 }

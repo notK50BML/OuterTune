@@ -197,6 +197,7 @@ fun SettingsPane(
             val mode by listenTogether.mode.collectAsState()
             val listeners by listenTogether.listeners.collectAsState()
             val follower by listenTogether.followerState.collectAsState()
+            val reconnecting by listenTogether.reconnecting.collectAsState()
             val ltError by listenTogether.error.collectAsState()
 
             // Keyed on mode, not remembered once. Browsing needs to know this device's own
@@ -256,7 +257,14 @@ fun SettingsPane(
                 ListenTogetherMode.FOLLOWING -> {
                     SettingRow(
                         title = follower.hostName ?: "Connecting…",
-                        subtitle = followerStatus(follower.synced, follower.driftMs),
+                        // While reconnecting the drift figure describes a link that is gone, so
+                        // saying what is happening beats reporting a stale measurement as though
+                        // the session were still keeping time.
+                        subtitle = if (reconnecting) {
+                            "Reconnecting…"
+                        } else {
+                            followerStatus(follower.synced, follower.driftMs)
+                        },
                         icon = OuterTuneIcons.cast,
                     )
                     follower.track?.let { track ->

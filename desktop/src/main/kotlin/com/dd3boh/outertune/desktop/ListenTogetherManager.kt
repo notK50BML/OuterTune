@@ -8,6 +8,7 @@ package com.dd3boh.outertune.desktop
 
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -54,6 +55,16 @@ class ListenTogetherManager {
     /** Set when something failed in a way the user should be told about. */
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error.asStateFlow()
+
+    /**
+     * True while a dropped session is being retried.
+     *
+     * Separate from [error] because it is not one: a network blip is ordinary and the session is
+     * expected back. Separate from [followerState] too, since that describes one link and this
+     * spans the gap between two.
+     */
+    private val _reconnecting = MutableStateFlow(false)
+    val reconnecting: StateFlow<Boolean> = _reconnecting.asStateFlow()
 
     /**
      * Dismisses the current message.
@@ -205,44 +216,92 @@ class ListenTogetherManager {
 
         val started = generation
         sessionJobs += scope.launch {
-            val link = try {
-                LanTransport.connect(host.address, host.port, scope, ::nowUs)
-            } catch (e: CancellationException) {
-                // Cancellation is not a failure to reach the host, and swallowing it here would both
-                // report a connection error that did not happen and let this coroutine carry on
-                // running after it was told to stop. It has to keep propagating.
-                throw e
-            } catch (e: Exception) {
-                if (generation == started) {
-                    _error.value = "Could not reach ${host.name}"
-                    _mode.value = ListenTogetherMode.OFF
-                }
-                return@launch
-            }
+            // Whether the host was ever actually reached. It separates the two failures that look
+            // identical from inside a connect(): a host that was never there, which should say so
+            // immediately, and a session that had been running and dropped, which should quietly
+            // come back.
+            var everConnected = false
+            var backoffMs = RECONNECT_BASE_MS
+            var spentMs = 0L
 
-            val session = FollowerSession(scope, bridge, ::nowUs, deviceName())
-            session.offsetMs = offsetMs
-            followerSession = session
-            val mirror = launch {
-                session.state.collect { state ->
-                    _followerState.value = state
-                    // Surfaced rather than swallowed. This is the entire reason BYE carries a reason
-                    // at all: without it, a host that stops sharing and a network drop look
-                    // identical from here - the session simply vanishes and the user is left
-                    // guessing which happened and whether retrying would help.
-                    state.endedReason?.let { _error.value = byeMessage(it) }
+            while (generation == started) {
+                val link = try {
+                    LanTransport.connect(host.address, host.port, scope, ::nowUs)
+                } catch (e: CancellationException) {
+                    // Cancellation is not a failure to reach the host, and swallowing it here would
+                    // both report a connection error that did not happen and let this coroutine
+                    // carry on running after it was told to stop. It has to keep propagating.
+                    throw e
+                } catch (e: Exception) {
+                    null
                 }
-            }
-            try {
-                // Suspends for the whole session, so this coroutine's lifetime is the session's and
-                // cancelling it is a complete teardown.
-                session.run(link)
-            } finally {
-                mirror.cancel()
-                if (generation == started) {
-                    followerSession = null
+
+                if (link == null) {
+                    if (generation != started) return@launch
+                    if (!everConnected) {
+                        _error.value = "Could not reach ${host.name}"
+                        _mode.value = ListenTogetherMode.OFF
+                        _reconnecting.value = false
+                        return@launch
+                    }
+                    if (spentMs >= RECONNECT_GIVE_UP_MS) {
+                        // Long enough that this is not a blip. Saying so beats retrying silently
+                        // forever against a host that has gone.
+                        _error.value = "Lost the session with ${host.name}"
+                        _mode.value = ListenTogetherMode.OFF
+                        _reconnecting.value = false
+                        return@launch
+                    }
+                    delay(backoffMs)
+                    spentMs += backoffMs
+                    backoffMs = (backoffMs * 2).coerceAtMost(RECONNECT_MAX_MS)
+                    continue
+                }
+
+                everConnected = true
+                backoffMs = RECONNECT_BASE_MS
+                spentMs = 0
+                _reconnecting.value = false
+
+                // A fresh session per connection, deliberately. Its clock estimate and drift state
+                // describe the link that just died - see ClockSync.reset's own note - so carrying
+                // them across a reconnect would correct against conditions that no longer apply.
+                val session = FollowerSession(scope, bridge, ::nowUs, deviceName())
+                session.offsetMs = offsetMs
+                followerSession = session
+                val mirror = launch {
+                    session.state.collect { state ->
+                        _followerState.value = state
+                        // Surfaced rather than swallowed. This is the entire reason BYE carries a
+                        // reason at all: without it, a host that stops sharing and a network drop
+                        // look identical from here.
+                        state.endedReason?.let { _error.value = byeMessage(it) }
+                    }
+                }
+                val endedReason = try {
+                    // Suspends for the whole session, so this coroutine's lifetime is the session's
+                    // and cancelling it is a complete teardown.
+                    session.run(link)
+                    session.state.value.endedReason
+                } finally {
+                    mirror.cancel()
+                }
+
+                if (generation != started) return@launch
+                followerSession = null
+
+                // A stated reason means a real goodbye - the host stopped, or the versions disagree.
+                // There is nothing to reconnect to, and retrying would fight the host's decision.
+                if (endedReason != null) {
                     _mode.value = ListenTogetherMode.OFF
+                    _reconnecting.value = false
+                    return@launch
                 }
+
+                // No reason given: the link simply stopped answering. Previously this ended the
+                // session in silence. The mode deliberately stays FOLLOWING so the screen keeps its
+                // place while this retries underneath.
+                _reconnecting.value = true
             }
         }
     }
@@ -258,6 +317,7 @@ class ListenTogetherManager {
         advertisement = null
         listener?.close()
         listener = null
+        _reconnecting.value = false
         sessionJobs.forEach { it.cancel() }
         sessionJobs.clear()
         _listeners.value = emptyList()
@@ -276,6 +336,22 @@ class ListenTogetherManager {
      * between two clocks that were never meant to agree in the first place.
      */
     private fun nowUs(): Long = System.nanoTime() / 1_000
+
+    private companion object {
+        /** First wait before retrying a dropped link, doubling from there. */
+        const val RECONNECT_BASE_MS = 1_000L
+
+        /** Ceiling on the backoff, so a long outage still retries at a useful rate. */
+        const val RECONNECT_MAX_MS = 8_000L
+
+        /**
+         * How long to keep retrying before giving up and saying so.
+         *
+         * Comfortably longer than a network handover, short enough that a host which has actually
+         * gone does not leave the screen claiming to be reconnecting all evening.
+         */
+        const val RECONNECT_GIVE_UP_MS = 45_000L
+    }
 
     private fun byeMessage(reason: Byte): String = when (reason) {
         Protocol.ByeReason.HOST_STOPPED -> "The host stopped sharing."

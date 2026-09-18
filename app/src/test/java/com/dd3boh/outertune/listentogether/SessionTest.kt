@@ -106,7 +106,7 @@ private class FakeBridge(private val nowUs: () -> Long) : PlaybackBridge {
         this.speed = speed
     }
 
-    override suspend fun playTrack(videoId: String, positionMs: Long): Boolean {
+    override suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean {
         playTrackCalls++
         if (!trackFound) return false
         // Loading a song is not instant, and pretending it is would skip the window in which the
@@ -115,7 +115,9 @@ private class FakeBridge(private val nowUs: () -> Long) : PlaybackBridge {
         if (reportsNewTrackImmediately) {
             currentTrack = SharedTrack(videoId, "Title", "Artist", 240_000, false)
         }
-        basePositionMs = positionMs
+        // Read after the simulated load, exactly as the real bridges do - that is the
+        // behaviour being faked, not an incidental detail.
+        basePositionMs = positionMs()
         baseAtUs = nowUs()
         isPlaying = true
         return true

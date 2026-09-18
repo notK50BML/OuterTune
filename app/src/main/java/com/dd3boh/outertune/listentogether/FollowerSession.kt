@@ -133,6 +133,31 @@ class FollowerSession(
     private var startedVideoId: String? = null
     private var trackSettleUntilUs = 0L
 
+    /** The most recent tick, so a load finishing later can ask where the host has reached by then. */
+    @Volatile
+    private var lastTick: Protocol.Frame.Tick? = null
+
+    /**
+     * Where to start a song that is being loaded, evaluated at the moment it is handed to the player.
+     *
+     * Two things make this later than it looks. The load takes seconds, so the answer has to be
+     * computed after it rather than before; and it may be asked before the clock offset has
+     * converged, since loading deliberately starts without waiting for that. In the latter case the
+     * tick's own position is used unprojected - it is stale by the network transit and up to a tick,
+     * so a fraction of a second, which the drift ladder closes silently once the offset lands.
+     * Guessing badly here is cheap; waiting for certainty is not.
+     */
+    private fun targetPositionMs(): Long {
+        val tick = lastTick ?: return 0L
+        val offset = sync.offsetUs
+        val projected = if (offset != null && sync.sampleCount >= MIN_SAMPLES) {
+            SyncMath.hostPositionNowMs(tick, offset, nowUs())
+        } else {
+            null
+        }
+        return ((projected ?: tick.positionMs) + offsetMs).coerceAtLeast(0)
+    }
+
     /**
      * How far ahead of the host to aim, in milliseconds.
      *
@@ -244,12 +269,24 @@ class FollowerSession(
         // without this guard the follower would take its own unrelated song and seek it to the
         // host's position - moving music the user chose, to a timestamp that means nothing.
         val target = wanted ?: return
+        // Kept so a load finishing later can ask where the host is *now* rather than where it was
+        // when the load started. See targetPositionMs.
+        lastTick = tick
 
         if (target.isLocal) {
             // A file on the host's storage cannot be fetched, so there is nothing to play along to.
             // Stopping is the honest response: carrying on with whatever was playing before would
             // leave the follower audibly out of step with the session it says it is in.
             if (bridge.isPlaying) bridge.setPlayWhenReady(false)
+            return
+        }
+
+        // Deliberately ahead of the clock-sync guard below. Finding and buffering a song takes
+        // seconds and does not depend on the offset at all - only the *position* does, and that is
+        // resolved at hand-over rather than here. Waiting for four clock samples before so much as
+        // starting the lookup added about a second of silence to every join for no benefit.
+        if (bridge.currentTrack?.videoId != target.videoId) {
+            startTrack(target)
             return
         }
 
@@ -261,10 +298,6 @@ class FollowerSession(
         // own output delay.
         val hostPosition = (SyncMath.hostPositionNowMs(tick, offset, nowUs()) ?: return) + offsetMs
 
-        if (bridge.currentTrack?.videoId != target.videoId) {
-            startTrack(target, hostPosition)
-            return
-        }
         if (loading) return
 
         // Play state is matched before position, because correcting the position of a player that is
@@ -312,7 +345,7 @@ class FollowerSession(
      * Keyed on the video id, so a host that genuinely skips to a different song is followed at once
      * rather than being ignored for the rest of the window.
      */
-    private fun startTrack(track: SharedTrack, positionMs: Long) {
+    private fun startTrack(track: SharedTrack) {
         if (loading) return
         if (track.videoId == startedVideoId && nowUs() < trackSettleUntilUs) return
         startedVideoId = track.videoId
@@ -322,7 +355,7 @@ class FollowerSession(
         // clock samples needed to place the song correctly once it does load.
         loadJob = scope.launch {
             val ok = try {
-                bridge.playTrack(track.videoId, positionMs)
+                bridge.playTrack(track.videoId, ::targetPositionMs)
             } catch (e: Exception) {
                 false
             }

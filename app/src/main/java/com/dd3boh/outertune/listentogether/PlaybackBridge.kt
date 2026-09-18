@@ -65,13 +65,21 @@ interface PlaybackBridge {
     fun setPlaybackSpeed(speed: Float)
 
     /**
-     * Switches to a song and starts it at [positionMs].
+     * Switches to a song and starts it where [positionMs] says, at the moment it is asked.
      *
      * Suspending because a follower will usually have to look the song up and buffer it, which can
      * take seconds. The caller treats that as normal rather than as a stall.
      *
+     * [positionMs] is a function rather than a value precisely *because* of that delay, and this is
+     * the difference between a join that lands in the right place and one that visibly corrects
+     * itself. The host does not wait: by the time a lookup and a buffer have finished, it has moved
+     * on by however long they took. Starting at a position computed before all that puts the
+     * follower seconds behind, which the next tick then reads as a large error and fixes with an
+     * audible seek. Implementations must call this as late as they can - after the lookup,
+     * immediately before handing the song to the player.
+     *
      * @return true if the song is now playing. False means it could not be found, and the session
      *   should say so rather than silently continuing on the wrong track.
      */
-    suspend fun playTrack(videoId: String, positionMs: Long): Boolean
+    suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean
 }
