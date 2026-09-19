@@ -104,16 +104,35 @@ object ArtistCreditEnricher {
 
         prefixed.forEach { old ->
             val newId = old.id.normalizeArtistId()
-            database.query {
+            // In a transaction, and synchronously: database.query dispatches onto Room's executor
+            // and returns immediately, so these six writes could be observed - and interrupted -
+            // half-applied. A crash between the collision delete and the update does not leave the
+            // merge unfinished, it loses those credits outright, and the next run has nothing left
+            // to tell it they were ever there. The loop is already on Dispatchers.IO.
+            database.runInTransaction {
                 // Keep whatever the bare-id row already holds; only create one when the channel is
                 // known solely under the prefixed spelling, carrying its name and picture across.
-                if (artistById(newId) == null) insert(old.copy(id = newId))
+                val survivor = database.artistById(newId)
+                if (survivor == null) {
+                    database.insert(old.copy(id = newId))
+                } else if (survivor.bookmarkedAt == null && old.bookmarkedAt != null) {
+                    // The subscription would otherwise be deleted along with the prefixed row, and
+                    // an artist the user had added to their library would quietly stop being in it
+                    // - with the merge that did it invisible, since everything else about the two
+                    // rows is identical.
+                    database.update(
+                        survivor.copy(
+                            bookmarkedAt = old.bookmarkedAt,
+                            channelId = survivor.channelId ?: old.channelId,
+                        )
+                    )
+                }
                 // Collisions first, then move the rest - see deleteCollidingSongArtistMaps.
-                deleteCollidingSongArtistMaps(old.id, newId)
-                updateSongArtistMap(old.id, newId)
-                deleteCollidingAlbumArtistMaps(old.id, newId)
-                updateAlbumArtistMap(old.id, newId)
-                safeDeleteArtist(old.id)
+                database.deleteCollidingSongArtistMaps(old.id, newId)
+                database.updateSongArtistMap(old.id, newId)
+                database.deleteCollidingAlbumArtistMaps(old.id, newId)
+                database.updateAlbumArtistMap(old.id, newId)
+                database.safeDeleteArtist(old.id)
             }
             Timber.tag(TAG).d("merged artist row ${old.id} (\"${old.name}\") into $newId")
         }
