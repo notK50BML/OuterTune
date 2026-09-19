@@ -208,4 +208,94 @@ class LanTransportTest {
         /** Generous: these are real sockets on a machine that may be busy. */
         const val TIMEOUT = 15_000L
     }
+    /**
+     * Closing a listener must actually release the port.
+     *
+     * This is the test that would have caught the desktop half of the socket-release fix being
+     * missing, and it is worth stating why it needs a *fixed* port rather than the port-0 the other
+     * tests use: asking the OS for any free port cannot tell the difference between a port that was
+     * released and one that was never held. Binding the same number twice is the only thing that
+     * can.
+     *
+     * The loop also stands in for the user sequence that was broken - Start sharing, Stop, Start
+     * sharing - which silently fell back to a random port and left the first one bound forever.
+     */
+    @Test
+    fun `closing a listener frees the port for the next one`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        try {
+            // A high port picked to be unlikely to collide with anything on the machine running
+            // this. If it is genuinely taken, listen() falls back to port 0 and the assertion below
+            // is what reports that rather than the test failing obscurely later.
+            val port = 47_931
+            repeat(3) { attempt ->
+                val bound = CompletableDeferred<Int>()
+                val listener = LanTransport.listen(scope, ::nowUs, port = port) { bound.complete(it) }
+                val got = withTimeout(TIMEOUT) { bound.await() }
+                assertEquals("attempt $attempt did not get the port back", port, got)
+                listener.close()
+                // close() has to be enough on its own. Cancelling the scope would mask the bug,
+                // since accept() is blocking and cancellation cannot interrupt it.
+            }
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `closing a listener twice is harmless`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        try {
+            val bound = CompletableDeferred<Int>()
+            val listener = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }
+            withTimeout(TIMEOUT) { bound.await() }
+            listener.close()
+            listener.close()
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    @Test
+    fun `closing a listener ends its flow, so a collector does not hang`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        try {
+            val bound = CompletableDeferred<Int>()
+            val listener = LanTransport.listen(scope, ::nowUs, port = 0) { bound.complete(it) }
+            withTimeout(TIMEOUT) { bound.await() }
+            // Collecting to a list completes only when the channel closes. If close() left it open,
+            // this would hang rather than fail - hence the timeout.
+            val collected = scope.async { listener.links.toList() }
+            listener.close()
+            val links = withTimeout(TIMEOUT) { collected.await() }
+            assertTrue("no connections were made, so none should arrive", links.isEmpty())
+        } finally {
+            scope.cancel()
+        }
+    }
+
+    /**
+     * Closing while the bind is still in flight must not leave a socket listening.
+     *
+     * The race the AtomicBoolean in listen() exists for: close() can run before the accept loop has
+     * finished binding, finding nothing to close, and the socket would then be created afterwards
+     * with nobody holding a reference to it.
+     */
+    @Test
+    fun `closing immediately after starting still releases the port`() = runBlocking {
+        val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
+        try {
+            val port = 47_932
+            // No wait between these two at all - that is the point.
+            LanTransport.listen(scope, ::nowUs, port = port).close()
+
+            val bound = CompletableDeferred<Int>()
+            val second = LanTransport.listen(scope, ::nowUs, port = port) { bound.complete(it) }
+            val got = withTimeout(TIMEOUT) { bound.await() }
+            assertEquals("the port was still held by the listener closed mid-bind", port, got)
+            second.close()
+        } finally {
+            scope.cancel()
+        }
+    }
 }

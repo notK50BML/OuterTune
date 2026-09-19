@@ -200,11 +200,17 @@ fun SettingsPane(
             val reconnecting by listenTogether.reconnecting.collectAsState()
             val ltError by listenTogether.error.collectAsState()
 
-            // Keyed on mode, not remembered once. Browsing needs to know this device's own
-            // advertised name in order to leave it out, and that name does not exist until hosting
-            // starts - a flow built before then would offer the host the chance to follow itself.
-            val hostsFlow = remember(mode) { listenTogether.discoverHosts() }
-            val hosts by hostsFlow.collectAsState(initial = emptyList())
+            // Only while there is something to browse for. The nearby list is rendered in the OFF
+            // branch alone, so browsing in the other two kept a jmDNS scan running for a list
+            // nobody could see - the exact cost the flow is built cold to avoid. It also sidesteps
+            // a latent oddity: the name a host excludes to avoid listing itself is read when the
+            // flow is built, and while hosting that is still null, because advertising happens
+            // later on the bind callback.
+            val hosts by if (mode == ListenTogetherMode.OFF) {
+                remember(mode) { listenTogether.discoverHosts() }.collectAsState(initial = emptyList())
+            } else {
+                remember { mutableStateOf(emptyList<DiscoveredHost>()) }
+            }
             val deviceName = remember { listenTogether.deviceName() }
 
             ltError?.let {

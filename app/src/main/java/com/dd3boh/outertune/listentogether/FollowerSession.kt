@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.listentogether
 
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -147,7 +148,15 @@ class FollowerSession(
      * so a fraction of a second, which the drift ladder closes silently once the offset lands.
      * Guessing badly here is cheap; waiting for certainty is not.
      */
-    private fun targetPositionMs(): Long {
+    private fun targetPositionMs(forVideoId: String): Long {
+        // Ticks carry a position but not a song, so one is only about this song while the host is
+        // still on it. A host that skips while this load is in flight starts sending the *next*
+        // track's playhead, and using it here would start the song that is loading at a timestamp
+        // belonging to a different one - which the old code could not do, because it computed the
+        // position in the same frame as it chose the track. Zero is the honest answer: the load is
+        // about to be superseded by one for the track the host actually wants.
+        if (wanted?.videoId != forVideoId) return 0L
+
         val tick = lastTick ?: return 0L
         val offset = sync.offsetUs
         val projected = if (offset != null && sync.sampleCount >= MIN_SAMPLES) {
@@ -155,7 +164,12 @@ class FollowerSession(
         } else {
             null
         }
-        return ((projected ?: tick.positionMs) + offsetMs).coerceAtLeast(0)
+        val target = (projected ?: tick.positionMs) + offsetMs
+        // Clamped to the track, where its length is known. A projection that overshoots the end -
+        // a long song followed by a short one, or an offset measured badly - would otherwise start
+        // the player past its own duration.
+        val duration = wanted?.durationMs ?: 0L
+        return if (duration > 0) target.coerceIn(0, duration) else target.coerceAtLeast(0)
     }
 
     /**
@@ -355,7 +369,12 @@ class FollowerSession(
         // clock samples needed to place the song correctly once it does load.
         loadJob = scope.launch {
             val ok = try {
-                bridge.playTrack(track.videoId, ::targetPositionMs)
+                bridge.playTrack(track.videoId) { targetPositionMs(track.videoId) }
+            } catch (e: CancellationException) {
+                // Kotlin's CancellationException is an IllegalStateException, so the catch below
+                // would swallow it and let a cancelled load carry on to report into a session that
+                // is over. Leaving is the whole point of cancelling it.
+                throw e
             } catch (e: Exception) {
                 false
             }
