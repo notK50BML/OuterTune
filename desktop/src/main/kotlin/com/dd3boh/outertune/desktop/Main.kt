@@ -103,6 +103,9 @@ fun main() = application {
     // settings to do it. One instance either way - App only ever remembered them once.
     val library = remember { LibraryStore() }
     val settings = remember(library) { Settings(library.settings) }
+    // Before anything can be played, so a stored curve is in effect from the first note rather
+    // than from whenever the equaliser drawer is first opened.
+    remember(settings) { settings.equalizerStore().applyTo(player.equalizer, player.compressor) }
 
     Window(
         onCloseRequest = { player.stop(); exitApplication() },
@@ -140,6 +143,7 @@ private fun App(
 ) {
     val scope = rememberCoroutineScope()
     val account = remember { Account(library.database) }
+    val eqStore = remember(settings) { settings.equalizerStore() }
     val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.toStored()) }) }
 
     val playback by player.state.collectAsState()
@@ -416,6 +420,7 @@ private fun App(
             spectrum = player.spectrum.takeIf { settings.showVisualizer },
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
+            eqStore = eqStore,
             timeStretch = player.timeStretch,
             compressor = player.compressor,
             // Only what the desktop build can actually do. Absent callbacks mean absent menu items,

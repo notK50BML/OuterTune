@@ -95,6 +95,61 @@ class Settings(private val store: SettingsStore) {
     /** How the player's background is drawn behind the cover's colours. */
     var background by enum("ui.background", BackgroundStyle.Gradient, BackgroundStyle.entries)
 
+    // ---- Equaliser -------------------------------------------------------------------------
+
+    /**
+     * The equaliser, and what it is set to.
+     *
+     * Stored as four plain strings rather than a structure, because that is what the store holds -
+     * see [EqProfiles] for the codec and for why the curve is written as bands rather than as a row
+     * of gains.
+     *
+     * None of this existed before: closing the window discarded the switch, the curve, and any
+     * AutoEQ correction that had been fetched for a specific pair of headphones - which is minutes
+     * of work to redo and the one curve nobody could reproduce by ear.
+     */
+    var eqEnabled by bool("eq.enabled", false)
+
+    /** The current curve. Empty means the flat default, which is what a fresh install has. */
+    var eqBands by string("eq.bands", "")
+
+    /** Which profile name is highlighted. Empty when the curve belongs to none of them. */
+    var eqProfile by string("eq.profile", "")
+
+    /** Saved overrides and user-created profiles - see [EqProfiles.encode]. */
+    var eqProfiles by string("eq.profiles", "")
+
+    /** The compressor's dials. Empty until one of them is moved. */
+    var eqCompressor by string("eq.compressor", "")
+
+    /**
+     * The four above, as the panel wants them.
+     *
+     * The conversion lives here rather than in the panel so that the panel depends on an interface
+     * it can be handed a fake of, and so the encoding is applied in exactly one place.
+     */
+    fun equalizerStore(): EqStore = object : EqStore {
+        override var enabled: Boolean
+            get() = eqEnabled
+            set(value) { eqEnabled = value }
+
+        override var bands: List<EqBand>
+            get() = EqProfiles.decodeBands(eqBands) ?: Equalizer.DEFAULT_BANDS
+            set(value) { eqBands = EqProfiles.encodeBands(value) }
+
+        override var activeProfile: String?
+            get() = eqProfile.takeIf { it.isNotBlank() }
+            set(value) { eqProfile = value.orEmpty() }
+
+        override var profiles: List<EqProfile>
+            get() = EqProfiles.decode(eqProfiles)
+            set(value) { eqProfiles = EqProfiles.encode(value) }
+
+        override var compressor: CompressorPrefs?
+            get() = EqProfiles.decodeCompressor(eqCompressor)
+            set(value) { eqCompressor = value?.let(EqProfiles::encodeCompressor).orEmpty() }
+    }
+
     // ---- Library ---------------------------------------------------------------------------
 
     /** Whether played songs are recorded at all. */

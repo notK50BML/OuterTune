@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,10 +16,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -67,6 +70,14 @@ private const val MAX_GAIN_DB = 12f
  * and read as a milder curve than the one being applied. Rounded up to whole decibels so the scale
  * does not shift by a fraction every time a slider moves.
  */
+/**
+ * How long the compressor's dials must sit still before the setting is written.
+ *
+ * Long enough that a dial drag is one write rather than sixty, short enough that closing the window
+ * straight after a change still catches it.
+ */
+private const val PERSIST_SETTLE_MS = 400L
+
 private fun rangeFor(bands: List<EqBand>): Float =
     maxOf(MAX_GAIN_DB, kotlin.math.ceil(bands.maxOfOrNull { kotlin.math.abs(it.gainDb) } ?: 0f))
 
@@ -110,20 +121,81 @@ fun EqualizerPanel(
      * turn off, which is why it became a setting rather than staying a constant.
      */
     colourByValue: Boolean = true,
+    /**
+     * Where the curve and the saved profiles live between runs.
+     *
+     * Null keeps the panel exactly as it was before there was one - every change applies to the
+     * audio and nothing is written down - which is what makes this previewable and testable without
+     * a settings file.
+     */
+    store: EqStore? = null,
 ) {
-    var enabled by remember { mutableStateOf(equalizer.enabled) }
-    var bands by remember { mutableStateOf(equalizer.bands()) }
-    var preset by remember { mutableStateOf("Flat") }
+    // Seeded from the store where there is one, because the equaliser itself is restored at
+    // startup rather than when this panel first opens (see Main) - by the time anyone looks at it,
+    // the two already agree.
+    var enabled by remember { mutableStateOf(store?.enabled ?: equalizer.enabled) }
+    var bands by remember { mutableStateOf(store?.bands ?: equalizer.bands()) }
+    var profile by remember { mutableStateOf(store?.activeProfile) }
+    var saved by remember { mutableStateOf(store?.profiles.orEmpty()) }
+    var naming by remember { mutableStateOf(false) }
+    var newName by remember { mutableStateOf("") }
 
-    /** Everything that changes a gain does these three things, so they live in one place. */
-    fun apply(newBands: List<EqBand>, fromPreset: String) {
+    val builtIn = remember { Equalizer.PRESETS.keys.toList() }
+    val names = remember(saved, builtIn) { builtIn + saved.map { it.name }.filterNot { it in builtIn } }
+
+    /**
+     * Everything that changes a gain comes through here, so the audio, the screen and the stored
+     * copy cannot drift apart.
+     *
+     * [toProfile] is which name should end up highlighted: a name to select one, null to leave the
+     * selection alone. Nudging a band leaves it alone deliberately - the chip staying lit while the
+     * curve no longer matches it is what gives Save and "Revert to saved" something to act on. The
+     * alternative, dropping the selection the moment a slider moves, means the only way to keep an
+     * edit is to name a new profile for it.
+     *
+     * [persist] is false while a slider is being dragged. Writing the curve is a synchronous SQLite
+     * write on the Compose thread, and a drag produces one per frame - so the audio follows the
+     * thumb continuously, as it must, and the stored copy is written once when the drag ends.
+     */
+    fun apply(newBands: List<EqBand>, toProfile: String? = null, persist: Boolean = true) {
         bands = newBands
-        preset = fromPreset
         equalizer.setBands(newBands)
+        if (persist) store?.bands = newBands
+        if (toProfile != null) {
+            profile = toProfile
+            store?.activeProfile = toProfile
+        }
         // Changing a curve without turning the equaliser on would do nothing and look broken.
         if (!enabled) {
             enabled = true
             equalizer.enabled = true
+            store?.enabled = true
+        }
+    }
+
+    fun savedCurve(name: String) = saved.firstOrNull { it.name == name }?.bands
+
+    /** A saved override if there is one, otherwise the built-in curve. Nothing for an unknown name. */
+    fun load(name: String) {
+        val curve = savedCurve(name) ?: EqProfiles.factoryDefault(name) ?: return
+        apply(curve, name)
+    }
+
+    fun save(name: String) {
+        val updated = saved.filterNot { it.name == name } + EqProfile(name, bands)
+        saved = updated
+        store?.profiles = updated
+        profile = name
+        store?.activeProfile = name
+    }
+
+    fun deleteProfile(name: String) {
+        val updated = saved.filterNot { it.name == name }
+        saved = updated
+        store?.profiles = updated
+        if (profile == name) {
+            profile = null
+            store?.activeProfile = null
         }
     }
 
@@ -138,6 +210,7 @@ fun EqualizerPanel(
                 onCheckedChange = {
                     enabled = it
                     equalizer.enabled = it
+                    store?.enabled = it
                 },
             )
             Text(
@@ -174,25 +247,99 @@ fun EqualizerPanel(
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Scrolls, because there are sixteen of these and wrapping them onto three lines would push
-        // the sliders off the bottom of the drawer.
+        // Scrolls, because there are sixteen built-ins before anyone adds one, and wrapping them
+        // onto three lines would push the sliders off the bottom of the drawer.
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
         ) {
-            Equalizer.PRESETS.forEach { (name, values) ->
+            names.forEach { name ->
                 FilterChip(
-                    selected = preset == name,
-                    onClick = {
-                        apply(
-                            Equalizer.DEFAULT_BANDS.mapIndexed { i, band ->
-                                band.copy(gainDb = values.getOrElse(i) { 0f })
-                            },
-                            name,
-                        )
-                    },
+                    selected = profile == name,
+                    onClick = { load(name) },
                     label = { Text(name) },
+                    // Only on the ones someone made. A built-in cannot be deleted because it is not
+                    // stored - the most that exists for it is an override, and "Revert to default"
+                    // is what removes that.
+                    trailingIcon = if (name !in builtIn) {
+                        {
+                            Icon(
+                                imageVector = OuterTuneIcons.close,
+                                contentDescription = "Delete $name",
+                                modifier = Modifier.size(16.dp).clickable { deleteProfile(name) },
+                            )
+                        }
+                    } else {
+                        null
+                    },
                 )
+            }
+        }
+
+        // Only once a profile is selected. With none, every one of these acts on nothing, and a row
+        // of buttons that do nothing reads as a row of buttons that are broken.
+        if (profile != null) {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { profile?.let(::save) }) {
+                    Text("Save", color = accent)
+                }
+                // Both of these are undo, and they are different undos: back to what was stored
+                // under this name, and back to what the name meant before anything was stored.
+                if (profile?.let { savedCurve(it) } != null) {
+                    TextButton(onClick = { profile?.let(::load) }) {
+                        Text("Revert to saved", color = accent)
+                    }
+                }
+                if (profile in builtIn) {
+                    TextButton(
+                        onClick = {
+                            profile?.let { name ->
+                                EqProfiles.factoryDefault(name)?.let { apply(it, name) }
+                            }
+                        },
+                    ) {
+                        Text("Revert to default", color = accent)
+                    }
+                }
+            }
+        }
+
+        if (naming) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedTextField(
+                    value = newName,
+                    onValueChange = { newName = it },
+                    singleLine = true,
+                    label = { Text("Profile name") },
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = onColour,
+                        unfocusedTextColor = onColour,
+                        focusedBorderColor = accent,
+                        unfocusedBorderColor = onColour.copy(alpha = 0.4f),
+                        focusedLabelColor = accent,
+                        unfocusedLabelColor = onColour.copy(alpha = 0.6f),
+                        cursorColor = accent,
+                    ),
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    enabled = newName.isNotBlank(),
+                    onClick = {
+                        save(newName.trim())
+                        newName = ""
+                        naming = false
+                    },
+                ) {
+                    Text("Save", color = accent)
+                }
+            }
+        } else {
+            TextButton(onClick = { naming = true }) {
+                Text("Save as new profile…", color = accent)
             }
         }
 
@@ -203,7 +350,13 @@ fun EqualizerPanel(
 
         if (compressor != null) {
             Spacer(modifier = Modifier.height(18.dp))
-            CompressorSection(compressor, accent, onColour, colourByValue)
+            CompressorSection(
+                compressor = compressor,
+                accent = accent,
+                onColour = onColour,
+                colourByValue = colourByValue,
+                onPersist = store?.let { { prefs -> it.compressor = prefs } },
+            )
         }
 
         Spacer(modifier = Modifier.height(18.dp))
@@ -237,11 +390,17 @@ fun EqualizerPanel(
                         Slider(
                             value = band.gainDb,
                             onValueChange = { value ->
+                                // No profile name: nudging a band edits the curve under whatever is
+                                // selected rather than deselecting it, which is what leaves Save and
+                                // "Revert to saved" something to act on.
                                 apply(
                                     bands.toMutableList().also { it[index] = band.copy(gainDb = value) },
-                                    "",
+                                    persist = false,
                                 )
                             },
+                            // Once, at the end of the drag, rather than sixty times a second on the
+                            // way there - see apply().
+                            onValueChangeFinished = { store?.bands = bands },
                             valueRange = -rangeFor(bands)..rangeFor(bands),
                             // Coloured by where this band sits, like every other control here, so
                             // the twelve of them together read as the shape of the curve without
@@ -401,6 +560,8 @@ private fun CompressorSection(
     accent: Color,
     onColour: Color,
     colourByValue: Boolean,
+    /** Called once the dials have settled, so what is set here survives the window closing. */
+    onPersist: ((CompressorPrefs) -> Unit)? = null,
 ) {
     fun colourFor(value: Float, range: ClosedFloatingPointRange<Float>) =
         if (colourByValue) ValueGradient.forValue(value, range) else accent
@@ -411,6 +572,18 @@ private fun CompressorSection(
     var attack by remember { mutableStateOf(compressor.attackMs) }
     var release by remember { mutableStateOf(compressor.releaseMs) }
     var makeup by remember { mutableStateOf(compressor.makeupGainDb) }
+
+    // After the dials stop moving rather than while they move. A dial drag changes its value every
+    // frame and storing one is a synchronous SQLite write on this thread; restarting this effect on
+    // each change and writing only once it survives the delay collapses a drag into a single write.
+    // The knobs have no end-of-gesture callback to hang this on, which is why it is a delay rather
+    // than an onValueChangeFinished as the band sliders use.
+    if (onPersist != null) {
+        LaunchedEffect(enabled, threshold, ratio, attack, release, makeup) {
+            delay(PERSIST_SETTLE_MS)
+            onPersist(CompressorPrefs(enabled, threshold, ratio, attack, release, makeup))
+        }
+    }
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(

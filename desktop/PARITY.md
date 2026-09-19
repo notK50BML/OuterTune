@@ -38,10 +38,10 @@ planned** (deliberately, with a reason).
 | Shelf filters | done | Needed for AutoEQ; the phone has them too |
 | Response graph | done | Desktop-only — there is room for it here |
 | Presets | done | 16, against the phone's smaller set |
-| Saved custom profiles | **planned** | `EqualizerSettings`/`EqualizerProfile` exist on the phone with save/load/delete; desktop has presets only |
+| Saved custom profiles | done | Every preset name doubles as a profile: save writes an override, "revert to default" removes it, and a typed name makes a new one. Stored as bands rather than as twelve gains, so an AutoEQ correction survives with its own frequencies, Qs and shelves |
 | AutoEQ | done | Same parser as the phone |
-| Compressor | done | Full five controls plus a gain-reduction meter the phone does not have |
-| Tempo / pitch | done | WSOLA; the phone uses ExoPlayer's own |
+| Compressor | done | Full five controls plus a gain-reduction meter the phone does not have. Persisted beside the equaliser, though deliberately *not* folded into a profile as the phone does - here it is its own section, and a tone chip silently changing compression would be a surprise |
+| Tempo / pitch | done | WSOLA; the phone uses ExoPlayer's own. Deliberately not persisted - these are adjustments to the thing playing now, and restoring 0.8x on launch would read as a broken player |
 | Bass/treble/balance tone knobs | **planned** | `ToneControlsRow` on the phone. Balance needs a per-channel gain stage the desktop pipeline does not have yet |
 | Gapless / crossfade | partial | The next track is fetched while the current one plays, which removes the several seconds of download that was most of the gap. Not sample-accurate gapless: the line is still reopened per track and AAC's encoder delay/padding are not trimmed, so a continuous album still has a short seam. Crossfade is not started |
 | Audio normalisation | not planned yet | Nothing has asked for it |
@@ -113,7 +113,9 @@ all done now. This is what is left.
 1. **True gapless** - prefetching removed the download from the track boundary, but the line is
    still reopened per track and AAC delay/padding are not trimmed. Closing the rest means keeping
    one line open across tracks of matching format and reading the encoder's own padding counts.
-2. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
+2. **Tone knobs** and **local file playback** - each small and self-contained. Saved EQ profiles
+   are done: the equaliser, its curve and the compressor now survive the window closing, which they
+   did not before at all.
 3. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
 4. **The elaborate GPU visualiser** — deliberately last.
 

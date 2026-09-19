@@ -148,6 +148,8 @@ fun NowPlayingScreen(
     /** Tempo and pitch, if the player exposes them. Null hides the dials rather than faking them. */
     timeStretch: TimeStretch? = null,
     compressor: Compressor? = null,
+    /** Where the equaliser's curve and saved profiles live. Null keeps nothing. */
+    eqStore: EqStore? = null,
     onJumpToQueueIndex: (Int) -> Unit = {},
     /** Drag-to-reorder and remove, both in play-order positions - see QueueEdit. */
     onMoveInQueue: (Int, Int) -> Unit = { _, _ -> },
@@ -525,6 +527,7 @@ fun NowPlayingScreen(
                 timeStretch = timeStretch,
                 compressor = compressor,
                 colourByValue = colourByValue,
+                eqStore = eqStore,
                 onColour = onBackground,
                 background = bottom,
                 open = equalizerOpen,
@@ -630,6 +633,7 @@ private fun EqualizerOverlay(
     timeStretch: TimeStretch?,
     compressor: Compressor?,
     colourByValue: Boolean,
+    eqStore: EqStore?,
     onColour: Color,
     background: Color,
     open: Boolean,
@@ -703,6 +707,7 @@ private fun EqualizerOverlay(
                     timeStretch = timeStretch,
                     compressor = compressor,
                     colourByValue = colourByValue,
+                    store = eqStore,
                 )
             }
         }
