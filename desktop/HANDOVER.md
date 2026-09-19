@@ -122,8 +122,8 @@ Verify the experience, not just the mechanism.
 In the order last discussed:
 
 1. ~~**UI**~~ - recreated: full-window player, home feed, album/artist pages, settings, lyrics.
-2. **Queue refinements** — drag-to-reorder is done; save-as-playlist and queue persistence across
-   restarts are not built. The playlist editor still reorders by button rather than drag.
+2. **Queue refinements** — drag-to-reorder is done, for both the queue and the playlist editor.
+   Save-as-playlist and queue persistence across restarts are not built.
 3. ~~**Visualiser and EQ**~~ - both done, see below.
 4. ~~**Discord rich presence**~~ - done, see `DiscordPresence.kt`. `:kizzy` is `kotlin("jvm")` with
    no Android dependency, so it is used as-is rather than ported.
@@ -158,10 +158,18 @@ deleted, so a failed import can be looked at and a second run cannot duplicate a
 
 ## Playlists
 
-Create, rename, delete, add, remove, reorder - all persisted. Reordering is buttons rather than
-drag: drag-to-reorder is what it wants to be and needs its own gesture handling, an animated
-placeholder and autoscroll. The buttons reorder correctly today and nothing about them has to be
-undone to add dragging later.
+Create, rename, delete, add, remove, reorder - all persisted. Reordering is a drag by handle, the
+same gesture the queue uses and for the same reasons: a handle rather than the whole row, since the
+row is already a click target for playing the song; stepped a whole row at a time so the list
+settles between moves rather than thrashing on a boundary; and keyed by song id so a row follows its
+song across a reorder instead of having the drag cancelled by its own first step.
+
+One difference from the queue worth knowing. The queue's order lives in a StateFlow and updates
+synchronously, so the next drag event always sees the new order. A playlist's order goes through the
+database and comes back via `refreshAll`, so a fast drag can in principle issue a step against a
+list one frame stale. The step target is coerced against the list the gesture can actually see,
+which keeps the tracked index and the list from disagreeing - but it is the reason that coerce is
+there, rather than belt and braces.
 
 `reorderPlaylist` deletes and re-inserts inside one transaction rather than updating positions one
 at a time, because the song is part of a unique constraint and the position is not - moving one song
@@ -322,8 +330,7 @@ Hilt, Room, DataStore and MediaSession throughout, so sharing them means abstrac
 
 ## Immediate next step
 
-Gapless playback, drag-to-reorder for the *playlist* editor (the queue already drags), and the
-elaborate GPU visualiser (the
+True gapless playback and the elaborate GPU visualiser (the
 fluid/ferrofluid style was asked for; the current one is bars). See `PARITY.md`'s "what I would do
 next" for the fuller ordering.
 

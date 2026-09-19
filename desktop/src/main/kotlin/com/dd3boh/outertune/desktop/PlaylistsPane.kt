@@ -7,6 +7,16 @@
 package com.dd3boh.outertune.desktop
 
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.Color
+import androidx.compose.material3.Icon
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -229,32 +239,100 @@ fun PlaylistsPane(
             return@Column
         }
 
+        // Which row is being dragged, and how far it has travelled since it last stepped. Held by
+        // the list rather than by a row, so a row can hand the drag on to its neighbour as it
+        // passes - the gesture belongs to the list, not to whichever composable began it.
+        var dragging by remember(selected.id) { mutableStateOf(-1) }
+        var dragOffset by remember(selected.id) { mutableStateOf(0f) }
+        val rowHeightPx = with(LocalDensity.current) { PLAYLIST_ROW_HEIGHT.toPx() }
+
         LazyColumn {
-            itemsIndexed(songsInSelected) { index, song ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            // Keyed by song id so a composable follows its song across a reorder. Keyed by index
+            // instead, every row would be told it now holds different content the moment anything
+            // moved, and the drag in progress would be cancelled by its own first step.
+            itemsIndexed(songsInSelected, key = { _, song -> song.id }) { index, song ->
+                val held = index == dragging
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(PLAYLIST_ROW_HEIGHT)
+                        // Lifted while held, so the row under the pointer is visibly the one being
+                        // moved rather than one of several that shifted around it.
+                        .graphicsLayer {
+                            translationY = if (held) dragOffset else 0f
+                            shadowElevation = if (held) 12f else 0f
+                            alpha = if (held) 0.92f else 1f
+                        }
+                        .background(
+                            if (held) {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f)
+                            } else {
+                                Color.Transparent
+                            }
+                        ),
+                ) {
                     Box(modifier = Modifier.weight(1f)) {
                         StoredSongRow(song, playing = song.id == currentId) {
                             onPlay(songsInSelected, index)
                         }
                     }
-                    // Buttons rather than drag. Drag-to-reorder is what this wants to be, and it is
-                    // a good deal more work to do well - it needs its own gesture handling, an
-                    // animated placeholder and autoscroll. Buttons reorder correctly today and do
-                    // not have to be undone to add dragging later.
-                    TextButton(
-                        onClick = { onMoveSong(selected, index, index - 1) },
-                        enabled = index > 0,
-                    ) { Text("↑") }
-                    TextButton(
-                        onClick = { onMoveSong(selected, index, index + 1) },
-                        enabled = index < songsInSelected.lastIndex,
-                    ) { Text("↓") }
                     TextButton(onClick = { onRemoveSong(selected, song) }) { Text("✕") }
+
+                    // A handle rather than the whole row, for the same reason the queue uses one:
+                    // the row is already a click target for playing the song, and a list where
+                    // pressing anything might mean "drag" is a list that cannot be scrolled with
+                    // confidence.
+                    Icon(
+                        OuterTuneIcons.dragHandle,
+                        contentDescription = "Reorder",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .padding(end = 8.dp)
+                            .size(22.dp)
+                            .pointerHoverIcon(PointerIcon.Hand)
+                            .pointerInput(song.id) {
+                                detectDragGestures(
+                                    onDragStart = {
+                                        dragging = index
+                                        dragOffset = 0f
+                                    },
+                                    onDragEnd = { dragging = -1; dragOffset = 0f },
+                                    onDragCancel = { dragging = -1; dragOffset = 0f },
+                                ) { change, amount ->
+                                    change.consume()
+                                    dragOffset += amount.y
+                                    // Stepped a whole row at a time rather than continuously, so
+                                    // the list settles between moves instead of thrashing while the
+                                    // pointer crosses a boundary.
+                                    val steps = (dragOffset / rowHeightPx).toInt()
+                                    if (steps != 0 && dragging >= 0) {
+                                        val target = (dragging + steps)
+                                            .coerceIn(0, songsInSelected.lastIndex)
+                                        if (target != dragging) {
+                                            onMoveSong(selected, dragging, target)
+                                            dragging = target
+                                        }
+                                        // Whatever the step consumed is taken off, so the remainder
+                                        // still counts towards the next one.
+                                        dragOffset -= steps * rowHeightPx
+                                    }
+                                }
+                            },
+                    )
                 }
             }
         }
     }
 }
+
+/**
+ * Fixed so a drag can be stepped in whole rows.
+ *
+ * The gesture converts a distance into a number of rows, which needs every row to be the same known
+ * height - a list of rows that size themselves to their content has no such number.
+ */
+private val PLAYLIST_ROW_HEIGHT = 60.dp
 
 /** Which playlist a name is being asked for, or null when creating a new one. */
 private data class NameRequest(val existing: StoredPlaylist?)

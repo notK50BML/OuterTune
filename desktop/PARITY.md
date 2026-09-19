@@ -54,7 +54,7 @@ planned** (deliberately, with a reason).
 | Search (YouTube) | done | |
 | Liked songs | done | |
 | Recently played | done | |
-| Playlists (create/rename/delete/reorder/add/remove) | done | Local, plus the account's own saved YouTube playlists loaded alongside the home feed |
+| Playlists (create/rename/delete/reorder/add/remove) | done | Local, plus the account's own saved YouTube playlists loaded alongside the home feed. Reordering is drag-by-handle, as the queue is |
 | Artist page | partial | Library songs plus remote songs. No albums tab, no "see all" |
 | Album page | done | Opens from search, home, and the overflow menu |
 | Home feed | done | Loads signed-in or signed-out; reloads on account change and on retry |
@@ -110,14 +110,12 @@ rather than parity.
 The home feed, downloads, albums, lyrics, settings, Discord rich presence, and Listen Together are
 all done now. This is what is left.
 
-1. **Playlist reordering by drag**, rather than buttons - the queue already drags; the playlist
-   editor is the one list that still moves a row at a time by button.
-2. **True gapless** - prefetching removed the download from the track boundary, but the line is
+1. **True gapless** - prefetching removed the download from the track boundary, but the line is
    still reopened per track and AAC delay/padding are not trimmed. Closing the rest means keeping
    one line open across tracks of matching format and reading the encoder's own padding counts.
-3. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
-4. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
-5. **The elaborate GPU visualiser** — deliberately last.
+2. **Saved EQ profiles**, **tone knobs**, **local file playback** - each small and self-contained.
+3. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
+4. **The elaborate GPU visualiser** — deliberately last.
 
 ## Two things worth flagging
 
