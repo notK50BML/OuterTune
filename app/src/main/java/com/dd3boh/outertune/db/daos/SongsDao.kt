@@ -316,6 +316,31 @@ interface SongsDao {
     """)
     fun songIdsWithRepairableArtists(): List<String>
 
+    /**
+     * Which of [ids] the database actually holds a song row for.
+     *
+     * Asked of a whole artist page at once. Most of what a page lists is not in the library, and
+     * checking them one at a time meant a relation-loading read per track - all of the artists, the
+     * album and the genres of a song, fetched only to discover there was no song. This is the cheap
+     * question, asked once, so the expensive one is only asked about rows that exist.
+     */
+    @Query("SELECT id FROM song WHERE id IN (:ids)")
+    fun songIdsPresent(ids: List<String>): List<String>
+
+    /**
+     * The position a new credit on [songId] should take: one past the last one there.
+     *
+     * Not the count of credits, which is what this used to be and is the same number only while
+     * the positions run 0..n-1 without a gap. A merge leaves gaps - it keeps the credit it moves at
+     * the position the old row held, and drops the one that would have collided - so a song whose
+     * credits sit at 0 and 2 has two of them, and appending at "2" lands on top of one that is
+     * already there. Nothing breaks, since the key is (songId, artistId); the two simply have no
+     * defined order between them, and the artist line renders in whichever order the query
+     * happened to return.
+     */
+    @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM song_artist_map WHERE songId = :songId")
+    fun nextArtistPosition(songId: String): Int
+
     // region downloaded Songs utils
     @Transaction
     @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0")

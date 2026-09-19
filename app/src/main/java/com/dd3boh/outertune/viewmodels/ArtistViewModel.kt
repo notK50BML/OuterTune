@@ -10,6 +10,7 @@ import androidx.lifecycle.viewModelScope
 import com.dd3boh.outertune.constants.ArtistSongSortType
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.utils.ArtistCreditEnricher
+import com.dd3boh.outertune.utils.songShelfIds
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.TOPIC_SUFFIX
@@ -170,18 +171,25 @@ class ArtistViewModel @Inject constructor(
      * one whose songs are on screen rather than the one that was navigated to.
      */
     private suspend fun creditSongsListedHere(page: ArtistPage) {
-        val songIds = page.sections
-            .flatMap { section -> section.items.filterIsInstance<SongItem>() }
-            .map { it.id }
-            .distinct()
+        val songIds = page.songShelfIds()
         if (songIds.isEmpty()) return
 
-        val shown = libraryArtistId.value
+        // The page's own artist, not the row on display. Those are usually the same and when they
+        // are not, [resolveLibraryArtist] is why: it moves the library sections onto a same-named
+        // row while leaving the page alone, so reading the id off the screen would credit songs
+        // listed by one channel to a different one on the strength of a shared name - the exact
+        // guess everything here is built to refuse. Writing the page's own id instead leaves that
+        // other row as an ordinary same-named credit on those songs, which the enricher then
+        // merges or refuses on its own terms.
+        //
+        // The title goes over unstripped. The enricher needs the "- Topic" suffix to recognise an
+        // auto-generated channel and decline to write anything from it; stripping it here would
+        // hide exactly that.
         ArtistCreditEnricher.creditFromArtistPage(
             database = database,
             artist = ArtistEntity(
-                id = shown.normalizeArtistId(),
-                name = page.artist.title.stripTopicSuffix(),
+                id = page.artist.id.normalizeArtistId(),
+                name = page.artist.title,
                 thumbnailUrl = page.artist.thumbnail?.resize(544, 544),
             ),
             songIds = songIds,
