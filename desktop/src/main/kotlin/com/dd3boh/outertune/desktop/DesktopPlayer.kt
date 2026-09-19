@@ -14,11 +14,13 @@ import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.isActive
@@ -36,6 +38,7 @@ import org.mp4parser.boxes.iso14496.part14.ESDescriptorBox
 import org.mp4parser.boxes.sampleentry.AudioSampleEntry
 import java.nio.ByteBuffer
 import java.nio.channels.SeekableByteChannel
+import java.util.concurrent.atomic.AtomicReference
 import javax.sound.sampled.AudioFormat
 import javax.sound.sampled.AudioSystem
 import javax.sound.sampled.DataLine
@@ -190,7 +193,14 @@ class DesktopPlayer {
     private var pendingSeekMs: Long? = null
 
     fun seekTo(ms: Long) {
-        pendingSeekMs = ms.coerceIn(0, durationMs.value)
+        // Clamped against the duration only once there is one. durationMs is 0 for the whole of a
+        // track's fetch - seconds - and coercing into 0..0 turns every seek in that window into a
+        // seek to the beginning. That is not hypothetical: it is exactly how a Listen Together
+        // follower joins a song already in progress, and the drift corrector issues a seek on its
+        // first tick because the follower is still at zero while the host is minutes in. Both
+        // landed back at the start, which looks like the join simply not working.
+        val duration = durationMs.value
+        pendingSeekMs = if (duration > 0) ms.coerceIn(0, duration) else ms.coerceAtLeast(0)
     }
 
     /**
@@ -200,28 +210,36 @@ class DesktopPlayer {
      *   already in progress without a seek-from-zero being audible first.
      */
     fun play(scope: CoroutineScope, videoId: String, title: String, startAtMs: Long = 0L) {
-        // Claimed before stop(), which is what makes a prefetched track actually save anything:
-        // play() is where the handover happens, so reading the cache after tearing the old track
-        // down would be reading it after this same call had a chance to invalidate it.
-        val ready = prefetched?.takeIf { it.videoId == videoId }
+        // One atomic take, not read-test-clear. play() genuinely runs on two threads - the UI
+        // thread for anything the user does, and the decode job's own thread when a track ends and
+        // the queue advances - so a read followed by a separate write can interleave with
+        // dropPrefetch() and leave a Deferred cancelled underneath a caller that has already
+        // decided to use it.
+        val taken = prefetched.getAndSet(null)
+        val ready = taken?.takeIf { it.videoId == videoId }
         // A prediction that missed - the user jumped somewhere else - is cancelled rather than just
         // dropped. Letting it run finishes downloading a song nobody is going to hear, competing
         // for the connection with the one they just asked for.
-        if (ready == null) prefetched?.bytes?.cancel()
-        prefetched = null
+        if (ready == null) taken?.bytes?.cancel()
         stop()
+        // After stop(), which cancels whatever the *previous* play claimed. Recorded so this one
+        // can be cancelled in turn: once claimed, the Deferred is reachable only from the job
+        // closure below, so without this a claimed-but-unfinished fetch could not be stopped by
+        // anything and ran to completion for a song already skipped past.
+        claimed.set(ready?.bytes)
         // Reset explicitly: a new track must never inherit the last one's paused state.
         paused = false
         positionMs.value = 0
         durationMs.value = 0
         pendingSeekMs = startAtMs.takeIf { it > 0 }
+        nowPlayingId = videoId
         state.value = PlaybackState.Loading(title)
         job = scope.launch(Dispatchers.IO) {
             try {
                 // A prefetch that failed is discarded rather than reported: it ran minutes ago
                 // against whatever the network was doing then, and the right answer to a stale
                 // failure is to ask again now, not to refuse to play the song.
-                val prepared = ready?.bytes?.await()?.takeIf { it is Resolved.Audio }
+                val prepared = ready?.let { awaitPrefetch(it) }
                 val audio = when (val outcome = prepared ?: resolveAndFetch(videoId)) {
                     is Resolved.Audio -> outcome.bytes
                     is Resolved.Failure -> {
@@ -295,8 +313,37 @@ class DesktopPlayer {
      */
     private class Prefetched(val videoId: String, val bytes: Deferred<Resolved>)
 
+    /** Atomic rather than volatile: claiming it is a take, not a read - see [play]. */
+    private val prefetched = AtomicReference<Prefetched?>(null)
+
+    /**
+     * The prefetch [play] is currently waiting on, so it can still be cancelled.
+     *
+     * Once claimed, a Deferred is referenced only by the decode job's closure, and that job is a
+     * sibling of the async rather than its parent - so cancelling the job does not touch it. This
+     * is the handle that makes stopping actually stop the download.
+     */
+    private val claimed = AtomicReference<Deferred<Resolved>?>(null)
+
+    /** What [play] was last asked for, so a prefetch of the same thing can be declined. */
     @Volatile
-    private var prefetched: Prefetched? = null
+    private var nowPlayingId: String? = null
+
+    /**
+     * Awaits a claimed prefetch, falling back to a fresh fetch rather than failing the track.
+     *
+     * The distinction that matters is whose cancellation it was. This coroutine being cancelled has
+     * to propagate - the track is being abandoned. The *prefetch* being cancelled underneath it
+     * must not: that happens when the queue is cleared at the moment a track starts, and reporting
+     * it would show a playback failure reading "DeferredCoroutine was cancelled" for something the
+     * user would never connect to what they did.
+     */
+    private suspend fun awaitPrefetch(ready: Prefetched): Resolved? = try {
+        ready.bytes.await().takeIf { it is Resolved.Audio }
+    } catch (e: CancellationException) {
+        currentCoroutineContext().ensureActive()
+        null
+    }
 
     /**
      * Starts fetching [videoId] so that playing it later costs nothing.
@@ -313,27 +360,40 @@ class DesktopPlayer {
      * a barely perceptible one, not between a seam and none.
      */
     fun prefetch(scope: CoroutineScope, videoId: String) {
-        if (prefetched?.videoId == videoId) return
-        prefetched?.bytes?.cancel()
-        prefetched = Prefetched(
-            videoId = videoId,
-            // runCatching inside, so this Deferred can never complete exceptionally. An async that
-            // fails propagates to its parent the moment it does, which would take down the scope
-            // driving playback - over a song nobody has asked for yet.
-            bytes = scope.async(Dispatchers.IO) {
-                runCatching { resolveAndFetch(videoId) }
-                    .getOrElse { Resolved.Failure("prefetch failed - ${it::class.simpleName}: ${it.message}") }
-            },
-        )
+        // Never the song already playing. Under repeat-one, and in a one-song queue with
+        // repeat-all, "what comes next" is this very track - correctly, since that is what next()
+        // does - and fetching it would hold a second full copy of a song already in memory,
+        // renewed on every loop. Against a 320MB heap and an hour-long mix that is the most
+        // plausible way to run out. The cost is that repeat-one keeps the gap the rest of the
+        // queue no longer has; reusing the bytes already decoded would fix both, and is the better
+        // answer whenever this is worth revisiting.
+        if (videoId == nowPlayingId) return
+        if (prefetched.get()?.videoId == videoId) return
+        prefetched.getAndSet(
+            Prefetched(
+                videoId = videoId,
+                // runCatching inside, so this Deferred can never complete exceptionally. An async
+                // that fails propagates to its parent the moment it does, which would take down the
+                // scope driving playback - over a song nobody has asked for yet.
+                bytes = scope.async(Dispatchers.IO) {
+                    runCatching { resolveAndFetch(videoId) }
+                        .getOrElse { Resolved.Failure("prefetch failed - ${it::class.simpleName}: ${it.message}") }
+                },
+            )
+        )?.bytes?.cancel()
     }
 
     /** Throws away whatever was fetched ahead, for when the queue it was predicting no longer exists. */
     fun dropPrefetch() {
-        prefetched?.bytes?.cancel()
-        prefetched = null
+        prefetched.getAndSet(null)?.bytes?.cancel()
     }
 
     fun stop() {
+        // The claimed fetch too, not just the decode job. They are siblings, so cancelling the job
+        // leaves a download the user has already moved on from running to completion against the
+        // same connection as whatever they asked for instead.
+        claimed.getAndSet(null)?.cancel()
+        nowPlayingId = null
         paused = false
         job?.cancel()
         job = null

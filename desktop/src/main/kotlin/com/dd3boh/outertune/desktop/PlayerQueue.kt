@@ -166,13 +166,30 @@ class PlayerQueue(
      */
     var stopAtBoundary: () -> Boolean = { false }
 
-    /** Watches for the current track to start, then fetches the next one. See [queuePrefetch]. */
+    /**
+     * Watches for the current track to start, then fetches the next one. See [queuePrefetch].
+     *
+     * Volatile because startCurrent runs on two threads: the UI thread for anything the user
+     * does, and the decode job's own thread when a track ends and onFinished advances the queue.
+     * A stale read cancels a job that is already dead and drops the live one uncancelled, which
+     * accumulates watchers that each fire their own prefetch.
+     */
+    @Volatile
     private var prefetchJob: Job? = null
 
     init {
         // Only at a natural end. A stop or a new selection also ends a track, and those are the user
         // leaving the song - consulting the timer there would end a session nobody asked to end.
-        player.onFinished = { if (!stopAtBoundary()) next() }
+        player.onFinished = {
+            if (stopAtBoundary()) {
+                // Nothing will advance, so the song fetched ahead is never going to be played.
+                // For a sleep timer that means holding it for the rest of the night.
+                prefetchJob?.cancel()
+                player.dropPrefetch()
+            } else {
+                next()
+            }
+        }
     }
 
     /**
@@ -266,6 +283,12 @@ class PlayerQueue(
             } else {
                 // End of the queue: stop rather than wrap. Wrapping unasked turns a finished queue
                 // into an endless one - which is what repeat is for, and it is off.
+                //
+                // Usually nothing was fetched ahead here, since upcoming is null at the last
+                // track. Not always: with repeat-all on, the head was prefetched, and turning
+                // repeat off mid-track leaves it held with nothing to play it.
+                prefetchJob?.cancel()
+                player.dropPrefetch()
                 player.stop()
             }
             return

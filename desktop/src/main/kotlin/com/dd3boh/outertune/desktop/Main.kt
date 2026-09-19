@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -792,12 +793,22 @@ private fun Content(
 @Composable
 private fun QueuePane(queue: QueueState, onJump: (Int) -> Unit) {
     Column(modifier = Modifier.width(300.dp).padding(16.dp)) {
-        Text(
-            "Queue  ${queue.orderPosition + 1}/${queue.songs.size}",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.Bold,
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 8.dp),
-        )
+        ) {
+            Icon(
+                OuterTuneIcons.queueMusic,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 8.dp).size(18.dp),
+            )
+            Text(
+                "Queue  ${queue.orderPosition + 1}/${queue.songs.size}",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+            )
+        }
         LazyColumn {
             // Shown in play order rather than the order added, so with shuffle on the list reads as
             // what is coming next - which is the only thing a queue is for.

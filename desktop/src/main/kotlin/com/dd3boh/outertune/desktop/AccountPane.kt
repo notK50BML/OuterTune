@@ -107,7 +107,11 @@ fun AccountPane(
                             Icon(
                                 imageVector = OuterTuneIcons.logout,
                                 contentDescription = null,
-                                modifier = Modifier.size(18.dp).padding(end = 6.dp),
+                                // padding before size, not after. Modifiers apply outer to inner,
+                                // so size-then-padding fixes an 18dp box and then insets *within*
+                                // it, drawing the glyph at 12dp with dead space beside it rather
+                                // than an 18dp glyph with a 6dp gap.
+                                modifier = Modifier.padding(end = 6.dp).size(18.dp),
                             )
                             Text("Sign out")
                         }

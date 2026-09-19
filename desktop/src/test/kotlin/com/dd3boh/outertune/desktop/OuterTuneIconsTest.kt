@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.desktop
 
 import androidx.compose.ui.graphics.vector.PathParser
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -111,21 +112,50 @@ class OuterTuneIconsTest {
         // rather than a squiggle, and trimming margin off a real published glyph to satisfy a house
         // rule would be changing a recognisable shape to satisfy a stylistic guess.
         //
-        // wifi and networkCheck are exempted from the margin check entirely rather than raised
-        // for everyone: both are concentric signal arcs radiating from a point, which is how
-        // Material Symbols draws "signal" at all, and they genuinely touch both edges at 960. Every
-        // other icon here does keep a margin, so it is worth still checking for one on the rest.
-        val fullBleed = setOf("wifi", "networkCheck")
+        // wifi and networkCheck are exempted from the *width* check: both are concentric signal
+        // arcs radiating from a point, which is how Material Symbols draws "signal" at all, and
+        // they genuinely span 0..960. Only the width, though - measured, they are 680 and 647 tall,
+        // with well over two hundred units of headroom - so exempting the height as well would have
+        // stopped checking something that is not in question, and quietly let a future 950-tall
+        // edit through.
+        val fullBleedWidth = setOf("wifi", "networkCheck")
         OuterTuneIcons.allPaths.forEach { (name, path) ->
             val b = boundsOf(path)
             val longest = maxOf(b.width, b.height)
             val shortest = minOf(b.width, b.height)
             assertTrue("$name is only ${b.width} by ${b.height}", longest >= 300f)
             assertTrue("$name is only $shortest across its short side", shortest >= 100f)
-            if (name in fullBleed) return@forEach
-            assertTrue("$name is ${b.width} wide, filling the viewport edge to edge", b.width <= 920f)
+            if (name !in fullBleedWidth) {
+                assertTrue("$name is ${b.width} wide, filling the viewport edge to edge", b.width <= 920f)
+            }
             assertTrue("$name is ${b.height} tall, filling the viewport edge to edge", b.height <= 920f)
         }
+    }
+
+    @Test
+    fun `every registered icon is drawn somewhere`() {
+        // The check that would have caught `wifi` sitting in the file unused, with a test exemption
+        // loosening a bound for a glyph nobody could see. An icon nobody draws is dead weight that
+        // still has to be maintained, and the maps are hand-written, so nothing else notices.
+        val sources = java.io.File("src/main/kotlin/com/dd3boh/outertune/desktop")
+            .walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filterNot { it.name == "OuterTuneIcons.kt" }
+            .joinToString("\n") { it.readText() }
+
+        val unused = OuterTuneIcons.allPaths.keys.filterNot { sources.contains("OuterTuneIcons.$it") }
+        assertTrue("defined but never drawn: $unused", unused.isEmpty())
+    }
+
+    @Test
+    fun `the icon maps agree with each other`() {
+        // Two hand-written lists of the same names, which is exactly the drift the icon() delegate
+        // exists to prevent for `paths`. `all` is still maintained by hand, so this is what stops
+        // the two disagreeing - and it pins discord's deliberate absence from both, which is
+        // otherwise enforced only by remembering.
+        assertEquals(OuterTuneIcons.allPaths.keys, OuterTuneIcons.all.keys)
+        assertTrue("discord is on its own viewport and must stay out of the geometry maps",
+            "discord" !in OuterTuneIcons.allPaths)
     }
 
     @Test

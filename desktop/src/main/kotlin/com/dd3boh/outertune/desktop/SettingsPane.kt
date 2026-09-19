@@ -353,6 +353,19 @@ fun SettingsPane(
 
             Spacer(modifier = Modifier.height(12.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+            // The phone carries this and the desktop did not, which mattered more here than there:
+            // "listen together" sounds like it streams audio between machines, and what it actually
+            // does - each device fetching the song itself and only keeping time with the host - is
+            // both more private and less obvious.
+            SettingRow(
+                title = "How it works",
+                subtitle = "Everything stays on your local network — nothing is sent over the " +
+                    "internet. Audio is not streamed between devices; each one plays the song " +
+                    "itself and keeps time with the host.",
+                icon = OuterTuneIcons.wifi,
+            )
+
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
                 Icon(
                     imageVector = OuterTuneIcons.timer,
