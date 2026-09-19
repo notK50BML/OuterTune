@@ -548,4 +548,115 @@ object ArtistCreditEnricher {
         val existing = database.artistByNameIgnoreCase(cleanName)
         return existing ?: ArtistEntity(id = resolved.id, name = cleanName)
     }
+    /**
+     * Credits songs with the artist whose page actually lists them.
+     *
+     * The evidence here is stronger than anything a title or a credit string can offer: YouTube
+     * Music is stating, on the artist's own page, that this artist performs this song. When the
+     * library disagrees - because the credit was scraped from a search result, an album, or a
+     * "- Topic" channel - the page is the better source.
+     *
+     * Two things can be wrong, and they are fixed differently.
+     *
+     * **A missing credit** is simply added. The song is in the library, it is on this artist's
+     * page, and the artist is not among its credits. Appended rather than inserted at the front,
+     * because being listed on a page says the artist performs the song, not that they are its
+     * principal credit.
+     *
+     * **A duplicate credit** - the same artist already on the song under a different id - is
+     * merged, but only when the duplicate is demonstrably not a different artist. See
+     * [mergeableInto] for the three cases that qualify. Anything else is left alone, and that
+     * restraint is the whole design: **two artists really can share a name.** The library already
+     * takes this view at read time, in `ArtistViewModel.resolveLibraryArtist`, which moves only
+     * which row the screen *displays* and explicitly refuses to second-guess an id that has songs
+     * of its own. Writing is a stronger claim than displaying - a merge cannot be undone by
+     * navigating away - so the bar here is higher, not lower.
+     *
+     * Only songs already in the library are touched. Crediting songs that are not saved would
+     * write a row per track for every artist page ever opened.
+     *
+     * @param artist the artist whose page was opened, already normalised.
+     * @param songIds every song id the page listed, in any section.
+     */
+    suspend fun creditFromArtistPage(
+        database: MusicDatabase,
+        artist: ArtistEntity,
+        songIds: Collection<String>,
+    ) = withContext(Dispatchers.IO) {
+        if (songIds.isEmpty()) return@withContext
+        val pageArtistId = artist.id.normalizeArtistId()
+        val pageName = artist.name.stripTopicSuffix()
+        // A page whose own title is still "- Topic" shaped names nothing useful to match against,
+        // and is exactly the kind of auto-generated channel this is meant to merge *away* from.
+        if (pageName.isBlank() || TOPIC_SUFFIX.containsMatchIn(pageName)) return@withContext
+
+        for (songId in songIds) {
+            val song = database.song(songId).first() ?: continue
+
+            // Already credited under this exact channel. Nothing to say.
+            if (song.artists.any { it.id.normalizeArtistId() == pageArtistId }) continue
+
+            val duplicate = song.artists.firstOrNull { it.name.stripTopicSuffix().equals(pageName, ignoreCase = true) }
+
+            if (duplicate == null) {
+                // No credit of this name at all: the page is telling us about an artist the song
+                // does not know it has.
+                val position = song.artists.size
+                database.query {
+                    insert(artist.copy(id = pageArtistId))
+                    insert(SongArtistMap(songId = songId, artistId = pageArtistId, position = position))
+                }
+                Timber.tag(TAG).d("[$songId] credited \"$pageName\" ($pageArtistId), whose page lists it")
+                continue
+            }
+
+            if (!duplicate.mergeableInto(artist)) {
+                // Same name, both real channels, neither auto-generated. This is the case the
+                // library has always refused to collapse, and it is refused here too: merging the
+                // composer into the guitarist is not recoverable.
+                Timber.tag(TAG).d(
+                    "[$songId] \"$pageName\" is already credited as ${duplicate.id}; " +
+                        "not merging into $pageArtistId, both look like real distinct channels"
+                )
+                continue
+            }
+
+            // A placeholder, a "- Topic" channel, or the other spelling of the same id. Move every
+            // credit the old row holds - not just this song's - since whatever made it wrong here
+            // made it wrong everywhere.
+            database.query {
+                insert(artist.copy(id = pageArtistId))
+                // Before the update: song_artist_map is keyed on (songId, artistId), so a song
+                // credited under both rows cannot have the old one repointed onto the new - that
+                // is the duplicate key. This drops exactly those rows so the rest can move.
+                deleteCollidingSongArtistMaps(duplicate.id, pageArtistId)
+                updateSongArtistMap(duplicate.id, pageArtistId)
+                safeDeleteArtist(duplicate.id)
+            }
+            Timber.tag(TAG).i(
+                "[$songId] merged \"${duplicate.name}\" ${duplicate.id} into $pageArtistId, whose page lists this song"
+            )
+        }
+    }
+
+    /**
+     * Whether this credit is the same artist as [real], rather than a different one of the name.
+     *
+     * Three cases qualify, and they share a property: in each, the row being merged away is not
+     * evidence of a distinct artist.
+     *
+     * - **The same channel in YouTube's other spelling.** `UC…` and `MPLAUC…` are one channel; the
+     *   library normalises on write and this is the leftover of a row written before it did.
+     * - **A placeholder.** An id generated locally because the credit arrived as bare text with no
+     *   channel behind it. It never named a channel, so it cannot name a *different* one.
+     * - **A "- Topic" channel.** YouTube auto-generates these alongside an artist's real channel;
+     *   the suffix is the tell, and the stripped names matching is what makes it this artist's.
+     *
+     * Everything else - two ids that both look like real, deliberately-named channels - is refused.
+     */
+    private fun ArtistEntity.mergeableInto(real: ArtistEntity): Boolean {
+        if (id.normalizeArtistId() == real.id.normalizeArtistId()) return true
+        if (!isYouTubeArtist) return true
+        return TOPIC_SUFFIX.containsMatchIn(name)
+    }
 }

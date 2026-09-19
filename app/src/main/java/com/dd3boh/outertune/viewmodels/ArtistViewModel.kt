@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dd3boh.outertune.constants.ArtistSongSortType
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.utils.ArtistCreditEnricher
+import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.TOPIC_SUFFIX
 import com.dd3boh.outertune.db.stripTopicSuffix
@@ -110,6 +112,7 @@ class ArtistViewModel @Inject constructor(
                     // touched in 10 days, so opening the page itself never fixed it.
                     refreshLibraryArtist(it)
                     resolveLibraryArtist(it.artist.title)
+                    creditSongsListedHere(it)
                 }.onFailure {
                     reportException(it)
                     // Even with no page, the stored row may name the artist well enough to find
@@ -151,6 +154,38 @@ class ArtistViewModel @Inject constructor(
         }
         // query() already runs on Room's own executor, so no dispatcher hop needed here.
         database.query { update(stored, page) }
+    }
+
+    /**
+     * Writes back what this page says about who performs its songs.
+     *
+     * The counterpart to [resolveLibraryArtist], and the difference between them is the point.
+     * That one moves which row the screen *reads* from and leaves the data alone, so its worst
+     * case is a page that looks the way it did before. This one changes the data, so it is
+     * deliberately narrower: it only ever adds a credit that was missing, or collapses a duplicate
+     * that is provably the same artist - never two same-named channels that both look real. See
+     * `ArtistCreditEnricher.creditFromArtistPage`.
+     *
+     * Runs after the page has settled on which channel it is showing, so the artist written is the
+     * one whose songs are on screen rather than the one that was navigated to.
+     */
+    private suspend fun creditSongsListedHere(page: ArtistPage) {
+        val songIds = page.sections
+            .flatMap { section -> section.items.filterIsInstance<SongItem>() }
+            .map { it.id }
+            .distinct()
+        if (songIds.isEmpty()) return
+
+        val shown = libraryArtistId.value
+        ArtistCreditEnricher.creditFromArtistPage(
+            database = database,
+            artist = ArtistEntity(
+                id = shown.normalizeArtistId(),
+                name = page.artist.title.stripTopicSuffix(),
+                thumbnailUrl = page.artist.thumbnail?.resize(544, 544),
+            ),
+            songIds = songIds,
+        )
     }
 
     /**
