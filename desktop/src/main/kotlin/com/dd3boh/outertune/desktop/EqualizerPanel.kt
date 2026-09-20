@@ -78,6 +78,13 @@ private const val MAX_GAIN_DB = 12f
  */
 private const val PERSIST_SETTLE_MS = 400L
 
+/**
+ * Where "bass" and "treble" stop, in hertz. The phone's own boundaries, so a dial means the same
+ * amount of the spectrum on both.
+ */
+private const val BASS_MAX_HZ = 250f
+private const val TREBLE_MIN_HZ = 4000f
+
 private fun rangeFor(bands: List<EqBand>): Float =
     maxOf(MAX_GAIN_DB, kotlin.math.ceil(bands.maxOfOrNull { kotlin.math.abs(it.gainDb) } ?: 0f))
 
@@ -129,6 +136,8 @@ fun EqualizerPanel(
      * a settings file.
      */
     store: EqStore? = null,
+    /** Left/right balance. Null hides the dial rather than showing one that does nothing. */
+    balance: Balance? = null,
 ) {
     // Seeded from the store where there is one, because the equaliser itself is restored at
     // startup rather than when this panel first opens (see Main) - by the time anyone looks at it,
@@ -342,6 +351,24 @@ fun EqualizerPanel(
                 Text("Save as new profile…", color = accent)
             }
         }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Bass and treble are a view over the bands rather than two more filters, which is how the
+        // phone does it and is the only version that cannot disagree with the sliders below: the
+        // dial reads the average of the bands it covers and writes that gain to all of them, so
+        // moving it moves them, and moving one of them moves it back. Two extra shelf filters would
+        // have produced a panel where the graph and the dials tell different stories.
+        ToneDials(
+            bands = bands,
+            balance = balance,
+            accent = accent,
+            onColour = onColour,
+            colourByValue = colourByValue,
+            onBandsChange = { apply(it, persist = false) },
+            onBandsSettled = { store?.bands = bands },
+            onBalanceChange = { store?.balance = it },
+        )
 
         if (timeStretch != null) {
             Spacer(modifier = Modifier.height(18.dp))
@@ -749,6 +776,121 @@ private fun GainReductionMeter(compressor: Compressor, accent: Color, onColour: 
  * one decimal, because a tenth of a semitone is roughly where a shift stops being audible as a
  * retune and starts being audible as being slightly out.
  */
+/**
+ * Bass, balance and treble.
+ *
+ * The three coarse controls, together, because that is the order they sit in on every tone control
+ * that has ever had a balance knob between them - and because anyone who wants one of them usually
+ * wants a quick nudge rather than the twelve sliders below.
+ *
+ * Bass and treble are not filters. They are a reading of the bands already there: the average gain
+ * of everything at or below [BASS_MAX_HZ], and of everything at or above [TREBLE_MIN_HZ]. Turning
+ * one writes its value onto every band in that range. That is the phone's rule, and it is the only
+ * arrangement where the dials and the sliders cannot contradict each other - two extra shelves would
+ * give a panel whose graph and whose dials tell different stories about the same audio.
+ */
+@Composable
+private fun ToneDials(
+    bands: List<EqBand>,
+    balance: Balance?,
+    accent: Color,
+    onColour: Color,
+    colourByValue: Boolean,
+    onBandsChange: (List<EqBand>) -> Unit,
+    /** Called once the dials stop, so a drag is one stored write rather than one per frame. */
+    onBandsSettled: () -> Unit,
+    onBalanceChange: (Float) -> Unit,
+) {
+    fun colourFor(value: Float, range: ClosedFloatingPointRange<Float>) =
+        if (colourByValue) ValueGradient.forValue(value, range) else accent
+
+    val bassIndices = bands.indices.filter { bands[it].freqHz <= BASS_MAX_HZ }
+    val trebleIndices = bands.indices.filter { bands[it].freqHz >= TREBLE_MIN_HZ }
+    // An AutoEQ correction can have no band at all in one of these ranges, and the average of
+    // nothing is NaN - which would reach the dial as a thumb position and the filter bank as a
+    // gain. Zero stands in, and the dial is left out entirely rather than shown doing nothing.
+    val bassGain = bassIndices.map { bands[it].gainDb }.takeIf { it.isNotEmpty() }?.average()?.toFloat() ?: 0f
+    val trebleGain = trebleIndices.map { bands[it].gainDb }.takeIf { it.isNotEmpty() }?.average()?.toFloat() ?: 0f
+
+    var pan by remember { mutableStateOf(balance?.value ?: 0f) }
+    val gainRange = -rangeFor(bands)..rangeFor(bands)
+    val panRange = -1f..1f
+
+    // Settled rather than continuous, for the reason CompressorSection gives at length: storing a
+    // value is a synchronous write on this thread, and a dial has no end-of-gesture callback to
+    // hang one on - a wheel notch has no "up" at all. Both effects restart on every change, so a
+    // drag or a spin collapses into a single write once it stops.
+    LaunchedEffect(bassGain, trebleGain) {
+        delay(PERSIST_SETTLE_MS)
+        onBandsSettled()
+    }
+    if (balance != null) {
+        LaunchedEffect(pan) {
+            delay(PERSIST_SETTLE_MS)
+            onBalanceChange(pan)
+        }
+    }
+
+    fun setRange(indices: List<Int>, gain: Float) {
+        onBandsChange(bands.mapIndexed { i, band -> if (i in indices) band.copy(gainDb = gain) else band })
+    }
+
+    Row(
+        horizontalArrangement = Arrangement.SpaceEvenly,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        if (bassIndices.isNotEmpty()) {
+            RotaryDial(
+                value = bassGain,
+                onValueChange = { setRange(bassIndices, it) },
+                valueRange = gainRange,
+                color = colourFor(bassGain, gainRange),
+                textColor = onColour,
+                label = "Bass",
+                valueLabel = "%+.1f dB".format(bassGain),
+                step = 0.5f,
+                coarseStep = 2f,
+                default = 0f,
+            )
+        }
+        if (balance != null) {
+            RotaryDial(
+                value = pan,
+                onValueChange = { pan = it; balance.value = it },
+                valueRange = panRange,
+                color = colourFor(pan, panRange),
+                textColor = onColour,
+                label = "Balance",
+                // "L 40" rather than "-0.4": nobody thinks of balance as a signed number, and the
+                // sign alone leaves which way is which to be worked out from the dial.
+                valueLabel = when {
+                    pan < -0.005f -> "L %.0f".format(-pan * 100)
+                    pan > 0.005f -> "R %.0f".format(pan * 100)
+                    else -> "Centre"
+                },
+                step = 0.02f,
+                coarseStep = 0.1f,
+                default = 0f,
+            )
+        }
+        if (trebleIndices.isNotEmpty()) {
+            RotaryDial(
+                value = trebleGain,
+                onValueChange = { setRange(trebleIndices, it) },
+                valueRange = gainRange,
+                color = colourFor(trebleGain, gainRange),
+                textColor = onColour,
+                label = "Treble",
+                valueLabel = "%+.1f dB".format(trebleGain),
+                step = 0.5f,
+                coarseStep = 2f,
+                default = 0f,
+            )
+        }
+    }
+}
+
 @Composable
 private fun PlaybackDials(
     timeStretch: TimeStretch,

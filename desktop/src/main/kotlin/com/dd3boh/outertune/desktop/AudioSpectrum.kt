@@ -176,8 +176,16 @@ object Pcm {
         return frames
     }
 
-    /** Sign-extended little- or big-endian integer sample of [bytesPerSample] bytes. */
-    private fun readSample(bytes: ByteArray, at: Int, bytesPerSample: Int, bigEndian: Boolean): Long {
+    /**
+     * Sign-extended little- or big-endian integer sample of [bytesPerSample] bytes.
+     *
+     * Shared rather than private, because reading a sample is the one operation every stage in the
+     * chain needs and it was already written twice - once here and once inside [Equalizer]. A third
+     * copy, in [Balance], is what made that worth fixing: byte order is the sort of detail that is
+     * correct in two places and subtly wrong in the third, and reading one way while writing the
+     * other is not an error, it is noise.
+     */
+    fun readSample(bytes: ByteArray, at: Int, bytesPerSample: Int, bigEndian: Boolean): Long {
         var value = 0L
         if (bigEndian) {
             for (i in 0 until bytesPerSample) {
@@ -192,6 +200,19 @@ object Pcm {
         // positive one and the waveform is rectified into something twice the frequency.
         val shift = 64 - bytesPerSample * 8
         return (value shl shift) shr shift
+    }
+
+    /** The inverse of [readSample]. The caller clamps; this only lays the bytes down. */
+    fun writeSample(bytes: ByteArray, at: Int, bytesPerSample: Int, bigEndian: Boolean, value: Long) {
+        if (bigEndian) {
+            for (i in 0 until bytesPerSample) {
+                bytes[at + i] = ((value shr (8 * (bytesPerSample - 1 - i))) and 0xFF).toByte()
+            }
+        } else {
+            for (i in 0 until bytesPerSample) {
+                bytes[at + i] = ((value shr (8 * i)) and 0xFF).toByte()
+            }
+        }
     }
 }
 

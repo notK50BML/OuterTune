@@ -271,38 +271,15 @@ class Equalizer {
         var pos = 0
         for (f in 0 until frames) {
             for (c in 0 until channels) {
-                val sample = readSample(bytes, pos, bytesPerSample, bigEndian) / peak
+                val sample = Pcm.readSample(bytes, pos, bytesPerSample, bigEndian).toFloat() / peak
                 var value = sample
                 for (filter in filters[c]) value = filter.process(value)
                 // Clamped, not wrapped. A boosted band can exceed full scale, and an integer that
                 // overflows wraps from loudest positive to loudest negative - which is heard as a
                 // violent crack rather than as distortion.
                 val out = (value * peak).coerceIn(-peak, maxValue).toLong()
-                writeSample(bytes, pos, bytesPerSample, bigEndian, out)
+                Pcm.writeSample(bytes, pos, bytesPerSample, bigEndian, out)
                 pos += bytesPerSample
-            }
-        }
-    }
-
-    private fun readSample(bytes: ByteArray, at: Int, width: Int, bigEndian: Boolean): Float {
-        var value = 0L
-        if (bigEndian) {
-            for (i in 0 until width) value = (value shl 8) or (bytes[at + i].toLong() and 0xFF)
-        } else {
-            for (i in width - 1 downTo 0) value = (value shl 8) or (bytes[at + i].toLong() and 0xFF)
-        }
-        val shift = 64 - width * 8
-        return ((value shl shift) shr shift).toFloat()
-    }
-
-    private fun writeSample(bytes: ByteArray, at: Int, width: Int, bigEndian: Boolean, value: Long) {
-        if (bigEndian) {
-            for (i in 0 until width) {
-                bytes[at + i] = ((value shr (8 * (width - 1 - i))) and 0xFF).toByte()
-            }
-        } else {
-            for (i in 0 until width) {
-                bytes[at + i] = ((value shr (8 * i)) and 0xFF).toByte()
             }
         }
     }

@@ -177,6 +177,14 @@ class DesktopPlayer {
      */
     val timeStretch = TimeStretch()
 
+    /**
+     * Left/right balance, applied last.
+     *
+     * After the visualiser's measurement point deliberately - see [Balance] for why a mono spectrum
+     * should not halve when the music is panned.
+     */
+    val balance = Balance()
+
     /** The line's frame position, which is what [VisualizerTap.sample] needs. */
     fun playedFrames(): Long = line?.longFramePosition ?: 0L
 
@@ -680,6 +688,17 @@ class DesktopPlayer {
                     }
                 }
             }
+
+            // Last, and after the analysis above. The spectrum is a mono sum of the two
+            // channels, so applying balance before it would halve every bar at hard left and read
+            // as the music getting quieter rather than as it moving across.
+            balance.process(
+                bytes = stretched,
+                length = stretched.size,
+                bitsPerSample = buffer.bitsPerSample,
+                channels = buffer.channels,
+                bigEndian = buffer.isBigEndian,
+            )
 
             open.write(stretched, 0, stretched.size)
 

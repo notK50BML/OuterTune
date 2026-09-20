@@ -42,7 +42,7 @@ planned** (deliberately, with a reason).
 | AutoEQ | done | Same parser as the phone |
 | Compressor | done | Full five controls plus a gain-reduction meter the phone does not have. Persisted beside the equaliser, though deliberately *not* folded into a profile as the phone does - here it is its own section, and a tone chip silently changing compression would be a surprise |
 | Tempo / pitch | done | WSOLA; the phone uses ExoPlayer's own. Deliberately not persisted - these are adjustments to the thing playing now, and restoring 0.8x on launch would read as a broken player |
-| Bass/treble/balance tone knobs | **planned** | `ToneControlsRow` on the phone. Balance needs a per-channel gain stage the desktop pipeline does not have yet |
+| Bass/treble/balance tone knobs | done | Bass and treble are a reading of the bands already there - the average at or below 250Hz and at or above 4kHz - so the dials and the sliders cannot contradict each other. Balance is the phone's own attenuate-the-far-side law, applied after the visualiser's measurement point so a pan does not read as the music getting quieter |
 | Gapless / crossfade | partial | The next track is fetched while the current one plays, which removes the several seconds of download that was most of the gap. Not sample-accurate gapless: the line is still reopened per track and AAC's encoder delay/padding are not trimmed, so a continuous album still has a short seam. Crossfade is not started |
 | Audio normalisation | not planned yet | Nothing has asked for it |
 | Local file playback | **planned** | Android scans folders and plays local files. The desktop decodes AAC from YouTube only — a local-file path needs a decoder per format |
@@ -113,9 +113,9 @@ all done now. This is what is left.
 1. **True gapless** - prefetching removed the download from the track boundary, but the line is
    still reopened per track and AAC delay/padding are not trimmed. Closing the rest means keeping
    one line open across tracks of matching format and reading the encoder's own padding counts.
-2. **Tone knobs** and **local file playback** - each small and self-contained. Saved EQ profiles
-   are done: the equaliser, its curve and the compressor now survive the window closing, which they
-   did not before at all.
+2. **Local file playback** - the last small self-contained one. Saved EQ profiles and the tone
+   knobs are done: the equaliser, its curve, the compressor and the balance now survive the window
+   closing, which none of them did before at all.
 3. **Library albums/artists browse screens**, **history**, **multi-select** - round out browsing.
 4. **The elaborate GPU visualiser** — deliberately last.
 
@@ -123,7 +123,9 @@ all done now. This is what is left.
 
 **The shared-module problem is getting worse.** `Biquad`, `Compressor` and now the AutoEQ parser are
 each written twice, once in `:app` and once in `:desktop`, agreeing by inspection. Three files is
-past the point where that is acceptable. The fix is a pure-JVM module holding them with their current
+past the point where that is acceptable. (The *within*-module version of this is gone: reading and
+writing a PCM sample had been written twice inside `:desktop` alone, and `Balance` would have made
+three, so both now come from `Pcm`.) The fix is a pure-JVM module holding them with their current
 package names, so no import in `:app` changes. See `HANDOVER.md`.
 
 **The value-colour direction disagrees between the two.** The desktop runs yellow at the low end to

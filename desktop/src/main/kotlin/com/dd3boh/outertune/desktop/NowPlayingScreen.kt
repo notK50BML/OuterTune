@@ -150,6 +150,8 @@ fun NowPlayingScreen(
     compressor: Compressor? = null,
     /** Where the equaliser's curve and saved profiles live. Null keeps nothing. */
     eqStore: EqStore? = null,
+    /** Left/right balance. Null hides the dial rather than showing one that does nothing. */
+    balance: Balance? = null,
     onJumpToQueueIndex: (Int) -> Unit = {},
     /** Drag-to-reorder and remove, both in play-order positions - see QueueEdit. */
     onMoveInQueue: (Int, Int) -> Unit = { _, _ -> },
@@ -528,6 +530,7 @@ fun NowPlayingScreen(
                 compressor = compressor,
                 colourByValue = colourByValue,
                 eqStore = eqStore,
+                balance = balance,
                 onColour = onBackground,
                 background = bottom,
                 open = equalizerOpen,
@@ -634,6 +637,7 @@ private fun EqualizerOverlay(
     compressor: Compressor?,
     colourByValue: Boolean,
     eqStore: EqStore?,
+    balance: Balance?,
     onColour: Color,
     background: Color,
     open: Boolean,
@@ -708,6 +712,7 @@ private fun EqualizerOverlay(
                     compressor = compressor,
                     colourByValue = colourByValue,
                     store = eqStore,
+                    balance = balance,
                 )
             }
         }

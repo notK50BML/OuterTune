@@ -122,6 +122,9 @@ class Settings(private val store: SettingsStore) {
     /** The compressor's dials. Empty until one of them is moved. */
     var eqCompressor by string("eq.compressor", "")
 
+    /** Left/right balance, -1 to 1. Centre, which is where anyone who has not moved it wants it. */
+    var eqBalance by float("eq.balance", 0f)
+
     /**
      * The four above, as the panel wants them.
      *
@@ -148,6 +151,10 @@ class Settings(private val store: SettingsStore) {
         override var compressor: CompressorPrefs?
             get() = EqProfiles.decodeCompressor(eqCompressor)
             set(value) { eqCompressor = value?.let(EqProfiles::encodeCompressor).orEmpty() }
+
+        override var balance: Float
+            get() = eqBalance
+            set(value) { eqBalance = value }
     }
 
     // ---- Library ---------------------------------------------------------------------------
@@ -195,6 +202,11 @@ class Settings(private val store: SettingsStore) {
 
     private fun int(key: String, default: Int) =
         setting(key, default, { it.toIntOrNull() }, { it.toString() })
+
+    // Finiteness is checked here rather than left to the caller: a stored NaN would propagate into
+    // a gain and silence a channel, and the fallback to the default is exactly the right answer.
+    private fun float(key: String, default: Float) =
+        setting(key, default, { it.toFloatOrNull()?.takeIf(Float::isFinite) }, { it.toString() })
 
     private fun <T : Enum<T>> enum(key: String, default: T, values: List<T>) =
         setting(key, default, { stored -> values.firstOrNull { it.name == stored } }, { it.name })

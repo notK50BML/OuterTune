@@ -105,7 +105,9 @@ fun main() = application {
     val settings = remember(library) { Settings(library.settings) }
     // Before anything can be played, so a stored curve is in effect from the first note rather
     // than from whenever the equaliser drawer is first opened.
-    remember(settings) { settings.equalizerStore().applyTo(player.equalizer, player.compressor) }
+    remember(settings) {
+        settings.equalizerStore().applyTo(player.equalizer, player.compressor, player.balance)
+    }
 
     Window(
         onCloseRequest = { player.stop(); exitApplication() },
@@ -421,6 +423,7 @@ private fun App(
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
             eqStore = eqStore,
+            balance = player.balance,
             timeStretch = player.timeStretch,
             compressor = player.compressor,
             // Only what the desktop build can actually do. Absent callbacks mean absent menu items,

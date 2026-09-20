@@ -35,6 +35,8 @@ interface EqStore {
     var profiles: List<EqProfile>
     /** The compressor's own dials. Null until something has been changed. */
     var compressor: CompressorPrefs?
+    /** Left/right balance, -1 to 1. Zero is centre. */
+    var balance: Float
 }
 
 /**
@@ -86,13 +88,14 @@ data class CompressorPrefs(
  * difference between a curve that is in effect from the first note and one that only appears if
  * someone happens to go looking for it. The panel is a view of this state, not where it lives.
  */
-fun EqStore.applyTo(equalizer: Equalizer, compressor: Compressor? = null) {
+fun EqStore.applyTo(equalizer: Equalizer, compressor: Compressor? = null, balance: Balance? = null) {
     equalizer.setBands(bands)
     equalizer.enabled = enabled
     // Only when something was actually stored. Applying a default snapshot would be the same as
     // applying nothing, except that it would also switch the compressor on for anyone who had
     // never touched it.
     compressor?.let { this.compressor?.applyTo(it) }
+    balance?.value = this.balance
 }
 
 /**
