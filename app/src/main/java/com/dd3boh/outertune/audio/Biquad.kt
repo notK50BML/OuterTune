@@ -9,6 +9,9 @@ package com.dd3boh.outertune.audio
 import com.dd3boh.outertune.models.EqualizerSettings
 import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
@@ -111,6 +114,65 @@ class BiquadCoefficients(
                 }
             }
         }
+
+        /**
+         * The loudest the whole cascade gets, in dB, anywhere in the audible band.
+         *
+         * This is the number the pre-gain needs, and it replaces an estimate of it. Overlapping
+         * peaking filters do not add their dB values independently - three adjacent bands at +6
+         * are not +6 and are not +18 either - so the old formula guessed, weighting the single
+         * worst band at 0.8 and the sum of the rest at 0.1. Measured against the real response,
+         * that guess was short on every boosting preset in the app, by between 0.1 and 3.5dB:
+         * enough that "Bass Boost" and "Treble Boost" ran a full-scale track 3dB into the limiter
+         * on every peak, continuously, which is heard as grit rather than as clipping.
+         *
+         * Evaluating |H| directly costs nothing worth counting - it runs when a slider stops, not
+         * per sample - and it is exact for clustered and spread-out curves alike, which the guess
+         * could not be: tuning it to stop under-compensating "Loudness" made it over-attenuate
+         * "Full Bass & Treble", because the two differ in exactly the way a single weighting
+         * cannot express.
+         */
+        fun peakGainDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float {
+            if (cascade.isEmpty() || sampleRateHz <= 0) return 0f
+            val nyquist = sampleRateHz / 2f
+            val lowHz = 15f
+            val highHz = (nyquist * 0.99f).coerceAtLeast(lowHz * 2f)
+            // Logarithmically spaced, because the response is: a peaking band at 31Hz is as narrow
+            // in octaves as one at 12kHz, and linear probing would step straight over the low ones.
+            val logLow = ln(lowHz)
+            val logSpan = ln(highHz) - logLow
+            var peak = 0f
+            for (i in 0 until PROBE_POINTS) {
+                val hz = exp(logLow + logSpan * i / (PROBE_POINTS - 1f))
+                val db = cascadeDb(cascade, hz, sampleRateHz)
+                if (db > peak) peak = db
+            }
+            return peak
+        }
+
+        /** Summed in dB rather than multiplied, so a deep cut cannot underflow a running product. */
+        private fun cascadeDb(cascade: Array<BiquadCoefficients>, hz: Float, sampleRateHz: Int): Float {
+            val w = 2.0 * Math.PI * hz / sampleRateHz
+            val cos1 = cos(w).toFloat()
+            val sin1 = sin(w).toFloat()
+            val cos2 = cos(2.0 * w).toFloat()
+            val sin2 = sin(2.0 * w).toFloat()
+            var total = 0f
+            for (c in cascade) {
+                // H(z) at z = e^jw, with z^-1 = cos w - j sin w.
+                val numRe = c.b0 + c.b1 * cos1 + c.b2 * cos2
+                val numIm = -(c.b1 * sin1 + c.b2 * sin2)
+                val denRe = 1f + c.a1 * cos1 + c.a2 * cos2
+                val denIm = -(c.a1 * sin1 + c.a2 * sin2)
+                val numSq = numRe * numRe + numIm * numIm
+                val denSq = (denRe * denRe + denIm * denIm).coerceAtLeast(1e-20f)
+                total += 10f * log10(numSq / denSq)
+            }
+            return total
+        }
+
+        /** Enough to land within a tenth of a dB of the true peak of a Q-10 band. */
+        private const val PROBE_POINTS = 512
 
         private fun normalize(b0: Float, b1: Float, b2: Float, a0: Float, a1: Float, a2: Float): BiquadCoefficients {
             // a0 is never zero for these forms (it's a sum of positive terms plus a small alpha

@@ -130,25 +130,29 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         rightGain = (1f + settings.balance).coerceIn(0f, 1f)
         compressorSettings = settings.compressor
 
-        // The single worst band is guaranteed to clip on its own if left unaddressed, so it
-        // dominates the correction; the sum of every other boosted band contributes a smaller,
-        // secondary term rather than an equal one - two boosted bands an octave apart barely
-        // overlap and don't actually sum the way two adjacent ones do, so weighting every band
-        // in the whole curve equally (as an earlier version of this did) over-attenuated spread
-        // -out curves like "Full Bass & Treble" that were never really at risk of clipping.
-        val enabledPositiveGains = settings.bands.filter { it.enabled }.map { it.gainDb.coerceAtLeast(0f) }
-        val maxBoostDb = enabledPositiveGains.maxOrNull() ?: 0f
-        val totalBoostDb = enabledPositiveGains.sum()
-        val preGainDb = -(maxBoostDb * 0.8f + totalBoostDb * 0.1f).coerceAtMost(12f)
-        preGainLinear = 10f.pow(preGainDb / 20f)
-
+        // The pre-gain is now measured off the finished cascade rather than estimated from the
+        // slider positions - see BiquadCoefficients.peakGainDb, and recomputeCoefficients below,
+        // which is where it has to happen because the response depends on the sample rate.
         recomputeCoefficients()
     }
 
     private fun recomputeCoefficients() {
         val sr = configuredSampleRate
         if (sr <= 0) return
-        coefficients = Array(bands.size) { i -> BiquadCoefficients.forBand(bands[i], sr) }
+        val built = Array(bands.size) { i -> BiquadCoefficients.forBand(bands[i], sr) }
+        coefficients = built
+
+        // Exactly as much attenuation as the curve's own peak, so a signal that arrived at full
+        // scale leaves at full scale instead of somewhere above it. Only boosts are compensated:
+        // a curve that only cuts is already quieter than what it was given, and attenuating it
+        // further would just make every cut-only preset sound like a volume drop.
+        //
+        // Capped at the band range, so even a single band at maximum is fully accounted for. A
+        // curve asking for +14dB genuinely does have to come down by 14dB somewhere; the only
+        // alternative is to clip it, which is the thing this exists to stop.
+        val peakDb = BiquadCoefficients.peakGainDb(built, sr).coerceIn(0f, MAX_HEADROOM_DB)
+        preGainLinear = 10f.pow(-peakDb / 20f)
+
         val comp = compressorSettings
         compressorCoefficients = if (!comp.enabled) CompressorCoefficients.BYPASS else CompressorCoefficients.from(
             sampleRateHz = sr,
@@ -360,10 +364,27 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         const val RAMP_MS = 20
 
         /**
+         * The most attenuation the pre-gain will apply, in dB.
+         *
+         * [EqualizerSettings.MAX_GAIN_DB], so a single band at the top of its range is fully
+         * compensated. It used to be 12, which was below what the app's own presets actually
+         * reach - "Small Speakers" peaks at +14.5dB - so the loudest curves stayed over the line
+         * no matter how good the estimate was.
+         */
+        const val MAX_HEADROOM_DB = 15f
+
+        /**
          * Below this the signal is passed through bit-exact; above it, it is compressed smoothly
          * into the remaining headroom. See [softLimit].
+         *
+         * Raised from 0.75 once the pre-gain became exact. 0.75 is -2.5dBFS, which on a modern
+         * master is not a peak at all - it is most of the waveform - so the limiter was shaping
+         * the signal continuously rather than catching the occasional overshoot, and doing it on
+         * material the pre-gain had already failed to make room for. With the headroom correct,
+         * what is left to catch is inter-sample overshoot and transients that briefly exceed the
+         * steady-state response, and -0.9dBFS is where that belongs.
          */
-        const val LIMIT_THRESHOLD = 0.75f
+        const val LIMIT_THRESHOLD = 0.9f
         const val LIMIT_RANGE = 1f - LIMIT_THRESHOLD
     }
 

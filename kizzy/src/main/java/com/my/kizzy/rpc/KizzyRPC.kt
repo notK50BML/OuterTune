@@ -29,7 +29,7 @@ import org.json.JSONObject
  * Modified by Zion Huang
  */
 open class KizzyRPC(token: String) {
-    private val kizzyRepository = KizzyRepository()
+    private val kizzyRepository = KizzyRepository(token)
     private val discordWebSocket = DiscordWebSocket(token)
 
     fun closeRPC() {
@@ -42,6 +42,16 @@ open class KizzyRPC(token: String) {
 
     /** Last thing that happened to the gateway, in words, for display in settings. */
     fun lastStatus(): String = discordWebSocket.lastStatus
+
+    /**
+     * Why the last album cover failed to resolve, or null if it did not fail.
+     *
+     * Separate from [lastStatus] because the two fail independently and look identical from
+     * outside: the gateway can be perfectly connected, the card can be on screen with its title
+     * and artist, and the art alone can be missing because the thing that registers images is
+     * refusing. That combination had no way to report itself at all.
+     */
+    fun lastImageError(): String? = kizzyRepository.lastError
 
     /**
      * Opens the gateway and waits for it to finish identifying. Returns the outcome as text so a
@@ -105,8 +115,8 @@ open class KizzyRPC(token: String) {
                     statusDisplayType = statusDisplayType.value,
                     timestamps = Timestamps(startTime, endTime),
                     assets = Assets(
-                        largeImage = largeImage?.resolveImage(kizzyRepository),
-                        smallImage = smallImage?.resolveImage(kizzyRepository),
+                        largeImage = largeImage?.resolveImage(kizzyRepository, applicationId),
+                        smallImage = smallImage?.resolveImage(kizzyRepository, applicationId),
                         largeText = largeText,
                         smallText = smallText
                     ),

@@ -18,15 +18,22 @@ import com.my.kizzy.repository.KizzyRepository
  * Modified by Zion Huang
  */
 sealed class RpcImage {
-    abstract suspend fun resolveImage(repository: KizzyRepository): String?
+    /**
+     * [applicationId] is the app the image is registered against - see
+     * [com.my.kizzy.remote.ApiService.externalAsset]. An image already hosted by Discord does not
+     * need one, which is why it is a parameter here rather than something the repository holds.
+     */
+    abstract suspend fun resolveImage(repository: KizzyRepository, applicationId: String?): String?
+
     class DiscordImage(val image: String) : RpcImage() {
-        override suspend fun resolveImage(repository: KizzyRepository): String {
+        override suspend fun resolveImage(repository: KizzyRepository, applicationId: String?): String {
             return "mp:${image}"
         }
     }
+
     class ExternalImage(val image: String) : RpcImage() {
-        override suspend fun resolveImage(repository: KizzyRepository): String? {
-            return repository.getImage(image)
+        override suspend fun resolveImage(repository: KizzyRepository, applicationId: String?): String? {
+            return repository.getImage(applicationId, image)
         }
     }
 }
