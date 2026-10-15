@@ -123,6 +123,9 @@ val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
 /** Per-song equaliser overrides - see [com.dd3boh.outertune.models.SongEqualizerProfiles]. */
 val SongEqualizerProfilesKey = stringPreferencesKey("songEqualizerProfiles")
 
+/** How often a song with lyrics already stored is re-checked - see [com.dd3boh.outertune.constants.LyricsRefreshInterval]. */
+val LyricsRefreshIntervalKey = stringPreferencesKey("lyricsRefreshInterval")
+
 /** High-frequency restoration for lossy streams - see [com.dd3boh.outertune.audio.HarmonicExciter]. */
 val AudioUpscalingKey = stringPreferencesKey("audioUpscaling")
 val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")

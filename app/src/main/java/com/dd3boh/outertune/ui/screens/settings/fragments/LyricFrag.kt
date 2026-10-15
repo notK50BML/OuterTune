@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.Sort
 import androidx.compose.material.icons.rounded.ContentCut
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Lyrics
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Reorder
 import androidx.compose.material.icons.rounded.Timeline
 import androidx.compose.material.icons.rounded.Speed
@@ -65,6 +66,8 @@ import com.dd3boh.outertune.constants.LyricsFetchModeKey
 import com.dd3boh.outertune.constants.LyricsPosition
 import com.dd3boh.outertune.constants.LyricsPrefetchCountKey
 import com.dd3boh.outertune.constants.LyricsProviderOrderKey
+import com.dd3boh.outertune.constants.LyricsRefreshInterval
+import com.dd3boh.outertune.constants.LyricsRefreshIntervalKey
 import com.dd3boh.outertune.constants.LyricsTextPositionKey
 import com.dd3boh.outertune.constants.MultilineLrcKey
 import com.dd3boh.outertune.constants.Speed
@@ -230,6 +233,11 @@ fun ColumnScope.LyricSourceFrag() {
         checked = enableKugou,
         onCheckedChange = onEnableKugouChange
     )
+    val (refreshInterval, onRefreshIntervalChange) = rememberEnumPreference(
+        key = LyricsRefreshIntervalKey,
+        defaultValue = LyricsRefreshInterval.NEVER
+    )
+
     EnumListPreference(
         title = { Text(stringResource(R.string.lyrics_fetch_mode_title)) },
         icon = { Icon(Icons.AutoMirrored.Rounded.Sort, null) },
@@ -249,6 +257,22 @@ fun ColumnScope.LyricSourceFrag() {
         icon = { Icon(Icons.Rounded.Reorder, null) },
         onClick = { showProviderOrder = true }
     )
+    EnumListPreference(
+        title = { Text(stringResource(R.string.lyrics_refresh_title)) },
+        icon = { Icon(Icons.Rounded.Refresh, null) },
+        selectedValue = refreshInterval,
+        onValueSelected = onRefreshIntervalChange,
+        values = LyricsRefreshInterval.entries,
+        valueText = {
+            when (it) {
+                LyricsRefreshInterval.NEVER -> stringResource(R.string.lyrics_refresh_never)
+                LyricsRefreshInterval.WEEKLY -> stringResource(R.string.lyrics_refresh_weekly)
+                LyricsRefreshInterval.FORTNIGHTLY -> stringResource(R.string.lyrics_refresh_fortnightly)
+                LyricsRefreshInterval.MONTHLY -> stringResource(R.string.lyrics_refresh_monthly)
+            }
+        }
+    )
+    InfoLabel(text = stringResource(R.string.lyrics_refresh_info))
     // prioritize local lyric files over all cloud providers
     SwitchPreference(
         title = { Text(stringResource(R.string.lyrics_prefer_local)) },

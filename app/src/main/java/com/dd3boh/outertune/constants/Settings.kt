@@ -198,6 +198,29 @@ enum class AudioQuality {
  * [OFF] is the default, deliberately. This synthesises content that was not in the recording, and
  * however carefully it is done that is a thing someone should choose rather than discover.
  */
+/**
+ * How often lyrics already found are looked for again.
+ *
+ * Providers improve: a song that only had a plain text sheet last month may have a word-timed one
+ * now, and a better-ranked provider may have picked it up since. Nothing re-checked a *successful*
+ * result, so that improvement never arrived - only a manual refresh or clearing the row would find
+ * it.
+ *
+ * Per song as it is played, not a sweep over the library. A daily pass over a few thousand songs is
+ * thousands of requests to three third-party services for an answer almost all of which has not
+ * changed, and it would run whether or not anyone was going to look at the lyrics. Checking the
+ * song in front of you is the same benefit spread across the days you actually listen.
+ *
+ * [NEVER] is the default: the existing behaviour, for anyone who does not want their player making
+ * requests about songs they have already got lyrics for.
+ */
+enum class LyricsRefreshInterval(val days: Int) {
+    NEVER(0),
+    WEEKLY(7),
+    FORTNIGHTLY(14),
+    MONTHLY(30),
+}
+
 enum class AudioUpscaling(val amount: Float) {
     OFF(0f),
     SUBTLE(0.3f),

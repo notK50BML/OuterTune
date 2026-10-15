@@ -9,6 +9,8 @@ import com.dd3boh.outertune.constants.LyricTrimKey
 import com.dd3boh.outertune.constants.LyricsFetchMode
 import com.dd3boh.outertune.constants.LyricsFetchModeKey
 import com.dd3boh.outertune.constants.LyricsProviderOrderKey
+import com.dd3boh.outertune.constants.LyricsRefreshInterval
+import com.dd3boh.outertune.constants.LyricsRefreshIntervalKey
 import com.dd3boh.outertune.constants.MultilineLrcKey
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.stripTopicSuffix
@@ -150,20 +152,42 @@ class LyricsHelper @Inject constructor(
                 // all-NotFound decision and the stored signature all use the same snapshot.
                 val selection = ProviderSelection.snapshot(context, lyricsProviders)
                 val existing = database.lyrics(mediaMetadata.id).first()
-                if (!shouldFetchLyrics(existing, selection.signature, System.currentTimeMillis(), forceRefresh)) {
+                val positiveTtl = readLyricsRefreshInterval(context).days * DAY_MS
+                if (!shouldFetchLyrics(
+                        existing,
+                        selection.signature,
+                        System.currentTimeMillis(),
+                        forceRefresh,
+                        positiveTtlMs = positiveTtl,
+                    )
+                ) {
                     return
                 }
                 val result = getRemoteLyrics(mediaMetadata, role, selection)
                 val now = System.currentTimeMillis()
                 val entity = when (result) {
                     is RemoteLyricsResult.Found ->
-                        LyricsEntity(
-                            id = mediaMetadata.id,
-                            lyrics = result.raw,
-                            provider = result.provider,
-                            lastCheckedAt = now,
-                            providerSignature = selection.signature,
-                        )
+                        // Bound here rather than asserted below: the downgrade test already implies
+                        // a stored row, and tying the two together means a later edit cannot leave
+                        // a !! standing on an invariant it no longer holds.
+                        existing?.takeIf { isDowngrade(it, result) }?.let { kept ->
+                            // A scheduled re-check that came back with less than is already
+                            // stored. The whole point of re-checking is that providers improve;
+                            // replacing word-timed lyrics with a plain text sheet because today's
+                            // race went differently is the one outcome that would make the feature
+                            // worse than not having it. Keep what is there and note the check, so
+                            // the next one is a interval away rather than immediate.
+                            Log.d(TAG, "kept existing: videoId=${mediaMetadata.id} role=${role.log} refresh returned less than stored")
+                            kept.copy(lastCheckedAt = now)
+                        } ?: run {
+                            LyricsEntity(
+                                id = mediaMetadata.id,
+                                lyrics = result.raw,
+                                provider = result.provider,
+                                lastCheckedAt = now,
+                                providerSignature = selection.signature,
+                            )
+                        }
 
                     RemoteLyricsResult.DefinitiveNotFound ->
                         LyricsEntity(
@@ -369,7 +393,7 @@ class LyricsHelper @Inject constructor(
         // synthesized UnsyncedLyrics; the user-facing errorText is only used by the display path.
         val verifyOptions = getParserOptions().copy(errorText = null)
 
-        val aggregator = RemoteLyricsAggregator(enabled.size)
+        val aggregator = RemoteLyricsAggregator(enabled.size, enabled.map { it.name })
         // Classify a Found result for adoption. errorText = null means an unparseable input surfaces
         // as null or an exception rather than a synthesized UnsyncedLyrics.
         val classifyFound: (String) -> FoundKind = { raw ->
@@ -570,6 +594,7 @@ class LyricsHelper @Inject constructor(
 
         /** Upper bound for resolving lyrics across all providers of a single song, when racing them. */
         private const val OVERALL_TIMEOUT_MS = 12000L
+        private const val DAY_MS = 24L * 60 * 60 * 1000
 
         /**
          * Budget per provider when going through them in order. The overall bound is this times the
@@ -597,11 +622,26 @@ internal fun shouldFetchLyrics(
     now: Long,
     forceRefresh: Boolean,
     ttlMs: Long = NEGATIVE_CACHE_TTL_MS,
+    /** 0 means never re-check a result that was found - see [LyricsRefreshInterval]. */
+    positiveTtlMs: Long = 0L,
 ): Boolean {
     if (forceRefresh) return true
     if (entity == null) return true
-    if (entity.lyrics != LYRICS_NOT_FOUND) return false
-    val lastChecked = entity.lastCheckedAt ?: return true
+
+    val lastChecked = entity.lastCheckedAt
+    if (entity.lyrics != LYRICS_NOT_FOUND) {
+        // A result that was found. Re-checked only when the user has asked for it, and then only
+        // on age - the signature is deliberately not consulted here. Enabling a provider should
+        // not throw away lyrics that are already in hand and already good; if the new provider has
+        // something better, the next scheduled re-check finds it, and that is the whole difference
+        // between a preference change and a cache invalidation.
+        if (positiveTtlMs <= 0L) return false
+        if (lastChecked == null) return true
+        if (now < lastChecked) return true
+        return now - lastChecked >= positiveTtlMs
+    }
+
+    if (lastChecked == null) return true
     val storedSignature = entity.providerSignature ?: return true
     if (storedSignature != signature) return true
     if (now < lastChecked) return true
@@ -627,9 +667,15 @@ private data class ProviderOutcome(
  * signature, so a settings change during a fetch cannot desync them.
  *
  * The signature is what stops a cached answer outliving the settings it was produced under. It
- * carries the mode and the enabled ids; in [LyricsFetchMode.MANUAL] the ids are in the user's order,
- * because there the order changes which provider answers, while in [LyricsFetchMode.AUTO] they are
- * sorted, because there it does not and reordering should not throw away perfectly good caches.
+ * carries the mode and the enabled ids **in the user's order, in both modes**.
+ *
+ * AUTO used to sort them, on the reasoning that order could not change the answer there because
+ * the providers were raced. That reasoning was correct about the code and wrong about what the
+ * code should do - the race adopted whichever provider was quickest, so the preference decided
+ * only who was asked. Now that order breaks ties in AUTO as well (see [RemoteLyricsAggregator]),
+ * it genuinely does change the answer, and a cache produced under one order really is stale under
+ * another. The cost is that reordering providers re-fetches; that is the correct cost, and it is
+ * what reordering them is for.
  */
 data class ProviderSelection(
     val providers: List<LyricsProvider>,
@@ -640,11 +686,54 @@ data class ProviderSelection(
         fun snapshot(context: Context, all: List<LyricsProvider>): ProviderSelection {
             val mode = readFetchMode(context)
             val enabled = orderProviders(all, readProviderOrder(context)).filter { it.isEnabled(context) }
-            val ids = enabled.map { it.id }.let { if (mode == LyricsFetchMode.MANUAL) it else it.sorted() }
+            // In the user's order in both modes - see the class doc for why AUTO no longer sorts.
+            val ids = enabled.map { it.id }
             return ProviderSelection(enabled, mode, "${mode.name}:${ids.joinToString(",")}")
         }
     }
 }
+
+/**
+ * Whether [fresh] is worth less than what is already stored.
+ *
+ * Only asked on a scheduled re-check, where there is something to lose. Judged on sync level,
+ * because that is the difference anyone would notice: word timings, then line timings, then plain
+ * text. Two results at the same level are treated as equal rather than compared on length or
+ * provider - the fresh one came from the current preference order and the stored one may not have,
+ * so preferring the fresh one there is how a reordering eventually takes effect.
+ *
+ * A stored row that cannot be read at all is never worth keeping, whatever the fresh one is.
+ */
+internal fun isDowngrade(existing: LyricsEntity?, fresh: RemoteLyricsResult.Found): Boolean {
+    val stored = existing?.lyrics ?: return false
+    if (stored == LYRICS_NOT_FOUND || stored.isBlank()) return false
+
+    val storedLevel = syncLevelOf(stored)
+    val freshLevel = if (fresh.synced) syncLevelOf(fresh.raw) else 1
+    return freshLevel < storedLevel
+}
+
+/**
+ * How timed a raw lyrics document is: 3 word, 2 line, 1 neither.
+ *
+ * Read off the text rather than parsed, because this runs on a result that has already been
+ * classified once and the only question left is coarse. A `<mm:ss.cc>` inside a line is the
+ * enhanced-LRC word mark; a `[mm:ss.cc]` at the start of one is a line timestamp.
+ */
+private fun syncLevelOf(raw: String): Int = when {
+    WORD_TIMING.containsMatchIn(raw) -> 3
+    LINE_TIMING.containsMatchIn(raw) -> 2
+    else -> 1
+}
+
+private val WORD_TIMING = Regex("""<\d{1,2}:\d{2}([.:]\d{1,3})?>""")
+private val LINE_TIMING = Regex("""(^|\n)\s*\[\d{1,2}:\d{2}([.:]\d{1,3})?]""")
+
+/** How often a song that already has lyrics is re-checked, as stored. */
+fun readLyricsRefreshInterval(context: Context): LyricsRefreshInterval =
+    context.dataStore[LyricsRefreshIntervalKey]
+        ?.let { stored -> LyricsRefreshInterval.entries.find { it.name == stored } }
+        ?: LyricsRefreshInterval.NEVER
 
 /** Fetch mode as stored, falling back to [LyricsFetchMode.AUTO] for an unset or unknown value. */
 fun readFetchMode(context: Context): LyricsFetchMode =
@@ -702,19 +791,56 @@ enum class FoundKind { WORD_SYNCED, SYNCED, UNSYNCED, UNPARSEABLE }
  *
  * @param enabledCount number of providers that were expected to report
  */
-class RemoteLyricsAggregator(private val enabledCount: Int) {
-    private var adoptedWordSynced: RemoteLyricsResult.Found? = null
-    private var heldSynced: RemoteLyricsResult.Found? = null
-    private var heldUnsynced: RemoteLyricsResult.Found? = null
+/**
+ * Folds the providers' outcomes into one answer.
+ *
+ * Two things decide which result wins, in this order: **how good it is**, and then **where its
+ * provider sits in the user's order**.
+ *
+ * The second half is new, and its absence was a real complaint. In AUTO mode the providers are
+ * raced, and this used to keep the first result of each quality class to arrive - `if (heldSynced
+ * == null)`. Arrival order is network order, so the fastest provider won every tie and the
+ * preference list only decided who was *asked*, never who was believed. A song whose lyrics all
+ * three providers had would come back from whichever answered quickest, which is why the lyrics
+ * were "not from the top provider" often enough to notice but not always.
+ *
+ * Stopping early still happens, and still costs nothing: the race ends as soon as a word-synced
+ * result is in hand *and every provider ranked above it has already reported*. When the top
+ * provider answers first - the common case - that condition is satisfied immediately and nothing
+ * is slower than it was. When a lower-ranked one answers first, the wait is bounded by the overall
+ * deadline that was already there.
+ *
+ * @param orderedProviderNames enabled providers, in the user's own order. Rank is the index.
+ */
+class RemoteLyricsAggregator(
+    private val enabledCount: Int,
+    private val orderedProviderNames: List<String> = emptyList(),
+) {
+    private var best: RemoteLyricsResult.Found? = null
+    private var bestKind: FoundKind? = null
+    private var bestRank = Int.MAX_VALUE
+    private val reportedRanks = HashSet<Int>()
     private var notFoundCount = 0
     private var nonNotFoundCount = 0
+
+    private fun rankOf(providerName: String): Int =
+        orderedProviderNames.indexOf(providerName).takeIf { it >= 0 } ?: Int.MAX_VALUE
+
+    /** Word timings are strictly richer than line timings, which are richer than none. */
+    private fun quality(kind: FoundKind): Int = when (kind) {
+        FoundKind.WORD_SYNCED -> 3
+        FoundKind.SYNCED -> 2
+        FoundKind.UNSYNCED -> 1
+        FoundKind.UNPARSEABLE -> 0
+    }
 
     /**
      * Fold one provider outcome into the running result.
      *
-     * @return true once a synced result has been adopted, signalling that no further outcomes are needed.
+     * @return true once nothing still outstanding could improve on what is held.
      */
     fun offer(providerName: String, result: LyricsFetchResult, classifyFound: (String) -> FoundKind): Boolean {
+        reportedRanks += rankOf(providerName)
         when (result) {
             // Cleaned here rather than in each provider, so every source gets the same treatment
             // through one path. Only the universally safe part runs - speaker markers and music
@@ -726,41 +852,51 @@ class RemoteLyricsAggregator(private val enabledCount: Int) {
             // nothing but [Music] over and over.
             is LyricsFetchResult.Found -> {
                 val cleaned = cleanLyrics(result.raw)
-                when (classifyFound(cleaned)) {
-                    // Word timings are strictly richer - a line-level renderer ignores the extra
-                    // marks - so this is the one result worth stopping everything for.
-                    FoundKind.WORD_SYNCED -> {
-                        if (adoptedWordSynced == null) {
-                            adoptedWordSynced = RemoteLyricsResult.Found(providerName, cleaned, synced = true)
-                        }
-                        return true
-                    }
-
-                    // Held rather than adopted: a slower provider may still come back with the same
-                    // song in word-timed form, and that is worth the wait it costs.
-                    FoundKind.SYNCED -> if (heldSynced == null) {
-                        heldSynced = RemoteLyricsResult.Found(providerName, cleaned, synced = true)
-                    }
-
-                    FoundKind.UNSYNCED -> if (heldUnsynced == null) {
-                        heldUnsynced = RemoteLyricsResult.Found(providerName, cleaned, synced = false)
-                    }
-
+                val kind = classifyFound(cleaned)
+                if (kind == FoundKind.UNPARSEABLE) {
                     // Not a usable result, but not an absence either.
-                    FoundKind.UNPARSEABLE -> nonNotFoundCount++
+                    nonNotFoundCount++
+                } else {
+                    val rank = rankOf(providerName)
+                    val currentKind = bestKind
+                    // Better class wins outright; within a class the user's order breaks the tie.
+                    // Without the second clause this is arrival order, which is network latency.
+                    val better = currentKind == null ||
+                        quality(kind) > quality(currentKind) ||
+                        (quality(kind) == quality(currentKind) && rank < bestRank)
+                    if (better) {
+                        best = RemoteLyricsResult.Found(
+                            providerName,
+                            cleaned,
+                            synced = kind == FoundKind.WORD_SYNCED || kind == FoundKind.SYNCED,
+                        )
+                        bestKind = kind
+                        bestRank = rank
+                    }
                 }
             }
 
             LyricsFetchResult.NotFound -> notFoundCount++
             is LyricsFetchResult.Failed -> nonNotFoundCount++
         }
-        return false
+        return canStop()
+    }
+
+    /**
+     * Whether anything still outstanding could beat what is held.
+     *
+     * Only a word-synced result can end the race early, because a line-synced one can still be
+     * improved on by a slower provider returning word timings - which is the wait the previous
+     * version already judged worth paying. And only once every provider the user ranked above it
+     * has reported, since one of those could return word timings too and would then win the tie.
+     */
+    private fun canStop(): Boolean {
+        if (bestKind != FoundKind.WORD_SYNCED) return false
+        return (0 until minOf(bestRank, orderedProviderNames.size)).all { it in reportedRanks }
     }
 
     fun result(): RemoteLyricsResult = when {
-        adoptedWordSynced != null -> adoptedWordSynced as RemoteLyricsResult.Found
-        heldSynced != null -> heldSynced as RemoteLyricsResult.Found
-        heldUnsynced != null -> heldUnsynced as RemoteLyricsResult.Found
+        best != null -> best as RemoteLyricsResult.Found
         nonNotFoundCount == 0 && notFoundCount == enabledCount -> RemoteLyricsResult.DefinitiveNotFound
         else -> RemoteLyricsResult.Indeterminate
     }
