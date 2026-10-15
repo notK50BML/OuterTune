@@ -82,6 +82,8 @@ import com.dd3boh.outertune.constants.CrossfadeKey
 import com.dd3boh.outertune.constants.DiscordTokenKey
 import com.dd3boh.outertune.audio.EqualizerAudioProcessor
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
+import com.dd3boh.outertune.constants.SongEqualizerProfilesKey
+import com.dd3boh.outertune.models.SongEqualizerProfiles
 import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.constants.EnableDiscordRPCKey
 import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
@@ -436,6 +438,9 @@ class MusicService : MediaLibraryService(),
             MediaPlaybackBridge(player, database) { queue -> playQueue(queue, replace = true) }
         )
 
+        // Applied before anything can play, so the first track is not briefly equalised by
+        // whatever the processor was constructed with. The collector below takes over from here;
+        // this is only to avoid waiting a dispatch for the first emission.
         EqualizerSettings.parse(dataStore.get(EqualizerSettingsKey, ""))
             .onSuccess { equalizerAudioProcessor.setSettings(it) }
 
@@ -590,6 +595,30 @@ class MusicService : MediaLibraryService(),
             // Automatic backup is scheduled by AutoBackupWorker via WorkManager, not from here -
             // a full DB checkpoint and file copy has no business running on the same coroutine
             // scope that's standing up playback. See AutoBackupWorker's own doc.
+
+            // Which equaliser is in force, recomputed whenever the song, the global curve or the
+            // overrides change.
+            //
+            // It lives here rather than in the panel because the panel is usually not open. A
+            // per-song curve that only took effect while somebody was looking at the equaliser
+            // would be a setting that appears not to work.
+            //
+            // The override wins outright, its own enabled flag included - see
+            // SongEqualizerProfiles for why that is the useful reading rather than the cautious
+            // one. distinctUntilChanged on the resolved settings, not on the inputs, so a track
+            // change between two songs that both use the global curve does not re-publish
+            // coefficients and restart the processor's 20ms interpolation for no reason.
+            combine(
+                currentMediaMetadata.map { it?.id }.distinctUntilChanged(),
+                dataStore.data.map { it[EqualizerSettingsKey] ?: "" }.distinctUntilChanged(),
+                dataStore.data.map { it[SongEqualizerProfilesKey] ?: "" }.distinctUntilChanged(),
+            ) { songId, globalJson, overridesJson ->
+                val global = EqualizerSettings.parse(globalJson).getOrDefault(EqualizerSettings.DEFAULT)
+                val override = songId?.let { SongEqualizerProfiles.fromJson(overridesJson)[it] }
+                override?.settings ?: global
+            }
+                .distinctUntilChanged()
+                .collectLatest(scope) { equalizerAudioProcessor.setSettings(it) }
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }

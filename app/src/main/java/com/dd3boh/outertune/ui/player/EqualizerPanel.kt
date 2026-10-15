@@ -60,6 +60,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -88,13 +90,16 @@ import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.EqUseDialsKey
 import com.dd3boh.outertune.constants.EqValueColorGradientKey
+import kotlinx.coroutines.delay
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
+import com.dd3boh.outertune.constants.SongEqualizerProfilesKey
 import com.dd3boh.outertune.constants.EqualizerProfilesKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.extensions.togglePlayPause
 import com.dd3boh.outertune.extensions.toggleRepeatMode
 import com.dd3boh.outertune.models.EqualizerProfile
+import com.dd3boh.outertune.models.SongEqualizerProfiles
 import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.ui.component.PowerampThumb
 import com.dd3boh.outertune.ui.component.PowerampTrack
@@ -164,6 +169,14 @@ fun EqualizerPanel() {
     }
 }
 
+/**
+ * How long the controls must sit still before a song override is written.
+ *
+ * Long enough that a drag is one write rather than sixty, short enough that closing the panel
+ * straight after an adjustment still catches it.
+ */
+private const val SONG_PROFILE_SETTLE_MS = 400L
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun EqualizerPanelContent(onDismiss: () -> Unit) {
@@ -205,14 +218,74 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
 
     var settingsJson by rememberPreference(EqualizerSettingsKey, "")
 
+    // Per-song overrides. The service applies whichever is in force (see MusicService); this is
+    // the half that edits them, and which one an edit lands in is decided by boundToSong below.
+    var songProfilesJson by rememberPreference(SongEqualizerProfilesKey, "")
+    val songProfiles = remember(songProfilesJson) { SongEqualizerProfiles.fromJson(songProfilesJson) }
+    val currentSongId = mediaMetadata?.id
+    val boundToSong = currentSongId != null && currentSongId in songProfiles
+    val latestProfiles by rememberUpdatedState(songProfiles)
+
+    val globalSettings = remember(settingsJson) {
+        EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT)
+    }
+
     var settings by remember {
-        mutableStateOf(EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT))
+        mutableStateOf(songProfiles[currentSongId]?.settings ?: globalSettings)
+    }
+
+    // Re-seeded on a track change only. Keyed on the song rather than on the stored strings
+    // because this writes those strings: keying on them would reset the panel to its own last
+    // saved value halfway through a drag, every drag.
+    LaunchedEffect(currentSongId) {
+        settings = latestProfiles[currentSongId]?.settings ?: globalSettings
+        playerConnection.service.equalizerAudioProcessor.setSettings(settings)
+    }
+
+    // A song override is one preference string holding every override there is, so writing it on
+    // every frame of a slider drag would be a six-figure-byte disk write per frame. The audio
+    // follows the slider immediately; the stored copy catches up once it stops.
+    var pendingSongWrite by remember { mutableStateOf<EqualizerSettings?>(null) }
+    LaunchedEffect(pendingSongWrite, currentSongId) {
+        val toWrite = pendingSongWrite ?: return@LaunchedEffect
+        val songId = currentSongId ?: return@LaunchedEffect
+        delay(SONG_PROFILE_SETTLE_MS)
+        songProfilesJson = SongEqualizerProfiles.toJson(
+            SongEqualizerProfiles.put(
+                latestProfiles, songId, toWrite, System.currentTimeMillis()
+            ).values
+        )
+        pendingSongWrite = null
     }
 
     fun update(newSettings: EqualizerSettings) {
         settings = newSettings
-        settingsJson = newSettings.toJson()
         playerConnection.service.equalizerAudioProcessor.setSettings(newSettings)
+        // Edits go wherever the curve on screen came from. The alternative - always writing the
+        // global one - would mean that with an override active, every adjustment was silently
+        // discarded the next time the song came round, which is the worst of both.
+        if (boundToSong) pendingSongWrite = newSettings else settingsJson = newSettings.toJson()
+    }
+
+    /** Starts or stops this song having a curve of its own. */
+    fun bindToSong(bind: Boolean) {
+        val songId = currentSongId ?: return
+        songProfilesJson = if (bind) {
+            // Seeded from whatever is on screen, so turning this on keeps the sound it was turned
+            // on with rather than snapping to a default and making the user dial it in twice.
+            SongEqualizerProfiles.toJson(
+                SongEqualizerProfiles.put(
+                    latestProfiles, songId, settings, System.currentTimeMillis()
+                ).values
+            )
+        } else {
+            pendingSongWrite = null
+            // Back to the global curve, applied now rather than at the next track change, so the
+            // switch is heard as well as seen.
+            settings = globalSettings
+            playerConnection.service.equalizerAudioProcessor.setSettings(globalSettings)
+            SongEqualizerProfiles.toJson(SongEqualizerProfiles.remove(latestProfiles, songId).values)
+        }
     }
 
     fun updateBand(index: Int, band: EqualizerSettings.EqBand) {
@@ -396,6 +469,39 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 // Tone controls and profiles share a card - a profile is a whole-curve preset,
                 // Bass/Balance/Treble a quick nudge on top of one, so both are "how the curve gets
                 // shaped" rather than "the curve itself" (that's the frequency-band card below).
+                // Above the tone controls because it changes what every control below it writes
+                // to, which is the kind of thing that has to be read before they are touched
+                // rather than discovered afterwards.
+                mediaMetadata?.let { nowPlaying ->
+                    EqualizerCard {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = stringResource(R.string.eq_song_profile),
+                                    style = MaterialTheme.typography.titleSmall,
+                                    color = eqColor,
+                                )
+                                Text(
+                                    text = if (boundToSong) {
+                                        stringResource(R.string.eq_song_profile_on, nowPlaying.title)
+                                    } else {
+                                        stringResource(R.string.eq_song_profile_off)
+                                    },
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = eqColorVariant,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                            Switch(
+                                checked = boundToSong,
+                                onCheckedChange = { bindToSong(it) },
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                }
+
                 EqualizerCard {
                     ToneControlsRow(
                         bassGainDb = bassGainDb,

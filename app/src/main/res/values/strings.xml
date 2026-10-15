@@ -389,4 +389,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_ended_rejected">The host declined the connection</string>
     <string name="lt_offset_title">Timing offset</string>
     <string name="lt_offset_description">This device plays %1$d ms ahead of the host. Increase it if you hear this device lagging — Bluetooth headphones usually need 150–250 ms.</string>
+    <string name="eq_song_profile">Just this song</string>
+    <string name="eq_song_profile_on">This curve is saved for \"%1$s\" and replaces the global one while it plays</string>
+    <string name="eq_song_profile_off">Changes apply to every song</string>
 </resources>

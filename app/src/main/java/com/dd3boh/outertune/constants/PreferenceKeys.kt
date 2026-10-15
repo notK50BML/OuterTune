@@ -119,6 +119,9 @@ val MaxQueuesKey = intPreferencesKey("maxQueues")
 val ShowQueuesBesideCurrentKey = booleanPreferencesKey("showQueuesBesideCurrent")
 val EqualizerSettingsKey = stringPreferencesKey("equalizerSettings")
 val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
+
+/** Per-song equaliser overrides - see [com.dd3boh.outertune.models.SongEqualizerProfiles]. */
+val SongEqualizerProfilesKey = stringPreferencesKey("songEqualizerProfiles")
 val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
 val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
 /**
