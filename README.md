@@ -33,7 +33,7 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 ### Listen Together
 - Added ability to listen along to another person's device, as long as that device is still on the same network
 - Fixed a bug where the devices will fall out of sync because of lag from the host-side device
-
+- Added a feature to correct for the delay in the devices playing songs, tunable to a few milliseconds
 ### Discord Rich Presence
 - Added rich presence (huge thanks to [reocat](https://github.com/reocat/OuterTune))
 - Added clickable song and artist
@@ -119,6 +119,7 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 
 ### Other features
 - Added an APK auto-downloader
+- Added the High Frequency Restoration feature, which works similarly to Sony's DSEE HX
 
 
 ### Internal libraries and build tooling
@@ -150,6 +151,8 @@ OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/Inner
 > Version naming right now is a bit confusing. In order to clear up any questions, the naming convention is as follows: v0.xx is a stable alpha release, and v0.xx.x is a stable alpha fix. These fix releases usually fix bugs or layout problems, and add small features. A new alpha release typically comprises one or more major feature changes, or large overhauls of the user interface. A v0.xx.xb release is a beta release, featuring the cutting edge of the app's development, though this release may have bugs. Though these beta releases are absolutely usable as your default player, some features may not feel as polished as they should be.
 
 ## Screenshots
+
+Note: These screenshots are all from the original Astertune repository. I will eventually create my own screenshots of my fork, but this isn't a high priority now.
 
 [![Main player interface](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/main-interface.jpg)](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/main-interface.jpg)
 
@@ -198,7 +201,9 @@ experience done right.
 
 [BetterLyrics](https://github.com/better-lyrics/better-lyrics) for their amazing word-by-word lyrics engine
 
+[Digital Sound Resolution Enhancer (DSRE)](https://github.com/Urabewe/DSRE---Digital-Sound-Resolution-Enhancer-English) for a lot of ideas and inspiration, not to mention some code
 
+The original DSRE repository can be found [here](https://github.com/x1aoqv/DSRE---Digital-Sound-Resolution-Enhancer), but the content is largely in Chinese. The repository above is a fork of this one. Both projects have been extremely helpful in the creation of the High Frequency Restoration feature.
 
 ## Disclaimer
 
