@@ -92,10 +92,15 @@ class HarmonicExciter {
     // octave, which leaves a good deal of the fundamental still in the shaper's input and a good
     // deal of the shaper's low-frequency mess still in its output - and that mess sits directly on
     // top of real music, where it is far more audible than anything above 16kHz.
-    private val inputHighPass = Array(2) { Array(2) { BiquadState() } }
-    private val inputLowPass = Array(2) { Array(2) { BiquadState() } }
-    private val outputHighPass = Array(2) { Array(2) { BiquadState() } }
-    private val outputLowPass = Array(2) { Array(2) { BiquadState() } }
+    //
+    // Sized to the stream's channel count by [configure], not fixed at two. They were fixed at two,
+    // which was a crash waiting for the first multichannel file: `channels` was set from the real
+    // count, the bounds check compared against that, and a six-channel stream then indexed a
+    // two-element array from the audio thread.
+    private var inputHighPass: Array<Array<BiquadState>> = emptyArray()
+    private var inputLowPass: Array<Array<BiquadState>> = emptyArray()
+    private var outputHighPass: Array<Array<BiquadState>> = emptyArray()
+    private var outputLowPass: Array<Array<BiquadState>> = emptyArray()
 
     private var inputHighPassCoeffs = BiquadCoefficients.IDENTITY
     private var inputLowPassCoeffs = BiquadCoefficients.IDENTITY
@@ -132,8 +137,12 @@ class HarmonicExciter {
         outputHighPassCoeffs = passFilter(cutoffHz, sampleRateHz, high = true)
         outputLowPassCoeffs = passFilter(nyquist * CEILING_FRACTION, sampleRateHz, high = false)
 
-        if (channels != channelCount) {
+        if (channels != channelCount || inputHighPass.size != channelCount) {
             channels = channelCount
+            inputHighPass = Array(channelCount) { Array(SECTIONS) { BiquadState() } }
+            inputLowPass = Array(channelCount) { Array(SECTIONS) { BiquadState() } }
+            outputHighPass = Array(channelCount) { Array(SECTIONS) { BiquadState() } }
+            outputLowPass = Array(channelCount) { Array(SECTIONS) { BiquadState() } }
         }
         reset()
         active = true
@@ -172,7 +181,10 @@ class HarmonicExciter {
      * disappearing.
      */
     fun process(sample: Float, channel: Int): Float {
-        if (!isActive() || channel >= channels) return sample
+        // Against the array rather than against `channels`, so the bound is the thing actually
+        // being indexed. The two agree after configure; checking the one that does not is how the
+        // crash this replaced got in.
+        if (!isActive() || channel < 0 || channel >= inputHighPass.size) return sample
 
         // Band-limited to exactly what can be doubled without folding - see the class doc.
         var excited = sample
@@ -200,15 +212,22 @@ class HarmonicExciter {
      * would modulate with the signal on the way there. It is one multiply to simply not have the
      * problem.
      *
-     * `k` is fixed rather than driven by [amount]. Amount scales how much of the result is mixed
-     * in; letting it also drive the shaper harder would mean turning the effect up changed its
-     * character from second-harmonic to fifth-harmonic, which is the point where an exciter stops
-     * adding air and starts adding fizz - and where the aliasing analysis in the class doc stops
-     * holding.
+     * **[DRIVE_GAIN] is the part that makes this work at all**, and leaving it out is the mistake
+     * the first version made. A soft saturator's harmonic output grows as the square of its input:
+     * at x it produces roughly kx^2 of second harmonic, so halving the input quarters the effect.
+     * The signal being fed here is one narrow band of the top octave of already-quiet material -
+     * measured on a brickwalled noise floor it sits around -60dBFS - and at that level the shaper
+     * is operating in the part of its curve that is indistinguishable from a straight line. It
+     * produced nothing: all three strength settings measured identical because the generated band
+     * was, to four decimal places, not there.
+     *
+     * Driving the band up to where the curve actually bends fixes that, and the saturator's own
+     * ceiling is what makes it safe to drive this hard - its output is bounded by (1+k)/k however
+     * large the input gets, so a loud passage saturates rather than exploding.
      */
     private fun shape(x: Float): Float {
         val bias = evenness.coerceIn(0f, 1f) * MAX_BIAS
-        val biased = x + bias
+        val biased = x * DRIVE_GAIN + bias
         return softSaturate(biased) - softSaturate(bias)
     }
 
@@ -270,6 +289,21 @@ class HarmonicExciter {
          */
         private const val MAX_DRIVE = 0.6f
 
+        /**
+         * How far the band is driven into the shaper.
+         *
+         * Large, and it has to be: see [shape]. The band this is given is the top octave of lossy
+         * audio, which is quiet in absolute terms however loud the music is, and a saturator fed a
+         * quiet signal is a wire.
+         *
+         * The number is not arbitrary - it puts a band sitting around -45dBFS, which is roughly
+         * where the 8-11kHz content of ordinary loud programme material lands, into the region
+         * where the curve has bent enough to generate a usable second harmonic but not so far that
+         * the third and fifth start to compete. The two together are what [MAX_DRIVE] and this
+         * are balancing.
+         */
+        private const val DRIVE_GAIN = 64f
+
         /** The most DC offset [shape] will introduce, at [evenness] = 1. */
         private const val MAX_BIAS = 0.35f
 
@@ -292,5 +326,8 @@ class HarmonicExciter {
         private const val CEILING_FRACTION = 0.95f
 
         private const val BUTTERWORTH_Q = 0.7071f
+
+        /** Cascaded biquads per corner - see the filter fields. */
+        private const val SECTIONS = 2
     }
 }

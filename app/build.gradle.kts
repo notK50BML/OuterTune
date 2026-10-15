@@ -89,6 +89,28 @@ android {
         buildConfig = true
     }
 
+    /**
+     * Two of FFmpeg's libraries are in the prebuilt AAR and are loaded by nothing.
+     *
+     * Measured from the ELF headers rather than assumed. libffMetadataEx.so's DT_NEEDED list is
+     * libavformat, libavutil, libavcodec, libswresample and libswscale - libavfilter is not on it,
+     * and the only library that does name libavfilter is libavdevice, which nothing names at all.
+     * Neither is dlopened either: there is no "libavfilter" string anywhere in the binary.
+     *
+     * That is 3.97MB per ABI of video filter graph in a music player, and dropping it needs no
+     * rebuild of the AAR because nothing has to be relinked - the loader never looks for them.
+     *
+     * libswscale stays, reluctantly. It is video scaling and libffMetadataEx references zero sws_
+     * symbols, so it is dead at runtime too - but it *is* in the DT_NEEDED list, so the loader will
+     * refuse to open the library without it. Removing that 762KB means relinking ffMetadataEx
+     * without -lswscale, which is a change in that repository rather than this one.
+     */
+    packaging {
+        jniLibs {
+            excludes += listOf("**/libavfilter.so", "**/libavdevice.so")
+        }
+    }
+
 // build variants and stuff
     splits {
         abi {

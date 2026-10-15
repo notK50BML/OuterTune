@@ -136,17 +136,24 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         configureExciter()
     }
 
+    /**
+     * Re-plans the exciter's bands for the current stream.
+     *
+     * Deliberately does not touch [HarmonicExciter.enabled], which is the user's setting and not
+     * this function's to decide. An earlier version switched it off whenever a stream had no gap
+     * to fill - which worked, until a lossless track played and left it off: the setting had been
+     * consumed rather than applied, and the next lossy track came through flat with the switch
+     * still reading on. Whether there is anything to do is what the exciter's own `active` flag
+     * already answers, and [HarmonicExciter.isActive] requires both.
+     */
     private fun configureExciter() {
         val cutoff = exciterCutoffHz
         val channels = inputAudioFormat.channelCount
         if (cutoff == null || configuredSampleRate <= 0 || channels <= 0) {
-            exciter.enabled = false
+            exciter.configure(0, 0, 0f) // clears active without disturbing the setting
             return
         }
-        // configure answers whether there is a gap worth filling at this sample rate. There is no
-        // point leaving the stage switched on when there is not: it would cost four biquads per
-        // sample to add nothing.
-        if (!exciter.configure(configuredSampleRate, channels, cutoff)) exciter.enabled = false
+        exciter.configure(configuredSampleRate, channels, cutoff)
     }
 
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */

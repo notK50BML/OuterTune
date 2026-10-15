@@ -162,6 +162,99 @@ class HarmonicExciterTest {
         assertEquals("an 18kHz tone was amplified from $before to $after", before, after, 1.0)
     }
 
+    // ---- that it does enough of it ---------------------------------------------------------------
+
+    /**
+     * Noise brickwalled at the cutoff - what a lossy stream actually looks like, as opposed to the
+     * loud single tones above.
+     */
+    private fun lossyNoise(samples: Int = 16384): FloatArray {
+        val rng = kotlin.random.Random(42)
+        val raw = FloatArray(samples) { (rng.nextFloat() * 2f - 1f) * 0.3f }
+        val lp = BiquadCoefficients.forBand(
+            com.dd3boh.outertune.models.EqualizerSettings.EqBand(
+                freqHz = cutoff,
+                q = 0.7071f,
+                type = com.dd3boh.outertune.models.EqualizerSettings.FilterType.LOW_PASS,
+            ),
+            sampleRate,
+        )
+        val states = Array(6) { BiquadState() }
+        return FloatArray(samples) { i ->
+            var x = raw[i]
+            for (state in states) x = state.process(x, lp)
+            x
+        }
+    }
+
+    /** Mean energy across a band, which is the honest measure for noise - one bin of it is noise. */
+    private fun bandDb(signal: FloatArray, lowHz: Double, highHz: Double): Double {
+        var total = 0.0
+        var bins = 0
+        var hz = lowHz
+        while (hz <= highHz) {
+            val m = magnitudeAt(signal, hz)
+            total += m * m
+            bins++
+            hz += 250.0
+        }
+        return if (bins == 0 || total <= 0.0) -240.0 else 10.0 * log10(total / bins)
+    }
+
+    @Test
+    fun `realistic band-limited content is excited by a usable amount`() {
+        // The test the tone cases could not be. A saturator's harmonic output grows as the square
+        // of its input, and a 0.5-amplitude tone is nothing like the top octave of real music -
+        // measured on brickwalled noise that band sits near -55dBFS, where an undriven shaper is
+        // indistinguishable from a wire.
+        //
+        // The first version of this had no drive stage at all. It passed every tone test above and
+        // generated, on this signal, 2.6dB - which is the measurement floor, not an effect.
+        val whole = lossyNoise()
+        val reference = whole.copyOfRange(whole.size / 2, whole.size)
+        val excited = run(exciter(amount = HarmonicExciter.DEFAULT_AMOUNT), whole)
+
+        val before = bandDb(reference, 16_500.0, 21_000.0)
+        val after = bandDb(excited, 16_500.0, 21_000.0)
+        assertTrue(
+            "only ${"%.1f".format(after - before)}dB was generated into the empty band",
+            after - before > 10.0,
+        )
+
+        // And it has to land somewhere plausible relative to the music, not just be loud. Natural
+        // air sits below the presence region, never level with it.
+        val presence = bandDb(excited, 8_000.0, 15_000.0)
+        assertTrue(
+            "the restored band is ${"%.1f".format(after - presence)}dB against 8-15kHz, which is too loud to be air",
+            after - presence < -5.0,
+        )
+    }
+
+    @Test
+    fun `the strength settings actually differ`() {
+        // Three settings that measured identical to four decimal places is exactly how the missing
+        // drive stage showed up: not as an error, but as a control that did nothing.
+        val whole = lossyNoise()
+        val levels = listOf(0.3f, 0.5f, 0.8f).map { amount ->
+            bandDb(run(exciter(amount = amount), whole), 16_500.0, 21_000.0)
+        }
+        assertTrue("subtle and balanced measured the same: $levels", levels[1] - levels[0] > 1.5)
+        assertTrue("balanced and strong measured the same: $levels", levels[2] - levels[1] > 1.5)
+    }
+
+    @Test
+    fun `the music below the cutoff is not touched at any strength`() {
+        // Where the damage would be if the drive were too high: intermodulation products land on
+        // top of real music, which is far more audible than anything above 16kHz.
+        val whole = lossyNoise()
+        val reference = whole.copyOfRange(whole.size / 2, whole.size)
+        val before = bandDb(reference, 1_000.0, 5_000.0)
+        listOf(0.3f, 0.5f, 0.8f).forEach { amount ->
+            val after = bandDb(run(exciter(amount = amount), whole), 1_000.0, 5_000.0)
+            assertEquals("the midrange moved at amount $amount", before, after, 0.2)
+        }
+    }
+
     // ---- when it must refuse --------------------------------------------------------------------
 
     @Test
@@ -177,6 +270,55 @@ class HarmonicExciterTest {
         // And a cutoff close enough to Nyquist that the gap is narrower than the error in knowing
         // where the cutoff is.
         assertTrue(!exciter.configure(44_100, 2, 21_000f))
+    }
+
+    @Test
+    fun `a multichannel stream does not index past its filters`() {
+        // This crashed. The filter arrays were fixed at two channels while the bounds check
+        // compared against the stream's real channel count, so the first six-channel file indexed
+        // a two-element array - on the audio thread, where an exception takes playback with it.
+        //
+        // Six because that is 5.1, which arrives from a local file rather than from YouTube, and
+        // is exactly the case nobody tests by accident.
+        val exciter = HarmonicExciter().apply {
+            enabled = true
+            amount = 1f
+            assertTrue(configure(sampleRate, 6, cutoff))
+        }
+        val input = tone(9_000.0, samples = 512)
+        for (channel in 0 until 6) {
+            for (sample in input) exciter.process(sample, channel)
+        }
+    }
+
+    @Test
+    fun `a channel beyond the stream is passed through rather than crashing`() {
+        val exciter = exciter() // configured for one channel
+        assertEquals(0.5f, exciter.process(0.5f, channel = 7), 0f)
+        assertEquals(0.5f, exciter.process(0.5f, channel = -1), 0f)
+    }
+
+    @Test
+    fun `a stream with no gap does not switch the setting off`() {
+        // The setting is the user's and survives a track that cannot use it. An earlier version
+        // cleared `enabled` whenever a stream had no gap to fill, so one lossless track left the
+        // feature off and every lossy track afterwards played flat with the switch still reading
+        // on - the setting had been consumed rather than applied.
+        val exciter = HarmonicExciter().apply {
+            enabled = true
+            amount = 1f
+            assertTrue(configure(sampleRate, 2, cutoff))
+        }
+        assertTrue(exciter.isActive())
+
+        // A lossless track: no cutoff, so nothing to plan.
+        assertTrue(!exciter.configure(sampleRate, 2, 22_050f))
+        assertTrue("it went inactive, which is right", !exciter.isActive())
+        assertTrue("but the setting itself was cleared", exciter.enabled)
+
+        // And a lossy one again.
+        assertTrue(exciter.configure(sampleRate, 2, cutoff))
+        assertTrue("the setting did not come back", exciter.isActive())
     }
 
     @Test
