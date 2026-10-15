@@ -104,6 +104,8 @@ import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.ui.component.PowerampThumb
 import com.dd3boh.outertune.ui.component.PowerampTrack
 import com.dd3boh.outertune.ui.component.RotaryDial
+import androidx.compose.ui.draw.alpha
+import com.dd3boh.outertune.ui.component.EqResponseCurve
 import com.dd3boh.outertune.ui.component.VerticalSlider
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.button.ResizableIconButton
@@ -116,6 +118,16 @@ import kotlin.math.roundToInt
 
 /** Width given to each band's column in the horizontally-scrolling strip, Poweramp-style. */
 private val BandColumnWidth = 56.dp
+
+/**
+ * Sample rate the response curve is drawn at.
+ *
+ * Fixed rather than read from the player, because the graph has to be there before anything is
+ * playing and must not change shape when the next track happens to be 48kHz. 44.1kHz puts Nyquist
+ * at 22.05kHz, which is past the top of the plot, so the drawn range is identical either way - the
+ * only thing this changes is a region nobody can see.
+ */
+private const val EQ_GRAPH_SAMPLE_RATE = 44_100
 
 /** How much of the panel's top the drag handle claims - bigger than a slim strip, but this one is
  *  for the panel that's already open; the small pull-down on the player screen that opens it in
@@ -631,6 +643,24 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 // filter-type editor - kept apart from the tone controls and profiles above, which
                 // shape the curve rather than being it.
                 EqualizerCard {
+                    // Above the faders, because it is what they add up to. Twelve slider positions
+                    // do not say what the filter bank is doing: the bands overlap, so two adjacent
+                    // boosts make one larger hump rather than two small ones, and nothing in a row
+                    // of faders can show that.
+                    //
+                    // Dimmed rather than hidden while the equaliser is off, so the panel does not
+                    // jump every time the switch is touched - the curve is still what it would do.
+                    EqResponseCurve(
+                        bands = settings.bands,
+                        sampleRate = EQ_GRAPH_SAMPLE_RATE,
+                        lineColor = if (useValueGradient) eqColor else SliderActiveGreen,
+                        fillColor = if (useValueGradient) eqColor else SliderActiveGreen,
+                        gridColor = eqColorVariant,
+                        modifier = Modifier.alpha(if (settings.enabled) 1f else 0.45f),
+                    )
+
+                    Spacer(Modifier.height(12.dp))
+
                     // A plain Row of 12 columns squeezes every band into whatever width the screen
                     // has; a LazyRow at a fixed per-band width instead gives each one real room to
                     // drag in and lets the strip run wider than the screen, Poweramp-style, with
@@ -1085,6 +1115,11 @@ internal fun BandColumn(
                     activeColor = bandColor,
                     inactiveColor = sliderInactiveColor(),
                     trackThickness = 8.dp,
+                    // A band's middle is 0dB, not "none" - see PowerampTrack. Four detents puts a
+                    // mark every 7.5dB across the range, which is enough to judge a position by
+                    // and few enough not to read as a scale.
+                    centerOrigin = true,
+                    detents = 4,
                 )
             },
             thumb = { PowerampThumb(color = bandColor) },

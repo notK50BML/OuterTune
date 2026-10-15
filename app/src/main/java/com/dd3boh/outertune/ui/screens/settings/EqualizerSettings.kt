@@ -350,22 +350,44 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: 
     var isApplying by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
     val coroutineScope = rememberCoroutineScope()
+    val rateLimitedMessage = stringResource(R.string.eq_settings_autoeq_rate_limited)
+    val unreachableMessage = stringResource(R.string.eq_settings_autoeq_unreachable)
 
-    // Debounced: a search hits GitHub's API three times (over-ear/in-ear/earbud), so this waits
-    // for a pause in typing rather than firing on every keystroke.
+    // Debounced: the first search of a session hits GitHub's API three times, once per category,
+    // so this waits for a pause in typing. Later searches are served from the cached listings -
+    // see AutoEqRepository, and the rate limit that made caching necessary.
     LaunchedEffect(query) {
         val q = query.trim()
         if (q.isEmpty()) {
             results = emptyList()
             isSearching = false
+            error = null
             return@LaunchedEffect
         }
         delay(400)
         isSearching = true
         error = null
-        val found = runCatching { AutoEqRepository.search(q) }
+        val outcome = runCatching { AutoEqRepository.search(q) }
         isSearching = false
-        found.onSuccess { results = it }
+        outcome
+            .onSuccess {
+                when (it) {
+                    is AutoEqRepository.SearchOutcome.Found -> {
+                        results = it.results
+                        error = null
+                    }
+                    // Told apart from an empty result on purpose: "no headphones match" sends
+                    // somebody off to check their spelling, and neither of these is their fault.
+                    AutoEqRepository.SearchOutcome.RateLimited -> {
+                        results = emptyList()
+                        error = rateLimitedMessage
+                    }
+                    AutoEqRepository.SearchOutcome.Unreachable -> {
+                        results = emptyList()
+                        error = unreachableMessage
+                    }
+                }
+            }
             .onFailure { error = it.message }
     }
 
@@ -400,7 +422,7 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: 
             }
 
             error != null -> Text(
-                text = stringResource(R.string.eq_settings_autoeq_error, error ?: ""),
+                text = error.orEmpty(),
                 color = MaterialTheme.colorScheme.error,
             )
 

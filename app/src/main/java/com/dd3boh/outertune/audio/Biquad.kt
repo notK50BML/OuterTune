@@ -150,8 +150,15 @@ class BiquadCoefficients(
             return peak
         }
 
-        /** Summed in dB rather than multiplied, so a deep cut cannot underflow a running product. */
-        private fun cascadeDb(cascade: Array<BiquadCoefficients>, hz: Float, sampleRateHz: Int): Float {
+        /**
+         * Summed in dB rather than multiplied, so a deep cut cannot underflow a running product.
+         *
+         * Internal rather than private because the response curve the panel draws is this, and a
+         * graph derived from a second implementation of the same formula becomes a graph of a
+         * different filter the moment either one drifts. This is the cascade the audio thread
+         * actually runs.
+         */
+        internal fun cascadeDb(cascade: Array<BiquadCoefficients>, hz: Float, sampleRateHz: Int): Float {
             val w = 2.0 * Math.PI * hz / sampleRateHz
             val cos1 = cos(w).toFloat()
             val sin1 = sin(w).toFloat()

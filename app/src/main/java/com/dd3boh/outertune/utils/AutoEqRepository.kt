@@ -30,6 +30,20 @@ import java.net.URLEncoder
  * data to go stale, no APK size cost, and results that are always exactly what's in the repo right
  * now - at the cost of only covering one (well-regarded) measurement source rather than all of them,
  * and being unusable offline.
+ *
+ * Two things about doing it over GitHub's API that the first version did not account for.
+ *
+ * **It is rate limited, hard.** Unauthenticated callers get 60 requests an hour per address, and
+ * every search spent three of them - one per category - so about twenty searches exhausted the
+ * budget for the hour. The listings are then cached for [LISTING_TTL_MS]: the folder names change
+ * when somebody adds a headphone to the database, which is not something that needs checking every
+ * time a letter is typed. A session now costs three requests rather than three per search.
+ *
+ * **And being rate limited looked exactly like finding nothing.** `if (!response.isSuccessful)
+ * return emptyList()` turned a 403 into an empty result, so the screen said no headphones matched
+ * when the truth was that it had not been allowed to look. Failures are distinguished from
+ * absences now - see [SearchOutcome] - because "nothing found" sends someone off to check their
+ * spelling and "try again in a while" does not.
  */
 object AutoEqRepository {
     private const val TAG = "AutoEqRepository"
@@ -37,39 +51,134 @@ object AutoEqRepository {
     private const val REPO = "AutoEq"
     private val CATEGORIES = listOf("over-ear", "in-ear", "earbud")
 
+    /**
+     * How long a category listing is trusted.
+     *
+     * An hour. These are folder names in a public repository - they change when somebody adds a
+     * headphone to it - and the budget being spent is sixty requests an hour, so the cache window
+     * and the limit window may as well be the same size.
+     */
+    private const val LISTING_TTL_MS = 60L * 60 * 1000
+
     data class Result(val name: String, val category: String)
+
+    /**
+     * What a search found, or why it could not look.
+     *
+     * The distinction is the point: an empty [Found] means the database has no headphone of that
+     * name, while [RateLimited] and [Unreachable] mean the question was never asked. Collapsing
+     * the three into an empty list - which is what this did - tells someone to check their
+     * spelling when the real answer is to wait an hour or turn their connection on.
+     */
+    sealed interface SearchOutcome {
+        data class Found(val results: List<Result>) : SearchOutcome
+        data object RateLimited : SearchOutcome
+        data object Unreachable : SearchOutcome
+    }
 
     private val httpClient = OkHttpClient()
 
+    /**
+     * Category listings, by category.
+     *
+     * Held for [LISTING_TTL_MS] because they are a list of folder names in a public repository:
+     * they change when a headphone is added to it, and nothing is lost by being an hour behind.
+     * Without this every keystroke-debounced search spent three of the sixty requests an hour an
+     * unauthenticated caller gets.
+     */
+    private val listings = HashMap<String, CachedListing>()
+    private val listingsLock = Any()
+
+    private data class CachedListing(val names: List<String>, val fetchedAt: Long)
+
     /** Case-insensitive substring match against oratory1990's headphone folder names. */
-    suspend fun search(query: String): List<Result> = withContext(Dispatchers.IO) {
-        if (query.isBlank()) return@withContext emptyList()
-        CATEGORIES.flatMap { category ->
-            runCatching { listNames(category) }
-                .onFailure { Log.w(TAG, "Failed to list AutoEQ category $category", it) }
-                .getOrDefault(emptyList())
-                .filter { it.contains(query, ignoreCase = true) }
-                .map { Result(it, category) }
-        }.sortedBy { it.name }
+    suspend fun search(query: String): SearchOutcome = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext SearchOutcome.Found(emptyList())
+
+        val matches = mutableListOf<Result>()
+        var rateLimited = false
+        var failed = 0
+        for (category in CATEGORIES) {
+            when (val listing = namesFor(category)) {
+                is ListingOutcome.Names ->
+                    listing.names
+                        .filter { it.contains(query, ignoreCase = true) }
+                        .forEach { matches += Result(it, category) }
+
+                ListingOutcome.RateLimited -> rateLimited = true
+                ListingOutcome.Failed -> failed++
+            }
+        }
+
+        // A partial answer is still an answer: if two categories listed and one did not, the
+        // headphone the user is looking for may well be in the two that did. Only when nothing at
+        // all came back is the failure worth reporting instead of the results.
+        when {
+            matches.isNotEmpty() -> SearchOutcome.Found(matches.sortedBy { it.name })
+            rateLimited -> SearchOutcome.RateLimited
+            failed == CATEGORIES.size -> SearchOutcome.Unreachable
+            else -> SearchOutcome.Found(emptyList())
+        }
     }
 
-    private fun listNames(category: String): List<String> {
+    private sealed interface ListingOutcome {
+        data class Names(val names: List<String>) : ListingOutcome
+        data object RateLimited : ListingOutcome
+        data object Failed : ListingOutcome
+    }
+
+    private fun namesFor(category: String): ListingOutcome {
+        val now = System.currentTimeMillis()
+        synchronized(listingsLock) {
+            listings[category]?.let { cached ->
+                if (now - cached.fetchedAt < LISTING_TTL_MS) return ListingOutcome.Names(cached.names)
+            }
+        }
+        val fetched = listNames(category)
+        if (fetched is ListingOutcome.Names) {
+            synchronized(listingsLock) { listings[category] = CachedListing(fetched.names, now) }
+        }
+        return fetched
+    }
+
+    private fun listNames(category: String): ListingOutcome {
         val url = "https://api.github.com/repos/$OWNER/$REPO/contents/results/oratory1990/$category"
         val request = Request.Builder()
             .url(url)
             .header("Accept", "application/vnd.github+json")
             .build()
-        httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) return emptyList()
-            val body = response.body?.string() ?: return emptyList()
-            val array = JSONArray(body)
-            return (0 until array.length()).mapNotNull { i ->
-                val obj = array.optJSONObject(i) ?: return@mapNotNull null
-                if (obj.optString("type") != "dir") return@mapNotNull null
-                obj.optString("name").takeIf { it.isNotBlank() }
+        return runCatching {
+            httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    // 403 with the budget exhausted is the rate limit; GitHub also uses 429. The
+                    // remaining-count header is what separates a refusal to serve from a genuine
+                    // forbidden, since both arrive as 403.
+                    val exhausted = response.header("X-RateLimit-Remaining")?.toIntOrNull() == 0
+                    return@use if (response.code == 429 || (response.code == 403 && exhausted)) {
+                        Log.w(TAG, "AutoEQ listing rate limited for $category")
+                        ListingOutcome.RateLimited
+                    } else {
+                        Log.w(TAG, "AutoEQ listing failed for $category: HTTP ${response.code}")
+                        ListingOutcome.Failed
+                    }
+                }
+                val body = response.body?.string() ?: return@use ListingOutcome.Failed
+                val array = JSONArray(body)
+                ListingOutcome.Names(
+                    (0 until array.length()).mapNotNull { i ->
+                        val obj = array.optJSONObject(i) ?: return@mapNotNull null
+                        if (obj.optString("type") != "dir") return@mapNotNull null
+                        obj.optString("name").takeIf { it.isNotBlank() }
+                    }
+                )
             }
+        }.getOrElse { failure ->
+            // A dropped connection, a DNS failure, a captive portal. Not an absence either.
+            Log.w(TAG, "Failed to list AutoEQ category $category", failure)
+            ListingOutcome.Failed
         }
     }
+
 
     /** Fetches and parses [result]'s ParametricEQ.txt into a curve, or null on any failure. */
     suspend fun fetchCurve(result: Result): EqualizerSettings? = withContext(Dispatchers.IO) {

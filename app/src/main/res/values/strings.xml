@@ -404,4 +404,6 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lyrics_refresh_fortnightly">Every two weeks</string>
     <string name="lyrics_refresh_monthly">Every month</string>
     <string name="lyrics_refresh_info">Looks again for lyrics a song already has, in case a provider has since added a better version. Only for the song being played, never a sweep over the library \u2014 and a re-check that finds less than is already stored keeps what is there.</string>
+    <string name="eq_settings_autoeq_rate_limited">GitHub is rate limiting this device. The headphone list will work again within the hour.</string>
+    <string name="eq_settings_autoeq_unreachable">Could not reach AutoEQ. Check the connection and try again.</string>
 </resources>
