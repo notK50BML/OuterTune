@@ -122,6 +122,9 @@ val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
 
 /** Per-song equaliser overrides - see [com.dd3boh.outertune.models.SongEqualizerProfiles]. */
 val SongEqualizerProfilesKey = stringPreferencesKey("songEqualizerProfiles")
+
+/** High-frequency restoration for lossy streams - see [com.dd3boh.outertune.audio.HarmonicExciter]. */
+val AudioUpscalingKey = stringPreferencesKey("audioUpscaling")
 val ShowEqualizerButtonKey = booleanPreferencesKey("showEqualizerButton")
 val ShowEqualizerHandleKey = booleanPreferencesKey("showEqualizerHandle")
 /**

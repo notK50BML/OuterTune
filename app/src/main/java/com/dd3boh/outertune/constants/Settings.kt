@@ -188,6 +188,23 @@ enum class AudioQuality {
     AUTO, HIGH, LOW
 }
 
+/**
+ * How much high-frequency restoration to apply to lossy streams.
+ *
+ * Steps rather than a slider because the useful range is narrow and the top of it is already past
+ * where most people would stop - see [com.dd3boh.outertune.audio.HarmonicExciter] for why the
+ * drive is fixed and this only scales the mix.
+ *
+ * [OFF] is the default, deliberately. This synthesises content that was not in the recording, and
+ * however carefully it is done that is a thing someone should choose rather than discover.
+ */
+enum class AudioUpscaling(val amount: Float) {
+    OFF(0f),
+    SUBTLE(0.3f),
+    BALANCED(0.5f),
+    STRONG(0.8f),
+}
+
 /*
 ---------------------------
 Library & Content

@@ -82,6 +82,9 @@ import com.dd3boh.outertune.constants.CrossfadeKey
 import com.dd3boh.outertune.constants.DiscordTokenKey
 import com.dd3boh.outertune.audio.EqualizerAudioProcessor
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
+import com.dd3boh.outertune.audio.HarmonicExciter
+import com.dd3boh.outertune.constants.AudioUpscaling
+import com.dd3boh.outertune.constants.AudioUpscalingKey
 import com.dd3boh.outertune.constants.SongEqualizerProfilesKey
 import com.dd3boh.outertune.models.SongEqualizerProfiles
 import com.dd3boh.outertune.models.EqualizerSettings
@@ -619,6 +622,35 @@ class MusicService : MediaLibraryService(),
             }
                 .distinctUntilChanged()
                 .collectLatest(scope) { equalizerAudioProcessor.setSettings(it) }
+
+            // High-frequency restoration, re-planned per track.
+            //
+            // The cutoff has to come from the format rather than from a setting, because it is a
+            // property of how this particular stream was encoded - a 128kbps AAC stops around
+            // 16kHz and a 256kbps one around 19kHz, and exciting the wrong band either wastes the
+            // work or writes harmonics on top of music that is already there. Lossless formats
+            // resolve to no cutoff at all and switch the stage off, which is the behaviour asked
+            // for: upscale the lossy, leave the lossless alone.
+            combine(
+                currentFormat,
+                dataStore.data
+                    .map { prefs ->
+                        prefs[AudioUpscalingKey]
+                            ?.let { name -> AudioUpscaling.entries.firstOrNull { it.name == name } }
+                            ?: AudioUpscaling.OFF
+                    }
+                    .distinctUntilChanged()
+            ) { format, upscaling ->
+                upscaling to HarmonicExciter.cutoffForMimeType(format?.mimeType, format?.bitrate)
+            }
+                .distinctUntilChanged()
+                .collectLatest(scope) { (upscaling, cutoffHz) ->
+                    equalizerAudioProcessor.setExciter(
+                        enabled = upscaling != AudioUpscaling.OFF,
+                        amount = upscaling.amount,
+                        cutoffHz = cutoffHz,
+                    )
+                }
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }

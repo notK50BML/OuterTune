@@ -392,4 +392,10 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="eq_song_profile">Just this song</string>
     <string name="eq_song_profile_on">This curve is saved for \"%1$s\" and replaces the global one while it plays</string>
     <string name="eq_song_profile_off">Changes apply to every song</string>
+    <string name="audio_upscaling">High frequency restoration</string>
+    <string name="audio_upscaling_description">Rebuilds the top of the range that lossy streaming removes, by generating harmonics of what is still there. Lossless and Opus are left untouched.</string>
+    <string name="audio_upscaling_off">Off</string>
+    <string name="audio_upscaling_subtle">Subtle</string>
+    <string name="audio_upscaling_balanced">Balanced</string>
+    <string name="audio_upscaling_strong">Strong</string>
 </resources>

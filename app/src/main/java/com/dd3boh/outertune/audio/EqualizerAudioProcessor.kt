@@ -99,10 +99,55 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
      */
     val visualizer = VisualizerAnalyzer()
 
+    /**
+     * High-frequency restoration, run before everything else here.
+     *
+     * It lives inside this processor rather than beside it in the chain because a separate
+     * AudioProcessor would mean decoding every sample out of a ByteBuffer and encoding it back a
+     * second time, for a stage that is a handful of multiplies. This one already has the samples
+     * as floats.
+     *
+     * Before the cascade, not after: it is putting back what the codec removed, and the equaliser
+     * should then shape the restored signal the same way it shapes everything else. Running it
+     * afterwards would feed the shaper whatever the equaliser had just boosted, which is a
+     * different effect that happens to use the same code.
+     */
+    val exciter = HarmonicExciter()
+
+    /** Where the current stream's content stops, from its format - see [HarmonicExciter]. */
+    @Volatile
+    private var exciterCutoffHz: Float? = null
+
     @Volatile
     var visualizerEnabled: Boolean = false
 
     private var configuredSampleRate = 0
+
+    /**
+     * Points the exciter at the stream now playing. Safe to call from any thread.
+     *
+     * A null cutoff switches it off, which is what a lossless or unrecognised stream gets - see
+     * [HarmonicExciter.cutoffForMimeType] for why guessing is worse than declining.
+     */
+    fun setExciter(enabled: Boolean, amount: Float, cutoffHz: Float?) {
+        exciter.enabled = enabled
+        exciter.amount = amount
+        exciterCutoffHz = cutoffHz
+        configureExciter()
+    }
+
+    private fun configureExciter() {
+        val cutoff = exciterCutoffHz
+        val channels = inputAudioFormat.channelCount
+        if (cutoff == null || configuredSampleRate <= 0 || channels <= 0) {
+            exciter.enabled = false
+            return
+        }
+        // configure answers whether there is a gap worth filling at this sample rate. There is no
+        // point leaving the stage switched on when there is not: it would cost four biquads per
+        // sample to add nothing.
+        if (!exciter.configure(configuredSampleRate, channels, cutoff)) exciter.enabled = false
+    }
 
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
     fun setSettings(settings: EqualizerSettings) {
@@ -182,6 +227,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         configuredSampleRate = inputAudioFormat.sampleRate
         visualizer.configure(configuredSampleRate)
         recomputeCoefficients()
+        // After the sample rate is known, since the exciter's whole band plan is derived from it.
+        configureExciter()
         return inputAudioFormat
     }
 
@@ -193,7 +240,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val encoding = inputAudioFormat.encoding
         val feedVisualizer = visualizerEnabled
 
-        if (bypass) {
+        // The bypass path bulk-copies the buffer, which the exciter cannot do its work from -
+        // so an active exciter is itself a reason to take the long path, independently of whether
+        // any band is doing anything.
+        if (bypass && !exciter.isActive()) {
             // The visualiser reacts to whatever's actually playing, independent of whether the EQ
             // itself is doing anything to it - so it still needs a look at the samples even on the
             // path that otherwise just bulk-copies the buffer through untouched.
@@ -245,6 +295,9 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     C.ENCODING_PCM_FLOAT -> inputBuffer.getFloat()
                     else -> 0f
                 }
+
+                // First, on the signal as the decoder produced it. See the field's own doc.
+                sample = exciter.process(sample, ch)
 
                 // Backed off before the cascade even sees it, not after - the whole point is
                 // giving the boosted bands room to sum without already having clipped.
@@ -337,6 +390,9 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // alone, the old delay-line values would ring into the start of the new audio.
         states.forEach { channel -> channel.forEach { it.reset() } }
         compStates.forEach { it.reset() }
+        // Same reasoning as the band filters: the audio on the far side of a seek is unrelated, so
+        // carrying the exciter's delay line across it rings the old passage into the new one.
+        exciter.reset()
         // Nothing to glide over across a discontinuity either: the audio on the far side of it is
         // unrelated, so the new coefficients may as well be fully in effect for its first sample.
         if (rampFramesLeft > 0) {

@@ -37,6 +37,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AudioNormalizationKey
+import com.dd3boh.outertune.constants.AudioUpscaling
+import com.dd3boh.outertune.constants.AudioUpscalingKey
 import com.dd3boh.outertune.constants.CrossfadeDefaults
 import com.dd3boh.outertune.constants.CrossfadeDurationKey
 import com.dd3boh.outertune.constants.CrossfadeKey
@@ -142,6 +144,10 @@ fun AudioQualityFrag() {
         key = AudioNormalizationKey,
         defaultValue = true
     )
+    val (audioUpscaling, onAudioUpscalingChange) = rememberEnumPreference(
+        key = AudioUpscalingKey,
+        defaultValue = AudioUpscaling.OFF
+    )
 
     EnumListPreference(
         title = { Text(stringResource(R.string.audio_quality)) },
@@ -161,6 +167,20 @@ fun AudioQualityFrag() {
         icon = { Icon(Icons.AutoMirrored.Rounded.VolumeUp, null) },
         checked = audioNormalization,
         onCheckedChange = onAudioNormalizationChange
+    )
+    EnumListPreference(
+        title = { Text(stringResource(R.string.audio_upscaling)) },
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        selectedValue = audioUpscaling,
+        onValueSelected = onAudioUpscalingChange,
+        valueText = {
+            when (it) {
+                AudioUpscaling.OFF -> stringResource(R.string.audio_upscaling_off)
+                AudioUpscaling.SUBTLE -> stringResource(R.string.audio_upscaling_subtle)
+                AudioUpscaling.BALANCED -> stringResource(R.string.audio_upscaling_balanced)
+                AudioUpscaling.STRONG -> stringResource(R.string.audio_upscaling_strong)
+            }
+        }
     )
 }
 
