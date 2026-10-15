@@ -20,14 +20,57 @@ private const val MUSIC_PLACEHOLDER = "♪"
 private val SPEAKER_MARKER = Regex(""">>+\s*""")
 
 /**
+ * A single `>` at the start of a line, which [SPEAKER_MARKER] does not catch.
+ *
+ * YouTube emits both: `>>` for a change of speaker and a lone `>` where the same one carries on.
+ * The two-or-more rule was written against the first and left every line of the second with an
+ * angle bracket in front of it.
+ *
+ * Anchored to the start of the line deliberately. A `>` in the middle of one is far likelier to be
+ * something the lyricist wrote than a caption artefact, and once it is out of the position the
+ * convention puts it in there is no way to tell the two apart.
+ */
+private val LEADING_ANGLE = Regex("""^\s*>+\s*""")
+
+/**
+ * Note characters wrapping a line that has words in it - `♪ Never gonna give ♪`.
+ *
+ * YouTube brackets sung lines this way, and across a whole song it reads as decoration applied to
+ * every line rather than as a mark that means anything. A line that is *only* notes is left alone:
+ * that one is standing in for an instrumental passage, which is what the mark is actually for.
+ */
+private val WRAPPING_NOTES = Regex("""^[\s♪♫]+|[\s♪♫]+$""")
+
+/**
+ * Transcription artefacts: the recogniser reporting that it could not hear something.
+ *
+ * Removed outright rather than replaced. Unlike a music annotation these describe a failure of the
+ * transcript rather than anything in the recording, so there is nothing for a placeholder to stand
+ * in for - an empty line where the words are unknown is the honest result.
+ */
+private val INAUDIBLE_ANNOTATION =
+    Regex("""\[[^\]]*\b(?:inaudible|unintelligible|indistinct|no audio|silence)\b[^\]]*]""", RegexOption.IGNORE_CASE)
+
+/**
  * A bracketed sound annotation about music or singing - `[Music]`, `[Singing]`,
- * `[Music and singing]`, `[MUSIC PLAYING]` and so on.
+ * `[Music and singing]`, `[MUSIC PLAYING]`, `[Instrumental]` and so on.
  *
  * Only music and singing are matched, deliberately. Auto-captions also emit things like
  * `[Applause]` and `[Laughter]`, and those are genuinely part of a live recording rather than an
  * artefact of transcribing one, so they are left alone.
  */
-private val MUSIC_ANNOTATION = Regex("""\[[^\]]*\b(?:music|singing)\b[^\]]*]""", RegexOption.IGNORE_CASE)
+private val MUSIC_ANNOTATION =
+    Regex("""\[[^\]]*\b(?:music|singing|instrumental|guitar solo|drum solo)\b[^\]]*]""", RegexOption.IGNORE_CASE)
+
+/**
+ * Which of those annotations describe something being played, as opposed to something being sung.
+ *
+ * A line that is nothing but one of these earns the placeholder, because an instrumental break is
+ * a real event in the recording worth marking. `[Singing]` is not: it labels the obvious, and a
+ * note in its place would claim there was a break where there was a vocal.
+ */
+private val PLAYED_NOT_SUNG =
+    Regex("""\b(?:music|instrumental|guitar solo|drum solo)\b""", RegexOption.IGNORE_CASE)
 
 /** Timestamps first, then whatever the line actually says. */
 private val LRC_LINE = Regex("""^((?:\[\d+:\d{2}(?:[.:]\d+)?])+)(.*)$""")
@@ -68,10 +111,14 @@ private val FIRST_STAMP = Regex("""\[(\d+):(\d{2})([.:]\d+)?]""")
 /**
  * The cleanup that is safe for *any* lyrics source, whatever it is.
  *
- * Only two things happen here: `>>` speaker markers are dropped, and music/singing annotations are
- * removed - or turned into the standard placeholder when a line is nothing else. Both are noise in
- * a lyric sheet no matter which provider produced it, and neither can damage a line that does not
- * contain them.
+ * Caption artefacts are dropped - `>>` and `>` speaker markers, music and singing annotations,
+ * notes wrapping a line that has words in it, and the recogniser's own "could not hear this"
+ * markers. A line left with nothing but a music annotation becomes the standard placeholder. All
+ * of it is noise in a lyric sheet whichever provider produced it, and none of it can damage a line
+ * that does not contain it.
+ *
+ * Idempotent, which matters because it runs twice: once on what gets stored, and again on what
+ * gets displayed - see `LyricsHelper.parseResilient` for why the second is not redundant.
  *
  * Deliberately does **not** re-break lines. That is the one part of the caption treatment that must
  * not be applied generally: a real lyrics file is already broken where the lyricist intended, and
@@ -171,16 +218,24 @@ private fun formatStamp(ms: Long): String {
 }
 
 private fun cleanCaptionText(raw: String): String {
-    val despeakered = raw.replace(SPEAKER_MARKER, " ")
+    // The lone leading bracket after the pair, not before: a line reading ">> >Never" carries both
+    // conventions, and removing the pair leaves the single one at what is now the start.
+    val despeakered = raw.replace(SPEAKER_MARKER, " ").replace(LEADING_ANGLE, "")
     val stripped = despeakered
         .replace(MUSIC_ANNOTATION, " ")
+        .replace(INAUDIBLE_ANNOTATION, " ")
         .replace(COLLAPSIBLE_SPACE, " ")
         .trim()
-    if (stripped.isNotEmpty()) return stripped
 
-    // Nothing survived, so the line was only annotation. A music one was describing an instrumental
-    // passage and earns the placeholder; a bare "[Singing]" was only labelling the obvious, and
-    // leaves an empty line behind.
-    val describedMusic = MUSIC_ANNOTATION.findAll(despeakered).any { it.value.contains("music", ignoreCase = true) }
-    return if (describedMusic) MUSIC_PLACEHOLDER else ""
+    if (stripped.isNotEmpty()) {
+        // Notes wrapping real words are decoration; notes on their own are the mark itself, so the
+        // unwrapping only applies when something would be left after it.
+        val unwrapped = stripped.replace(WRAPPING_NOTES, "")
+        return if (unwrapped.isNotEmpty()) unwrapped else stripped
+    }
+
+    // Nothing survived, so the line was only annotation. One describing something played earns the
+    // placeholder; a bare "[Singing]" was labelling the obvious, and leaves an empty line behind.
+    val describedPlaying = MUSIC_ANNOTATION.findAll(despeakered).any { PLAYED_NOT_SUNG.containsMatchIn(it.value) }
+    return if (describedPlaying) MUSIC_PLACEHOLDER else ""
 }

@@ -128,6 +128,8 @@ writing a PCM sample had been written twice inside `:desktop` alone, and `Balanc
 three, so both now come from `Pcm`.) The fix is a pure-JVM module holding them with their current
 package names, so no import in `:app` changes. See `HANDOVER.md`.
 
-**The value-colour direction disagrees between the two.** The desktop runs yellow at the low end to
-blue at the high end. The phone's `valueGradientColor` runs blue to yellow. The desktop follows what
-was asked for; flipping the phone to match is one line in that function.
+**The value-colour direction now agrees.** Both run yellow at the low end to blue at the high end.
+The phone was the odd one out and has been flipped: turning a control up makes the sound brighter
+and thinner, which is what blue reads as, and the response curve added to the phone's panel is read
+by height - so a boost being yellow on the graph and blue on the fader that caused it would have
+been the panel arguing with itself.

@@ -653,9 +653,12 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                     EqResponseCurve(
                         bands = settings.bands,
                         sampleRate = EQ_GRAPH_SAMPLE_RATE,
-                        lineColor = if (useValueGradient) eqColor else SliderActiveGreen,
-                        fillColor = if (useValueGradient) eqColor else SliderActiveGreen,
+                        lineColor = SliderActiveGreen,
+                        fillColor = SliderActiveGreen,
                         gridColor = eqColorVariant,
+                        // The curve is the one thing in the panel whose height *is* a value, so it
+                        // follows the colour-by-value setting like every other control does.
+                        colorByHeight = useValueGradient,
                         modifier = Modifier.alpha(if (settings.enabled) 1f else 0.45f),
                     )
 
@@ -750,16 +753,29 @@ private val SliderActiveGreen = Color(0xFF4CAF50)
 @Composable
 private fun sliderInactiveColor(): Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
 
-/** Blue at the low end of [range], green in the middle, yellow at the high end. */
+/**
+ * Yellow at the low end of [range], green in the middle, blue at the high end.
+ *
+ * This used to run the other way round - blue low, yellow high - and the direction was the only
+ * thing wrong with it. Turning a control up makes the sound brighter and thinner, which is what
+ * blue reads as; turning it down makes it heavier and warmer, which is yellow. Running it the
+ * other way meant the colours argued with the thing they were describing.
+ *
+ * It also put the panel at odds with itself once the response curve arrived, since that one is
+ * read by height and nobody would expect a boost to be yellow on the graph and blue on the fader
+ * that caused it. The desktop has always run this direction; the phone was the odd one out.
+ *
+ * One line to put back if the old direction is wanted: swap the two colours below.
+ */
 private fun valueGradientColor(value: Float, range: ClosedFloatingPointRange<Float>): Color {
     val fraction = ((value - range.start) / (range.endInclusive - range.start)).coerceIn(0f, 1f)
-    val blue = Color(0xFF2196F3)
-    val green = Color(0xFF66DD44)
-    val yellow = Color(0xFFFFD500)
+    val low = Color(0xFFFFD500)
+    val middle = Color(0xFF66DD44)
+    val high = Color(0xFF2196F3)
     return if (fraction < 0.5f) {
-        lerp(blue, green, fraction / 0.5f)
+        lerp(low, middle, fraction / 0.5f)
     } else {
-        lerp(green, yellow, (fraction - 0.5f) / 0.5f)
+        lerp(middle, high, (fraction - 0.5f) / 0.5f)
     }
 }
 

@@ -16,6 +16,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -57,6 +58,20 @@ fun EqResponseCurve(
     gridColor: Color,
     modifier: Modifier = Modifier,
     height: Dp = 120.dp,
+    /**
+     * Whether the curve takes its colour from its own height.
+     *
+     * Yellow where it is cut, blue where it is boosted, through green at unity - so the shape
+     * carries its own reading of itself and a glance says which way a region has been moved
+     * without following the line back to an axis.
+     *
+     * Note this runs the opposite way round to [valueGradientColor], which the faders and dials
+     * use: that one is blue at the bottom of a range and yellow at the top. The two are not
+     * measuring the same thing - a fader's colour tracks a position along its own travel, while
+     * this tracks decibels against unity - but the inconsistency is real and worth knowing about
+     * rather than discovering. The desktop runs this direction throughout.
+     */
+    colorByHeight: Boolean = true,
 ) {
     // Recomputed only when the curve could have changed. Each point is a cascade over every band,
     // so this is the one part worth not doing per frame - and it does not need to be: the gains
@@ -68,6 +83,31 @@ fun EqResponseCurve(
         if (curve.isEmpty() || range <= 0f) return@Canvas
 
         fun yFor(db: Float): Float = size.height / 2f - (db / range) * (size.height / 2f)
+
+        // Keyed to the canvas rather than to the curve, so a given height is always the same
+        // colour: the plot's own scale already follows the curve (see rangeFor), and letting the
+        // colours follow it as well would mean a +3dB bump looked identical to a +12dB one.
+        val heightBrush = Brush.verticalGradient(
+            0f to BOOST_COLOR,
+            0.5f to UNITY_COLOR,
+            1f to CUT_COLOR,
+            startY = 0f,
+            endY = size.height,
+        )
+        val strokeBrush = if (colorByHeight) heightBrush else SolidColor(lineColor)
+        val areaBrush = if (colorByHeight) {
+            Brush.verticalGradient(
+                0f to BOOST_COLOR.copy(alpha = 0.32f),
+                0.5f to UNITY_COLOR.copy(alpha = 0.10f),
+                1f to CUT_COLOR.copy(alpha = 0.32f),
+                startY = 0f,
+                endY = size.height,
+            )
+        } else {
+            Brush.verticalGradient(
+                colors = listOf(fillColor.copy(alpha = 0.35f), fillColor.copy(alpha = 0.04f)),
+            )
+        }
 
         drawGrid(gridColor, range, ::yFor)
 
@@ -91,13 +131,8 @@ fun EqResponseCurve(
         fill.lineTo(size.width, size.height / 2f)
         fill.close()
 
-        drawPath(
-            path = fill,
-            brush = Brush.verticalGradient(
-                colors = listOf(fillColor.copy(alpha = 0.35f), fillColor.copy(alpha = 0.04f)),
-            ),
-        )
-        drawPath(path = path, color = lineColor, style = Stroke(width = 2.dp.toPx()))
+        drawPath(path = fill, brush = areaBrush)
+        drawPath(path = path, brush = strokeBrush, style = Stroke(width = 2.dp.toPx()))
     }
 }
 
@@ -165,6 +200,18 @@ internal fun rangeFor(curve: FloatArray): Float {
     val peak = curve.maxOfOrNull { abs(it) } ?: 0f
     return max(ceil(peak.toDouble()).toFloat(), MIN_RANGE_DB)
 }
+
+/**
+ * The curve's colours, top to bottom.
+ *
+ * Blue reads as the cold, thin end of a spectrum and yellow as the warm, heavy one, which is the
+ * association a boosted treble and a boosted bass already have - so the gradient agrees with what
+ * the curve is doing rather than being an arbitrary code to learn. Green at unity because it is
+ * neither, and because it is what the faders already use for a band doing nothing.
+ */
+private val BOOST_COLOR = Color(0xFF2196F3)
+private val UNITY_COLOR = Color(0xFF66DD44)
+private val CUT_COLOR = Color(0xFFFFD500)
 
 private const val MIN_HZ = 20f
 private const val MAX_HZ = 20_000f
