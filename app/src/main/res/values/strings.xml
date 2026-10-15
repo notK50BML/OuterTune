@@ -389,8 +389,8 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_ended_rejected">The host declined the connection</string>
     <string name="lt_offset_title">Timing offset</string>
     <string name="lt_offset_description">This device plays %1$d ms ahead of the host. Increase it if you hear this device lagging — Bluetooth headphones usually need 150–250 ms.</string>
-    <string name="eq_song_profile">Just this song</string>
-    <string name="eq_song_profile_on">This curve is saved for \"%1$s\" and replaces the global one while it plays</string>
+    <string name="eq_song_profile">Apply only to current song</string>
+    <string name="eq_song_profile_on">Saved for \"%1$s\" and used instead of the global curve while it plays</string>
     <string name="eq_song_profile_off">Changes apply to every song</string>
     <string name="audio_upscaling">High frequency restoration</string>
     <string name="audio_upscaling_description">Rebuilds the top of the range that lossy streaming removes, by generating harmonics of what is still there. Lossless and Opus are left untouched.</string>
@@ -406,4 +406,20 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lyrics_refresh_info">Looks again for lyrics a song already has, in case a provider has since added a better version. Only for the song being played, never a sweep over the library \u2014 and a re-check that finds less than is already stored keeps what is there.</string>
     <string name="eq_settings_autoeq_rate_limited">GitHub is rate limiting this device. The headphone list will work again within the hour.</string>
     <string name="eq_settings_autoeq_unreachable">Could not reach AutoEQ. Check the connection and try again.</string>
+    <string name="eq_current_song_profile">Current song</string>
+    <string name="eq_additional_settings">Additional settings</string>
+    <string name="eq_compressor">Compressor</string>
+    <string name="eq_use_dials">Use dials instead of sliders</string>
+    <string name="eq_colour_by_value">Colour controls by their value</string>
+    <string name="eq_show_panel_settings">Show these in the player panel</string>
+    <string name="eq_show_panel_settings_description">Adds the two settings above to the Additional settings panel, so they can be changed without leaving the player.</string>
+    <string name="eq_autosave">Save profile edits automatically</string>
+    <string name="eq_autosave_description">Writes changes straight into the selected profile instead of waiting for Save. A per-song curve always saves itself regardless.</string>
+    <string name="eq_save">Save</string>
+    <string name="eq_revert_to_saved">Revert to saved</string>
+    <string name="eq_revert_to_default">Revert to default</string>
+    <string name="eq_save_as_new">Save as new profile…</string>
+    <string name="eq_profile_name">Profile name</string>
+    <string name="eq_export">Export</string>
+    <string name="eq_import">Import</string>
 </resources>

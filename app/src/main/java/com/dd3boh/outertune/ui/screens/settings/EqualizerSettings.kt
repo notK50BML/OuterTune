@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Equalizer
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Save
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.CircularProgressIndicator
@@ -65,6 +66,8 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.EqUseDialsKey
 import com.dd3boh.outertune.constants.EqValueColorGradientKey
+import com.dd3boh.outertune.constants.EqAutoSaveProfilesKey
+import com.dd3boh.outertune.constants.EqShowPanelSettingsKey
 import com.dd3boh.outertune.constants.EqualizerProfilesKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
@@ -179,6 +182,8 @@ fun EqualizerSettingsScreen(
 
     var showSaveAsDialog by remember { mutableStateOf(false) }
     var showAutoEqDialog by remember { mutableStateOf(false) }
+    var showPanelSettings by rememberPreference(EqShowPanelSettingsKey, defaultValue = false)
+    var autoSaveProfiles by rememberPreference(EqAutoSaveProfilesKey, defaultValue = false)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -272,7 +277,23 @@ fun EqualizerSettingsScreen(
             onCheckedChange = { useValueGradient = it }
         )
 
+        SwitchPreference(
+            title = { Text(stringResource(R.string.eq_show_panel_settings)) },
+            description = stringResource(R.string.eq_show_panel_settings_description),
+            icon = { Icon(Icons.Rounded.Tune, null) },
+            checked = showPanelSettings,
+            onCheckedChange = { showPanelSettings = it }
+        )
+
         PreferenceGroupTitle(title = stringResource(R.string.eq_settings_profiles))
+
+        SwitchPreference(
+            title = { Text(stringResource(R.string.eq_autosave)) },
+            description = stringResource(R.string.eq_autosave_description),
+            icon = { Icon(Icons.Rounded.Save, null) },
+            checked = autoSaveProfiles,
+            onCheckedChange = { autoSaveProfiles = it }
+        )
 
         profileNames.forEach { name ->
             PreferenceEntry(

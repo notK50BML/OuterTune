@@ -120,6 +120,12 @@ val ShowQueuesBesideCurrentKey = booleanPreferencesKey("showQueuesBesideCurrent"
 val EqualizerSettingsKey = stringPreferencesKey("equalizerSettings")
 val EqualizerProfilesKey = stringPreferencesKey("equalizerProfiles")
 
+/** Show the equaliser panel's two display settings in the panel as well as in its settings screen. */
+val EqShowPanelSettingsKey = booleanPreferencesKey("eqShowPanelSettings")
+
+/** Write edits straight into the selected equaliser profile, without pressing Save. */
+val EqAutoSaveProfilesKey = booleanPreferencesKey("eqAutoSaveProfiles")
+
 /** Per-song equaliser overrides - see [com.dd3boh.outertune.models.SongEqualizerProfiles]. */
 val SongEqualizerProfilesKey = stringPreferencesKey("songEqualizerProfiles")
 
