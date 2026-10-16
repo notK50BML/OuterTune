@@ -14,6 +14,7 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import com.dd3boh.outertune.models.EqualizerSettings
 import java.nio.ByteBuffer
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
 import kotlin.math.tanh
@@ -70,6 +71,21 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
      */
     @Volatile
     private var headroomFactor: Float = 1f
+
+    /**
+     * Attenuation this track is going to receive anyway, in dB, as a positive number.
+     *
+     * Loudness normalisation turns most streams down - YouTube Music content by six to ten
+     * decibels - and that attenuation is headroom: room between the signal and full scale that a
+     * boost can be spent into for nothing. It was being applied after this processor, at the
+     * player's volume, where the equaliser could not reach it, so a boost paid for headroom the
+     * track had already been given.
+     *
+     * Applied here instead, and removed from the volume stage by the caller, so the total gain is
+     * unchanged for a flat curve and a boost up to this size now costs nothing at all.
+     */
+    @Volatile
+    private var normalisationDb: Float = 0f
 
     @Volatile
     private var compressorSettings: EqualizerSettings.CompressorSettings = EqualizerSettings.CompressorSettings()
@@ -166,6 +182,20 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         exciter.configure(configuredSampleRate, channels, cutoff)
     }
 
+    /**
+     * Hands over the attenuation this track would otherwise receive at the volume stage.
+     *
+     * Zero when the caller is still applying it there - see [normalisationDb]. The two must never
+     * both apply it, which is why this is pushed rather than read: only the caller knows which of
+     * them is doing it.
+     */
+    fun setNormalisation(db: Float) {
+        val clamped = db.coerceAtLeast(0f)
+        if (clamped == normalisationDb) return
+        normalisationDb = clamped
+        recomputeCoefficients()
+    }
+
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
     fun setHeadroom(factor: Float) {
         val clamped = factor.coerceIn(0f, 1f)
@@ -222,8 +252,13 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // Capped at the band range, so even a single band at maximum is fully accounted for. A
         // curve asking for +14dB genuinely does have to come down by 14dB somewhere; the only
         // alternative is to clip it, which is the thing this exists to stop.
+        // The larger of the two, not their sum. The normalisation attenuation is headroom the
+        // boost can be spent into: a +8dB curve on a track already coming down 8dB needs no
+        // further attenuation at all, and taking both would turn the band down by the 8dB it was
+        // just turned up by. Only a boost larger than the headroom costs anything.
         val peakDb = BiquadCoefficients.peakGainDb(built, sr).coerceIn(0f, MAX_HEADROOM_DB)
-        preGainLinear = 10f.pow(-peakDb * headroomFactor / 20f)
+        val attenuationDb = max(peakDb * headroomFactor, normalisationDb)
+        preGainLinear = 10f.pow(-attenuationDb / 20f)
 
         val comp = compressorSettings
         compressorCoefficients = if (!comp.enabled) CompressorCoefficients.BYPASS else CompressorCoefficients.from(
@@ -270,7 +305,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // The bypass path bulk-copies the buffer, which the exciter cannot do its work from -
         // so an active exciter is itself a reason to take the long path, independently of whether
         // any band is doing anything.
-        if (bypass && !exciter.isActive()) {
+        // A pending normalisation is a third reason not to take the bulk-copy path: the caller
+        // has stopped applying it at the volume stage and is relying on this processor to, so
+        // copying the buffer through untouched would play the track at full level.
+        if (bypass && !exciter.isActive() && normalisationDb == 0f) {
             // The visualiser reacts to whatever's actually playing, independent of whether the EQ
             // itself is doing anything to it - so it still needs a look at the samples even on the
             // path that otherwise just bulk-copies the buffer through untouched.

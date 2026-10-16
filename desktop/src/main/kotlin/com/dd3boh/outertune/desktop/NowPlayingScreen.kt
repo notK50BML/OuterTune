@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -187,7 +189,17 @@ fun NowPlayingScreen(
     // cover of what is now playing is the more useful thing to land on.
     var showLyrics by remember(song?.id) { mutableStateOf(false) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+    // Wide enough for both, and the queue is what the width is spent on.
+    //
+    // A queue that covers the player is the right answer on a phone, where there is no room for
+    // anything else, and the wrong one on a desktop window a metre across - the thing being played
+    // disappears to look at what is playing next. Past this width it docks beside the player
+    // instead, and below it the full-window overlay is still correct.
+    val sideBySide = maxWidth >= QUEUE_DOCK_MIN_WIDTH
+    val queueDocked = sideBySide && queueOpen
+
+    Row(modifier = Modifier.fillMaxSize()) {
     PlayerBackground(
         style = backgroundStyle,
         thumbnail = song?.thumbnail,
@@ -196,7 +208,8 @@ fun NowPlayingScreen(
     )
     Column(
         modifier = Modifier
-            .fillMaxSize()
+            .weight(1f)
+            .fillMaxHeight()
             // Scrolling up at the top of the player pulls the equaliser down, which is the gesture
             // the drawer's own handle implies and the one that was missing - the handle could only
             // be clicked, so "scroll up to see it" simply did nothing.
@@ -538,23 +551,57 @@ fun NowPlayingScreen(
             )
         }
 
-        // Over the player rather than inside the column, so opening it covers the window the way the
+        // Only when it is not docked beside the player - see sideBySide above. Over the player
+        // rather than inside the column, so on a narrow window it covers things the way the
         // Android sheet does instead of squeezing the controls into whatever is left.
+        if (!sideBySide) {
+            QueueOverlay(
+                queue = queue,
+                onColour = onBackground,
+                background = bottom,
+                open = queueOpen,
+                onClose = { queueOpen = false },
+                onJump = {
+                    onJumpToQueueIndex(it)
+                    queueOpen = false
+                },
+                onMove = onMoveInQueue,
+                onRemove = onRemoveFromQueue,
+            )
+        }
+    }
+
+    // Beside the player, in the Row, so the two share the window instead of one hiding the other.
+    // Jumping to a track does not close it here: the whole point of having both on screen is that
+    // the queue stays readable while the player plays.
+    if (sideBySide) {
         QueueOverlay(
             queue = queue,
             onColour = onBackground,
             background = bottom,
             open = queueOpen,
             onClose = { queueOpen = false },
-            onJump = {
-                onJumpToQueueIndex(it)
-                queueOpen = false
-            },
+            onJump = onJumpToQueueIndex,
             onMove = onMoveInQueue,
             onRemove = onRemoveFromQueue,
+            docked = true,
+            modifier = Modifier.width(QUEUE_DOCK_WIDTH).fillMaxHeight(),
         )
     }
+    }
 }
+
+/** Below this the queue covers the player; at or above it, the two sit side by side. */
+private val QUEUE_DOCK_MIN_WIDTH = 1000.dp
+
+/**
+ * How much of the window the docked queue takes.
+ *
+ * Fixed rather than a fraction. A queue row is a cover, a title and an artist, and that needs about
+ * this much whatever the window is doing - given a share of a very wide window it would stretch to
+ * a line of text with a great deal of nothing after it.
+ */
+private val QUEUE_DOCK_WIDTH = 380.dp
 
 /**
  * What sits behind the player.
@@ -796,11 +843,29 @@ private fun QueueOverlay(
     onJump: (Int) -> Unit,
     onMove: (Int, Int) -> Unit,
     onRemove: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+    /**
+     * Whether this is the panel beside the player rather than the sheet over it.
+     *
+     * Only the way it arrives differs. A sheet comes up from the bottom edge it is anchored to; a
+     * panel comes in from the side it occupies, because a column of list sliding vertically into a
+     * space beside something else reads as the wrong thing having moved.
+     */
+    docked: Boolean = false,
 ) {
     AnimatedVisibility(
         visible = open,
-        enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-        exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(),
+        enter = if (docked) {
+            slideInHorizontally(initialOffsetX = { it }) + fadeIn()
+        } else {
+            slideInVertically(initialOffsetY = { it }) + fadeIn()
+        },
+        exit = if (docked) {
+            slideOutHorizontally(targetOffsetX = { it }) + fadeOut()
+        } else {
+            slideOutVertically(targetOffsetY = { it }) + fadeOut()
+        },
+        modifier = modifier,
     ) {
         Column(
             modifier = Modifier

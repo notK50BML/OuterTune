@@ -189,6 +189,7 @@ import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.time.LocalDateTime
 import javax.inject.Inject
+import kotlin.math.log10
 import kotlin.math.min
 import kotlin.math.pow
 
@@ -313,6 +314,15 @@ class MusicService : MediaLibraryService(),
     }
 
     private val normalizeFactor = MutableStateFlow(1f)
+
+    /**
+     * Whether the equaliser is switched on for whatever is playing.
+     *
+     * Read by the normalisation collector, which has to know which of the two stages is applying
+     * the track's attenuation. Published from the settings collector rather than recomputed, so
+     * the two cannot disagree about it.
+     */
+    private val equalizerEnabled = MutableStateFlow(false)
 
     private val audioDecoder = dataStore.get(AudioDecoderKey, DEFAULT_AUDIO_DECODER)
     private val isGaplessOffloadAllowed = dataStore.get(AudioGaplessOffloadKey, false)
@@ -623,7 +633,12 @@ class MusicService : MediaLibraryService(),
                 override?.settings ?: global
             }
                 .distinctUntilChanged()
-                .collectLatest(scope) { equalizerAudioProcessor.setSettings(it) }
+                .collectLatest(scope) {
+                    equalizerAudioProcessor.setSettings(it)
+                    // Last, so the normalisation collector never sees "enabled" before the curve
+                    // that goes with it.
+                    equalizerEnabled.value = it.enabled
+                }
 
             // High-frequency restoration, re-planned per track.
             //
@@ -689,10 +704,26 @@ class MusicService : MediaLibraryService(),
             ) { format, normalizeAudio ->
                 format to normalizeAudio
             }.collectLatest(scope) { (format, normalizeAudio) ->
-                normalizeFactor.value = if (normalizeAudio && format?.loudnessDb != null) {
+                val factor = if (normalizeAudio && format?.loudnessDb != null) {
                     min(10f.pow(-format.loudnessDb.toFloat() / 20), 1f)
                 } else {
                     1f
+                }
+                // Whoever applies it, it is applied exactly once.
+                //
+                // With the equaliser on, the attenuation is handed to the processor so a boost can
+                // be spent into it - see EqualizerAudioProcessor.normalisationDb - and the volume
+                // stage is left at unity. With the equaliser off there is nothing to spend it on,
+                // and doing it at the volume stage costs nothing where doing it in the processor
+                // would mean touching every sample of every track just to multiply it by a
+                // constant.
+                val normalisationDb = -20f * log10(factor.coerceAtLeast(1e-6f))
+                if (equalizerEnabled.value) {
+                    equalizerAudioProcessor.setNormalisation(normalisationDb)
+                    normalizeFactor.value = 1f
+                } else {
+                    equalizerAudioProcessor.setNormalisation(0f)
+                    normalizeFactor.value = factor
                 }
             }
 

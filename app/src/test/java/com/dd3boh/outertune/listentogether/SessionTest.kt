@@ -7,6 +7,9 @@
 package com.dd3boh.outertune.listentogether
 
 import kotlinx.coroutines.CompletableDeferred
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -164,7 +167,39 @@ class SessionTest {
 
     private fun nowUs(): Long = System.nanoTime() / 1000
 
-    private fun scope() = CoroutineScope(Dispatchers.IO + SupervisorJob())
+    /**
+     * A thread pool of this test's own, rather than Dispatchers.IO.
+     *
+     * Dispatchers.IO is one pool for the whole JVM, capped at 64 threads, and LanTransportTest in
+     * the same suite opens real sockets on it - ServerSocket.accept() blocks a thread until it is
+     * closed rather than suspending. Run the suite together and those blocked threads are enough
+     * that the coroutines here are never scheduled: this test timed out after twenty seconds
+     * waiting for a handshake it had already asked for, and passed every time it was run alone,
+     * which is the signature of starvation rather than of a bug in what is being tested.
+     *
+     * An unbounded pool per test cannot be starved by anything outside the test, and is shut down
+     * with the scope - see [closeScope].
+     */
+    private fun scope(): CoroutineScope {
+        val executor = Executors.newCachedThreadPool()
+        val dispatcher = executor.asCoroutineDispatcher()
+        val scope = CoroutineScope(dispatcher + SupervisorJob())
+        scopeExecutors[scope] = executor
+        return scope
+    }
+
+    private val scopeExecutors = java.util.concurrent.ConcurrentHashMap<CoroutineScope, ExecutorService>()
+
+    /**
+     * Cancels a scope and shuts the pool down with it.
+     *
+     * The pool has to go too: a cached pool keeps its idle threads for a minute, and across a
+     * whole suite that is enough of them to become the problem this exists to avoid.
+     */
+    private fun closeScope(scope: CoroutineScope) {
+        scope.cancel()
+        scopeExecutors.remove(scope)?.shutdownNow()
+    }
 
     // ---- host handshake -------------------------------------------------------------------
 
@@ -193,7 +228,7 @@ class SessionTest {
             withTimeout(TIMEOUT) { assertEquals(1, host.listeners.first { it.isNotEmpty() }.size) }
             assertEquals("Pixel 8", host.listeners.value.first().name)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -212,7 +247,7 @@ class SessionTest {
             assertEquals(Protocol.ByeReason.VERSION_MISMATCH, link.closedWith)
             assertTrue(host.listeners.value.isEmpty())
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -237,7 +272,7 @@ class SessionTest {
             assertEquals(1_000_000, pong.t2)
             assertTrue("t3 must be stamped when the reply is written", pong.t3 >= pong.t2)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -255,7 +290,7 @@ class SessionTest {
             withTimeout(TIMEOUT) { host.listeners.first { it.isEmpty() } }
             Unit
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -284,7 +319,7 @@ class SessionTest {
             assertEquals("must not seek on an unmeasured clock", 0, bridge.seeks)
             assertFalse(follower.state.value.synced)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -315,7 +350,7 @@ class SessionTest {
             assertEquals("must not seek a song the host never named", 0, bridge.seeks)
             assertEquals("mine", bridge.currentTrack?.videoId)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -347,7 +382,7 @@ class SessionTest {
             // leave it audibly out of step with the session it says it is in.
             assertFalse(bridge.isPlaying)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -368,7 +403,7 @@ class SessionTest {
             // bare dead socket cannot tell them apart.
             assertEquals(Protocol.ByeReason.HOST_STOPPED, follower.state.value.endedReason)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -394,7 +429,7 @@ class SessionTest {
             withTimeout(TIMEOUT) { follower.state.first { it.missingTrack } }
             assertTrue(follower.state.value.missingTrack)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -437,7 +472,7 @@ class SessionTest {
             assertTrue("follower should be playing", followerBridge.isPlaying)
             assertEquals("abc", followerBridge.currentTrack?.videoId)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -473,7 +508,7 @@ class SessionTest {
             withTimeout(TIMEOUT) { while (!followerBridge.isPlaying) delay(50) }
             assertTrue(followerBridge.isPlaying)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -510,7 +545,7 @@ class SessionTest {
             withTimeout(TIMEOUT) { host.listeners.first { it.isEmpty() } }
             Unit
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -544,7 +579,7 @@ class SessionTest {
             // while the user is watching and concluding the feature is broken.
             assertEquals("the song must be requested once, not once per tick", 1, bridge.playTrackCalls)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -583,7 +618,7 @@ class SessionTest {
             }
             assertEquals(2, bridge.playTrackCalls)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -606,7 +641,7 @@ class SessionTest {
             // killed halfway through joining.
             assertTrue("a silent connection must not be left open", silent.closeCalled)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -628,7 +663,7 @@ class SessionTest {
             assertEquals(Protocol.ByeReason.HOST_STOPPED, b.closedWith)
             assertTrue(host.listeners.value.isEmpty())
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -651,7 +686,7 @@ class SessionTest {
             // wrong" months later.
             assertEquals(1f, bridge.speed)
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
@@ -672,7 +707,7 @@ class SessionTest {
             assertNull(follower.state.value.hostName)
             assertNotNull(link.sent.firstOrNull())
         } finally {
-            scope.cancel()
+            closeScope(scope)
         }
     }
 
