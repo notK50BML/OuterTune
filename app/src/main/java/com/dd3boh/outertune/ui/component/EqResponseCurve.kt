@@ -9,6 +9,9 @@ package com.dd3boh.outertune.ui.component
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -77,7 +80,13 @@ fun EqResponseCurve(
     // so this is the one part worth not doing per frame - and it does not need to be: the gains
     // change when a finger moves, not when the screen refreshes.
     val curve = remember(bands, sampleRate) { responseCurve(bands, sampleRate) }
-    val range = remember(curve) { rangeFor(curve) }
+    // Animated, because a step is a real jump: without this the curve would halve in height in one
+    // frame as the scale changed under it, which looks like a glitch rather than a rescale.
+    val range by animateFloatAsState(
+        targetValue = remember(curve) { rangeFor(curve) },
+        animationSpec = tween(durationMillis = 220),
+        label = "eqCurveScale",
+    )
 
     Canvas(modifier = modifier.fillMaxWidth().height(height)) {
         if (curve.isEmpty() || range <= 0f) return@Canvas
@@ -192,13 +201,21 @@ internal fun responseCurve(
  * Half-height of the plot, in dB.
  *
  * Scaled to the curve rather than fixed at the band range, so a gentle correction is visible
- * instead of being a flat line across the middle of a +/-15dB plot. Rounded up to a whole number of
- * decibels and floored at [MIN_RANGE_DB] so the axis does not twitch as a slider moves, and so a
- * flat curve has a sensible scale rather than an infinitely magnified one.
+ * instead of being a flat line across the middle of a +/-15dB plot.
+ *
+ * **In steps, and this is the part that matters.** Rounding up to the nearest decibel sounded
+ * stable and was not: dragging a band moves the peak continuously, so the scale changed on almost
+ * every frame of the drag, and a plot whose scale tracks its own contents cannot show the contents
+ * growing. The curve stayed the same height and shimmered as the axis stepped underneath it, which
+ * reads as the control having stopped working.
+ *
+ * With [SCALE_STEPS] the scale changes a handful of times across the whole range instead of
+ * constantly, so between steps the curve genuinely grows - which is the thing a response plot is
+ * for - and the rescales that do happen are rare enough to be animated out.
  */
 internal fun rangeFor(curve: FloatArray): Float {
     val peak = curve.maxOfOrNull { abs(it) } ?: 0f
-    return max(ceil(peak.toDouble()).toFloat(), MIN_RANGE_DB)
+    return SCALE_STEPS.firstOrNull { it >= peak } ?: SCALE_STEPS.last()
 }
 
 /**
@@ -216,4 +233,11 @@ private val CUT_COLOR = Color(0xFFFFD500)
 private const val MIN_HZ = 20f
 private const val MAX_HZ = 20_000f
 private const val POINTS = 192
-private const val MIN_RANGE_DB = 6f
+/**
+ * The scales the plot is allowed to use, in dB either side of unity.
+ *
+ * Few and far apart on purpose - see [rangeFor]. The first covers an ordinary correction, the last
+ * covers a band at the top of its range with its neighbours helping, and nothing in between needs
+ * a finer choice than this.
+ */
+private val SCALE_STEPS = floatArrayOf(6f, 12f, 18f, 24f)

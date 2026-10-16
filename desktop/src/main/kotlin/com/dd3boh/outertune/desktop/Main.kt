@@ -117,6 +117,8 @@ fun main() = application {
         // Pushed up from App, which is where the playing song is known. A plain state rather than a
         // flow: it changes once per track and is read once per frame.
         var seed by remember { mutableStateOf<Color?>(null) }
+        // The cover's second colour, when it has one worth using - see secondaryHueSeed.
+        var accentSeed by remember { mutableStateOf<Color?>(null) }
 
         val dark = when (settings.themeMode) {
             ThemeMode.System -> isSystemInDarkTheme()
@@ -125,12 +127,20 @@ fun main() = application {
         }
         // Eased rather than cut - see DynamicTheme.animated for why that is worth doing.
         val scheme = DynamicTheme.animated(
-            DynamicTheme.schemeFor(seed.takeIf { settings.dynamicTheme }, dark)
+            DynamicTheme.schemeFor(
+                seed.takeIf { settings.dynamicTheme },
+                dark,
+                accentSeed = accentSeed.takeIf { settings.dynamicTheme },
+            )
         )
 
         MaterialTheme(colorScheme = scheme) {
             Surface(modifier = Modifier.fillMaxSize()) {
-                App(player, library, settings, onSeedChanged = { seed = it })
+                App(
+            player, library, settings,
+            onSeedChanged = { seed = it },
+            onAccentSeedChanged = { accentSeed = it },
+        )
             }
         }
     }
@@ -142,6 +152,7 @@ private fun App(
     library: LibraryStore,
     settings: Settings,
     onSeedChanged: (Color?) -> Unit,
+    onAccentSeedChanged: (Color?) -> Unit = {},
 ) {
     val scope = rememberCoroutineScope()
     val account = remember { Account(library.database) }
@@ -187,6 +198,8 @@ private fun App(
     // is the desktop's nearest thing to Android seeding its scheme from the wallpaper.
     val (artworkPrimary, _) = rememberArtworkColours(queue.current?.thumbnail)
     LaunchedEffect(artworkPrimary) { onSeedChanged(artworkPrimary) }
+    val artworkAccent = rememberArtworkAccent(queue.current?.thumbnail)
+    LaunchedEffect(artworkAccent) { onAccentSeedChanged(artworkAccent) }
 
     val playlists by library.playlists.collectAsState()
     var showPlaylists by remember { mutableStateOf(false) }

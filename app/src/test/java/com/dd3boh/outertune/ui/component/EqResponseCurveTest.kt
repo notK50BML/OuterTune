@@ -124,9 +124,28 @@ class EqResponseCurveTest {
     }
 
     @Test
-    fun `the scale is whole decibels, so it does not twitch while a slider moves`() {
-        val a = rangeFor(floatArrayOf(9.1f))
-        val b = rangeFor(floatArrayOf(9.4f))
-        assertEquals(a, b, 0.0001f)
+    fun `the scale holds still across a whole drag`() {
+        // The bug this replaced: the scale rounded up to the nearest decibel, so it changed on
+        // almost every frame of a drag - and a plot whose scale tracks its own contents cannot
+        // show the contents growing. The curve stayed the same height and shimmered, which reads
+        // as the control having stopped working.
+        val sweep = generateSequence(6.5f) { it + 0.1f }.takeWhile { it < 11.9f }
+        val scales = sweep.map { rangeFor(floatArrayOf(it)) }.toSet()
+        assertEquals("the scale changed mid-drag: $scales", 1, scales.size)
+    }
+
+    @Test
+    fun `the curve grows between steps rather than being renormalised away`() {
+        // Within one step, twice the boost is twice the height on screen. That is the whole point
+        // of a response plot and it is what continuous rescaling destroyed.
+        val small = rangeFor(floatArrayOf(3f))
+        val larger = rangeFor(floatArrayOf(5f))
+        assertEquals(small, larger, 0.0001f)
+    }
+
+    @Test
+    fun `a curve too big for one step moves up to the next`() {
+        assertTrue(rangeFor(floatArrayOf(14f)) > rangeFor(floatArrayOf(5f)))
+        assertTrue(rangeFor(floatArrayOf(20f)) > rangeFor(floatArrayOf(14f)))
     }
 }

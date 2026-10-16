@@ -56,11 +56,23 @@ object DynamicTheme {
      */
     private const val MIN_CONTRAST = 4.6f
 
-    fun schemeFor(seed: Color?, dark: Boolean): ColorScheme {
+    /**
+     * @param accentSeed a genuinely different hue from the same cover, when it has one - see
+     *   [secondaryHueSeed]. Tertiary is built from it rather than from a mechanical shift off
+     *   [seed], which is the difference between a window that is tinted and one that is themed:
+     *   every accent sharing one hue is what makes a generated scheme read as a single wash.
+     */
+    fun schemeFor(seed: Color?, dark: Boolean, accentSeed: Color? = null): ColorScheme {
         val base = if (dark) darkColorScheme() else lightColorScheme()
         if (seed == null) return base
 
         val (hue, saturation) = hueAndSaturation(seed)
+        // Expressed as a shift so the rest of the function is unchanged, and so the fallback when
+        // a cover has only one colour in it is exactly the behaviour that was there before.
+        val accentShift = accentSeed
+            ?.let { hueAndSaturation(it).first }
+            ?.let { accentHue -> ((accentHue - hue + 540f) % 360f) - 180f }
+            ?: -30f
         // A grey cover would otherwise produce a grey interface with no accent at all - a scheme
         // where nothing is emphasised is worse than one whose accent is arbitrary.
         val s = saturation.coerceIn(0.25f, 0.85f)
@@ -94,7 +106,7 @@ object DynamicTheme {
         return if (dark) {
             val onPrimary = tone(0.14f, sat = s * 0.7f)
             val onSecondary = tone(0.14f, sat = s * 0.4f, shift = 30f)
-            val onTertiary = tone(0.14f, sat = s * 0.5f, shift = -30f)
+            val onTertiary = tone(0.14f, sat = s * 0.5f, shift = accentShift)
             val onPrimaryContainer = tone(0.92f)
             base.copy(
                 primary = accent(0.72f, onPrimary),
@@ -105,7 +117,7 @@ object DynamicTheme {
                 onSecondary = onSecondary,
                 secondaryContainer = tone(0.28f, sat = s * 0.5f, shift = 30f),
                 onSecondaryContainer = tone(0.90f, sat = s * 0.5f, shift = 30f),
-                tertiary = accent(0.72f, onTertiary, sat = s * 0.6f, shift = -30f),
+                tertiary = accent(0.72f, onTertiary, sat = s * 0.6f, shift = accentShift),
                 onTertiary = onTertiary,
                 // Surfaces are tinted, not coloured. Enough that the window feels of a piece with
                 // the music; not enough that text has to fight the background it sits on.
@@ -126,7 +138,7 @@ object DynamicTheme {
         } else {
             val onPrimary = tone(0.99f, sat = s * 0.15f)
             val onSecondary = tone(0.99f, sat = s * 0.15f, shift = 30f)
-            val onTertiary = tone(0.99f, sat = s * 0.15f, shift = -30f)
+            val onTertiary = tone(0.99f, sat = s * 0.15f, shift = accentShift)
             val onPrimaryContainer = tone(0.14f)
             base.copy(
                 primary = accent(0.38f, onPrimary),
@@ -137,7 +149,7 @@ object DynamicTheme {
                 onSecondary = onSecondary,
                 secondaryContainer = tone(0.88f, sat = s * 0.5f, shift = 30f),
                 onSecondaryContainer = tone(0.16f, sat = s * 0.5f, shift = 30f),
-                tertiary = accent(0.38f, onTertiary, sat = s * 0.6f, shift = -30f),
+                tertiary = accent(0.38f, onTertiary, sat = s * 0.6f, shift = accentShift),
                 onTertiary = onTertiary,
                 background = tone(0.98f, sat = s * 0.18f),
                 onBackground = tone(0.10f, sat = s * 0.20f),

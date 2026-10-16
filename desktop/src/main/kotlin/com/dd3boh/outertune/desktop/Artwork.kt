@@ -193,6 +193,75 @@ fun ImageBitmap.dominantColours(): Pair<Color, Color> {
     return first to second
 }
 
+/**
+ * A second colour from the cover that is genuinely a different hue from [primary], or null when the
+ * cover has only one.
+ *
+ * The theme needs this because deriving every accent from one hue is what makes a generated scheme
+ * read as a single wash of colour. Material You does not do that - it pulls several colours out of
+ * the image and builds primary and tertiary from different ones - and the difference between the
+ * two approaches is the difference between "tinted" and "themed".
+ *
+ * Ranked clusters are searched in order of how much of the cover they occupy, and the first one far
+ * enough round the wheel wins. Far enough is [MIN_HUE_SEPARATION] degrees: closer than that and the
+ * two accents are indistinguishable on screen, which is worse than not having a second one, since
+ * it costs a hue that could have been borrowed from elsewhere.
+ */
+fun ImageBitmap.secondaryHueSeed(primary: Color): Color? {
+    val pixels = runCatching { toPixelMap() }.getOrNull() ?: return null
+    val buckets = HashMap<Int, MutableList<Color>>()
+    val step = maxOf(1, minOf(width, height) / 32)
+
+    var x = 0
+    while (x < width) {
+        var y = 0
+        while (y < height) {
+            val colour = runCatching { pixels[x, y] }.getOrNull()
+            if (colour != null && colour.alpha > 0.5f) {
+                val max = maxOf(colour.red, colour.green, colour.blue)
+                val min = minOf(colour.red, colour.green, colour.blue)
+                // Stricter than the dominant pass: a second accent is only worth having if it is
+                // actually colourful, where the primary may legitimately be a muted wash.
+                if (max - min > 0.20f && max > 0.25f && min < 0.90f) {
+                    val key = (colour.red * 4).toInt() * 100 + (colour.green * 4).toInt() * 10 +
+                        (colour.blue * 4).toInt()
+                    buckets.getOrPut(key) { mutableListOf() }.add(colour)
+                }
+            }
+            y += step
+        }
+        x += step
+    }
+
+    val primaryHue = hueOf(primary) ?: return null
+    return buckets.values
+        .sortedByDescending { it.size }
+        .asSequence()
+        .map { it.average() }
+        .firstOrNull { candidate ->
+            val hue = hueOf(candidate) ?: return@firstOrNull false
+            var delta = kotlin.math.abs(hue - primaryHue) % 360f
+            if (delta > 180f) delta = 360f - delta
+            delta >= MIN_HUE_SEPARATION
+        }
+}
+
+private fun hueOf(colour: Color): Float? {
+    val maxC = maxOf(colour.red, colour.green, colour.blue)
+    val minC = minOf(colour.red, colour.green, colour.blue)
+    val delta = maxC - minC
+    if (delta < 1e-4f) return null
+    val hue = when (maxC) {
+        colour.red -> 60f * (((colour.green - colour.blue) / delta) % 6f)
+        colour.green -> 60f * (((colour.blue - colour.red) / delta) + 2f)
+        else -> 60f * (((colour.red - colour.green) / delta) + 4f)
+    }
+    return (hue + 360f) % 360f
+}
+
+/** Below this the two accents read as the same colour, and the second one is not worth having. */
+private const val MIN_HUE_SEPARATION = 35f
+
 private fun List<Color>.average(): Color = Color(
     red = sumOf { it.red.toDouble() }.toFloat() / size,
     green = sumOf { it.green.toDouble() }.toFloat() / size,
@@ -213,6 +282,28 @@ fun rememberArtworkColours(url: String?): Pair<Color, Color> {
             ?: DEFAULT_COLOURS
     }
     return colours
+}
+
+/**
+ * The cover's second usable hue, for the theme's tertiary accent - see [secondaryHueSeed].
+ *
+ * Null while the cover is loading, and null for a cover that has only one colour in it, which is
+ * the signal for the scheme to fall back to a shift off the primary rather than inventing a
+ * difference the artwork does not have.
+ */
+@Composable
+fun rememberArtworkAccent(url: String?): Color? {
+    var accent by remember(url) { mutableStateOf<Color?>(null) }
+    LaunchedEffect(url) {
+        accent = url?.takeIf { it.isNotBlank() }?.let { address ->
+            // The same cached 128px copy the dominant pass uses, so this costs a second scan of a
+            // small bitmap rather than a second download.
+            ArtworkCache.load(address.atSize(128))?.let { image ->
+                image.secondaryHueSeed(image.dominantColours().first)
+            }
+        }
+    }
+    return accent
 }
 
 /**
