@@ -150,6 +150,7 @@ import com.dd3boh.outertune.ui.component.BottomSheet
 import com.dd3boh.outertune.ui.component.BottomSheetState
 import com.dd3boh.outertune.ui.component.EmptyPlaceholder
 import com.dd3boh.outertune.ui.component.LazyColumnScrollbar
+import com.dd3boh.outertune.ui.component.TransportSize
 import com.dd3boh.outertune.ui.component.SelectHeader
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.button.ResizableIconButton
@@ -1131,7 +1132,7 @@ fun BoxScope.QueueContent(
                         ResizableIconButton(
                             if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(TransportSize.Secondary)
                                 .padding(4.dp)
                                 .align(Alignment.Center),
                             color = iconButtonColor,
@@ -1147,7 +1148,7 @@ fun BoxScope.QueueContent(
                         ResizableIconButton(
                             icon = Icons.Rounded.SkipPrevious,
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(TransportSize.Skip)
                                 .align(Alignment.Center),
                             color = iconButtonColor,
                             enabled = !detachedHead && canSkipPrevious,
@@ -1163,7 +1164,7 @@ fun BoxScope.QueueContent(
                             ResizableIconButton(
                                 icon = Icons.Rounded.FastRewind,
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(TransportSize.Secondary)
                                     .align(Alignment.Center),
                                 onClick = {
                                     playerConnection.player.seekTo(playerConnection.player.currentPosition - seekIncrement.millisec)
@@ -1178,7 +1179,7 @@ fun BoxScope.QueueContent(
                         ResizableIconButton(
                             icon = if (playbackState == STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                             modifier = Modifier
-                                .size(36.dp)
+                                .size(TransportSize.Primary)
                                 .align(Alignment.Center),
                             color = iconButtonColor,
                             enabled = !detachedHead,
@@ -1202,7 +1203,7 @@ fun BoxScope.QueueContent(
                             ResizableIconButton(
                                 icon = Icons.Rounded.FastForward,
                                 modifier = Modifier
-                                    .size(32.dp)
+                                    .size(TransportSize.Secondary)
                                     .align(Alignment.Center),
                                 onClick = {
                                     playerConnection.player.seekTo(playerConnection.player.currentPosition + seekIncrement.millisec)
@@ -1215,7 +1216,7 @@ fun BoxScope.QueueContent(
                         ResizableIconButton(
                             icon = Icons.Rounded.SkipNext,
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(TransportSize.Skip)
                                 .align(Alignment.Center),
                             color = iconButtonColor,
                             enabled = !detachedHead && canSkipNext,
@@ -1235,7 +1236,7 @@ fun BoxScope.QueueContent(
                                 else -> throw IllegalStateException()
                             },
                             modifier = Modifier
-                                .size(32.dp)
+                                .size(TransportSize.Secondary)
                                 .padding(4.dp)
                                 .align(Alignment.Center),
                             color = iconButtonColor,

@@ -110,6 +110,7 @@ import com.dd3boh.outertune.ui.component.PowerampTrack
 import com.dd3boh.outertune.ui.component.RotaryDial
 import androidx.compose.ui.draw.alpha
 import com.dd3boh.outertune.ui.component.EqResponseCurve
+import com.dd3boh.outertune.ui.component.TransportSize
 import com.dd3boh.outertune.ui.component.VerticalSlider
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.button.ResizableIconButton
@@ -481,7 +482,12 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
 
             Column(
                 modifier = Modifier
-                    .weight(1f, false)
+                    // fill = true, which is the default and which this used to opt out of. With
+                    // fill = false the scrolling area shrinks to its content, so the transport bar
+                    // below it is only at the bottom of the screen while the content is tall
+                    // enough to push it there - and it slid up the moment both panels were
+                    // collapsed. It is a docked bar; it does not move.
+                    .weight(1f)
                     .verticalScroll(rememberScrollState())
                     .padding(start = 16.dp, end = 16.dp, top = 2.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -1303,25 +1309,25 @@ private fun MiniPlaybackControls(color: Color?) {
         ResizableIconButton(
             icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
             color = iconColor,
-            modifier = Modifier.size(34.dp),
+            modifier = Modifier.size(TransportSize.Secondary),
             onClick = { playerConnection.triggerShuffle() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipPrevious,
             color = iconColor,
-            modifier = Modifier.size(38.dp),
+            modifier = Modifier.size(TransportSize.Skip),
             onClick = { playerConnection.player.seekToPrevious() },
         )
         ResizableIconButton(
             icon = if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
             color = iconColor,
-            modifier = Modifier.size(44.dp),
+            modifier = Modifier.size(TransportSize.Primary),
             onClick = { playerConnection.player.togglePlayPause() },
         )
         ResizableIconButton(
             icon = Icons.Rounded.SkipNext,
             color = iconColor,
-            modifier = Modifier.size(38.dp),
+            modifier = Modifier.size(TransportSize.Skip),
             onClick = { playerConnection.player.seekToNext() },
         )
         ResizableIconButton(
@@ -1332,7 +1338,7 @@ private fun MiniPlaybackControls(color: Color?) {
                 else -> R.drawable.repeat_off
             },
             color = iconColor,
-            modifier = Modifier.size(34.dp),
+            modifier = Modifier.size(TransportSize.Secondary),
             onClick = { playerConnection.player.toggleRepeatMode() },
         )
     }

@@ -67,6 +67,8 @@ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.EqUseDialsKey
 import com.dd3boh.outertune.constants.EqValueColorGradientKey
 import com.dd3boh.outertune.constants.EqAutoSaveProfilesKey
+import com.dd3boh.outertune.constants.EqHeadroom
+import com.dd3boh.outertune.constants.EqHeadroomKey
 import com.dd3boh.outertune.constants.EqShowPanelSettingsKey
 import com.dd3boh.outertune.constants.EqualizerProfilesKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
@@ -75,6 +77,8 @@ import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.models.EqualizerProfile
 import com.dd3boh.outertune.models.EqualizerSettings
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+import com.dd3boh.outertune.ui.component.EnumListPreference
+import com.dd3boh.outertune.ui.dialog.InfoLabel
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
@@ -182,6 +186,7 @@ fun EqualizerSettingsScreen(
 
     var showSaveAsDialog by remember { mutableStateOf(false) }
     var showAutoEqDialog by remember { mutableStateOf(false) }
+    val (headroom, onHeadroomChange) = rememberEnumPreference(EqHeadroomKey, defaultValue = EqHeadroom.AUTO)
     var showPanelSettings by rememberPreference(EqShowPanelSettingsKey, defaultValue = false)
     var autoSaveProfiles by rememberPreference(EqAutoSaveProfilesKey, defaultValue = false)
 
@@ -259,6 +264,23 @@ fun EqualizerSettingsScreen(
                 useGradient = useValueGradient,
             )
         }
+
+        EnumListPreference(
+            title = { Text(stringResource(R.string.eq_headroom)) },
+            icon = { Icon(Icons.Rounded.Tune, null) },
+            selectedValue = headroom,
+            onValueSelected = onHeadroomChange,
+            values = EqHeadroom.entries,
+            valueText = {
+                when (it) {
+                    EqHeadroom.AUTO -> stringResource(R.string.eq_headroom_auto)
+                    EqHeadroom.HALF -> stringResource(R.string.eq_headroom_half)
+                    EqHeadroom.OFF -> stringResource(R.string.eq_headroom_off)
+                }
+            }
+        )
+
+        InfoLabel(text = stringResource(R.string.eq_headroom_description))
 
         PreferenceGroupTitle(title = stringResource(R.string.eq_settings_appearance))
 

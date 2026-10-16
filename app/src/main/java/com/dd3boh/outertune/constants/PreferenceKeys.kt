@@ -126,6 +126,9 @@ val EqShowPanelSettingsKey = booleanPreferencesKey("eqShowPanelSettings")
 /** Write edits straight into the selected equaliser profile, without pressing Save. */
 val EqAutoSaveProfilesKey = booleanPreferencesKey("eqAutoSaveProfiles")
 
+/** How much of its own boost the equaliser compensates for - see [com.dd3boh.outertune.constants.EqHeadroom]. */
+val EqHeadroomKey = stringPreferencesKey("eqHeadroom")
+
 /** Per-song equaliser overrides - see [com.dd3boh.outertune.models.SongEqualizerProfiles]. */
 val SongEqualizerProfilesKey = stringPreferencesKey("songEqualizerProfiles")
 

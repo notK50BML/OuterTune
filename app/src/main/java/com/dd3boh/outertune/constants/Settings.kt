@@ -214,6 +214,28 @@ enum class AudioQuality {
  * [NEVER] is the default: the existing behaviour, for anyone who does not want their player making
  * requests about songs they have already got lyrics for.
  */
+/**
+ * How much of its own boost the equaliser compensates for before the filters run.
+ *
+ * Boosting a band cannot make a full-scale signal louder - there is nowhere above full scale to
+ * go - so an equaliser either turns everything else down to make room, or lets the boost clip.
+ * This chooses between those.
+ *
+ * [AUTO] measures the curve's actual peak and takes exactly that much off, which is why it never
+ * distorts. It has a consequence that surprises people and is not a fault: a +12dB band holds that
+ * band where it was and drops everything else by 12dB, so raising a slider is heard as the rest of
+ * the track getting quieter, and lowering it is heard as everything getting louder.
+ *
+ * [HALF] takes half as much, so a boost is audible as a boost and the soft limiter catches what is
+ * left. [OFF] compensates nothing, which is how most phone equalisers behave and why most of them
+ * distort on loud material.
+ */
+enum class EqHeadroom(val factor: Float) {
+    AUTO(1f),
+    HALF(0.5f),
+    OFF(0f),
+}
+
 enum class LyricsRefreshInterval(val days: Int) {
     NEVER(0),
     WEEKLY(7),

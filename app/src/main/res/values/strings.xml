@@ -422,4 +422,9 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="eq_profile_name">Profile name</string>
     <string name="eq_export">Export</string>
     <string name="eq_import">Import</string>
+    <string name="eq_headroom">Boost headroom</string>
+    <string name="eq_headroom_description">Boosting a band cannot push past full scale, so the equaliser turns everything else down to make room. Automatic never distorts, but a boost is then heard as the rest of the track getting quieter. Half, or none, makes a boost sound like a boost.</string>
+    <string name="eq_headroom_auto">Automatic</string>
+    <string name="eq_headroom_half">Half</string>
+    <string name="eq_headroom_off">None</string>
 </resources>

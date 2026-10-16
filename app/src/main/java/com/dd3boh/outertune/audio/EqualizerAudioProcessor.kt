@@ -61,6 +61,16 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     @Volatile
     private var preGainLinear: Float = 1f
 
+    /**
+     * How much of the measured peak is actually taken off, 0..1 - see [EqHeadroom].
+     *
+     * A separate control from the curve because it is not part of one: the same curve can be
+     * wanted with full protection on a loud master and none on a quiet one, and folding it into
+     * the profile would make every saved profile carry a copy of a global preference.
+     */
+    @Volatile
+    private var headroomFactor: Float = 1f
+
     @Volatile
     private var compressorSettings: EqualizerSettings.CompressorSettings = EqualizerSettings.CompressorSettings()
 
@@ -157,6 +167,14 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     }
 
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
+    fun setHeadroom(factor: Float) {
+        val clamped = factor.coerceIn(0f, 1f)
+        if (clamped == headroomFactor) return
+        headroomFactor = clamped
+        recomputeCoefficients()
+    }
+
+    /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
     fun setSettings(settings: EqualizerSettings) {
         // "Flat" has to mean "no enabled band changes the signal", and for a low/high-pass that is
         // never true regardless of gain: they have no gain parameter at all, so gainDb sits at 0
@@ -203,7 +221,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // curve asking for +14dB genuinely does have to come down by 14dB somewhere; the only
         // alternative is to clip it, which is the thing this exists to stop.
         val peakDb = BiquadCoefficients.peakGainDb(built, sr).coerceIn(0f, MAX_HEADROOM_DB)
-        preGainLinear = 10f.pow(-peakDb / 20f)
+        preGainLinear = 10f.pow(-peakDb * headroomFactor / 20f)
 
         val comp = compressorSettings
         compressorCoefficients = if (!comp.enabled) CompressorCoefficients.BYPASS else CompressorCoefficients.from(

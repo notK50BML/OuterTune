@@ -85,6 +85,8 @@ import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.audio.HarmonicExciter
 import com.dd3boh.outertune.constants.AudioUpscaling
 import com.dd3boh.outertune.constants.AudioUpscalingKey
+import com.dd3boh.outertune.constants.EqHeadroom
+import com.dd3boh.outertune.constants.EqHeadroomKey
 import com.dd3boh.outertune.constants.SongEqualizerProfilesKey
 import com.dd3boh.outertune.models.SongEqualizerProfiles
 import com.dd3boh.outertune.models.EqualizerSettings
@@ -651,6 +653,15 @@ class MusicService : MediaLibraryService(),
                         cutoffHz = cutoffHz,
                     )
                 }
+
+            dataStore.data
+                .map { prefs ->
+                    prefs[EqHeadroomKey]
+                        ?.let { name -> EqHeadroom.entries.firstOrNull { it.name == name } }
+                        ?: EqHeadroom.AUTO
+                }
+                .distinctUntilChanged()
+                .collectLatest(scope) { equalizerAudioProcessor.setHeadroom(it.factor) }
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }
