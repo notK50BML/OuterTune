@@ -22,6 +22,21 @@ data class EqualizerSettings(
     val bands: List<EqBand> = DEFAULT_BANDS,
     /** Left/right balance, -1 (full left) .. 1 (full right), 0 = centered. */
     val balance: Float = 0f,
+    /**
+     * The bass and treble tone controls, as real shelf filters.
+     *
+     * They used to be a shortcut that wrote one flat gain onto every band at or below 250Hz and at
+     * or above 4kHz. That is not what a tone control is, and it showed in both directions: the band
+     * faders jumped about whenever the knobs were turned, and the result was a lumpy step across
+     * the bands rather than the smooth curve rising toward the edge of the spectrum that a shelf
+     * produces - which is what every other equaliser draws, and what makes a bass knob sound like
+     * one instead of like four bands being raised together.
+     *
+     * Separate from [bands] so they stay out of the fader strip. See [allFilters], which is what
+     * the audio and the response curve are built from.
+     */
+    val bassShelfDb: Float = 0f,
+    val trebleShelfDb: Float = 0f,
     val compressor: CompressorSettings = CompressorSettings(),
 ) {
     enum class FilterType(val key: String) {
@@ -59,6 +74,27 @@ data class EqualizerSettings(
         val makeupGainDb: Float = 0f,
     )
 
+    /**
+     * Everything the filter bank actually runs: the twelve bands, plus the two tone shelves when
+     * they are doing anything.
+     *
+     * One function because three things have to agree about what the equaliser is - the audio, the
+     * response curve, and the headroom measurement - and the moment any of them builds its own
+     * list, the picture stops describing the sound.
+     */
+    fun allFilters(): List<EqBand> {
+        if (bassShelfDb == 0f && trebleShelfDb == 0f) return bands
+        val shelves = buildList {
+            if (bassShelfDb != 0f) {
+                add(EqBand(BASS_SHELF_HZ, bassShelfDb, SHELF_Q, FilterType.LOW_SHELF))
+            }
+            if (trebleShelfDb != 0f) {
+                add(EqBand(TREBLE_SHELF_HZ, trebleShelfDb, SHELF_Q, FilterType.HIGH_SHELF))
+            }
+        }
+        return bands + shelves
+    }
+
     /** Applies a preset's gains onto this settings' existing band frequencies/types/Qs. */
     fun withPresetGains(gains: List<Float>): EqualizerSettings {
         val newBands = bands.mapIndexed { i, band ->
@@ -72,6 +108,8 @@ data class EqualizerSettings(
         root.put("schemaVersion", SCHEMA_VERSION)
         root.put("enabled", enabled)
         root.put("balance", balance.toDouble())
+        root.put("bassShelf", bassShelfDb.toDouble())
+        root.put("trebleShelf", trebleShelfDb.toDouble())
         val array = JSONArray()
         bands.forEach { band ->
             val obj = JSONObject()
@@ -96,7 +134,22 @@ data class EqualizerSettings(
 
     companion object {
         /** Bumped alongside this file's shape. A file claiming a newer version is refused. */
-        const val SCHEMA_VERSION = 2
+        const val SCHEMA_VERSION = 3
+
+        /**
+         * Where the tone shelves turn over.
+         *
+         * The same boundaries the old band-group shortcut used, so a curve dialled in under the
+         * previous behaviour lands in roughly the same place under this one.
+         */
+        const val BASS_SHELF_HZ = 250f
+        const val TREBLE_SHELF_HZ = 4000f
+
+        /**
+         * Butterworth. A shelf with a higher Q peaks at its corner before it levels off, which on a
+         * tone control reads as a resonance nobody asked for.
+         */
+        const val SHELF_Q = 0.7071f
 
         const val MIN_GAIN_DB = -15f
         const val MAX_GAIN_DB = 15f
@@ -199,6 +252,11 @@ data class EqualizerSettings(
                 enabled = root.optBoolean("enabled", false),
                 bands = bands,
                 balance = root.optDouble("balance", 0.0).toFloat().coerceIn(-1f, 1f),
+                // Absent in a file written before shelves existed, which reads as flat - exactly
+                // right, since such a file expressed its tone through the band gains instead and
+                // those are still in it.
+                bassShelfDb = root.optDouble("bassShelf", 0.0).toFloat().coerceIn(MIN_GAIN_DB, MAX_GAIN_DB),
+                trebleShelfDb = root.optDouble("trebleShelf", 0.0).toFloat().coerceIn(MIN_GAIN_DB, MAX_GAIN_DB),
                 compressor = compressor,
             )
         }

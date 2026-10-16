@@ -183,7 +183,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // hand, or an AutoEq profile using LP/HP bands - was computed correctly by
         // BiquadCoefficients.forBand (which already excludes them from its own 0dB shortcut) and
         // then never actually run. Mirror that exclusion here.
-        val flat = settings.bands.all { band ->
+        val flat = settings.allFilters().all { band ->
             !band.enabled || when (band.type) {
                 EqualizerSettings.FilterType.PEAKING,
                 EqualizerSettings.FilterType.LOW_SHELF,
@@ -195,7 +195,9 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         }
         val compressorOff = !settings.compressor.enabled
         bypass = !settings.enabled || (flat && settings.balance == 0f && compressorOff)
-        bands = settings.bands
+        // allFilters, not bands: the tone shelves are part of what the filter bank runs, and a
+        // processor built from bands alone would silently ignore both tone controls.
+        bands = settings.allFilters()
         leftGain = (1f - settings.balance).coerceIn(0f, 1f)
         rightGain = (1f + settings.balance).coerceIn(0f, 1f)
         compressorSettings = settings.compressor

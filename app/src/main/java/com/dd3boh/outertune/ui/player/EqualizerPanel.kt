@@ -52,6 +52,8 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.material3.NavigationBarDefaults
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -76,6 +78,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -111,6 +114,8 @@ import com.dd3boh.outertune.ui.component.RotaryDial
 import androidx.compose.ui.draw.alpha
 import com.dd3boh.outertune.ui.component.EqResponseCurve
 import com.dd3boh.outertune.ui.component.TransportSize
+import com.dd3boh.outertune.ui.component.rememberBottomSheetState
+import com.dd3boh.outertune.ui.component.TopSheet
 import com.dd3boh.outertune.ui.component.VerticalSlider
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.button.ResizableIconButton
@@ -190,13 +195,45 @@ internal fun EqualizerCard(
 @Composable
 fun EqualizerPanel() {
     val panelState = LocalEqualizerPanelState.current
+    val configuration = LocalConfiguration.current
 
-    AnimatedVisibility(
-        visible = panelState.visible,
-        enter = slideInVertically(initialOffsetY = { -it }),
-        exit = slideOutVertically(targetOffsetY = { -it }),
+    // A real sheet rather than an AnimatedVisibility, and the same one the queue is - see
+    // [TopSheet]. It used to slide in on a boolean, which meant the only way to open or close it
+    // was to hit the handle exactly: a swipe did nothing, and a fast one did nothing twice over
+    // because there was no gesture to interrupt. Now it is dragged, it follows the finger, and a
+    // flick either way is a flick.
+    val sheetState = rememberBottomSheetState(
+        dismissedBound = 0.dp,
+        expandedBound = configuration.screenHeightDp.dp,
+    )
+
+    // Two-way, because both ends are real. The button beside the like button and the pull-down
+    // handle both set `visible`, and a drag sets the sheet - so each has to tell the other, or the
+    // button stops working the first time somebody swipes the panel shut.
+    LaunchedEffect(panelState.visible) {
+        if (panelState.visible) sheetState.expandSoft() else sheetState.collapseSoft()
+    }
+    LaunchedEffect(sheetState.isCollapsed) {
+        if (sheetState.isCollapsed && panelState.visible) panelState.visible = false
+    }
+
+    TopSheet(
+        state = sheetState,
+        onDismiss = { panelState.visible = false },
+        background = {
+            Box(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation))
+                    .fillMaxSize()
+            )
+        },
     ) {
-        EqualizerPanelContent(onDismiss = { panelState.visible = false })
+        // Nothing to build while it is shut, which matters more here than for the queue: this
+        // panel holds twelve faders, a response curve and a compressor, and composing all of it
+        // behind a closed sheet would be paid for on every track change.
+        if (!sheetState.isCollapsed) {
+            EqualizerPanelContent(onDismiss = { panelState.visible = false })
+        }
     }
 }
 
@@ -496,17 +533,11 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 // real amp, rather than just nudging the single lowest/highest band - anything at
                 // or below 250Hz counts as bass and anything at or above 4kHz counts as treble,
                 // the same split VisualizerFrame already uses elsewhere in this app.
-                val bassBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz <= 250f }
-                val trebleBandIndices = settings.bands.indices.filter { settings.bands[it].freqHz >= 4000f }
-                val bassGainDb = bassBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
-                val trebleGainDb = trebleBandIndices.map { settings.bands[it].gainDb }.average().toFloat()
-
-                fun setRangeGain(indices: List<Int>, newGain: Float) {
-                    val quantized = quantizeTenth(newGain)
-                    update(settings.copy(bands = settings.bands.mapIndexed { i, b ->
-                        if (i in indices) b.copy(gainDb = quantized) else b
-                    }))
-                }
+                // Shelves now, not groups of bands - see EqualizerSettings.allFilters. The knobs
+                // no longer move the faders, and what they draw is a curve rising toward the edge
+                // of the spectrum rather than a step across four bands.
+                val bassGainDb = settings.bassShelfDb
+                val trebleGainDb = settings.trebleShelfDb
 
                 // ---- Equaliser -------------------------------------------------------------
                 //
@@ -628,7 +659,10 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         // boosts make one larger hump rather than two small ones, and nothing in a
                         // row of faders can show that.
                         EqResponseCurve(
-                            bands = settings.bands,
+                            // The shelves are in the picture because they are in the sound - this
+                            // is what makes a bass knob draw the curve rising toward the left edge
+                            // rather than doing nothing visible at all.
+                            bands = settings.allFilters(),
                             sampleRate = EQ_GRAPH_SAMPLE_RATE,
                             // The panel's own contrast colour, not a fixed green. With
                             // colour-by-value off every other control here falls back to this, and
@@ -705,8 +739,8 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         enabled = settings.enabled,
                         color = eqColor,
                         useGradient = useValueGradient,
-                        onBassChange = { setRangeGain(bassBandIndices, it) },
-                        onTrebleChange = { setRangeGain(trebleBandIndices, it) },
+                        onBassChange = { update(settings.copy(bassShelfDb = quantizeTenth(it))) },
+                        onTrebleChange = { update(settings.copy(trebleShelfDb = quantizeTenth(it))) },
                         onBalanceChange = { update(settings.copy(balance = it)) },
                     )
 
