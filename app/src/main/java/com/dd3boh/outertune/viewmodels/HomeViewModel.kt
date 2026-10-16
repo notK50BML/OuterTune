@@ -30,6 +30,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -85,68 +88,108 @@ class HomeViewModel @Inject constructor(
             (quickPicks.value.orEmpty() + forgottenFavorites.value.orEmpty() + keepListening.value.orEmpty())
                 .filter { it is Song || it is Album }
 
-        if (YouTube.cookie != null) { // if logged in
-            // InnerTune way is YouTube.likedPlaylists().onSuccess { ... }
-            // OuterTune uses YouTube.library("FEmusic_liked_playlists").completedL().onSuccess { ... }
-            YouTube.library("FEmusic_liked_playlists").completed().onSuccess {
-                accountPlaylists.value = it.items.filterIsInstance<PlaylistItem>()
-            }.onFailure {
-                reportException(it)
+        // Everything past this point is network, and none of it depends on any of the rest.
+        //
+        // It used to run strictly in order: the liked playlists, then three artist pages one after
+        // another, then two songs each needing a next() before its related(), then home, then
+        // explore, then the recent-activity sync. Nine or more round trips end to end, so a
+        // refresh took as long as all of them added together - which is where the ten seconds came
+        // from. Run together, it takes as long as the slowest one instead.
+        //
+        // Each branch catches its own failures. A failing async cancels its parent scope and takes
+        // its siblings with it, so one provider being down would otherwise empty the whole screen
+        // rather than leaving a gap where its own section goes.
+        coroutineScope {
+            val accountPlaylistsJob = async {
+                if (YouTube.cookie == null) return@async
+                runCatching {
+                    // InnerTune way is YouTube.likedPlaylists().onSuccess { ... }
+                    // OuterTune uses YouTube.library("FEmusic_liked_playlists").completedL()
+                    YouTube.library("FEmusic_liked_playlists").completed().onSuccess {
+                        accountPlaylists.value = it.items.filterIsInstance<PlaylistItem>()
+                    }.onFailure { reportException(it) }
+                }.onFailure { reportException(it) }
             }
-        }
 
-        // Similar to artists
-        val artistRecommendations =
-            database.mostPlayedArtists(0L, limit = 10).first()
-                .filter { it.artist.isYouTubeArtist }
-                .shuffled().take(3)
-                .mapNotNull {
-                    val items = mutableListOf<YTItem>()
-                    YouTube.artist(it.id).onSuccess { page ->
-                        items += page.sections.getOrNull(page.sections.size - 2)?.items.orEmpty()
-                        items += page.sections.lastOrNull()?.items.orEmpty()
-                    }
-                    SimilarRecommendation(
-                        title = it,
-                        items = items
-                            .shuffled()
-                            .ifEmpty { return@mapNotNull null }
-                    )
+            // Similar to artists - the three pages fetched at once rather than in turn.
+            val artistRecommendationsJob = async {
+                runCatching {
+                    database.mostPlayedArtists(0L, limit = 10).first()
+                        .filter { it.artist.isYouTubeArtist }
+                        .shuffled().take(3)
+                        .map { artist ->
+                            async {
+                                val items = mutableListOf<YTItem>()
+                                YouTube.artist(artist.id).onSuccess { page ->
+                                    items += page.sections.getOrNull(page.sections.size - 2)?.items.orEmpty()
+                                    items += page.sections.lastOrNull()?.items.orEmpty()
+                                }
+                                items.shuffled().ifEmpty { null }
+                                    ?.let { SimilarRecommendation(title = artist, items = it) }
+                            }
+                        }
+                        .awaitAll()
+                        .filterNotNull()
+                }.getOrElse {
+                    reportException(it)
+                    emptyList()
                 }
-        // Similar to songs
-        val songRecommendations =
-            database.mostPlayedSongs(fromTimeStamp, limit = 10).first()
-                .filter { it.album != null }
-                .shuffled().take(2)
-                .mapNotNull { song ->
-                    val endpoint = YouTube.next(WatchEndpoint(videoId = song.id)).getOrNull()?.relatedEndpoint
-                        ?: return@mapNotNull null
-                    val page = YouTube.related(endpoint).getOrNull() ?: return@mapNotNull null
-                    SimilarRecommendation(
-                        title = song,
-                        items = (page.songs.shuffled().take(8) +
-                                page.albums.shuffled().take(4) +
-                                page.artists.shuffled().take(4) +
-                                page.playlists.shuffled().take(4))
-                            .shuffled()
-                            .ifEmpty { return@mapNotNull null }
-                    )
+            }
+
+            // Similar to songs. The next() and related() for one song stay in order - the second
+            // needs the first's endpoint - but the two songs no longer wait for each other.
+            val songRecommendationsJob = async {
+                runCatching {
+                    database.mostPlayedSongs(fromTimeStamp, limit = 10).first()
+                        .filter { it.album != null }
+                        .shuffled().take(2)
+                        .map { song ->
+                            async {
+                                val endpoint = YouTube.next(WatchEndpoint(videoId = song.id))
+                                    .getOrNull()?.relatedEndpoint ?: return@async null
+                                val page = YouTube.related(endpoint).getOrNull() ?: return@async null
+                                (page.songs.shuffled().take(8) +
+                                    page.albums.shuffled().take(4) +
+                                    page.artists.shuffled().take(4) +
+                                    page.playlists.shuffled().take(4))
+                                    .shuffled()
+                                    .ifEmpty { null }
+                                    ?.let { SimilarRecommendation(title = song, items = it) }
+                            }
+                        }
+                        .awaitAll()
+                        .filterNotNull()
+                }.getOrElse {
+                    reportException(it)
+                    emptyList()
                 }
-        similarRecommendations.value = (artistRecommendations + songRecommendations).shuffled()
+            }
 
-        YouTube.home().onSuccess { page ->
-            homePage.value = page
-        }.onFailure {
-            reportException(it)
+            val homeJob = async {
+                runCatching {
+                    YouTube.home().onSuccess { page -> homePage.value = page }
+                        .onFailure { reportException(it) }
+                }.onFailure { reportException(it) }
+            }
+
+            val exploreJob = async {
+                runCatching {
+                    YouTube.explore().onSuccess { page -> explorePage.value = page }
+                        .onFailure { reportException(it) }
+                }.onFailure { reportException(it) }
+            }
+
+            val recentActivityJob = async {
+                runCatching { syncUtils.syncRecentActivity() }.onFailure { reportException(it) }
+            }
+
+            accountPlaylistsJob.await()
+            similarRecommendations.value =
+                (artistRecommendationsJob.await() + songRecommendationsJob.await()).shuffled()
+            homeJob.await()
+            exploreJob.await()
+            recentActivityJob.await()
         }
-
-        YouTube.explore().onSuccess { page ->
-            explorePage.value = page
-        }.onFailure {
-            reportException(it)
-        }
-
-        syncUtils.syncRecentActivity()
 
         allYtItems.value = similarRecommendations.value?.flatMap { it.items }.orEmpty() +
                 homePage.value?.sections?.flatMap { it.items }.orEmpty()
