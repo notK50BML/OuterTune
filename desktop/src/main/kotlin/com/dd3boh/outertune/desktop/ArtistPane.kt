@@ -130,7 +130,13 @@ fun ArtistPane(
                     ArtistImages.remember(artist.id, it.artist.thumbnail)
                     ArtistContent.Loaded(it)
                 },
-                onFailure = { ArtistContent.Failed(it.message ?: "Could not load that artist.") },
+                // YouTube's own error is a wall of JSON that helps nobody. With songs by this
+                // artist in the library the page shows those, as for an unlinked artist; with
+                // none, a sentence.
+                onFailure = {
+                    if (librarySongs.isNotEmpty()) ArtistContent.Loaded(null)
+                    else ArtistContent.Failed("Couldn't find this artist on YouTube Music.")
+                },
             )
         }
     }

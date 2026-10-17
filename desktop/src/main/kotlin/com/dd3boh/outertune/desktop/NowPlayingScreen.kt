@@ -278,7 +278,8 @@ fun NowPlayingScreen(
         val outerPadding = 28.dp
         val artGap = 36.dp
         val artColumn = (maxWidth - outerPadding * 2 - transportSize - 8.dp - artGap) / 2
-        val artSlack = if (showLyrics) 0.dp else
+        // The lyrics take the cover's square, not the whole half, so opening them moves nothing.
+        val artSlack =
             (artColumn - min(min(maxHeight - 24.dp, artColumn), coverMax).coerceAtLeast(120.dp)).coerceAtLeast(0.dp)
         val blockShift = ((artSlack + artGap - outerPadding) / 2).coerceAtLeast(0.dp)
         val actionSize = 40.dp * scale
@@ -324,7 +325,8 @@ fun NowPlayingScreen(
                 if (showLyrics) {
                     // The controls sit at the bottom right, lifted clear of the edge - where the
                     // phone keeps them - so they are out of the way of the words being read.
-                    Box(modifier = Modifier.fillMaxHeight()) {
+                    val side = min(min(maxHeight - 24.dp, maxWidth), coverMax).coerceAtLeast(120.dp)
+                    Box(modifier = Modifier.fillMaxHeight().width(side)) {
                     LyricsPane(
                         lyrics = lyrics,
                         loading = lyricsLoading,

@@ -130,6 +130,8 @@ fun main() = application {
     val library = remember { LibraryStore() }
     // Writes a stack dump beside the library if the window ever stops responding - see the class.
     remember { FreezeWatchdog.start(defaultDataDirectory()) }
+    // And a crash-*.txt if something goes uncaught, so a vanished window leaves a trace.
+    remember { CrashLog.install(defaultDataDirectory()) }
     // The modern Windows picker compiles once, in the background, long before anyone clicks.
     remember { FilePicker.warmUp() }
     val settings = remember(library) { Settings(library.settings) }

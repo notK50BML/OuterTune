@@ -258,6 +258,22 @@ class UiSnapshots {
     }
 
     @Test
+    fun unlinkedArtists() = kotlinx.coroutines.runBlocking {
+        assumeTrue(outDir != null)
+        val library = LibraryStore(java.nio.file.Files.createTempDirectory("ot-artist").toFile())
+        for ((name, artist) in listOf(
+            "artist_unlinked" to StoredArtist.unlinked("Nobody Known"),
+            "artist_bogus" to StoredArtist("UCnotarealchannel000000", "Ghost"),
+            "artist_blank" to StoredArtist("", "Blank"),
+        )) {
+            capture(name, 1000, 800, settleFrames = 80) {
+                ArtistPane(artist = artist, library = library, currentId = null,
+                    onBack = {}, onPlay = { _, _ -> }, onAddToPlaylist = {})
+            }
+        }
+    }
+
+    @Test
     fun liveSearch() = kotlinx.coroutines.runBlocking {
         assumeTrue(outDir != null && System.getenv("OT_PROBE") != null)
         com.zionhuang.innertube.YouTube.locale = com.zionhuang.innertube.models.YouTubeLocale(gl = "US", hl = "en")
