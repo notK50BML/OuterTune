@@ -127,6 +127,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Downloads", SettingsCategory.Storage, "offline delete space disk"),
     SettingEntry("Keep listening history", SettingsCategory.Privacy, "history recent stats record"),
     SettingEntry("Clear listening history", SettingsCategory.Privacy, "history delete stats reset"),
+    SettingEntry("Search history", SettingsCategory.Privacy, "search recent queries clear"),
     SettingEntry("Import from a phone backup", SettingsCategory.Privacy, "restore backup android zip"),
     SettingEntry("Where the library is stored", SettingsCategory.Privacy, "database file path backup sqlite"),
     SettingEntry("Version", SettingsCategory.About, "about github"),
@@ -933,6 +934,20 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPa
                 "playlists, history, cached lyrics and these settings.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Section("Search") {
+        SettingSwitch(
+            title = "Keep search history",
+            subtitle = "Recent searches appear under the search box while it is empty.",
+            checked = settings.keepSearchHistory,
+            onCheckedChange = { settings.keepSearchHistory = it },
+            icon = OuterTuneIcons.search,
+        )
+        SettingRow(
+            title = "Clear search history",
+            icon = OuterTuneIcons.delete,
+            onClick = { settings.searchHistory = "" },
         )
     }
     Section("Clear") {

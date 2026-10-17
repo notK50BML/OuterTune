@@ -118,6 +118,12 @@ class Settings(private val store: SettingsStore) {
     /** Leaves explicit songs out of search results, Home and artist pages. */
     var hideExplicit by bool("content.hideExplicit", false)
 
+    /** Recent searches, newest first, one per line. Shown under the search box while it is empty. */
+    var searchHistory by string("search.history", "")
+
+    /** Whether searches are remembered at all. */
+    var keepSearchHistory by bool("search.keepHistory", true)
+
     // ---- Lyrics (display) ------------------------------------------------------------------
 
     /** Lyrics text size on the player, in percent. */

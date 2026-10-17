@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.models.ArtistItem
+import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.WatchEndpoint
 import com.zionhuang.innertube.pages.HomePage
 import androidx.compose.ui.unit.Density
@@ -208,7 +210,8 @@ internal fun App(
     val duration by player.durationMs.collectAsState()
 
     var query by remember { mutableStateOf("") }
-    var results by remember { mutableStateOf<List<SongItem>>(emptyList()) }
+    // What was last searched for; null when no search is showing.
+    var searchedFor by remember { mutableStateOf<String?>(null) }
     var searching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var searchFocused by remember { mutableStateOf(false) }
@@ -440,17 +443,16 @@ internal fun App(
     fun search() {
         val text = query.trim()
         if (text.isEmpty()) return
-        searching = true
         error = null
-        scope.launch {
-            withContext(Dispatchers.IO) { YouTube.search(text, YouTube.SearchFilter.FILTER_SONG) }
-                .onSuccess { page ->
-                    results = page.items.filterIsInstance<SongItem>()
-                        .filterNot { settings.hideExplicit && it.explicit }
-                    if (results.isEmpty()) error = "No songs matched that."
-                }
-                .onFailure { error = "${it::class.simpleName}: ${it.message}" }
-            searching = false
+        searchedFor = text
+        // A search is a place of its own: anything opened over the last one is left.
+        openArtist = null
+        openAlbumId = null
+        openOnlinePlaylist = null
+        if (settings.keepSearchHistory) {
+            settings.searchHistory = (listOf(text) + settings.searchHistory.lines().filter { it.isNotBlank() && it != text })
+                .take(MAX_SEARCH_HISTORY)
+                .joinToString("\n")
         }
     }
 
@@ -647,7 +649,7 @@ internal fun App(
                     openPlaylist = null
                     openOnlinePlaylist = null
                     query = ""
-                    results = emptyList()
+                    searchedFor = null
                     error = null
                 },
             )
@@ -659,7 +661,7 @@ internal fun App(
                             query = it
                             // Clearing the box is leaving the search, as on the phone.
                             if (it.isBlank()) {
-                                results = emptyList()
+                                searchedFor = null
                                 error = null
                             }
                         },
@@ -667,6 +669,27 @@ internal fun App(
                         onFocusChange = { searchFocused = it },
                         searching = searching,
                     )
+                    if (searchFocused && query.trim() != searchedFor) {
+                        SearchSuggestionsPanel(
+                            query = query,
+                            history = settings.searchHistory.lines().filter { it.isNotBlank() },
+                            onPick = {
+                                query = it
+                                search()
+                            },
+                            onRemoveHistory = { gone ->
+                                settings.searchHistory = settings.searchHistory.lines().filter { it != gone }.joinToString("\n")
+                            },
+                            onOpenItem = { item ->
+                                when (item) {
+                                    is SongItem -> playerQueue.play(listOf(item), 0, item.title)
+                                    is AlbumItem -> openAlbumPage(item.browseId)
+                                    is ArtistItem -> openArtistPage(StoredArtist(item.id, item.title))
+                                    is PlaylistItem -> openOnlinePlaylist = item
+                                }
+                            },
+                        )
+                    }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
                 SessionStatus(session)
@@ -740,15 +763,15 @@ internal fun App(
                             }
                         },
                     )
-                } else if (results.isNotEmpty()) {
-                    Content(
-                        results = results,
-                        liked = liked,
-                        recent = recent,
+                } else if (searchedFor != null) {
+                    SearchPane(
+                        query = searchedFor!!,
                         currentId = queue.current?.id,
-                        onPlayResult = { index -> playerQueue.play(results, index, "Search results") },
-                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Liked songs") },
-                        onAddToPlaylist = { addingToPlaylist = it },
+                        hideExplicit = settings.hideExplicit,
+                        onPlay = { songs, index -> playerQueue.play(songs, index, "Search: $searchedFor") },
+                        onOpenAlbum = openAlbumPage,
+                        onOpenArtist = openArtistPage,
+                        onOpenPlaylist = { openOnlinePlaylist = it },
                     )
                 } else if (tab == NavTab.Stats) {
                     StatsPane(
@@ -832,11 +855,11 @@ internal fun App(
                             )
                 } else {
                     Content(
-                        results = results,
+                        results = emptyList(),
                         liked = liked,
                         recent = recent,
                         currentId = queue.current?.id,
-                        onPlayResult = { index -> playerQueue.play(results, index, "Search results") },
+                        onPlayResult = {},
                         onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Liked songs") },
                         onAddToPlaylist = { addingToPlaylist = it },
                     )
@@ -1403,3 +1426,6 @@ internal fun StoredSong.toItem() = SongItem(
     explicit = false,
     endpoint = null,
 )
+
+/** How many past searches are kept. */
+private const val MAX_SEARCH_HISTORY = 20

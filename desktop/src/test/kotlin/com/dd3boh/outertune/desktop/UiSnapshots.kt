@@ -256,4 +256,33 @@ class UiSnapshots {
             )
         }
     }
+
+    @Test
+    fun liveSearch() = kotlinx.coroutines.runBlocking {
+        assumeTrue(outDir != null && System.getenv("OT_PROBE") != null)
+        com.zionhuang.innertube.YouTube.locale = com.zionhuang.innertube.models.YouTubeLocale(gl = "US", hl = "en")
+        com.zionhuang.innertube.YouTube.visitorData = com.zionhuang.innertube.YouTube.visitorData().getOrThrow()
+        capture("search_live", 1280, 1100, liveArt = true, settleFrames = 120) {
+            SearchPane(
+                query = "daft punk",
+                currentId = null,
+                hideExplicit = false,
+                onPlay = { _, _ -> },
+                onOpenAlbum = {},
+                onOpenArtist = {},
+                onOpenPlaylist = {},
+            )
+        }
+        capture("search_live_albums", 1280, 900, liveArt = true, settleFrames = 120, interact = { it.click(230f, 18f) }) {
+            SearchPane(
+                query = "daft punk",
+                currentId = null,
+                hideExplicit = false,
+                onPlay = { _, _ -> },
+                onOpenAlbum = {},
+                onOpenArtist = {},
+                onOpenPlaylist = {},
+            )
+        }
+    }
 }
