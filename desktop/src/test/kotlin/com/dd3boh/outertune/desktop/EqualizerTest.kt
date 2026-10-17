@@ -64,7 +64,9 @@ class EqualizerTest {
         val filtered = original.copyOf()
         eq.reset()
         eq.process(filtered, filtered.size, bits, channels, bigEndian = true, sampleRate = rate)
-        return 20.0 * log10(rms(filtered, channels) / rms(original, channels))
+        // Measured as the bands' own shape: the headroom turns the whole signal down by the curve's
+        // peak so it cannot clip, which is a level change and not what these tests are about.
+        return 20.0 * log10(rms(filtered, channels) / rms(original, channels)) + eq.headroomDb
     }
 
     private fun eqWith(vararg gains: Pair<Float, Float>): Equalizer {

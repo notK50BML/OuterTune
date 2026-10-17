@@ -104,6 +104,21 @@ class PeakLimiterTest {
     }
 
     @Test
+    fun `a boosted bass note is turned down, not modulated`() {
+        // The case that sounded worst. A 40Hz note over full scale: with a release shorter than
+        // the bass period the gain rose and fell on every cycle, which is amplitude modulation and
+        // puts sidebands and odd harmonics all over the note. With the hold the gain sits still, so
+        // what comes out is the same sine, quieter.
+        val input = tone(40.0, amplitude = 1.8f, samples = 44100)
+        val out = limited(input)
+        val h3 = db(magnitudeAt(out, 120.0)) - db(magnitudeAt(out, 40.0))
+        val sideband = db(magnitudeAt(out, 80.0)) - db(magnitudeAt(out, 40.0))
+        assertTrue("third harmonic at ${"%.1f".format(h3)}dB", h3 < -60.0)
+        assertTrue("second harmonic at ${"%.1f".format(sideband)}dB", sideband < -60.0)
+        assertTrue("peak over the ceiling", out.maxOf { abs(it) } <= PeakLimiter.CEILING + 0.002f)
+    }
+
+    @Test
     fun `a signal under the ceiling passes through unchanged`() {
         // Bit-exact apart from the delay. A limiter that touched audio it had no reason to would be
         // colouring every quiet track.

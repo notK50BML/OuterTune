@@ -492,7 +492,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // Same reasoning as the band filters: the audio on the far side of a seek is unrelated, so
         // carrying the exciter's delay line across it rings the old passage into the new one.
         exciter.reset()
-        // And the limiter's, which would otherwise play 1.5ms of the old position after the jump.
+        // And the limiter's, which would otherwise play a few milliseconds of the old position after the jump.
         limiter.reset()
         // Nothing to glide over across a discontinuity either: the audio on the far side of it is
         // unrelated, so the new coefficients may as well be fully in effect for its first sample.

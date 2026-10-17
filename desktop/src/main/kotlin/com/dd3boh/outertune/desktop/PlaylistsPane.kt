@@ -136,9 +136,7 @@ fun PlaylistsPane(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 3.dp)
-                                // Plays rather than opens. There is no page for an online playlist
-                                // yet, and a card that opens nothing is worse than one that does the
-                                // obvious thing with what it holds.
+                                // Opens its page (OnlinePlaylistPane) rather than playing blind.
                                 .clickable { onPlaySaved(playlist) },
                         ) {
                             Row(

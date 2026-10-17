@@ -65,7 +65,8 @@ class EqResponseTest {
         eq.enabled = true
         eq.setBands(bandsWith(1000f to 6f))
 
-        val measured = measureGainDb(eq, hz)
+        // Plus the headroom: the graph shows the bands' shape, and the headroom is a level change on top.
+        val measured = measureGainDb(eq, hz) + eq.headroomDb
         val fromCurve = EqResponse.curve(bandsWith(1000f to 6f), rate)[indexOf(hz)]
 
         assertEquals(

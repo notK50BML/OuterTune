@@ -218,6 +218,14 @@ internal fun App(
     // rather than one: the id is what navigation sets, and the page is what arrives afterwards.
     var openAlbumId by remember { mutableStateOf<String?>(null) }
     var album by remember { mutableStateOf<AlbumState>(AlbumState.Loading) }
+    // A YouTube playlist being looked at - saved ones from the Playlists section, or a card on Home.
+    var openOnlinePlaylist by remember { mutableStateOf<PlaylistItem?>(null) }
+    var onlinePlaylist by remember { mutableStateOf<OnlinePlaylistState>(OnlinePlaylistState.Loading) }
+    LaunchedEffect(openOnlinePlaylist?.id) {
+        val id = openOnlinePlaylist?.id ?: return@LaunchedEffect
+        onlinePlaylist = OnlinePlaylistState.Loading
+        onlinePlaylist = loadOnlinePlaylist(id)
+    }
     LaunchedEffect(openAlbumId) {
         val id = openAlbumId ?: return@LaunchedEffect
         album = AlbumState.Loading
@@ -534,6 +542,7 @@ internal fun App(
                     openArtist = null
                     openAlbumId = null
                     openPlaylist = null
+                    openOnlinePlaylist = null
                     query = ""
                     results = emptyList()
                     error = null
@@ -563,7 +572,20 @@ internal fun App(
                 }
                 val albumId = openAlbumId
                 val artist = openArtist
-                if (albumId != null) {
+                val onlineList = openOnlinePlaylist
+                if (onlineList != null) {
+                    OnlinePlaylistPane(
+                        state = onlinePlaylist,
+                        currentId = queue.current?.id,
+                        onBack = { openOnlinePlaylist = null },
+                        onPlay = { songs, index -> playerQueue.play(songs, index, onlineList.title) },
+                        onShuffle = { songs ->
+                            val order = songs.shuffled()
+                            if (order.isNotEmpty()) playerQueue.play(order, 0, onlineList.title)
+                        },
+                        onAddToPlaylist = { addingToPlaylist = it },
+                    )
+                } else if (albumId != null) {
                     AlbumPane(
                         state = album,
                         currentId = queue.current?.id,
@@ -634,14 +656,8 @@ internal fun App(
                         onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, selectedPlaylist?.name ?: "Playlist") },
                         onRemoveSong = { playlist, song -> library.removeFromPlaylist(playlist.id, song.id) },
                         saved = savedPlaylists,
-                        onPlaySaved = { playlist ->
-                            scope.launch {
-                                val songs = withContext(Dispatchers.IO) {
-                                    YouTube.queue(playlistId = playlist.id).getOrNull()
-                                }
-                                if (!songs.isNullOrEmpty()) playerQueue.play(songs, 0, playlist.title)
-                            }
-                        },
+                        // Opens the playlist's page, as on the phone, rather than playing it blind.
+                        onPlaySaved = { playlist -> openOnlinePlaylist = playlist },
                         onMoveSong = { playlist, from, to ->
                             val ids = openPlaylistSongs.map { it.id }.toMutableList()
                             if (to in ids.indices) {
@@ -671,6 +687,10 @@ internal fun App(
                                 },
                                 onOpenAlbum = openAlbumPage,
                                 onPlayList = { item ->
+                                    if (item is PlaylistItem) {
+                                        openOnlinePlaylist = item
+                                        return@HomePane
+                                    }
                                     item.playlistIdOrNull?.let { playlistId ->
                                         scope.launch {
                                             val songs = withContext(Dispatchers.IO) {

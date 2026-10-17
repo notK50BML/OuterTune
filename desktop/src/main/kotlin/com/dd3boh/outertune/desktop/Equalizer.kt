@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlin.math.roundToLong
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
@@ -190,6 +191,24 @@ class Equalizer {
     private var configuredRate = 0
     private var configuredChannels = 0
 
+    /**
+     * How far the input is turned down before the bands, as a linear factor.
+     *
+     * The loudest point of the curve, cancelled in advance. Without it a +6dB bass boost on a track
+     * already mastered to full scale has nowhere to go but past it, and the clamp at the end cut
+     * every bass peak flat - which is the harsh, crackling distortion a boost produced. This is
+     * what the phone's Automatic headroom does.
+     */
+    private var preGain = 1f
+
+    /** The headroom currently applied, in dB, as a positive number - for tests and a meter. */
+    internal val headroomDb: Float get() = -20f * kotlin.math.log10(preGain)
+
+    /** Catches what the pre-gain cannot - filter ringing on transients - by turning down, not clipping. */
+    private val limiter = PeakLimiter()
+    private var frame = FloatArray(0)
+    private var wasFlat = true
+
     fun bands(): List<EqBand> = bands
 
     /**
@@ -217,6 +236,7 @@ class Equalizer {
 
     fun reset() {
         filters.forEach { chain -> chain.forEach { it.reset() } }
+        limiter.reset()
     }
 
     private fun configure(sampleRate: Int, channels: Int) {
@@ -236,6 +256,11 @@ class Equalizer {
         }
         configuredRate = sampleRate
         configuredChannels = channels
+
+        val peakDb = EqResponse.curve(current, sampleRate, points = 240).maxOrNull()?.coerceAtLeast(0f) ?: 0f
+        preGain = 10f.pow(-peakDb / 20f)
+        limiter.configure(sampleRate, channels)
+        frame = FloatArray(channels)
     }
 
     /**
@@ -262,7 +287,16 @@ class Equalizer {
         }
         // Nothing to do if every band is flat. Worth checking: it is the common case, and it saves
         // running the whole cascade over every sample to arrive back where it started.
-        if (bands.none { it.gainDb != 0f }) return
+        if (bands.none { it.gainDb != 0f }) {
+            wasFlat = true
+            return
+        }
+        // Coming back from flat, the limiter's delay line still holds audio from before. Cleared so
+        // a fragment of the past is not played into the present.
+        if (wasFlat) {
+            limiter.reset()
+            wasFlat = false
+        }
 
         val peak = (1L shl (bitsPerSample - 1)).toFloat()
         val maxValue = peak - 1f
@@ -270,14 +304,21 @@ class Equalizer {
 
         var pos = 0
         for (f in 0 until frames) {
+            val frameStart = pos
             for (c in 0 until channels) {
-                val sample = Pcm.readSample(bytes, pos, bytesPerSample, bigEndian).toFloat() / peak
-                var value = sample
+                var value = Pcm.readSample(bytes, pos, bytesPerSample, bigEndian).toFloat() / peak * preGain
                 for (filter in filters[c]) value = filter.process(value)
-                // Clamped, not wrapped. A boosted band can exceed full scale, and an integer that
-                // overflows wraps from loudest positive to loudest negative - which is heard as a
-                // violent crack rather than as distortion.
-                val out = (value * peak).coerceIn(-peak, maxValue).toLong()
+                frame[c] = value
+                pos += bytesPerSample
+            }
+            // The whole frame at once: the limiter's gain is linked, so one side peaking turns both
+            // down together and the stereo image stays put.
+            limiter.process(frame)
+            pos = frameStart
+            for (c in 0 until channels) {
+                // Rounded and clamped, not truncated or wrapped. An integer that overflows wraps
+                // from loudest positive to loudest negative, which is heard as a violent crack.
+                val out = (frame[c] * peak).roundToLong().coerceIn(-peak.toLong(), maxValue.toLong())
                 Pcm.writeSample(bytes, pos, bytesPerSample, bigEndian, out)
                 pos += bytesPerSample
             }

@@ -29,7 +29,7 @@ import kotlin.math.roundToInt
  * **Look-ahead** is the part that makes it transparent rather than merely gentler. The output is
  * delayed by [LOOKAHEAD_MS], and the limiter sees each peak that long before it is played - so the
  * gain has already come down by the time the peak arrives, instead of reacting to it after the
- * first few samples have already gone over. 1.5ms of latency on a music player is nothing.
+ * first few samples have already gone over. 5ms of latency on a music player is nothing.
  *
  * The gain is linked across channels. Limiting left and right independently moves the stereo image
  * every time one side peaks, which is far more audible than the limiting itself.
@@ -42,10 +42,26 @@ class PeakLimiter {
     /** Delayed samples, one ring per channel, all sharing [position]. */
     private var delay: Array<FloatArray> = emptyArray()
 
-    /** The loudest channel of each frame in the window, aligned with [delay]. */
-    private var peaks = FloatArray(0)
+    /**
+     * The loudest channel of each of the last [hold] frames - the [lookahead] still waiting in the
+     * delay plus those just played. Longer than the delay on purpose: see [HOLD_MS].
+     */
+    private var hold = 0
     private var position = 0
     private var windowPeak = 0f
+
+    /**
+     * The window's maximum, kept as a monotonic queue: each entry is a frame peak and the frame it
+     * arrived on, in decreasing order of peak. The front is always the window's loudest frame, and
+     * each frame is added and removed once, so finding the maximum costs the same per sample however
+     * long the hold is. Rescanning the window instead would cost [hold] reads on every sample of a
+     * decaying note, which on a phone is a meaningful slice of a core.
+     */
+    private var queuePeaks = FloatArray(0)
+    private var queueFrames = LongArray(0)
+    private var queueHead = 0
+    private var queueSize = 0
+    private var frameCount = 0L
 
     private var gain = 1f
     private var attack = 1f
@@ -61,11 +77,14 @@ class PeakLimiter {
             return
         }
         val samples = (sampleRate * LOOKAHEAD_MS / 1000f).roundToInt().coerceAtLeast(1)
-        if (channelCount != channels || samples != lookahead) {
+        val holdSamples = (sampleRate * HOLD_MS / 1000f).roundToInt().coerceAtLeast(samples)
+        if (channelCount != channels || samples != lookahead || holdSamples != hold) {
             channels = channelCount
             lookahead = samples
+            hold = holdSamples
             delay = Array(channelCount) { FloatArray(samples) }
-            peaks = FloatArray(samples)
+            queuePeaks = FloatArray(holdSamples + 1)
+            queueFrames = LongArray(holdSamples + 1)
         }
         // Converging to within a thousandth of the target across exactly the look-ahead window,
         // so the gain is down by the time the peak that caused it comes out of the delay.
@@ -80,8 +99,10 @@ class PeakLimiter {
      */
     fun reset() {
         delay.forEach { it.fill(0f) }
-        peaks.fill(0f)
         position = 0
+        queueHead = 0
+        queueSize = 0
+        frameCount = 0L
         windowPeak = 0f
         gain = 1f
     }
@@ -96,10 +117,25 @@ class PeakLimiter {
         var framePeak = 0f
         for (ch in 0 until channels) framePeak = max(framePeak, abs(frame[ch]))
 
-        // The window as it stands with this frame in it and the outgoing one not yet removed - one
-        // frame longer than the look-ahead, which errs on the side of limiting slightly early rather
-        // than slightly late.
-        if (framePeak > windowPeak) windowPeak = framePeak
+        // Into the window: anything at the back no louder than this frame can never be the
+        // maximum again while this frame is in the window, so it goes.
+        val capacity = queuePeaks.size
+        while (queueSize > 0) {
+            val back = (queueHead + queueSize - 1) % capacity
+            if (queuePeaks[back] > framePeak) break
+            queueSize--
+        }
+        val slot = (queueHead + queueSize) % capacity
+        queuePeaks[slot] = framePeak
+        queueFrames[slot] = frameCount
+        queueSize++
+        // Out of the window: whatever arrived more than [hold] frames ago.
+        while (queueFrames[queueHead] <= frameCount - hold) {
+            queueHead = (queueHead + 1) % capacity
+            queueSize--
+        }
+        frameCount++
+        windowPeak = queuePeaks[queueHead]
 
         val target = if (windowPeak > CEILING) CEILING / windowPeak else 1f
         gain += (target - gain) * (if (target < gain) attack else release)
@@ -114,26 +150,31 @@ class PeakLimiter {
             frame[ch] = (delay[ch][position] * gain).coerceIn(-1f, 1f)
             delay[ch][position] = incoming
         }
-        val outgoingPeak = peaks[position]
-        peaks[position] = framePeak
         position = (position + 1) % lookahead
-
-        // The frame that just left may have been the loudest in the window. Only then is a rescan
-        // needed - which keeps this to a comparison per frame most of the time, and the full scan
-        // to the moments right after a peak.
-        if (outgoingPeak >= windowPeak) {
-            var m = 0f
-            for (p in peaks) if (p > m) m = p
-            windowPeak = m
-        }
     }
 
     companion object {
-        /** How far ahead the limiter sees, in milliseconds - and so how far behind the output runs. */
-        const val LOOKAHEAD_MS = 1.5f
+        /**
+         * How far ahead the limiter sees, in milliseconds - and so how far behind the output runs.
+         * Long enough that the gain comes down over a few milliseconds rather than one, which is
+         * the difference between a dip and a click; short enough that nobody hears the delay.
+         */
+        const val LOOKAHEAD_MS = 5f
 
-        /** How quickly the gain recovers once a peak has passed. */
-        const val RELEASE_MS = 60f
+        /**
+         * How long the gain stays down after the loudest recent peak before it may recover.
+         *
+         * The fix for bass boosts distorting. With release alone, the gain started climbing back
+         * the moment a peak passed - and on a 40Hz note the next peak is only 25ms away, so the
+         * gain rose and fell on every cycle of the bass. That is amplitude modulation at the bass
+         * frequency, which is heard as a gritty, flapping distortion, and it is exactly what a big
+         * bass boost hitting the limiter sounded like. Held for longer than the slowest bass
+         * cycle, the gain sits still through a sustained note and only recovers once it is over.
+         */
+        const val HOLD_MS = 60f
+
+        /** How quickly the gain recovers once the hold has passed. */
+        const val RELEASE_MS = 150f
 
         /**
          * The level the output is held under: half a decibel below full scale.
