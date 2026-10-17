@@ -56,6 +56,11 @@ dependencies {
     implementation("com.googlecode.soundlibs:vorbisspi:1.0.3.3")
     implementation("net.jthink:jaudiotagger:3.0.1")
 
+    // Windows' media controls (WindowsMediaControls): media keys when unfocused, and the song in
+    // the volume flyout and on the lock screen. JNA calls straight into combase.dll; no other
+    // native code is shipped.
+    implementation("net.java.dev.jna:jna:5.15.0")
+
     // Compose Multiplatform for desktop. desktop-jvm pulls runtime, foundation, ui and material3.
     implementation("org.jetbrains.compose.desktop:desktop-jvm:1.8.2")
     implementation("org.jetbrains.compose.material3:material3:1.8.2")

@@ -174,6 +174,9 @@ fun main() = application {
         }
 
         CompositionLocalProvider(LocalDensity provides scaledDensity) {
+        // Windows' media controls, once the window exists to attach them to.
+        LaunchedEffect(Unit) { WindowsMediaControls.start(window) }
+
         MaterialTheme(colorScheme = finalScheme, typography = typography) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 App(
@@ -617,6 +620,39 @@ internal fun App(
         return
     }
 
+    // Windows' media keys and media flyout drive the same player as the window's own buttons, and
+    // are told what is playing as it changes. Artwork is offered at a size the flyout looks good at.
+    LaunchedEffect(Unit) {
+        WindowsMediaControls.onButton = { button ->
+            when (button) {
+                WindowsMediaControls.Button.Play, WindowsMediaControls.Button.Pause -> player.togglePause()
+                WindowsMediaControls.Button.Stop -> player.pause()
+                WindowsMediaControls.Button.Next -> playerQueue.next()
+                WindowsMediaControls.Button.Previous -> playerQueue.previous()
+            }
+        }
+    }
+    LaunchedEffect(queue.current?.id, playback) {
+        val song = queue.current
+        WindowsMediaControls.update(
+            title = song?.title,
+            artist = song?.artists?.joinToString { it.name },
+            album = song?.album?.name,
+            artworkUrl = song?.thumbnail?.let { url ->
+                when {
+                    url.contains("=w") && url.contains("-h") -> url.substringBefore("=w") + "=w544-h544"
+                    url.contains("=s") -> url.substringBefore("=s") + "=s544"
+                    else -> url
+                }
+            },
+            playing = when (playback) {
+                is PlaybackState.Playing, is PlaybackState.Loading -> true
+                is PlaybackState.Paused -> false
+                else -> if (song != null) false else null
+            },
+        )
+    }
+
     // The right-click menu every song in the window offers - see SongMenuArea.
     // Built once. Everything it reads is state read at call time, so a fresh copy per recomposition
     // bought nothing - and as an app-wide local, every new copy redrew the whole window.
@@ -670,11 +706,14 @@ internal fun App(
             .onPreviewKeyEvent { event ->
                 if (searchFocused || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
                 when (event.key) {
-                    Key.Spacebar, Key.MediaPlayPause -> { player.togglePause(); true }
+                    Key.Spacebar -> { player.togglePause(); true }
+                    // Windows' media controls handle the media keys once they are on - handling them
+                    // here as well would act on every press twice.
+                    Key.MediaPlayPause -> { if (!WindowsMediaControls.active) player.togglePause(); true }
                     Key.DirectionRight -> { player.seekTo(position + 10_000); true }
                     Key.DirectionLeft -> { player.seekTo(position - 10_000); true }
-                    Key.MediaNext -> { playerQueue.next(); true }
-                    Key.MediaPrevious -> { playerQueue.previous(); true }
+                    Key.MediaNext -> { if (!WindowsMediaControls.active) playerQueue.next(); true }
+                    Key.MediaPrevious -> { if (!WindowsMediaControls.active) playerQueue.previous(); true }
                     else -> false
                 }
             },
