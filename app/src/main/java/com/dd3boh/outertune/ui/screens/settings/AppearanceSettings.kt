@@ -9,6 +9,8 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import androidx.compose.material.icons.rounded.Notes
+import com.dd3boh.outertune.constants.HideSettingsDescriptionsKey
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -131,6 +133,19 @@ fun AppearanceSettings(
 
         SettingsGroup(title = stringResource(R.string.grp_behavior)) {
             GestureSettingsFrag()
+        }
+
+        // Last on the screen, as asked: it changes how every settings screen reads, so it sits
+        // apart from the appearance of the app itself.
+        val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
+        SettingsGroup(title = stringResource(R.string.grp_settings_display)) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.hide_settings_descriptions)) },
+                description = stringResource(R.string.hide_settings_descriptions_desc),
+                icon = { Icon(Icons.Rounded.Notes, null) },
+                checked = hideDescriptions,
+                onCheckedChange = onHideDescriptionsChange,
+            )
         }
     }
 

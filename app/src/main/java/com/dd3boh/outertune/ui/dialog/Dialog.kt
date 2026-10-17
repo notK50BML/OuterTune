@@ -9,6 +9,9 @@
 
 package com.dd3boh.outertune.ui.dialog
 
+import androidx.compose.runtime.getValue
+import com.dd3boh.outertune.utils.rememberPreference
+import com.dd3boh.outertune.constants.HideSettingsDescriptionsKey
 import kotlin.math.roundToInt
 import androidx.compose.ui.draw.alpha
 import android.content.ClipData
@@ -668,6 +671,18 @@ fun InfoLabel(
     text: String,
     modifier: Modifier = Modifier,
     isError: Boolean = false,
+) {
+    // Explanations go with "Hide setting descriptions"; errors stay, since they are news.
+    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
+    if (hideExplanations && !isError) return
+    InfoLabelRow(text, modifier, isError)
+}
+
+@Composable
+private fun InfoLabelRow(
+    text: String,
+    modifier: Modifier,
+    isError: Boolean,
 ) = Row(
     verticalAlignment = Alignment.CenterVertically,
     modifier = modifier.padding(horizontal = 8.dp)

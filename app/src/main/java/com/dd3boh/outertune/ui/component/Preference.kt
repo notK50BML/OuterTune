@@ -1,5 +1,7 @@
 package com.dd3boh.outertune.ui.component
 
+import com.dd3boh.outertune.utils.rememberPreference
+import com.dd3boh.outertune.constants.HideSettingsDescriptionsKey
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +44,15 @@ fun PreferenceEntry(
     trailingContent: (@Composable () -> Unit)? = null,
     onClick: () -> Unit,
     isEnabled: Boolean = true,
+    /**
+     * Whether [description] explains the setting, rather than showing its value. Explanations go
+     * when "Hide setting descriptions" is on; values never do. Left to guess, a sentence is taken as
+     * an explanation and a short line ("Follow system", "120 ms") as a value.
+     */
+    descriptionIsExplanation: Boolean = (description?.length ?: 0) > EXPLANATION_MIN_LENGTH,
 ) {
+    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
+    val shownDescription = description?.takeUnless { hideExplanations && descriptionIsExplanation }
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -72,9 +82,9 @@ fun PreferenceEntry(
                 title()
             }
 
-            if (description != null) {
+            if (shownDescription != null) {
                 Text(
-                    text = description,
+                    text = shownDescription,
                     style = MaterialTheme.typography.titleSmall,
                     color = MaterialTheme.colorScheme.secondary
                 )
@@ -90,6 +100,9 @@ fun PreferenceEntry(
         }
     }
 }
+
+/** Below this length a description is read as a value rather than an explanation. */
+private const val EXPLANATION_MIN_LENGTH = 40
 
 @Composable
 fun <T> ListPreference(
@@ -144,6 +157,7 @@ fun <T> ListPreference(
         modifier = modifier,
         title = title,
         description = valueText(selectedValue),
+        descriptionIsExplanation = false,
         icon = icon,
         onClick = { showDialog = true },
         isEnabled = isEnabled
@@ -189,6 +203,8 @@ fun SwitchPreference(
         modifier = modifier,
         title = title,
         description = description,
+        // A switch's description always explains it; its value is the switch itself.
+        descriptionIsExplanation = true,
         icon = icon,
         trailingContent = {
             Switch(
@@ -234,6 +250,7 @@ fun EditTextPreference(
         modifier = modifier,
         title = title,
         description = value,
+        descriptionIsExplanation = false,
         icon = icon,
         onClick = { showDialog = true },
         isEnabled = isEnabled

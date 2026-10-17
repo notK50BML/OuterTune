@@ -454,4 +454,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="eq_studio_note">Nothing here changes the player until you save or apply it. The main player pauses while the Studio plays.</string>
     <string name="settings_search_hint">Search settings</string>
     <string name="settings_search_none">Nothing matches \"%1$s\"</string>
+    <string name="grp_settings_display">Settings</string>
+    <string name="hide_settings_descriptions">Hide setting descriptions</string>
+    <string name="hide_settings_descriptions_desc">Removes the explanations under settings everywhere. Titles, current values and errors still show.</string>
 </resources>

@@ -79,6 +79,8 @@ val TabletUiKey = booleanPreferencesKey("tabletUi")
 val EnabledTabsKey = stringPreferencesKey("enabledTabs")
 /** The player's title-row buttons, in order - see PlayerButton. Empty until first set. */
 val PlayerButtonsKey = stringPreferencesKey("playerButtons")
+/** Hides the explanatory text under settings, leaving titles, values and errors. */
+val HideSettingsDescriptionsKey = booleanPreferencesKey("hideSettingsDescriptions")
 val EnabledFiltersKey = stringPreferencesKey("enabledFilters")
 val DefaultOpenTabKey = stringPreferencesKey("defaultOpenTab")
 val SlimNavBarKey = booleanPreferencesKey("slimNavBar")
