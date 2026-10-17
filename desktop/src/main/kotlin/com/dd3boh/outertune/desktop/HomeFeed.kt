@@ -30,6 +30,8 @@ sealed interface HomeState {
         val sections: List<HomePage.Section>,
         /** YouTube's mood filters - Relax, Workout, Sleep... - offered above the feed. */
         val chips: List<HomePage.Chip> = emptyList(),
+        /** Where the feed carries on, for loading more as it is scrolled; null at the end. */
+        val continuation: String? = null,
     ) : HomeState
 
     /**
@@ -54,6 +56,18 @@ sealed interface HomeState {
  * into one shape here would only mean reconstructing the distinction on the other side.
  */
 class HomeFeed {
+
+    /**
+     * The next stretch of the feed, appended to [current] - the phone's Home, which keeps loading
+     * as it is scrolled. Unusable shelves are dropped as on the first page; a failure just ends it.
+     */
+    suspend fun more(current: HomeState.Ready): HomeState.Ready = withContext(Dispatchers.IO) {
+        val continuation = current.continuation ?: return@withContext current
+        val page = YouTube.home(continuation = continuation).getOrNull()
+            ?: return@withContext current.copy(continuation = null)
+        val usable = page.sections.filter { section -> section.items.any { it.isSupported } }
+        current.copy(sections = current.sections + usable, continuation = page.continuation)
+    }
 
     /** The feed, or with [chip] the feed filtered to one mood, as the phone's chips do. */
     suspend fun load(signedIn: Boolean, chip: HomePage.Chip? = null): HomeState = withContext(Dispatchers.IO) {
@@ -84,7 +98,7 @@ class HomeFeed {
                 signedOut = !signedIn,
             )
         }
-        HomeState.Ready(usable, page.chips.orEmpty())
+        HomeState.Ready(usable, page.chips.orEmpty(), page.continuation)
     }
 }
 

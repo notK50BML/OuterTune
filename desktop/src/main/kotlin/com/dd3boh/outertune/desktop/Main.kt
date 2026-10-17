@@ -240,6 +240,7 @@ internal fun App(
     // A mood chip, when one is lit. The chips themselves come from the unfiltered feed and are kept
     // while a filtered one is showing, since a filtered page does not list them again.
     var homeChip by remember { mutableStateOf<HomePage.Chip?>(null) }
+    var homeLoadingMore by remember { mutableStateOf(false) }
     var homeChips by remember { mutableStateOf<List<HomePage.Chip>>(emptyList()) }
     LaunchedEffect(accountState, homeAttempt, homeChip) {
         home = HomeState.Loading
@@ -876,6 +877,20 @@ internal fun App(
                                 chips = homeChips,
                                 selectedChip = homeChip,
                                 onChip = { homeChip = it },
+                                loadingMore = homeLoadingMore,
+                                onLoadMore = {
+                                    val ready = home as? HomeState.Ready
+                                    if (ready != null && ready.continuation != null && !homeLoadingMore) {
+                                        homeLoadingMore = true
+                                        scope.launch {
+                                            val more = homeFeed.more(ready)
+                                            // Only if the feed is still the one this was asked for: a
+                                            // chip or a refresh in the meantime replaced it.
+                                            if (home === ready) home = more
+                                            homeLoadingMore = false
+                                        }
+                                    }
+                                },
                                 onPlaySong = { songs, index ->
                                     playerQueue.play(songs, index, "Home")
                                 },

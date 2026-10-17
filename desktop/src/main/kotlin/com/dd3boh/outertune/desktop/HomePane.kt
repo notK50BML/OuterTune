@@ -6,6 +6,11 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.FilterChip
@@ -81,11 +86,27 @@ fun HomePane(
     chips: List<HomePage.Chip> = emptyList(),
     selectedChip: HomePage.Chip? = null,
     onChip: (HomePage.Chip?) -> Unit = {},
+    /** Asks for the next stretch of the feed; called as the bottom comes into view. */
+    onLoadMore: () -> Unit = {},
+    loadingMore: Boolean = false,
 ) {
+    val listState = rememberLazyListState()
+    // As on the phone: the feed carries on as it is scrolled, a few shelves before the end.
+    val nearEnd by remember {
+        derivedStateOf {
+            val info = listState.layoutInfo
+            val last = info.visibleItemsInfo.lastOrNull()?.index ?: 0
+            info.totalItemsCount > 0 && last >= info.totalItemsCount - 3
+        }
+    }
+    LaunchedEffect(nearEnd, state) {
+        if (nearEnd && state is HomeState.Ready && state.continuation != null) onLoadMore()
+    }
     // One scrolling column with the local rows at the top, rather than the feed and the library
     // sharing the window half and half. Splitting it meant neither got enough height to show a row
     // and its labels, and the split did not move when one side had nothing in it.
     LazyColumn(
+        state = listState,
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 16.dp),
     ) {
@@ -183,15 +204,24 @@ fun HomePane(
                 }
             }
 
-            is HomeState.Ready -> items(state.sections) { section ->
-                Section(
-                    section = section,
-                    currentId = currentId,
-                    onPlaySong = onPlaySong,
-                    onPlayList = onPlayList,
-                    onOpenArtist = onOpenArtist,
-                    onOpenAlbum = onOpenAlbum,
-                )
+            is HomeState.Ready -> {
+                items(state.sections) { section ->
+                    Section(
+                        section = section,
+                        currentId = currentId,
+                        onPlaySong = onPlaySong,
+                        onPlayList = onPlayList,
+                        onOpenArtist = onOpenArtist,
+                        onOpenAlbum = onOpenAlbum,
+                    )
+                }
+                if (loadingMore) {
+                    item {
+                        Box(Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(modifier = Modifier.size(28.dp))
+                        }
+                    }
+                }
             }
         }
     }
