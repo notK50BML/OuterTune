@@ -144,6 +144,12 @@ fun main() = application {
     Window(
         onCloseRequest = { player.stop(); exitApplication() },
         title = "OuterTune",
+        // The phone's launcher icon, for the title bar and the taskbar.
+        icon = remember {
+            androidx.compose.ui.graphics.painter.BitmapPainter(
+                androidx.compose.ui.res.useResource("icon.png") { androidx.compose.ui.res.loadImageBitmap(it) }
+            )
+        },
         state = rememberWindowState(width = 1000.dp, height = 700.dp),
     ) {
         // Pushed up from App, which is where the playing song is known. A plain state rather than a

@@ -265,3 +265,64 @@ tasks.register<Jar>("fatJar") {
     exclude("com/sun/jna/linux-*/**", "com/sun/jna/darwin*/**", "com/sun/jna/freebsd-*/**",
         "com/sun/jna/openbsd-*/**", "com/sun/jna/sunos-*/**", "com/sun/jna/aix-*/**", "com/sun/jna/dragonflybsd-*/**")
 }
+
+/**
+ * `gradlew :desktop:packageApp` - OuterTune as a Windows app: a folder holding OuterTune.exe and
+ * its own trimmed Java runtime, zipped as build/dist/OuterTune-windows.zip. Nothing needs to be
+ * installed to run it - unzip, double-click.
+ *
+ * jpackage's app-image rather than an installer: an installer needs WiX on the build machine, and
+ * a portable folder is what a beta wants anyway. The runtime is cut down to the modules the app
+ * uses, which is most of why the result is far smaller than a full JDK.
+ */
+val jpackageTool = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(21)) }
+    .map { it.metadata.installationPath.file("bin/jpackage.exe").asFile.absolutePath }
+val appImageInput = layout.buildDirectory.dir("app-input")
+val appImageOut = layout.buildDirectory.dir("app-image")
+val appIcon = layout.projectDirectory.file("packaging/OuterTune.ico")
+
+val stageAppInput = tasks.register<Copy>("stageAppInput") {
+    from(tasks.named("fatJar"))
+    into(appImageInput)
+}
+
+val appImage = tasks.register<Exec>("appImage") {
+    group = "distribution"
+    dependsOn(stageAppInput)
+    inputs.dir(appImageInput)
+    inputs.file(appIcon)
+    outputs.dir(appImageOut)
+    val outDir = appImageOut.get().asFile
+    val inDir = appImageInput.get().asFile
+    val icon = appIcon.asFile
+    doFirst { outDir.deleteRecursively() }
+    executable(jpackageTool.get())
+    args(
+        "--type", "app-image",
+        "--name", "OuterTune",
+        "--app-version", "0.10.15",
+        "--vendor", "OuterTune Project",
+        "--icon", icon.absolutePath,
+        "--input", inDir.absolutePath,
+        "--main-jar", "outertune-desktop.jar",
+        "--main-class", "com.dd3boh.outertune.desktop.MainKt",
+        "--dest", outDir.absolutePath,
+        "--add-modules", listOf(
+            "java.base", "java.desktop", "java.sql", "java.net.http", "java.naming", "java.logging",
+            "java.management", "java.prefs", "java.xml", "java.scripting", "jdk.unsupported",
+            "jdk.crypto.ec", "jdk.crypto.cryptoki", "jdk.charsets", "jdk.zipfs", "jdk.accessibility",
+            "jdk.localedata", "jdk.net",
+        ).joinToString(","),
+        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --strip-native-commands --compress=zip-6",
+        "--java-options", "-Xmx320m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m",
+    )
+}
+
+tasks.register<Zip>("packageApp") {
+    group = "distribution"
+    description = "Builds OuterTune.exe with a bundled runtime, zipped (build/dist/OuterTune-windows.zip)."
+    dependsOn(appImage)
+    from(appImageOut)
+    archiveFileName.set("OuterTune-windows.zip")
+    destinationDirectory.set(layout.buildDirectory.dir("dist"))
+}
