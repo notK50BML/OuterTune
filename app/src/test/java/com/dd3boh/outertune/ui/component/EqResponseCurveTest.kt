@@ -111,41 +111,33 @@ class EqResponseCurveTest {
     // ---- the vertical scale -----------------------------------------------------------------------
 
     @Test
-    fun `the scale never collapses onto a flat curve`() {
-        // Scaled to the curve, so an infinitely magnified flat line is the obvious failure.
-        assertTrue(rangeFor(FloatArray(64)) >= 6f)
-        assertTrue(rangeFor(FloatArray(0)) >= 6f)
+    fun `the plot uses the faders' own scale`() {
+        // The whole point of the curve sitting under the faders: a band at +6 puts its thumb 70% of
+        // the way up a +/-15dB track, and the curve has to be 70% of the way up the plot at the same
+        // place. A plot scaled to its own contents drew +3 and +12 as the same hump and stopped
+        // following the faders at all.
+        assertEquals(EqualizerSettings.MAX_GAIN_DB, rangeFor(floatArrayOf(3f)), 0.0001f)
+        assertEquals(EqualizerSettings.MAX_GAIN_DB, rangeFor(floatArrayOf(12f)), 0.0001f)
+        assertEquals(EqualizerSettings.MAX_GAIN_DB, rangeFor(FloatArray(0)), 0.0001f)
     }
 
     @Test
-    fun `the scale grows to fit a large curve`() {
-        assertTrue(rangeFor(floatArrayOf(0f, 12.3f, -2f)) >= 12.3f)
-        assertTrue(rangeFor(floatArrayOf(0f, -14.1f)) >= 14.1f)
+    fun `a larger boost draws a taller curve`() {
+        // Which only holds while the scale stays put - exactly what continuous rescaling broke.
+        assertEquals(rangeFor(floatArrayOf(3f)), rangeFor(floatArrayOf(12f)), 0.0001f)
     }
 
     @Test
     fun `the scale holds still across a whole drag`() {
-        // The bug this replaced: the scale rounded up to the nearest decibel, so it changed on
-        // almost every frame of a drag - and a plot whose scale tracks its own contents cannot
-        // show the contents growing. The curve stayed the same height and shimmered, which reads
-        // as the control having stopped working.
-        val sweep = generateSequence(6.5f) { it + 0.1f }.takeWhile { it < 11.9f }
-        val scales = sweep.map { rangeFor(floatArrayOf(it)) }.toSet()
+        val scales = generateSequence(0f) { it + 0.1f }.takeWhile { it <= 15f }
+            .map { rangeFor(floatArrayOf(it)) }.toSet()
         assertEquals("the scale changed mid-drag: $scales", 1, scales.size)
     }
 
     @Test
-    fun `the curve grows between steps rather than being renormalised away`() {
-        // Within one step, twice the boost is twice the height on screen. That is the whole point
-        // of a response plot and it is what continuous rescaling destroyed.
-        val small = rangeFor(floatArrayOf(3f))
-        val larger = rangeFor(floatArrayOf(5f))
-        assertEquals(small, larger, 0.0001f)
-    }
-
-    @Test
-    fun `a curve too big for one step moves up to the next`() {
-        assertTrue(rangeFor(floatArrayOf(14f)) > rangeFor(floatArrayOf(5f)))
-        assertTrue(rangeFor(floatArrayOf(20f)) > rangeFor(floatArrayOf(14f)))
+    fun `a curve beyond the faders' range is still fully drawn`() {
+        // Several adjacent bands at the top, or a band plus a shelf, can sum past 15dB. The plot
+        // grows rather than clipping it off the top.
+        assertTrue(rangeFor(floatArrayOf(20f)) >= 20f)
     }
 }

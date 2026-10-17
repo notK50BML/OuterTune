@@ -17,7 +17,6 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
-import kotlin.math.tanh
 
 /**
  * A cascaded-biquad parametric equalizer, inserted into [DefaultAudioSink]'s processor chain
@@ -115,6 +114,23 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     // One envelope follower per channel - unlike the biquad grid this doesn't depend on the band
     // count, only the channel count, so it's resized independently.
     private var compStates: Array<CompressorState> = arrayOf()
+
+    /**
+     * The last stage, and the only thing between the processing and full scale - see [PeakLimiter]
+     * for why it lowers the gain instead of reshaping the wave, which is what the stage it replaced
+     * did and is why boosts distorted.
+     */
+    private val limiter = PeakLimiter()
+
+    /** One frame's worth of samples, so the limiter can see every channel before any is written. */
+    private var frame = FloatArray(0)
+
+    /**
+     * Whether the previous buffer took the bulk-copy path. Coming back from it, the limiter's delay
+     * line holds audio from before the bypass, and playing that out would put a fragment of the past
+     * into the present - so it is cleared on the way back in.
+     */
+    private var wasBypassed = true
 
     /**
      * Feature extraction for the audio-reactive visualiser - the same tap point as the EQ itself,
@@ -287,6 +303,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             throw UnhandledAudioFormatException(inputAudioFormat)
         }
         configuredSampleRate = inputAudioFormat.sampleRate
+        limiter.configure(inputAudioFormat.sampleRate, inputAudioFormat.channelCount)
+        if (frame.size != inputAudioFormat.channelCount) {
+            frame = FloatArray(inputAudioFormat.channelCount.coerceAtLeast(0))
+        }
         visualizer.configure(configuredSampleRate)
         recomputeCoefficients()
         // After the sample rate is known, since the exciter's whole band plan is derived from it.
@@ -329,8 +349,15 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             }
             buffer.put(inputBuffer)
             buffer.flip()
+            wasBypassed = true
             return
         }
+
+        if (wasBypassed) {
+            limiter.reset()
+            wasBypassed = false
+        }
+        if (frame.size != channelCount) frame = FloatArray(channelCount)
 
         ensureStates(channelCount)
         syncCoefficientTarget()
@@ -397,8 +424,15 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     else -> 1f
                 }
 
-                val limited = softLimit(sample)
+                frame[ch] = sample
+            }
 
+            // The whole frame at once, because the limiter's gain is linked across channels: one
+            // side peaking turns both down together, so the stereo image does not move.
+            limiter.process(frame)
+
+            for (ch in 0 until channelCount) {
+                val limited = frame[ch]
                 when (encoding) {
                     // Rounded, not truncated. toInt() truncates towards zero, which is a
                     // consistently-signed error rather than a symmetric one, so it behaves as
@@ -458,6 +492,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // Same reasoning as the band filters: the audio on the far side of a seek is unrelated, so
         // carrying the exciter's delay line across it rings the old passage into the new one.
         exciter.reset()
+        // And the limiter's, which would otherwise play 1.5ms of the old position after the jump.
+        limiter.reset()
         // Nothing to glide over across a discontinuity either: the audio on the far side of it is
         // unrelated, so the new coefficients may as well be fully in effect for its first sample.
         if (rampFramesLeft > 0) {
@@ -494,42 +530,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
          */
         const val MAX_HEADROOM_DB = 15f
 
-        /**
-         * Below this the signal is passed through bit-exact; above it, it is compressed smoothly
-         * into the remaining headroom. See [softLimit].
-         *
-         * Raised from 0.75 once the pre-gain became exact. 0.75 is -2.5dBFS, which on a modern
-         * master is not a peak at all - it is most of the waveform - so the limiter was shaping
-         * the signal continuously rather than catching the occasional overshoot, and doing it on
-         * material the pre-gain had already failed to make room for. With the headroom correct,
-         * what is left to catch is inter-sample overshoot and transients that briefly exceed the
-         * steady-state response, and -0.9dBFS is where that belongs.
-         */
-        const val LIMIT_THRESHOLD = 0.9f
-        const val LIMIT_RANGE = 1f - LIMIT_THRESHOLD
+
     }
 
-    /**
-     * Soft-knee ceiling. Transparent below [LIMIT_THRESHOLD], asymptotic to 1.0 above it.
-     *
-     * This replaced a bare `tanh(sample)` on every sample. tanh is a fine saturator but it is not
-     * the identity anywhere: tanh(0.5) is 0.462 and tanh(0.7) is 0.604, so ordinary programme
-     * material sitting at a normal listening level was being pulled down by 8-14% - a continuous,
-     * waveform-dependent nonlinearity across the whole signal rather than something that engages
-     * only on peaks. That is odd-harmonic distortion on everything, worst on bass-heavy material
-     * where the high-amplitude fundamental throws its harmonics up into the midrange, and it is
-     * audible as exactly the gritty crackle a boosted band was blamed for: the pre-gain leaves a
-     * boosted band's output riding right around the level where tanh starts bending hard.
-     *
-     * Composing tanh with an offset instead keeps the saturation but confines it to the top of the
-     * range. The pieces meet with matching value *and* matching slope at the threshold (tanh'(0)
-     * is 1, and the 1/[LIMIT_RANGE] inside cancels the [LIMIT_RANGE] outside), so there is no
-     * discontinuity in the transfer curve for the ear to find as the signal crosses it.
-     */
-    private fun softLimit(x: Float): Float {
-        val magnitude = abs(x)
-        if (magnitude <= LIMIT_THRESHOLD) return x
-        val shaped = LIMIT_THRESHOLD + LIMIT_RANGE * tanh((magnitude - LIMIT_THRESHOLD) / LIMIT_RANGE)
-        return if (x < 0f) -shaped else shaped
-    }
 }

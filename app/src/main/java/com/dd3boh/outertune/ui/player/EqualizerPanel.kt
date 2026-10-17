@@ -64,6 +64,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -96,6 +97,13 @@ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.EqUseDialsKey
 import com.dd3boh.outertune.constants.EqValueColorGradientKey
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.DelicateCoroutinesApi
+import com.dd3boh.outertune.utils.dataStore
+import androidx.datastore.preferences.core.edit
+import androidx.compose.runtime.DisposableEffect
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.constants.SongEqualizerProfilesKey
 import com.dd3boh.outertune.constants.EqAutoSaveProfilesKey
@@ -207,15 +215,10 @@ fun EqualizerPanel() {
         expandedBound = configuration.screenHeightDp.dp,
     )
 
-    // Two-way, because both ends are real. The button beside the like button and the pull-down
-    // handle both set `visible`, and a drag sets the sheet - so each has to tell the other, or the
-    // button stops working the first time somebody swipes the panel shut.
-    LaunchedEffect(panelState.visible) {
-        if (panelState.visible) sheetState.expandSoft() else sheetState.collapseSoft()
-    }
-    LaunchedEffect(sheetState.isCollapsed) {
-        if (sheetState.isCollapsed && panelState.visible) panelState.visible = false
-    }
+    // Handed to the shared state rather than kept here, so the pull-down handle in the player -
+    // a different part of the tree entirely - can drag this exact sheet. See EqualizerPanelState
+    // for why the sheet, rather than a boolean beside it, is the thing that says whether it is open.
+    SideEffect { panelState.attach(sheetState) }
 
     TopSheet(
         state = sheetState,
@@ -339,13 +342,60 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
         pendingSongWrite = null
     }
 
+    // The global curve settles before it is stored, exactly as the per-song one does.
+    //
+    // It did not, and that was a bug rather than an inefficiency. Storing it is not inert: the
+    // playback service listens to the stored value and pushes it into the processor too. So while a
+    // slider was being dragged there were two writers - this panel, pushing each position directly,
+    // and the service, pushing whatever had last reached storage, which was always a few frames
+    // behind. Every time a stale value landed it dragged the audio back to where the slider had
+    // been, and the next frame pushed it forward again. The response curve followed the slider and
+    // the sound lagged and wobbled behind it, agreeing only once the finger came off.
+    //
+    // Settling the write leaves one writer for the duration of a drag. When it does land, it is the
+    // value the panel already pushed, so the service applying it changes nothing.
+    var pendingGlobalWrite by remember { mutableStateOf<EqualizerSettings?>(null) }
+    LaunchedEffect(pendingGlobalWrite) {
+        val toWrite = pendingGlobalWrite ?: return@LaunchedEffect
+        delay(SONG_PROFILE_SETTLE_MS)
+        settingsJson = toWrite.toJson()
+        pendingGlobalWrite = null
+    }
+
+    // Both settles above run in this composition, which ends the moment the panel closes - so an
+    // adjustment followed by a quick swipe shut was heard but never stored, and gone after a
+    // restart. Whatever is still waiting is written on the way out, outside the composition.
+    val latestPendingGlobal by rememberUpdatedState(pendingGlobalWrite)
+    val latestPendingSong by rememberUpdatedState(pendingSongWrite)
+    val latestSongId by rememberUpdatedState(currentSongId)
+    DisposableEffect(Unit) {
+        onDispose {
+            val global = latestPendingGlobal
+            val song = latestPendingSong
+            val songId = latestSongId
+            val profiles = latestProfiles
+            if (global == null && (song == null || songId == null)) return@onDispose
+            @OptIn(DelicateCoroutinesApi::class)
+            GlobalScope.launch(Dispatchers.IO) {
+                context.dataStore.edit { prefs ->
+                    if (global != null) prefs[EqualizerSettingsKey] = global.toJson()
+                    if (song != null && songId != null) {
+                        prefs[SongEqualizerProfilesKey] = SongEqualizerProfiles.toJson(
+                            SongEqualizerProfiles.put(profiles, songId, song, System.currentTimeMillis()).values
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun update(newSettings: EqualizerSettings) {
         settings = newSettings
         playerConnection.service.equalizerAudioProcessor.setSettings(newSettings)
         // Edits go wherever the curve on screen came from. The alternative - always writing the
         // global one - would mean that with an override active, every adjustment was silently
         // discarded the next time the song came round, which is the worst of both.
-        if (boundToSong) pendingSongWrite = newSettings else settingsJson = newSettings.toJson()
+        if (boundToSong) pendingSongWrite = newSettings else pendingGlobalWrite = newSettings
     }
 
     /** Starts or stops this song having a curve of its own. */

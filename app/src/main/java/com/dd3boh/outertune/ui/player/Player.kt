@@ -101,6 +101,8 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -488,8 +490,7 @@ private fun EqualizerHandle() {
     val handleColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle)
 
     val equalizerPanelState = LocalEqualizerPanelState.current
-    var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
-    val openThresholdPx = with(LocalDensity.current) { 40.dp.toPx() }
+    val sheet = equalizerPanelState.sheet
 
     Box(
         contentAlignment = Alignment.Center,
@@ -501,18 +502,37 @@ private fun EqualizerHandle() {
             .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
             .height(64.dp)
             .clickable { equalizerPanelState.visible = true }
-            .pointerInput(Unit) {
+            // Drives the sheet directly, frame by frame - the queue's own behaviour.
+            //
+            // This used to add up how far the finger had moved and, once that passed 40dp, fire a
+            // canned open animation. So the panel never followed the finger at all; a quick flick
+            // often ended before it had added up to 40dp, and was ignored; and once it did start
+            // it was a pre-baked slide rather than a drawer. Now each frame of the drag moves the
+            // sheet by exactly that much, and on release its speed and position decide where it
+            // settles - fast or past halfway opens it, otherwise it falls back - with the same
+            // spring the queue uses, because it is the same state and the same fling.
+            .pointerInput(sheet) {
+                if (sheet == null) return@pointerInput
+                val velocityTracker = VelocityTracker()
                 detectVerticalDragGestures(
-                    onDragEnd = { dragAccumulatorPx = 0f },
-                    onDragCancel = { dragAccumulatorPx = 0f },
+                    onDragStart = { sheet.dragStartedCollapsed = true },
                     onVerticalDrag = { change, dragAmount ->
+                        // Consumed, so the player's own sheet does not also take this drag and
+                        // start closing underneath the equaliser that is being pulled down.
                         change.consume()
-                        dragAccumulatorPx += dragAmount
-                        if (dragAccumulatorPx > openThresholdPx) {
-                            equalizerPanelState.visible = true
-                            dragAccumulatorPx = 0f
-                        }
-                    }
+                        velocityTracker.addPointerInputChange(change)
+                        // Negated for the same reason TopSheet negates it: down opens this one.
+                        sheet.dispatchRawDelta(-dragAmount)
+                    },
+                    onDragEnd = {
+                        val velocity = velocityTracker.calculateVelocity().y
+                        velocityTracker.resetTracking()
+                        sheet.performFling(velocity, null)
+                    },
+                    onDragCancel = {
+                        velocityTracker.resetTracking()
+                        sheet.collapseSoft()
+                    },
                 )
             }
     ) {

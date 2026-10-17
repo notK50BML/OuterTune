@@ -28,10 +28,8 @@ import androidx.compose.ui.unit.dp
 import com.dd3boh.outertune.audio.BiquadCoefficients
 import com.dd3boh.outertune.models.EqualizerSettings
 import kotlin.math.abs
-import kotlin.math.ceil
 import kotlin.math.exp
 import kotlin.math.ln
-import kotlin.math.max
 
 /**
  * The equaliser's combined response, drawn.
@@ -198,20 +196,19 @@ internal fun responseCurve(
 }
 
 /**
- * Half-height of the plot, in dB.
+ * Half-height of the plot, in dB: the faders' own range, unless the curve needs more.
  *
- * Scaled to the curve rather than fixed at the band range, so a gentle correction is visible
- * instead of being a flat line across the middle of a +/-15dB plot.
+ * The plot used to scale to its own contents - first to the nearest decibel, then to coarse steps.
+ * Both were wrong for the same reason, which took two attempts to see: **a plot scaled to itself
+ * cannot line up with anything else.** The faders sit directly above it on a fixed +/-15dB travel,
+ * and the whole value of drawing the curve there is that a band pushed to +6 puts a thumb 70% of
+ * the way up its track and the curve 70% of the way up the plot, at the same place. Scale the plot
+ * to its contents and that correspondence is gone - a +3 boost and a +12 boost draw the same hump,
+ * and the curve stops following the faders at all.
  *
- * **In steps, and this is the part that matters.** Rounding up to the nearest decibel sounded
- * stable and was not: dragging a band moves the peak continuously, so the scale changed on almost
- * every frame of the drag, and a plot whose scale tracks its own contents cannot show the contents
- * growing. The curve stayed the same height and shimmered as the axis stepped underneath it, which
- * reads as the control having stopped working.
- *
- * With [SCALE_STEPS] the scale changes a handful of times across the whole range instead of
- * constantly, so between steps the curve genuinely grows - which is the thing a response plot is
- * for - and the rescales that do happen are rare enough to be animated out.
+ * So it uses the faders' scale. It only grows past it when the curve genuinely exceeds it, which
+ * takes several adjacent bands at the top of their range, or a band plus a shelf - and then to one
+ * larger step rather than continuously, so it does not shimmer while that happens either.
  */
 internal fun rangeFor(curve: FloatArray): Float {
     val peak = curve.maxOfOrNull { abs(it) } ?: 0f
@@ -234,10 +231,9 @@ private const val MIN_HZ = 20f
 private const val MAX_HZ = 20_000f
 private const val POINTS = 192
 /**
- * The scales the plot is allowed to use, in dB either side of unity.
+ * The scales the plot may use: the faders' range, and one larger one for curves that exceed it.
  *
- * Few and far apart on purpose - see [rangeFor]. The first covers an ordinary correction, the last
- * covers a band at the top of its range with its neighbours helping, and nothing in between needs
- * a finer choice than this.
+ * The first is [EqualizerSettings.MAX_GAIN_DB] and has to stay equal to it - that equality is what
+ * lines the curve up with the fader thumbs above it. See [rangeFor].
  */
-private val SCALE_STEPS = floatArrayOf(6f, 12f, 18f, 24f)
+private val SCALE_STEPS = floatArrayOf(EqualizerSettings.MAX_GAIN_DB, 24f, 36f)
