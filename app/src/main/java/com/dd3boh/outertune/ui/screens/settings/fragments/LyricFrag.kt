@@ -141,6 +141,7 @@ fun ColumnScope.LyricFormatFrag() {
                 showFontSizeDialog = false
             },
             onReset = { onLyricFontSizeChange(20) },
+            resetValue = 20,
             onCancel = { showFontSizeDialog = false }
         )
     }
@@ -374,6 +375,7 @@ fun ColumnScope.LyricSourceFrag() {
                 showPrefetchCountDialog = false
             },
             onReset = { onPrefetchCountChange(3) },
+            resetValue = 3,
             onCancel = { showPrefetchCountDialog = false }
         )
     }

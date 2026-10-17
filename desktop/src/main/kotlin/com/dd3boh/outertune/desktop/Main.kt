@@ -388,11 +388,14 @@ internal fun App(
     // would mean a spinner every single time, and the lookup is two requests that are then cached
     // for good - so doing it eagerly costs one round trip per new song and makes the pane instant.
     val lyricsRepository = remember(library) { LyricsRepository(library) }
-    var lyrics by remember { mutableStateOf<Lyrics?>(null) }
+    // As the provider sent them. The offset and estimated word timings are applied below, on the
+    // way to the screen, so moving the offset slider never re-fetches - it used to, on every step,
+    // and the lyrics blanked and reloaded under the slider for as long as it was dragged.
+    var fetchedLyrics by remember { mutableStateOf<Lyrics?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     val nowPlaying = queue.current
-    LaunchedEffect(nowPlaying?.id, duration, settings.lyricsOffsetMs, settings.wordByWordLyrics, settings.estimateWordTimings) {
-        lyrics = null
+    LaunchedEffect(nowPlaying?.id, duration, settings.wordByWordLyrics) {
+        fetchedLyrics = null
         val song = nowPlaying ?: return@LaunchedEffect
         // Held off until the duration is known, because LrcLib matches on it - asking with zero
         // gets the wrong version of a song as often as it gets nothing.
@@ -407,9 +410,12 @@ internal fun App(
         )
         // Applied on the way out rather than baked into the cache, so changing the offset does not
         // mean re-fetching, and so a cached file is still the file the provider sent.
-        lyrics = fetched?.shiftedBy(settings.lyricsOffsetMs.toLong())
-            ?.let { if (settings.estimateWordTimings) it.withEstimatedWords() else it }
+        fetchedLyrics = fetched
         lyricsLoading = false
+    }
+    val lyrics = remember(fetchedLyrics, settings.lyricsOffsetMs, settings.estimateWordTimings) {
+        fetchedLyrics?.shiftedBy(settings.lyricsOffsetMs.toLong())
+            ?.let { if (settings.estimateWordTimings) it.withEstimatedWords() else it }
     }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var addingToPlaylist by remember { mutableStateOf<StoredSong?>(null) }
@@ -769,7 +775,7 @@ internal fun App(
                         onBack = { tab = NavTab.Home },
                         onClearLyricsCache = {
                             queue.current?.id?.let(lyricsRepository::forget)
-                            lyrics = null
+                            fetchedLyrics = null
                         },
                         downloads = library.downloads,
                         library = library,

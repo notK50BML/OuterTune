@@ -346,6 +346,7 @@ private fun AppearanceSettings(settings: Settings) {
             range = 80..140,
             step = 5,
             format = { "$it%" },
+            default = 100,
             onChange = { settings.textScale = it },
             divider = false,
         )
@@ -454,6 +455,7 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             range = 70..160,
             step = 10,
             format = { "$it%" },
+            default = 100,
             onChange = { settings.lyricsTextScale = it },
         )
         SettingChoice(
@@ -472,6 +474,7 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             range = -3000..3000,
             step = 50,
             format = { "${if (it > 0) "+" else ""}$it ms" },
+            default = 0,
             onChange = { settings.lyricsOffsetMs = it },
             divider = false,
         )
@@ -1051,6 +1054,8 @@ private fun SettingSlider(
     onChange: (Int) -> Unit,
     subtitle: String? = null,
     divider: Boolean = true,
+    /** Where Reset goes back to. Null shows no Reset. */
+    default: Int? = null,
 ) {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
         Icon(
@@ -1064,6 +1069,9 @@ private fun SettingSlider(
             if (subtitle != null) {
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
+        }
+        if (default != null && value != default) {
+            TextButton(onClick = { onChange(default) }) { Text("Reset") }
         }
         Text(format(value), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     }

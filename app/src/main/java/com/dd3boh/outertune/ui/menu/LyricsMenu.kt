@@ -107,6 +107,9 @@ fun LyricsMenu(
             onDismiss = { showOffsetDialog = false },
             onConfirm = { onLyricOffsetChange(it); showOffsetDialog = false },
             onReset = { onLyricOffsetChange(0) },
+            resetValue = 0,
+            // 10ms on the slider, 50ms a press: finer than that is below what anyone can hear.
+            step = 10,
             onCancel = { showOffsetDialog = false },
         )
     }

@@ -9,6 +9,8 @@
 
 package com.dd3boh.outertune.ui.dialog
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.draw.alpha
 import android.content.ClipData
 import android.text.format.Formatter
 import androidx.compose.foundation.background
@@ -375,12 +377,20 @@ fun CounterDialog(
     onConfirm: (Int) -> Unit,
     onReset: (() -> Unit)? = null,
     onCancel: (() -> Unit)? = null,
+    /**
+     * What Reset puts back. Without it, Reset saved the default but the dialog kept showing - and
+     * then OK saved - the value it already had, so pressing Reset and then OK undid the reset.
+     */
+    resetValue: Int? = null,
+    /** How far the +/- buttons move, and the slider's resolution. */
+    step: Int = 1,
 ) = BasicAlertDialog(
     onDismissRequest = { onDismiss() },
     content = {
         val tempValue = rememberSaveable {
             mutableIntStateOf(initialValue)
         }
+        fun snap(value: Int) = ((value.toFloat() / step).roundToInt() * step).coerceIn(lowerBound, upperBound)
         Column(
             modifier = Modifier
                 .background(
@@ -416,9 +426,7 @@ fun CounterDialog(
                 ) {
                     IconButton(
                         onClick = {
-                            if (tempValue.intValue > lowerBound) {
-                                tempValue.intValue -= 1
-                            }
+                            tempValue.intValue = snap(tempValue.intValue - step)
                         },
                     ) {
                         Text(
@@ -431,9 +439,7 @@ fun CounterDialog(
 
                     IconButton(
                         onClick = {
-                            if (tempValue.intValue < upperBound) {
-                                tempValue.intValue += 1
-                            }
+                            tempValue.intValue = snap(tempValue.intValue + step)
                         },
                     ) {
                         Text(
@@ -449,14 +455,24 @@ fun CounterDialog(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = "${tempValue.intValue}$unitDisplay",
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
+                    // A fixed width, sized for the widest value this dialog can show. It used to
+                    // size to its text, so the slider beside it grew and shrank as the number's
+                    // digits changed - under the finger, mid-drag, which is the bar "jumping".
+                    val widest = listOf(lowerBound, upperBound).maxBy { "$it$unitDisplay".length }
+                    Box(contentAlignment = Alignment.CenterEnd, modifier = Modifier.padding(horizontal = 8.dp)) {
+                        Text(
+                            text = "$widest$unitDisplay",
+                            style = MaterialTheme.typography.bodyMedium,
+                            modifier = Modifier.alpha(0f),
+                        )
+                        Text(
+                            text = "${tempValue.intValue}$unitDisplay",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
                     Slider(
                         value = tempValue.intValue.toFloat(),
-                        onValueChange = { tempValue.intValue = it.toInt() },
+                        onValueChange = { tempValue.intValue = snap(it.roundToInt()) },
                         valueRange = lowerBound.toFloat()..upperBound.toFloat()
                     )
                 }
@@ -470,7 +486,10 @@ fun CounterDialog(
                     if (onReset != null)
                         Row(modifier = Modifier.weight(1f)) {
                             TextButton(
-                                onClick = { onReset() },
+                                onClick = {
+                                    resetValue?.let { tempValue.intValue = it }
+                                    onReset()
+                                },
                             ) {
                                 Text(stringResource(R.string.reset))
                             }

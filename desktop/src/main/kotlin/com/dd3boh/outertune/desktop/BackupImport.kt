@@ -68,7 +68,14 @@ object BackupImport {
             )
 
             try {
-                openReadOnly(extracted).use { connection -> read(connection, library) }
+                // One transaction for the whole import. Committed row by row, every song was its
+                // own disk flush - several per song with its credits - and a phone library of a few
+                // thousand songs took the better part of an hour, holding the database the whole
+                // time so the window seemed frozen. As one unit it is seconds, and an import that
+                // fails partway leaves nothing half-done behind.
+                openReadOnly(extracted).use { connection ->
+                    library.database.transaction { read(connection, library) }
+                }
             } catch (e: Exception) {
                 ImportSummary(error = "Could not read the backup's database: ${e.message}")
             } finally {
