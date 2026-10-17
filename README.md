@@ -34,6 +34,8 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Added ability to listen along to another person's device, as long as that device is still on the same network
 - Fixed a bug where the devices will fall out of sync because of lag from the host-side device
 - Added a feature to correct for the delay in the devices playing songs, tunable to a few milliseconds
+- Improved pipeline to reduce drop-outs
+
 ### Discord Rich Presence
 - Added rich presence (huge thanks to [reocat](https://github.com/reocat/OuterTune))
 - Added clickable song and artist
@@ -74,7 +76,8 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Fixed word-by-word lyrics rendering breaking when battery saver was enabled (now can be enabled under Lyrics > Advanced > Karaoke style lyrics)
 - Added a feature which allows word-by-word interpolation from line-synced lyrics
 - Added lyrics offset settings
-
+- Added syllable-weighted lyrics with punctuation pauses for greater accuracy
+  
 ### Navigation and menus
 
 - Adjusted bottom navigation so tab switching and re-tapping the active tab behave more naturally
@@ -87,13 +90,18 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Improved tag reading, song linking, and gapless playback for local music
 - Fixed the album song count shown on album screens
 - Added a Local tab for browsing on-device songs, albums, artists, and playlists with filters and search
+
+ ### Parametric Equaliser
 - Added an inbuilt parametric equaliser and compressor
 - Improved equaliser and compressor pipeline for better, less artefact-prone audio
 - Added a crossfade function
 - Fixed a bug with colours in the equaliser bands
 - Removed redundant settings for the equaliser page (Contrast by colour was unneeded as the cards were by default grey anyway)
-- Added AutoEQ support, though this is still WIP
-
+- Remade equaliser processing pipeline using a significantly less distortion-prone algorithm
+- Added auto gain to compensate for lower volume
+- Remade and tidied equaliser page
+- Removed rarely used settings to the settings page 
+ 
 ### Display and settings
 
 - Improved the tablet UI
@@ -149,6 +157,30 @@ OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/Inner
 > Android 8 (Oreo) and higher is supported. While the app may work on Android 7.x (Nougat), we do not officially support this version
 >
 > Version naming right now is a bit confusing. In order to clear up any questions, the naming convention is as follows: v0.xx is a stable alpha release, and v0.xx.x is a stable alpha fix. These fix releases usually fix bugs or layout problems, and add small features. A new alpha release typically comprises one or more major feature changes, or large overhauls of the user interface. A v0.xx.xb release is a beta release, featuring the cutting edge of the app's development, though this release may have bugs. Though these beta releases are absolutely usable as your default player, some features may not feel as polished as they should be.
+
+## Progress on Windows application
+- Finished core framework and backend, so songs play properly
+- Finished download pipeline
+- Added working Google account sign-in integration
+- Added Discord rich presence card, which is identical to the android version
+- Replicated most major UI elements 
+- Added a dedicated artist page
+- Added a backup feature which lets you import data from your Android installation
+- Added the new equaliser and compressor settings, along with most features
+- Added settings page and most basic settings
+
+# What I'm Working On
+- Improving equaliser to reduce bass distortion
+- Improving UI
+- Adding more settings
+- Porting over the word-by-word and syllable-weighted lyrics interpolation engine
+- Fixing some scaling and incorrect UI behaviour bugs
+- Improving performance
+- Animate more parts so the app feels smoother
+- Bringing over more customisation settings from the Android app
+- Significantly overhauling the ferrofluid visualiser (again) for desktops and people with dedicated GPUs
+- Improving icon appearances to give the app a softer vibe
+- Adding the ability to use custom fonts 
 
 ## Screenshots
 
