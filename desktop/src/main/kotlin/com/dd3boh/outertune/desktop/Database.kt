@@ -561,6 +561,42 @@ class Database(file: File) {
         }
     }
 
+    /**
+     * Marks [songs] liked, newest first, keeping YouTube's order: the first is stamped [nowMs], each
+     * after it a second earlier, so sorting by when it was liked reproduces the remote list. Songs
+     * already liked here keep their own date - an import adds, it does not reshuffle.
+     */
+    fun importLiked(songs: List<StoredSong>, nowMs: Long): Int = transaction {
+        var added = 0
+        songs.forEachIndexed { index, song ->
+            upsertSongLocked(song)
+            connection.prepareStatement(
+                "INSERT INTO liked (songId, likedAt) VALUES (?, ?) ON CONFLICT(songId) DO NOTHING"
+            ).use { st ->
+                st.setString(1, song.id)
+                st.setLong(2, nowMs - index * 1000L)
+                added += st.executeUpdate()
+            }
+        }
+        added
+    }
+
+    /** Artists credited on liked or played songs, with how many of those songs each has. */
+    fun libraryArtists(): List<Pair<StoredArtist, Int>> = synchronized(lock) {
+        connection.createStatement().use { st ->
+            st.executeQuery(
+                """
+                SELECT a.id, a.name, COUNT(DISTINCT sa.songId) AS songs
+                FROM song_artist sa JOIN artist a ON a.id = sa.artistId
+                WHERE sa.songId IN (SELECT songId FROM liked UNION SELECT songId FROM play_history)
+                GROUP BY a.id ORDER BY songs DESC, a.name COLLATE NOCASE
+                """.trimIndent()
+            ).use { rs ->
+                buildList { while (rs.next()) add(StoredArtist(rs.getString(1), rs.getString(2)) to rs.getInt(3)) }
+            }
+        }
+    }
+
     // ---- playlists -------------------------------------------------------------------------
 
     fun createPlaylist(id: String, name: String, atMs: Long) = synchronized(lock) {

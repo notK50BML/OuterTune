@@ -11,7 +11,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.platform.SystemFont
-import java.awt.GraphicsEnvironment
 
 /**
  * The fonts installed on this machine, and turning one into something Compose can set text in.
@@ -21,15 +20,27 @@ import java.awt.GraphicsEnvironment
  */
 object SystemFonts {
 
-    /** Every installed family, sorted, without the hidden dot-prefixed ones macOS keeps for itself. */
+    /**
+     * Every installed family, sorted, without the hidden dot-prefixed ones macOS keeps for itself.
+     *
+     * From Skia's font manager rather than AWT. AWT's GraphicsEnvironment loads every font file on
+     * the machine before it answers - many seconds with a large collection - and this was being
+     * asked on the UI thread, which froze the window the moment the font picker opened. Skia only
+     * enumerates, and its names are the ones its matcher resolves, so every name listed is one that
+     * will actually render. Still read off the UI thread: see [load].
+     */
     val families: List<String> by lazy {
         runCatching {
-            GraphicsEnvironment.getLocalGraphicsEnvironment().availableFontFamilyNames
-                .filterNot { it.startsWith(".") }
-                .distinct()
-                .sortedBy { it.lowercase() }
+            val manager = org.jetbrains.skia.FontMgr.default
+            (0 until manager.familiesCount).map { manager.getFamilyName(it) }
         }.getOrDefault(emptyList())
+            .filter { it.isNotBlank() && !it.startsWith(".") }
+            .distinct()
+            .sortedBy { it.lowercase() }
     }
+
+    /** [families], fetched on a background thread. */
+    suspend fun load(): List<String> = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { families }
 
     /**
      * [name] as a family, or null for the default.

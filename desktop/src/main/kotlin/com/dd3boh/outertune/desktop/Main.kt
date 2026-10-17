@@ -116,6 +116,8 @@ fun main() = application {
     // Built here rather than inside App, because the theme is chosen above App and needs the stored
     // settings to do it. One instance either way - App only ever remembered them once.
     val library = remember { LibraryStore() }
+    // Writes a stack dump beside the library if the window ever stops responding - see the class.
+    remember { FreezeWatchdog.start(defaultDataDirectory()) }
     val settings = remember(library) { Settings(library.settings) }
     // Before anything can be played, so a stored curve is in effect from the first note rather
     // than from whenever the equaliser drawer is first opened.
@@ -440,6 +442,20 @@ internal fun App(
         account.restore()
     }
 
+    // The account's library, synced on sign-in and whenever asked. Likes made here go to YouTube as
+    // they happen, so the two lists converge without a sync having to pick a winner.
+    val youTubeSync = remember { YouTubeSync(library) }
+    LaunchedEffect(accountState) {
+        if (accountState is AccountState.SignedIn) youTubeSync.syncAll() else youTubeSync.clear()
+    }
+    fun likeAndPush(song: StoredSong) {
+        library.toggleLiked(song)
+        if (accountState is AccountState.SignedIn) {
+            val nowLiked = library.isLiked(song.id)
+            scope.launch { youTubeSync.pushLike(song.id, nowLiked) }
+        }
+    }
+
     fun search() {
         val text = query.trim()
         if (text.isEmpty()) return
@@ -457,7 +473,7 @@ internal fun App(
     }
 
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
-    val toggleLike = { queue.current?.let { library.toggleLiked(it.toStored()) }; Unit }
+    val toggleLike = { queue.current?.let { likeAndPush(it.toStored()) }; Unit }
 
     if (showSleepDialog) {
         SleepTimerDialog(
@@ -576,7 +592,10 @@ internal fun App(
     }
 
     // The right-click menu every song in the window offers - see SongMenuArea.
-    val songActions = SongActions(
+    // Built once. Everything it reads is state read at call time, so a fresh copy per recomposition
+    // bought nothing - and as an app-wide local, every new copy redrew the whole window.
+    val songActions = remember {
+    SongActions(
         playNext = { playerQueue.playNext(it) },
         addToQueue = { playerQueue.addToQueue(it) },
         startRadio = { song ->
@@ -588,7 +607,7 @@ internal fun App(
             }
         },
         addToPlaylist = { addingToPlaylist = it.toStored() },
-        toggleLike = { library.toggleLiked(it.toStored()) },
+        toggleLike = { likeAndPush(it.toStored()) },
         isLiked = { id -> liked.any { it.id == id } },
         toggleDownload = { song ->
             if (song.id in downloadedIds) {
@@ -608,6 +627,7 @@ internal fun App(
         openAlbum = openAlbumPage,
         copyLink = { copyToClipboard(watchUrl(it.id)) },
     )
+    }
 
     // Media keys, but only while the search box does not have focus: space has to keep typing a
     // space and the arrows have to keep moving the caret. A shortcut that eats the text field is
@@ -854,14 +874,15 @@ internal fun App(
                                 onOpenArtist = openArtistPage,
                             )
                 } else {
-                    Content(
-                        results = emptyList(),
-                        liked = liked,
-                        recent = recent,
+                    LibraryPane(
+                        library = library,
+                        sync = youTubeSync,
+                        signedIn = accountState is AccountState.SignedIn,
+                        downloadedIds = downloadedIds,
                         currentId = queue.current?.id,
-                        onPlayResult = {},
-                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Liked songs") },
-                        onAddToPlaylist = { addingToPlaylist = it },
+                        onPlay = { songs, index, title -> playerQueue.play(songs.map { it.toItem() }, index, title) },
+                        onOpenArtist = openArtistPage,
+                        onOpenAlbum = openAlbumPage,
                     )
                 }
             }
@@ -891,7 +912,7 @@ internal fun App(
 /** The sections the rail offers, in the phone's order. */
 enum class NavTab(val label: String) {
     Home("Home"),
-    Songs("Songs"),
+    Songs("Library"),
     Playlists("Playlists"),
     Stats("Stats"),
     Settings("Settings"),

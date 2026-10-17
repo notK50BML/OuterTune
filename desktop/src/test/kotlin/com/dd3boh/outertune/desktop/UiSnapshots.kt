@@ -285,4 +285,57 @@ class UiSnapshots {
             )
         }
     }
+
+    @Test
+    fun settingsResponsiveness() {
+        assumeTrue(outDir != null)
+        val library = LibraryStore(java.nio.file.Files.createTempDirectory("ot-resp").toFile())
+        val settings = Settings(library.settings)
+        val player = DesktopPlayer()
+        val scene = ImageComposeScene(1280, 800, Density(1f)) {
+            MaterialTheme(colorScheme = DynamicTheme.schemeFor(Color(0xFF7B3FC4), true)) {
+                Surface(modifier = Modifier.fillMaxSize()) { App(player, library, settings, onSeedChanged = {}) }
+            }
+        }
+        var t = 0L
+        fun frames(label: String, n: Int = 10) {
+            val times = LongArray(n) {
+                val start = System.nanoTime()
+                scene.render(t)
+                t += 16_000_000L
+                (System.nanoTime() - start) / 1_000_000
+            }
+            println("FRAMES $label: max=${times.max()}ms total=${times.sum()}ms ${times.joinToString(",")}")
+        }
+        fun click(x: Float, y: Float) {
+            scene.sendPointerEvent(PointerEventType.Move, Offset(x, y))
+            scene.sendPointerEvent(PointerEventType.Press, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+            scene.sendPointerEvent(PointerEventType.Release, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+        }
+        frames("start", 30)
+        // Playback ticking, as it does ~50 times a second while a song plays.
+        run {
+            val times = LongArray(60) {
+                player.positionMs.value = it * 20L
+                val start = System.nanoTime()
+                scene.render(t)
+                t += 16_000_000L
+                (System.nanoTime() - start) / 1_000_000
+            }
+            println("FRAMES while playing (home): max=${times.max()}ms total=${times.sum()}ms")
+        }
+        click(40f, 690f); frames("open settings")
+        click(200f, 300f); frames("open lyrics")
+        File(outDir, "resp_lyrics.png").writeBytes(scene.render(t).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        click(520f, 585f); frames("open alignment menu", 20)
+        File(outDir, "resp_menu.png").writeBytes(scene.render(t).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        click(560f, 660f); frames("pick from menu", 20)
+        println("FRAMES alignment now ${settings.lyricsAlignment}")
+        settings.lyricsAlignment = LyricsAlignment.Left; frames("set alignment")
+        settings.textScale = 110; frames("set text size")
+        settings.pureBlack = true; frames("set pure black")
+        File(outDir, "resp_after.png").writeBytes(scene.render(t).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+        player.stop()
+    }
 }

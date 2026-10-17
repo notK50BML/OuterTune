@@ -104,9 +104,17 @@ class LibraryStore(
      */
     val settings: SettingsStore = object : SettingsStore {
         override fun get(key: String): String? = db.setting(key)
+
+        // Saved on a background thread, in order. A setting is changed from a click on the UI
+        // thread, and a database write there - however quick normally - is a click that waits on
+        // whatever else has the database, which is how a switch could freeze the window.
         override fun put(key: String, value: String) {
-            db.putSetting(key, value)
+            settingsWriter.execute { runCatching { db.putSetting(key, value) } }
         }
+    }
+
+    private val settingsWriter = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "settings-writer").apply { isDaemon = true }
     }
 
     /** What has already been looked up for a song, or null if nothing has. */
@@ -153,6 +161,18 @@ class LibraryStore(
     }
 
     fun isLiked(id: String): Boolean = liked.value.any { it.id == id }
+
+    /** See Database.importLiked. Returns how many were newly liked. */
+    fun importLiked(songs: List<StoredSong>): Int {
+        val added = db.importLiked(songs, System.currentTimeMillis())
+        liked.value = db.likedSongs()
+        return added
+    }
+
+    fun libraryArtists() = db.libraryArtists()
+
+    /** Songs by id, in the order given, skipping any the library has never seen. */
+    fun songs(ids: Collection<String>): List<StoredSong> = ids.mapNotNull { db.song(it) }
 
     // ---- playlists -------------------------------------------------------------------------
 
@@ -210,7 +230,12 @@ class LibraryStore(
         playlists.value = db.playlists()
     }
 
-    fun close() = db.close()
+    fun close() {
+        // Let any setting still on its way to disk land before the file is closed under it.
+        settingsWriter.shutdown()
+        settingsWriter.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)
+        db.close()
+    }
 
     /**
      * Moves a text-file library into the database, once.

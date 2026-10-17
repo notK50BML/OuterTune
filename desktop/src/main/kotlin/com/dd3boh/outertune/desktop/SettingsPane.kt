@@ -1094,8 +1094,11 @@ private fun FontSetting(settings: Settings) {
     if (!open) return
 
     var filter by remember { mutableStateOf("") }
-    val families = remember { SystemFonts.families }
-    val shown = remember(filter) { families.filter { it.contains(filter.trim(), ignoreCase = true) } }
+    var families by remember { mutableStateOf<List<String>?>(null) }
+    LaunchedEffect(Unit) { families = SystemFonts.load() }
+    val shown = remember(filter, families) {
+        families.orEmpty().filter { it.contains(filter.trim(), ignoreCase = true) }
+    }
     AlertDialog(
         onDismissRequest = { open = false },
         confirmButton = { TextButton(onClick = { open = false }) { Text("Done") } },
@@ -1105,7 +1108,7 @@ private fun FontSetting(settings: Settings) {
                 OutlinedTextField(
                     value = filter,
                     onValueChange = { filter = it },
-                    placeholder = { Text("Search ${families.size} fonts") },
+                    placeholder = { Text(families?.let { "Search ${it.size} fonts" } ?: "Loading fonts…") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )

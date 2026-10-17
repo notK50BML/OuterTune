@@ -19,7 +19,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -53,7 +53,7 @@ class SongActions(
     val copyLink: (SongItem) -> Unit,
 )
 
-val LocalSongActions = staticCompositionLocalOf<SongActions?> { null }
+val LocalSongActions = compositionLocalOf<SongActions?> { null }
 
 /**
  * [content] with a right-click menu for [song]: the phone's long-press song menu, as a desktop
