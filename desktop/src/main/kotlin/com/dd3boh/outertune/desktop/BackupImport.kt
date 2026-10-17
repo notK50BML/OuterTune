@@ -20,6 +20,7 @@ data class ImportSummary(
     val playlists: Int = 0,
     val playlistSongs: Int = 0,
     val skippedLocal: Int = 0,
+    val plays: Int = 0,
     val error: String? = null,
 ) {
     val failed: Boolean get() = error != null
@@ -34,6 +35,7 @@ data class ImportSummary(
                 append(", $playlists ${if (playlists == 1) "playlist" else "playlists"}")
                 append(" ($playlistSongs ${if (playlistSongs == 1) "entry" else "entries"})")
             }
+            if (plays > 0) append(", $plays ${if (plays == 1) "play" else "plays"} of history")
             if (skippedLocal > 0) append(". Skipped $skippedLocal local ${if (skippedLocal == 1) "file" else "files"}")
             append(".")
         }
@@ -116,8 +118,14 @@ object BackupImport {
         var skippedLocal = 0
         val imported = HashMap<String, StoredSong>()
 
+        // Older backups have no duration column; asked for only where it exists.
+        val hasDuration = connection.createStatement().use { st ->
+            st.executeQuery("PRAGMA table_info(song)").use { rs ->
+                generateSequence { if (rs.next()) rs.getString("name") else null }.any { it == "duration" }
+            }
+        }
         connection.prepareStatement(
-            "SELECT id, title, thumbnailUrl, liked, isLocal FROM song"
+            "SELECT id, title, thumbnailUrl, liked, isLocal${if (hasDuration) ", duration" else ""} FROM song"
         ).use { statement ->
             statement.executeQuery().use { rows ->
                 while (rows.next()) {
@@ -134,7 +142,12 @@ object BackupImport {
                         thumbnail = rows.getString("thumbnailUrl").orEmpty(),
                         artistList = artists,
                     )
-                    library.database.upsertSong(song)
+                    // With its length (stored in seconds on the phone), so Stats can count
+                    // listening time for plays that came from the phone.
+                    library.database.upsertSong(
+                        song,
+                        durationMs = if (hasDuration) rows.getLong("duration").coerceAtLeast(0) * 1000L else 0L,
+                    )
                     imported[id] = song
                     songs++
 
@@ -151,6 +164,23 @@ object BackupImport {
         }
 
         val (playlists, playlistSongs) = readPlaylists(connection, library, imported)
+        // Every play the phone recorded - its event table - so Stats and Recently played carry the
+        // phone's history rather than starting from nothing. Plays of songs that were not brought
+        // across (local files) are left out, since there is nothing here for them to point at.
+        val plays = runCatching {
+            connection.prepareStatement("SELECT songId, timestamp FROM event").use { statement ->
+                statement.executeQuery().use { rows ->
+                    buildList {
+                        while (rows.next()) {
+                            val songId = rows.getString(1) ?: continue
+                            if (songId in imported) add(songId to rows.getLong(2))
+                        }
+                    }
+                }
+            }
+        }.getOrDefault(emptyList())
+        val playsAdded = library.database.importPlays(plays)
+
         library.refreshAll()
         return ImportSummary(
             songs = songs,
@@ -158,6 +188,7 @@ object BackupImport {
             playlists = playlists,
             playlistSongs = playlistSongs,
             skippedLocal = skippedLocal,
+            plays = playsAdded,
         )
     }
 

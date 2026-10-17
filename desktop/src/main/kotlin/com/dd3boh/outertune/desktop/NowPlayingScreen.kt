@@ -173,6 +173,11 @@ fun NowPlayingScreen(
     lyricsAlignment: LyricsAlignment = LyricsAlignment.Centre,
     /** The title-row buttons, in order - see PlayerButtonKind. */
     playerButtons: List<PlayerButtonKind> = PlayerButtonKind.decode(""),
+    showQueueTitle: Boolean = true,
+    /** Throws away this song's cached lyrics and asks the providers again. */
+    onRefetchLyrics: (() -> Unit)? = null,
+    lyricsOffsetMs: Int = 0,
+    onLyricsOffsetChange: ((Int) -> Unit)? = null,
 ) {
     // Held here rather than inside the drawer: the handle at the top and the button in the actions
     // row both open the same panel, exactly as they do on Android, and two copies of the state would
@@ -305,6 +310,14 @@ fun NowPlayingScreen(
                     ) { if (lyricsOnCoverClick) showLyrics = !showLyrics },
             ) {
                 if (showLyrics) {
+                    Column(modifier = Modifier.fillMaxHeight()) {
+                    LyricsHeader(
+                        tint = onBackground,
+                        onClose = { showLyrics = false },
+                        onRefetch = onRefetchLyrics,
+                        offsetMs = lyricsOffsetMs,
+                        onOffsetChange = onLyricsOffsetChange,
+                    )
                     LyricsPane(
                         lyrics = lyrics,
                         loading = lyricsLoading,
@@ -313,8 +326,9 @@ fun NowPlayingScreen(
                         onColour = onBackground,
                         fontSize = 20.sp * scale * (lyricsTextScale / 100f),
                         alignment = lyricsAlignment,
-                        modifier = Modifier.fillMaxHeight(),
+                        modifier = Modifier.weight(1f),
                     )
+                    }
                 } else {
                     val side = min(min(maxHeight - 24.dp, maxWidth), coverMax)
                     Artwork(
@@ -522,6 +536,8 @@ fun NowPlayingScreen(
             onColour = onBackground,
             open = queueOpen,
             onToggle = { queueOpen = !queueOpen },
+            sideways = sideBySide,
+            showTitle = showQueueTitle,
         )
     }
 
@@ -862,7 +878,14 @@ private fun QueueBar(
     onColour: Color,
     open: Boolean,
     onToggle: () -> Unit,
+    /** Docked beside the player: the queue opens from the right, so the arrow points that way. */
+    sideways: Boolean = false,
+    showTitle: Boolean = true,
 ) {
+    if (sideways) {
+        SidewaysQueueHandle(queue, onColour, open, onToggle, showTitle)
+        return
+    }
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val scrim by animateFloatAsState(if (hovered) 0.3f else 0.12f)
@@ -897,6 +920,126 @@ private fun QueueBar(
             color = onColour.copy(alpha = 0.85f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The queue's handle when the queue docks beside the player.
+ *
+ * An arrow pointing the way the queue will move - left to bring it in from the right edge, right to
+ * send it back - with the queue's name beside it, at the right-hand end of the bar where the queue
+ * appears. The name can be turned off in Settings, as on the phone.
+ */
+@Composable
+private fun SidewaysQueueHandle(
+    queue: QueueState,
+    onColour: Color,
+    open: Boolean,
+    onToggle: () -> Unit,
+    showTitle: Boolean,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val scrim by animateFloatAsState(if (hovered) 0.3f else 0.12f)
+    val turn by animateFloatAsState(if (open) 90f else -90f)
+    Row(
+        horizontalArrangement = Arrangement.End,
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Black.copy(alpha = scrim))
+            .hoverable(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
+            .padding(horizontal = 20.dp, vertical = 10.dp),
+    ) {
+        if (showTitle) {
+            Text(
+                text = queue.title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = onColour.copy(alpha = 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false).padding(end = 10.dp),
+            )
+        }
+        Icon(
+            OuterTuneIcons.expandLess,
+            contentDescription = if (open) "Hide queue" else "Show queue",
+            tint = onColour.copy(alpha = 0.85f),
+            modifier = Modifier.size(22.dp).rotate(turn),
+        )
+    }
+}
+
+/**
+ * The lyrics view's own controls: close, back to the cover; and a menu with the timing offset and
+ * a way to fetch the lyrics again - the phone's lyrics header and menu.
+ */
+@Composable
+private fun LyricsHeader(
+    tint: Color,
+    onClose: () -> Unit,
+    onRefetch: (() -> Unit)?,
+    offsetMs: Int,
+    onOffsetChange: ((Int) -> Unit)?,
+) {
+    var menu by remember { mutableStateOf(false) }
+    var offsetDialog by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+        IconButton(onClick = onClose) {
+            Icon(OuterTuneIcons.close, contentDescription = "Close lyrics", tint = tint)
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Box {
+            IconButton(onClick = { menu = true }) {
+                Icon(OuterTuneIcons.moreVert, contentDescription = "Lyrics options", tint = tint)
+            }
+            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+                if (onOffsetChange != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Timing offset (${if (offsetMs > 0) "+" else ""}$offsetMs ms)") },
+                        leadingIcon = { Icon(OuterTuneIcons.timer, null, modifier = Modifier.size(20.dp)) },
+                        onClick = { menu = false; offsetDialog = true },
+                    )
+                }
+                if (onRefetch != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Fetch lyrics again") },
+                        leadingIcon = { Icon(OuterTuneIcons.restore, null, modifier = Modifier.size(20.dp)) },
+                        onClick = { menu = false; onRefetch() },
+                    )
+                }
+            }
+        }
+    }
+    if (offsetDialog && onOffsetChange != null) {
+        var value by remember { mutableStateOf(offsetMs) }
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { offsetDialog = false },
+            title = { Text("Lyrics timing offset") },
+            text = {
+                Column {
+                    Text(
+                        "${if (value > 0) "+" else ""}$value ms - positive shows each line later.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    androidx.compose.material3.Slider(
+                        value = value.toFloat(),
+                        onValueChange = { value = ((it / 10f).toInt() * 10).coerceIn(-3000, 3000) },
+                        valueRange = -3000f..3000f,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { onOffsetChange(value); offsetDialog = false }) { Text("OK") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { value = 0 }) { Text("Reset") }
+                    TextButton(onClick = { offsetDialog = false }) { Text("Cancel") }
+                }
+            },
         )
     }
 }

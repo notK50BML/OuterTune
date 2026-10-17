@@ -112,6 +112,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Player buttons", SettingsCategory.Player, "like download sleep menu order arrange actions"),
     SettingEntry("Seek buttons", SettingsCategory.Player, "skip forward rewind five seconds"),
     SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
+    SettingEntry("Show queue title", SettingsCategory.Player, "queue name handle"),
     SettingEntry("Equaliser", SettingsCategory.Player, "eq equalizer bass treble compressor autoeq"),
     SettingEntry("Word-by-word lyrics", SettingsCategory.Lyrics, "betterlyrics karaoke syllable"),
     SettingEntry("Estimate word timings", SettingsCategory.Lyrics, "karaoke interpolation sweep"),
@@ -382,6 +383,13 @@ private fun PlayerSettings(settings: Settings) {
             checked = settings.showSeekButtons,
             onCheckedChange = { settings.showSeekButtons = it },
             icon = OuterTuneIcons.fastForward,
+        )
+        SettingSwitch(
+            title = "Show queue title",
+            subtitle = "Name the queue beside the queue handle on the player.",
+            checked = settings.showQueueTitle,
+            onCheckedChange = { settings.showQueueTitle = it },
+            icon = OuterTuneIcons.queueMusic,
         )
         SettingSwitch(
             title = "Visualiser",
@@ -1070,8 +1078,19 @@ private fun SettingSlider(
                 Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
+        // Plain clickable text, not a TextButton: a button's 40dp minimum height made the whole row
+        // grow the moment the value left its default, so the card jumped as the slider moved.
         if (default != null && value != default) {
-            TextButton(onClick = { onChange(default) }) { Text("Reset") }
+            Text(
+                "Reset",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(6.dp))
+                    .clickable { onChange(default) }
+                    .padding(horizontal = 8.dp, vertical = 2.dp),
+            )
+            Spacer(modifier = Modifier.width(8.dp))
         }
         Text(format(value), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
     }

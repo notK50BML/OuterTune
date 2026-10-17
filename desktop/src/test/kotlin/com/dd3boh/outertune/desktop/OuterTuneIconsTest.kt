@@ -118,7 +118,9 @@ class OuterTuneIconsTest {
         // with well over two hundred units of headroom - so exempting the height as well would have
         // stopped checking something that is not in question, and quietly let a future 950-tall
         // edit through.
-        val fullBleedWidth = setOf("wifi", "networkCheck")
+        // devices: Material's own Rounded.Devices spans the full width, and the icons are now the
+        // phone's exact shapes rather than redrawn to a house rule.
+        val fullBleedWidth = setOf("wifi", "networkCheck", "devices")
         OuterTuneIcons.allPaths.forEach { (name, path) ->
             val b = boundsOf(path)
             val longest = maxOf(b.width, b.height)
@@ -165,13 +167,11 @@ class OuterTuneIconsTest {
         val forward = boundsOf(OuterTuneIcons.allPaths.getValue("fastForward"))
         val rewind = boundsOf(OuterTuneIcons.allPaths.getValue("fastRewind"))
 
-        assertTrue("widths differ: ${forward.width} vs ${rewind.width}", forward.width == rewind.width)
-        assertTrue("heights differ: ${forward.height} vs ${rewind.height}", forward.height == rewind.height)
-        // Mirroring about the centre line means the left edge of one is the right edge of the other.
-        assertTrue(
-            "not mirrored: forward ${forward.minX}..${forward.maxX}, rewind ${rewind.minX}..${rewind.maxX}",
-            forward.minX == 960f - rewind.maxX && forward.maxX == 960f - rewind.minX,
-        )
+        // Within a unit: Material's pair differ by a fraction, which no pixel can show.
+        assertTrue("widths differ: ${forward.width} vs ${rewind.width}", kotlin.math.abs(forward.width - rewind.width) < 1f)
+        assertTrue("heights differ: ${forward.height} vs ${rewind.height}", kotlin.math.abs(forward.height - rewind.height) < 1f)
+        // Not checked for exact mirroring any more: the icons are now Material's own Rounded pair,
+        // exactly as the phone draws them, and Google offsets each slightly towards its direction.
     }
 
     @Test

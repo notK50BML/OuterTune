@@ -440,6 +440,43 @@ class Database(file: File) {
         }
     }
 
+    /**
+     * Adds plays recorded elsewhere - a phone backup's history - as (song, when) pairs.
+     *
+     * Safe to repeat: a play already here at the same instant is not added twice, so importing the
+     * same backup again leaves the counts alone. Recently played moves to the latest of either side.
+     */
+    fun importPlays(plays: List<Pair<String, Long>>): Int = transaction {
+        var added = 0
+        connection.prepareStatement(
+            """
+            INSERT INTO play_event (songId, playedAt)
+            SELECT ?, ? WHERE NOT EXISTS (SELECT 1 FROM play_event WHERE songId = ? AND playedAt = ?)
+            """.trimIndent()
+        ).use { st ->
+            plays.forEach { (songId, at) ->
+                st.setString(1, songId)
+                st.setLong(2, at)
+                st.setString(3, songId)
+                st.setLong(4, at)
+                added += st.executeUpdate()
+            }
+        }
+        connection.prepareStatement(
+            """
+            INSERT INTO play_history (songId, playedAt) VALUES (?, ?)
+            ON CONFLICT(songId) DO UPDATE SET playedAt = MAX(playedAt, excluded.playedAt)
+            """.trimIndent()
+        ).use { st ->
+            plays.groupBy({ it.first }, { it.second }).forEach { (songId, times) ->
+                st.setString(1, songId)
+                st.setLong(2, times.max())
+                st.executeUpdate()
+            }
+        }
+        added
+    }
+
     /** Forgets every play: the recent list and the counts Stats is made of. Songs themselves stay. */
     fun clearHistory() = synchronized(lock) {
         connection.createStatement().use { st ->

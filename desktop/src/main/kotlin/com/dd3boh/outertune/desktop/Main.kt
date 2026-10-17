@@ -394,7 +394,9 @@ internal fun App(
     var fetchedLyrics by remember { mutableStateOf<Lyrics?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     val nowPlaying = queue.current
-    LaunchedEffect(nowPlaying?.id, duration, settings.wordByWordLyrics) {
+    // Bumped to fetch again - the lyrics menu's "Fetch lyrics again".
+    var lyricsAttempt by remember { mutableStateOf(0) }
+    LaunchedEffect(nowPlaying?.id, duration, settings.wordByWordLyrics, lyricsAttempt) {
         fetchedLyrics = null
         val song = nowPlaying ?: return@LaunchedEffect
         // Held off until the duration is known, because LrcLib matches on it - asking with zero
@@ -554,6 +556,13 @@ internal fun App(
             lyricsTextScale = settings.lyricsTextScale,
             lyricsAlignment = settings.lyricsAlignment,
             playerButtons = PlayerButtonKind.decode(settings.playerButtons),
+            showQueueTitle = settings.showQueueTitle,
+            onRefetchLyrics = {
+                queue.current?.id?.let(lyricsRepository::forget)
+                lyricsAttempt++
+            },
+            lyricsOffsetMs = settings.lyricsOffsetMs,
+            onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
             backgroundStyle = settings.background,
             colourByValue = settings.colourByValue,

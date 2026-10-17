@@ -52,6 +52,9 @@ class Settings(private val store: SettingsStore) {
     /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
     var playerButtons by string("player.buttons", "")
 
+    /** Whether the queue handle names the queue beside its arrow, as the phone's does. */
+    var showQueueTitle by bool("player.queueTitle", true)
+
     /**
      * Whether to ask BetterLyrics for word-by-word timings first.
      *

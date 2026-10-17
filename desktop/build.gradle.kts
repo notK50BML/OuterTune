@@ -77,6 +77,10 @@ dependencies {
     // The DSP behind the visualiser is ordinary maths, and ordinary maths is worth checking: an FFT
     // that is subtly wrong still produces bars that move.
     testImplementation("junit:junit:4.13.2")
+    // Test-only, for IconGenerator: the exact Material Rounded icons the phone app uses, read once
+    // into path strings (GeneratedIconPaths). Never shipped - the library is ~11MB for a few dozen
+    // glyphs, which is why the app carries paths instead.
+    testImplementation("org.jetbrains.compose.material:material-icons-extended-desktop:1.7.3")
 }
 
 tasks.withType<Test>().configureEach {
