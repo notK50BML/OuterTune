@@ -438,4 +438,20 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="player_buttons_full">Up to %1$d buttons. Turn one off first.</string>
     <string name="player_buttons_no_menu">Without More options, anything not shown as a button cannot be reached from the player.</string>
     <string name="player_buttons_preview">Preview</string>
+    <string name="eq_studio_title">Equaliser Studio</string>
+    <string name="eq_studio_desc">Tune against one song on a loop, without touching your queue, history or stats</string>
+    <string name="eq_studio_no_song">Choose a song to tune against</string>
+    <string name="eq_studio_choose_song">Choose song</string>
+    <string name="eq_studio_mark_a">Mark A</string>
+    <string name="eq_studio_mark_b">Mark B</string>
+    <string name="eq_studio_clear_loop">Loop whole song</string>
+    <string name="eq_studio_tuned">Tuned</string>
+    <string name="eq_studio_original">Original</string>
+    <string name="eq_studio_start_from">Start from</string>
+    <string name="eq_studio_current">Current equaliser</string>
+    <string name="eq_studio_save_profile">Save as profile</string>
+    <string name="eq_studio_apply">Apply to player</string>
+    <string name="eq_studio_note">Nothing here changes the player until you save or apply it. The main player pauses while the Studio plays.</string>
+    <string name="settings_search_hint">Search settings</string>
+    <string name="settings_search_none">Nothing matches \"%1$s\"</string>
 </resources>

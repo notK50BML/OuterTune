@@ -1178,6 +1178,32 @@ class MusicService : MediaLibraryService(),
             .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
     }
 
+    /**
+     * A second, private player for Equaliser Studio.
+     *
+     * Same streaming and cache path as the real one - the resolver finds a song that is not in any
+     * queue by falling back to the database - but with its own equaliser, so tuning there changes
+     * nothing the main player plays, and without the listeners that make the main player's plays
+     * count: no PlaybackStatsListener, no history, no media session, no notification. It also does
+     * not take audio focus; the Studio pauses the main player itself before playing, and the main
+     * player is never told anything happened.
+     *
+     * The caller owns it and must release it.
+     */
+    fun createStudioPlayer(processor: EqualizerAudioProcessor): ExoPlayer =
+        ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(createDataSourceFactory()))
+            .setRenderersFactory(createRenderersFactory(gaplessOffloadAllowed = false, processor = processor))
+            .setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
+                    .build(),
+                false,
+            )
+            .build()
+            .apply { repeatMode = Player.REPEAT_MODE_ONE }
+
     private fun createDataSourceFactory(): DataSource.Factory {
         return ResolvingDataSource.Factory(createCacheDataSource()) { dataSpec ->
             val mediaId = dataSpec.key ?: error("No media id")
@@ -1332,7 +1358,10 @@ class MusicService : MediaLibraryService(),
         }
     }
 
-    private fun createRenderersFactory(gaplessOffloadAllowed: Boolean): DefaultRenderersFactory {
+    private fun createRenderersFactory(
+        gaplessOffloadAllowed: Boolean,
+        processor: EqualizerAudioProcessor = equalizerAudioProcessor,
+    ): DefaultRenderersFactory {
         if (ENABLE_FFMETADATAEX) {
             return object : NextRenderersFactory(this@MusicService) {
                 override fun buildAudioSink(
@@ -1346,7 +1375,7 @@ class MusicService : MediaLibraryService(),
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                         .setAudioProcessorChain(
                             DefaultAudioSink.DefaultAudioProcessorChain(
-                                arrayOf<AudioProcessor>(equalizerAudioProcessor),
+                                arrayOf<AudioProcessor>(processor),
                                 SilenceSkippingAudioProcessor(),
                                 SonicAudioProcessor()
                             )
@@ -1375,7 +1404,7 @@ class MusicService : MediaLibraryService(),
                         .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                         .setAudioProcessorChain(
                             DefaultAudioSink.DefaultAudioProcessorChain(
-                                arrayOf<AudioProcessor>(equalizerAudioProcessor),
+                                arrayOf<AudioProcessor>(processor),
                                 SilenceSkippingAudioProcessor(),
                                 SonicAudioProcessor()
                             )

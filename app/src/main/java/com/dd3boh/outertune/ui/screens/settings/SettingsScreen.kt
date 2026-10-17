@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -91,6 +92,15 @@ fun SettingsScreen(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // Searches every setting by the title it has on its own screen - see SettingsIndex - and
+        // replaces the category list with the matches while anything is typed.
+        var settingsQuery by rememberSaveable { mutableStateOf("") }
+        SettingsSearchField(settingsQuery) { settingsQuery = it }
+        if (settingsQuery.isNotBlank()) {
+            SettingsSearchResults(settingsQuery, onOpen = { navController.navigate(it) })
+            return@ColumnWithContentPadding
+        }
+
         ElevatedCard(
             modifier = Modifier.fillMaxWidth()
         ) {

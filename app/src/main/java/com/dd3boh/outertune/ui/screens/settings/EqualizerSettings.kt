@@ -189,6 +189,13 @@ fun EqualizerSettingsScreen(
 
         InfoLabel(text = stringResource(R.string.eq_settings_shaped_in_player))
 
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.eq_studio_title)) },
+            description = stringResource(R.string.eq_studio_desc),
+            icon = { Icon(Icons.Rounded.Tune, null) },
+            onClick = { navController.navigate("settings/player/equalizer/studio") }
+        )
+
         EnumListPreference(
             title = { Text(stringResource(R.string.eq_headroom)) },
             icon = { Icon(Icons.Rounded.Tune, null) },

@@ -177,6 +177,7 @@ import com.dd3boh.outertune.ui.screens.settings.BackupAndRestore
 import com.dd3boh.outertune.ui.screens.settings.DiscordLoginScreen
 import com.dd3boh.outertune.ui.screens.settings.DiscordSettings
 import com.dd3boh.outertune.ui.screens.settings.EqualizerSettingsScreen
+import com.dd3boh.outertune.ui.screens.settings.EqualizerStudioScreen
 import com.dd3boh.outertune.ui.screens.settings.ExperimentalSettings
 import com.dd3boh.outertune.ui.screens.settings.LibrariesScreen
 import com.dd3boh.outertune.ui.screens.settings.LibrarySettings
@@ -784,6 +785,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("settings/player/equalizer") {
                                         EqualizerSettingsScreen(navController, scrollBehavior)
+                                    }
+                                    composable("settings/player/equalizer/studio") {
+                                        EqualizerStudioScreen(navController, scrollBehavior)
                                     }
                                     composable("settings/storage") {
                                         StorageSettings(navController, scrollBehavior)
