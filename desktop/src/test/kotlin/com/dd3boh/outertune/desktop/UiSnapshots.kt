@@ -249,7 +249,7 @@ class UiSnapshots {
         val library = LibraryStore(java.nio.file.Files.createTempDirectory("ot-artist").toFile())
         capture("artist_live", 1280, 1400, liveArt = true, settleFrames = 120) {
             ArtistPane(
-                artist = StoredArtist(hit.id, hit.title),
+                requested = StoredArtist(hit.id, hit.title),
                 library = library,
                 currentId = null,
                 onBack = {}, onPlay = { _, _ -> }, onAddToPlaylist = {},
@@ -267,7 +267,7 @@ class UiSnapshots {
             "artist_blank" to StoredArtist("", "Blank"),
         )) {
             capture(name, 1000, 800, settleFrames = 80) {
-                ArtistPane(artist = artist, library = library, currentId = null,
+                ArtistPane(requested = artist, library = library, currentId = null,
                     onBack = {}, onPlay = { _, _ -> }, onAddToPlaylist = {})
             }
         }

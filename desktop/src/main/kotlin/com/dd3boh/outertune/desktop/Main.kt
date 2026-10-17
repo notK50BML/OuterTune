@@ -694,6 +694,13 @@ internal fun App(
 
     // A play counts once this share of the song has been heard - the phone's minimum playback
     // duration - so skipping through a queue does not fill history and Stats with songs not heard.
+    // Featured artists in the title, and artists to match up - looked up as the song starts, so
+    // by the time it is recorded its credits are complete. See ArtistLinks.
+    LaunchedEffect(queue.current?.id) {
+        val song = queue.current ?: return@LaunchedEffect
+        runCatching { ArtistLinks.prepare(library, song.toStored()) }
+    }
+
     LaunchedEffect(queue.current?.id) {
         val song = queue.current ?: return@LaunchedEffect
         val playedId = song.id
@@ -937,7 +944,7 @@ internal fun App(
                     )
                 } else if (artist != null) {
                     ArtistPane(
-                        artist = artist,
+                        requested = artist,
                         library = library,
                         currentId = queue.current?.id,
                         onBack = { openArtist = null },

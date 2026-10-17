@@ -288,6 +288,25 @@ class Database(file: File) {
                     if (!has) st.executeUpdate("ALTER TABLE artist ADD COLUMN thumbnail TEXT")
                 }
             }
+            if (current < 10) {
+                connection.createStatement().use { st ->
+                    // What each artist name turned out to be on YouTube Music - see ArtistLinks.
+                    // channelId NULL is an answer too: searched, and no such artist.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS artist_link (
+                            nameKey     TEXT PRIMARY KEY NOT NULL,
+                            name        TEXT NOT NULL,
+                            channelId   TEXT,
+                            channelName TEXT,
+                            thumbnail   TEXT,
+                            checkedAt   INTEGER NOT NULL DEFAULT 0,
+                            manual      INTEGER NOT NULL DEFAULT 0
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -447,6 +466,7 @@ class Database(file: File) {
             st.executeUpdate()
         }
         writeCreditsLocked(song)
+        relinkLocked(song.id)
     }
 
     fun recordPlay(song: StoredSong, atMs: Long, durationMs: Long = 0) = synchronized(lock) {
@@ -516,6 +536,160 @@ class Database(file: File) {
             st.setString(1, url)
             st.setString(2, artistId)
             st.executeUpdate()
+        }
+    }
+
+    // ---- artist links ---------------------------------------------------------------------------
+
+    fun artistLink(nameKey: String): ArtistLink? = synchronized(lock) {
+        connection.prepareStatement(
+            "SELECT nameKey, name, channelId, channelName, thumbnail, checkedAt, manual FROM artist_link WHERE nameKey = ?"
+        ).use { st ->
+            st.setString(1, nameKey)
+            st.executeQuery().use { rs -> if (rs.next()) rs.toArtistLink() else null }
+        }
+    }
+
+    private fun java.sql.ResultSet.toArtistLink() = ArtistLink(
+        nameKey = getString(1), name = getString(2), channelId = getString(3), channelName = getString(4),
+        thumbnail = getString(5), checkedAt = getLong(6), manual = getInt(7) != 0,
+    )
+
+    /** The whole link table, held in memory - it is read on every song write. */
+    private var linkCache: Map<String, ArtistLink>? = null
+
+    private fun allLinksLocked(): Map<String, ArtistLink> = linkCache ?: loadLinksLocked().also { linkCache = it }
+
+    private fun loadLinksLocked(): Map<String, ArtistLink> =
+        connection.createStatement().use { st ->
+            st.executeQuery("SELECT nameKey, name, channelId, channelName, thumbnail, checkedAt, manual FROM artist_link")
+                .use { rs -> buildMap { while (rs.next()) rs.toArtistLink().let { put(it.nameKey, it) } } }
+        }
+
+    fun putArtistLink(link: ArtistLink) = synchronized(lock) {
+        connection.prepareStatement(
+            """
+            INSERT INTO artist_link (nameKey, name, channelId, channelName, thumbnail, checkedAt, manual)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(nameKey) DO UPDATE SET name = excluded.name, channelId = excluded.channelId,
+                channelName = excluded.channelName, thumbnail = excluded.thumbnail,
+                checkedAt = excluded.checkedAt, manual = excluded.manual
+            """.trimIndent()
+        ).use { st ->
+            st.setString(1, link.nameKey)
+            st.setString(2, link.name)
+            st.setString(3, link.channelId)
+            st.setString(4, link.channelName)
+            st.setString(5, link.thumbnail)
+            st.setLong(6, link.checkedAt)
+            st.setInt(7, if (link.manual) 1 else 0)
+            st.executeUpdate()
+        }
+        linkCache = null
+    }
+
+    /** Every link pointing at [channelId] - the names that were tied to it, for undoing that. */
+    fun linksToChannel(channelId: String): List<ArtistLink> = synchronized(lock) {
+        connection.prepareStatement(
+            "SELECT nameKey, name, channelId, channelName, thumbnail, checkedAt, manual FROM artist_link WHERE channelId = ?"
+        ).use { st ->
+            st.setString(1, channelId)
+            st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.toArtistLink()) } }
+        }
+    }
+
+    /** Ids and titles of songs whose credits [ArtistLinks] might change: local ones, or any with "feat." text. */
+    fun songsForLinking(onlyLocal: Boolean): List<Pair<String, String>> = synchronized(lock) {
+        connection.createStatement().use { st ->
+            st.executeQuery(
+                if (onlyLocal) "SELECT s.id, s.title FROM song s JOIN local_file f ON f.songId = s.id"
+                else "SELECT id, title FROM song"
+            ).use { rs -> buildList { while (rs.next()) add(rs.getString(1) to rs.getString(2)) } }
+        }
+    }
+
+    /** Songs credited to [artistId], by id only. */
+    fun songIdsCreditedTo(artistId: String): List<String> = synchronized(lock) {
+        connection.prepareStatement("SELECT songId FROM song_artist WHERE artistId = ?").use { st ->
+            st.setString(1, artistId)
+            st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
+        }
+    }
+
+    fun songTitle(songId: String): String? = synchronized(lock) {
+        connection.prepareStatement("SELECT title FROM song WHERE id = ?").use { st ->
+            st.setString(1, songId)
+            st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
+        }
+    }
+
+    /**
+     * Puts local songs credited to [channelId] back under their own artist name - undoing a link.
+     * Only local songs: a streamed song credited to the channel was credited by YouTube itself.
+     */
+    fun restoreLocalCredits(channelId: String, names: List<String>) = transaction {
+        val name = names.firstOrNull() ?: return@transaction
+        val ids = connection.prepareStatement(
+            "SELECT sa.songId FROM song_artist sa JOIN local_file f ON f.songId = sa.songId WHERE sa.artistId = ?"
+        ).use { st ->
+            st.setString(1, channelId)
+            st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
+        }
+        val credits = creditsForLocked(ids)
+        val placeholder = StoredArtist.unlinked(name)
+        for (id in ids) {
+            val after = credits[id].orEmpty().map { if (it.id == channelId) placeholder else it }.distinctBy { it.id }
+            writeCreditsLocked(StoredSong(id = id, title = "", artists = "", artistList = after))
+            connection.prepareStatement("UPDATE song SET artists = ? WHERE id = ?").use { st ->
+                st.setString(1, after.joinToString(", ") { it.name })
+                st.setString(2, id)
+                st.executeUpdate()
+            }
+        }
+    }
+
+    /** The stored credits of one song, in order. */
+    fun songCredits(songId: String): List<StoredArtist> = synchronized(lock) {
+        creditsForLocked(listOf(songId))[songId].orEmpty()
+    }
+
+    /**
+     * Rewrites the credits of [songIds] from what [ArtistLinks] already knows - no network. Run
+     * after every credit write too, so a rescan or a re-sync cannot put back what was linked.
+     */
+    fun applyArtistLinks(songIds: Collection<String>) = transaction {
+        if (songIds.isEmpty()) return@transaction
+        val links = allLinksLocked()
+        if (links.isEmpty()) return@transaction
+        val titles = HashMap<String, String>()
+        songIds.chunked(500).forEach { chunk ->
+            connection.prepareStatement(
+                "SELECT id, title FROM song WHERE id IN (${chunk.joinToString(",") { "?" }})"
+            ).use { st ->
+                chunk.forEachIndexed { i, id -> st.setString(i + 1, id) }
+                st.executeQuery().use { rs -> while (rs.next()) titles[rs.getString(1)] = rs.getString(2) }
+            }
+        }
+        val credits = HashMap<String, List<StoredArtist>>()
+        songIds.chunked(500).forEach { credits.putAll(creditsForLocked(it)) }
+        for (id in songIds) {
+            val before = credits[id].orEmpty()
+            val after = ArtistLinks.rewrite(before, titles[id].orEmpty(), links)
+            if (after == before) continue
+            writeCreditsLocked(StoredSong(id = id, title = titles[id].orEmpty(), artists = "", artistList = after))
+            connection.prepareStatement("UPDATE song SET artists = ? WHERE id = ?").use { st ->
+                st.setString(1, after.joinToString(", ") { it.name })
+                st.setString(2, id)
+                st.executeUpdate()
+            }
+            after.forEach { a ->
+                val thumb = links.values.firstOrNull { it.channelId == a.id }?.thumbnail ?: return@forEach
+                connection.prepareStatement("UPDATE artist SET thumbnail = COALESCE(thumbnail, ?) WHERE id = ?").use { st ->
+                    st.setString(1, thumb)
+                    st.setString(2, a.id)
+                    st.executeUpdate()
+                }
+            }
         }
     }
 
@@ -955,6 +1129,11 @@ class Database(file: File) {
         }
     }
 
+    /** A just-written song's credits, put through what is already known about its artists. */
+    private fun relinkLocked(songId: String) {
+        if (allLinksLocked().isNotEmpty()) applyArtistLinks(listOf(songId))
+    }
+
     /** The credits for a set of songs, in one query rather than one per song. */
     private fun creditsForLocked(songIds: List<String>): Map<String, List<StoredArtist>> {
         if (songIds.isEmpty()) return emptyMap()
@@ -1014,6 +1193,7 @@ class Database(file: File) {
             st.executeUpdate()
         }
         writeCreditsLocked(song)
+        relinkLocked(song.id)
     }
 
     private fun compactPositionsLocked(playlistId: String) {
@@ -1058,7 +1238,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 9
+        const val SCHEMA_VERSION = 10
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

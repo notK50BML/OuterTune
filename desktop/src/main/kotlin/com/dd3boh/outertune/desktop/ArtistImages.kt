@@ -56,7 +56,11 @@ object ArtistImages {
     }
 
     suspend fun url(artist: StoredArtist): String? {
-        if (!artist.linkable) return null
+        if (!artist.linkable) {
+            // A local artist linked to YouTube Music has their picture - see ArtistLinks.
+            val link = withContext(Dispatchers.IO) { library?.database?.artistLink(ArtistLinks.key(artist.name)) }
+            return link?.channelId?.let { url(StoredArtist(it, artist.name)) }
+        }
         memory[artist.id]?.let { return it }
         if (artist.id in missing) return null
         return withContext(Dispatchers.IO) {

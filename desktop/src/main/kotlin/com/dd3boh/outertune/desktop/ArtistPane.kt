@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.layout.heightIn
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
@@ -100,7 +103,7 @@ private sealed interface MoreContent {
  */
 @Composable
 fun ArtistPane(
-    artist: StoredArtist,
+    requested: StoredArtist,
     library: LibraryStore,
     currentId: String?,
     onBack: () -> Unit,
@@ -112,6 +115,21 @@ fun ArtistPane(
     onOpenPlaylist: (PlaylistItem) -> Unit = {},
     hideExplicit: Boolean = false,
 ) {
+    val scope = rememberCoroutineScope()
+    // Bumped when a link is made or undone here, so the page re-reads which artist it is showing.
+    var linkVersion by remember { mutableStateOf(0) }
+    // A local artist linked to YouTube Music shows the real artist's page - see ArtistLinks.
+    val artist = remember(requested.id, linkVersion) {
+        if (requested.linkable) requested
+        else library.database.artistLink(ArtistLinks.key(requested.name))?.channelId
+            ?.let { StoredArtist(it, requested.name) } ?: requested
+    }
+    // The local names tied to this channel, for undoing a link that was wrong.
+    val linkedFrom = remember(artist.id, linkVersion) {
+        if (artist.linkable) library.database.linksToChannel(artist.id) else emptyList()
+    }
+    var linking by remember { mutableStateOf(false) }
+
     var content by remember(artist.id) { mutableStateOf<ArtistContent>(ArtistContent.Loading) }
     val librarySongs = remember(artist.id) { library.songsByArtist(artist.id) }
     var more by remember(artist.id) { mutableStateOf<ArtistSection?>(null) }
@@ -193,6 +211,33 @@ fun ArtistPane(
             )
         }
 
+        if (!artist.linkable || linkedFrom.isNotEmpty()) {
+            item {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 28.dp),
+                ) {
+                    Text(
+                        if (!artist.linkable) "Not linked to YouTube Music"
+                        else "Your local files by ${linkedFrom.joinToString { it.name }} are linked here",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    if (!artist.linkable) {
+                        TextButton(onClick = { linking = true }) { Text("Find on YouTube Music…") }
+                    } else {
+                        TextButton(onClick = {
+                            scope.launch {
+                                ArtistLinks.unlink(library, artist.id)
+                                linkVersion++
+                            }
+                        }) { Text("Unlink") }
+                    }
+                }
+            }
+        }
+
         (content as? ArtistContent.Failed)?.let { failed ->
             item {
                 Text(
@@ -257,6 +302,20 @@ fun ArtistPane(
                 }
             }
         }
+    }
+
+    if (linking) {
+        LinkArtistDialog(
+            name = artist.name,
+            onDismiss = { linking = false },
+            onPick = { picked ->
+                linking = false
+                scope.launch {
+                    ArtistLinks.linkByHand(library, artist.name, picked)
+                    linkVersion++
+                }
+            },
+        )
     }
 }
 
@@ -595,4 +654,56 @@ fun ArtistNames(
             )
         }
     }
+}
+
+/** Picks the YouTube Music artist a local artist is. Searched by their name to start with. */
+@Composable
+private fun LinkArtistDialog(name: String, onDismiss: () -> Unit, onPick: (ArtistItem) -> Unit) {
+    var query by remember { mutableStateOf(name) }
+    var results by remember { mutableStateOf<List<ArtistItem>?>(null) }
+    LaunchedEffect(query) {
+        kotlinx.coroutines.delay(350)
+        results = null
+        results = runCatching { ArtistLinks.candidates(query) }.getOrDefault(emptyList())
+    }
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Link \"$name\" to YouTube Music") },
+        text = {
+            Column {
+                androidx.compose.material3.OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                val found = results
+                when {
+                    found == null -> CircularProgressIndicator(modifier = Modifier.padding(16.dp).size(22.dp), strokeWidth = 2.dp)
+                    found.isEmpty() -> Text("No artists found.", modifier = Modifier.padding(8.dp))
+                    else -> LazyColumn(modifier = Modifier.heightIn(max = 360.dp)) {
+                        items(found.size) { index ->
+                            val item = found[index]
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPick(item) }
+                                    .padding(vertical = 6.dp, horizontal = 4.dp),
+                            ) {
+                                Box(modifier = Modifier.size(40.dp).clip(androidx.compose.foundation.shape.CircleShape)) {
+                                    Artwork(item.thumbnail, size = 40.dp, cornerRadius = 0.dp)
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+    )
 }

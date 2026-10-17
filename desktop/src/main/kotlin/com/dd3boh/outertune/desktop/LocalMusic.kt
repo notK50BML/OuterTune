@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import kotlinx.coroutines.Dispatchers
@@ -135,8 +136,14 @@ object LocalMusic {
                 ).joinToString(", ").let { if (it.isNotEmpty()) " ($it)" else "" }
         } finally {
             scanning.value = false
+            // Then, in the background, the artists found are matched to YouTube Music - see
+            // ArtistLinks. Names already known cost nothing, so a rescan only searches new ones.
+            linking.launch { runCatching { ArtistLinks.enrichLocal(library) } }
         }
     }
+
+    private val linking = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
 
     /** A file's tags as a track, or null if the file cannot be read at all. */
     fun readTrack(file: File): LocalTrack? = runCatching {
