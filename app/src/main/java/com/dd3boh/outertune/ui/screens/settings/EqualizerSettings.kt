@@ -100,12 +100,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * A persistent Settings home for the equalizer - the actual bands/tone/compressor controls, not
- * just a settings-about-settings page, so the curve can be shaped without needing an active
- * playback session open. Reuses the same control composables (BandColumn, BandEditor,
- * ToneControlsRow, CompressorSection) and preference keys as the in-player panel
- * (EqualizerPanel.kt) - a change from either place is the same change, and this screen is not a
- * second implementation of the controls themselves, only a second place they're mounted.
+ * Settings *about* the equaliser: on/off, headroom, how the panel looks, profiles and AutoEQ.
+ *
+ * The bands, tone dials and compressor used to be mounted here as well, as a second copy of the
+ * player's panel. It was overwhelming on a settings page, and it interfered: this screen kept its own
+ * copy of the curve from when it was opened, so touching anything here wrote that copy back over
+ * whatever had since been set in the player. The curve is shaped in one place now - the panel - and
+ * this screen reads the live value every time rather than holding one.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -128,33 +129,15 @@ fun EqualizerSettingsScreen(
     var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
 
     var settingsJson by rememberPreference(EqualizerSettingsKey, "")
-    var settings by remember {
-        mutableStateOf(EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT))
+    // Derived from the stored value, never held: see the note above the function.
+    val settings = remember(settingsJson) {
+        EqualizerSettings.parse(settingsJson).getOrDefault(EqualizerSettings.DEFAULT)
     }
 
     fun update(newSettings: EqualizerSettings) {
-        settings = newSettings
         settingsJson = newSettings.toJson()
         playerConnection?.service?.equalizerAudioProcessor?.setSettings(newSettings)
     }
-
-    fun updateBand(index: Int, band: EqualizerSettings.EqBand) {
-        update(settings.copy(bands = settings.bands.toMutableList().apply { this[index] = band }))
-    }
-
-    val bassBandIndices = remember(settings.bands) { settings.bands.indices.filter { settings.bands[it].freqHz <= 250f } }
-    val trebleBandIndices = remember(settings.bands) { settings.bands.indices.filter { settings.bands[it].freqHz >= 4000f } }
-    val bassGainDb = remember(settings.bands) { bassBandIndices.map { settings.bands[it].gainDb }.average().toFloat() }
-    val trebleGainDb = remember(settings.bands) { trebleBandIndices.map { settings.bands[it].gainDb }.average().toFloat() }
-
-    fun setRangeGain(indices: List<Int>, newGain: Float) {
-        val quantized = quantizeTenth(newGain)
-        update(settings.copy(bands = settings.bands.mapIndexed { i, b ->
-            if (i in indices) b.copy(gainDb = quantized) else b
-        }))
-    }
-
-    var selectedBand by remember { mutableStateOf<Int?>(null) }
 
     var profilesJson by rememberPreference(EqualizerProfilesKey, "")
     val savedProfiles = remember(profilesJson) { EqualizerProfile.listFromJson(profilesJson) }
@@ -204,66 +187,7 @@ fun EqualizerSettingsScreen(
             onCheckedChange = { update(settings.copy(enabled = it)) }
         )
 
-        EqualizerCard {
-            ToneControlsRow(
-                bassGainDb = bassGainDb,
-                trebleGainDb = trebleGainDb,
-                balance = settings.balance,
-                enabled = settings.enabled,
-                color = eqColor,
-                useGradient = useValueGradient,
-                onBassChange = { setRangeGain(bassBandIndices, it) },
-                onTrebleChange = { setRangeGain(trebleBandIndices, it) },
-                onBalanceChange = { update(settings.copy(balance = it)) },
-            )
-        }
-
-        EqualizerCard {
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-            ) {
-                itemsIndexed(settings.bands) { index, band ->
-                    BandColumn(
-                        band = band,
-                        enabled = settings.enabled,
-                        selected = selectedBand == index,
-                        color = eqColor,
-                        useGradient = useValueGradient,
-                        onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
-                        onTapLabel = { selectedBand = if (selectedBand == index) null else index },
-                    )
-                }
-            }
-
-            selectedBand?.let { index ->
-                HorizontalDivider(
-                    modifier = Modifier.fillMaxWidth(),
-                    color = eqColorVariant.copy(alpha = 0.3f),
-                )
-                BandEditor(
-                    band = settings.bands[index],
-                    onChange = { updateBand(index, it) },
-                    color = eqColor,
-                    colorVariant = eqColorVariant,
-                    useDials = useDials,
-                    useGradient = useValueGradient,
-                )
-            }
-        }
-
-        EqualizerCard {
-            CompressorSection(
-                compressor = settings.compressor,
-                onChange = { update(settings.copy(compressor = it)) },
-                color = eqColor,
-                colorVariant = eqColorVariant,
-                useDials = useDials,
-                useGradient = useValueGradient,
-            )
-        }
+        InfoLabel(text = stringResource(R.string.eq_settings_shaped_in_player))
 
         EnumListPreference(
             title = { Text(stringResource(R.string.eq_headroom)) },
