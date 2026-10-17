@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.draw.clipToBounds
@@ -231,7 +232,16 @@ fun NowPlayingScreen(
         bottom = bottom,
     )
 
-    Row(modifier = Modifier.fillMaxSize()) {
+    // The window buttons over the top edge take the player's text colour while it is showing,
+    // since the cover decides whether the background is light or dark, not the theme.
+    val captionTint = LocalCaptionTint.current
+    DisposableEffect(captionTint, onBackground) {
+        captionTint.colour = onBackground
+        onDispose { captionTint.colour = null }
+    }
+
+    // The background above runs to the top edge; the controls keep clear of the window buttons.
+    Row(modifier = Modifier.fillMaxSize().padding(top = LocalCaptionInset.current)) {
     // The player's own area. A Box, so the narrow-window queue can cover just this and nothing else.
     Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
     Column(

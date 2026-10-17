@@ -141,17 +141,22 @@ fun main() = application {
         settings.equalizerStore().applyTo(player.equalizer, player.compressor, player.balance)
     }
 
+    val windowState = rememberWindowState(width = 1000.dp, height = 700.dp)
     Window(
         onCloseRequest = { player.stop(); exitApplication() },
         title = "OuterTune",
+        // No Windows title bar: the app runs to the top edge and draws its own buttons - see
+        // WindowChrome.
+        undecorated = true,
         // The phone's launcher icon, for the title bar and the taskbar.
         icon = remember {
             androidx.compose.ui.graphics.painter.BitmapPainter(
                 androidx.compose.ui.res.useResource("icon.png") { androidx.compose.ui.res.loadImageBitmap(it) }
             )
         },
-        state = rememberWindowState(width = 1000.dp, height = 700.dp),
+        state = windowState,
     ) {
+        LaunchedEffect(Unit) { WindowCorners.round(window) }
         // Pushed up from App, which is where the playing song is known. A plain state rather than a
         // flow: it changes once per track and is read once per frame.
         var seed by remember { mutableStateOf<Color?>(null) }
@@ -198,12 +203,26 @@ fun main() = application {
         LaunchedEffect(Unit) { WindowsMediaControls.start(window) }
 
         MaterialTheme(colorScheme = finalScheme, typography = typography) {
+            val captionTint = remember { CaptionTint() }
+            CompositionLocalProvider(
+                LocalCaptionInset provides WindowChrome.height,
+                LocalCaptionTint provides captionTint,
+            ) {
             Surface(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.fillMaxSize()) {
                 App(
             player, library, settings,
             onSeedChanged = { seed = it },
             onAccentSeedChanged = { accentSeed = it },
         )
+                    // Over everything, so it stays reachable whatever is open.
+                    CaptionBar(
+                        state = windowState,
+                        defaultTint = MaterialTheme.colorScheme.onSurface,
+                        onClose = { player.stop(); exitApplication() },
+                    )
+                }
+            }
             }
         }
         }
@@ -836,7 +855,13 @@ internal fun App(
                     error = null
                 },
             )
-            Column(modifier = Modifier.weight(2f).padding(horizontal = 20.dp, vertical = 16.dp)) {
+            // The rail and the queue run to the top edge; what is in this column keeps clear of the
+            // window buttons over it.
+            Column(
+                modifier = Modifier
+                    .weight(2f)
+                    .padding(start = 20.dp, end = 20.dp, top = 16.dp + LocalCaptionInset.current, bottom = 16.dp),
+            ) {
                 if (tab != NavTab.Settings) {
                     SearchBar(
                         query = query,
@@ -1287,7 +1312,7 @@ private fun QueuePane(queue: QueueState, onClose: () -> Unit, onJump: (Int) -> U
     LaunchedEffect(queue.orderPosition) {
         if (queue.orderPosition >= 0) listState.animateScrollToItem((queue.orderPosition - 1).coerceAtLeast(0))
     }
-    Column(modifier = Modifier.width(300.dp).padding(16.dp)) {
+    Column(modifier = Modifier.width(300.dp).padding(start = 16.dp, end = 16.dp, bottom = 16.dp, top = 16.dp + LocalCaptionInset.current)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.padding(bottom = 8.dp),
