@@ -184,7 +184,7 @@ OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/Inner
 
 ## Screenshots
 
-Note: These screenshots are all from the original Astertune repository. I will eventually create my own screenshots of my fork, but this isn't a high priority now.
+Note: These screenshots are all from the original [AsterTune](https://github.com/yuuichi-s/AsterTune) repository. I will eventually create my own screenshots of my fork, but this isn't a high priority now.
 
 [![Main player interface](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/main-interface.jpg)](https://github.com/yuuichi-s/OuterTune/raw/dev/assets/main-interface.jpg)
 
@@ -196,6 +196,7 @@ Note: These screenshots are all from the original Astertune repository. I will e
 
 > [!WARNING]
 > If you're in a region where YouTube Music is not supported, you won't be able to use this app ***unless*** you have a proxy or VPN to connect to a YTM supported region.
+> All offline features will work, and this app can still function as a normal offline playback app
 
 ## Building & Contributing
 
@@ -244,3 +245,5 @@ way associated with YouTube, Google LLC or any of its affiliates and subsidiarie
 
 Any trademark, service mark, trade name, or other intellectual property rights used in this project
 are owned by the respective owners.
+
+The creators of this app disclaim all responsibility for any damages resulting, directly or indirectly, from the use of this app. At best, you will be compensated with a picture of a cat. I still need a cat. 
