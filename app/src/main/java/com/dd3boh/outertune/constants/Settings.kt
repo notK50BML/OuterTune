@@ -230,10 +230,18 @@ enum class AudioQuality {
  * left. [OFF] compensates nothing, which is how most phone equalisers behave and why most of them
  * distort on loud material.
  */
-enum class EqHeadroom(val factor: Float) {
+enum class EqHeadroom(val factor: Float, val smart: Boolean = false) {
     AUTO(1f),
     HALF(0.5f),
     OFF(0f),
+
+    /**
+     * Turns down only as much as this song needs. AUTO assumes every track already peaks at full
+     * scale and pays for the whole boost; most do not - streams usually leave a few dB spare - so
+     * SMART watches how close the music actually comes to full scale and only takes off the part
+     * of the boost that would not fit, easing in and out, with the limiter for anything sudden.
+     */
+    SMART(1f, smart = true),
 }
 
 enum class LyricsRefreshInterval(val days: Int) {

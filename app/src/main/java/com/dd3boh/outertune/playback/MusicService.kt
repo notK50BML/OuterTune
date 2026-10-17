@@ -676,7 +676,10 @@ class MusicService : MediaLibraryService(),
                         ?: EqHeadroom.AUTO
                 }
                 .distinctUntilChanged()
-                .collectLatest(scope) { equalizerAudioProcessor.setHeadroom(it.factor) }
+                .collectLatest(scope) {
+                    equalizerAudioProcessor.setSmartHeadroom(it.smart)
+                    equalizerAudioProcessor.setHeadroom(it.factor)
+                }
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }

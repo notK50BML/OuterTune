@@ -14,6 +14,8 @@ import androidx.media3.common.audio.BaseAudioProcessor
 import com.dd3boh.outertune.models.EqualizerSettings
 import java.nio.ByteBuffer
 import kotlin.math.abs
+import kotlin.math.exp
+import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.pow
 import kotlin.math.roundToInt
@@ -70,6 +72,20 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
      */
     @Volatile
     private var headroomFactor: Float = 1f
+
+    /** SMART headroom: attenuate by measured need rather than by the whole boost. See [EqHeadroom]. */
+    @Volatile
+    private var smartHeadroom: Boolean = false
+
+    /** The curve's highest point, in dB, as last computed - what SMART weighs against the room. */
+    @Volatile
+    private var curvePeakDb: Float = 0f
+
+    /** How loud the music has recently been, as a linear peak with a slow fall. Starts at full scale. */
+    private var recentPeak: Float = 1f
+
+    /** The gain SMART is currently applying, eased toward its target. */
+    private var smartGain: Float = 1f
 
     /**
      * Attenuation this track is going to receive anyway, in dB, as a positive number.
@@ -212,6 +228,11 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         recomputeCoefficients()
     }
 
+    /** Turns SMART headroom on or off - see [EqHeadroom.SMART]. */
+    fun setSmartHeadroom(enabled: Boolean) {
+        smartHeadroom = enabled
+    }
+
     /** Safe to call from any thread; takes effect on the next buffer without a reconfigure. */
     fun setHeadroom(factor: Float) {
         val clamped = factor.coerceIn(0f, 1f)
@@ -273,6 +294,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // further attenuation at all, and taking both would turn the band down by the 8dB it was
         // just turned up by. Only a boost larger than the headroom costs anything.
         val peakDb = BiquadCoefficients.peakGainDb(built, sr).coerceIn(0f, MAX_HEADROOM_DB)
+        curvePeakDb = peakDb
         val attenuationDb = max(peakDb * headroomFactor, normalisationDb)
         preGainLinear = 10f.pow(-attenuationDb / 20f)
 
@@ -365,6 +387,35 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val compCoeffs = compressorCoefficients
         val compressorEnabled = compressorSettings.enabled
         val preGain = preGainLinear
+        val smart = smartHeadroom
+        var smartTarget = 1f
+        var smartAttack = 1f
+        var smartRelease = 1f
+        if (smart) {
+            // How close this buffer comes to full scale, read before anything is done to it.
+            val scan = inputBuffer.duplicate().order(inputBuffer.order())
+            var bufferPeak = 0f
+            while (scan.hasRemaining()) {
+                val v = when (encoding) {
+                    C.ENCODING_PCM_16BIT -> scan.getShort() / 32768f
+                    C.ENCODING_PCM_FLOAT -> scan.getFloat()
+                    else -> 0f
+                }
+                if (abs(v) > bufferPeak) bufferPeak = abs(v)
+            }
+            val bytesPer = if (encoding == C.ENCODING_PCM_FLOAT) 4 else 2
+            val frames = (inputBuffer.remaining() / (channelCount * bytesPer)).coerceAtLeast(1)
+            // The remembered peak falls by SMART_RELEASE_DB_PER_SECOND, so a loud passage keeps
+            // the protection for a while after it ends rather than letting go at once.
+            val fall = 10f.pow(-SMART_RELEASE_DB_PER_SECOND * frames / configuredSampleRate.coerceAtLeast(1) / 20f)
+            recentPeak = max(bufferPeak, recentPeak * fall).coerceAtLeast(1e-4f)
+            val roomDb = -20f * log10(recentPeak)
+            val neededDb = (curvePeakDb - roomDb).coerceIn(0f, curvePeakDb)
+            smartTarget = 10f.pow(-max(neededDb, normalisationDb) / 20f)
+            val sr = configuredSampleRate.coerceAtLeast(1).toFloat()
+            smartAttack = 1f - exp(-1f / (sr * SMART_ATTACK_S))
+            smartRelease = 1f - exp(-1f / (sr * SMART_RECOVER_S))
+        }
         val leftGain = this.leftGain
         val rightGain = this.rightGain
 
@@ -380,6 +431,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                 rampFramesLeft--
             }
 
+            if (smart) {
+                smartGain += (smartTarget - smartGain) * (if (smartTarget < smartGain) smartAttack else smartRelease)
+            }
+
             var frameSum = 0f
             for (ch in 0 until channelCount) {
                 var sample = when (encoding) {
@@ -393,7 +448,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
                 // Backed off before the cascade even sees it, not after - the whole point is
                 // giving the boosted bands room to sum without already having clipped.
-                sample *= preGain
+                sample *= if (smart) smartGain else preGain
 
                 val channelStates = states[ch]
                 // bands/coefficients are two separate @Volatile fields, written one after the
@@ -485,6 +540,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     }
 
     override fun onFlush(streamMetadata: StreamMetadata) {
+        // SMART starts every track, and every seek, fully protected and relaxes as it learns how
+        // loud this music actually is - never the other way round, which would clip the first beat.
+        recentPeak = 1f
+        smartGain = 10f.pow(-curvePeakDb / 20f)
         // A seek or track change is a discontinuity the filter shouldn't carry a memory of - left
         // alone, the old delay-line values would ring into the start of the new audio.
         states.forEach { channel -> channel.forEach { it.reset() } }
@@ -515,6 +574,15 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     }
 
     private companion object {
+        /** How fast SMART's memory of a loud passage fades, in dB per second. */
+        private const val SMART_RELEASE_DB_PER_SECOND = 2f
+
+        /** How quickly SMART turns down when the music gets louder: a tenth of a second. */
+        private const val SMART_ATTACK_S = 0.1f
+
+        /** How slowly it gives the volume back: over about a second, so it is never heard pumping. */
+        private const val SMART_RECOVER_S = 1.0f
+
         const val COEFFS_PER_BAND = 5
 
         /** Long enough to be inaudible as a step, short enough to feel immediate on a slider. */

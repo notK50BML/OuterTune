@@ -457,4 +457,5 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="grp_settings_display">Settings</string>
     <string name="hide_settings_descriptions">Hide setting descriptions</string>
     <string name="hide_settings_descriptions_desc">Removes the explanations under settings everywhere. Titles, current values and errors still show.</string>
+    <string name="eq_headroom_smart">Smart - only as much as each song needs</string>
 </resources>

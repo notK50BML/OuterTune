@@ -140,7 +140,10 @@ fun EqualizerStudioScreen(
     val player = remember(playerConnection) { playerConnection?.service?.createStudioPlayer(processor) }
     DisposableEffect(player) { onDispose { player?.release() } }
 
-    LaunchedEffect(headroom) { processor.setHeadroom(headroom.factor) }
+    LaunchedEffect(headroom) {
+        processor.setSmartHeadroom(headroom.smart)
+        processor.setHeadroom(headroom.factor)
+    }
     LaunchedEffect(settings, original) {
         processor.setSettings(settings.copy(enabled = !original))
     }

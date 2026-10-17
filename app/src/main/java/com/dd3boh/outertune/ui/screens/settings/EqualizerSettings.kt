@@ -207,6 +207,7 @@ fun EqualizerSettingsScreen(
                     EqHeadroom.AUTO -> stringResource(R.string.eq_headroom_auto)
                     EqHeadroom.HALF -> stringResource(R.string.eq_headroom_half)
                     EqHeadroom.OFF -> stringResource(R.string.eq_headroom_off)
+                    EqHeadroom.SMART -> stringResource(R.string.eq_headroom_smart)
                 }
             }
         )
