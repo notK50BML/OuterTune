@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.background
+import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
@@ -265,7 +267,7 @@ private fun SongGrid(
                         .clickable { onPlay(index) }
                         .padding(horizontal = 8.dp),
                 ) {
-                    Artwork(song.thumbnail, size = 48.dp, cornerRadius = 6.dp)
+                    SongArtwork(song.thumbnail, size = 48.dp, playing = song.id == currentId, cornerRadius = 6.dp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -333,7 +335,7 @@ private fun StoredCard(song: StoredSong, playing: Boolean, onClick: () -> Unit) 
             .pointerHoverIcon(PointerIcon.Hand)
             .clickable(onClick = onClick),
     ) {
-        Artwork(song.thumbnail, size = CARD_WIDTH, cornerRadius = 8.dp)
+        SongArtwork(song.thumbnail, size = CARD_WIDTH, playing = playing, cornerRadius = 8.dp)
         Spacer(modifier = Modifier.height(8.dp))
         Text(
             text = song.title,
@@ -444,6 +446,12 @@ private fun CardBody(item: YTItem, playing: Boolean, onClick: () -> Unit) {
                 // a seam at the edges.
                 cornerRadius = 0.dp,
             )
+            if (playing && item is SongItem) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.size(CARD_WIDTH).background(Color.Black.copy(alpha = 0.45f)),
+                ) { PlayingBars(modifier = Modifier.size(CARD_WIDTH * 0.3f)) }
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
         Text(

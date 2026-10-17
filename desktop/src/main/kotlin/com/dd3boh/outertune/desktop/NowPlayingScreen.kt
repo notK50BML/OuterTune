@@ -114,7 +114,8 @@ import androidx.compose.ui.unit.dp
 fun NowPlayingScreen(
     playback: PlaybackState,
     queue: QueueState,
-    positionMs: Long,
+    /** Read only by the parts that show it - see Main for why this is a provider. */
+    positionMs: () -> Long,
     durationMs: Long,
     liked: Boolean,
     onSeek: (Long) -> Unit,
@@ -310,14 +311,9 @@ fun NowPlayingScreen(
                     ) { if (lyricsOnCoverClick) showLyrics = !showLyrics },
             ) {
                 if (showLyrics) {
-                    Column(modifier = Modifier.fillMaxHeight()) {
-                    LyricsHeader(
-                        tint = onBackground,
-                        onClose = { showLyrics = false },
-                        onRefetch = onRefetchLyrics,
-                        offsetMs = lyricsOffsetMs,
-                        onOffsetChange = onLyricsOffsetChange,
-                    )
+                    // The controls sit at the bottom right, lifted clear of the edge - where the
+                    // phone keeps them - so they are out of the way of the words being read.
+                    Box(modifier = Modifier.fillMaxHeight()) {
                     LyricsPane(
                         lyrics = lyrics,
                         loading = lyricsLoading,
@@ -326,7 +322,15 @@ fun NowPlayingScreen(
                         onColour = onBackground,
                         fontSize = 20.sp * scale * (lyricsTextScale / 100f),
                         alignment = lyricsAlignment,
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.fillMaxHeight(),
+                    )
+                    LyricsHeader(
+                        modifier = Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 28.dp),
+                        tint = onBackground,
+                        onClose = { showLyrics = false },
+                        onRefetch = onRefetchLyrics,
+                        offsetMs = lyricsOffsetMs,
+                        onOffsetChange = onLyricsOffsetChange,
                     )
                     }
                 } else {
@@ -415,7 +419,7 @@ fun NowPlayingScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        Text(formatDuration(positionMs), style = MaterialTheme.typography.bodySmall, color = onBackground)
+                        PositionLabel(positionMs, onBackground)
                         Text(formatDuration(durationMs), style = MaterialTheme.typography.bodySmall, color = onBackground)
                     }
                 }
@@ -433,12 +437,11 @@ fun NowPlayingScreen(
                 ) {
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                         IconButton(onClick = onToggleShuffle, modifier = Modifier.size(transportSize)) {
-                            Icon(
-                                OuterTuneIcons.shuffle,
-                                contentDescription = "Shuffle",
+                            ShuffleIcon(
+                                on = queue.shuffled,
                                 // Dimmed rather than hidden when off: a control that disappears is
                                 // harder to find again than one that is plainly inactive.
-                                tint = onBackground.copy(alpha = if (queue.shuffled) 1f else 0.4f),
+                                tint = onBackground.copy(alpha = if (queue.shuffled) 1f else 0.55f),
                                 modifier = Modifier.size(transportIcon),
                             )
                         }
@@ -460,7 +463,7 @@ fun NowPlayingScreen(
                     if (showSeekButtons) {
                         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                             IconButton(
-                                onClick = { onSeek((positionMs - SEEK_STEP_MS).coerceAtLeast(0)) },
+                                onClick = { onSeek((positionMs() - SEEK_STEP_MS).coerceAtLeast(0)) },
                                 enabled = durationMs > 0,
                             ) {
                                 Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground)
@@ -492,7 +495,7 @@ fun NowPlayingScreen(
                     if (showSeekButtons) {
                         Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                             IconButton(
-                                onClick = { onSeek((positionMs + SEEK_STEP_MS).coerceAtMost(durationMs)) },
+                                onClick = { onSeek((positionMs() + SEEK_STEP_MS).coerceAtMost(durationMs)) },
                                 enabled = durationMs > 0,
                             ) {
                                 Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground)
@@ -547,6 +550,7 @@ fun NowPlayingScreen(
         if (!sideBySide) {
             QueueOverlay(
                 queue = queue,
+                playback = playback,
                 onColour = onBackground,
                 background = bottom,
                 open = queueOpen,
@@ -578,6 +582,7 @@ fun NowPlayingScreen(
             Box(modifier = Modifier.width(dockWidth).fillMaxHeight().clipToBounds()) {
                 QueueOverlay(
                     queue = queue,
+                    playback = playback,
                     onColour = onBackground,
                     background = bottom,
                     // Always shown inside the box: the box's width is the animation.
@@ -631,7 +636,7 @@ fun NowPlayingScreen(
  */
 @Composable
 private fun SlimSeekBar(
-    positionMs: Long,
+    positionMs: () -> Long,
     durationMs: Long,
     colour: Color,
     onSeek: (Long) -> Unit,
@@ -640,7 +645,7 @@ private fun SlimSeekBar(
     val hovered by interaction.collectIsHoveredAsState()
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val thickness by animateDpAsState(if (hovered || dragFraction != null) 7.dp else 4.dp)
-    val played = dragFraction ?: (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    val played = dragFraction ?: (positionMs().toFloat() / durationMs).coerceIn(0f, 1f)
     val currentDuration by androidx.compose.runtime.rememberUpdatedState(durationMs)
 
     Box(
@@ -684,6 +689,12 @@ private fun SlimSeekBar(
                 .background(colour),
         )
     }
+}
+
+/** The elapsed time under the seek bar, alone in its own scope so a tick redraws only this. */
+@Composable
+private fun PositionLabel(positionMs: () -> Long, colour: Color) {
+    Text(formatDuration(positionMs()), style = MaterialTheme.typography.bodySmall, color = colour)
 }
 
 /** Below this the queue covers the player; at or above it, the two sit side by side. */
@@ -978,6 +989,7 @@ private fun SidewaysQueueHandle(
  */
 @Composable
 private fun LyricsHeader(
+    modifier: Modifier = Modifier,
     tint: Color,
     onClose: () -> Unit,
     onRefetch: (() -> Unit)?,
@@ -986,11 +998,7 @@ private fun LyricsHeader(
 ) {
     var menu by remember { mutableStateOf(false) }
     var offsetDialog by remember { mutableStateOf(false) }
-    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-        IconButton(onClick = onClose) {
-            Icon(OuterTuneIcons.close, contentDescription = "Close lyrics", tint = tint)
-        }
-        Spacer(modifier = Modifier.weight(1f))
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         Box {
             IconButton(onClick = { menu = true }) {
                 Icon(OuterTuneIcons.moreVert, contentDescription = "Lyrics options", tint = tint)
@@ -1011,6 +1019,9 @@ private fun LyricsHeader(
                     )
                 }
             }
+        }
+        IconButton(onClick = onClose) {
+            Icon(OuterTuneIcons.close, contentDescription = "Close lyrics", tint = tint)
         }
     }
     if (offsetDialog && onOffsetChange != null) {
@@ -1059,6 +1070,7 @@ private fun LyricsHeader(
 private fun QueueOverlay(
     queue: QueueState,
     onColour: Color,
+    playback: PlaybackState = PlaybackState.Idle,
     background: Color,
     open: Boolean,
     onClose: () -> Unit,
@@ -1202,11 +1214,9 @@ private fun QueueOverlay(
                                         .clip(RoundedCornerShape(4.dp))
                                         .background(Color.Black.copy(alpha = 0.45f)),
                                 ) {
-                                    Icon(
-                                        OuterTuneIcons.equalizer,
-                                        contentDescription = "Now playing",
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp),
+                                    PlayingBars(
+                                        modifier = Modifier.size(20.dp),
+                                        animate = playback is PlaybackState.Playing,
                                     )
                                 }
                             }

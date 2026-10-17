@@ -397,7 +397,7 @@ private fun SongListRow(song: SongItem, rank: Int, playing: Boolean, onClick: ()
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.width(28.dp),
         )
-        Artwork(song.thumbnail, size = 48.dp, cornerRadius = 6.dp)
+        SongArtwork(song.thumbnail, size = 48.dp, playing = playing, cornerRadius = 6.dp)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(

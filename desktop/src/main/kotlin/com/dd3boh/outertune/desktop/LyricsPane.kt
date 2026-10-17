@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
@@ -64,7 +65,7 @@ import androidx.compose.ui.unit.sp
 fun LyricsPane(
     lyrics: Lyrics?,
     loading: Boolean,
-    positionMs: Long,
+    positionMs: () -> Long,
     onSeek: (Long) -> Unit,
     onColour: Color,
     modifier: Modifier = Modifier,
@@ -230,14 +231,18 @@ private fun sungText(line: LyricLine, positionMs: Long, onColour: Color): Annota
  * backwards except by a real jump (a seek), so a late report cannot make a word flicker.
  */
 @Composable
-private fun rememberSmoothedPosition(positionMs: Long): Long {
-    var anchorMs by remember { mutableStateOf(positionMs) }
+private fun rememberSmoothedPosition(positionMs: () -> Long): Long {
+    var anchorMs by remember { mutableStateOf(positionMs()) }
     var anchorNanos by remember { mutableStateOf(System.nanoTime()) }
-    var shown by remember { mutableStateOf(positionMs) }
-    LaunchedEffect(positionMs) {
-        anchorMs = positionMs
-        anchorNanos = System.nanoTime()
-        if (positionMs < shown - SEEK_JUMP_MS || positionMs > shown + SEEK_JUMP_MS) shown = positionMs
+    var shown by remember { mutableStateOf(positionMs()) }
+    LaunchedEffect(Unit) {
+        // Followed as a flow rather than read in composition, so a report does not recompose the
+        // pane by itself - only the per-frame clock below does, and only while lyrics are open.
+        snapshotFlow { positionMs() }.collect { reported ->
+            anchorMs = reported
+            anchorNanos = System.nanoTime()
+            if (reported < shown - SEEK_JUMP_MS || reported > shown + SEEK_JUMP_MS) shown = reported
+        }
     }
     LaunchedEffect(Unit) {
         while (true) {

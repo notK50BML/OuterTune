@@ -6,6 +6,15 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.AnimatedVisibility
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
 import com.zionhuang.innertube.models.ArtistItem
@@ -222,7 +231,10 @@ internal fun App(
     val queue by playerQueue.state.collectAsState()
     val recent by library.recentlyPlayed.collectAsState()
     val liked by library.liked.collectAsState()
-    val position by player.positionMs.collectAsState()
+    // Held as state but never read here. Reading it in this function made the whole window
+    // recompose on every playback tick - dozens of times a second - for the sake of a seek
+    // bar and a clock. It is handed down as a provider and read only where it is shown.
+    val positionState = player.positionMs.collectAsState()
     val duration by player.durationMs.collectAsState()
 
     var query by remember { mutableStateOf("") }
@@ -344,12 +356,12 @@ internal fun App(
         discordPresence.updateAuth(
             settings.discordToken,
             settings.enableDiscordRpc,
-            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, position),
+            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, player.positionMs.value),
         )
     }
     LaunchedEffect(queue.current?.id, playback) {
         discordPresence.requestUpdate(
-            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, position)
+            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, player.positionMs.value)
         )
     }
 
@@ -569,7 +581,7 @@ internal fun App(
         NowPlayingScreen(
             playback = playback,
             queue = queue,
-            positionMs = position,
+            positionMs = { positionState.value },
             durationMs = duration,
             liked = isLiked,
             onSeek = player::seekTo,
@@ -772,7 +784,10 @@ internal fun App(
     val keys = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { keys.requestFocus() } }
 
-    CompositionLocalProvider(LocalSongActions provides songActions) {
+    CompositionLocalProvider(
+        LocalSongActions provides songActions,
+        LocalPlaybackActive provides (playback is PlaybackState.Playing),
+    ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -785,8 +800,8 @@ internal fun App(
                     // Windows' media controls handle the media keys once they are on - handling them
                     // here as well would act on every press twice.
                     Key.MediaPlayPause -> { if (!WindowsMediaControls.active) player.togglePause(); true }
-                    Key.DirectionRight -> { player.seekTo(position + 10_000); true }
-                    Key.DirectionLeft -> { player.seekTo(position - 10_000); true }
+                    Key.DirectionRight -> { player.seekTo(player.positionMs.value + 10_000); true }
+                    Key.DirectionLeft -> { player.seekTo(player.positionMs.value - 10_000); true }
                     Key.MediaNext -> { if (!WindowsMediaControls.active) playerQueue.next(); true }
                     Key.MediaPrevious -> { if (!WindowsMediaControls.active) playerQueue.previous(); true }
                     else -> false
@@ -1047,16 +1062,24 @@ internal fun App(
                 }
             }
 
-            if (queue.songs.isNotEmpty()) {
-                HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
-                QueuePane(queue) { playerQueue.jumpTo(it) }
+            // Slides in and out rather than popping, and can be put away entirely: the button for
+            // it lives on the player bar.
+            AnimatedVisibility(
+                visible = queue.songs.isNotEmpty() && settings.sideQueueOpen,
+                enter = expandHorizontally(expandFrom = Alignment.Start) + fadeIn(),
+                exit = shrinkHorizontally(shrinkTowards = Alignment.Start) + fadeOut(),
+            ) {
+                Row {
+                    HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
+                    QueuePane(queue, onClose = { settings.sideQueueOpen = false }) { playerQueue.jumpTo(it) }
+                }
             }
         }
 
         PlayerBar(
             playback = playback,
             queue = queue,
-            positionMs = position,
+            positionMs = { positionState.value },
             durationMs = duration,
             liked = isLiked,
             onTogglePause = togglePlay,
@@ -1064,6 +1087,8 @@ internal fun App(
             onPrevious = playerQueue::previous,
             onToggleLike = toggleLike,
             onExpand = { showFullPlayer = true },
+            queueOpen = settings.sideQueueOpen,
+            onToggleQueue = { settings.sideQueueOpen = !settings.sideQueueOpen },
         )
     }
     }
@@ -1247,7 +1272,13 @@ private fun Content(
 }
 
 @Composable
-private fun QueuePane(queue: QueueState, onJump: (Int) -> Unit) {
+private fun QueuePane(queue: QueueState, onClose: () -> Unit, onJump: (Int) -> Unit) {
+    val listState = rememberLazyListState()
+    // Brings the playing song into view when it changes, so the highlighted row is never off
+    // somewhere above or below.
+    LaunchedEffect(queue.orderPosition) {
+        if (queue.orderPosition >= 0) listState.animateScrollToItem((queue.orderPosition - 1).coerceAtLeast(0))
+    }
     Column(modifier = Modifier.width(300.dp).padding(16.dp)) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1263,9 +1294,18 @@ private fun QueuePane(queue: QueueState, onJump: (Int) -> Unit) {
                 "Queue  ${queue.orderPosition + 1}/${queue.songs.size}",
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
+                modifier = Modifier.weight(1f),
             )
+            IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    OuterTuneIcons.expandLess,
+                    contentDescription = "Hide queue",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp).rotate(90f),
+                )
+            }
         }
-        LazyColumn {
+        LazyColumn(state = listState) {
             // Shown in play order rather than the order added, so with shuffle on the list reads as
             // what is coming next - which is the only thing a queue is for.
             itemsIndexed(queue.order) { position, index ->
@@ -1286,7 +1326,7 @@ private fun QueuePane(queue: QueueState, onJump: (Int) -> Unit) {
 private fun PlayerBar(
     playback: PlaybackState,
     queue: QueueState,
-    positionMs: Long,
+    positionMs: () -> Long,
     durationMs: Long,
     liked: Boolean,
     onTogglePause: () -> Unit,
@@ -1294,13 +1334,15 @@ private fun PlayerBar(
     onPrevious: () -> Unit,
     onToggleLike: () -> Unit,
     onExpand: () -> Unit,
+    queueOpen: Boolean = true,
+    onToggleQueue: () -> Unit = {},
 ) {
     val song = queue.current
     Column {
         // A thin progress line rather than a slider: the bar is for glancing at, and the full
         // player is where scrubbing belongs.
         LinearProgressIndicator(
-            progress = { if (durationMs > 0) positionMs.toFloat() / durationMs else 0f },
+            progress = { if (durationMs > 0) positionMs().toFloat() / durationMs else 0f },
             modifier = Modifier.fillMaxWidth().height(2.dp),
         )
         Row(
@@ -1341,11 +1383,7 @@ private fun PlayerBar(
                 )
             }
             if (song != null) {
-                Text(
-                    "${formatClock(positionMs)} / ${formatClock(durationMs)}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+                ClockText(positionMs, durationMs)
                 LikeButton(liked = liked, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = onToggleLike)
             }
             IconButton(onClick = onPrevious, enabled = queue.hasPrevious) {
@@ -1364,6 +1402,13 @@ private fun PlayerBar(
             IconButton(onClick = onNext, enabled = queue.hasNext) {
                 Icon(OuterTuneIcons.skipNext, "Next")
             }
+            IconButton(onClick = onToggleQueue, enabled = queue.songs.isNotEmpty()) {
+                Icon(
+                    OuterTuneIcons.queueMusic,
+                    contentDescription = if (queueOpen) "Hide queue" else "Show queue",
+                    tint = if (queueOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -1375,10 +1420,12 @@ internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Uni
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (playing) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onPlay)
             .padding(vertical = 6.dp, horizontal = 4.dp),
     ) {
-        Artwork(song.thumbnail)
+        SongArtwork(song.thumbnail, size = 48.dp, playing = playing)
         Column {
             Text(
                 song.title,
@@ -1406,10 +1453,12 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: (
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (playing) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f) else Color.Transparent)
             .clickable(onClick = onPlay)
             .padding(vertical = 6.dp, horizontal = 4.dp),
     ) {
-        Artwork(song.thumbnail)
+        SongArtwork(song.thumbnail, size = 48.dp, playing = playing)
         Column {
             Text(
                 song.title,
@@ -1427,6 +1476,16 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: (
             )
         }
     }
+}
+
+/** The bar's clock, on its own so a tick redraws these few characters and nothing else. */
+@Composable
+private fun ClockText(positionMs: () -> Long, durationMs: Long) {
+    Text(
+        "${formatClock(positionMs())} / ${formatClock(durationMs)}",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 private fun formatClock(ms: Long): String {

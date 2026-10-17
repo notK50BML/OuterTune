@@ -151,7 +151,7 @@ class UiSnapshots {
         NowPlayingScreen(
             playback = PlaybackState.Playing(songs[0].title),
             queue = queue(),
-            positionMs = 13_500,
+            positionMs = { 13_500L },
             durationMs = 240_000,
             liked = true,
             onSeek = {}, onTogglePause = {}, onNext = {}, onPrevious = {},
@@ -335,6 +335,49 @@ class UiSnapshots {
         settings.textScale = 110; frames("set text size")
         settings.pureBlack = true; frames("set pure black")
         File(outDir, "resp_after.png").writeBytes(scene.render(t).encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+        player.stop()
+    }
+
+    /** Frame cost with a real-sized library while playback ticks: OT_PERF_BACKUP names a phone backup. */
+    @Test
+    fun performance() = kotlinx.coroutines.runBlocking {
+        val backup = System.getenv("OT_PERF_BACKUP")
+        assumeTrue(backup != null)
+        val library = LibraryStore(java.nio.file.Files.createTempDirectory("ot-perf").toFile())
+        BackupImport.importFrom(File(backup!!), library)
+        val settings = Settings(library.settings)
+        val player = DesktopPlayer()
+        val scene = ImageComposeScene(1280, 800, Density(1f)) {
+            MaterialTheme(colorScheme = DynamicTheme.schemeFor(Color(0xFF7B3FC4), true)) {
+                Surface(modifier = Modifier.fillMaxSize()) { App(player, library, settings, onSeedChanged = {}) }
+            }
+        }
+        var t = 0L
+        repeat(60) { scene.render(t); t += 16_000_000L }
+        fun measure(label: String, tick: Boolean = true) {
+            val times = LongArray(120) {
+                if (tick) player.positionMs.value = 60_000L + it * 25L
+                player.durationMs.value = 240_000L
+                val start = System.nanoTime()
+                scene.render(t)
+                t += 16_000_000L
+                (System.nanoTime() - start) / 1000
+            }
+            val sorted = times.sorted()
+            println("PERF $label: mean=${times.average().toInt()}us p95=${sorted[(sorted.size * 0.95).toInt()]}us max=${sorted.last()}us")
+        }
+        fun click(x: Float, y: Float) {
+            scene.sendPointerEvent(PointerEventType.Move, Offset(x, y))
+            scene.sendPointerEvent(PointerEventType.Press, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+            scene.sendPointerEvent(PointerEventType.Release, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+            repeat(20) { scene.render(t); t += 16_000_000L }
+        }
+        measure("home idle", tick = false)
+        measure("home")
+        click(40f, 300f); measure("library")
+        click(40f, 420f); measure("stats")
+        click(600f, 770f); measure("full player idle", tick = false); measure("full player")
         scene.close()
         player.stop()
     }

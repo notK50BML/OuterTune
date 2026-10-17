@@ -110,6 +110,20 @@ class DesktopPlayer {
 
     private var job: Job? = null
 
+    /**
+     * Which play this is. Bumped by every stop, and so by every play.
+     *
+     * A cancelled decode job does not stop the instant it is cancelled - it can be inside a network
+     * read or a blocking write - and anything it touches on the way out lands on the song that has
+     * replaced it. The worst of those was closing "the" line in its cleanup: when a song ended
+     * by itself, it advanced the queue, the next song opened its line, and then the finished job's
+     * cleanup closed that new line. The queue said one song, the speakers said nothing or the
+     * wrong thing, and it stayed that way. Every write to shared state now checks it is still the
+     * current play first.
+     */
+    @Volatile
+    private var generation = 0L
+
     /** The line currently being written to, kept only so [stop] can interrupt a blocking write. */
     @Volatile
     private var line: SourceDataLine? = null
@@ -270,6 +284,7 @@ class DesktopPlayer {
         pendingSeekMs = startAtMs.takeIf { it > 0 }
         nowPlayingId = videoId
         state.value = PlaybackState.Loading(title)
+        val gen = generation
         job = scope.launch(Dispatchers.IO) {
             try {
                 // A prefetch that failed is discarded rather than reported: it ran minutes ago
@@ -285,25 +300,27 @@ class DesktopPlayer {
                         outcome.bytes
                     }
                     is Resolved.Failure -> {
-                        state.value = PlaybackState.Failed(title, outcome.reason)
+                        if (gen == generation) state.value = PlaybackState.Failed(title, outcome.reason)
                         return@launch
                     }
                 }
+                if (gen != generation) return@launch
                 state.value = PlaybackState.Playing(title)
-                stream(audio)
+                stream(audio, gen)
                 // Only settle back to Idle if this job is still the current one; a stop() or a new
                 // play() has already set the state it wants. Reaching here with the job still
                 // active is the one case that genuinely means "the song ended".
-                if (currentCoroutineContext().isActive) {
+                if (currentCoroutineContext().isActive && gen == generation) {
                     state.value = PlaybackState.Idle
                     onFinished?.invoke()
                 }
             } catch (e: Throwable) {
-                if (currentCoroutineContext().isActive) {
+                if (currentCoroutineContext().isActive && gen == generation) {
                     state.value = PlaybackState.Failed(title, "${e::class.simpleName}: ${e.message}")
                 }
             } finally {
-                closeLine()
+                // Only its own: by now a newer play may hold the line - see [generation].
+                if (gen == generation) closeLine()
             }
         }
     }
@@ -437,6 +454,7 @@ class DesktopPlayer {
         // leaves a download the user has already moved on from running to completion against the
         // same connection as whatever they asked for instead.
         claimed.getAndSet(null)?.cancel()
+        generation++
         nowPlayingId = null
         paused = false
         job?.cancel()
@@ -560,19 +578,19 @@ class DesktopPlayer {
     }
 
     /** Demuxes YouTube's fragmented MP4 into AAC frames and plays them. */
-    private suspend fun stream(mp4: ByteArray) {
+    private suspend fun stream(mp4: ByteArray, gen: Long) {
         val iso = IsoFile(InMemoryChannel(mp4))
         val config = findAudioSpecificConfig(iso) ?: error("no AudioSpecificConfig in the sample entry")
         val samples = extractSamples(mp4, iso)
         if (samples.isEmpty()) error("no samples could be extracted from the fragments")
-        play(AacSource(samples, config))
+        play(AacSource(samples, config), gen)
     }
 
     /**
      * Plays any [PcmSource] through the processing chain and the output line, stopping cleanly when
      * the job is cancelled. Shared by YouTube audio and local files - see PcmSource.
      */
-    private suspend fun play(source: PcmSource) = withContext(Dispatchers.IO) {
+    private suspend fun play(source: PcmSource, gen: Long) = withContext(Dispatchers.IO) {
         source.use { src ->
         val sampleRate = src.sampleRate
         val bitsPerSample = src.bitsPerSample
@@ -581,6 +599,8 @@ class DesktopPlayer {
         val format = AudioFormat(sampleRate.toFloat(), bitsPerSample, channels, true, bigEndian)
         val open = (AudioSystem.getLine(DataLine.Info(SourceDataLine::class.java, format)) as SourceDataLine)
             .also { it.open(format); it.start() }
+        try {
+        if (gen != generation) return@use
         line = open
         durationMs.value = src.durationMs
         val analyzer = SpectrumAnalyzer(sampleRate, bands = VISUALIZER_BANDS)
@@ -604,7 +624,7 @@ class DesktopPlayer {
         var baseTempo = 1f
 
         while (true) {
-            if (!currentCoroutineContext().isActive) break
+            if (!currentCoroutineContext().isActive || gen != generation) break
             // Held here rather than by the audio line, which does not reliably block a write.
             while (paused && currentCoroutineContext().isActive) delay(50)
             if (!currentCoroutineContext().isActive) break
@@ -707,11 +727,18 @@ class DesktopPlayer {
                 baseTempo = tempo
             }
             // Scaled by tempo: at 1.5x each frame of output carries one and a half frames of song.
+            if (gen != generation) break
             positionMs.value =
                 trackMsBase + ((open.longFramePosition - lineFrameBase) * 1000.0 * tempo / sampleRate).toLong()
         }
         // Let whatever is buffered finish rather than cutting the last fraction of a second off.
-        if (currentCoroutineContext().isActive) open.drain()
+        if (currentCoroutineContext().isActive && gen == generation) open.drain()
+        } finally {
+            // This play's own line, closed by this play - never whichever line is current by now.
+            runCatching { open.stop() }
+            runCatching { open.close() }
+            if (line === open) line = null
+        }
         }
     }
 
@@ -727,18 +754,20 @@ class DesktopPlayer {
         nowPlayingId = songId
         state.value = PlaybackState.Loading(title)
         trackGain = 1f
+        val gen = generation
         job = scope.launch(Dispatchers.IO) {
             try {
                 // M4A through the same AAC decoder YouTube audio uses - see M4aReader for why.
                 val source = if (M4aReader.isM4a(file)) M4aReader.open(file) else FileSource(file, durationMs)
+                if (gen != generation) { source.close(); return@launch }
                 state.value = PlaybackState.Playing(title)
-                play(source)
-                if (currentCoroutineContext().isActive) {
+                play(source, gen)
+                if (currentCoroutineContext().isActive && gen == generation) {
                     state.value = PlaybackState.Idle
                     onFinished?.invoke()
                 }
             } catch (e: Throwable) {
-                if (currentCoroutineContext().isActive) {
+                if (currentCoroutineContext().isActive && gen == generation) {
                     state.value = PlaybackState.Failed(
                         title,
                         if (e is javax.sound.sampled.UnsupportedAudioFileException) {
@@ -749,7 +778,8 @@ class DesktopPlayer {
                     )
                 }
             } finally {
-                closeLine()
+                // Only its own: by now a newer play may hold the line - see [generation].
+                if (gen == generation) closeLine()
             }
         }
     }

@@ -176,7 +176,7 @@ fun StatsPane(
                     modifier = Modifier.width(32.dp),
                 )
                 Spacer(modifier = Modifier.width(12.dp))
-                Artwork(song.thumbnail, size = 44.dp, cornerRadius = 6.dp)
+                SongArtwork(song.thumbnail, size = 44.dp, playing = song.id == currentId, cornerRadius = 6.dp)
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(

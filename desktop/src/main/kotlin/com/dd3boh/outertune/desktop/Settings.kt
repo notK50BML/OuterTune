@@ -89,6 +89,9 @@ class Settings(private val store: SettingsStore) {
     /** Whether the queue handle names the queue beside its arrow, as the phone's does. */
     var showQueueTitle by bool("player.queueTitle", true)
 
+    /** Whether the queue is docked down the right of the main window. */
+    var sideQueueOpen by bool("window.sideQueue", true)
+
     /**
      * Whether to ask BetterLyrics for word-by-word timings first.
      *
