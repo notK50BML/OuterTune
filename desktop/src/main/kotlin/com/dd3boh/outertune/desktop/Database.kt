@@ -279,6 +279,15 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 9) {
+                connection.createStatement().use { st ->
+                    // An artist's picture, fetched once and kept - see ArtistImages.
+                    val has = st.executeQuery("PRAGMA table_info(artist)").use { rs ->
+                        generateSequence { if (rs.next()) rs.getString("name") else null }.any { it == "thumbnail" }
+                    }
+                    if (!has) st.executeUpdate("ALTER TABLE artist ADD COLUMN thumbnail TEXT")
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -493,6 +502,21 @@ class Database(file: File) {
             }
         }
         added
+    }
+
+    fun artistThumbnail(artistId: String): String? = synchronized(lock) {
+        connection.prepareStatement("SELECT thumbnail FROM artist WHERE id = ?").use { st ->
+            st.setString(1, artistId)
+            st.executeQuery().use { rs -> if (rs.next()) rs.getString(1) else null }
+        }
+    }
+
+    fun setArtistThumbnail(artistId: String, url: String) = synchronized(lock) {
+        connection.prepareStatement("UPDATE artist SET thumbnail = ? WHERE id = ?").use { st ->
+            st.setString(1, url)
+            st.setString(2, artistId)
+            st.executeUpdate()
+        }
     }
 
     // ---- local files --------------------------------------------------------------------------
@@ -1028,7 +1052,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 8
+        const val SCHEMA_VERSION = 9
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

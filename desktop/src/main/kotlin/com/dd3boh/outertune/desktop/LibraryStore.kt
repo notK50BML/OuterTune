@@ -170,6 +170,8 @@ class LibraryStore(
     }
 
     fun libraryArtists() = db.libraryArtists()
+    fun artistThumbnail(artistId: String) = db.artistThumbnail(artistId)
+    fun setArtistThumbnail(artistId: String, url: String) = db.setArtistThumbnail(artistId, url)
 
     fun localTracks() = db.localTracks()
     fun localModifiedTimes() = db.localModifiedTimes()

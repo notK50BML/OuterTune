@@ -125,7 +125,11 @@ fun ArtistPane(
         }
         content = withContext(Dispatchers.IO) {
             YouTube.artist(artist.id).fold(
-                onSuccess = { ArtistContent.Loaded(it) },
+                onSuccess = {
+                    // Kept for Stats and the Library, which show this artist without opening them.
+                    ArtistImages.remember(artist.id, it.artist.thumbnail)
+                    ArtistContent.Loaded(it)
+                },
                 onFailure = { ArtistContent.Failed(it.message ?: "Could not load that artist.") },
             )
         }

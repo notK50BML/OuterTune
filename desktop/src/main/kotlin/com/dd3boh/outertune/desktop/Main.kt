@@ -203,6 +203,7 @@ internal fun App(
     val eqStore = remember(settings) { settings.equalizerStore() }
     // Only while history is switched on. The setting existed and was never consulted, so turning it
     // off changed nothing.
+    remember(library) { ArtistImages.library = library }
     val playerQueue = remember {
         PlayerQueue(player, scope, onPlayed = {
             if (settings.keepHistory) library.recordPlay(it.toStored(), (it.duration ?: 0) * 1000L)
@@ -962,6 +963,12 @@ internal fun App(
                         onPlay = { songs, index, title -> playerQueue.play(songs.map { it.toItem() }, index, title) },
                         onOpenArtist = openArtistPage,
                         onOpenAlbum = openAlbumPage,
+                        savedPlaylists = savedPlaylists,
+                        onOpenPlaylist = {
+                            tab = NavTab.Playlists
+                            openPlaylist = it
+                        },
+                        onOpenOnlinePlaylist = { openOnlinePlaylist = it },
                     )
                 }
             }

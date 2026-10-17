@@ -61,7 +61,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /** The library's three views, as the phone's Library tab splits them. */
-enum class LibraryView(val label: String) { Songs("Songs"), Artists("Artists"), Albums("Albums") }
+enum class LibraryView(val label: String) { Songs("Songs"), Artists("Artists"), Albums("Albums"), Playlists("Playlists") }
 
 /** Which songs the Songs view lists. */
 enum class SongSource(val label: String) {
@@ -90,6 +90,10 @@ fun LibraryPane(
     onOpenArtist: (StoredArtist) -> Unit,
     onOpenAlbum: (String) -> Unit,
     modifier: Modifier = Modifier,
+    /** Playlists saved on the YouTube account, beside the ones made here. */
+    savedPlaylists: List<com.zionhuang.innertube.models.PlaylistItem> = emptyList(),
+    onOpenPlaylist: (StoredPlaylist) -> Unit = {},
+    onOpenOnlinePlaylist: (com.zionhuang.innertube.models.PlaylistItem) -> Unit = {},
 ) {
     var view by remember { mutableStateOf(LibraryView.Songs) }
     var source by remember { mutableStateOf(SongSource.Liked) }
@@ -97,6 +101,7 @@ fun LibraryPane(
     var filter by remember { mutableStateOf("") }
     val liked by library.liked.collectAsState()
     val localTracks by LocalMusic.tracks.collectAsState()
+    val playlists by library.playlists.collectAsState()
     val recent by library.recentlyPlayed.collectAsState()
     val syncing by sync.syncing.collectAsState()
     val status by sync.status.collectAsState()
@@ -232,8 +237,26 @@ fun LibraryPane(
                             Card(item = artist, playing = false) { onOpenArtist(StoredArtist(artist.id, artist.title)) }
                         }
                         items(local, key = { "l-${it.first.id}" }) { (artist, count) ->
-                            InitialCard(artist.name, "$count ${if (count == 1) "song" else "songs"}") { onOpenArtist(artist) }
+                            InitialCard(artist, "$count ${if (count == 1) "song" else "songs"}") { onOpenArtist(artist) }
                         }
+                    }
+                }
+            }
+
+            LibraryView.Playlists -> if (playlists.isEmpty() && savedPlaylists.isEmpty()) {
+                Empty("No playlists yet. Make one from a song's menu, or sign in to see the ones saved on YouTube.")
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Adaptive(176.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(20.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp),
+                ) {
+                    items(playlists, key = { "local-${it.id}" }) { playlist ->
+                        LocalPlaylistCard(library, playlist) { onOpenPlaylist(playlist) }
+                    }
+                    items(savedPlaylists, key = { "yt-${it.id}" }) { playlist ->
+                        Card(item = playlist, playing = false) { onOpenOnlinePlaylist(playlist) }
                     }
                 }
             }
@@ -256,6 +279,35 @@ fun LibraryPane(
     }
 }
 
+/** One of your own playlists: its first song's cover, its name and how many songs it holds. */
+@Composable
+private fun LocalPlaylistCard(library: LibraryStore, playlist: StoredPlaylist, onClick: () -> Unit) {
+    var cover by remember(playlist.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(playlist.id, playlist.songCount) {
+        cover = withContext(Dispatchers.IO) { library.playlistSongs(playlist.id).firstOrNull()?.thumbnail }
+    }
+    Column(modifier = Modifier.width(176.dp).clip(RoundedCornerShape(12.dp)).clickable(onClick = onClick)) {
+        Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(176.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.secondaryContainer),
+        ) {
+            val art = cover
+            if (art != null) {
+                Artwork(art, size = 176.dp, cornerRadius = 8.dp)
+            } else {
+                Icon(OuterTuneIcons.queueMusic, null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(56.dp))
+            }
+        }
+        Spacer(Modifier.size(8.dp))
+        Text(playlist.name, maxLines = 2, overflow = TextOverflow.Ellipsis)
+        Text(
+            if (playlist.songCount == 1) "1 song" else "${playlist.songCount} songs",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
 @Composable
 private fun SortMenu(sort: SongSort, onSort: (SongSort) -> Unit) {
     var open by remember { mutableStateOf(false) }
@@ -275,23 +327,15 @@ private fun SortMenu(sort: SongSort, onSort: (SongSort) -> Unit) {
     }
 }
 
-/** An artist with no picture to hand: their initial on a disc, the way the phone draws one. */
+/** An artist from your listening: their picture once fetched, their initial until then. */
 @Composable
-private fun InitialCard(name: String, subtitle: String, onClick: () -> Unit) {
+private fun InitialCard(artist: StoredArtist, subtitle: String, onClick: () -> Unit) {
+    val name = artist.name
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = Modifier.clip(RoundedCornerShape(16.dp)).clickable(onClick = onClick).padding(8.dp),
     ) {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier.size(128.dp).clip(CircleShape).background(MaterialTheme.colorScheme.secondaryContainer),
-        ) {
-            Text(
-                name.take(1).uppercase(),
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
-        }
+        ArtistAvatar(artist, size = 128.dp)
         Spacer(Modifier.size(8.dp))
         Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)

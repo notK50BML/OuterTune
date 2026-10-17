@@ -142,17 +142,7 @@ fun StatsPane(
                                 .clickable { onOpenArtist(artist) }
                                 .padding(8.dp),
                         ) {
-                            Box(
-                                contentAlignment = Alignment.Center,
-                                modifier = Modifier.size(96.dp).clip(CircleShape)
-                                    .background(MaterialTheme.colorScheme.secondaryContainer),
-                            ) {
-                                Text(
-                                    artist.name.take(1).uppercase(),
-                                    style = MaterialTheme.typography.headlineMedium,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                )
-                            }
+                            ArtistAvatar(artist, size = 96.dp)
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(artist.name, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                             Text(
