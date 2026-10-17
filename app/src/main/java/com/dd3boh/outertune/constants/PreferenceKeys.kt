@@ -77,6 +77,8 @@ val FlatSubfoldersKey = booleanPreferencesKey("flatSubfolders")
 val TabletUiKey = booleanPreferencesKey("tabletUi")
 
 val EnabledTabsKey = stringPreferencesKey("enabledTabs")
+/** The player's title-row buttons, in order - see PlayerButton. Empty until first set. */
+val PlayerButtonsKey = stringPreferencesKey("playerButtons")
 val EnabledFiltersKey = stringPreferencesKey("enabledFilters")
 val DefaultOpenTabKey = stringPreferencesKey("defaultOpenTab")
 val SlimNavBarKey = booleanPreferencesKey("slimNavBar")

@@ -235,13 +235,9 @@ fun NowPlayingFrag() {
         checked = showLyricsOnClick,
         onCheckedChange = onShowLyricsOnClickChange
     )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.show_equalizer_button_title)) },
-        description = stringResource(R.string.show_equalizer_button_description),
-        icon = { Icon(Icons.Rounded.GraphicEq, null) },
-        checked = showEqualizerButton,
-        onCheckedChange = onShowEqualizerButtonChange
-    )
+    // Replaces the old "show equaliser button" and "show sleep timer on player" switches: every
+    // action can be a button now, in any order. Their stored values seed it until it is first saved.
+    PlayerButtonsArrangement()
     SwitchPreference(
         title = { Text(stringResource(R.string.show_equalizer_handle_title)) },
         description = stringResource(R.string.show_equalizer_handle_description),
@@ -388,13 +384,6 @@ fun SleepTimerFrag() {
     var showFadeDurationDialog by remember { mutableStateOf(false) }
     var showDefaultTimeDialog by remember { mutableStateOf(false) }
 
-    SwitchPreference(
-        title = { Text(stringResource(R.string.sleep_timer_show_on_player)) },
-        description = stringResource(R.string.sleep_timer_show_on_player_desc),
-        icon = { Icon(Icons.Rounded.Visibility, null) },
-        checked = showOnPlayer,
-        onCheckedChange = onShowOnPlayerChange
-    )
     SwitchPreference(
         title = { Text(stringResource(R.string.sleep_timer_fade)) },
         icon = { Icon(Icons.AutoMirrored.Rounded.VolumeDown, null) },

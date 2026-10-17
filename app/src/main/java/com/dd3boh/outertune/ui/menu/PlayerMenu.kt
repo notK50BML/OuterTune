@@ -100,6 +100,7 @@ import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.ArtistDialog
 import com.dd3boh.outertune.ui.dialog.DetailsDialog
 import com.dd3boh.outertune.ui.player.LocalEqualizerPanelState
+import com.dd3boh.outertune.ui.player.PlayerButton
 import com.dd3boh.outertune.utils.rememberPreference
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
@@ -125,111 +126,18 @@ fun PlayerMenu(
     onDismiss: () -> Unit,
 ) {
     mediaMetadata ?: return
-    val context = LocalContext.current
-    val equalizerPanelState = LocalEqualizerPanelState.current
-    val database = LocalDatabase.current
-    val downloadUtil = LocalDownloadUtil.current
-    val clipboardManager = LocalClipboard.current
-
-    var showLyrics by rememberPreference(ShowLyricsKey, defaultValue = false)
-
     val playerConnection = LocalPlayerConnection.current ?: return
     val playerVolume = playerConnection.service.playerVolume.collectAsState()
-    val queueBoard by playerConnection.queueBoard.collectAsState()
-    val currentFormatState = database.format(mediaMetadata.id).collectAsState(initial = null)
-    val currentFormat = currentFormatState.value
-    val librarySong by database.song(mediaMetadata.id).collectAsState(initial = null)
-    val coroutineScope = rememberCoroutineScope()
 
-    val download by LocalDownloadUtil.current.getDownload(mediaMetadata.id).collectAsState(initial = null)
-
-    var showChooseQueueDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-    var showChoosePlaylistDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-    /**
-     * The credits worth offering as "view artist".
-     *
-     * YouTube attributes an upload to an auto-generated channel titled exactly "- Topic" alongside
-     * the artist's real one, so a song is routinely credited to both. That channel's page does not
-     * even carry the right name, and the song being looked for sits under the real artist - so it
-     * should never be what a tap lands on, nor an option in the picker.
-     *
-     * Filtering also removes a needless choice: a song credited to one real artist and one topic
-     * channel now links straight through instead of asking which of the two was meant.
-     *
-     * Falls back to the unfiltered list when every credit is nameless, since an empty picker helps
-     * nobody.
-     */
-    val linkableArtists = mediaMetadata.artists.filter { it.name.namesAnArtist() }
-        .ifEmpty { mediaMetadata.artists }
-
-    var showSelectArtistDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-
-    var showPitchTempoDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    if (showPitchTempoDialog) {
-        PitchTempoDialog(
-            onDismiss = { showPitchTempoDialog = false }
-        )
-    }
-
-    val sleepTimerEnabled = remember(
-        playerConnection.service.sleepTimer.triggerTime,
-        playerConnection.service.sleepTimer.pauseWhenSongEnd
-    ) {
-        playerConnection.service.sleepTimer.isActive
-    }
-
-    var sleepTimerTimeLeft by remember {
-        mutableLongStateOf(0L)
-    }
-
-    LaunchedEffect(sleepTimerEnabled) {
-        if (sleepTimerEnabled) {
-            while (isActive) {
-                val newSleepTimerTimeLeft = if (playerConnection.service.sleepTimer.pauseWhenSongEnd) {
-                    playerConnection.player.duration - playerConnection.player.currentPosition
-                } else {
-                    playerConnection.service.sleepTimer.triggerTime - System.currentTimeMillis()
-                }
-                delay(1000L)
-
-                withContext(Dispatchers.Main) {
-                    sleepTimerTimeLeft = newSleepTimerTimeLeft
-                }
-            }
-        }
-    }
-
-    var showSleepTimerDialog by remember {
-        mutableStateOf(false)
-    }
-
-    if (showSleepTimerDialog) {
-        SleepTimerDialog(onDismiss = { showSleepTimerDialog = false })
-    }
-
-    var showDetailsDialog by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    if (showDetailsDialog) {
-        DetailsDialog(
-            mediaMetadata = mediaMetadata,
-            currentFormat = currentFormat,
-            currentPlayCount = librarySong?.playCount?.fastSumBy { it.count } ?: 0,
-            clipboardManager = clipboardManager,
-            setVisibility = { showDetailsDialog = it }
-        )
-    }
+    // Every action here is the shared implementation the player's title-row buttons also use -
+    // see PlayerActions. The menu is just one more place to reach them from.
+    val actions = rememberPlayerActions(
+        mediaMetadata = mediaMetadata,
+        navController = navController,
+        playerBottomSheetState = playerBottomSheetState,
+        onDone = onDismiss,
+        onOpenMenu = {},
+    ) ?: return
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(24.dp),
@@ -260,189 +168,52 @@ fun PlayerMenu(
             bottom = 8.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
         )
     ) {
-        if (!mediaMetadata.isLocal)
-            GridMenuItem(
-                icon = Icons.Rounded.Radio,
-                title = R.string.start_radio
-            ) {
-                playerConnection.playQueue(YouTubeQueue.radio(mediaMetadata), isRadio = true)
-                onDismiss()
-            }
-        GridMenuItem(
-            icon = Icons.AutoMirrored.Rounded.QueueMusic,
-            title = R.string.add_to_queue
-        ) {
-            showChooseQueueDialog = true
+        if (actions.isAvailable(PlayerButton.RADIO))
+            GridMenuItem(icon = Icons.Rounded.Radio, title = R.string.start_radio) { actions.run(PlayerButton.RADIO) }
+        GridMenuItem(icon = Icons.AutoMirrored.Rounded.QueueMusic, title = R.string.add_to_queue) {
+            actions.run(PlayerButton.QUEUE)
         }
-        GridMenuItem(
-            icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
-            title = R.string.add_to_playlist
-        ) {
-            showChoosePlaylistDialog = true
+        GridMenuItem(icon = Icons.AutoMirrored.Rounded.PlaylistAdd, title = R.string.add_to_playlist) {
+            actions.run(PlayerButton.PLAYLIST)
         }
-        if (!mediaMetadata.isLocal)
+        if (actions.isAvailable(PlayerButton.DOWNLOAD))
             DownloadGridMenu(
-                localDateTime = download,
-                onDownload = {
-                    database.transaction {
-                        insert(mediaMetadata)
-                    }
-                    downloadUtil.download(mediaMetadata)
-                },
-                onRemoveDownload = {
-                    DownloadService.sendRemoveDownload(
-                        context,
-                        ExoDownloadService::class.java,
-                        mediaMetadata.id,
-                        false
-                    )
-                }
+                state = actions.downloadState,
+                onDownload = { actions.run(PlayerButton.DOWNLOAD) },
+                onRemoveDownload = { actions.run(PlayerButton.DOWNLOAD) },
             )
-        if (librarySong?.song?.inLibrary != null && !librarySong!!.song.isLocal) {
-            GridMenuItem(
-                icon = Icons.Rounded.LibraryAddCheck,
-                title = R.string.remove_from_library,
-            ) {
-                database.query {
-                    toggleInLibrary(mediaMetadata.id, null)
+        if (actions.isAvailable(PlayerButton.LIBRARY)) {
+            if (actions.inLibrary) {
+                GridMenuItem(icon = Icons.Rounded.LibraryAddCheck, title = R.string.remove_from_library) {
+                    actions.run(PlayerButton.LIBRARY)
                 }
-            }
-        } else if (!mediaMetadata.isLocal) {
-            GridMenuItem(
-                icon = Icons.Rounded.LibraryAdd,
-                title = R.string.add_to_library,
-            ) {
-                database.transaction {
-                    insert(mediaMetadata)
-                    toggleInLibrary(mediaMetadata.id, LocalDateTime.now())
+            } else {
+                GridMenuItem(icon = Icons.Rounded.LibraryAdd, title = R.string.add_to_library) {
+                    actions.run(PlayerButton.LIBRARY)
                 }
             }
         }
         GridMenuItem(
             icon = R.drawable.artist,
             title = R.string.view_artist,
-            enabled = mediaMetadata.artists.any { it.hasArtistPage }
-        ) {
-            val singleArtistId = linkableArtists.singleOrNull()?.takeIf { it.hasArtistPage }?.id
-            if (singleArtistId != null) {
-                navController.navigate("artist/$singleArtistId?songId=${mediaMetadata.id}")
-                playerBottomSheetState.collapseSoft()
-                onDismiss()
-            } else {
-                showSelectArtistDialog = true
-            }
-        }
+            enabled = actions.isAvailable(PlayerButton.ARTIST)
+        ) { actions.run(PlayerButton.ARTIST) }
         GridMenuItem(
             icon = R.drawable.album,
             title = R.string.view_album,
-            enabled = mediaMetadata.album != null && !mediaMetadata.isLocal
-        ) {
-            mediaMetadata.album?.let { navController.navigate("album/${it.id}") }
-            playerBottomSheetState.collapseSoft()
-            onDismiss()
-        }
-
-        if (!mediaMetadata.isLocal)
-            GridMenuItem(
-                icon = Icons.Rounded.Share,
-                title = R.string.share
-            ) {
-                val intent = Intent().apply {
-                    action = Intent.ACTION_SEND
-                    type = "text/plain"
-                    putExtra(Intent.EXTRA_TEXT, "https://music.youtube.com/watch?v=${mediaMetadata.id}")
-                }
-                context.startActivity(Intent.createChooser(intent, null))
-                onDismiss()
-            }
-        GridMenuItem(
-            icon = Icons.Rounded.Lyrics,
-            title = R.string.toggle_lyrics
-        ) {
-            onDismiss()
-            showLyrics = !showLyrics
-        }
-        GridMenuItem(
-            icon = Icons.Rounded.Info,
-            title = R.string.details
-        ) {
-            showDetailsDialog = true
-        }
+            enabled = actions.isAvailable(PlayerButton.ALBUM)
+        ) { actions.run(PlayerButton.ALBUM) }
+        if (actions.isAvailable(PlayerButton.SHARE))
+            GridMenuItem(icon = Icons.Rounded.Share, title = R.string.share) { actions.run(PlayerButton.SHARE) }
+        GridMenuItem(icon = Icons.Rounded.Lyrics, title = R.string.toggle_lyrics) { actions.run(PlayerButton.LYRICS) }
+        GridMenuItem(icon = Icons.Rounded.Info, title = R.string.details) { actions.run(PlayerButton.DETAILS) }
         SleepTimerGridMenu(
-            sleepTimerTimeLeft = sleepTimerTimeLeft,
-            enabled = sleepTimerEnabled
-        ) {
-            showSleepTimerDialog = true
-        }
-        GridMenuItem(
-            icon = Icons.Rounded.Equalizer,
-            title = R.string.equalizer
-        ) {
-            equalizerPanelState.visible = true
-        }
-        GridMenuItem(
-            icon = Icons.Rounded.Tune,
-            title = R.string.advanced
-        ) {
-            showPitchTempoDialog = true
-        }
+            sleepTimerTimeLeft = actions.sleepTimerLeftMs,
+            enabled = actions.sleepTimerActive
+        ) { actions.run(PlayerButton.SLEEP) }
+        GridMenuItem(icon = Icons.Rounded.Equalizer, title = R.string.equalizer) { actions.run(PlayerButton.EQUALIZER) }
+        GridMenuItem(icon = Icons.Rounded.Tune, title = R.string.advanced) { actions.run(PlayerButton.ADVANCED) }
     }
-
-    /**
-     * ---------------------------
-     * Dialogs
-     * ---------------------------
-     */
-
-    if (showChooseQueueDialog) {
-        AddToQueueDialog(
-            onAdd = { queueName ->
-                val q = queueBoard.addQueue(
-                    queueName,
-                    listOf(mediaMetadata),
-                    forceInsert = true,
-                    delta = false
-                )
-                q?.let {
-                    queueBoard.setCurrQueue(it)
-                }
-            },
-            onDismiss = {
-                showChooseQueueDialog = false
-                onDismiss() // here we dismiss since we switch to the queue anyways
-            }
-        )
-    }
-
-    if (showChoosePlaylistDialog) {
-        AddToPlaylistDialog(
-            navController = navController,
-            songIds = listOf(mediaMetadata.id),
-            onPreAdd = { _ ->
-                database.transaction {
-                    insert(mediaMetadata)
-                }
-
-                listOf(mediaMetadata.id)
-            },
-            onDismiss = {
-                showChoosePlaylistDialog = false
-            }
-        )
-    }
-
-    if (showSelectArtistDialog) {
-        ArtistDialog(
-            navController = navController,
-            artists = linkableArtists,
-            fromSongId = mediaMetadata.id,
-            onDismiss = {
-                playerBottomSheetState.collapseSoft()
-                showSelectArtistDialog = false
-            }
-        )
-    }
-
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

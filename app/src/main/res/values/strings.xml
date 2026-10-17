@@ -430,4 +430,12 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="home_chip_empty">Nothing to show for %1$s</string>
     <string name="home_chip_failed">Could not load %1$s</string>
     <string name="eq_settings_shaped_in_player">The bands, tone and compressor are adjusted in the player: tap the equaliser button or pull down from the top of the player.</string>
+    <string name="player_button_menu">More (⋮)</string>
+    <string name="player_button_library">Add to or remove from library</string>
+    <string name="player_buttons">Player buttons</string>
+    <string name="player_buttons_desc">Choose and order the buttons beside the song title</string>
+    <string name="player_buttons_order_hint">Top of the list is the leftmost button. Drag to reorder, tap to turn on or off. Up to %1$d.</string>
+    <string name="player_buttons_full">Up to %1$d buttons. Turn one off first.</string>
+    <string name="player_buttons_no_menu">Without ⋮, anything not shown as a button cannot be reached from the player.</string>
+    <string name="player_buttons_preview">Preview</string>
 </resources>

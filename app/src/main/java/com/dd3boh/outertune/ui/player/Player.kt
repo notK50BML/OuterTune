@@ -735,160 +735,10 @@ fun ActionButtons(
     val TAG = "ActionButtons()"
     if (PLAYER_DEBUG) Log.v(TAG, "PLR-AB-1")
 
-    val playerConnection = LocalPlayerConnection.current ?: return
-    val menuState = LocalMenuState.current
-
-
-    val currentSong by playerConnection.currentSong.collectAsState(initial = null)
-    val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
-
-    val showSleepTimerButton by rememberPreference(SleepTimerShowOnPlayerKey, defaultValue = true)
-
-    val sleepTimerActive = remember(
-        playerConnection.service.sleepTimer.triggerTime,
-        playerConnection.service.sleepTimer.pauseWhenSongEnd
-    ) {
-        playerConnection.service.sleepTimer.isActive
-    }
-
-    var sleepTimerTimeLeft by remember {
-        mutableLongStateOf(0L)
-    }
-
-    LaunchedEffect(sleepTimerActive) {
-        if (sleepTimerActive) {
-            while (isActive) {
-                sleepTimerTimeLeft = if (playerConnection.service.sleepTimer.pauseWhenSongEnd) {
-                    playerConnection.player.duration - playerConnection.player.currentPosition
-                } else {
-                    playerConnection.service.sleepTimer.triggerTime - System.currentTimeMillis()
-                }
-                delay(1000L)
-            }
-        }
-    }
-
-    var showSleepTimerDialog by remember {
-        mutableStateOf(false)
-    }
-
-    if (showSleepTimerDialog) {
-        SleepTimerDialog(onDismiss = { showSleepTimerDialog = false })
-    }
-
     Spacer(modifier = Modifier.width(10.dp))
-
-    if (showSleepTimerButton) {
-        if (sleepTimerActive) {
-            Box(
-                modifier = Modifier
-                    .offset(y = 5.dp)
-                    .height(36.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-                    .clickable { showSleepTimerDialog = true }
-                    .padding(horizontal = 12.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = makeTimeString(sleepTimerTimeLeft),
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.labelLarge,
-                    maxLines = 1
-                )
-            }
-        } else {
-            Box(
-                modifier = Modifier
-                    .offset(y = 5.dp)
-                    .size(36.dp)
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(MaterialTheme.colorScheme.primary)
-            ) {
-                ResizableIconButton(
-                    icon = Icons.Rounded.Bedtime,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(24.dp),
-                    onClick = { showSleepTimerDialog = true }
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.width(7.dp))
-    }
-
-    // The dedicated lyrics button used to live here. Lyrics are now toggled the way older
-    // OuterTune did it: tap the album cover, or use the player's overflow menu.
-
-    Box(
-        modifier = Modifier
-            .offset(y = 5.dp)
-            .size(36.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.primary)
-    ) {
-        ResizableIconButton(
-            icon = if (currentSong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border,
-            color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier
-                .align(Alignment.Center)
-                .size(24.dp),
-            onClick = playerConnection::toggleLike
-        )
-    }
-
-    Spacer(modifier = Modifier.width(7.dp))
-
-    val showEqualizerButton by rememberPreference(ShowEqualizerButtonKey, defaultValue = true)
-    if (showEqualizerButton) {
-        val equalizerPanelState = LocalEqualizerPanelState.current
-        Box(
-            modifier = Modifier
-                .offset(y = 5.dp)
-                .size(36.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(MaterialTheme.colorScheme.primary)
-        ) {
-            ResizableIconButton(
-                icon = Icons.Rounded.Equalizer,
-                color = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .size(24.dp),
-                onClick = { equalizerPanelState.visible = true }
-            )
-        }
-
-        Spacer(modifier = Modifier.width(7.dp))
-    }
-
-    Box(
-        modifier = Modifier
-            .offset(y = 5.dp)
-            .size(36.dp)
-            .clip(RoundedCornerShape(24.dp))
-            .background(MaterialTheme.colorScheme.primary)
-    ) {
-        ResizableIconButton(
-            icon = Icons.Rounded.MoreVert,
-            color = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier
-                .size(24.dp)
-                .align(Alignment.Center),
-            onClick = {
-                menuState.show {
-                    PlayerMenu(
-                        mediaMetadata = mediaMetadata,
-                        navController = navController,
-                        playerBottomSheetState = playerSheetState,
-                        onDismiss = menuState::dismiss
-                    )
-                }
-            }
-        )
-    }
+    // Whatever the person chose, in the order they chose it - see PlayerButton and the "Player
+    // buttons" setting. Like, the sleep timer, the equaliser and the menu used to be fixed here.
+    PlayerButtonsRow(playerSheetState, navController)
 }
 
 
@@ -1004,7 +854,8 @@ fun ControlsContent(
             // below since it references these from within its own lambda bodies.
             val menuState = LocalMenuState.current
             val currentSong by playerConnection.currentSong.collectAsState(initial = null)
-            val showSleepTimerButton by rememberPreference(SleepTimerShowOnPlayerKey, defaultValue = true)
+            val arrangedButtons = rememberPlayerButtons()
+            val showSleepTimerButton = PlayerButton.SLEEP in arrangedButtons
             val sleepTimerActive = remember(
                 playerConnection.service.sleepTimer.triggerTime,
                 playerConnection.service.sleepTimer.pauseWhenSongEnd
@@ -1079,7 +930,7 @@ fun ControlsContent(
                     )
                 }
             }
-            val showEqualizerButton by rememberPreference(ShowEqualizerButtonKey, defaultValue = true)
+            val showEqualizerButton = PlayerButton.EQUALIZER in arrangedButtons
             val equalizerButtonBlock: @Composable () -> Unit = {
                 if (showEqualizerButton) {
                     val equalizerPanelState = LocalEqualizerPanelState.current
