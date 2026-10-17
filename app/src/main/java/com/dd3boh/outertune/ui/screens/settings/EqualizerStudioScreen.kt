@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -191,11 +192,13 @@ fun EqualizerStudioScreen(
         selectedBand = null
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxHeight()
+    // Padded by the player-aware insets like every other settings page: clear of the top bar, the
+    // mini player and the bottom tabs. A fixed top padding left Save and the buttons beside it
+    // hidden behind the navigation bar.
+    ColumnWithContentPadding(
+        modifier = Modifier.fillMaxHeight(),
+        columnModifier = Modifier
             .verticalScroll(rememberScrollState())
-            .padding(top = 72.dp, bottom = 32.dp)
             .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {

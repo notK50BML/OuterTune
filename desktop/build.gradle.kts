@@ -278,7 +278,8 @@ tasks.register<Jar>("fatJar") {
 val jpackageTool = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(21)) }
     .map { it.metadata.installationPath.file("bin/jpackage.exe").asFile.absolutePath }
 val appImageInput = layout.buildDirectory.dir("app-input")
-val appImageOut = layout.buildDirectory.dir("app-image")
+// Not build/app-image: a copy run straight from the build folder would lock it against the next build.
+val appImageOut = layout.buildDirectory.dir("jpackage")
 val appIcon = layout.projectDirectory.file("packaging/OuterTune.ico")
 
 val stageAppInput = tasks.register<Copy>("stageAppInput") {
@@ -295,7 +296,8 @@ val appImage = tasks.register<Exec>("appImage") {
     val outDir = appImageOut.get().asFile
     val inDir = appImageInput.get().asFile
     val icon = appIcon.asFile
-    doFirst { outDir.deleteRecursively() }
+    // jpackage marks what it writes read-only, which a plain recursive delete on Windows gives up on.
+    doFirst { outDir.walkBottomUp().forEach { it.setWritable(true); it.delete() } }
     executable(jpackageTool.get())
     args(
         "--type", "app-image",

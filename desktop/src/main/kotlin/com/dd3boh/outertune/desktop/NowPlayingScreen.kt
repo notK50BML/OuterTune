@@ -829,6 +829,8 @@ private fun EqualizerOverlay(
                 .fillMaxSize()
                 // Opaque. Twelve sliders and a response curve over album art is not readable.
                 .background(background)
+                // Below the window buttons, or the close handle sits under the drag strip.
+                .padding(top = LocalCaptionInset.current)
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { },
