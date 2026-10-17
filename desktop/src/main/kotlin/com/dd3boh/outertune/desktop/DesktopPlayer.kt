@@ -218,6 +218,18 @@ class DesktopPlayer {
      *   already in progress without a seek-from-zero being audible first.
      */
     fun play(scope: CoroutineScope, videoId: String, title: String, startAtMs: Long = 0L) {
+        // A song from a folder on this computer plays from its file - see LocalMusic.
+        if (LocalMusic.isLocal(videoId)) {
+            val track = LocalMusic.track(videoId)
+            if (track == null || !track.file.isFile) {
+                stop()
+                state.value = PlaybackState.Failed(title, "The file for this song is no longer there.")
+                return
+            }
+            playLocal(scope, videoId, title, track.file, track.durationMs)
+            if (startAtMs > 0) seekTo(startAtMs)
+            return
+        }
         // One atomic take, not read-test-clear. play() genuinely runs on two threads - the UI
         // thread for anything the user does, and the decode job's own thread when a track ends and
         // the queue advances - so a read followed by a separate write can interleave with
@@ -377,6 +389,8 @@ class DesktopPlayer {
         // answer whenever this is worth revisiting.
         if (videoId == nowPlayingId) return
         if (prefetched.get()?.videoId == videoId) return
+        // Nothing to fetch for a file that is already on disk.
+        if (LocalMusic.isLocal(videoId)) return
         prefetched.getAndSet(
             Prefetched(
                 videoId = videoId,
@@ -520,21 +534,37 @@ class DesktopPlayer {
         }
     }
 
-    /** Demuxes, decodes and writes to the audio line, stopping cleanly when the job is cancelled. */
-    private suspend fun stream(mp4: ByteArray) = withContext(Dispatchers.IO) {
+    /** Demuxes YouTube's fragmented MP4 into AAC frames and plays them. */
+    private suspend fun stream(mp4: ByteArray) {
         val iso = IsoFile(InMemoryChannel(mp4))
         val config = findAudioSpecificConfig(iso) ?: error("no AudioSpecificConfig in the sample entry")
         val samples = extractSamples(mp4, iso)
         if (samples.isEmpty()) error("no samples could be extracted from the fragments")
+        play(AacSource(samples, config))
+    }
 
-        val decoder = Decoder.create(config)
-        val buffer = SampleBuffer()
-        var open: SourceDataLine? = null
-        var sampleRate = 0
-        var analyzer: SpectrumAnalyzer? = null
-        var mono: DoubleArray? = null
+    /**
+     * Plays any [PcmSource] through the processing chain and the output line, stopping cleanly when
+     * the job is cancelled. Shared by YouTube audio and local files - see PcmSource.
+     */
+    private suspend fun play(source: PcmSource) = withContext(Dispatchers.IO) {
+        source.use { src ->
+        val sampleRate = src.sampleRate
+        val bitsPerSample = src.bitsPerSample
+        val channels = src.channels
+        val bigEndian = src.bigEndian
+        val format = AudioFormat(sampleRate.toFloat(), bitsPerSample, channels, true, bigEndian)
+        val open = (AudioSystem.getLine(DataLine.Info(SourceDataLine::class.java, format)) as SourceDataLine)
+            .also { it.open(format); it.start() }
+        line = open
+        durationMs.value = src.durationMs
+        val analyzer = SpectrumAnalyzer(sampleRate, bands = VISUALIZER_BANDS)
+        // Generous rather than exactly one block, so a decoder handing back more than expected is
+        // still analysed whole rather than read as a quieter, duller spectrum.
+        val mono = DoubleArray(MONO_BUFFER_SAMPLES)
         /** Frames handed to the line so far, which is when each block becomes audible. */
         var framesWritten = 0L
+        spectrum.reset()
 
         // Where the line's own frame counter stood when the current segment began, and what track
         // time that corresponded to. Position is read from the line rather than from how much has
@@ -548,177 +578,149 @@ class DesktopPlayer {
         // however long has already been played at the old one.
         var baseTempo = 1f
 
-        var index = 0
-        while (index < samples.size) {
+        while (true) {
             if (!currentCoroutineContext().isActive) break
             // Held here rather than by the audio line, which does not reliably block a write.
             while (paused && currentCoroutineContext().isActive) delay(50)
             if (!currentCoroutineContext().isActive) break
 
             pendingSeekMs?.let { target ->
-                // Only cleared once actually applied. A seek requested before the very first frame
-                // is decoded arrives here with sampleRate still 0 - there is no rate yet to turn a
-                // millisecond target into a sample index. Clearing it anyway, as this used to,
-                // silently dropped it forever: the next iteration would never see it again. Leaving
-                // it set instead means the very next iteration - now that decoding frame 0 has
-                // established the rate - applies it, at the cost of one AAC-LC frame (~23ms) of the
-                // track's actual start briefly reaching the line before the flush below discards it,
-                // inaudible given a line has real output latency of its own before anything reaches
-                // a speaker. This is what makes starting a track already partway through - joining a
-                // Listen Together session mid-song - possible at all.
-                if (sampleRate > 0) {
-                    pendingSeekMs = null
-                    // Every AAC-LC frame is exactly 1024 samples, so a time is an index.
-                    index = ((target * sampleRate / 1000) / FRAME_SAMPLES).toInt().coerceIn(0, samples.lastIndex)
-                    open?.let {
-                        // Drop what is buffered, or the seek would be heard a second late.
-                        it.flush()
-                        lineFrameBase = it.longFramePosition
-                        // Everything written but not yet played has just been discarded, so the
-                        // running total no longer describes anything real. Re-anchoring it to what
-                        // the line has actually played puts the visualiser back in step; without
-                        // this it stays permanently ahead by however much was thrown away.
-                        framesWritten = it.longFramePosition
-                        spectrum.reset()
-                        analyzer?.reset()
-                        // The filters remember the last two samples they saw, which now belong to
-                        // audio that was thrown away. Carrying that across a jump makes the first
-                        // moments after a seek ring with the passage before it.
-                        equalizer.reset()
-                        compressor.reset()
-                        timeStretch.reset()
-                    }
-                    trackMsBase = index.toLong() * FRAME_SAMPLES * 1000 / sampleRate
-                    baseTempo = timeStretch.tempo
-                    positionMs.value = trackMsBase
-                }
+                pendingSeekMs = null
+                // Drop what is buffered, or the seek would be heard a second late.
+                open.flush()
+                lineFrameBase = open.longFramePosition
+                // Everything written but not yet played has just been discarded, so the running
+                // total no longer describes anything real; re-anchored to what the line has played.
+                framesWritten = open.longFramePosition
+                spectrum.reset()
+                analyzer.reset()
+                // The filters remember their last samples, which now belong to audio that was
+                // thrown away. Carrying that across a jump makes the first moments after a seek ring
+                // with the passage before it.
+                equalizer.reset()
+                compressor.reset()
+                timeStretch.reset()
+                trackMsBase = src.seek(target)
+                baseTempo = timeStretch.tempo
+                positionMs.value = trackMsBase
             }
 
-            decoder.decodeFrame(samples[index], buffer)
-            index++
-            val pcm = buffer.data
+            val pcm = src.next() ?: break
             if (pcm.isEmpty()) continue
 
-            if (open == null) {
-                // Everything about the format comes from the decoder itself - see the class doc.
-                sampleRate = buffer.sampleRate
-                val format = AudioFormat(
-                    sampleRate.toFloat(),
-                    buffer.bitsPerSample,
-                    buffer.channels,
-                    true,
-                    buffer.isBigEndian,
-                )
-                open = (AudioSystem.getLine(DataLine.Info(SourceDataLine::class.java, format)) as SourceDataLine)
-                    .also { it.open(format); it.start() }
-                line = open
-                durationMs.value = samples.size.toLong() * FRAME_SAMPLES * 1000 / sampleRate
-                analyzer = SpectrumAnalyzer(sampleRate, bands = VISUALIZER_BANDS)
-                // Generous rather than exactly one AAC frame. A frame is 1024 samples, but SBR
-                // hands back double that and Pcm.toMono clamps to whatever it is given - so a tight
-                // buffer would silently analyse half of each block and read as a quieter, duller
-                // spectrum than the music actually is.
-                mono = DoubleArray(MONO_BUFFER_SAMPLES)
-                // The line has played nothing yet, so what is written first becomes audible first.
-                framesWritten = 0L
-                spectrum.reset()
-            }
-
-            // Equalised first, so what follows describes the audio that will actually be played.
-            // In particular the visualiser measures the signal *after* this, which is the only
-            // arrangement that is not confusing: boosting the bass should move the bass bars. It is
-            // also in place, on the buffer already destined for the line, so there is no extra copy
-            // of every block in the hot path.
+            // Equalised first, so what follows describes the audio that will actually be played -
+            // the visualiser in particular measures the signal after this. In place, on the buffer
+            // already destined for the line, so there is no extra copy in the hot path.
             equalizer.process(
                 bytes = pcm,
                 length = pcm.size,
-                bitsPerSample = buffer.bitsPerSample,
-                channels = buffer.channels,
-                bigEndian = buffer.isBigEndian,
+                bitsPerSample = bitsPerSample,
+                channels = channels,
+                bigEndian = bigEndian,
                 sampleRate = sampleRate,
             )
 
             compressor.process(
                 bytes = pcm,
                 length = pcm.size,
-                bitsPerSample = buffer.bitsPerSample,
-                channels = buffer.channels,
-                bigEndian = buffer.isBigEndian,
+                bitsPerSample = bitsPerSample,
+                channels = channels,
+                bigEndian = bigEndian,
                 sampleRate = sampleRate,
             )
 
-            // Then tempo and pitch. After the equaliser so the band frequencies keep their
-            // meaning, and before the analysis and the write so both describe the same audio: this
-            // stage changes the block's length, and measuring the pre-stretch buffer would drift
-            // the visualiser further out of step with every block.
+            // Then tempo and pitch: after the equaliser so the band frequencies keep their meaning,
+            // and before the analysis and the write so both describe the same (re-timed) audio.
             val stretched = timeStretch.process(
                 bytes = pcm,
                 length = pcm.size,
-                bitsPerSample = buffer.bitsPerSample,
-                channels = buffer.channels,
-                bigEndian = buffer.isBigEndian,
+                bitsPerSample = bitsPerSample,
+                channels = channels,
+                bigEndian = bigEndian,
                 sampleRate = sampleRate,
             )
-            // The stretcher buffers about a frame before it can emit anything, so early blocks come
-            // back empty. Writing zero bytes is harmless but analysing them is not - it would submit
-            // an empty spectrum and read as a gap in the music.
+            // The stretcher buffers before it can emit anything, so early blocks come back empty.
             if (stretched.isEmpty()) continue
 
-            // Analysed before the write, and queued against the frame position at which this block
-            // will actually be heard rather than shown immediately. The line buffers close to a
-            // second, so a spectrum drawn when its audio is decoded leads the sound by about that
-            // much - the bars jump before the kick and settle before the note ends. See
-            // VisualizerTap for the full reasoning; it is the same lag the position readout above
-            // already corrects for by reading the line instead of counting what was written.
-            analyzer?.let { spectrumOf ->
-                val target = mono
-                if (target != null) {
-                    val frames = Pcm.toMono(
-                        bytes = stretched,
-                        offset = 0,
-                        length = stretched.size,
-                        bitsPerSample = buffer.bitsPerSample,
-                        channels = buffer.channels,
-                        bigEndian = buffer.isBigEndian,
-                        out = target,
-                    )
-                    if (frames > 0) {
-                        spectrum.submit(framesWritten, spectrumOf.analyze(target, frames))
-                        framesWritten += frames
-                    }
-                }
+            // Analysed before the write and queued against the frame at which this block will be
+            // heard, so the bars move with the sound rather than a buffer's length ahead of it.
+            val frames = Pcm.toMono(
+                bytes = stretched,
+                offset = 0,
+                length = stretched.size,
+                bitsPerSample = bitsPerSample,
+                channels = channels,
+                bigEndian = bigEndian,
+                out = mono,
+            )
+            if (frames > 0) {
+                spectrum.submit(framesWritten, analyzer.analyze(mono, frames))
+                framesWritten += frames
             }
 
-            // Last, and after the analysis above. The spectrum is a mono sum of the two
-            // channels, so applying balance before it would halve every bar at hard left and read
-            // as the music getting quieter rather than as it moving across.
+            // Last, and after the analysis: the spectrum is a mono sum, so balance before it would
+            // read as the music getting quieter rather than moving across.
             balance.process(
                 bytes = stretched,
                 length = stretched.size,
-                bitsPerSample = buffer.bitsPerSample,
-                channels = buffer.channels,
-                bigEndian = buffer.isBigEndian,
+                bitsPerSample = bitsPerSample,
+                channels = channels,
+                bigEndian = bigEndian,
             )
 
             open.write(stretched, 0, stretched.size)
 
-            open.let {
-                val tempo = timeStretch.tempo
-                if (tempo != baseTempo) {
-                    trackMsBase +=
-                        ((it.longFramePosition - lineFrameBase) * 1000.0 * baseTempo / sampleRate).toLong()
-                    lineFrameBase = it.longFramePosition
-                    baseTempo = tempo
-                }
-                // Scaled by tempo: the line plays a fixed number of frames per second, but at 1.5x
-                // each of those frames carries one and a half frames' worth of song, so an unscaled
-                // readout would crawl and the progress bar would never reach the end of the track.
-                positionMs.value =
-                    trackMsBase + ((it.longFramePosition - lineFrameBase) * 1000.0 * tempo / sampleRate).toLong()
+            val tempo = timeStretch.tempo
+            if (tempo != baseTempo) {
+                trackMsBase += ((open.longFramePosition - lineFrameBase) * 1000.0 * baseTempo / sampleRate).toLong()
+                lineFrameBase = open.longFramePosition
+                baseTempo = tempo
             }
+            // Scaled by tempo: at 1.5x each frame of output carries one and a half frames of song.
+            positionMs.value =
+                trackMsBase + ((open.longFramePosition - lineFrameBase) * 1000.0 * tempo / sampleRate).toLong()
         }
         // Let whatever is buffered finish rather than cutting the last fraction of a second off.
-        if (currentCoroutineContext().isActive) open?.drain()
+        if (currentCoroutineContext().isActive) open.drain()
+        }
+    }
+
+    /**
+     * Plays a file from disk. The song id is "local:...", and [localFiles] says where it lives -
+     * see LocalMusic. Same loop, same processing, same position and seek behaviour as streaming.
+     */
+    fun playLocal(scope: CoroutineScope, songId: String, title: String, file: java.io.File, durationMs: Long) {
+        stop()
+        paused = false
+        positionMs.value = 0
+        this.durationMs.value = 0
+        nowPlayingId = songId
+        state.value = PlaybackState.Loading(title)
+        job = scope.launch(Dispatchers.IO) {
+            try {
+                // M4A through the same AAC decoder YouTube audio uses - see M4aReader for why.
+                val source = if (M4aReader.isM4a(file)) M4aReader.open(file) else FileSource(file, durationMs)
+                state.value = PlaybackState.Playing(title)
+                play(source)
+                if (currentCoroutineContext().isActive) {
+                    state.value = PlaybackState.Idle
+                    onFinished?.invoke()
+                }
+            } catch (e: Throwable) {
+                if (currentCoroutineContext().isActive) {
+                    state.value = PlaybackState.Failed(
+                        title,
+                        if (e is javax.sound.sampled.UnsupportedAudioFileException) {
+                            "This file's format cannot be played here."
+                        } else {
+                            "${e::class.simpleName}: ${e.message}"
+                        },
+                    )
+                }
+            } finally {
+                closeLine()
+            }
+        }
     }
 
     private fun findAudioSpecificConfig(iso: IsoFile): ByteArray? {

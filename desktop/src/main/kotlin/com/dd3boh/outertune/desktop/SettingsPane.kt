@@ -74,6 +74,7 @@ enum class SettingsCategory(val label: String, val blurb: String) {
     Content("Content", "What shows up in search, Home and artists"),
     Account("Account", "Sign in to YouTube Music"),
     Integrations("Integrations", "Discord and Listen Together"),
+    Local("Local music", "Folders on this computer"),
     Storage("Storage", "Downloaded songs"),
     Privacy("Privacy and backup", "Listening history, importing, where things are kept"),
     About("About", "Version and links"),
@@ -86,6 +87,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
     SettingsCategory.Content -> OuterTuneIcons.musicNote
     SettingsCategory.Account -> OuterTuneIcons.accountCircle
     SettingsCategory.Integrations -> OuterTuneIcons.devices
+    SettingsCategory.Local -> OuterTuneIcons.musicNote
     SettingsCategory.Storage -> OuterTuneIcons.download
     SettingsCategory.Privacy -> OuterTuneIcons.history
     SettingsCategory.About -> OuterTuneIcons.info
@@ -125,6 +127,8 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
     SettingEntry("Discord", SettingsCategory.Integrations, "rich presence rpc status token"),
     SettingEntry("Listen Together", SettingsCategory.Integrations, "sync share lan network party"),
+    SettingEntry("Music folders", SettingsCategory.Local, "local files folder mp3 flac scan computer"),
+    SettingEntry("Rescan", SettingsCategory.Local, "local files refresh scan folders"),
     SettingEntry("Downloads", SettingsCategory.Storage, "offline delete space disk"),
     SettingEntry("Keep listening history", SettingsCategory.Privacy, "history recent stats record"),
     SettingEntry("Clear listening history", SettingsCategory.Privacy, "history delete stats reset"),
@@ -257,6 +261,7 @@ fun SettingsPane(
                     DiscordSettings(settings)
                     ListenTogetherSettings(settings, listenTogether)
                 }
+                SettingsCategory.Local -> LocalMusicSettings(settings, library)
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
                 SettingsCategory.Privacy -> PrivacySettings(settings, library, libraryPath)
                 SettingsCategory.About -> AboutSettings()
@@ -817,6 +822,74 @@ private fun ListenTogetherSettings(settings: Settings, listenTogether: ListenTog
     }
 }
 
+/**
+ * The folders whose music is in the library. Added with the system's folder picker - several at
+ * once - removed one by one, and rescanned on demand; a scan also runs at every start.
+ */
+@Composable
+private fun LocalMusicSettings(settings: Settings, library: LibraryStore) {
+    val scope = rememberCoroutineScope()
+    val scanning by LocalMusic.scanning.collectAsState()
+    val status by LocalMusic.status.collectAsState()
+    val folders = settings.localFolders.lines().filter { it.isNotBlank() }
+
+    fun rescan(list: List<String>) {
+        scope.launch { LocalMusic.scan(list.map { java.io.File(it) }, library) }
+    }
+
+    Section("Music folders") {
+        if (folders.isEmpty()) {
+            Text(
+                "No folders yet. Add the folders your music is in, and it appears under Library, " +
+                    "On this computer - with its own artists, cover art and lyrics.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 8.dp),
+            )
+        }
+        folders.forEach { folder ->
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Icon(
+                    OuterTuneIcons.musicNote,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                )
+                Text(folder, style = MaterialTheme.typography.bodyLarge, modifier = Modifier.weight(1f))
+                IconButton(onClick = {
+                    val remaining = folders - folder
+                    settings.localFolders = remaining.joinToString("\n")
+                    rescan(remaining)
+                }) {
+                    Icon(OuterTuneIcons.close, contentDescription = "Remove $folder", modifier = Modifier.size(20.dp))
+                }
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            Button(onClick = {
+                scope.launch {
+                    val picked = FilePicker.pickFolders("Add music folders").map { it.absolutePath }
+                    if (picked.isEmpty()) return@launch
+                    val all = (folders + picked).distinct()
+                    settings.localFolders = all.joinToString("\n")
+                    LocalMusic.scan(all.map { java.io.File(it) }, library)
+                }
+            }) { Text("Add folder…") }
+            TextButton(onClick = { rescan(folders) }, enabled = folders.isNotEmpty() && !scanning) { Text("Rescan") }
+            if (scanning) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        }
+        status?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 6.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun DownloadSettings(downloads: Downloads, onDownloadsChanged: () -> Unit) {
     val scope = rememberCoroutineScope()
@@ -908,10 +981,11 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPa
             TextButton(
                 enabled = !importing,
                 onClick = {
-                    val file = chooseBackupFile() ?: return@TextButton
-                    importing = true
-                    importResult = null
                     scope.launch {
+                        val file = FilePicker.pickFile("Choose a backup", "OuterTune backup", "*.backup;*.zip")
+                            ?: return@launch
+                        importing = true
+                        importResult = null
                         importResult = BackupImport.importFrom(file, library)
                         importing = false
                     }
@@ -1174,19 +1248,6 @@ private fun FontOption(label: String, family: String?, selected: Boolean, onClic
     }
 }
 
-/**
- * The OS file picker, asking for a backup.
- *
- * Same `FileDialog` the sign-in flow uses, for the same reason: it is the native dialog, so it looks
- * like every other open dialog on the machine and starts where the person last saved something.
- */
-private fun chooseBackupFile(): java.io.File? {
-    val dialog = java.awt.FileDialog(null as java.awt.Frame?, "Choose a backup", java.awt.FileDialog.LOAD)
-    dialog.isVisible = true
-    val directory = dialog.directory ?: return null
-    val name = dialog.file ?: return null
-    return java.io.File(directory, name)
-}
 
 @Composable
 private fun Section(title: String, content: @Composable ColumnScopeMarker.() -> Unit) {

@@ -347,6 +347,11 @@ class LyricsRepository(private val library: LibraryStore) {
         artist: String,
         durationMs: Long,
     ): Lyrics? = withContext(Dispatchers.IO) {
+        // A local file's own lyrics win: an .lrc beside it, or lyrics in its tags. Without either it
+        // is looked up online like any song - the providers match on title, artist and length.
+        if (LocalMusic.isLocal(songId)) {
+            LocalMusic.bundledLyrics(songId)?.let { return@withContext LrcParser.parseAny(it, "File") }
+        }
         library.cachedLyrics(songId)?.let { cached ->
             return@withContext LrcParser.parseAny(cached.text, cached.source)
         }

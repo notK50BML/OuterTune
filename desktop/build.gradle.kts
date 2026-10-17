@@ -1,3 +1,5 @@
+import java.util.zip.ZipFile
+
 /*
  * The desktop client, and the probes that established it was possible.
  *
@@ -42,6 +44,17 @@ dependencies {
     // has no native audio dependency to bundle.
     implementation("com.tianscar.javasound:jaad:0.9.4")
     implementation("org.mp4parser:isoparser:1.9.56")
+
+    // Local music. Decoders as Java Sound plugins - MP3, FLAC, Ogg Vorbis - so a file on disk plays
+    // through the same AudioSystem call whatever it is; all pure Java, a few hundred KB together.
+    // jaudiotagger reads the tags: title, every credited artist, album, cover art, embedded lyrics.
+    implementation("com.googlecode.soundlibs:mp3spi:1.9.5.4") {
+        // jlayer declares JUnit as a runtime dependency; nothing at runtime uses it.
+        exclude(group = "junit")
+    }
+    implementation("org.jflac:jflac-codec:1.5.2")
+    implementation("com.googlecode.soundlibs:vorbisspi:1.0.3.3")
+    implementation("net.jthink:jaudiotagger:3.0.1")
 
     // Compose Multiplatform for desktop. desktop-jvm pulls runtime, foundation, ui and material3.
     implementation("org.jetbrains.compose.desktop:desktop-jvm:1.8.2")
@@ -197,10 +210,37 @@ tasks.register<Jar>("fatJar") {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets["main"].output)
     dependsOn(configurations.runtimeClasspath)
+    // Java Sound finds its decoders through META-INF/services files, and several jars ship one of
+    // the same name. EXCLUDE keeps only the first, which silently dropped every other decoder -
+    // MP3 would play and FLAC would not, or the reverse. These are merged instead, line by line.
+    val mergedServices = layout.buildDirectory.dir("merged-services")
+    // Captured here, as a file collection, so the action below references nothing from the script
+    // itself - which the configuration cache cannot serialise.
+    val runtimeJars: FileCollection = configurations.runtimeClasspath.get()
+    inputs.files(runtimeJars)
+    doFirst {
+        val out = mergedServices.get().asFile.resolve("META-INF/services")
+        out.deleteRecursively()
+        out.mkdirs()
+        val merged = sortedMapOf<String, MutableSet<String>>()
+        runtimeJars.filter { it.name.endsWith("jar") }.forEach { jar ->
+            ZipFile(jar).use { zip ->
+                zip.entries().asSequence()
+                    .filter { !it.isDirectory && it.name.startsWith("META-INF/services/") }
+                    .forEach { entry ->
+                        val lines = zip.getInputStream(entry).bufferedReader().readLines()
+                            .map { it.substringBefore('#').trim() }.filter { it.isNotEmpty() }
+                        merged.getOrPut(entry.name.removePrefix("META-INF/services/")) { linkedSetOf() } += lines
+                    }
+            }
+        }
+        merged.forEach { (name, lines) -> out.resolve(name).writeText(lines.joinToString("\n", postfix = "\n")) }
+    }
+    from(mergedServices)
     from({
         configurations.runtimeClasspath.get()
             .filter { it.name.endsWith("jar") }
-            .map { zipTree(it) }
+            .map { zipTree(it).matching { exclude("META-INF/services/**") } }
     })
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA", "META-INF/versions/9/module-info.class")
 

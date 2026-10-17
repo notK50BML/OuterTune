@@ -80,6 +80,10 @@ internal object ArtworkCache {
         if (url.isBlank()) return null
         substitute?.let { return it(url) }
         images[url]?.let { return it }
+        // A local song's cover is read from its file, not fetched - see LocalMusic.artwork.
+        if (LocalMusic.isLocalArt(url)) {
+            return withContext(Dispatchers.IO) { LocalMusic.artwork(url) }?.also { put(url, it) }
+        }
         return withContext(Dispatchers.IO) {
             repeat(ATTEMPTS) { attempt ->
                 val image = runCatching {

@@ -64,7 +64,9 @@ import kotlinx.coroutines.withContext
 enum class LibraryView(val label: String) { Songs("Songs"), Artists("Artists"), Albums("Albums") }
 
 /** Which songs the Songs view lists. */
-enum class SongSource(val label: String) { Liked("Liked"), History("History"), Downloaded("Downloaded") }
+enum class SongSource(val label: String) {
+    Liked("Liked"), History("History"), Downloaded("Downloaded"), Local("On this computer")
+}
 
 /** How the Songs view is ordered. "Default" is each source's own order - newest first. */
 enum class SongSort(val label: String) { Default("Recently added"), Title("Title"), Artist("Artist") }
@@ -94,6 +96,7 @@ fun LibraryPane(
     var sort by remember { mutableStateOf(SongSort.Default) }
     var filter by remember { mutableStateOf("") }
     val liked by library.liked.collectAsState()
+    val localTracks by LocalMusic.tracks.collectAsState()
     val recent by library.recentlyPlayed.collectAsState()
     val syncing by sync.syncing.collectAsState()
     val status by sync.status.collectAsState()
@@ -104,7 +107,7 @@ fun LibraryPane(
     var downloaded by remember { mutableStateOf<List<StoredSong>>(emptyList()) }
     LaunchedEffect(downloadedIds) { downloaded = withContext(Dispatchers.IO) { library.songs(downloadedIds) } }
     var localArtists by remember { mutableStateOf<List<Pair<StoredArtist, Int>>>(emptyList()) }
-    LaunchedEffect(liked, recent) { localArtists = withContext(Dispatchers.IO) { library.libraryArtists() } }
+    LaunchedEffect(liked, recent, localTracks) { localArtists = withContext(Dispatchers.IO) { library.libraryArtists() } }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
@@ -133,6 +136,7 @@ fun LibraryPane(
                     SongSource.Liked -> liked
                     SongSource.History -> recent
                     SongSource.Downloaded -> downloaded
+                    SongSource.Local -> localTracks.map { it.song }
                 }
                 val shown = remember(base, sort, filter) {
                     base.filter { filter.isBlank() || it.title.contains(filter, true) || it.artists.contains(filter, true) }
@@ -198,6 +202,7 @@ fun LibraryPane(
                             source == SongSource.Liked && signedIn -> "No liked songs yet. Sync with YouTube to bring yours in."
                             source == SongSource.Liked -> "No liked songs yet. Like a song from the player, or sign in to bring yours from YouTube."
                             source == SongSource.Downloaded -> "Nothing downloaded yet."
+                            source == SongSource.Local -> "No music from this computer yet. Add folders under Settings → Local music."
                             else -> "Nothing played yet."
                         }
                     )

@@ -222,13 +222,11 @@ fun AccountPane(
             onClick = {
                 // AWT's dialog rather than a Compose one: this is the OS file picker, which is what
                 // people recognise, and Compose Multiplatform has no built-in equivalent.
-                val chosen = chooseFile()
-                if (chosen != null) {
-                    scope.launch {
-                        busy = true
-                        account.signInFromFile(chosen)
-                        busy = false
-                    }
+                scope.launch {
+                    val chosen = FilePicker.pickFile("Choose cookies.txt", "Cookies file", "*.txt") ?: return@launch
+                    busy = true
+                    account.signInFromFile(chosen)
+                    busy = false
                 }
             },
         ) { Text("Choose file…") }
@@ -264,17 +262,3 @@ fun AccountPane(
     }
 }
 
-/**
- * The OS file picker.
- *
- * `FileDialog` rather than `JFileChooser`: it is the native dialog on Windows and macOS, so it looks
- * like every other open dialog on the machine, and it is what someone will be looking for after
- * saving a file from their browser.
- */
-private fun chooseFile(): File? {
-    val dialog = FileDialog(null as Frame?, "Choose cookies.txt", FileDialog.LOAD)
-    dialog.isVisible = true
-    val dir = dialog.directory ?: return null
-    val name = dialog.file ?: return null
-    return File(dir, name)
-}

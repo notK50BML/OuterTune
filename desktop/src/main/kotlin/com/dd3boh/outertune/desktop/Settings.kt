@@ -124,7 +124,10 @@ class Settings(private val store: SettingsStore) {
     /** Recent searches, newest first, one per line. Shown under the search box while it is empty. */
     var searchHistory by string("search.history", "")
 
-    /** Whether searches are remembered at all. */
+    /** Folders on this computer whose music is in the library, one path per line. */
+    var localFolders by string("local.folders", "")
+
+        /** Whether searches are remembered at all. */
     var keepSearchHistory by bool("search.keepHistory", true)
 
     // ---- Lyrics (display) ------------------------------------------------------------------

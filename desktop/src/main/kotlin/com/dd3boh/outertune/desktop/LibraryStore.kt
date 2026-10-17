@@ -171,6 +171,14 @@ class LibraryStore(
 
     fun libraryArtists() = db.libraryArtists()
 
+    fun localTracks() = db.localTracks()
+    fun localModifiedTimes() = db.localModifiedTimes()
+    fun putLocalTrack(track: LocalTrack, modifiedAt: Long) = db.putLocalTrack(track, modifiedAt)
+    fun putLocalTracks(batch: List<Pair<LocalTrack, Long>>) = db.transaction {
+        batch.forEach { (track, modifiedAt) -> db.putLocalTrack(track, modifiedAt) }
+    }
+    fun removeLocalFilesNotIn(present: Set<String>) = db.removeLocalFilesNotIn(present)
+
     /** Songs by id, in the order given, skipping any the library has never seen. */
     fun songs(ids: Collection<String>): List<StoredSong> = ids.mapNotNull { db.song(it) }
 

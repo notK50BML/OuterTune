@@ -261,6 +261,24 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 8) {
+                connection.createStatement().use { st ->
+                    // Where each local song's file is. Kept beside the song rather than in it, so a
+                    // local song is in every other respect an ordinary one - liked, in playlists,
+                    // counted in Stats - and only the player and the scanner need to know the path.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS local_file (
+                            songId     TEXT PRIMARY KEY NOT NULL REFERENCES song(id) ON DELETE CASCADE,
+                            path       TEXT NOT NULL UNIQUE,
+                            album      TEXT NOT NULL DEFAULT '',
+                            durationMs INTEGER NOT NULL DEFAULT 0,
+                            modifiedAt INTEGER NOT NULL DEFAULT 0
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -477,6 +495,75 @@ class Database(file: File) {
         added
     }
 
+    // ---- local files --------------------------------------------------------------------------
+
+    fun putLocalTrack(track: LocalTrack, modifiedAt: Long) = transaction {
+        upsertSong(track.song, track.durationMs)
+        connection.prepareStatement(
+            """
+            INSERT INTO local_file (songId, path, album, durationMs, modifiedAt) VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(songId) DO UPDATE SET path = excluded.path, album = excluded.album,
+                durationMs = excluded.durationMs, modifiedAt = excluded.modifiedAt
+            """.trimIndent()
+        ).use { st ->
+            st.setString(1, track.song.id)
+            st.setString(2, track.file.absolutePath)
+            st.setString(3, track.album)
+            st.setLong(4, track.durationMs)
+            st.setLong(5, modifiedAt)
+            st.executeUpdate()
+        }
+    }
+
+    fun localTracks(): List<LocalTrack> = synchronized(lock) {
+        val rows = connection.createStatement().use { st ->
+            st.executeQuery(
+                """
+                SELECT s.id, s.title, s.artists, s.thumbnail, f.path, f.album, f.durationMs
+                FROM local_file f JOIN song s ON s.id = f.songId
+                ORDER BY s.title COLLATE NOCASE
+                """.trimIndent()
+            ).use { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(
+                            Triple(
+                                StoredSong(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)),
+                                rs.getString(5),
+                                rs.getString(6) to rs.getLong(7),
+                            )
+                        )
+                    }
+                }
+            }
+        }
+        val credits = creditsForLocked(rows.map { it.first.id })
+        rows.map { (song, path, rest) ->
+            LocalTrack(song.copy(artistList = credits[song.id].orEmpty()), java.io.File(path), rest.first, rest.second)
+        }
+    }
+
+    fun localModifiedTimes(): Map<String, Long> = synchronized(lock) {
+        connection.createStatement().use { st ->
+            st.executeQuery("SELECT path, modifiedAt FROM local_file").use { rs ->
+                buildMap { while (rs.next()) put(rs.getString(1), rs.getLong(2)) }
+            }
+        }
+    }
+
+    /** Drops the file records for paths no longer found; returns how many. The songs stay. */
+    fun removeLocalFilesNotIn(present: Set<String>): Int = transaction {
+        val gone = connection.createStatement().use { st ->
+            st.executeQuery("SELECT path FROM local_file").use { rs ->
+                buildList { while (rs.next()) rs.getString(1).takeIf { it !in present }?.let(::add) }
+            }
+        }
+        connection.prepareStatement("DELETE FROM local_file WHERE path = ?").use { st ->
+            gone.forEach { st.setString(1, it); st.executeUpdate() }
+        }
+        gone.size
+    }
+
     /** Forgets every play: the recent list and the counts Stats is made of. Songs themselves stay. */
     fun clearHistory() = synchronized(lock) {
         connection.createStatement().use { st ->
@@ -625,7 +712,9 @@ class Database(file: File) {
                 """
                 SELECT a.id, a.name, COUNT(DISTINCT sa.songId) AS songs
                 FROM song_artist sa JOIN artist a ON a.id = sa.artistId
-                WHERE sa.songId IN (SELECT songId FROM liked UNION SELECT songId FROM play_history)
+                WHERE sa.songId IN (
+                    SELECT songId FROM liked UNION SELECT songId FROM play_history UNION SELECT songId FROM local_file
+                )
                 GROUP BY a.id ORDER BY songs DESC, a.name COLLATE NOCASE
                 """.trimIndent()
             ).use { rs ->
@@ -939,7 +1028,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 7
+        const val SCHEMA_VERSION = 8
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

@@ -118,6 +118,8 @@ fun main() = application {
     val library = remember { LibraryStore() }
     // Writes a stack dump beside the library if the window ever stops responding - see the class.
     remember { FreezeWatchdog.start(defaultDataDirectory()) }
+    // The modern Windows picker compiles once, in the background, long before anyone clicks.
+    remember { FilePicker.warmUp() }
     val settings = remember(library) { Settings(library.settings) }
     // Before anything can be played, so a stored curve is in effect from the first note rather
     // than from whenever the equaliser drawer is first opened.
@@ -448,6 +450,14 @@ internal fun App(
         // one made without visitorData is refused - so restoring first would report a perfectly good
         // session as expired.
         account.restore()
+    }
+
+    // Music folders: what is known loads at once so local songs play immediately, then the
+    // folders are rescanned in the background for anything added or changed since.
+    LaunchedEffect(library) {
+        withContext(Dispatchers.IO) { LocalMusic.load(library) }
+        val folders = settings.localFolders.lines().filter { it.isNotBlank() }
+        if (folders.isNotEmpty()) LocalMusic.scan(folders.map { java.io.File(it) }, library)
     }
 
     // The account's library, synced on sign-in and whenever asked. Likes made here go to YouTube as
