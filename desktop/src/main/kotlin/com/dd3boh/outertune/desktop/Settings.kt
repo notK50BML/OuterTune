@@ -95,6 +95,40 @@ class Settings(private val store: SettingsStore) {
     /** How the player's background is drawn behind the cover's colours. */
     var background by enum("ui.background", BackgroundStyle.Gradient, BackgroundStyle.entries)
 
+    /**
+     * The typeface the whole app is set in, by family name as the system knows it. Empty is the
+     * built-in default. Any font installed on the machine can be chosen - see [SystemFonts].
+     */
+    var fontFamily by string("ui.font", "")
+
+    /** Text size across the app, in percent. */
+    var textScale by int("ui.textScale", 100)
+
+    /** True black behind everything in dark mode, as the phone's "pure black" does. */
+    var pureBlack by bool("ui.pureBlack", false)
+
+    /** Which section the window opens on. */
+    var startTab by enum("ui.startTab", NavTab.Home, NavTab.entries.filter { it != NavTab.Settings })
+
+    // ---- Content ---------------------------------------------------------------------------
+
+    /** Leaves explicit songs out of search results, Home and artist pages. */
+    var hideExplicit by bool("content.hideExplicit", false)
+
+    // ---- Lyrics (display) ------------------------------------------------------------------
+
+    /** Lyrics text size on the player, in percent. */
+    var lyricsTextScale by int("lyrics.textScale", 100)
+
+    /** Where lyric lines sit: centred, as the phone defaults to, or ranged left. */
+    var lyricsAlignment by enum("lyrics.align", LyricsAlignment.Centre, LyricsAlignment.entries)
+
+    /**
+     * Whether lines without word timings are still sung word by word, with the timings estimated
+     * from the line's length and its punctuation - see [EstimatedWordSync].
+     */
+    var estimateWordTimings by bool("lyrics.estimateWords", true)
+
     // ---- Equaliser -------------------------------------------------------------------------
 
     /**
@@ -250,3 +284,5 @@ enum class BackgroundStyle(val label: String, val description: String) {
     Frosted("Frosted glass", "The cover blurred behind a translucent pane"),
     BlurredCover("Blurred cover", "The cover itself, blurred to fill the window"),
 }
+
+enum class LyricsAlignment(val label: String) { Centre("Centred"), Left("Left") }

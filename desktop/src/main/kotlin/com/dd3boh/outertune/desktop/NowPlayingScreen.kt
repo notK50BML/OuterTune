@@ -168,6 +168,9 @@ fun NowPlayingScreen(
      * absent - a seven-button transport row is a lot to read past to find play.
      */
     showSeekButtons: Boolean = false,
+    /** Lyrics text size, in percent of the default. */
+    lyricsTextScale: Int = 100,
+    lyricsAlignment: LyricsAlignment = LyricsAlignment.Centre,
 ) {
     // Held here rather than inside the drawer: the handle at the top and the button in the actions
     // row both open the same panel, exactly as they do on Android, and two copies of the state would
@@ -306,7 +309,8 @@ fun NowPlayingScreen(
                         positionMs = positionMs,
                         onSeek = onSeek,
                         onColour = onBackground,
-                        fontSize = 20.sp * scale,
+                        fontSize = 20.sp * scale * (lyricsTextScale / 100f),
+                        alignment = lyricsAlignment,
                         modifier = Modifier.fillMaxHeight(),
                     )
                 } else {

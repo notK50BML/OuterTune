@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.TextFieldDefaults
@@ -141,7 +144,29 @@ fun main() = application {
             )
         )
 
-        MaterialTheme(colorScheme = scheme) {
+        // True black where it was asked for and only in dark mode - a black light theme is not a
+        // theme. Surfaces go black too, or the panels would sit as grey slabs on it.
+        val finalScheme = if (dark && settings.pureBlack) {
+            scheme.copy(
+                background = Color.Black,
+                surface = Color.Black,
+                surfaceContainerLowest = Color.Black,
+                surfaceContainerLow = Color(0xFF0A0A0A),
+                surfaceContainer = Color(0xFF111111),
+            )
+        } else {
+            scheme
+        }
+        val typography = remember(settings.fontFamily) {
+            SystemFonts.typography(SystemFonts.family(settings.fontFamily))
+        }
+        val density = LocalDensity.current
+        val scaledDensity = remember(density, settings.textScale) {
+            Density(density.density, density.fontScale * settings.textScale / 100f)
+        }
+
+        CompositionLocalProvider(LocalDensity provides scaledDensity) {
+        MaterialTheme(colorScheme = finalScheme, typography = typography) {
             Surface(modifier = Modifier.fillMaxSize()) {
                 App(
             player, library, settings,
@@ -149,6 +174,7 @@ fun main() = application {
             onAccentSeedChanged = { accentSeed = it },
         )
             }
+        }
         }
     }
 }
@@ -164,7 +190,13 @@ internal fun App(
     val scope = rememberCoroutineScope()
     val account = remember { Account(library.database) }
     val eqStore = remember(settings) { settings.equalizerStore() }
-    val playerQueue = remember { PlayerQueue(player, scope, onPlayed = { library.recordPlay(it.toStored()) }) }
+    // Only while history is switched on. The setting existed and was never consulted, so turning it
+    // off changed nothing.
+    val playerQueue = remember {
+        PlayerQueue(player, scope, onPlayed = {
+            if (settings.keepHistory) library.recordPlay(it.toStored(), (it.duration ?: 0) * 1000L)
+        })
+    }
 
     val playback by player.state.collectAsState()
     val queue by playerQueue.state.collectAsState()
@@ -211,7 +243,7 @@ internal fun App(
     val playlists by library.playlists.collectAsState()
     // Which section the navigation rail has selected. One value rather than a flag per pane, so two
     // panes can never both think they are showing.
-    var tab by remember { mutableStateOf(NavTab.Home) }
+    var tab by remember { mutableStateOf(settings.startTab) }
     var openArtist by remember { mutableStateOf<StoredArtist?>(null) }
 
     // The album being looked at, by browse id, and whatever has been loaded for it. Two states
@@ -323,7 +355,7 @@ internal fun App(
     var lyrics by remember { mutableStateOf<Lyrics?>(null) }
     var lyricsLoading by remember { mutableStateOf(false) }
     val nowPlaying = queue.current
-    LaunchedEffect(nowPlaying?.id, duration, settings.lyricsOffsetMs, settings.wordByWordLyrics) {
+    LaunchedEffect(nowPlaying?.id, duration, settings.lyricsOffsetMs, settings.wordByWordLyrics, settings.estimateWordTimings) {
         lyrics = null
         val song = nowPlaying ?: return@LaunchedEffect
         // Held off until the duration is known, because LrcLib matches on it - asking with zero
@@ -340,6 +372,7 @@ internal fun App(
         // Applied on the way out rather than baked into the cache, so changing the offset does not
         // mean re-fetching, and so a cached file is still the file the provider sent.
         lyrics = fetched?.shiftedBy(settings.lyricsOffsetMs.toLong())
+            ?.let { if (settings.estimateWordTimings) it.withEstimatedWords() else it }
         lyricsLoading = false
     }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
@@ -462,6 +495,8 @@ internal fun App(
             downloaded = queue.current?.id in downloadedIds,
             downloading = downloading != null && downloading == queue.current?.id,
             showSeekButtons = settings.showSeekButtons,
+            lyricsTextScale = settings.lyricsTextScale,
+            lyricsAlignment = settings.lyricsAlignment,
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
             backgroundStyle = settings.background,
             colourByValue = settings.colourByValue,
@@ -739,7 +774,7 @@ internal fun App(
 }
 
 /** The sections the rail offers, in the phone's order. */
-internal enum class NavTab(val label: String) {
+enum class NavTab(val label: String) {
     Home("Home"),
     Songs("Songs"),
     Playlists("Playlists"),

@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -68,7 +69,9 @@ fun LyricsPane(
     onColour: Color,
     modifier: Modifier = Modifier,
     fontSize: TextUnit = 22.sp,
+    alignment: LyricsAlignment = LyricsAlignment.Centre,
 ) {
+    val textAlign = if (alignment == LyricsAlignment.Left) TextAlign.Start else TextAlign.Center
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         when {
             loading -> CircularProgressIndicator(color = onColour.copy(alpha = 0.6f))
@@ -88,7 +91,7 @@ fun LyricsPane(
                         text = line.text,
                         style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
                         color = onColour.copy(alpha = 0.8f),
-                        textAlign = TextAlign.Center,
+                        textAlign = textAlign,
                         modifier = Modifier.padding(vertical = 6.dp),
                     )
                 }
@@ -96,10 +99,11 @@ fun LyricsPane(
 
             else -> SyncedLyrics(
                 lyrics = lyrics,
-                positionMs = positionMs,
+                positionMs = rememberSmoothedPosition(positionMs),
                 onSeek = onSeek,
                 onColour = onColour,
                 fontSize = fontSize,
+                textAlign = textAlign,
             )
         }
     }
@@ -112,6 +116,7 @@ private fun SyncedLyrics(
     onSeek: (Long) -> Unit,
     onColour: Color,
     fontSize: TextUnit,
+    textAlign: TextAlign,
 ) {
     val listState = rememberLazyListState()
     val current = remember(lyrics, positionMs) { LrcParser.lineAt(lyrics.lines, positionMs) }
@@ -138,7 +143,7 @@ private fun SyncedLyrics(
 
     LazyColumn(
         state = listState,
-        horizontalAlignment = Alignment.CenterHorizontally,
+        horizontalAlignment = if (textAlign == TextAlign.Start) Alignment.Start else Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp),
         // Half a screen of padding at each end so the first and last lines can still reach the
         // middle. Without it the song opens with its first line pinned to the top and ends with the
@@ -164,7 +169,7 @@ private fun SyncedLyrics(
                         text = sungText(line, positionMs, onColour),
                         style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
                         fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Center,
+                        textAlign = textAlign,
                         modifier = modifier,
                     )
                 } else {
@@ -173,7 +178,7 @@ private fun SyncedLyrics(
                         style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                         color = onColour.copy(alpha = alpha),
-                        textAlign = TextAlign.Center,
+                        textAlign = textAlign,
                         modifier = modifier,
                     )
                 }
@@ -214,6 +219,42 @@ private fun sungText(line: LyricLine, positionMs: Long, onColour: Color): Annota
             if (word.trailingSpace) append(" ")
         }
     }
+
+/**
+ * The playback position, advanced every frame between the player's own updates.
+ *
+ * The player reports its position whenever it hands audio to the sound card, which is every few
+ * tens of milliseconds and unevenly - fine for a seek bar, visibly steppy for a word fading in.
+ * Between reports this runs the clock forward by real time, a little way only: capped so that when
+ * playback pauses the highlight stops within a frame or two rather than running on, and never moved
+ * backwards except by a real jump (a seek), so a late report cannot make a word flicker.
+ */
+@Composable
+private fun rememberSmoothedPosition(positionMs: Long): Long {
+    var anchorMs by remember { mutableStateOf(positionMs) }
+    var anchorNanos by remember { mutableStateOf(System.nanoTime()) }
+    var shown by remember { mutableStateOf(positionMs) }
+    LaunchedEffect(positionMs) {
+        anchorMs = positionMs
+        anchorNanos = System.nanoTime()
+        if (positionMs < shown - SEEK_JUMP_MS || positionMs > shown + SEEK_JUMP_MS) shown = positionMs
+    }
+    LaunchedEffect(Unit) {
+        while (true) {
+            withFrameNanos {
+                val ahead = ((System.nanoTime() - anchorNanos) / 1_000_000L).coerceIn(0L, MAX_EXTRAPOLATION_MS)
+                shown = maxOf(shown, anchorMs + ahead)
+            }
+        }
+    }
+    return shown
+}
+
+/** How far past the last reported position the clock may run on its own. */
+private const val MAX_EXTRAPOLATION_MS = 120L
+
+/** A position change bigger than this is a seek, and is followed at once in either direction. */
+private const val SEEK_JUMP_MS = 600L
 
 /** How visible a word is before it has been sung. */
 private const val UNSUNG_ALPHA = 0.45f

@@ -133,10 +133,14 @@ class LibraryStore(
         refreshAll()
     }
 
-    fun recordPlay(song: StoredSong) {
-        db.recordPlay(song, System.currentTimeMillis())
+    fun recordPlay(song: StoredSong, durationMs: Long = 0) {
+        db.recordPlay(song, System.currentTimeMillis(), durationMs)
         recentlyPlayed.value = db.recentlyPlayed(MAX_RECENT)
     }
+
+    fun topSongs(sinceMs: Long, limit: Int = 50) = db.topSongs(sinceMs, limit)
+    fun topArtists(sinceMs: Long, limit: Int = 30) = db.topArtists(sinceMs, limit)
+    fun playTotals(sinceMs: Long) = db.playTotals(sinceMs)
 
     fun toggleLiked(song: StoredSong) {
         db.setLiked(song, liked = !isLiked(song.id), atMs = System.currentTimeMillis())

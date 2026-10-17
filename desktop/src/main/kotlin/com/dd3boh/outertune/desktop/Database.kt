@@ -235,6 +235,32 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 7) {
+                connection.createStatement().use { st ->
+                    // Every play, not just the latest. play_history keeps one row per song - right
+                    // for "recently played", useless for "most played", which is what Stats needs.
+                    // The phone keeps the same thing as its Event table.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS play_event (
+                            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                            songId   TEXT NOT NULL REFERENCES song(id) ON DELETE CASCADE,
+                            playedAt INTEGER NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                    st.executeUpdate("CREATE INDEX IF NOT EXISTS idx_play_event_at ON play_event(playedAt)")
+                    // Seeded from what history there is, so Stats is not empty on the first run after
+                    // updating. Guarded so a re-run after a half-finished attempt adds nothing twice.
+                    st.executeUpdate(
+                        """
+                        INSERT INTO play_event (songId, playedAt)
+                        SELECT songId, playedAt FROM play_history
+                        WHERE NOT EXISTS (SELECT 1 FROM play_event)
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -396,8 +422,9 @@ class Database(file: File) {
         writeCreditsLocked(song)
     }
 
-    fun recordPlay(song: StoredSong, atMs: Long) = synchronized(lock) {
-        upsertSongLocked(song)
+    fun recordPlay(song: StoredSong, atMs: Long, durationMs: Long = 0) = synchronized(lock) {
+        // Through upsertSong when the length is known, so Stats can total listening time.
+        if (durationMs > 0) upsertSong(song, durationMs) else upsertSongLocked(song)
         connection.prepareStatement(
             "INSERT INTO play_history (songId, playedAt) VALUES (?, ?) " +
                 "ON CONFLICT(songId) DO UPDATE SET playedAt = excluded.playedAt"
@@ -405,6 +432,68 @@ class Database(file: File) {
             st.setString(1, song.id)
             st.setLong(2, atMs)
             st.executeUpdate()
+        }
+        connection.prepareStatement("INSERT INTO play_event (songId, playedAt) VALUES (?, ?)").use { st ->
+            st.setString(1, song.id)
+            st.setLong(2, atMs)
+            st.executeUpdate()
+        }
+    }
+
+    /** Most played songs since [sinceMs], with how many times each. */
+    fun topSongs(sinceMs: Long, limit: Int): List<Pair<StoredSong, Int>> = synchronized(lock) {
+        val counts = LinkedHashMap<String, Int>()
+        val songs = connection.prepareStatement(
+            """
+            SELECT s.id, s.title, s.artists, s.thumbnail, COUNT(*) AS plays
+            FROM play_event e JOIN song s ON s.id = e.songId
+            WHERE e.playedAt >= ?
+            GROUP BY s.id ORDER BY plays DESC, MAX(e.playedAt) DESC LIMIT ?
+            """.trimIndent()
+        ).use { st ->
+            st.setLong(1, sinceMs)
+            st.setInt(2, limit)
+            st.executeQuery().use { rs ->
+                buildList {
+                    while (rs.next()) {
+                        counts[rs.getString(1)] = rs.getInt(5)
+                        add(StoredSong(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)))
+                    }
+                }
+            }
+        }
+        val credits = creditsForLocked(songs.map { it.id })
+        songs.map { it.copy(artistList = credits[it.id].orEmpty()) to (counts[it.id] ?: 0) }
+    }
+
+    /** Most played artists since [sinceMs], by plays of songs they are credited on. */
+    fun topArtists(sinceMs: Long, limit: Int): List<Pair<StoredArtist, Int>> = synchronized(lock) {
+        connection.prepareStatement(
+            """
+            SELECT a.id, a.name, COUNT(*) AS plays
+            FROM play_event e JOIN song_artist sa ON sa.songId = e.songId JOIN artist a ON a.id = sa.artistId
+            WHERE e.playedAt >= ?
+            GROUP BY a.id ORDER BY plays DESC LIMIT ?
+            """.trimIndent()
+        ).use { st ->
+            st.setLong(1, sinceMs)
+            st.setInt(2, limit)
+            st.executeQuery().use { rs ->
+                buildList { while (rs.next()) add(StoredArtist(rs.getString(1), rs.getString(2)) to rs.getInt(3)) }
+            }
+        }
+    }
+
+    /** Plays, distinct songs, and listening time (from the songs' lengths) since [sinceMs]. */
+    fun playTotals(sinceMs: Long): PlayTotals = synchronized(lock) {
+        connection.prepareStatement(
+            """
+            SELECT COUNT(*), COUNT(DISTINCT e.songId), COALESCE(SUM(s.durationMs), 0)
+            FROM play_event e JOIN song s ON s.id = e.songId WHERE e.playedAt >= ?
+            """.trimIndent()
+        ).use { st ->
+            st.setLong(1, sinceMs)
+            st.executeQuery().use { rs -> PlayTotals(rs.getInt(1), rs.getInt(2), rs.getLong(3)) }
         }
     }
 
@@ -769,7 +858,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 6
+        const val SCHEMA_VERSION = 7
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }
@@ -781,3 +870,6 @@ data class StoredPlaylist(
     val name: String,
     val songCount: Int,
 )
+
+/** What [Database.playTotals] reports. Listening time counts each play as the song's full length. */
+data class PlayTotals(val plays: Int, val songs: Int, val listenedMs: Long)
