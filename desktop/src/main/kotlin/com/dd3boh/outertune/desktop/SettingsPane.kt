@@ -124,6 +124,16 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Lyrics timing offset", SettingsCategory.Lyrics, "delay sync early late"),
     SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
     SettingEntry("Hide explicit content", SettingsCategory.Content, "explicit filter clean"),
+    SettingEntry("Content language", SettingsCategory.Content, "language region locale youtube"),
+    SettingEntry("Content country", SettingsCategory.Content, "country region locale youtube"),
+    SettingEntry("Audio normalisation", SettingsCategory.Player, "loudness volume normalize normalization"),
+    SettingEntry("Skip songs that cannot play", SettingsCategory.Player, "error skip unavailable"),
+    SettingEntry("Remember the queue", SettingsCategory.Player, "persistent queue restore resume"),
+    SettingEntry("Count a play after", SettingsCategory.Player, "minimum playback duration history stats"),
+    SettingEntry("Sleep timer fade out", SettingsCategory.Player, "sleep fade"),
+    SettingEntry("Sleep timer default time", SettingsCategory.Player, "sleep default minutes"),
+    SettingEntry("LRCLIB", SettingsCategory.Lyrics, "lyrics provider lrclib"),
+    SettingEntry("KuGou", SettingsCategory.Lyrics, "lyrics provider kugou"),
     SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
     SettingEntry("Discord", SettingsCategory.Integrations, "rich presence rpc status token"),
     SettingEntry("Listen Together", SettingsCategory.Integrations, "sync share lan network party"),
@@ -136,6 +146,21 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Import from a phone backup", SettingsCategory.Privacy, "restore backup android zip"),
     SettingEntry("Where the library is stored", SettingsCategory.Privacy, "database file path backup sqlite"),
     SettingEntry("Version", SettingsCategory.About, "about github"),
+)
+
+/** YouTube's content languages and countries the phone offers most, by code and name. */
+internal val CONTENT_LANGUAGES = listOf(
+    "en" to "English", "es" to "Spanish", "pt" to "Portuguese", "fr" to "French", "de" to "German",
+    "it" to "Italian", "nl" to "Dutch", "ru" to "Russian", "tr" to "Turkish", "ar" to "Arabic",
+    "hi" to "Hindi", "id" to "Indonesian", "ms" to "Malay", "th" to "Thai", "vi" to "Vietnamese",
+    "ja" to "Japanese", "ko" to "Korean", "zh-CN" to "Chinese (Simplified)", "zh-TW" to "Chinese (Traditional)",
+)
+internal val CONTENT_COUNTRIES = listOf(
+    "US" to "United States", "GB" to "United Kingdom", "CA" to "Canada", "AU" to "Australia",
+    "SG" to "Singapore", "MY" to "Malaysia", "ID" to "Indonesia", "PH" to "Philippines", "IN" to "India",
+    "JP" to "Japan", "KR" to "South Korea", "TW" to "Taiwan", "HK" to "Hong Kong", "CN" to "China",
+    "DE" to "Germany", "FR" to "France", "ES" to "Spain", "IT" to "Italy", "NL" to "Netherlands",
+    "BR" to "Brazil", "MX" to "Mexico", "TR" to "Turkey", "RU" to "Russia",
 )
 
 /** Settings whose title or keywords contain every word of [query]. */
@@ -427,6 +452,62 @@ private fun PlayerSettings(settings: Settings) {
             icon = OuterTuneIcons.equalizer,
         )
     }
+    Section("Audio") {
+        SettingSwitch(
+            title = "Audio normalisation",
+            subtitle = "Evens out volume between songs using YouTube's loudness figure. Only ever turns down.",
+            checked = settings.audioNormalisation,
+            onCheckedChange = { settings.audioNormalisation = it },
+            icon = OuterTuneIcons.graphicEq,
+        )
+        SettingSwitch(
+            title = "Skip songs that cannot play",
+            subtitle = "Moves on to the next song instead of stopping.",
+            checked = settings.skipOnError,
+            onCheckedChange = { settings.skipOnError = it },
+            icon = OuterTuneIcons.skipNext,
+        )
+        SettingSwitch(
+            title = "Remember the queue",
+            subtitle = "Keeps the queue, and where you were in it, for next time.",
+            checked = settings.persistentQueue,
+            onCheckedChange = { settings.persistentQueue = it },
+            icon = OuterTuneIcons.queueMusic,
+        )
+        SettingSlider(
+            title = "Count a play after",
+            subtitle = "How much of a song must be heard before it goes into history and Stats.",
+            icon = OuterTuneIcons.history,
+            value = settings.minPlayPercent,
+            range = 0..100,
+            step = 10,
+            format = { "$it%" },
+            onChange = { settings.minPlayPercent = it },
+            default = 30,
+            divider = false,
+        )
+    }
+    Section("Sleep timer") {
+        SettingSwitch(
+            title = "Fade out",
+            subtitle = "The last half minute fades to silence instead of stopping mid-phrase.",
+            checked = settings.sleepFade,
+            onCheckedChange = { settings.sleepFade = it },
+            icon = OuterTuneIcons.bedtime,
+        )
+        SettingSlider(
+            title = "Default time",
+            subtitle = "Offered first when the sleep timer is opened.",
+            icon = OuterTuneIcons.timer,
+            value = settings.sleepDefaultMinutes,
+            range = 5..120,
+            step = 5,
+            format = { "$it min" },
+            onChange = { settings.sleepDefaultMinutes = it },
+            default = 30,
+            divider = false,
+        )
+    }
 }
 
 @Composable
@@ -437,6 +518,20 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             subtitle = "Asks BetterLyrics first, which times each word. Falls back to LRCLIB and KuGou.",
             checked = settings.wordByWordLyrics,
             onCheckedChange = { settings.wordByWordLyrics = it },
+            icon = OuterTuneIcons.lyrics,
+        )
+        SettingSwitch(
+            title = "LRCLIB",
+            subtitle = "Line-timed lyrics, asked after BetterLyrics.",
+            checked = settings.lyricsLrclib,
+            onCheckedChange = { settings.lyricsLrclib = it },
+            icon = OuterTuneIcons.lyrics,
+        )
+        SettingSwitch(
+            title = "KuGou",
+            subtitle = "Asked last; strongest for Chinese-language songs.",
+            checked = settings.lyricsKugou,
+            onCheckedChange = { settings.lyricsKugou = it },
             icon = OuterTuneIcons.lyrics,
         )
         SettingSwitch(
@@ -496,6 +591,25 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
 
 @Composable
 private fun ContentSettings(settings: Settings) {
+    Section("Region") {
+        SettingChoice(
+            title = "Content language",
+            icon = OuterTuneIcons.info,
+            options = CONTENT_LANGUAGES.map { it.first },
+            selected = settings.contentLanguage,
+            label = { code -> CONTENT_LANGUAGES.firstOrNull { it.first == code }?.second ?: code },
+            onSelect = { settings.contentLanguage = it },
+        )
+        SettingChoice(
+            title = "Content country",
+            icon = OuterTuneIcons.home,
+            options = CONTENT_COUNTRIES.map { it.first },
+            selected = settings.contentCountry,
+            label = { code -> CONTENT_COUNTRIES.firstOrNull { it.first == code }?.second ?: code },
+            onSelect = { settings.contentCountry = it },
+            divider = false,
+        )
+    }
     Section("Filters") {
         SettingSwitch(
             title = "Hide explicit content",
@@ -968,7 +1082,7 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPa
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(end = 16.dp).size(24.dp),
             )
-            Text("Import from a phone backup", style = MaterialTheme.typography.bodyLarge)
+            Text("Back up and restore", style = MaterialTheme.typography.bodyLarge)
         }
         Text(
             text = "Reads the zip the Android app writes. Songs, liked songs and playlists are " +
@@ -986,13 +1100,39 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPa
                             ?: return@launch
                         importing = true
                         importResult = null
-                        importResult = BackupImport.importFrom(file, library)
+                        // A desktop backup replaces the library at the next start; a phone backup
+                        // is merged into this one now.
+                        importResult = if (DesktopBackup.isDesktopBackup(file)) {
+                            runCatching { DesktopBackup.stageRestore(file) }.fold(
+                                { ImportSummary(error = null, restoreStaged = true) },
+                                { ImportSummary(error = "Could not read that backup: ${it.message}") },
+                            )
+                        } else {
+                            BackupImport.importFrom(file, library)
+                        }
                         importing = false
                     }
                 },
             ) {
                 Text(if (importing) "Importing…" else "Choose backup…")
             }
+                var exporting by remember { mutableStateOf(false) }
+                TextButton(
+                    enabled = !exporting,
+                    onClick = {
+                        scope.launch {
+                            val folder = FilePicker.pickFolders("Where to save the backup").firstOrNull() ?: return@launch
+                            exporting = true
+                            importResult = runCatching { DesktopBackup.export(library, folder) }.fold(
+                                { ImportSummary(exported = it.absolutePath) },
+                                { ImportSummary(error = "Could not write the backup: ${it.message}") },
+                            )
+                            exporting = false
+                        }
+                    },
+                ) {
+                    Text(if (exporting) "Backing up…" else "Back up library…")
+                }
             importResult?.let { summary ->
                 Text(
                     text = summary.describe(),

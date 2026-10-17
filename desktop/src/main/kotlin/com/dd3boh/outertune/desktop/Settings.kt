@@ -52,6 +52,40 @@ class Settings(private val store: SettingsStore) {
     /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
     var playerButtons by string("player.buttons", "")
 
+    // ---- From the phone's Player and audio settings ---------------------------------------------
+
+    /** Keeps the queue, and where in it playback was, between sessions. */
+    var persistentQueue by bool("player.persistentQueue", true)
+
+    /** The saved queue - see QueueSnapshot. */
+    var savedQueue by string("player.savedQueue", "")
+
+    /** Evens out volume between tracks using YouTube's loudness figure. Only ever turns down. */
+    var audioNormalisation by bool("player.normalise", false)
+
+    /** Moves on to the next song when one cannot be played, rather than stopping. */
+    var skipOnError by bool("player.skipOnError", true)
+
+    /** How much of a song must be heard before it counts as played - for history and Stats. */
+    var minPlayPercent by int("player.minPlayPercent", 30)
+
+    /** Sleep timer: fade the music out over its last half minute rather than cutting it. */
+    var sleepFade by bool("sleep.fade", true)
+
+    /** What the sleep timer offers first, in minutes. */
+    var sleepDefaultMinutes by int("sleep.defaultMinutes", 30)
+
+    // ---- Content -------------------------------------------------------------------------------
+
+    /** YouTube's content language and country - what Home, search and charts are made for. */
+    var contentLanguage by string("content.language", "en")
+    var contentCountry by string("content.country", "US")
+
+    // ---- Lyrics providers ------------------------------------------------------------------------
+
+    var lyricsLrclib by bool("lyrics.lrclib", true)
+    var lyricsKugou by bool("lyrics.kugou", true)
+
     /** Whether the queue handle names the queue beside its arrow, as the phone's does. */
     var showQueueTitle by bool("player.queueTitle", true)
 

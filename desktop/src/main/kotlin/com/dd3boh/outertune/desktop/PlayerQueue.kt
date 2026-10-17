@@ -243,6 +243,21 @@ class PlayerQueue(
         state.value = previous.copy(songs = songs, order = order)
     }
 
+    /**
+     * Puts back a queue saved at the end of the last session, without starting it - the phone's
+     * persistent queue. [resume] then plays the current song from where it was.
+     */
+    fun restore(saved: QueueState) {
+        if (saved.songs.isEmpty() || saved.current == null) return
+        state.value = saved
+    }
+
+    /** Starts the current song at [atMs] - for a restored queue's first play. */
+    fun resume(atMs: Long) {
+        if (state.value.current == null) return
+        startCurrent(atMs)
+    }
+
     /** Puts [song] at the very end of the play order, after everything already queued. */
     fun addToQueue(song: SongItem) {
         val previous = state.value

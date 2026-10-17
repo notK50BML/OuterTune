@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.flow.first
+import androidx.compose.runtime.snapshotFlow
 import com.zionhuang.innertube.models.ArtistItem
 import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.WatchEndpoint
@@ -110,6 +112,7 @@ import kotlinx.coroutines.withContext
 fun main() = application {
     // Set here because it needs no network call, and search will not work without it - YouTube
     // answers 400 INVALID_ARGUMENT, which reads like a platform problem and is not one.
+    // The content language and country come from settings once the library is open - see below.
     remember { YouTube.locale = YouTubeLocale(gl = "US", hl = "en") }
 
     val player = remember { DesktopPlayer() }
@@ -204,10 +207,15 @@ internal fun App(
     // Only while history is switched on. The setting existed and was never consulted, so turning it
     // off changed nothing.
     remember(library) { ArtistImages.library = library }
+    // Where a restored queue's song was when the last session ended - see the persistent queue.
+    var restoredPositionMs by remember { mutableStateOf<Long?>(null) }
+    LaunchedEffect(settings.contentLanguage, settings.contentCountry) {
+        YouTube.locale = YouTubeLocale(gl = settings.contentCountry, hl = settings.contentLanguage)
+    }
+    LaunchedEffect(settings.audioNormalisation) { player.normalise = settings.audioNormalisation }
     val playerQueue = remember {
-        PlayerQueue(player, scope, onPlayed = {
-            if (settings.keepHistory) library.recordPlay(it.toStored(), (it.duration ?: 0) * 1000L)
-        })
+        // Counted below, once enough of the song has been heard - not here, at the start.
+        PlayerQueue(player, scope, onPlayed = {})
     }
 
     val playback by player.state.collectAsState()
@@ -377,7 +385,16 @@ internal fun App(
     LaunchedEffect(sleepTimer) {
         playerQueue.stopAtBoundary = { sleepTimer.songEnded() }
         while (true) {
-            if (sleepTimer.dueNow()) player.pause()
+            if (sleepTimer.dueNow()) {
+                player.pause()
+                player.volume = 1f
+            }
+            // The phone's sleep fade: the last half minute ramps down to silence instead of the
+            // music stopping mid-phrase. Back to full volume for whatever plays next.
+            player.volume = sleepTimer.deadlineMs
+                ?.takeIf { settings.sleepFade }
+                ?.let { (sleepTimer.remainingMs() / SLEEP_FADE_MS.toFloat()).coerceIn(0f, 1f) }
+                ?: 1f
             sleepRemaining = when {
                 sleepTimer.deadlineMs != null -> sleepTimer.remainingMs()
                 // End-of-song has no countdown to show. Zero is the signal for "set, but not
@@ -385,7 +402,8 @@ internal fun App(
                 sleepTimer.pauseWhenSongEnds -> 0L
                 else -> null
             }
-            delay(1000)
+            // Finer while fading, so the ramp is smooth rather than a step a second.
+            delay(if (sleepTimer.deadlineMs != null && sleepTimer.remainingMs() < SLEEP_FADE_MS) 200 else 1000)
         }
     }
 
@@ -411,6 +429,8 @@ internal fun App(
         if (duration <= 0) return@LaunchedEffect
         lyricsLoading = true
         lyricsRepository.useWordByWord = settings.wordByWordLyrics
+        lyricsRepository.useLrclib = settings.lyricsLrclib
+        lyricsRepository.useKugou = settings.lyricsKugou
         val fetched = lyricsRepository.lyricsFor(
             songId = song.id,
             title = song.title,
@@ -495,6 +515,17 @@ internal fun App(
         }
     }
 
+    // Play with nothing loaded but a restored queue starts its song where the last session left it.
+    val togglePlay: () -> Unit = {
+        val resumeAt = restoredPositionMs
+        if (player.state.value is PlaybackState.Idle && queue.current != null) {
+            restoredPositionMs = null
+            playerQueue.resume(resumeAt ?: 0L)
+        } else {
+            player.togglePause()
+        }
+    }
+
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
     val toggleLike = { queue.current?.let { likeAndPush(it.toStored()) }; Unit }
 
@@ -509,6 +540,7 @@ internal fun App(
                     else -> null
                 }
             },
+            defaultMinutes = settings.sleepDefaultMinutes,
         )
     }
 
@@ -541,7 +573,7 @@ internal fun App(
             durationMs = duration,
             liked = isLiked,
             onSeek = player::seekTo,
-            onTogglePause = player::togglePause,
+            onTogglePause = togglePlay,
             onNext = playerQueue::next,
             onPrevious = playerQueue::previous,
             onToggleLike = toggleLike,
@@ -621,12 +653,54 @@ internal fun App(
         return
     }
 
+    // A play counts once this share of the song has been heard - the phone's minimum playback
+    // duration - so skipping through a queue does not fill history and Stats with songs not heard.
+    LaunchedEffect(queue.current?.id) {
+        val song = queue.current ?: return@LaunchedEffect
+        val playedId = song.id
+        snapshotFlow { player.positionMs.value to player.durationMs.value }
+            .first { (position, duration) ->
+                duration > 0 && position >= duration * settings.minPlayPercent.coerceIn(0, 100) / 100
+            }
+        if (queue.current?.id == playedId && settings.keepHistory) {
+            library.recordPlay(song.toStored(), (song.duration ?: 0) * 1000L)
+        }
+    }
+
+    // A song that cannot be played is stepped past, as on the phone, rather than ending the music.
+    LaunchedEffect(playback) {
+        if (playback is PlaybackState.Failed && settings.skipOnError && queue.hasNext) {
+            delay(1500)
+            if (player.state.value is PlaybackState.Failed) playerQueue.next()
+        }
+    }
+
+    // The queue as it was at the end of the last session, put back without playing.
+    LaunchedEffect(Unit) {
+        if (!settings.persistentQueue) return@LaunchedEffect
+        QueueSnapshot.decode(settings.savedQueue)?.let { (saved, position) ->
+            playerQueue.restore(saved)
+            restoredPositionMs = position
+        }
+    }
+    // Saved as it changes, and the position every ten seconds while something plays.
+    LaunchedEffect(queue, settings.persistentQueue) {
+        if (!settings.persistentQueue) {
+            settings.savedQueue = ""
+            return@LaunchedEffect
+        }
+        while (true) {
+            settings.savedQueue = if (queue.songs.isEmpty()) "" else QueueSnapshot.encode(queue, player.positionMs.value)
+            delay(10_000)
+        }
+    }
+
     // Windows' media keys and media flyout drive the same player as the window's own buttons, and
     // are told what is playing as it changes. Artwork is offered at a size the flyout looks good at.
     LaunchedEffect(Unit) {
         WindowsMediaControls.onButton = { button ->
             when (button) {
-                WindowsMediaControls.Button.Play, WindowsMediaControls.Button.Pause -> player.togglePause()
+                WindowsMediaControls.Button.Play, WindowsMediaControls.Button.Pause -> togglePlay()
                 WindowsMediaControls.Button.Stop -> player.pause()
                 WindowsMediaControls.Button.Next -> playerQueue.next()
                 WindowsMediaControls.Button.Previous -> playerQueue.previous()
@@ -985,7 +1059,7 @@ internal fun App(
             positionMs = position,
             durationMs = duration,
             liked = isLiked,
-            onTogglePause = player::togglePause,
+            onTogglePause = togglePlay,
             onNext = playerQueue::next,
             onPrevious = playerQueue::previous,
             onToggleLike = toggleLike,
@@ -1416,6 +1490,7 @@ private fun SleepTimerDialog(
     timer: SleepTimer,
     onDismiss: () -> Unit,
     onChanged: () -> Unit,
+    defaultMinutes: Int = 30,
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1434,7 +1509,8 @@ private fun SleepTimerDialog(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
-                SleepTimer.PRESET_MINUTES.forEach { minutes ->
+                // The chosen default first, then the presets - without repeating it.
+                (listOf(defaultMinutes) + SleepTimer.PRESET_MINUTES.filter { it != defaultMinutes }).forEach { minutes ->
                     TextButton(
                         onClick = {
                             timer.start(minutes)
@@ -1536,3 +1612,6 @@ internal fun StoredSong.toItem() = SongItem(
 
 /** How many past searches are kept. */
 private const val MAX_SEARCH_HISTORY = 20
+
+/** How long the sleep timer's fade-out lasts. */
+private const val SLEEP_FADE_MS = 30_000L

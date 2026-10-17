@@ -86,7 +86,7 @@ class LibraryStore(
      * its own decision about what happens when one exists and the other does not, all so that a
      * single string could live somewhere else.
      */
-    val database: Database = Database(File(directory, "library.db")),
+    val database: Database = Database(DesktopBackup.applyPendingRestore(directory)),
 ) {
     private val db = database
 

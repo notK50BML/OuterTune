@@ -22,11 +22,17 @@ data class ImportSummary(
     val skippedLocal: Int = 0,
     val plays: Int = 0,
     val error: String? = null,
+    /** A desktop backup, set aside to replace the library when the app next starts. */
+    val restoreStaged: Boolean = false,
+    /** The file a desktop backup was written to. */
+    val exported: String? = null,
 ) {
     val failed: Boolean get() = error != null
 
     fun describe(): String = when {
         error != null -> error
+        exported != null -> "Backed up to $exported."
+        restoreStaged -> "Restored. Restart OuterTune to load the backup; the current library is kept as library-before-restore.db."
         songs == 0 && playlists == 0 -> "Nothing to import - the backup held no songs or playlists."
         else -> buildString {
             append("Imported $songs ${if (songs == 1) "song" else "songs"}")

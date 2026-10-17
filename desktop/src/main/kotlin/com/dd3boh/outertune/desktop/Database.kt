@@ -588,6 +588,12 @@ class Database(file: File) {
         gone.size
     }
 
+    /** A clean, compact copy of the whole library at [target] - SQLite's own VACUUM INTO. */
+    fun exportTo(target: java.io.File) = synchronized(lock) {
+        target.delete()
+        connection.createStatement().use { it.execute("VACUUM INTO '${target.absolutePath.replace("'", "''")}'") }
+    }
+
     /** Forgets every play: the recent list and the counts Stats is made of. Songs themselves stay. */
     fun clearHistory() = synchronized(lock) {
         connection.createStatement().use { st ->

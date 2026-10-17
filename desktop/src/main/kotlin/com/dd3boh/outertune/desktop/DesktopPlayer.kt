@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlin.math.pow
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeClient
 import io.ktor.client.HttpClient
@@ -185,6 +186,21 @@ class DesktopPlayer {
      */
     val balance = Balance()
 
+    /**
+     * Whether YouTube's loudness figure is used to even out track volumes - the phone's "Audio
+     * normalization". Only ever turns a loud track down, never a quiet one up, so it cannot clip.
+     */
+    @Volatile
+    var normalise: Boolean = false
+
+    /** Playback volume, 0..1 - the sleep timer's fade-out turns this down. */
+    @Volatile
+    var volume: Float = 1f
+
+    /** The current track's normalisation gain, linear. 1 when off or unknown. */
+    @Volatile
+    private var trackGain: Float = 1f
+
     /** The line's frame position, which is what [VisualizerTap.sample] needs. */
     fun playedFrames(): Long = line?.longFramePosition ?: 0L
 
@@ -261,7 +277,13 @@ class DesktopPlayer {
                 // failure is to ask again now, not to refuse to play the song.
                 val prepared = ready?.let { awaitPrefetch(it) }
                 val audio = when (val outcome = prepared ?: resolveAndFetch(videoId)) {
-                    is Resolved.Audio -> outcome.bytes
+                    is Resolved.Audio -> {
+                        // YouTube's figure is how far above its reference the track is mastered;
+                        // a positive one is taken off, a negative one left alone.
+                        trackGain = outcome.loudnessDb?.takeIf { it > 0 }
+                            ?.let { 10.0.pow(-it / 20).toFloat() } ?: 1f
+                        outcome.bytes
+                    }
                     is Resolved.Failure -> {
                         state.value = PlaybackState.Failed(title, outcome.reason)
                         return@launch
@@ -434,7 +456,7 @@ class DesktopPlayer {
 
     /** Either the song's bytes, or a reason specific enough to act on. */
     private sealed interface Resolved {
-        data class Audio(val bytes: ByteArray) : Resolved
+        data class Audio(val bytes: ByteArray, val loudnessDb: Double? = null) : Resolved
         data class Failure(val reason: String) : Resolved
     }
 
@@ -525,7 +547,10 @@ class DesktopPlayer {
             if (fetched.status.value !in 200..299) {
                 Resolved.Failure("stream fetch returned HTTP ${fetched.status.value}")
             } else {
-                Resolved.Audio(fetched.body<ByteArray>())
+                Resolved.Audio(
+                    fetched.body<ByteArray>(),
+                    format.loudnessDb ?: response.playerConfig?.audioConfig?.loudnessDb,
+                )
             }
         } catch (e: Exception) {
             Resolved.Failure("stream fetch failed - ${e::class.simpleName}: ${e.message}")
@@ -658,6 +683,11 @@ class DesktopPlayer {
                 framesWritten += frames
             }
 
+            // Normalisation and volume, after the analysis so the visualiser shows the music
+            // rather than how loud it has been set.
+            val gain = (if (normalise) trackGain else 1f) * volume.coerceIn(0f, 1f)
+            if (gain < 0.999f) Pcm.scale(stretched, stretched.size, bitsPerSample, bigEndian, gain)
+
             // Last, and after the analysis: the spectrum is a mono sum, so balance before it would
             // read as the music getting quieter rather than moving across.
             balance.process(
@@ -696,6 +726,7 @@ class DesktopPlayer {
         this.durationMs.value = 0
         nowPlayingId = songId
         state.value = PlaybackState.Loading(title)
+        trackGain = 1f
         job = scope.launch(Dispatchers.IO) {
             try {
                 // M4A through the same AAC decoder YouTube audio uses - see M4aReader for why.

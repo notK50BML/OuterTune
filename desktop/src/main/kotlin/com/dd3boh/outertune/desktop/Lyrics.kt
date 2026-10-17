@@ -341,6 +341,10 @@ class LyricsRepository(private val library: LibraryStore) {
      */
     var useWordByWord: Boolean = true
 
+    /** The phone's per-provider switches: either fallback can be turned off. */
+    var useLrclib: Boolean = true
+    var useKugou: Boolean = true
+
     suspend fun lyricsFor(
         songId: String,
         title: String,
@@ -376,13 +380,13 @@ class LyricsRepository(private val library: LibraryStore) {
                 }
         }
 
-        LrcLib.getLyrics(title, artist, durationSeconds).getOrNull()?.takeIf { it.isNotBlank() }
+        if (useLrclib) LrcLib.getLyrics(title, artist, durationSeconds).getOrNull()?.takeIf { it.isNotBlank() }
             ?.let { text ->
                 library.cacheLyrics(songId, text, LRCLIB)
                 return@withContext LrcParser.parse(text, LRCLIB)
             }
 
-        KuGou.getLyrics(title, artist, durationSeconds).getOrNull()?.takeIf { it.isNotBlank() }
+        if (useKugou) KuGou.getLyrics(title, artist, durationSeconds).getOrNull()?.takeIf { it.isNotBlank() }
             ?.let { text ->
                 library.cacheLyrics(songId, text, KUGOU)
                 return@withContext LrcParser.parse(text, KUGOU)

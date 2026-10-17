@@ -93,6 +93,19 @@ class Fft(val size: Int) {
  * decoder every time rather than remembered.
  */
 object Pcm {
+    /** Multiplies every sample in place by [gain], clamping at full scale. */
+    fun scale(bytes: ByteArray, length: Int, bitsPerSample: Int, bigEndian: Boolean, gain: Float) {
+        val width = bitsPerSample / 8
+        if (width !in 1..4) return
+        val peak = (1L shl (bitsPerSample - 1)).toFloat()
+        var pos = 0
+        while (pos + width <= length) {
+            val v = readSample(bytes, pos, width, bigEndian) * gain
+            writeSample(bytes, pos, width, bigEndian, v.toLong().coerceIn(-peak.toLong(), peak.toLong() - 1))
+            pos += width
+        }
+    }
+
 
     /**
      * Splits interleaved 16-bit PCM into one float array per channel, scaled to -1..1.
