@@ -345,6 +345,23 @@ object OuterTuneIcons {
             "t-113,47Z"
     )
 
+    // The navigation rail's four. Search is the app's own drawable (shortcut_search);
+    // home and settings are drawn on the same grid to match.
+    val home by icon("M160,840L160,360L480,120L800,360L800,840L560,840L560,560L400,560L400,840L160,840Z")
+
+    val search by icon(
+        "M784,840L532,588Q502,612 463,626Q424,640 380,640Q271,640 195.5,564.5Q120,489 120,380Q120,271 195.5,195.5" +
+            "Q271,120 380,120Q489,120 564.5,195.5Q640,271 640,380Q640,424 626,463Q612,502 588,532L840,784L784,840Z" +
+            "M380,560Q455,560 507.5,507.5Q560,455 560,380Q560,305 507.5,252.5Q455,200 380,200Q305,200 252.5,252.5" +
+            "Q200,305 200,380Q200,455 252.5,507.5Q305,560 380,560Z"
+    )
+
+    val settings by icon(
+        "M440,840L440,600L520,600L520,680L840,680L840,760L520,760L520,840L440,840ZM120,760L120,680L360,680L360,760L120,760Z" +
+            "M280,600L280,520L120,520L120,440L280,440L280,360L360,360L360,600L280,600ZM440,520L440,440L840,440L840,520L440,520Z" +
+            "M600,360L600,120L680,120L680,200L840,200L840,280L680,280L680,360L600,360ZM120,280L120,200L520,200L520,280L120,280Z"
+    )
+
     /** Android: `Icons.Rounded.Info`. */
     val info by icon(
         "M440,680h80v-240h-80v240Zm40,-320q17,0,28.5,-11.5T520,320q0,-17,-11.5,-28.5T480,280q-17,0,-28.5,11.5" +
@@ -463,6 +480,9 @@ object OuterTuneIcons {
             "stop" to stop,
             "devices" to devices,
             "musicNote" to musicNote,
+            "home" to home,
+            "search" to search,
+            "settings" to settings,
             "info" to info,
             "wifi" to wifi,
             "textRotationAngledown" to textRotationAngledown,

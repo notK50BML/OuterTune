@@ -80,11 +80,8 @@ fun SettingsPane(
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 32.dp, vertical = 20.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onBack) { Text("← Library") }
-            Spacer(modifier = Modifier.width(12.dp))
-            Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-        }
+        // No back button: the navigation rail is how you leave, as on every other section.
+        Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
         Spacer(modifier = Modifier.height(20.dp))
 

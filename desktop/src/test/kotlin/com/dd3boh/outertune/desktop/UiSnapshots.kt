@@ -133,8 +133,12 @@ class UiSnapshots {
     }
 
     private fun ImageComposeScene.click(x: Float, y: Float) {
-        sendPointerEvent(PointerEventType.Press, Offset(x, y))
-        sendPointerEvent(PointerEventType.Release, Offset(x, y))
+        sendPointerEvent(PointerEventType.Move, Offset(x, y))
+        render(1_000_000_000L)
+        sendPointerEvent(PointerEventType.Press, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+        render(1_050_000_000L)
+        sendPointerEvent(PointerEventType.Release, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+        render(1_100_000_000L)
     }
 
     @Composable
@@ -173,5 +177,22 @@ class UiSnapshots {
         capture("eq_on", 1280, 1500, interact = {
             it.sendPointerEvent(PointerEventType.Scroll, Offset(640f, 300f), scrollDelta = Offset(0f, -1f))
         }) { Player(1280, eqOn = true) }
+    }
+
+    @Test
+    fun shell() {
+        assumeTrue(outDir != null)
+        val dir = java.nio.file.Files.createTempDirectory("ot-snap").toFile()
+        val library = LibraryStore(dir)
+        songs.take(6).forEach { library.toggleLiked(it.toStored()) }
+        songs.drop(2).forEach { library.recordPlay(it.toStored()) }
+        val settings = Settings(library.settings)
+        val player = DesktopPlayer()
+        val shellContent: @Composable () -> Unit = { App(player, library, settings, onSeedChanged = {}) }
+        capture("shell_home", 1280, 800, content = shellContent)
+        capture("shell_songs", 1280, 800, interact = { it.click(40f, 330f) }, content = shellContent)
+        capture("shell_playlists", 1280, 800, interact = { it.click(40f, 390f) }, content = shellContent)
+        capture("shell_settings", 1280, 800, interact = { it.click(40f, 690f) }, content = shellContent)
+        player.stop()
     }
 }

@@ -6,6 +6,13 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextField
+import androidx.compose.material3.surfaceColorAtElevation
+import androidx.compose.material3.NavigationRailItem
+import androidx.compose.material3.NavigationRail
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.focusable
@@ -147,7 +154,7 @@ fun main() = application {
 }
 
 @Composable
-private fun App(
+internal fun App(
     player: DesktopPlayer,
     library: LibraryStore,
     settings: Settings,
@@ -202,8 +209,9 @@ private fun App(
     LaunchedEffect(artworkAccent) { onAccentSeedChanged(artworkAccent) }
 
     val playlists by library.playlists.collectAsState()
-    var showPlaylists by remember { mutableStateOf(false) }
-    var showAccount by remember { mutableStateOf(false) }
+    // Which section the navigation rail has selected. One value rather than a flag per pane, so two
+    // panes can never both think they are showing.
+    var tab by remember { mutableStateOf(NavTab.Home) }
     var openArtist by remember { mutableStateOf<StoredArtist?>(null) }
 
     // The album being looked at, by browse id, and whatever has been loaded for it. Two states
@@ -222,15 +230,11 @@ private fun App(
         openArtist = artist
         openAlbumId = null
         showFullPlayer = false
-        showAccount = false
-        showPlaylists = false
     }
     val openAlbumPage = { browseId: String ->
         openAlbumId = browseId
         openArtist = null
         showFullPlayer = false
-        showAccount = false
-        showPlaylists = false
     }
     // Handed over once. The player resolves audio, so it is the thing that knows how to fill the
     // cache, and it consults it before reaching for the network.
@@ -517,35 +521,41 @@ private fun App(
             },
     ) {
         // Content and queue share the space above the player bar; the bar owns the bottom edge and
-        // is always there.
+        // is always there. The rail down the left is the phone's landscape layout - the same
+        // sections, in the same order, as a NavigationRail rather than a row of text buttons.
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
-            Column(modifier = Modifier.weight(2f).padding(16.dp)) {
-                SearchBar(
-                    query = query,
-                    onQueryChange = { query = it },
-                    onSearch = ::search,
-                    onFocusChange = { searchFocused = it },
-                    searching = searching,
-                )
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(top = 8.dp),
-                ) {
-                    TextButton(onClick = {
-                        showAccount = !showAccount
-                        if (showAccount) { showPlaylists = false; openPlaylist = null }
-                    }) {
-                        Text(if (showAccount) "← Library" else "Settings")
-                    }
-                    TextButton(onClick = {
-                        showAccount = false
-                        showPlaylists = !showPlaylists
-                        // Closing the pane forgets which playlist was open, so returning to it
-                        // starts at the list rather than wherever it was left weeks ago.
-                        if (!showPlaylists) openPlaylist = null
-                    }) {
-                        Text(if (showPlaylists) "← Library" else "Playlists")
-                    }
+            NavRail(
+                selected = tab,
+                onSelect = { next ->
+                    // Choosing a section is leaving wherever you were: an open artist or album, a
+                    // search, a playlist. Otherwise the rail would light up a tab whose page was
+                    // still hidden behind the last thing opened.
+                    tab = next
+                    openArtist = null
+                    openAlbumId = null
+                    openPlaylist = null
+                    query = ""
+                    results = emptyList()
+                    error = null
+                },
+            )
+            Column(modifier = Modifier.weight(2f).padding(horizontal = 20.dp, vertical = 16.dp)) {
+                if (tab != NavTab.Settings) {
+                    SearchBar(
+                        query = query,
+                        onQueryChange = {
+                            query = it
+                            // Clearing the box is leaving the search, as on the phone.
+                            if (it.isBlank()) {
+                                results = emptyList()
+                                error = null
+                            }
+                        },
+                        onSearch = ::search,
+                        onFocusChange = { searchFocused = it },
+                        searching = searching,
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
                 SessionStatus(session)
                 error?.let {
@@ -578,13 +588,13 @@ private fun App(
                         onPlay = { songs, index -> playerQueue.play(songs, index, artist.name) },
                         onAddToPlaylist = { addingToPlaylist = it },
                     )
-                } else if (showAccount) {
+                } else if (tab == NavTab.Settings) {
                     SettingsPane(
                         settings = settings,
                         account = account,
                         listenTogether = listenTogether,
                         libraryPath = library.databasePath,
-                        onBack = { showAccount = false },
+                        onBack = { tab = NavTab.Home },
                         onClearLyricsCache = {
                             queue.current?.id?.let(lyricsRepository::forget)
                             lyrics = null
@@ -601,7 +611,17 @@ private fun App(
                             }
                         },
                     )
-                } else if (showPlaylists) {
+                } else if (results.isNotEmpty()) {
+                    Content(
+                        results = results,
+                        liked = liked,
+                        recent = recent,
+                        currentId = queue.current?.id,
+                        onPlayResult = { index -> playerQueue.play(results, index, "Search results") },
+                        onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Liked songs") },
+                        onAddToPlaylist = { addingToPlaylist = it },
+                    )
+                } else if (tab == NavTab.Playlists) {
                     PlaylistsPane(
                         playlists = playlists,
                         selected = selectedPlaylist,
@@ -633,7 +653,7 @@ private fun App(
                             }
                         },
                     )
-                } else if (query.isBlank() && results.isEmpty()) {
+                } else if (tab == NavTab.Home) {
                     // The feed is the landing page when nothing is being searched for. Liked and
                     // recent still live below it, since those are the two things looked for by name
                     // rather than browsed to.
@@ -698,6 +718,57 @@ private fun App(
     }
 }
 
+/** The sections the rail offers, in the phone's order. */
+internal enum class NavTab(val label: String) {
+    Home("Home"),
+    Songs("Songs"),
+    Playlists("Playlists"),
+    Settings("Settings"),
+}
+
+/**
+ * The phone's landscape navigation, as a rail down the left edge.
+ *
+ * The same container colour and the same vertically centred group as MainActivity's rail, so the
+ * two read as one app. Settings sits apart at the bottom: it is not a place music is found in.
+ */
+@Composable
+private fun NavRail(selected: NavTab, onSelect: (NavTab) -> Unit) {
+    NavigationRail(
+        containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
+        modifier = Modifier.fillMaxHeight(),
+    ) {
+        Spacer(modifier = Modifier.weight(1f))
+        listOf(NavTab.Home, NavTab.Songs, NavTab.Playlists).forEach { tab ->
+            NavigationRailItem(
+                selected = selected == tab,
+                onClick = { onSelect(tab) },
+                icon = { Icon(tab.icon(), contentDescription = null) },
+                label = { Text(tab.label, maxLines = 1) },
+            )
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        NavigationRailItem(
+            selected = selected == NavTab.Settings,
+            onClick = { onSelect(NavTab.Settings) },
+            icon = { Icon(NavTab.Settings.icon(), contentDescription = null) },
+            label = { Text(NavTab.Settings.label, maxLines = 1) },
+            modifier = Modifier.padding(bottom = 12.dp),
+        )
+    }
+}
+
+private fun NavTab.icon() = when (this) {
+    NavTab.Home -> OuterTuneIcons.home
+    NavTab.Songs -> OuterTuneIcons.musicNote
+    NavTab.Playlists -> OuterTuneIcons.queueMusic
+    NavTab.Settings -> OuterTuneIcons.settings
+}
+
+/**
+ * The search field, shaped as the phone's search bar: a filled pill with the magnifier leading,
+ * rather than an outlined form field with a floating label, which read as a settings input.
+ */
 @Composable
 private fun SearchBar(
     query: String,
@@ -706,17 +777,28 @@ private fun SearchBar(
     onFocusChange: (Boolean) -> Unit,
     searching: Boolean,
 ) {
-    OutlinedTextField(
+    TextField(
         value = query,
         onValueChange = onQueryChange,
-        label = { Text("Search YouTube Music") },
+        placeholder = { Text("Search YouTube Music") },
         singleLine = true,
+        shape = CircleShape,
+        leadingIcon = { Icon(OuterTuneIcons.search, contentDescription = null, modifier = Modifier.size(20.dp)) },
         trailingIcon = {
-            if (searching) {
-                CircularProgressIndicator(modifier = Modifier.width(20.dp), strokeWidth = 2.dp)
+            when {
+                searching -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                query.isNotEmpty() -> IconButton(onClick = { onQueryChange("") }) {
+                    Icon(OuterTuneIcons.close, contentDescription = "Clear", modifier = Modifier.size(20.dp))
+                }
             }
         },
-        // Enter searches, so the button is not the only way and the keyboard flow is unbroken.
+        colors = TextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+            focusedIndicatorColor = Color.Transparent,
+            unfocusedIndicatorColor = Color.Transparent,
+        ),
+        // Enter searches, so the keyboard flow is unbroken.
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() }),
         modifier = Modifier
@@ -873,11 +955,13 @@ private fun PlayerBar(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceVariant)
+                // The rail's colour, so the two frame the content as one surface - which is how the
+                // phone's mini player sits against its navigation bar.
+                .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
                 .clickable(onClick = onExpand)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
-            Artwork(song?.thumbnail, size = 44.dp)
+            Artwork(song?.thumbnail, size = 48.dp, cornerRadius = 6.dp)
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = song?.title ?: "Nothing playing",
@@ -914,10 +998,14 @@ private fun PlayerBar(
             IconButton(onClick = onPrevious, enabled = queue.hasPrevious) {
                 Icon(OuterTuneIcons.skipPrevious, "Previous")
             }
-            IconButton(onClick = onTogglePause, enabled = song != null) {
+            // Filled, as the full player's is: it is the button being reached for.
+            // Pause only while something is actually playing or about to; idle or failed, the button
+            // offers what pressing it would do, which is play.
+            val active = playback is PlaybackState.Playing || playback is PlaybackState.Loading
+            FilledIconButton(onClick = onTogglePause, enabled = song != null) {
                 Icon(
-                    if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
-                    contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
+                    if (active) OuterTuneIcons.pause else OuterTuneIcons.play,
+                    contentDescription = if (active) "Pause" else "Play",
                 )
             }
             IconButton(onClick = onNext, enabled = queue.hasNext) {
