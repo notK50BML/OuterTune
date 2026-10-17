@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
@@ -270,6 +271,16 @@ fun NowPlayingScreen(
         val playIcon = 36.dp * scale
         val transportSize = 52.dp * scale
         val transportIcon = 30.dp * scale
+        // The info and controls are slid left so the gap between them and the cover matches the gap
+        // between them and the window's edge. The cover hugs the left of its half, so whatever that
+        // half has spare ends up on the cover's right; left alone, the block sat a long way from
+        // the art and crowded the edge. Worked out from the same numbers the layout uses below.
+        val outerPadding = 28.dp
+        val artGap = 36.dp
+        val artColumn = (maxWidth - outerPadding * 2 - transportSize - 8.dp - artGap) / 2
+        val artSlack = if (showLyrics) 0.dp else
+            (artColumn - min(min(maxHeight - 24.dp, artColumn), coverMax).coerceAtLeast(120.dp)).coerceAtLeast(0.dp)
+        val blockShift = ((artSlack + artGap - outerPadding) / 2).coerceAtLeast(0.dp)
         val actionSize = 40.dp * scale
         val actionIcon = 24.dp * scale
 
@@ -349,7 +360,7 @@ fun NowPlayingScreen(
 
             Column(
                 verticalArrangement = Arrangement.Center,
-                modifier = Modifier.weight(1f).fillMaxHeight(),
+                modifier = Modifier.weight(1f).fillMaxHeight().offset(x = -blockShift),
             ) {
                 // Title, credits and the action buttons share one row, with the text column taking
                 // the weight so the buttons land against the right edge. That is Player.kt's
