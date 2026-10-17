@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
@@ -27,7 +31,6 @@ import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -71,7 +74,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
-import androidx.compose.material3.SliderDefaults
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -382,41 +384,11 @@ fun NowPlayingScreen(
                     // Plain, too. The value gradient is for controls whose setting means something,
                     // and "how far through the song" is not a setting - colouring it implied the
                     // start of a track was a low value of something and the end a high one.
-                    Slider(
-                        value = positionMs.coerceIn(0, durationMs).toFloat(),
-                        onValueChange = { onSeek(it.toLong()) },
-                        valueRange = 0f..durationMs.toFloat(),
-                        track = { state ->
-                            val fraction = if (durationMs > 0) {
-                                (state.value / durationMs.toFloat()).coerceIn(0f, 1f)
-                            } else {
-                                0f
-                            }
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(3.dp)
-                                    .clip(CircleShape)
-                                    .background(onBackground.copy(alpha = 0.22f)),
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(fraction)
-                                        .height(3.dp)
-                                        .clip(CircleShape)
-                                        .background(onBackground),
-                                )
-                            }
-                        },
-                        thumb = {
-                            Box(
-                                modifier = Modifier
-                                    .size(11.dp)
-                                    .clip(CircleShape)
-                                    .background(onBackground),
-                            )
-                        },
-                        modifier = Modifier.fillMaxWidth(),
+                    SlimSeekBar(
+                        positionMs = positionMs,
+                        durationMs = durationMs,
+                        colour = onBackground,
+                        onSeek = onSeek,
                     )
                     Row(
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -569,19 +541,38 @@ fun NowPlayingScreen(
     // Beside the player, in the Row, so the two share the window instead of one hiding the other.
     // Jumping to a track does not close it here: the whole point of having both on screen is that
     // the queue stays readable while the player plays.
+    //
+    // Its width animates rather than the panel sliding over the edge, so opening it pushes the
+    // player aside and the player shrinks to make room - the cover and controls resize as it goes,
+    // since everything there is sized from the space it is given - and closing it hands the room
+    // back the same way. A spring with no bounce, like the phone's sheets.
     if (sideBySide) {
-        QueueOverlay(
-            queue = queue,
-            onColour = onBackground,
-            background = bottom,
-            open = queueOpen,
-            onClose = { queueOpen = false },
-            onJump = onJumpToQueueIndex,
-            onMove = onMoveInQueue,
-            onRemove = onRemoveFromQueue,
-            docked = true,
-            modifier = Modifier.width(QUEUE_DOCK_WIDTH).fillMaxHeight(),
+        val dockWidth by animateDpAsState(
+            targetValue = if (queueOpen) QUEUE_DOCK_WIDTH else 0.dp,
+            animationSpec = spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow),
         )
+        if (dockWidth > 0.dp) {
+            Box(modifier = Modifier.width(dockWidth).fillMaxHeight().clipToBounds()) {
+                QueueOverlay(
+                    queue = queue,
+                    onColour = onBackground,
+                    background = bottom,
+                    // Always shown inside the box: the box's width is the animation.
+                    open = true,
+                    onClose = { queueOpen = false },
+                    onJump = onJumpToQueueIndex,
+                    onMove = onMoveInQueue,
+                    onRemove = onRemoveFromQueue,
+                    docked = true,
+                    // Laid out at full width and pinned to the left edge, so as the box opens it
+                    // reveals the queue rather than squashing its rows.
+                    modifier = Modifier
+                        .wrapContentWidth(Alignment.Start, unbounded = true)
+                        .width(QUEUE_DOCK_WIDTH)
+                        .fillMaxHeight(),
+                )
+            }
+        }
     }
     }
 
@@ -603,6 +594,72 @@ fun NowPlayingScreen(
         )
     }
     }
+    }
+}
+
+/**
+ * The seek bar as Android's slim style draws it: one rounded line, filled to the position, with no
+ * thumb. The Material slider's thumb sat a pixel or two off the track's centre line at this
+ * thickness, which is the kind of thing that cannot be unseen once noticed.
+ *
+ * Thickens a little under the pointer and while dragging, so it still reads as something to grab.
+ * While dragging, the line follows the pointer and the seek happens on release - seeking on every
+ * pixel of a drag would restart the stream dozens of times.
+ */
+@Composable
+private fun SlimSeekBar(
+    positionMs: Long,
+    durationMs: Long,
+    colour: Color,
+    onSeek: (Long) -> Unit,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val thickness by animateDpAsState(if (hovered || dragFraction != null) 7.dp else 4.dp)
+    val played = dragFraction ?: (positionMs.toFloat() / durationMs).coerceIn(0f, 1f)
+    val currentDuration by androidx.compose.runtime.rememberUpdatedState(durationMs)
+
+    Box(
+        contentAlignment = Alignment.CenterStart,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(24.dp)
+            .hoverable(interaction)
+            .pointerHoverIcon(PointerIcon.Hand)
+            .pointerInput(Unit) {
+                detectTapGestures { offset ->
+                    onSeek((offset.x / size.width).coerceIn(0f, 1f).times(currentDuration).toLong())
+                }
+            }
+            .pointerInput(Unit) {
+                detectHorizontalDragGestures(
+                    onDragStart = { offset -> dragFraction = (offset.x / size.width).coerceIn(0f, 1f) },
+                    onDragEnd = {
+                        dragFraction?.let { onSeek((it * currentDuration).toLong()) }
+                        dragFraction = null
+                    },
+                    onDragCancel = { dragFraction = null },
+                ) { change, _ ->
+                    change.consume()
+                    dragFraction = (change.position.x / size.width).coerceIn(0f, 1f)
+                }
+            },
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(thickness)
+                .clip(CircleShape)
+                .background(colour.copy(alpha = 0.22f)),
+        )
+        Box(
+            modifier = Modifier
+                .fillMaxWidth(played)
+                .height(thickness)
+                .clip(CircleShape)
+                .background(colour),
+        )
     }
 }
 

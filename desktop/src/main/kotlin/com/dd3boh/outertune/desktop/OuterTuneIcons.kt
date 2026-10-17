@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.graphics.vector.group
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -527,12 +530,35 @@ object OuterTuneIcons {
                     // White, so that Icon's own tint is what actually colours it - a tint
                     // multiplies, and a path filled with anything darker would come out muddy
                     // wherever it was tinted.
-                    addPath(
-                        PathParser().parsePathString(pathData).toNodes(),
-                        fill = SolidColor(Color.White),
-                    )
+                    //
+                    // Traced as well as filled, with a round join, which rounds off every sharp
+                    // corner by half the stroke - a triangle's points, a bar's ends, a cross's
+                    // tips - for the softer look the player wants. The stroke also fattens the
+                    // shape by the same amount, so it is drawn a touch smaller about the centre to
+                    // keep its weight and size where the drawable had them.
+                    group(
+                        scaleX = ROUNDING_SCALE,
+                        scaleY = ROUNDING_SCALE,
+                        pivotX = 480f,
+                        pivotY = 480f,
+                    ) {
+                        addPath(
+                            PathParser().parsePathString(pathData).toNodes(),
+                            fill = SolidColor(Color.White),
+                            stroke = SolidColor(Color.White),
+                            strokeLineWidth = ROUNDING_STROKE,
+                            strokeLineJoin = StrokeJoin.Round,
+                            strokeLineCap = StrokeCap.Round,
+                        )
+                    }
                 }.build()
             }
             ReadOnlyProperty { _, _ -> vector.value }
         }
+
+    /** How far corners are rounded, in viewport units: half of this is the corner radius. */
+    private const val ROUNDING_STROKE = 40f
+
+    /** Undoes the stroke's added weight - the shape grows by half the stroke on every side. */
+    private const val ROUNDING_SCALE = 1f - ROUNDING_STROKE / 960f
 }

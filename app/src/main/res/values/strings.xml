@@ -427,4 +427,6 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="eq_headroom_auto">Automatic</string>
     <string name="eq_headroom_half">Half</string>
     <string name="eq_headroom_off">None</string>
+    <string name="home_chip_empty">Nothing to show for %1$s</string>
+    <string name="home_chip_failed">Could not load %1$s</string>
 </resources>

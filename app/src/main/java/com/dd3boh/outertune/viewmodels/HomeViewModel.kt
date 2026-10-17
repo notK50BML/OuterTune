@@ -1,5 +1,9 @@
 package com.dd3boh.outertune.viewmodels
 
+import com.dd3boh.outertune.R
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Job
+import android.widget.Toast
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -42,7 +46,7 @@ import javax.inject.Inject
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
     val database: MusicDatabase,
     val syncUtils: SyncUtils
 ) : ViewModel() {
@@ -225,26 +229,57 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /** The chip request in flight, so a second tap replaces the first rather than racing it. */
+    private var chipJob: Job? = null
+
     fun toggleChip(chip: HomePage.Chip?) {
         if (chip == null || chip == selectedChip.value && previousHomePage.value != null) {
-            homePage.value = previousHomePage.value
+            chipJob?.cancel()
+            previousHomePage.value?.let { homePage.value = it }
             previousHomePage.value = null
             selectedChip.value = null
             return
         }
 
-        if (selectedChip.value == null) {
+        val selectedBefore = selectedChip.value
+        if (selectedBefore == null) {
             // store the actual homepage for deselecting chips
             previousHomePage.value = homePage.value
         }
-        viewModelScope.launch(Dispatchers.IO) {
-            val nextSections = YouTube.home(params = chip.endpoint?.params).getOrNull() ?: return@launch
+        // Lit as soon as it is tapped. It used to light only once the request came back, so for a
+        // second or two a tap looked like it had done nothing at all.
+        selectedChip.value = chip
+        chipJob?.cancel()
+        chipJob = viewModelScope.launch(Dispatchers.IO) {
+            val nextSections = YouTube.home(params = chip.endpoint?.params).getOrNull()
+            // Some chips - Podcasts, today - come back as shelves this app does not draw, which
+            // parse to nothing. Showing an empty home for those reads as broken; saying so and
+            // staying where you were does not.
+            if (nextSections == null || nextSections.sections.isEmpty()) {
+                if (selectedChip.value == chip) {
+                    selectedChip.value = selectedBefore
+                    if (selectedBefore == null) {
+                        previousHomePage.value?.let { homePage.value = it }
+                        previousHomePage.value = null
+                    }
+                }
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            if (nextSections == null) R.string.home_chip_failed else R.string.home_chip_empty,
+                            chip.title,
+                        ),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+                return@launch
+            }
             homePage.value = nextSections.copy(
                 chips = homePage.value?.chips,
                 sections = nextSections.sections,
                 continuation = nextSections.continuation
             )
-            selectedChip.value = chip
         }
     }
 

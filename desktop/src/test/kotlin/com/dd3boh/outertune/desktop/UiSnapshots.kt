@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
@@ -37,7 +40,7 @@ import java.io.File
  * Skipped unless OT_SNAPSHOTS names a directory, so it costs nothing in an ordinary test run. There
  * is no window and no network: covers are drawn here and handed to the artwork cache directly.
  */
-@OptIn(ExperimentalComposeUiApi::class)
+@OptIn(ExperimentalComposeUiApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 class UiSnapshots {
 
     private val outDir = System.getenv("OT_SNAPSHOTS")?.let(::File)
@@ -194,5 +197,19 @@ class UiSnapshots {
         capture("shell_playlists", 1280, 800, interact = { it.click(40f, 390f) }, content = shellContent)
         capture("shell_settings", 1280, 800, interact = { it.click(40f, 690f) }, content = shellContent)
         player.stop()
+    }
+
+    @Test
+    fun icons() {
+        assumeTrue(outDir != null)
+        capture("icons", 900, 300) {
+            androidx.compose.foundation.layout.FlowRow(
+                modifier = Modifier.fillMaxSize().padding(16.dp),
+            ) {
+                OuterTuneIcons.all.values.forEach {
+                    androidx.compose.material3.Icon(it, null, modifier = Modifier.padding(6.dp).size(40.dp))
+                }
+            }
+        }
     }
 }
