@@ -280,6 +280,17 @@ jobs:
           distribution: temurin
           cache: gradle
 
+      # Caches Gradle's downloads and its build cache between runs - the largest single cost of a
+      # cold build here, since media3 is compiled from source as an included build. setup-gradle
+      # rather than setup-java's own cache, which tripped over this repo's history (see above).
+      # Written from any branch, not just the default one, since builds are dispatched from several.
+      # Nothing about the output changes: R8 still minifies and shrinks, and a cached task is only
+      # reused when its inputs are byte-for-byte identical.
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: false
+
       - name: Accept Android SDK licenses
         run: yes | /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager --licenses
 
@@ -337,6 +348,15 @@ jobs:
             GRADLE_ARGS="-Plocales=${{ inputs.locales }}"
             echo "::notice::Keeping only these languages: ${{ inputs.locales }} (plus English)"
           fi
+
+          # lintVital is the lint pass Android Gradle runs inside every release assemble. This
+          # workflow skips lint on purpose (see above), and that one pass is a couple of minutes of
+          # analysing all fifty locales. Release only: debug and userdebug do not run it at all, and
+          # -x on a task that does not exist fails the build.
+          VARIANT="${{ inputs.variant }}"
+          case "$VARIANT" in
+            *Release) GRADLE_ARGS="$GRADLE_ARGS -x lintVital${VARIANT^}" ;;
+          esac
 
           ./gradlew assemble${{ inputs.variant }} $GRADLE_ARGS --stacktrace -DskipFormatKtlint 2>&1 | tee build.log
 
