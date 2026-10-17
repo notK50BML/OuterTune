@@ -69,8 +69,16 @@ internal object ArtworkCache {
      * Three attempts with a short backoff. Beyond that the cover genuinely is not coming, and
      * hammering the CDN for it helps nobody.
      */
+    /**
+     * Stands in for the network when set. Only the offscreen UI snapshots use it, so they can draw
+     * a real cover without a connection.
+     */
+    @Volatile
+    internal var substitute: ((String) -> ImageBitmap?)? = null
+
     suspend fun load(url: String): ImageBitmap? {
         if (url.isBlank()) return null
+        substitute?.let { return it(url) }
         images[url]?.let { return it }
         return withContext(Dispatchers.IO) {
             repeat(ATTEMPTS) { attempt ->

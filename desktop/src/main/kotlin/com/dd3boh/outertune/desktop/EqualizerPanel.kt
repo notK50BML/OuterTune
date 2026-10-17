@@ -54,6 +54,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlin.math.roundToInt
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
 
 /**
  * Range the band sliders cover by default.
@@ -113,6 +116,7 @@ private val SLIDER_LENGTH = 210.dp
  * reads that object continuously, and having the UI poll it would mean two threads reading and
  * writing the same list for no benefit. This owns the values and pushes them down.
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun EqualizerPanel(
     equalizer: Equalizer,
@@ -208,255 +212,326 @@ fun EqualizerPanel(
         }
     }
 
-    Column(modifier = modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Switch(
-                checked = enabled,
-                onCheckedChange = {
-                    enabled = it
-                    equalizer.enabled = it
-                    store?.enabled = it
-                },
-            )
-            Text(
-                text = "Equaliser",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = onColour,
-                modifier = Modifier.weight(1f),
-            )
-            TextButton(onClick = { apply(Equalizer.DEFAULT_BANDS, "Flat") }) {
-                Text("Reset", color = accent)
+    // Three cards, in the order the phone has them: the equaliser itself, the compressor, then
+    // everything else. Same headings at the same size, because the three are peers - see Android's
+    // PanelTitleStyle - and an equaliser that is switched off folds away rather than leaving twelve
+    // dead faders on screen.
+    Column(
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        EqCard {
+            PanelHeader(title = "Equaliser", onColour = onColour) {
+                if (enabled) {
+                    TextButton(onClick = { apply(Equalizer.DEFAULT_BANDS, "Flat") }) {
+                        Text("Reset", color = accent)
+                    }
+                }
+                Switch(
+                    checked = enabled,
+                    onCheckedChange = {
+                        enabled = it
+                        equalizer.enabled = it
+                        store?.enabled = it
+                    },
+                )
             }
-        }
 
-        Spacer(modifier = Modifier.height(12.dp))
+            if (enabled) {
+                Spacer(modifier = Modifier.height(12.dp))
 
-        // Dimmed rather than hidden while off. The curve is still what the equaliser would do, and
-        // hiding it would make the panel jump every time the switch is touched.
-        Box(modifier = Modifier.graphicsLayer { alpha = if (enabled) 1f else 0.45f }) {
-            EqGraph(
-                bands = bands,
-                sampleRate = equalizer.sampleRate,
-                onColour = onColour,
-                height = 150.dp,
-                rangeDb = rangeFor(bands),
-            )
-        }
+                // Scrolls, because there are sixteen built-ins before anyone adds one, and wrapping them
+                // onto three lines would push the sliders off the bottom of the drawer.
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                ) {
+                    names.forEach { name ->
+                        FilterChip(
+                            selected = profile == name,
+                            onClick = { load(name) },
+                            label = { Text(name) },
+                            // Only on the ones someone made. A built-in cannot be deleted because it is not
+                            // stored - the most that exists for it is an override, and "Revert to default"
+                            // is what removes that.
+                            trailingIcon = if (name !in builtIn) {
+                                {
+                                    Icon(
+                                        imageVector = OuterTuneIcons.close,
+                                        contentDescription = "Delete $name",
+                                        modifier = Modifier.size(16.dp).clickable { deleteProfile(name) },
+                                    )
+                                }
+                            } else {
+                                null
+                            },
+                        )
+                    }
+                }
 
-        Spacer(modifier = Modifier.height(14.dp))
+                // Only once a profile is selected. With none, every one of these acts on nothing, and a row
+                // of buttons that do nothing reads as a row of buttons that are broken.
+                if (profile != null) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { profile?.let(::save) }) {
+                            Text("Save", color = accent)
+                        }
+                        // Both of these are undo, and they are different undos: back to what was stored
+                        // under this name, and back to what the name meant before anything was stored.
+                        if (profile?.let { savedCurve(it) } != null) {
+                            TextButton(onClick = { profile?.let(::load) }) {
+                                Text("Revert to saved", color = accent)
+                            }
+                        }
+                        if (profile in builtIn) {
+                            TextButton(
+                                onClick = {
+                                    profile?.let { name ->
+                                        EqProfiles.factoryDefault(name)?.let { apply(it, name) }
+                                    }
+                                },
+                            ) {
+                                Text("Revert to default", color = accent)
+                            }
+                        }
+                    }
+                }
 
-        AutoEqSearch(accent = accent, onColour = onColour) { fetched, name ->
-            apply(fetched, name)
-        }
+                Spacer(modifier = Modifier.height(12.dp))
 
-        Spacer(modifier = Modifier.height(14.dp))
-
-        // Scrolls, because there are sixteen built-ins before anyone adds one, and wrapping them
-        // onto three lines would push the sliders off the bottom of the drawer.
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-        ) {
-            names.forEach { name ->
-                FilterChip(
-                    selected = profile == name,
-                    onClick = { load(name) },
-                    label = { Text(name) },
-                    // Only on the ones someone made. A built-in cannot be deleted because it is not
-                    // stored - the most that exists for it is an override, and "Revert to default"
-                    // is what removes that.
-                    trailingIcon = if (name !in builtIn) {
-                        {
-                            Icon(
-                                imageVector = OuterTuneIcons.close,
-                                contentDescription = "Delete $name",
-                                modifier = Modifier.size(16.dp).clickable { deleteProfile(name) },
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                ) {
+                    bands.forEachIndexed { index, band ->
+                        val bandColour = if (colourByValue) {
+                            ValueGradient.forValue(band.gainDb, -rangeFor(bands)..rangeFor(bands))
+                        } else {
+                            accent
+                        }
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.width(56.dp),
+                        ) {
+                            Text(
+                                // One decimal, because a slider that reads "+3" across a third of its travel
+                                // looks broken. The unit is on the value rather than a header, so a glance
+                                // at one band is self-contained.
+                                text = "%+.1f".format(band.gainDb),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = onColour.copy(alpha = if (band.gainDb == 0f) 0.45f else 0.85f),
+                            )
+                            Box(
+                                modifier = Modifier.width(48.dp).height(SLIDER_LENGTH),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                Slider(
+                                    value = band.gainDb,
+                                    onValueChange = { value ->
+                                        // No profile name: nudging a band edits the curve under whatever is
+                                        // selected rather than deselecting it, which is what leaves Save and
+                                        // "Revert to saved" something to act on.
+                                        apply(
+                                            bands.toMutableList().also { it[index] = band.copy(gainDb = value) },
+                                            persist = false,
+                                        )
+                                    },
+                                    // Once, at the end of the drag, rather than sixty times a second on the
+                                    // way there - see apply().
+                                    onValueChangeFinished = { store?.bands = bands },
+                                    valueRange = -rangeFor(bands)..rangeFor(bands),
+                                    // Coloured by where this band sits, like every other control here, so
+                                    // the twelve of them together read as the shape of the curve without
+                                    // anyone tracing the thumb positions.
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = bandColour,
+                                        activeTrackColor = bandColour,
+                                        inactiveTrackColor = onColour.copy(alpha = 0.18f),
+                                    ),
+                                    // Filled from 0dB outward rather than from the bottom. The stock track
+                                    // fills from the minimum, which drew a flat curve as twelve half-full
+                                    // faders - every band looking boosted when none was.
+                                    track = { state ->
+                                        val range = state.valueRange
+                                        val span = range.endInclusive - range.start
+                                        val zero = ((0f - range.start) / span).coerceIn(0f, 1f)
+                                        val at = ((state.value - range.start) / span).coerceIn(0f, 1f)
+                                        val inactive = onColour.copy(alpha = 0.18f)
+                                        Canvas(modifier = Modifier.fillMaxWidth().height(6.dp)) {
+                                            val y = size.height / 2
+                                            drawLine(
+                                                inactive, Offset(0f, y), Offset(size.width, y),
+                                                strokeWidth = size.height, cap = StrokeCap.Round,
+                                            )
+                                            // A tick at 0dB, so "flat" has a place to line up against.
+                                            drawLine(
+                                                onColour.copy(alpha = 0.45f),
+                                                Offset(size.width * zero, -3f),
+                                                Offset(size.width * zero, size.height + 3f),
+                                                strokeWidth = 2f,
+                                            )
+                                            if (at != zero) {
+                                                drawLine(
+                                                    bandColour,
+                                                    Offset(size.width * minOf(zero, at), y),
+                                                    Offset(size.width * maxOf(zero, at), y),
+                                                    strokeWidth = size.height, cap = StrokeCap.Round,
+                                                )
+                                            }
+                                        }
+                                    },
+                                    modifier = Modifier.rotateVertical(SLIDER_LENGTH),
+                                )
+                            }
+                            Text(
+                                // A loaded correction puts bands at 1050Hz or 3300Hz, not at round
+                                // numbers, so "3k" would label two different bands identically. One decimal
+                                // above a kilohertz keeps them distinguishable without going to four digits.
+                                text = when {
+                                    band.freqHz >= 10_000f -> "${(band.freqHz / 1000f).roundToInt()}k"
+                                    band.freqHz >= 1000f -> "%.1fk".format(band.freqHz / 1000f)
+                                    else -> band.freqHz.roundToInt().toString()
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 10.sp,
+                                textAlign = TextAlign.Center,
+                                color = onColour.copy(alpha = 0.7f),
                             )
                         }
-                    } else {
-                        null
-                    },
-                )
-            }
-        }
-
-        // Only once a profile is selected. With none, every one of these acts on nothing, and a row
-        // of buttons that do nothing reads as a row of buttons that are broken.
-        if (profile != null) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { profile?.let(::save) }) {
-                    Text("Save", color = accent)
-                }
-                // Both of these are undo, and they are different undos: back to what was stored
-                // under this name, and back to what the name meant before anything was stored.
-                if (profile?.let { savedCurve(it) } != null) {
-                    TextButton(onClick = { profile?.let(::load) }) {
-                        Text("Revert to saved", color = accent)
                     }
                 }
-                if (profile in builtIn) {
-                    TextButton(
-                        onClick = {
-                            profile?.let { name ->
-                                EqProfiles.factoryDefault(name)?.let { apply(it, name) }
-                            }
-                        },
-                    ) {
-                        Text("Revert to default", color = accent)
-                    }
-                }
-            }
-        }
 
-        if (naming) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                OutlinedTextField(
-                    value = newName,
-                    onValueChange = { newName = it },
-                    singleLine = true,
-                    label = { Text("Profile name") },
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedTextColor = onColour,
-                        unfocusedTextColor = onColour,
-                        focusedBorderColor = accent,
-                        unfocusedBorderColor = onColour.copy(alpha = 0.4f),
-                        focusedLabelColor = accent,
-                        unfocusedLabelColor = onColour.copy(alpha = 0.6f),
-                        cursorColor = accent,
-                    ),
-                    modifier = Modifier.weight(1f),
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Under the faders, as on the phone: they are what is being set, and this is the
+                // picture of what setting them did.
+                EqGraph(
+                    bands = bands,
+                    sampleRate = equalizer.sampleRate,
+                    onColour = onColour,
+                    height = 150.dp,
+                    rangeDb = rangeFor(bands),
                 )
-                TextButton(
-                    enabled = newName.isNotBlank(),
-                    onClick = {
-                        save(newName.trim())
-                        newName = ""
-                        naming = false
-                    },
-                ) {
-                    Text("Save", color = accent)
-                }
             }
-        } else {
-            TextButton(onClick = { naming = true }) {
-                Text("Save as new profile…", color = accent)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(18.dp))
-
-        // Bass and treble are a view over the bands rather than two more filters, which is how the
-        // phone does it and is the only version that cannot disagree with the sliders below: the
-        // dial reads the average of the bands it covers and writes that gain to all of them, so
-        // moving it moves them, and moving one of them moves it back. Two extra shelf filters would
-        // have produced a panel where the graph and the dials tell different stories.
-        ToneDials(
-            bands = bands,
-            balance = balance,
-            accent = accent,
-            onColour = onColour,
-            colourByValue = colourByValue,
-            onBandsChange = { apply(it, persist = false) },
-            onBandsSettled = { store?.bands = bands },
-            onBalanceChange = { store?.balance = it },
-        )
-
-        if (timeStretch != null) {
-            Spacer(modifier = Modifier.height(18.dp))
-            PlaybackDials(timeStretch, accent, onColour, colourByValue)
         }
 
         if (compressor != null) {
-            Spacer(modifier = Modifier.height(18.dp))
-            CompressorSection(
-                compressor = compressor,
+            EqCard {
+                CompressorSection(
+                    compressor = compressor,
+                    accent = accent,
+                    onColour = onColour,
+                    colourByValue = colourByValue,
+                    onPersist = store?.let { { prefs -> it.compressor = prefs } },
+                )
+            }
+        }
+
+        EqCard {
+            PanelHeader(title = "Additional settings", onColour = onColour)
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Bass and treble are a view over the bands rather than two more filters: the dial
+            // reads the average of the bands it covers and writes that gain to all of them, so it
+            // cannot disagree with the faders above.
+            ToneDials(
+                bands = bands,
+                balance = balance,
                 accent = accent,
                 onColour = onColour,
                 colourByValue = colourByValue,
-                onPersist = store?.let { { prefs -> it.compressor = prefs } },
+                onBandsChange = { apply(it, persist = false) },
+                onBandsSettled = { store?.bands = bands },
+                onBalanceChange = { store?.balance = it },
             )
-        }
 
-        Spacer(modifier = Modifier.height(18.dp))
+            if (timeStretch != null) {
+                Spacer(modifier = Modifier.height(18.dp))
+                PlaybackDials(timeStretch, accent, onColour, colourByValue)
+            }
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
-            bands.forEachIndexed { index, band ->
-                val bandColour = if (colourByValue) {
-                    ValueGradient.forValue(band.gainDb, -rangeFor(bands)..rangeFor(bands))
-                } else {
-                    accent
-                }
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.width(56.dp),
+            Spacer(modifier = Modifier.height(18.dp))
+
+            AutoEqSearch(accent = accent, onColour = onColour) { fetched, name ->
+                apply(fetched, name)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (naming) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Text(
-                        // One decimal, because a slider that reads "+3" across a third of its travel
-                        // looks broken. The unit is on the value rather than a header, so a glance
-                        // at one band is self-contained.
-                        text = "%+.1f".format(band.gainDb),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = onColour.copy(alpha = if (band.gainDb == 0f) 0.45f else 0.85f),
+                    OutlinedTextField(
+                        value = newName,
+                        onValueChange = { newName = it },
+                        singleLine = true,
+                        label = { Text("Profile name") },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = onColour,
+                            unfocusedTextColor = onColour,
+                            focusedBorderColor = accent,
+                            unfocusedBorderColor = onColour.copy(alpha = 0.4f),
+                            focusedLabelColor = accent,
+                            unfocusedLabelColor = onColour.copy(alpha = 0.6f),
+                            cursorColor = accent,
+                        ),
+                        modifier = Modifier.weight(1f),
                     )
-                    Box(
-                        modifier = Modifier.width(48.dp).height(SLIDER_LENGTH),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Slider(
-                            value = band.gainDb,
-                            onValueChange = { value ->
-                                // No profile name: nudging a band edits the curve under whatever is
-                                // selected rather than deselecting it, which is what leaves Save and
-                                // "Revert to saved" something to act on.
-                                apply(
-                                    bands.toMutableList().also { it[index] = band.copy(gainDb = value) },
-                                    persist = false,
-                                )
-                            },
-                            // Once, at the end of the drag, rather than sixty times a second on the
-                            // way there - see apply().
-                            onValueChangeFinished = { store?.bands = bands },
-                            valueRange = -rangeFor(bands)..rangeFor(bands),
-                            // Coloured by where this band sits, like every other control here, so
-                            // the twelve of them together read as the shape of the curve without
-                            // anyone tracing the thumb positions.
-                            colors = SliderDefaults.colors(
-                                thumbColor = bandColour,
-                                activeTrackColor = bandColour,
-                                inactiveTrackColor = onColour.copy(alpha = 0.18f),
-                            ),
-                            modifier = Modifier.rotateVertical(SLIDER_LENGTH),
-                        )
-                    }
-                    Text(
-                        // A loaded correction puts bands at 1050Hz or 3300Hz, not at round
-                        // numbers, so "3k" would label two different bands identically. One decimal
-                        // above a kilohertz keeps them distinguishable without going to four digits.
-                        text = when {
-                            band.freqHz >= 10_000f -> "${(band.freqHz / 1000f).roundToInt()}k"
-                            band.freqHz >= 1000f -> "%.1fk".format(band.freqHz / 1000f)
-                            else -> band.freqHz.roundToInt().toString()
+                    TextButton(
+                        enabled = newName.isNotBlank(),
+                        onClick = {
+                            save(newName.trim())
+                            newName = ""
+                            naming = false
                         },
-                        style = MaterialTheme.typography.labelSmall,
-                        fontSize = 10.sp,
-                        textAlign = TextAlign.Center,
-                        color = onColour.copy(alpha = 0.7f),
-                    )
+                    ) {
+                        Text("Save", color = accent)
+                    }
+                }
+            } else {
+                TextButton(onClick = { naming = true }) {
+                    Text("Save as new profile…", color = accent)
                 }
             }
         }
+    }
+}
+
+/** One of the panel's three sections: a rounded, lightly tinted card, as on the phone. */
+@Composable
+private fun EqCard(content: @Composable androidx.compose.foundation.layout.ColumnScope.() -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f))
+            .padding(16.dp),
+        content = content,
+    )
+}
+
+/** A card's heading, with whatever controls belong to it on the right. */
+@Composable
+internal fun PanelHeader(
+    title: String,
+    onColour: Color,
+    trailing: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit = {},
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier.fillMaxWidth(),
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            color = onColour,
+            modifier = Modifier.weight(1f),
+        )
+        trailing()
     }
 }
 
@@ -613,11 +688,8 @@ private fun CompressorSection(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier.fillMaxWidth(),
-        ) {
+        PanelHeader(title = "Compressor", onColour = onColour) {
+            if (enabled) GainReductionMeter(compressor = compressor, accent = accent, onColour = onColour)
             Switch(
                 checked = enabled,
                 onCheckedChange = {
@@ -625,15 +697,10 @@ private fun CompressorSection(
                     compressor.enabled = it
                 },
             )
-            Text(
-                text = "Compressor",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = onColour,
-                modifier = Modifier.weight(1f),
-            )
-            GainReductionMeter(compressor = compressor, accent = accent, onColour = onColour)
         }
+
+        // Folded away while off, as on the phone - five dials that do nothing read as broken.
+        if (!enabled) return@Column
 
         Spacer(modifier = Modifier.height(10.dp))
 
@@ -847,6 +914,7 @@ private fun ToneDials(
                 valueRange = gainRange,
                 color = colourFor(bassGain, gainRange),
                 textColor = onColour,
+                centeredAt = 0f,
                 label = "Bass",
                 valueLabel = "%+.1f dB".format(bassGain),
                 step = 0.5f,
@@ -861,6 +929,7 @@ private fun ToneDials(
                 valueRange = panRange,
                 color = colourFor(pan, panRange),
                 textColor = onColour,
+                centeredAt = 0f,
                 label = "Balance",
                 // "L 40" rather than "-0.4": nobody thinks of balance as a signed number, and the
                 // sign alone leaves which way is which to be worked out from the dial.
@@ -881,6 +950,7 @@ private fun ToneDials(
                 valueRange = gainRange,
                 color = colourFor(trebleGain, gainRange),
                 textColor = onColour,
+                centeredAt = 0f,
                 label = "Treble",
                 valueLabel = "%+.1f dB".format(trebleGain),
                 step = 0.5f,

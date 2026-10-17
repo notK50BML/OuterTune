@@ -189,6 +189,15 @@ fun NowPlayingScreen(
     // cover of what is now playing is the more useful thing to land on.
     var showLyrics by remember(song?.id) { mutableStateOf(false) }
 
+    // The player's own scheme, from the cover and matched to the background's brightness rather
+    // than to the window's theme. The background is the cover darkened, so in a light window the
+    // light scheme's deep primary put the play button dark-on-dark and it all but disappeared - the
+    // phone avoids this the same way, by colouring the player from the artwork.
+    val playerScheme = remember(primary, onBackground) {
+        DynamicTheme.schemeFor(primary, dark = onBackground == Color.White)
+    }
+
+    MaterialTheme(colorScheme = playerScheme) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
     // Wide enough for both, and the queue is what the width is spent on.
     //
@@ -199,17 +208,21 @@ fun NowPlayingScreen(
     val sideBySide = maxWidth >= QUEUE_DOCK_MIN_WIDTH
     val queueDocked = sideBySide && queueOpen
 
-    Row(modifier = Modifier.fillMaxSize()) {
+    // Behind everything, docked queue included, so the window reads as one surface tinted by the
+    // cover rather than a player with a differently coloured slab bolted to its side.
     PlayerBackground(
         style = backgroundStyle,
         thumbnail = song?.thumbnail,
         top = top,
         bottom = bottom,
     )
+
+    Row(modifier = Modifier.fillMaxSize()) {
+    // The player's own area. A Box, so the narrow-window queue can cover just this and nothing else.
+    Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
     Column(
         modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()
+            .fillMaxSize()
             // Scrolling up at the top of the player pulls the equaliser down, which is the gesture
             // the drawer's own handle implies and the one that was missing - the handle could only
             // be clicked, so "scroll up to see it" simply did nothing.
@@ -533,24 +546,6 @@ fun NowPlayingScreen(
         )
     }
 
-        // Over the player rather than inside the column, and for the same reason as the queue: an
-        // equaliser sharing the window with the player got a strip to fit twelve sliders, five
-        // knobs, a graph and a search box into, and squeezed the player to a sliver to do it.
-        if (equalizer != null) {
-            EqualizerOverlay(
-                equalizer = equalizer,
-                timeStretch = timeStretch,
-                compressor = compressor,
-                colourByValue = colourByValue,
-                eqStore = eqStore,
-                balance = balance,
-                onColour = onBackground,
-                background = bottom,
-                open = equalizerOpen,
-                onClose = { equalizerOpen = false },
-            )
-        }
-
         // Only when it is not docked beside the player - see sideBySide above. Over the player
         // rather than inside the column, so on a narrow window it covers things the way the
         // Android sheet does instead of squeezing the controls into whatever is left.
@@ -587,6 +582,26 @@ fun NowPlayingScreen(
             docked = true,
             modifier = Modifier.width(QUEUE_DOCK_WIDTH).fillMaxHeight(),
         )
+    }
+    }
+
+    // Over the whole window, docked queue included, and for the same reason the queue covers the
+    // player on a narrow window: an equaliser sharing the window got a strip to fit twelve sliders,
+    // five knobs, a graph and a search box into, and squeezed everything else to a sliver.
+    if (equalizer != null) {
+        EqualizerOverlay(
+            equalizer = equalizer,
+            timeStretch = timeStretch,
+            compressor = compressor,
+            colourByValue = colourByValue,
+            eqStore = eqStore,
+            balance = balance,
+            onColour = onBackground,
+            background = bottom,
+            open = equalizerOpen,
+            onClose = { equalizerOpen = false },
+        )
+    }
     }
     }
 }
@@ -870,9 +885,10 @@ private fun QueueOverlay(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                // Opaque, unlike the closed bar's scrim. A translucent list over album art is a
-                // list that cannot be read.
-                .background(background)
+                // Opaque as a sheet, unlike the closed bar's scrim: a translucent list over album
+                // art is a list that cannot be read. Docked, it sits over the cover's gradient
+                // rather than the art, so a light scrim keeps it one surface with the player.
+                .background(if (docked) Color.Black.copy(alpha = 0.22f) else background)
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { },
@@ -892,13 +908,34 @@ private fun QueueOverlay(
                     tint = onColour.copy(alpha = 0.85f),
                     modifier = Modifier.size(20.dp).rotate(180f),
                 )
+            }
+
+            // The phone's queue header: what the queue is on the left, where in it and how long it
+            // runs on the right.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 8.dp),
+            ) {
                 Text(
-                    text = "${queue.title}  ${queue.orderPosition + 1}/${queue.songs.size}",
+                    text = queue.title,
                     style = MaterialTheme.typography.titleMedium,
                     color = onColour,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
                 )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "${queue.orderPosition + 1} / ${queue.songs.size}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = onColour.copy(alpha = 0.8f),
+                    )
+                    Text(
+                        text = formatDuration(queue.songs.sumOf { (it.duration ?: 0).toLong() } * 1000L),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = onColour.copy(alpha = 0.8f),
+                    )
+                }
             }
 
             // Which row is being dragged, as a play-order position, and how far it has travelled
@@ -934,13 +971,39 @@ private fun QueueOverlay(
                                 shadowElevation = if (held) 12f else 0f
                                 alpha = if (held) 0.92f else 1f
                             }
+                            // The playing row sits in a rounded tint, as on the phone, so it can be
+                            // found in a long queue without reading every title.
+                            .padding(horizontal = 12.dp)
+                            .clip(RoundedCornerShape(12.dp))
                             .background(
-                                if (held) onColour.copy(alpha = 0.08f) else Color.Transparent
+                                when {
+                                    held -> onColour.copy(alpha = 0.10f)
+                                    current -> onColour.copy(alpha = 0.12f)
+                                    else -> Color.Transparent
+                                }
                             )
                             .clickable { onJump(index) }
-                            .padding(horizontal = 36.dp),
+                            .padding(horizontal = 16.dp),
                     ) {
-                        Artwork(song.thumbnail, size = 44.dp)
+                        Box(contentAlignment = Alignment.Center) {
+                            Artwork(song.thumbnail, size = 44.dp)
+                            if (current) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .clip(RoundedCornerShape(4.dp))
+                                        .background(Color.Black.copy(alpha = 0.45f)),
+                                ) {
+                                    Icon(
+                                        OuterTuneIcons.equalizer,
+                                        contentDescription = "Now playing",
+                                        tint = Color.White,
+                                        modifier = Modifier.size(22.dp),
+                                    )
+                                }
+                            }
+                        }
                         Spacer(modifier = Modifier.width(16.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
@@ -1216,5 +1279,11 @@ private fun Color.darken(amount: Float): Color =
 
 private fun formatDuration(ms: Long): String {
     val seconds = ms / 1000
-    return "%d:%02d".format(seconds / 60, seconds % 60)
+    // Hours once there are any - a queue's total runs past an hour easily, and "95:00" reads as a
+    // typo rather than as an hour and a half.
+    return if (seconds >= 3600) {
+        "%d:%02d:%02d".format(seconds / 3600, (seconds / 60) % 60, seconds % 60)
+    } else {
+        "%d:%02d".format(seconds / 60, seconds % 60)
+    }
 }

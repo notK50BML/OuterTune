@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -255,17 +258,23 @@ fun ArtistNames(
             if (index > 0) {
                 Text(text = ", ", style = style, color = colour, maxLines = 1)
             }
+            // Underlined under the pointer only, as a link on a web page is. Permanently underlined,
+            // every credit on the player read as a hyperlink in a document rather than a title - the
+            // phone shows them plain, and the hand cursor already says they can be clicked.
+            val interaction = remember { MutableInteractionSource() }
+            val hovered by interaction.collectIsHoveredAsState()
             Text(
                 text = credit.artist.name,
                 style = style.copy(
-                    textDecoration = if (credit.linked) TextDecoration.Underline else null,
+                    textDecoration = if (credit.linked && hovered) TextDecoration.Underline else null,
                 ),
                 color = colour,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
+                    .hoverable(interaction)
                     .pointerHoverIcon(PointerIcon.Hand)
-                    .clickable { onClick(credit.artist) },
+                    .clickable(interactionSource = interaction, indication = null) { onClick(credit.artist) },
             )
         }
     }

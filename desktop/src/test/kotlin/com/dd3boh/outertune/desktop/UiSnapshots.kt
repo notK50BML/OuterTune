@@ -1,0 +1,177 @@
+/*
+ * Copyright (C) 2026 OuterTune Project
+ *
+ * SPDX-License-Identifier: GPL-3.0
+ */
+
+package com.dd3boh.outertune.desktop
+
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.ImageComposeScene
+import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.unit.Density
+import com.zionhuang.innertube.models.Artist
+import com.zionhuang.innertube.models.SongItem
+import kotlinx.coroutines.Dispatchers
+import org.jetbrains.skia.EncodedImageFormat
+import org.jetbrains.skia.Paint
+import org.jetbrains.skia.Rect
+import org.jetbrains.skia.Shader
+import org.jetbrains.skia.Surface as SkSurface
+import org.junit.Assume.assumeTrue
+import org.junit.Test
+import java.io.File
+
+/**
+ * Renders the desktop screens offscreen to PNGs, for looking at rather than asserting on.
+ *
+ * Skipped unless OT_SNAPSHOTS names a directory, so it costs nothing in an ordinary test run. There
+ * is no window and no network: covers are drawn here and handed to the artwork cache directly.
+ */
+@OptIn(ExperimentalComposeUiApi::class)
+class UiSnapshots {
+
+    private val outDir = System.getenv("OT_SNAPSHOTS")?.let(::File)
+
+    private fun cover(seed: Int): org.jetbrains.skia.Image {
+        val surface = SkSurface.makeRasterN32Premul(512, 512)
+        val palettes = listOf(
+            intArrayOf(0xFF6A3093.toInt(), 0xFFA044FF.toInt(), 0xFFF7797D.toInt()),
+            intArrayOf(0xFF0F2027.toInt(), 0xFF2C5364.toInt(), 0xFF5FC3E4.toInt()),
+            intArrayOf(0xFFF4D03F.toInt(), 0xFF16A085.toInt(), 0xFF0B3D2E.toInt()),
+        )
+        val paint = Paint().apply {
+            shader = Shader.makeLinearGradient(0f, 0f, 512f, 512f, palettes[seed % palettes.size])
+        }
+        surface.canvas.drawRect(Rect.makeWH(512f, 512f), paint)
+        surface.canvas.drawCircle(330f, 200f, 120f, Paint().apply { color = 0x55FFFFFF })
+        return surface.makeImageSnapshot()
+    }
+
+    private val songs = listOf(
+        "Midnight City" to "M83",
+        "Strangers In The Night (Remastered 2008)" to "Frank Sinatra",
+        "Instant Crush" to "Daft Punk, Julian Casablancas",
+        "Retrograde" to "James Blake",
+        "Holocene" to "Bon Iver",
+        "Motion Sickness" to "Phoebe Bridgers",
+        "Nights" to "Frank Ocean",
+        "Dissolve" to "Absofacto",
+    ).mapIndexed { i, (title, artist) ->
+        SongItem(
+            id = "song$i",
+            title = title,
+            artists = artist.split(", ").map { Artist(name = it, id = "artist-$it") },
+            thumbnail = "snapshot://cover$i",
+            duration = 240,
+        )
+    }
+
+    private val lyrics = Lyrics(
+        lines = listOf(
+            "Waiting in the car" to 0L,
+            "Waiting for a ride in the dark" to 4_000L,
+            "The night city grows" to 8_000L,
+            "Look and see her eyes, they glow" to 12_000L,
+            "Waiting in the car" to 16_000L,
+            "Waiting for the right time" to 20_000L,
+            "♪" to 24_000L,
+            "The city is my church" to 28_000L,
+            "It wraps me in the sparkling twilight" to 32_000L,
+        ).map { (text, at) -> LyricLine(at, text) },
+        synced = true,
+        source = "Snapshot",
+    )
+
+    private fun queue(index: Int = 0) = QueueState(
+        songs = songs,
+        index = index,
+        order = songs.indices.toList(),
+        orderPosition = index,
+        title = "Liked songs",
+    )
+
+    private fun capture(
+        name: String,
+        width: Int,
+        height: Int,
+        dark: Boolean = true,
+        interact: (ImageComposeScene) -> Unit = {},
+        content: @Composable () -> Unit,
+    ) {
+        val dir = outDir ?: return
+        dir.mkdirs()
+        val covers = (0 until songs.size).associate { "cover$it" to cover(it).toComposeImageBitmap() }
+        ArtworkCache.substitute = { url -> covers.entries.firstOrNull { url.contains(it.key) }?.value }
+        val scene = ImageComposeScene(width, height, Density(1f), Dispatchers.Unconfined) {
+            val scheme = DynamicTheme.schemeFor(Color(0xFF7B3FC4), dark)
+            MaterialTheme(colorScheme = scheme) {
+                Surface(modifier = Modifier.fillMaxSize()) { content() }
+            }
+        }
+        var t = 0L
+        fun settle() = repeat(40) {
+            scene.render(t)
+            t += 50_000_000L
+            Thread.sleep(15)
+        }
+        settle()
+        interact(scene)
+        settle()
+        val image = scene.render(t)
+        File(dir, "$name.png").writeBytes(image.encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+    }
+
+    private fun ImageComposeScene.click(x: Float, y: Float) {
+        sendPointerEvent(PointerEventType.Press, Offset(x, y))
+        sendPointerEvent(PointerEventType.Release, Offset(x, y))
+    }
+
+    @Composable
+    private fun Player(width: Int, eqOn: Boolean = false) {
+        NowPlayingScreen(
+            playback = PlaybackState.Playing(songs[0].title),
+            queue = queue(),
+            positionMs = 13_500,
+            durationMs = 240_000,
+            liked = true,
+            onSeek = {}, onTogglePause = {}, onNext = {}, onPrevious = {},
+            onToggleLike = {}, onToggleShuffle = {}, onCycleRepeat = {}, onClose = {},
+            actions = PlayerActions(onStartRadio = {}, onAddToQueue = {}, onShare = {}),
+            lyrics = lyrics,
+            onDownload = {},
+            onSleepTimer = {},
+            equalizer = remember { Equalizer().apply { enabled = eqOn; if (eqOn) EqProfiles.factoryDefault("Rock")?.let(::setBands) } },
+            compressor = remember { Compressor().apply { enabled = eqOn } },
+            balance = Balance(),
+            timeStretch = TimeStretch(),
+        )
+    }
+
+    @Test
+    fun snapshots() {
+        assumeTrue(outDir != null)
+        capture("player_1280", 1280, 800) { Player(1280) }
+        capture("player_1000", 1000, 700) { Player(1000) }
+        capture("player_light", 1280, 800, dark = false) { Player(1280) }
+        capture("queue_wide", 1400, 860, interact = { it.click(500f, 840f) }) { Player(1400) }
+        capture("queue_narrow", 900, 700, interact = { it.click(450f, 680f) }) { Player(900) }
+        capture("lyrics", 1280, 800, interact = { it.click(300f, 400f) }) { Player(1280) }
+        capture("eq", 1280, 900, interact = {
+            it.sendPointerEvent(PointerEventType.Scroll, Offset(640f, 300f), scrollDelta = Offset(0f, -1f))
+        }) { Player(1280) }
+        capture("eq_on", 1280, 1500, interact = {
+            it.sendPointerEvent(PointerEventType.Scroll, Offset(640f, 300f), scrollDelta = Offset(0f, -1f))
+        }) { Player(1280, eqOn = true) }
+    }
+}
