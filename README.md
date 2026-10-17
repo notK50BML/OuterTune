@@ -169,7 +169,7 @@ OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/Inner
 - Added the new equaliser and compressor settings, along with most features
 - Added settings page and most basic settings
 
-# What I'm Working On
+## What I'm Working On
 - Improving equaliser to reduce bass distortion
 - Improving UI
 - Adding more settings
