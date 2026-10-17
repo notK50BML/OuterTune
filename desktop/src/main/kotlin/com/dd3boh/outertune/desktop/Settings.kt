@@ -49,6 +49,9 @@ class Settings(private val store: SettingsStore) {
      */
     var showVisualizer by bool("player.visualizer", false)
 
+    /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
+    var playerButtons by string("player.buttons", "")
+
     /**
      * Whether to ask BetterLyrics for word-by-word timings first.
      *

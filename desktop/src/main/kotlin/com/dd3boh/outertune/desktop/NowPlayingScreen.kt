@@ -171,6 +171,8 @@ fun NowPlayingScreen(
     /** Lyrics text size, in percent of the default. */
     lyricsTextScale: Int = 100,
     lyricsAlignment: LyricsAlignment = LyricsAlignment.Centre,
+    /** The title-row buttons, in order - see PlayerButtonKind. */
+    playerButtons: List<PlayerButtonKind> = PlayerButtonKind.decode(""),
 ) {
     // Held here rather than inside the drawer: the handle at the top and the button in the actions
     // row both open the same panel, exactly as they do on Android, and two copies of the state would
@@ -375,6 +377,7 @@ fun NowPlayingScreen(
                         iconSize = actionIcon,
                         sleepRemainingMs = sleepRemainingMs,
                         onSleepTimer = onSleepTimer,
+                        buttons = playerButtons,
                     )
                 }
 
@@ -1177,15 +1180,48 @@ private fun ActionButtons(
     iconSize: Dp,
     sleepRemainingMs: Long?,
     onSleepTimer: (() -> Unit)?,
+    buttons: List<PlayerButtonKind>,
 ) {
     Spacer(modifier = Modifier.width(10.dp))
 
-    // First, as on Android. When it is running it shows the time left rather than the moon: a timer
-    // whose whole purpose is "how long until the music stops" should answer that without being
-    // opened, and the widened pill is also how you can tell at a glance that one is set at all.
-    if (onSleepTimer != null) {
-        if (sleepRemainingMs != null) {
-            Box(
+    // Whatever was chosen in Settings > Player > Player buttons, left to right in that order.
+    buttons.forEachIndexed { index, button ->
+        if (index > 0) Spacer(modifier = Modifier.width(7.dp))
+        val onClick: (() -> Unit)? = when (button) {
+            PlayerButtonKind.LIKE -> onToggleLike
+            PlayerButtonKind.MENU -> null // the menu draws its own button below
+            PlayerButtonKind.SLEEP -> onSleepTimer
+            PlayerButtonKind.EQUALIZER -> actions.onEqualizer
+            PlayerButtonKind.DOWNLOAD -> onDownload
+            PlayerButtonKind.LYRICS -> actions.onToggleLyrics
+            PlayerButtonKind.QUEUE -> actions.onAddToQueue
+            PlayerButtonKind.PLAYLIST -> actions.onAddToPlaylist
+            PlayerButtonKind.ARTIST -> actions.onViewArtist
+            PlayerButtonKind.ALBUM -> actions.onViewAlbum
+            PlayerButtonKind.SHARE -> actions.onShare
+            PlayerButtonKind.DETAILS -> actions.onDetails
+        }
+        when {
+            button == PlayerButtonKind.MENU -> if (actions.any) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(buttonSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.primary),
+                ) {
+                    PlayerOverflowMenu(
+                        actions = actions,
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        buttonSize = buttonSize,
+                        iconSize = iconSize,
+                    )
+                }
+            }
+
+            // A running timer shows the time left rather than the moon: "how long until the music
+            // stops" should be answerable without opening anything.
+            button == PlayerButtonKind.SLEEP && sleepRemainingMs != null && onSleepTimer != null -> Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
                     .height(buttonSize)
@@ -1195,104 +1231,48 @@ private fun ActionButtons(
                     .padding(horizontal = 12.dp),
             ) {
                 Text(
-                    // Zero means "set, but with no countdown" - the end-of-song mode. Showing it as
-                    // "0:00" would read as a timer that had already run out and done nothing.
                     text = if (sleepRemainingMs > 0) SleepTimer.format(sleepRemainingMs) else "—",
                     style = MaterialTheme.typography.labelLarge,
                     color = MaterialTheme.colorScheme.onPrimary,
                     maxLines = 1,
                 )
             }
-        } else {
-            ActionButton(onClick = onSleepTimer, size = buttonSize) {
-                Icon(
-                    OuterTuneIcons.bedtime,
-                    contentDescription = "Sleep timer",
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(iconSize),
-                )
+
+            else -> ActionButton(onClick = onClick, size = buttonSize) {
+                val glyphTint = MaterialTheme.colorScheme.onPrimary
+                when {
+                    button == PlayerButtonKind.DOWNLOAD && downloading -> CircularProgressIndicator(
+                        color = glyphTint,
+                        strokeWidth = 2.dp,
+                        modifier = Modifier.size(iconSize * 0.8f),
+                    )
+                    else -> Icon(
+                        imageVector = if (button == PlayerButtonKind.LIKE && liked) OuterTuneIcons.favorite else button.icon,
+                        contentDescription = button.label,
+                        // Dimmed once downloaded, which reads as "done" while keeping the button
+                        // where it was; pressing it again removes the file.
+                        tint = glyphTint.copy(alpha = if (button == PlayerButtonKind.DOWNLOAD && downloaded) 0.45f else 1f),
+                        modifier = Modifier.size(iconSize),
+                    )
+                }
             }
-        }
-        Spacer(modifier = Modifier.width(7.dp))
-    }
-
-    ActionButton(onClick = onToggleLike, size = buttonSize) {
-        Icon(
-            imageVector = if (liked) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder,
-            contentDescription = if (liked) "Unlike" else "Like",
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(iconSize),
-        )
-    }
-
-    // Beside the like button rather than only in the menu. Liking and saving a song are the two
-    // things done to a track while it plays, and one of them being two clicks deeper than the other
-    // is an accident of where each happened to be added.
-    if (onDownload != null) {
-        Spacer(modifier = Modifier.width(7.dp))
-        ActionButton(onClick = onDownload, size = buttonSize) {
-            when {
-                // A spinner in place of the glyph rather than beside it, so the button does not
-                // change size mid-download and shift everything after it along the row.
-                downloading -> CircularProgressIndicator(
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    strokeWidth = 2.dp,
-                    modifier = Modifier.size(iconSize * 0.8f),
-                )
-                else -> Icon(
-                    OuterTuneIcons.download,
-                    contentDescription = if (downloaded) "Remove download" else "Download",
-                    // Dimmed once it is downloaded, which reads as "done" while keeping the button
-                    // where it was - swapping in a tick would make the row jump and would hide the
-                    // fact that pressing it again removes the file.
-                    tint = MaterialTheme.colorScheme.onPrimary.copy(alpha = if (downloaded) 0.45f else 1f),
-                    modifier = Modifier.size(iconSize),
-                )
-            }
-        }
-    }
-
-    if (actions.onEqualizer != null) {
-        Spacer(modifier = Modifier.width(7.dp))
-        ActionButton(onClick = actions.onEqualizer, size = buttonSize) {
-            Icon(
-                OuterTuneIcons.equalizer,
-                contentDescription = "Equaliser",
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(iconSize),
-            )
-        }
-    }
-
-    if (actions.any) {
-        Spacer(modifier = Modifier.width(7.dp))
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(buttonSize)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primary),
-        ) {
-            PlayerOverflowMenu(
-                actions = actions,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                buttonSize = buttonSize,
-                iconSize = iconSize,
-            )
         }
     }
 }
 
 /** One filled disc, sized and coloured as Android's action buttons are. */
 @Composable
-private fun ActionButton(onClick: () -> Unit, size: Dp, content: @Composable () -> Unit) {
+internal fun ActionButton(onClick: (() -> Unit)?, size: Dp, content: @Composable () -> Unit) {
     Box(
         contentAlignment = Alignment.Center,
         modifier = Modifier
             .size(size)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.primary)
-            .clickable(onClick = onClick),
+            // An action this song cannot do - no album to view, say - stays in its place, dimmed,
+            // rather than vanishing and shifting the rest of the row along.
+            .graphicsLayer { alpha = if (onClick != null) 1f else 0.45f }
+            .let { if (onClick != null) it.clickable(onClick = onClick) else it },
     ) {
         content()
     }

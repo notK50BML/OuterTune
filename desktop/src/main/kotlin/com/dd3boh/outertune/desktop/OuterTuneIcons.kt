@@ -359,6 +359,28 @@ object OuterTuneIcons {
             "Q200,305 200,380Q200,455 252.5,507.5Q305,560 380,560Z"
     )
 
+    // For the player-button arrangement, which can put any menu action beside the title. Drawn on
+    // the same 960 grid as the rest.
+    val share by icon(
+        "M820,200A100,100 0 1,1 620,200A100,100 0 1,1 820,200Z" +
+            "M340,480A100,100 0 1,1 140,480A100,100 0 1,1 340,480Z" +
+            "M820,760A100,100 0 1,1 620,760A100,100 0 1,1 820,760Z" +
+            "M225,454L705,174L735,226L255,506Z" +
+            "M255,454L735,734L705,786L225,506Z"
+    )
+
+    val album by icon(
+        "M820,480A340,340 0 1,1 140,480A340,340 0 1,1 820,480Z" +
+            "M580,480A100,100 0 1,0 380,480A100,100 0 1,0 580,480Z"
+    )
+
+    val playlistAdd by icon(
+        "M80,160L560,160L560,240L80,240Z" +
+            "M80,320L560,320L560,400L80,400Z" +
+            "M80,480L400,480L400,560L80,560Z" +
+            "M660,440L740,440L740,580L880,580L880,660L740,660L740,800L660,800L660,660L520,660L520,580L660,580Z"
+    )
+
     val settings by icon(
         "M440,840L440,600L520,600L520,680L840,680L840,760L520,760L520,840L440,840ZM120,760L120,680L360,680L360,760L120,760Z" +
             "M280,600L280,520L120,520L120,440L280,440L280,360L360,360L360,600L280,600ZM440,520L440,440L840,440L840,520L440,520Z" +
@@ -486,6 +508,9 @@ object OuterTuneIcons {
             "home" to home,
             "search" to search,
             "settings" to settings,
+            "share" to share,
+            "album" to album,
+            "playlistAdd" to playlistAdd,
             "info" to info,
             "wifi" to wifi,
             "textRotationAngledown" to textRotationAngledown,

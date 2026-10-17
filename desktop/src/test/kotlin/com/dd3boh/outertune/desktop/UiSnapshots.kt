@@ -147,7 +147,7 @@ class UiSnapshots {
     }
 
     @Composable
-    private fun Player(width: Int, eqOn: Boolean = false) {
+    private fun Player(width: Int, eqOn: Boolean = false, buttons: String = "") {
         NowPlayingScreen(
             playback = PlaybackState.Playing(songs[0].title),
             queue = queue(),
@@ -164,6 +164,7 @@ class UiSnapshots {
             compressor = remember { Compressor().apply { enabled = eqOn } },
             balance = Balance(),
             timeStretch = TimeStretch(),
+            playerButtons = PlayerButtonKind.decode(buttons),
         )
     }
 
@@ -205,6 +206,15 @@ class UiSnapshots {
         capture("shell_settings", 1280, 800, interact = { it.click(40f, 690f) }, content = shellContent)
         capture("shell_settings_lyrics", 1280, 800, interact = { it.click(40f, 690f); it.click(200f, 260f) }, content = shellContent)
         player.stop()
+    }
+
+    @Test
+    fun playerButtons() {
+        assumeTrue(outDir != null)
+        capture("player_buttons", 1280, 800) { Player(1280, buttons = "DLHUM") }
+        capture("player_buttons_dialog", 700, 820) {
+            PlayerButtonsDialog(current = PlayerButtonKind.decode("DLHUM"), onSave = {}, onDismiss = {})
+        }
     }
 
     @Test

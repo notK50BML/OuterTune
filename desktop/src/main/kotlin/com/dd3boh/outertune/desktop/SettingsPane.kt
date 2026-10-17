@@ -109,6 +109,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Font", SettingsCategory.Appearance, "typeface family text system fonts"),
     SettingEntry("Text size", SettingsCategory.Appearance, "scale zoom font size bigger smaller"),
     SettingEntry("Open on", SettingsCategory.Appearance, "start startup default tab section home"),
+    SettingEntry("Player buttons", SettingsCategory.Player, "like download sleep menu order arrange actions"),
     SettingEntry("Seek buttons", SettingsCategory.Player, "skip forward rewind five seconds"),
     SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
     SettingEntry("Equaliser", SettingsCategory.Player, "eq equalizer bass treble compressor autoeq"),
@@ -387,6 +388,24 @@ private fun PlayerSettings(settings: Settings) {
             onCheckedChange = { settings.showVisualizer = it },
             icon = OuterTuneIcons.graphicEq,
         )
+        var arranging by remember { mutableStateOf(false) }
+        SettingRow(
+            title = "Player buttons",
+            subtitle = PlayerButtonKind.decode(settings.playerButtons).joinToString(", ") { it.label },
+            icon = OuterTuneIcons.moreVert,
+            onClick = { arranging = true },
+        )
+        if (arranging) {
+            PlayerButtonsDialog(
+                current = PlayerButtonKind.decode(settings.playerButtons),
+                onSave = {
+                    settings.playerButtons = PlayerButtonKind.encode(it)
+                    arranging = false
+                },
+                onDismiss = { arranging = false },
+            )
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SettingRow(
             title = "Equaliser",
             subtitle = "Opened from the player: the equaliser button, or scroll up at the top of it.",

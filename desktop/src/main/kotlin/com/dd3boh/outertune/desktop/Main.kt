@@ -528,6 +528,7 @@ internal fun App(
             showSeekButtons = settings.showSeekButtons,
             lyricsTextScale = settings.lyricsTextScale,
             lyricsAlignment = settings.lyricsAlignment,
+            playerButtons = PlayerButtonKind.decode(settings.playerButtons),
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
             backgroundStyle = settings.background,
             colourByValue = settings.colourByValue,
