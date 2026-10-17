@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.pages.HomePage
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.CompositionLocalProvider
@@ -228,9 +229,38 @@ internal fun App(
     LaunchedEffect(accountState, homeAttempt) {
         savedPlaylists = if (accountState is AccountState.SignedIn) loadSavedPlaylists() else emptyList()
     }
-    LaunchedEffect(accountState, homeAttempt) {
+    // A mood chip, when one is lit. The chips themselves come from the unfiltered feed and are kept
+    // while a filtered one is showing, since a filtered page does not list them again.
+    var homeChip by remember { mutableStateOf<HomePage.Chip?>(null) }
+    var homeChips by remember { mutableStateOf<List<HomePage.Chip>>(emptyList()) }
+    LaunchedEffect(accountState, homeAttempt, homeChip) {
         home = HomeState.Loading
-        home = homeFeed.load(signedIn = accountState is AccountState.SignedIn)
+        home = homeFeed.load(signedIn = accountState is AccountState.SignedIn, chip = homeChip)
+        (home as? HomeState.Ready)?.chips?.takeIf { it.isNotEmpty() }?.let { homeChips = it }
+    }
+
+    // The two local rows the phone builds from play counts. Recomputed when history or likes change,
+    // off the main thread since both are queries. Shuffled by a seed that changes once a day, so the
+    // rows are fresh daily but do not reshuffle under the pointer every time a song finishes.
+    var quickPicks by remember { mutableStateOf<List<StoredSong>>(emptyList()) }
+    var forgotten by remember { mutableStateOf<List<StoredSong>>(emptyList()) }
+    LaunchedEffect(recent, liked) {
+        val day = System.currentTimeMillis() / 86_400_000L
+        val (picks, old) = withContext(Dispatchers.IO) {
+            val now = System.currentTimeMillis()
+            val lately = library.topSongs(now - 30L * 86_400_000L, 40).map { it.first }
+            val picks = (lately + liked.shuffled(kotlin.random.Random(day)))
+                .distinctBy { it.id }
+                .take(20)
+            val heardRecently = (library.topSongs(now - 14L * 86_400_000L, 500).map { it.first.id } +
+                recent.take(30).map { it.id }).toSet()
+            val old = liked.filterNot { it.id in heardRecently }
+                .shuffled(kotlin.random.Random(day + 1))
+                .take(20)
+            picks to old
+        }
+        quickPicks = picks
+        forgotten = old
     }
 
     // The colour the whole window is themed from. Sampled from the cover of what is playing, which
@@ -415,6 +445,7 @@ internal fun App(
             withContext(Dispatchers.IO) { YouTube.search(text, YouTube.SearchFilter.FILTER_SONG) }
                 .onSuccess { page ->
                     results = page.items.filterIsInstance<SongItem>()
+                        .filterNot { settings.hideExplicit && it.explicit }
                     if (results.isEmpty()) error = "No songs matched that."
                 }
                 .onFailure { error = "${it::class.simpleName}: ${it.message}" }
@@ -644,6 +675,10 @@ internal fun App(
                         onBack = { openArtist = null },
                         onPlay = { songs, index -> playerQueue.play(songs, index, artist.name) },
                         onAddToPlaylist = { addingToPlaylist = it },
+                        onOpenAlbum = openAlbumPage,
+                        onOpenArtist = openArtistPage,
+                        onOpenPlaylist = { openArtist = null; openOnlinePlaylist = it },
+                        hideExplicit = settings.hideExplicit,
                     )
                 } else if (tab == NavTab.Settings) {
                     SettingsPane(
@@ -678,6 +713,13 @@ internal fun App(
                         onPlayStored = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Liked songs") },
                         onAddToPlaylist = { addingToPlaylist = it },
                     )
+                } else if (tab == NavTab.Stats) {
+                    StatsPane(
+                        library = library,
+                        currentId = queue.current?.id,
+                        onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Stats") },
+                        onOpenArtist = openArtistPage,
+                    )
                 } else if (tab == NavTab.Playlists) {
                     PlaylistsPane(
                         playlists = playlists,
@@ -709,7 +751,14 @@ internal fun App(
                     // recent still live below it, since those are the two things looked for by name
                     // rather than browsed to.
                             HomePane(
-                                state = home,
+                                // Explicit items dropped here, once, rather than in every card.
+                                state = (home as? HomeState.Ready)?.takeIf { settings.hideExplicit }?.let { ready ->
+                                    ready.copy(
+                                        sections = ready.sections
+                                            .map { section -> section.copy(items = section.items.filterNot { it.explicit }) }
+                                            .filter { it.items.isNotEmpty() }
+                                    )
+                                } ?: home,
                                 currentId = queue.current?.id,
                                 liked = liked,
                                 recent = recent,
@@ -717,6 +766,11 @@ internal fun App(
                                     playerQueue.play(songs.map { it.toItem() }, index, title)
                                 },
                                 onRetry = { homeAttempt++ },
+                                quickPicks = quickPicks,
+                                forgotten = forgotten,
+                                chips = homeChips,
+                                selectedChip = homeChip,
+                                onChip = { homeChip = it },
                                 onPlaySong = { songs, index ->
                                     playerQueue.play(songs, index, "Home")
                                 },
@@ -778,6 +832,7 @@ enum class NavTab(val label: String) {
     Home("Home"),
     Songs("Songs"),
     Playlists("Playlists"),
+    Stats("Stats"),
     Settings("Settings"),
 }
 
@@ -794,7 +849,7 @@ private fun NavRail(selected: NavTab, onSelect: (NavTab) -> Unit) {
         modifier = Modifier.fillMaxHeight(),
     ) {
         Spacer(modifier = Modifier.weight(1f))
-        listOf(NavTab.Home, NavTab.Songs, NavTab.Playlists).forEach { tab ->
+        listOf(NavTab.Home, NavTab.Songs, NavTab.Playlists, NavTab.Stats).forEach { tab ->
             NavigationRailItem(
                 selected = selected == tab,
                 onClick = { onSelect(tab) },
@@ -817,6 +872,7 @@ private fun NavTab.icon() = when (this) {
     NavTab.Home -> OuterTuneIcons.home
     NavTab.Songs -> OuterTuneIcons.musicNote
     NavTab.Playlists -> OuterTuneIcons.queueMusic
+    NavTab.Stats -> OuterTuneIcons.graphicEq
     NavTab.Settings -> OuterTuneIcons.settings
 }
 

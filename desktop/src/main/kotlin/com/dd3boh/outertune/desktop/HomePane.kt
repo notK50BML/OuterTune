@@ -6,6 +6,11 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.FilterChip
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyHorizontalGrid
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -69,6 +74,13 @@ fun HomePane(
     onOpenAlbum: (String) -> Unit,
     onRetry: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Songs to start from - most played lately, topped up from liked. See Main. */
+    quickPicks: List<StoredSong> = emptyList(),
+    /** Liked songs that have not been played in a while. */
+    forgotten: List<StoredSong> = emptyList(),
+    chips: List<HomePage.Chip> = emptyList(),
+    selectedChip: HomePage.Chip? = null,
+    onChip: (HomePage.Chip?) -> Unit = {},
 ) {
     // One scrolling column with the local rows at the top, rather than the feed and the library
     // sharing the window half and half. Splitting it meant neither got enough height to show a row
@@ -77,22 +89,60 @@ fun HomePane(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(vertical = 16.dp),
     ) {
-        if (liked.isNotEmpty()) {
+        // In the phone's order: the mood filters, then what you are likely to want right now, then
+        // what you were listening to, then what you have not heard in a while, then YouTube's feed.
+        if (chips.isNotEmpty()) {
             item {
-                StoredRow(
-                    title = "Liked",
-                    songs = liked,
+                LazyRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 28.dp),
+                    modifier = Modifier.padding(bottom = 20.dp),
+                ) {
+                    items(chips, key = { it.title }) { chip ->
+                        FilterChip(
+                            selected = chip == selectedChip,
+                            // Tapping the lit chip again goes back to the whole feed, as on the phone.
+                            onClick = { onChip(if (chip == selectedChip) null else chip) },
+                            label = { Text(chip.title) },
+                        )
+                    }
+                }
+            }
+        }
+        if (quickPicks.isNotEmpty()) {
+            item {
+                SongGrid(
+                    title = "Quick picks",
+                    songs = quickPicks,
                     currentId = currentId,
-                ) { index -> onPlayStored(liked, index, "Liked songs") }
+                ) { index -> onPlayStored(quickPicks, index, "Quick picks") }
             }
         }
         if (recent.isNotEmpty()) {
             item {
                 StoredRow(
-                    title = "Recently played",
+                    title = "Keep listening",
                     songs = recent,
                     currentId = currentId,
-                ) { index -> onPlayStored(recent, index, "Recently played") }
+                ) { index -> onPlayStored(recent, index, "Keep listening") }
+            }
+        }
+        if (forgotten.isNotEmpty()) {
+            item {
+                SongGrid(
+                    title = "Forgotten favourites",
+                    songs = forgotten,
+                    currentId = currentId,
+                ) { index -> onPlayStored(forgotten, index, "Forgotten favourites") }
+            }
+        }
+        if (liked.isNotEmpty()) {
+            item {
+                StoredRow(
+                    title = "Liked songs",
+                    songs = liked,
+                    currentId = currentId,
+                ) { index -> onPlayStored(liked, index, "Liked songs") }
             }
         }
 
@@ -146,6 +196,70 @@ fun HomePane(
         }
     }
 }
+
+/**
+ * Songs as a grid of compact rows, four deep and scrolling sideways - the phone's Quick picks.
+ *
+ * Rows rather than cards because these are songs to start, not records to browse: the title is
+ * what is being scanned for, and twenty of them fit where five cards would.
+ */
+@Composable
+private fun SongGrid(
+    title: String,
+    songs: List<StoredSong>,
+    currentId: String?,
+    onPlay: (Int) -> Unit,
+) {
+    Column(modifier = Modifier.padding(bottom = 24.dp)) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(start = 28.dp, bottom = 10.dp),
+        )
+        val rows = minOf(4, songs.size)
+        LazyHorizontalGrid(
+            rows = GridCells.Fixed(rows),
+            contentPadding = PaddingValues(horizontal = 20.dp),
+            modifier = Modifier.height(GRID_ROW_HEIGHT * rows),
+        ) {
+            gridItemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .width(320.dp)
+                        .height(GRID_ROW_HEIGHT)
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(10.dp))
+                        .pointerHoverIcon(PointerIcon.Hand)
+                        .clickable { onPlay(index) }
+                        .padding(horizontal = 8.dp),
+                ) {
+                    Artwork(song.thumbnail, size = 48.dp, cornerRadius = 6.dp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            song.title,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = if (song.id == currentId) FontWeight.Bold else FontWeight.Normal,
+                            color = if (song.id == currentId) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        Text(
+                            song.artists,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val GRID_ROW_HEIGHT = 60.dp
 
 /**
  * A row of songs the library already holds.
@@ -272,7 +386,7 @@ private fun Section(
  * the only thing distinguishing "this opens a page" from "this starts playing" before it is clicked.
  */
 @Composable
-private fun Card(item: YTItem, playing: Boolean, onClick: () -> Unit) {
+internal fun Card(item: YTItem, playing: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .width(CARD_WIDTH)

@@ -26,7 +26,11 @@ import kotlinx.coroutines.withContext
  */
 sealed interface HomeState {
     data object Loading : HomeState
-    data class Ready(val sections: List<HomePage.Section>) : HomeState
+    data class Ready(
+        val sections: List<HomePage.Section>,
+        /** YouTube's mood filters - Relax, Workout, Sleep... - offered above the feed. */
+        val chips: List<HomePage.Chip> = emptyList(),
+    ) : HomeState
 
     /**
      * Nothing to show, with something to say about why.
@@ -51,8 +55,9 @@ sealed interface HomeState {
  */
 class HomeFeed {
 
-    suspend fun load(signedIn: Boolean): HomeState = withContext(Dispatchers.IO) {
-        val page = YouTube.home().getOrElse { error ->
+    /** The feed, or with [chip] the feed filtered to one mood, as the phone's chips do. */
+    suspend fun load(signedIn: Boolean, chip: HomePage.Chip? = null): HomeState = withContext(Dispatchers.IO) {
+        val page = YouTube.home(params = chip?.endpoint?.params).getOrElse { error ->
             return@withContext HomeState.Empty(
                 message = if (signedIn) {
                     "Could not load your home feed: ${error.message ?: error::class.simpleName}"
@@ -69,7 +74,9 @@ class HomeFeed {
         val usable = page.sections.filter { section -> section.items.any { it.isSupported } }
         if (usable.isEmpty()) {
             return@withContext HomeState.Empty(
-                message = if (signedIn) {
+                message = if (chip != null) {
+                    "Nothing here for ${chip.title} that this app can play."
+                } else if (signedIn) {
                     "YouTube returned nothing for this account yet. Play a few things and it fills in."
                 } else {
                     "Sign in to see recommendations made for you."
@@ -77,7 +84,7 @@ class HomeFeed {
                 signedOut = !signedIn,
             )
         }
-        HomeState.Ready(usable)
+        HomeState.Ready(usable, page.chips.orEmpty())
     }
 }
 

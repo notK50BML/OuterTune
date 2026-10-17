@@ -108,13 +108,15 @@ class UiSnapshots {
         width: Int,
         height: Int,
         dark: Boolean = true,
+        liveArt: Boolean = false,
+        settleFrames: Int = 40,
         interact: (ImageComposeScene) -> Unit = {},
         content: @Composable () -> Unit,
     ) {
         val dir = outDir ?: return
         dir.mkdirs()
         val covers = (0 until songs.size).associate { "cover$it" to cover(it).toComposeImageBitmap() }
-        ArtworkCache.substitute = { url -> covers.entries.firstOrNull { url.contains(it.key) }?.value }
+        ArtworkCache.substitute = if (liveArt) null else { url -> covers.entries.firstOrNull { url.contains(it.key) }?.value }
         val scene = ImageComposeScene(width, height, Density(1f), Dispatchers.Unconfined) {
             val scheme = DynamicTheme.schemeFor(Color(0xFF7B3FC4), dark)
             MaterialTheme(colorScheme = scheme) {
@@ -122,7 +124,7 @@ class UiSnapshots {
             }
         }
         var t = 0L
-        fun settle() = repeat(40) {
+        fun settle() = repeat(settleFrames) {
             scene.render(t)
             t += 50_000_000L
             Thread.sleep(15)
@@ -188,14 +190,20 @@ class UiSnapshots {
         val dir = java.nio.file.Files.createTempDirectory("ot-snap").toFile()
         val library = LibraryStore(dir)
         songs.take(6).forEach { library.toggleLiked(it.toStored()) }
-        songs.drop(2).forEach { library.recordPlay(it.toStored()) }
+        songs.drop(2).forEach { library.recordPlay(it.toStored(), 240_000) }
+        songs.take(3).forEach { library.recordPlay(it.toStored(), 240_000) }
+        val mix = library.createPlaylist("Late night mix")
+        songs.take(4).forEach { library.addToPlaylist(mix, it.toStored()) }
         val settings = Settings(library.settings)
         val player = DesktopPlayer()
         val shellContent: @Composable () -> Unit = { App(player, library, settings, onSeedChanged = {}) }
         capture("shell_home", 1280, 800, content = shellContent)
-        capture("shell_songs", 1280, 800, interact = { it.click(40f, 330f) }, content = shellContent)
-        capture("shell_playlists", 1280, 800, interact = { it.click(40f, 390f) }, content = shellContent)
+        capture("shell_songs", 1280, 800, interact = { it.click(40f, 300f) }, content = shellContent)
+        capture("shell_playlists", 1280, 800, interact = { it.click(40f, 360f) }, content = shellContent)
+        capture("shell_playlist_open", 1280, 800, interact = { it.click(40f, 360f); it.click(500f, 150f) }, content = shellContent)
+        capture("shell_stats", 1280, 800, interact = { it.click(40f, 420f) }, content = shellContent)
         capture("shell_settings", 1280, 800, interact = { it.click(40f, 690f) }, content = shellContent)
+        capture("shell_settings_lyrics", 1280, 800, interact = { it.click(40f, 690f); it.click(200f, 260f) }, content = shellContent)
         player.stop()
     }
 
@@ -210,6 +218,24 @@ class UiSnapshots {
                     androidx.compose.material3.Icon(it, null, modifier = Modifier.padding(6.dp).size(40.dp))
                 }
             }
+        }
+    }
+
+    @Test
+    fun liveArtist() = kotlinx.coroutines.runBlocking {
+        assumeTrue(outDir != null && System.getenv("OT_PROBE") != null)
+        com.zionhuang.innertube.YouTube.locale = com.zionhuang.innertube.models.YouTubeLocale(gl = "US", hl = "en")
+        com.zionhuang.innertube.YouTube.visitorData = com.zionhuang.innertube.YouTube.visitorData().getOrThrow()
+        val hit = com.zionhuang.innertube.YouTube.search("Daft Punk", com.zionhuang.innertube.YouTube.SearchFilter.FILTER_ARTIST)
+            .getOrThrow().items.filterIsInstance<com.zionhuang.innertube.models.ArtistItem>().first()
+        val library = LibraryStore(java.nio.file.Files.createTempDirectory("ot-artist").toFile())
+        capture("artist_live", 1280, 1400, liveArt = true, settleFrames = 120) {
+            ArtistPane(
+                artist = StoredArtist(hit.id, hit.title),
+                library = library,
+                currentId = null,
+                onBack = {}, onPlay = { _, _ -> }, onAddToPlaylist = {},
+            )
         }
     }
 }

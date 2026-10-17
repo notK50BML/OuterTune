@@ -440,6 +440,14 @@ class Database(file: File) {
         }
     }
 
+    /** Forgets every play: the recent list and the counts Stats is made of. Songs themselves stay. */
+    fun clearHistory() = synchronized(lock) {
+        connection.createStatement().use { st ->
+            st.executeUpdate("DELETE FROM play_history")
+            st.executeUpdate("DELETE FROM play_event")
+        }
+    }
+
     /** Most played songs since [sinceMs], with how many times each. */
     fun topSongs(sinceMs: Long, limit: Int): List<Pair<StoredSong, Int>> = synchronized(lock) {
         val counts = LinkedHashMap<String, Int>()

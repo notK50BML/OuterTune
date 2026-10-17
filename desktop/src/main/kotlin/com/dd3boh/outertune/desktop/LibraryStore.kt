@@ -138,6 +138,11 @@ class LibraryStore(
         recentlyPlayed.value = db.recentlyPlayed(MAX_RECENT)
     }
 
+    fun clearHistory() {
+        db.clearHistory()
+        recentlyPlayed.value = emptyList()
+    }
+
     fun topSongs(sinceMs: Long, limit: Int = 50) = db.topSongs(sinceMs, limit)
     fun topArtists(sinceMs: Long, limit: Int = 30) = db.topArtists(sinceMs, limit)
     fun playTotals(sinceMs: Long) = db.playTotals(sinceMs)

@@ -6,6 +6,23 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Slider
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.TextField
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -49,16 +66,89 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 
+/** The sections settings are grouped into, in the phone's order. */
+enum class SettingsCategory(val label: String, val blurb: String) {
+    Appearance("Appearance", "Theme, colours, fonts and text size"),
+    Player("Player and audio", "Transport, visualiser and the player screen"),
+    Lyrics("Lyrics", "Providers, timing and how lyrics look"),
+    Content("Content", "What shows up in search, Home and artists"),
+    Account("Account", "Sign in to YouTube Music"),
+    Integrations("Integrations", "Discord and Listen Together"),
+    Storage("Storage", "Downloaded songs"),
+    Privacy("Privacy and backup", "Listening history, importing, where things are kept"),
+    About("About", "Version and links"),
+}
+
+private fun SettingsCategory.icon(): ImageVector = when (this) {
+    SettingsCategory.Appearance -> OuterTuneIcons.palette
+    SettingsCategory.Player -> OuterTuneIcons.play
+    SettingsCategory.Lyrics -> OuterTuneIcons.lyrics
+    SettingsCategory.Content -> OuterTuneIcons.musicNote
+    SettingsCategory.Account -> OuterTuneIcons.accountCircle
+    SettingsCategory.Integrations -> OuterTuneIcons.devices
+    SettingsCategory.Storage -> OuterTuneIcons.download
+    SettingsCategory.Privacy -> OuterTuneIcons.history
+    SettingsCategory.About -> OuterTuneIcons.info
+}
+
 /**
- * Everything that can be changed, in one scrolling column.
+ * Every setting by name, for search.
  *
- * One page rather than the phone's tree of sub-screens. That tree exists because a phone can show
- * about six rows at a time, so anything longer has to be split; a desktop window shows forty, and
- * splitting them would mean navigating to find a switch that could simply have been visible.
+ * Hand-kept, next to the screens that draw them. Keywords are the words someone might type that are
+ * not in the title - "dark" for the theme, "karaoke" for word-by-word - which is most of what makes
+ * a settings search useful rather than a find-in-page.
+ */
+internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
+
+internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Theme", SettingsCategory.Appearance, "dark light system mode night"),
+    SettingEntry("Pure black", SettingsCategory.Appearance, "amoled oled dark black"),
+    SettingEntry("Colour the app from the artwork", SettingsCategory.Appearance, "dynamic material you palette cover color"),
+    SettingEntry("Colour controls by value", SettingsCategory.Appearance, "gradient yellow green blue dials color"),
+    SettingEntry("Player background", SettingsCategory.Appearance, "gradient blur frosted solid"),
+    SettingEntry("Font", SettingsCategory.Appearance, "typeface family text system fonts"),
+    SettingEntry("Text size", SettingsCategory.Appearance, "scale zoom font size bigger smaller"),
+    SettingEntry("Open on", SettingsCategory.Appearance, "start startup default tab section home"),
+    SettingEntry("Seek buttons", SettingsCategory.Player, "skip forward rewind five seconds"),
+    SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
+    SettingEntry("Equaliser", SettingsCategory.Player, "eq equalizer bass treble compressor autoeq"),
+    SettingEntry("Word-by-word lyrics", SettingsCategory.Lyrics, "betterlyrics karaoke syllable"),
+    SettingEntry("Estimate word timings", SettingsCategory.Lyrics, "karaoke interpolation sweep"),
+    SettingEntry("Click the cover for lyrics", SettingsCategory.Lyrics, "artwork tap"),
+    SettingEntry("Lyrics text size", SettingsCategory.Lyrics, "font scale"),
+    SettingEntry("Lyrics alignment", SettingsCategory.Lyrics, "centre center left"),
+    SettingEntry("Lyrics timing offset", SettingsCategory.Lyrics, "delay sync early late"),
+    SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
+    SettingEntry("Hide explicit content", SettingsCategory.Content, "explicit filter clean"),
+    SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
+    SettingEntry("Discord", SettingsCategory.Integrations, "rich presence rpc status token"),
+    SettingEntry("Listen Together", SettingsCategory.Integrations, "sync share lan network party"),
+    SettingEntry("Downloads", SettingsCategory.Storage, "offline delete space disk"),
+    SettingEntry("Keep listening history", SettingsCategory.Privacy, "history recent stats record"),
+    SettingEntry("Clear listening history", SettingsCategory.Privacy, "history delete stats reset"),
+    SettingEntry("Import from a phone backup", SettingsCategory.Privacy, "restore backup android zip"),
+    SettingEntry("Where the library is stored", SettingsCategory.Privacy, "database file path backup sqlite"),
+    SettingEntry("Version", SettingsCategory.About, "about github"),
+)
+
+/** Settings whose title or keywords contain every word of [query]. */
+internal fun searchSettings(query: String): List<SettingEntry> {
+    val words = query.trim().lowercase().split(" ").filter { it.isNotBlank() }
+    if (words.isEmpty()) return emptyList()
+    return SETTING_ENTRIES.filter { entry ->
+        words.all { word ->
+            entry.title.lowercase().contains(word) || entry.keywords.contains(word) ||
+                entry.category.label.lowercase().contains(word)
+        }
+    }
+}
+
+/**
+ * Settings, the way the phone lays them out: a list of categories, and the chosen one beside it.
  *
- * Signing in lives here rather than in its own top-level place. It is setup, done once, and its old
- * spot in the main navigation gave it standing next to the library and the playlists that it does
- * not have - nothing about signing in is something anyone visits twice.
+ * Side by side rather than drilled into, because a desktop window has the width for both - picking
+ * another category is one click, not back-and-in. The search box above the list searches every
+ * setting by name and by the words someone might reach for instead, and a result opens its category.
  */
 @Composable
 fun SettingsPane(
@@ -73,597 +163,950 @@ fun SettingsPane(
     library: LibraryStore,
     modifier: Modifier = Modifier,
 ) {
-    val scope = rememberCoroutineScope()
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 32.dp, vertical = 20.dp),
-    ) {
-        // No back button: the navigation rail is how you leave, as on every other section.
-        Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+    var category by remember { mutableStateOf(SettingsCategory.Appearance) }
+    var query by remember { mutableStateOf("") }
+    val matches = remember(query) { searchSettings(query) }
 
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Section("Account") {
-            // The whole sign-in pane, unchanged, just relocated. Four routes and their explanations
-            // are a lot of surface, and it reads better as one card here than as a destination.
-            AccountPane(account = account)
+    Row(modifier = modifier.fillMaxSize()) {
+        Column(modifier = Modifier.width(280.dp).fillMaxHeight().padding(top = 4.dp, end = 12.dp)) {
+            Text(
+                "Settings",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(start = 8.dp, bottom = 12.dp),
+            )
+            TextField(
+                value = query,
+                onValueChange = { query = it },
+                placeholder = { Text("Search settings") },
+                singleLine = true,
+                shape = CircleShape,
+                leadingIcon = { Icon(OuterTuneIcons.search, null, modifier = Modifier.size(20.dp)) },
+                trailingIcon = if (query.isNotEmpty()) {
+                    { IconButton(onClick = { query = "" }) { Icon(OuterTuneIcons.close, "Clear", modifier = Modifier.size(18.dp)) } }
+                } else {
+                    null
+                },
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                    unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+                ),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                if (query.isNotBlank()) {
+                    if (matches.isEmpty()) {
+                        Text(
+                            "Nothing matches \"${query.trim()}\".",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(12.dp),
+                        )
+                    }
+                    matches.forEach { entry ->
+                        CategoryItem(
+                            title = entry.title,
+                            subtitle = entry.category.label,
+                            icon = entry.category.icon(),
+                            selected = false,
+                            onClick = {
+                                category = entry.category
+                                query = ""
+                            },
+                        )
+                    }
+                } else {
+                    SettingsCategory.entries.forEach { item ->
+                        CategoryItem(
+                            title = item.label,
+                            subtitle = item.blurb,
+                            icon = item.icon(),
+                            selected = item == category,
+                            onClick = { category = item },
+                        )
+                    }
+                }
+            }
         }
 
-        Section("Discord") {
-            var pasting by remember { mutableStateOf(false) }
-            var draft by remember { mutableStateOf("") }
-            var testing by remember { mutableStateOf(false) }
-            var connectionStatus by remember { mutableStateOf<String?>(null) }
-            val isLoggedIn = settings.discordToken.isNotEmpty()
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+        ) {
+            Text(
+                category.label,
+                style = MaterialTheme.typography.titleLarge,
+                modifier = Modifier.padding(start = 4.dp, bottom = 4.dp),
+            )
+            when (category) {
+                SettingsCategory.Appearance -> AppearanceSettings(settings)
+                SettingsCategory.Player -> PlayerSettings(settings)
+                SettingsCategory.Lyrics -> LyricsSettings(settings, onClearLyricsCache)
+                SettingsCategory.Content -> ContentSettings(settings)
+                SettingsCategory.Account -> Section("YouTube Music") { AccountPane(account = account) }
+                SettingsCategory.Integrations -> {
+                    DiscordSettings(settings)
+                    ListenTogetherSettings(settings, listenTogether)
+                }
+                SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
+                SettingsCategory.Privacy -> PrivacySettings(settings, library, libraryPath)
+                SettingsCategory.About -> AboutSettings()
+            }
+            Spacer(modifier = Modifier.height(40.dp))
+        }
+    }
+}
 
-            // Resolves who is signed in once a token appears, the same way the phone's settings
-            // screen does - so this shows a name rather than just "a token is set".
-            LaunchedEffect(settings.discordToken) {
-                if (settings.discordToken.isEmpty()) {
+@Composable
+private fun CategoryItem(
+    title: String,
+    subtitle: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else androidx.compose.ui.graphics.Color.Transparent)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 10.dp),
+    ) {
+        Icon(
+            icon,
+            contentDescription = null,
+            tint = if (selected) MaterialTheme.colorScheme.onSecondaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.size(22.dp),
+        )
+        Spacer(modifier = Modifier.width(14.dp))
+        Column {
+            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            Text(
+                subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun AppearanceSettings(settings: Settings) {
+    Section("Theme") {
+        SettingChoice(
+            title = "Theme",
+            icon = OuterTuneIcons.darkMode,
+            options = ThemeMode.entries,
+            selected = settings.themeMode,
+            label = { it.label },
+            onSelect = { settings.themeMode = it },
+        )
+        SettingSwitch(
+            title = "Pure black",
+            subtitle = "True black behind everything in dark mode.",
+            checked = settings.pureBlack,
+            onCheckedChange = { settings.pureBlack = it },
+            icon = OuterTuneIcons.darkMode,
+        )
+        SettingSwitch(
+            title = "Colour the app from the artwork",
+            subtitle = "The window takes its palette from the cover of what is playing.",
+            checked = settings.dynamicTheme,
+            onCheckedChange = { settings.dynamicTheme = it },
+            icon = OuterTuneIcons.palette,
+        )
+        SettingSwitch(
+            title = "Colour controls by value",
+            subtitle = "Yellow low, green middle, blue high, on dials and equaliser bands.",
+            checked = settings.colourByValue,
+            onCheckedChange = { settings.colourByValue = it },
+            icon = OuterTuneIcons.colorLens,
+            divider = false,
+        )
+    }
+    Section("Text") {
+        FontSetting(settings)
+        SettingSlider(
+            title = "Text size",
+            icon = OuterTuneIcons.textRotationAngledown,
+            value = settings.textScale,
+            range = 80..140,
+            step = 5,
+            format = { "$it%" },
+            onChange = { settings.textScale = it },
+            divider = false,
+        )
+    }
+    Section("Layout") {
+        SettingChoice(
+            title = "Player background",
+            icon = OuterTuneIcons.blurOn,
+            options = BackgroundStyle.entries,
+            selected = settings.background,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.background = it },
+        )
+        SettingChoice(
+            title = "Open on",
+            icon = OuterTuneIcons.home,
+            options = NavTab.entries.filter { it != NavTab.Settings },
+            selected = settings.startTab,
+            label = { it.label },
+            onSelect = { settings.startTab = it },
+            divider = false,
+        )
+    }
+}
+
+@Composable
+private fun PlayerSettings(settings: Settings) {
+    Section("Player") {
+        SettingSwitch(
+            title = "Seek buttons",
+            subtitle = "Five-second skip either side of play. Off by default, as on the phone.",
+            checked = settings.showSeekButtons,
+            onCheckedChange = { settings.showSeekButtons = it },
+            icon = OuterTuneIcons.fastForward,
+        )
+        SettingSwitch(
+            title = "Visualiser",
+            subtitle = "Spectrum bars above the seek bar.",
+            checked = settings.showVisualizer,
+            onCheckedChange = { settings.showVisualizer = it },
+            icon = OuterTuneIcons.graphicEq,
+        )
+        SettingRow(
+            title = "Equaliser",
+            subtitle = "Opened from the player: the equaliser button, or scroll up at the top of it.",
+            icon = OuterTuneIcons.equalizer,
+        )
+    }
+}
+
+@Composable
+private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
+    Section("Sources") {
+        SettingSwitch(
+            title = "Word-by-word lyrics",
+            subtitle = "Asks BetterLyrics first, which times each word. Falls back to LRCLIB and KuGou.",
+            checked = settings.wordByWordLyrics,
+            onCheckedChange = { settings.wordByWordLyrics = it },
+            icon = OuterTuneIcons.lyrics,
+        )
+        SettingSwitch(
+            title = "Estimate word timings",
+            subtitle = "Sings line-timed lyrics word by word too, paced by syllables and pausing at punctuation.",
+            checked = settings.estimateWordTimings,
+            onCheckedChange = { settings.estimateWordTimings = it },
+            icon = OuterTuneIcons.textRotationAngledown,
+        )
+        SettingRow(
+            title = "Clear cached lyrics",
+            subtitle = "For the song playing now.",
+            icon = OuterTuneIcons.delete,
+            onClick = onClearLyricsCache,
+        )
+    }
+    Section("Display") {
+        SettingSwitch(
+            title = "Click the cover for lyrics",
+            subtitle = "Swaps the album art for the words, and back.",
+            checked = settings.lyricsOnCoverClick,
+            onCheckedChange = { settings.lyricsOnCoverClick = it },
+            icon = OuterTuneIcons.lyrics,
+        )
+        SettingSlider(
+            title = "Lyrics text size",
+            icon = OuterTuneIcons.textRotationAngledown,
+            value = settings.lyricsTextScale,
+            range = 70..160,
+            step = 10,
+            format = { "$it%" },
+            onChange = { settings.lyricsTextScale = it },
+        )
+        SettingChoice(
+            title = "Lyrics alignment",
+            icon = OuterTuneIcons.lyrics,
+            options = LyricsAlignment.entries,
+            selected = settings.lyricsAlignment,
+            label = { it.label },
+            onSelect = { settings.lyricsAlignment = it },
+        )
+        SettingSlider(
+            title = "Lyrics timing offset",
+            subtitle = "Shifts every line. Positive is later.",
+            icon = OuterTuneIcons.timer,
+            value = settings.lyricsOffsetMs,
+            range = -3000..3000,
+            step = 50,
+            format = { "${if (it > 0) "+" else ""}$it ms" },
+            onChange = { settings.lyricsOffsetMs = it },
+            divider = false,
+        )
+    }
+}
+
+@Composable
+private fun ContentSettings(settings: Settings) {
+    Section("Filters") {
+        SettingSwitch(
+            title = "Hide explicit content",
+            subtitle = "Leaves explicit songs out of search, Home and artist pages.",
+            checked = settings.hideExplicit,
+            onCheckedChange = { settings.hideExplicit = it },
+            icon = OuterTuneIcons.info,
+            divider = false,
+        )
+    }
+}
+
+@Composable
+private fun DiscordSettings(settings: Settings) {
+    val scope = rememberCoroutineScope()
+    Section("Discord") {
+        var pasting by remember { mutableStateOf(false) }
+        var draft by remember { mutableStateOf("") }
+        var testing by remember { mutableStateOf(false) }
+        var connectionStatus by remember { mutableStateOf<String?>(null) }
+        val isLoggedIn = settings.discordToken.isNotEmpty()
+
+        // Resolves who is signed in once a token appears, the same way the phone's settings
+        // screen does - so this shows a name rather than just "a token is set".
+        LaunchedEffect(settings.discordToken) {
+            if (settings.discordToken.isEmpty()) {
+                settings.discordUsername = ""
+                settings.discordDisplayName = ""
+                return@LaunchedEffect
+            }
+            if (settings.discordUsername.isNotEmpty()) return@LaunchedEffect
+            KizzyRPC.getUserInfo(settings.discordToken).onSuccess { info ->
+                settings.discordUsername = info.username
+                settings.discordDisplayName = info.name
+            }
+        }
+
+        if (isLoggedIn) {
+            SettingRow(
+                title = settings.discordDisplayName.ifEmpty { settings.discordUsername },
+                subtitle = settings.discordUsername.takeIf { it.isNotEmpty() }?.let { "@$it" },
+                icon = OuterTuneIcons.accountCircle,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            SettingSwitch(
+                title = "Show what's playing on Discord",
+                subtitle = "A card on the profile, the same one the phone app shows.",
+                checked = settings.enableDiscordRpc,
+                onCheckedChange = { settings.enableDiscordRpc = it },
+                icon = OuterTuneIcons.discord,
+            )
+            SettingRow(
+                title = if (testing) "Testing…" else "Test connection",
+                subtitle = connectionStatus,
+                icon = OuterTuneIcons.networkCheck,
+                onClick = {
+                    if (testing) return@SettingRow
+                    testing = true
+                    connectionStatus = "Testing…"
+                    scope.launch {
+                        val rpc = KizzyRPC(settings.discordToken)
+                        connectionStatus = rpc.testConnection()
+                        rpc.closeRPC()
+                        testing = false
+                    }
+                },
+            )
+            SettingRow(
+                title = "Log out",
+                icon = OuterTuneIcons.logout,
+                onClick = {
+                    settings.discordToken = ""
                     settings.discordUsername = ""
                     settings.discordDisplayName = ""
-                    return@LaunchedEffect
-                }
-                if (settings.discordUsername.isNotEmpty()) return@LaunchedEffect
-                KizzyRPC.getUserInfo(settings.discordToken).onSuccess { info ->
-                    settings.discordUsername = info.username
-                    settings.discordDisplayName = info.name
+                    connectionStatus = null
+                },
+            )
+        } else {
+            Text(
+                text = "Signs a real Discord account in over the same connection the Discord " +
+                    "client itself uses - there is no bot or OAuth path to a \"currently " +
+                    "listening to\" card on your own profile. Discord's terms discourage " +
+                    "driving an account this way; that risk is yours to weigh, on the account " +
+                    "you paste a token from.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            SettingRow(
+                title = if (pasting) "Hide" else "Paste a Discord token",
+                icon = OuterTuneIcons.key,
+                onClick = { pasting = !pasting },
+            )
+            if (pasting) {
+                OutlinedTextField(
+                    value = draft,
+                    onValueChange = { draft = it },
+                    label = { Text("Discord token") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Button(
+                    enabled = draft.isNotBlank(),
+                    onClick = {
+                        settings.discordToken = draft.trim().trim('"', '\'')
+                        draft = ""
+                        pasting = false
+                    },
+                ) { Text("Save") }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ListenTogetherSettings(settings: Settings, listenTogether: ListenTogetherManager) {
+    Section("Listen Together") {
+        val mode by listenTogether.mode.collectAsState()
+        val listeners by listenTogether.listeners.collectAsState()
+        val follower by listenTogether.followerState.collectAsState()
+        val reconnecting by listenTogether.reconnecting.collectAsState()
+        val ltError by listenTogether.error.collectAsState()
+
+        // Only while there is something to browse for. The nearby list is rendered in the OFF
+        // branch alone, so browsing in the other two kept a jmDNS scan running for a list
+        // nobody could see - the exact cost the flow is built cold to avoid. It also sidesteps
+        // a latent oddity: the name a host excludes to avoid listing itself is read when the
+        // flow is built, and while hosting that is still null, because advertising happens
+        // later on the bind callback.
+        val hosts by if (mode == ListenTogetherMode.OFF) {
+            remember(mode) { listenTogether.discoverHosts() }.collectAsState(initial = emptyList())
+        } else {
+            remember { mutableStateOf(emptyList<DiscoveredHost>()) }
+        }
+        val deviceName = remember { listenTogether.deviceName() }
+
+        ltError?.let {
+            SettingRow(
+                title = it,
+                icon = OuterTuneIcons.info,
+                onClick = { listenTogether.clearError() },
+                tint = MaterialTheme.colorScheme.error,
+            )
+        }
+
+        when (mode) {
+            ListenTogetherMode.HOSTING -> {
+                SettingRow(
+                    title = deviceName,
+                    subtitle = "Sharing what's playing on this network",
+                    icon = OuterTuneIcons.castConnected,
+                )
+                SettingRow(
+                    title = "Stop sharing",
+                    icon = OuterTuneIcons.stop,
+                    onClick = { listenTogether.stop() },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    "Listeners (${listeners.size})",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (listeners.isEmpty()) {
+                    // Not an error, and worth saying so. The most common reason nobody has
+                    // joined is simply that nobody has opened this screen on the other device.
+                    Text(
+                        "Waiting for someone to join…",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                } else {
+                    listeners.forEach { listener ->
+                        SettingRow(
+                            title = listener.name,
+                            subtitle = listener.address,
+                            icon = OuterTuneIcons.person,
+                        )
+                    }
                 }
             }
 
-            if (isLoggedIn) {
+            ListenTogetherMode.FOLLOWING -> {
                 SettingRow(
-                    title = settings.discordDisplayName.ifEmpty { settings.discordUsername },
-                    subtitle = settings.discordUsername.takeIf { it.isNotEmpty() }?.let { "@$it" },
-                    icon = OuterTuneIcons.accountCircle,
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                SettingSwitch(
-                    title = "Show what's playing on Discord",
-                    subtitle = "A card on the profile, the same one the phone app shows.",
-                    checked = settings.enableDiscordRpc,
-                    onCheckedChange = { settings.enableDiscordRpc = it },
-                    icon = OuterTuneIcons.discord,
-                )
-                SettingRow(
-                    title = if (testing) "Testing…" else "Test connection",
-                    subtitle = connectionStatus,
-                    icon = OuterTuneIcons.networkCheck,
-                    onClick = {
-                        if (testing) return@SettingRow
-                        testing = true
-                        connectionStatus = "Testing…"
-                        scope.launch {
-                            val rpc = KizzyRPC(settings.discordToken)
-                            connectionStatus = rpc.testConnection()
-                            rpc.closeRPC()
-                            testing = false
-                        }
+                    title = follower.hostName ?: "Connecting…",
+                    // While reconnecting the drift figure describes a link that is gone, so
+                    // saying what is happening beats reporting a stale measurement as though
+                    // the session were still keeping time.
+                    subtitle = if (reconnecting) {
+                        "Reconnecting…"
+                    } else {
+                        followerStatus(follower.synced, follower.driftMs)
                     },
+                    icon = OuterTuneIcons.cast,
                 )
+                follower.track?.let { track ->
+                    SettingRow(
+                        title = track.title,
+                        subtitle = track.artist,
+                        icon = OuterTuneIcons.musicNote,
+                    )
+                }
+                if (follower.unavailable) {
+                    // A file on the host's own storage. There is nothing to fetch, so saying so
+                    // is the whole of the correct behaviour - retrying would never succeed.
+                    Text(
+                        "The host is playing a local file, which cannot be fetched from here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
+                if (follower.missingTrack) {
+                    Text(
+                        "That song could not be found here.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    )
+                }
                 SettingRow(
-                    title = "Log out",
-                    icon = OuterTuneIcons.logout,
-                    onClick = {
-                        settings.discordToken = ""
-                        settings.discordUsername = ""
-                        settings.discordDisplayName = ""
-                        connectionStatus = null
-                    },
+                    title = "Leave session",
+                    icon = OuterTuneIcons.stop,
+                    onClick = { listenTogether.stop() },
                 )
-            } else {
+            }
+
+            ListenTogetherMode.OFF -> {
+                SettingRow(
+                    title = "Start sharing",
+                    subtitle = if (listenTogether.canStart) {
+                        "Others on this network can hear what plays here, kept in sync."
+                    } else {
+                        "Start playing something first."
+                    },
+                    icon = OuterTuneIcons.cast,
+                    onClick = { if (listenTogether.canStart) listenTogether.startHosting() },
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Signs a real Discord account in over the same connection the Discord " +
-                        "client itself uses - there is no bot or OAuth path to a \"currently " +
-                        "listening to\" card on your own profile. Discord's terms discourage " +
-                        "driving an account this way; that risk is yours to weigh, on the account " +
-                        "you paste a token from.",
+                    "Nearby",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.primary,
+                )
+                if (hosts.isEmpty()) {
+                    // The list only ever contains devices already sharing, so an empty list is
+                    // ambiguous between "still looking" and "nobody is sharing". Saying both,
+                    // with the one thing that can actually be checked, beats an endless spinner.
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(vertical = 8.dp),
+                    ) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp))
+                        Text(
+                            "Looking for devices sharing on this network…",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    hosts.forEach { host ->
+                        SettingRow(
+                            title = host.name,
+                            subtitle = host.address.hostAddress,
+                            icon = OuterTuneIcons.devices,
+                            onClick = { listenTogether.join(host) },
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+
+        // The phone carries this and the desktop did not, which mattered more here than there:
+        // "listen together" sounds like it streams audio between machines, and what it actually
+        // does - each device fetching the song itself and only keeping time with the host - is
+        // both more private and less obvious.
+        SettingRow(
+            title = "How it works",
+            subtitle = "Everything stays on your local network — nothing is sent over the " +
+                "internet. Audio is not streamed between devices; each one plays the song " +
+                "itself and keeps time with the host.",
+            icon = OuterTuneIcons.wifi,
+        )
+
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
+            Icon(
+                imageVector = OuterTuneIcons.timer,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 16.dp).size(24.dp),
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Timing offset", style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    "How far ahead of the host to aim. Set by ear - it corrects for this " +
+                        "device's own output latency, which nothing here can measure.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Spacer(modifier = Modifier.height(6.dp))
-                SettingRow(
-                    title = if (pasting) "Hide" else "Paste a Discord token",
-                    icon = OuterTuneIcons.key,
-                    onClick = { pasting = !pasting },
-                )
-                if (pasting) {
-                    OutlinedTextField(
-                        value = draft,
-                        onValueChange = { draft = it },
-                        label = { Text("Discord token") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true,
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Button(
-                        enabled = draft.isNotBlank(),
-                        onClick = {
-                            settings.discordToken = draft.trim().trim('"', '\'')
-                            draft = ""
-                            pasting = false
-                        },
-                    ) { Text("Save") }
-                }
             }
-        }
-
-        Section("Listen Together") {
-            val mode by listenTogether.mode.collectAsState()
-            val listeners by listenTogether.listeners.collectAsState()
-            val follower by listenTogether.followerState.collectAsState()
-            val reconnecting by listenTogether.reconnecting.collectAsState()
-            val ltError by listenTogether.error.collectAsState()
-
-            // Only while there is something to browse for. The nearby list is rendered in the OFF
-            // branch alone, so browsing in the other two kept a jmDNS scan running for a list
-            // nobody could see - the exact cost the flow is built cold to avoid. It also sidesteps
-            // a latent oddity: the name a host excludes to avoid listing itself is read when the
-            // flow is built, and while hosting that is still null, because advertising happens
-            // later on the bind callback.
-            val hosts by if (mode == ListenTogetherMode.OFF) {
-                remember(mode) { listenTogether.discoverHosts() }.collectAsState(initial = emptyList())
-            } else {
-                remember { mutableStateOf(emptyList<DiscoveredHost>()) }
-            }
-            val deviceName = remember { listenTogether.deviceName() }
-
-            ltError?.let {
-                SettingRow(
-                    title = it,
-                    icon = OuterTuneIcons.info,
-                    onClick = { listenTogether.clearError() },
-                    tint = MaterialTheme.colorScheme.error,
-                )
-            }
-
-            when (mode) {
-                ListenTogetherMode.HOSTING -> {
-                    SettingRow(
-                        title = deviceName,
-                        subtitle = "Sharing what's playing on this network",
-                        icon = OuterTuneIcons.castConnected,
-                    )
-                    SettingRow(
-                        title = "Stop sharing",
-                        icon = OuterTuneIcons.stop,
-                        onClick = { listenTogether.stop() },
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Listeners (${listeners.size})",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    if (listeners.isEmpty()) {
-                        // Not an error, and worth saying so. The most common reason nobody has
-                        // joined is simply that nobody has opened this screen on the other device.
-                        Text(
-                            "Waiting for someone to join…",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        )
-                    } else {
-                        listeners.forEach { listener ->
-                            SettingRow(
-                                title = listener.name,
-                                subtitle = listener.address,
-                                icon = OuterTuneIcons.person,
-                            )
-                        }
-                    }
-                }
-
-                ListenTogetherMode.FOLLOWING -> {
-                    SettingRow(
-                        title = follower.hostName ?: "Connecting…",
-                        // While reconnecting the drift figure describes a link that is gone, so
-                        // saying what is happening beats reporting a stale measurement as though
-                        // the session were still keeping time.
-                        subtitle = if (reconnecting) {
-                            "Reconnecting…"
-                        } else {
-                            followerStatus(follower.synced, follower.driftMs)
-                        },
-                        icon = OuterTuneIcons.cast,
-                    )
-                    follower.track?.let { track ->
-                        SettingRow(
-                            title = track.title,
-                            subtitle = track.artist,
-                            icon = OuterTuneIcons.musicNote,
-                        )
-                    }
-                    if (follower.unavailable) {
-                        // A file on the host's own storage. There is nothing to fetch, so saying so
-                        // is the whole of the correct behaviour - retrying would never succeed.
-                        Text(
-                            "The host is playing a local file, which cannot be fetched from here.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        )
-                    }
-                    if (follower.missingTrack) {
-                        Text(
-                            "That song could not be found here.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        )
-                    }
-                    SettingRow(
-                        title = "Leave session",
-                        icon = OuterTuneIcons.stop,
-                        onClick = { listenTogether.stop() },
-                    )
-                }
-
-                ListenTogetherMode.OFF -> {
-                    SettingRow(
-                        title = "Start sharing",
-                        subtitle = if (listenTogether.canStart) {
-                            "Others on this network can hear what plays here, kept in sync."
-                        } else {
-                            "Start playing something first."
-                        },
-                        icon = OuterTuneIcons.cast,
-                        onClick = { if (listenTogether.canStart) listenTogether.startHosting() },
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        "Nearby",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    if (hosts.isEmpty()) {
-                        // The list only ever contains devices already sharing, so an empty list is
-                        // ambiguous between "still looking" and "nobody is sharing". Saying both,
-                        // with the one thing that can actually be checked, beats an endless spinner.
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.padding(vertical = 8.dp),
-                        ) {
-                            CircularProgressIndicator(modifier = Modifier.size(18.dp))
-                            Text(
-                                "Looking for devices sharing on this network…",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else {
-                        hosts.forEach { host ->
-                            SettingRow(
-                                title = host.name,
-                                subtitle = host.address.hostAddress,
-                                icon = OuterTuneIcons.devices,
-                                onClick = { listenTogether.join(host) },
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-
-            // The phone carries this and the desktop did not, which mattered more here than there:
-            // "listen together" sounds like it streams audio between machines, and what it actually
-            // does - each device fetching the song itself and only keeping time with the host - is
-            // both more private and less obvious.
-            SettingRow(
-                title = "How it works",
-                subtitle = "Everything stays on your local network — nothing is sent over the " +
-                    "internet. Audio is not streamed between devices; each one plays the song " +
-                    "itself and keeps time with the host.",
-                icon = OuterTuneIcons.wifi,
-            )
-
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
-                Icon(
-                    imageVector = OuterTuneIcons.timer,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Timing offset", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "How far ahead of the host to aim. Set by ear - it corrects for this " +
-                            "device's own output latency, which nothing here can measure.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                RotaryDial(
-                    value = settings.listenTogetherOffsetMs.toFloat(),
-                    onValueChange = { settings.listenTogetherOffsetMs = it.toInt() },
-                    valueRange = -500f..500f,
-                    color = if (settings.colourByValue) {
-                        ValueGradient.forValue(settings.listenTogetherOffsetMs.toFloat(), -500f..500f)
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                    textColor = MaterialTheme.colorScheme.onSurface,
-                    dialSize = 68.dp,
-                    valueLabel = "${settings.listenTogetherOffsetMs} ms",
-                    step = 10f,
-                    coarseStep = 100f,
-                    centeredAt = 0f,
-                )
-            }
-        }
-
-        Section("Playback") {
-            SettingSwitch(
-                title = "Seek buttons",
-                subtitle = "Five-second skip either side of play. Off by default, as on the phone.",
-                checked = settings.showSeekButtons,
-                onCheckedChange = { settings.showSeekButtons = it },
-                icon = OuterTuneIcons.fastForward,
-            )
-            SettingSwitch(
-                title = "Visualiser",
-                subtitle = "Spectrum bars above the seek bar.",
-                checked = settings.showVisualizer,
-                onCheckedChange = { settings.showVisualizer = it },
-                icon = OuterTuneIcons.graphicEq,
-            )
-        }
-
-        Section("Lyrics") {
-            SettingSwitch(
-                title = "Word-by-word lyrics",
-                subtitle = "Asks BetterLyrics first, which times each word rather than each line. " +
-                    "Falls back to LRCLIB and KuGou either way.",
-                checked = settings.wordByWordLyrics,
-                onCheckedChange = { settings.wordByWordLyrics = it },
-                icon = OuterTuneIcons.textRotationAngledown,
-            )
-            SettingSwitch(
-                title = "Click the cover for lyrics",
-                subtitle = "Swaps the album art for the words, and back.",
-                checked = settings.lyricsOnCoverClick,
-                onCheckedChange = { settings.lyricsOnCoverClick = it },
-                icon = OuterTuneIcons.lyrics,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 10.dp)) {
-                Icon(
-                    imageVector = OuterTuneIcons.timer,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
-                )
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Timing offset", style = MaterialTheme.typography.bodyLarge)
-                    Text(
-                        "Shifts every line. Positive is later. Some files are timed against a " +
-                            "different master of the same song.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                RotaryDial(
-                    value = settings.lyricsOffsetMs.toFloat(),
-                    onValueChange = { settings.lyricsOffsetMs = it.toInt() },
-                    valueRange = -3000f..3000f,
-                    color = if (settings.colourByValue) {
-                        ValueGradient.forValue(settings.lyricsOffsetMs.toFloat(), -3000f..3000f)
-                    } else {
-                        MaterialTheme.colorScheme.primary
-                    },
-                    textColor = MaterialTheme.colorScheme.onSurface,
-                    dialSize = 68.dp,
-                    valueLabel = "${settings.lyricsOffsetMs} ms",
-                    step = 25f,
-                    coarseStep = 250f,
-                    centeredAt = 0f,
-                )
-            }
-            SettingRow(title = "Clear cached lyrics", icon = OuterTuneIcons.delete, onClick = onClearLyricsCache)
-        }
-
-        Section("Appearance") {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = OuterTuneIcons.darkMode,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
-                )
-                Text("Theme", style = MaterialTheme.typography.bodyLarge)
-            }
-            ThemeMode.entries.forEach { mode ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { settings.themeMode = mode }
-                        .padding(vertical = 2.dp),
-                ) {
-                    RadioButton(selected = settings.themeMode == mode, onClick = { settings.themeMode = mode })
-                    Text(mode.label, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-            Spacer(modifier = Modifier.height(8.dp))
-            SettingSwitch(
-                title = "Colour the app from the artwork",
-                subtitle = "The whole window takes its palette from the cover of what is playing, " +
-                    "the way the phone takes its own from the wallpaper.",
-                checked = settings.dynamicTheme,
-                onCheckedChange = { settings.dynamicTheme = it },
-                icon = OuterTuneIcons.palette,
-            )
-            SettingSwitch(
-                title = "Colour controls by value",
-                subtitle = "Yellow low, green middle, blue high, on dials and equaliser bands.",
-                checked = settings.colourByValue,
-                onCheckedChange = { settings.colourByValue = it },
-                icon = OuterTuneIcons.colorLens,
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = OuterTuneIcons.blurOn,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
-                )
-                Text("Player background", style = MaterialTheme.typography.bodyLarge)
-            }
-            BackgroundStyle.entries.forEach { style ->
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { settings.background = style }
-                        .padding(vertical = 4.dp),
-                ) {
-                    RadioButton(
-                        selected = settings.background == style,
-                        onClick = { settings.background = style },
-                    )
-                    Column {
-                        Text(style.label, style = MaterialTheme.typography.bodyMedium)
-                        Text(
-                            style.description,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
-
-        Section("Downloads") {
-            // Recomputed when the screen is opened rather than watched. Nothing else changes it
-            // while this is on screen, and a live total would mean stat-ing every file on a timer.
-            var total by remember { mutableStateOf(0L) }
-            var count by remember { mutableStateOf(0) }
-            // Same reasoning as the player's: totalBytes() stats every downloaded file, which is
-            // not something to do while laying out a screen.
-            LaunchedEffect(downloads) {
-                withContext(Dispatchers.IO) {
-                    val ids = downloads.ids()
-                    val bytes = downloads.totalBytes()
-                    withContext(Dispatchers.Main) {
-                        count = ids.size
-                        total = bytes
-                    }
-                }
-            }
-            Text(
-                text = if (count == 0) {
-                    "Nothing downloaded yet. The download button on the player keeps a song on disk."
+            RotaryDial(
+                value = settings.listenTogetherOffsetMs.toFloat(),
+                onValueChange = { settings.listenTogetherOffsetMs = it.toInt() },
+                valueRange = -500f..500f,
+                color = if (settings.colourByValue) {
+                    ValueGradient.forValue(settings.listenTogetherOffsetMs.toFloat(), -500f..500f)
                 } else {
-                    "$count ${if (count == 1) "song" else "songs"}, ${Downloads.formatSize(total)}"
+                    MaterialTheme.colorScheme.primary
                 },
-                style = MaterialTheme.typography.bodyMedium,
+                textColor = MaterialTheme.colorScheme.onSurface,
+                dialSize = 68.dp,
+                valueLabel = "${settings.listenTogetherOffsetMs} ms",
+                step = 10f,
+                coarseStep = 100f,
+                centeredAt = 0f,
             )
-            Text(
-                text = "Downloaded songs play without the network, and without asking YouTube " +
-                    "whether they are still available.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+        }
+    }
+}
+
+@Composable
+private fun DownloadSettings(downloads: Downloads, onDownloadsChanged: () -> Unit) {
+    val scope = rememberCoroutineScope()
+    Section("Downloads") {
+        // Recomputed when the screen is opened rather than watched. Nothing else changes it
+        // while this is on screen, and a live total would mean stat-ing every file on a timer.
+        var total by remember { mutableStateOf(0L) }
+        var count by remember { mutableStateOf(0) }
+        // Same reasoning as the player's: totalBytes() stats every downloaded file, which is
+        // not something to do while laying out a screen.
+        LaunchedEffect(downloads) {
+            withContext(Dispatchers.IO) {
+                val ids = downloads.ids()
+                val bytes = downloads.totalBytes()
+                withContext(Dispatchers.Main) {
+                    count = ids.size
+                    total = bytes
+                }
+            }
+        }
+        Text(
+            text = if (count == 0) {
+                "Nothing downloaded yet. The download button on the player keeps a song on disk."
+            } else {
+                "$count ${if (count == 1) "song" else "songs"}, ${Downloads.formatSize(total)}"
+            },
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        Text(
+            text = "Downloaded songs play without the network, and without asking YouTube " +
+                "whether they are still available.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        if (count > 0) {
+            SettingRow(
+                title = "Delete all downloads",
+                icon = OuterTuneIcons.delete,
+                tint = MaterialTheme.colorScheme.error,
+                onClick = {
+                    total = 0
+                    count = 0
+                    scope.launch {
+                        withContext(Dispatchers.IO) { downloads.deleteAll() }
+                        onDownloadsChanged()
+                    }
+                },
             )
-            if (count > 0) {
-                SettingRow(
-                    title = "Delete all downloads",
-                    icon = OuterTuneIcons.delete,
-                    tint = MaterialTheme.colorScheme.error,
-                    onClick = {
-                        total = 0
-                        count = 0
-                        scope.launch {
-                            withContext(Dispatchers.IO) { downloads.deleteAll() }
-                            onDownloadsChanged()
-                        }
+        }
+    }
+}
+
+@Composable
+private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPath: String) {
+    val scope = rememberCoroutineScope()
+    Section("Library and backup") {
+        SettingSwitch(
+            title = "Keep listening history",
+            subtitle = "Records what has been played, which is what the recent list is made of.",
+            checked = settings.keepHistory,
+            onCheckedChange = { settings.keepHistory = it },
+            icon = OuterTuneIcons.history,
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Merged into this library rather than replacing it, and safe to run twice - see
+        // BackupImport. The summary is spelled out rather than reduced to "done", because the
+        // interesting part of an import is what it did *not* bring across.
+        var importing by remember { mutableStateOf(false) }
+        var importResult by remember { mutableStateOf<ImportSummary?>(null) }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = OuterTuneIcons.restore,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 16.dp).size(24.dp),
+            )
+            Text("Import from a phone backup", style = MaterialTheme.typography.bodyLarge)
+        }
+        Text(
+            text = "Reads the zip the Android app writes. Songs, liked songs and playlists are " +
+                "added to what is already here; nothing is replaced, and importing the same " +
+                "file twice changes nothing the second time.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(
+                enabled = !importing,
+                onClick = {
+                    val file = chooseBackupFile() ?: return@TextButton
+                    importing = true
+                    importResult = null
+                    scope.launch {
+                        importResult = BackupImport.importFrom(file, library)
+                        importing = false
+                    }
+                },
+            ) {
+                Text(if (importing) "Importing…" else "Choose backup…")
+            }
+            importResult?.let { summary ->
+                Text(
+                    text = summary.describe(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (summary.failed) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
                     },
+                    modifier = Modifier.padding(start = 8.dp),
                 )
             }
         }
 
-        Section("Library") {
-            SettingSwitch(
-                title = "Keep listening history",
-                subtitle = "Records what has been played, which is what the recent list is made of.",
-                checked = settings.keepHistory,
-                onCheckedChange = { settings.keepHistory = it },
-                icon = OuterTuneIcons.history,
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        Text("Stored at", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = libraryPath,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = "One SQLite file. Copying it somewhere safe is a complete backup - songs, " +
+                "playlists, history, cached lyrics and these settings.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+    Section("Clear") {
+        var confirming by remember { mutableStateOf(false) }
+        SettingRow(
+            title = if (confirming) "Click again to clear everything" else "Clear listening history",
+            subtitle = "Recently played and every count Stats is made of. Songs and playlists stay.",
+            icon = OuterTuneIcons.delete,
+            tint = MaterialTheme.colorScheme.error,
+            onClick = {
+                if (confirming) {
+                    library.clearHistory()
+                    confirming = false
+                } else {
+                    confirming = true
+                }
+            },
+        )
+    }
+}
 
-            // Merged into this library rather than replacing it, and safe to run twice - see
-            // BackupImport. The summary is spelled out rather than reduced to "done", because the
-            // interesting part of an import is what it did *not* bring across.
-            var importing by remember { mutableStateOf(false) }
-            var importResult by remember { mutableStateOf<ImportSummary?>(null) }
+@Composable
+private fun AboutSettings() {
+    Section("OuterTune for desktop") {
+        SettingRow(
+            title = "Version",
+            subtitle = DesktopVersion.NAME,
+            icon = OuterTuneIcons.info,
+        )
+        SettingRow(
+            title = "Source code",
+            subtitle = "github.com/notK50BML/OuterTune",
+            icon = OuterTuneIcons.musicNote,
+            onClick = {
+                runCatching { java.awt.Desktop.getDesktop().browse(java.net.URI("https://github.com/notK50BML/OuterTune")) }
+            },
+        )
+    }
+}
 
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = OuterTuneIcons.restore,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(end = 16.dp).size(24.dp),
-                )
-                Text("Import from a phone backup", style = MaterialTheme.typography.bodyLarge)
-            }
-            Text(
-                text = "Reads the zip the Android app writes. Songs, liked songs and playlists are " +
-                    "added to what is already here; nothing is replaced, and importing the same " +
-                    "file twice changes nothing the second time.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                TextButton(
-                    enabled = !importing,
-                    onClick = {
-                        val file = chooseBackupFile() ?: return@TextButton
-                        importing = true
-                        importResult = null
-                        scope.launch {
-                            importResult = BackupImport.importFrom(file, library)
-                            importing = false
+/**
+ * A choice among a few options, shown as its current value and opened as a menu - the phone's
+ * ListPreference. Radio lists laid out inline made every multiple-choice setting a block of five
+ * rows, which is most of why this screen used to look uneven.
+ */
+@Composable
+private fun <T> SettingChoice(
+    title: String,
+    icon: ImageVector,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    onSelect: (T) -> Unit,
+    description: ((T) -> String)? = null,
+    divider: Boolean = true,
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        SettingRow(
+            title = title,
+            subtitle = label(selected),
+            icon = icon,
+            onClick = { open = true },
+        )
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Column {
+                            Text(label(option), fontWeight = if (option == selected) FontWeight.Bold else FontWeight.Normal)
+                            description?.let {
+                                Text(
+                                    it(option),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     },
-                ) {
-                    Text(if (importing) "Importing…" else "Choose backup…")
-                }
-                importResult?.let { summary ->
-                    Text(
-                        text = summary.describe(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = if (summary.failed) {
-                            MaterialTheme.colorScheme.error
-                        } else {
-                            MaterialTheme.colorScheme.onSurfaceVariant
-                        },
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
+                    leadingIcon = { RadioButton(selected = option == selected, onClick = null) },
+                    onClick = {
+                        onSelect(option)
+                        open = false
+                    },
+                )
+            }
+        }
+    }
+    if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+}
+
+/** A number on a slider, with its value shown beside the title. */
+@Composable
+private fun SettingSlider(
+    title: String,
+    icon: ImageVector,
+    value: Int,
+    range: IntRange,
+    step: Int,
+    format: (Int) -> String,
+    onChange: (Int) -> Unit,
+    subtitle: String? = null,
+    divider: Boolean = true,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(top = 10.dp)) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(end = 16.dp).size(24.dp),
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (subtitle != null) {
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        Text(format(value), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.primary)
+    }
+    Slider(
+        value = value.toFloat(),
+        onValueChange = { onChange(((it / step).roundToInt() * step).coerceIn(range.first, range.last)) },
+        valueRange = range.first.toFloat()..range.last.toFloat(),
+        steps = ((range.last - range.first) / step - 1).coerceAtLeast(0),
+        modifier = Modifier.padding(start = 40.dp),
+    )
+    if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+}
+
+/**
+ * The app's typeface: any font installed on this machine, picked from a searchable list in which
+ * each name is set in its own face, so the list is its own preview.
+ */
+@Composable
+private fun FontSetting(settings: Settings) {
+    var open by remember { mutableStateOf(false) }
+    SettingRow(
+        title = "Font",
+        subtitle = settings.fontFamily.ifBlank { "Default" },
+        icon = OuterTuneIcons.textRotationAngledown,
+        onClick = { open = true },
+    )
+    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    if (!open) return
+
+    var filter by remember { mutableStateOf("") }
+    val families = remember { SystemFonts.families }
+    val shown = remember(filter) { families.filter { it.contains(filter.trim(), ignoreCase = true) } }
+    AlertDialog(
+        onDismissRequest = { open = false },
+        confirmButton = { TextButton(onClick = { open = false }) { Text("Done") } },
+        title = { Text("Font") },
+        text = {
+            Column(modifier = Modifier.width(420.dp).height(480.dp)) {
+                OutlinedTextField(
+                    value = filter,
+                    onValueChange = { filter = it },
+                    placeholder = { Text("Search ${families.size} fonts") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                LazyColumn {
+                    item {
+                        FontOption("Default", null, settings.fontFamily.isBlank()) { settings.fontFamily = "" }
+                    }
+                    items(shown, key = { it }) { name ->
+                        FontOption(name, name, settings.fontFamily == name) { settings.fontFamily = name }
+                    }
                 }
             }
+        },
+    )
+}
 
-            Spacer(modifier = Modifier.height(12.dp))
-            Text("Stored at", style = MaterialTheme.typography.bodyMedium)
-            Text(
-                text = libraryPath,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Text(
-                text = "One SQLite file. Copying it somewhere safe is a complete backup - songs, " +
-                    "playlists, history, cached lyrics and these settings.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
+@Composable
+private fun FontOption(label: String, family: String?, selected: Boolean, onClick: () -> Unit) {
+    val fontFamily = remember(family) { family?.let { SystemFonts.family(it) } }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+    ) {
+        RadioButton(selected = selected, onClick = null)
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            label,
+            style = if (fontFamily != null) MaterialTheme.typography.bodyLarge.copy(fontFamily = fontFamily) else MaterialTheme.typography.bodyLarge,
+            maxLines = 1,
+        )
     }
 }
 
@@ -685,20 +1128,21 @@ private fun chooseBackupFile(): java.io.File? {
 private fun Section(title: String, content: @Composable ColumnScopeMarker.() -> Unit) {
     Text(
         text = title,
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
+        style = MaterialTheme.typography.titleSmall,
         color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(top = 20.dp, bottom = 8.dp),
+        modifier = Modifier.padding(start = 4.dp, top = 18.dp, bottom = 8.dp),
     )
-    Card(modifier = Modifier.widthIn(max = 720.dp)) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-        ) {
-            ColumnScopeMarker.content()
-        }
+    Column(
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+        modifier = Modifier
+            .widthIn(max = 760.dp)
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+    ) {
+        ColumnScopeMarker.content()
     }
-    Spacer(modifier = Modifier.height(4.dp))
 }
 
 /**
@@ -734,6 +1178,7 @@ private fun SettingSwitch(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit,
     icon: ImageVector? = null,
+    divider: Boolean = true,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -760,9 +1205,10 @@ private fun SettingSwitch(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        Spacer(modifier = Modifier.width(12.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
     }
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 }
 
 /**
@@ -793,7 +1239,7 @@ private fun SettingRow(
                 modifier = Modifier.padding(end = 16.dp).size(24.dp),
             )
         }
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.bodyLarge, color = tint)
             if (subtitle != null) {
                 Text(
