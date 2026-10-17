@@ -377,7 +377,7 @@ private fun SectionHeader(title: String, onMore: (() -> Unit)?) {
 
 /** One of an artist's songs, numbered as a chart is. */
 @Composable
-private fun SongListRow(song: SongItem, rank: Int, playing: Boolean, onClick: () -> Unit) {
+private fun SongListRow(song: SongItem, rank: Int, playing: Boolean, onClick: () -> Unit) = SongMenuArea(song) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier

@@ -243,6 +243,17 @@ class PlayerQueue(
         state.value = previous.copy(songs = songs, order = order)
     }
 
+    /** Puts [song] at the very end of the play order, after everything already queued. */
+    fun addToQueue(song: SongItem) {
+        val previous = state.value
+        if (previous.songs.isEmpty()) {
+            play(listOf(song), 0, previous.title)
+            return
+        }
+        val index = previous.songs.size
+        state.value = previous.copy(songs = previous.songs + song, order = previous.order + index)
+    }
+
     /** Drag-to-reorder, in the play order the queue list shows. */
     fun move(from: Int, to: Int) {
         state.value = QueueEdit.move(state.value, from, to)

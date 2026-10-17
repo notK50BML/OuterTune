@@ -169,6 +169,7 @@ fun StatsPane(
         item { Heading("Top songs") }
         val songs = stats.songs.map { it.first }
         itemsIndexed(stats.songs, key = { _, it -> it.first.id }) { index, (song, count) ->
+            SongMenuArea(song.toItem()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
@@ -204,6 +205,7 @@ fun StatsPane(
                     )
                 }
                 Text(plays(count), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             }
         }
     }

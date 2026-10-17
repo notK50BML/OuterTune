@@ -203,6 +203,14 @@ class UiSnapshots {
         capture("shell_playlists", 1280, 800, interact = { it.click(40f, 360f) }, content = shellContent)
         capture("shell_playlist_open", 1280, 800, interact = { it.click(40f, 360f); it.click(500f, 150f) }, content = shellContent)
         capture("shell_stats", 1280, 800, interact = { it.click(40f, 420f) }, content = shellContent)
+        capture("shell_song_menu", 1280, 800, interact = {
+            it.click(40f, 300f)
+            it.sendPointerEvent(
+                PointerEventType.Press, Offset(400f, 160f),
+                buttons = androidx.compose.ui.input.pointer.PointerButtons(isSecondaryPressed = true),
+                button = androidx.compose.ui.input.pointer.PointerButton.Secondary,
+            )
+        }, content = shellContent)
         capture("shell_settings", 1280, 800, interact = { it.click(40f, 690f) }, content = shellContent)
         capture("shell_settings_lyrics", 1280, 800, interact = { it.click(40f, 690f); it.click(200f, 260f) }, content = shellContent)
         player.stop()

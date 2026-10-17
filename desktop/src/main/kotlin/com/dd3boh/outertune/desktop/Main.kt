@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.models.WatchEndpoint
 import com.zionhuang.innertube.pages.HomePage
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalDensity
@@ -572,12 +573,47 @@ internal fun App(
         return
     }
 
+    // The right-click menu every song in the window offers - see SongMenuArea.
+    val songActions = SongActions(
+        playNext = { playerQueue.playNext(it) },
+        addToQueue = { playerQueue.addToQueue(it) },
+        startRadio = { song ->
+            scope.launch {
+                val radio = withContext(Dispatchers.IO) {
+                    YouTube.next(WatchEndpoint(videoId = song.id, playlistId = "RDAMVM${song.id}")).getOrNull()?.items
+                }
+                if (!radio.isNullOrEmpty()) playerQueue.play(radio, 0, "Radio: ${song.title}")
+            }
+        },
+        addToPlaylist = { addingToPlaylist = it.toStored() },
+        toggleLike = { library.toggleLiked(it.toStored()) },
+        isLiked = { id -> liked.any { it.id == id } },
+        toggleDownload = { song ->
+            if (song.id in downloadedIds) {
+                downloadedIds = downloadedIds - song.id
+                scope.launch { withContext(Dispatchers.IO) { library.downloads.delete(song.id) } }
+            } else if (downloading == null) {
+                downloading = song.id
+                scope.launch {
+                    player.download(song.id)
+                    downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
+                    downloading = null
+                }
+            }
+        },
+        isDownloaded = { it in downloadedIds },
+        openArtist = openArtistPage,
+        openAlbum = openAlbumPage,
+        copyLink = { copyToClipboard(watchUrl(it.id)) },
+    )
+
     // Media keys, but only while the search box does not have focus: space has to keep typing a
     // space and the arrows have to keep moving the caret. A shortcut that eats the text field is
     // worse than no shortcut.
     val keys = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { keys.requestFocus() } }
 
+    CompositionLocalProvider(LocalSongActions provides songActions) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -825,6 +861,7 @@ internal fun App(
             onToggleLike = toggleLike,
             onExpand = { showFullPlayer = true },
         )
+    }
     }
 }
 
@@ -1128,7 +1165,7 @@ private fun PlayerBar(
 }
 
 @Composable
-internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit) {
+internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit) = SongMenuArea(song) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1159,7 +1196,7 @@ internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Uni
 
 /** A row for a song out of the library, which keeps artists as one display string. */
 @Composable
-internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: () -> Unit) {
+internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: () -> Unit) = SongMenuArea(song.toItem()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),

@@ -224,6 +224,7 @@ private fun SongGrid(
             modifier = Modifier.height(GRID_ROW_HEIGHT * rows),
         ) {
             gridItemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                SongMenuArea(song.toItem()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -253,6 +254,7 @@ private fun SongGrid(
                             overflow = TextOverflow.Ellipsis,
                         )
                     }
+                }
                 }
             }
         }
@@ -294,7 +296,7 @@ private fun StoredRow(
 }
 
 @Composable
-private fun StoredCard(song: StoredSong, playing: Boolean, onClick: () -> Unit) {
+private fun StoredCard(song: StoredSong, playing: Boolean, onClick: () -> Unit) = SongMenuArea(song.toItem()) {
     Column(
         modifier = Modifier
             .width(CARD_WIDTH)
@@ -387,6 +389,12 @@ private fun Section(
  */
 @Composable
 internal fun Card(item: YTItem, playing: Boolean, onClick: () -> Unit) {
+    // Songs get the right-click menu; albums, playlists and artists open pages instead.
+    if (item is SongItem) SongMenuArea(item) { CardBody(item, playing, onClick) } else CardBody(item, playing, onClick)
+}
+
+@Composable
+private fun CardBody(item: YTItem, playing: Boolean, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .width(CARD_WIDTH)
