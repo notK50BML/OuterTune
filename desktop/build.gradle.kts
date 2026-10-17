@@ -261,4 +261,7 @@ tasks.register<Jar>("fatJar") {
     exclude("org/sqlite/native/Linux-Musl/**")
     exclude("org/sqlite/native/Mac/**")
     exclude("org/sqlite/native/FreeBSD/**")
+    // JNA ships its native dispatcher for every platform it supports; only Windows' is ever loaded.
+    exclude("com/sun/jna/linux-*/**", "com/sun/jna/darwin*/**", "com/sun/jna/freebsd-*/**",
+        "com/sun/jna/openbsd-*/**", "com/sun/jna/sunos-*/**", "com/sun/jna/aix-*/**", "com/sun/jna/dragonflybsd-*/**")
 }
