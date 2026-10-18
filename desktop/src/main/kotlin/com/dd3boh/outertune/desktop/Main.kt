@@ -143,12 +143,14 @@ fun main() = application {
     }
 
     val windowState = rememberWindowState(width = 1000.dp, height = 700.dp)
+    val useNativeFrame = remember { System.getProperty("os.name").orEmpty().startsWith("Windows") }
     Window(
         onCloseRequest = { player.stop(); exitApplication() },
         title = "OuterTune",
-        // No Windows title bar: the app runs to the top edge and draws its own buttons - see
-        // WindowChrome.
-        undecorated = true,
+        // No Windows title bar: the app runs to the top edge and draws its own buttons. On Windows
+        // the window keeps its real frame - shadow, snap, resize, animations - with only the caption
+        // taken off (NativeFrame); elsewhere, or if that cannot be done, it is borderless instead.
+        undecorated = !useNativeFrame,
         // The phone's launcher icon, for the title bar and the taskbar.
         icon = remember {
             androidx.compose.ui.graphics.painter.BitmapPainter(
@@ -159,7 +161,11 @@ fun main() = application {
         // Every key nothing focused has used - see KeyRouter and KeyBindings.
         onKeyEvent = { KeyRouter.handle(it) },
     ) {
-        LaunchedEffect(Unit) { WindowCorners.round(window) }
+        LaunchedEffect(Unit) {
+            if (useNativeFrame) NativeFrame.install(window) else WindowCorners.round(window)
+        }
+        // A real frame that could not be hooked keeps Windows' own title bar, so draws no second one.
+        val customChrome = !useNativeFrame || NativeFrame.active
         // Pushed up from App, which is where the playing song is known. A plain state rather than a
         // flow: it changes once per track and is read once per frame.
         var seed by remember { mutableStateOf<Color?>(null) }
@@ -208,7 +214,7 @@ fun main() = application {
         MaterialTheme(colorScheme = finalScheme, typography = typography) {
             val captionTint = remember { CaptionTint() }
             CompositionLocalProvider(
-                LocalCaptionInset provides WindowChrome.height,
+                LocalCaptionInset provides (if (customChrome) WindowChrome.height else 0.dp),
                 LocalCaptionTint provides captionTint,
             ) {
             Surface(modifier = Modifier.fillMaxSize()) {
@@ -219,7 +225,7 @@ fun main() = application {
             onAccentSeedChanged = { accentSeed = it },
         )
                     // Over everything, so it stays reachable whatever is open.
-                    CaptionBar(
+                    if (customChrome) CaptionBar(
                         state = windowState,
                         defaultTint = MaterialTheme.colorScheme.onSurface,
                         onClose = { player.stop(); exitApplication() },

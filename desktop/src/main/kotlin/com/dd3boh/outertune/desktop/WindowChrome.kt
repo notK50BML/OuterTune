@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -91,18 +93,45 @@ fun FrameWindowScope.CaptionBar(state: WindowState, defaultTint: Color, onClose:
             state.placement = WindowPlacement.Maximized
         }
     }
-    Row(modifier = Modifier.fillMaxWidth().height(WindowChrome.height)) {
-        WindowDraggableArea(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { toggleMaximised() }) },
-        ) { Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) }
-        CaptionButton(tint, onClick = { window.extendedState = window.extendedState or Frame.ICONIFIED }) { c ->
+    // With the native frame (NativeFrame), the strip is Windows' caption and the maximise button is
+    // Windows' maximise button, so they are only drawn here; where they are is reported back.
+    val native = NativeFrame.active
+    fun Modifier.reportAs(maximise: Boolean, index: Int) = onGloballyPositioned { c ->
+        if (!native) return@onGloballyPositioned
+        val b = c.boundsInWindow()
+        val rect = java.awt.Rectangle(b.left.toInt(), b.top.toInt(), b.width.toInt(), b.height.toInt())
+        if (maximise) NativeFrame.maximiseButton = rect
+        else NativeFrame.otherButtons = NativeFrame.otherButtons.toMutableList().apply {
+            while (size <= index) add(java.awt.Rectangle())
+            set(index, rect)
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(WindowChrome.height)
+            .onGloballyPositioned { if (native) NativeFrame.captionHeightPx = it.size.height },
+    ) {
+        if (native) {
+            Box(modifier = Modifier.weight(1f).fillMaxHeight())
+        } else {
+            WindowDraggableArea(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .pointerInput(Unit) { detectTapGestures(onDoubleTap = { toggleMaximised() }) },
+            ) { Box(modifier = Modifier.fillMaxWidth().fillMaxHeight()) }
+        }
+        CaptionButton(tint, modifier = Modifier.reportAs(false, 0), onClick = { window.extendedState = window.extendedState or Frame.ICONIFIED }) { c ->
             drawLine(c, Offset(size.width * 0.5f - 5.dp.toPx(), size.height / 2), Offset(size.width * 0.5f + 5.dp.toPx(), size.height / 2), strokeWidth = 1.dp.toPx())
         }
         val maximised = state.placement == WindowPlacement.Maximized
-        CaptionButton(tint, onClick = ::toggleMaximised) { c ->
+        CaptionButton(
+            tint,
+            modifier = Modifier.reportAs(true, 0),
+            hoveredOverride = if (native) NativeFrame.maximiseHovered else null,
+            onClick = ::toggleMaximised,
+        ) { c ->
             val s = 10.dp.toPx()
             val r = 1.5.dp.toPx()
             val stroke = Stroke(width = 1.dp.toPx())
@@ -118,7 +147,7 @@ fun FrameWindowScope.CaptionBar(state: WindowState, defaultTint: Color, onClose:
                 drawRoundRect(c, Offset(cx - s / 2, cy - s / 2), Size(s, s), androidx.compose.ui.geometry.CornerRadius(r), style = stroke)
             }
         }
-        CaptionButton(tint, hoverColour = Color(0xFFC42B1C), hoverTint = Color.White, onClick = onClose) { c ->
+        CaptionButton(tint, modifier = Modifier.reportAs(false, 1), hoverColour = Color(0xFFC42B1C), hoverTint = Color.White, onClick = onClose) { c ->
             val h = 5.dp.toPx()
             val cx = size.width / 2
             val cy = size.height / 2
@@ -131,16 +160,20 @@ fun FrameWindowScope.CaptionBar(state: WindowState, defaultTint: Color, onClose:
 @Composable
 private fun CaptionButton(
     tint: Color,
+    modifier: Modifier = Modifier,
+    /** Hover as Windows reports it, for the button Compose cannot see the pointer over. */
+    hoveredOverride: Boolean? = null,
     hoverColour: Color = tint.copy(alpha = 0.10f),
     hoverTint: Color = tint,
     onClick: () -> Unit,
     glyph: androidx.compose.ui.graphics.drawscope.DrawScope.(Color) -> Unit,
 ) {
     val interaction = remember { MutableInteractionSource() }
-    val hovered by interaction.collectIsHoveredAsState()
+    val composeHovered by interaction.collectIsHoveredAsState()
+    val hovered = hoveredOverride ?: composeHovered
     Box(
         contentAlignment = Alignment.Center,
-        modifier = Modifier
+        modifier = modifier
             .width(46.dp)
             .fillMaxHeight()
             .background(if (hovered) hoverColour else Color.Transparent)
