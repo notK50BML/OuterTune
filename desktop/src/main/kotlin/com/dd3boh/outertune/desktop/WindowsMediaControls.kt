@@ -130,10 +130,11 @@ object WindowsMediaControls {
                     withHString(title) { call(m, MUSIC_PUT_TITLE, it) }
                     withHString(artist.orEmpty()) { call(m, MUSIC_PUT_ARTIST, it) }
                     withHString(album.orEmpty()) { call(m, MUSIC_PUT_ALBUM_ARTIST, it) }
-                    thumbnail(artworkUrl)?.let {
-                        call(u, UPDATER_PUT_THUMBNAIL, it)
-                        call(it, 2) // Release: the updater keeps its own reference.
-                    }
+                    val art = thumbnail(artworkUrl)
+                    // Cleared when there is none, or the last song's cover stays up beside this
+                    // song's title - a local file has no web artwork to offer.
+                    call(u, UPDATER_PUT_THUMBNAIL, art)
+                    art?.let { call(it, 2) } // Release: the updater keeps its own reference.
                 }
                 call(u, UPDATER_UPDATE)
             }

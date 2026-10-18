@@ -617,96 +617,6 @@ internal fun App(
         )
     }
 
-    if (showFullPlayer) {
-        NowPlayingScreen(
-            playback = playback,
-            queue = queue,
-            seekBarStyle = settings.sliderStyle,
-            command = playerCommand,
-            onCommandHandled = { playerCommand = null },
-            positionMs = { positionState.value },
-            durationMs = duration,
-            liked = isLiked,
-            onSeek = player::seekTo,
-            onTogglePause = togglePlay,
-            onNext = playerQueue::next,
-            onPrevious = playerQueue::previous,
-            onToggleLike = toggleLike,
-            onToggleShuffle = playerQueue::toggleShuffle,
-            onCycleRepeat = playerQueue::cycleRepeat,
-            onClose = { showFullPlayer = false },
-            // Passed only when it is switched on - the pane shows nothing when the tap is null,
-            // so the setting is enforced by simply not handing it over.
-            spectrum = player.spectrum.takeIf { settings.showVisualizer },
-            playedFrames = player::playedFrames,
-            equalizer = player.equalizer,
-            eqStore = eqStore,
-            balance = player.balance,
-            timeStretch = player.timeStretch,
-            compressor = player.compressor,
-            // Only what the desktop build can actually do. Absent callbacks mean absent menu items,
-            // so nothing here promises a feature that has not been written - see PlayerActions.
-            lyrics = lyrics,
-            lyricsLoading = lyricsLoading,
-            onMoveInQueue = { from, to -> playerQueue.move(from, to) },
-            onRemoveFromQueue = { position -> playerQueue.removeAt(position) },
-            sleepRemainingMs = sleepRemaining,
-            onSleepTimer = { showSleepDialog = true },
-            downloaded = queue.current?.id in downloadedIds,
-            downloading = downloading != null && downloading == queue.current?.id,
-            showSeekButtons = settings.showSeekButtons,
-            lyricsTextScale = settings.lyricsTextScale,
-            lyricsAlignment = settings.lyricsAlignment,
-            playerButtons = PlayerButtonKind.decode(settings.playerButtons),
-            showQueueTitle = settings.showQueueTitle,
-            onRefetchLyrics = {
-                queue.current?.id?.let(lyricsRepository::forget)
-                lyricsAttempt++
-            },
-            lyricsOffsetMs = settings.lyricsOffsetMs,
-            onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
-            lyricsOnCoverClick = settings.lyricsOnCoverClick,
-            backgroundStyle = settings.background,
-            colourByValue = settings.colourByValue,
-            actions = PlayerActions(
-                onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
-                onAddToPlaylist = queue.current?.let { song -> { addingToPlaylist = song.toStored() } },
-                onViewArtist = queue.current?.artists?.firstOrNull()?.let { artist ->
-                    {
-                        openArtistPage(
-                            artist.id?.let { StoredArtist(it, artist.name) }
-                                ?: StoredArtist.unlinked(artist.name)
-                        )
-                    }
-                },
-                onDownload = queue.current?.let { song ->
-                    {
-                        if (song.id in downloadedIds) {
-                            downloadedIds = downloadedIds - song.id
-                            scope.launch { withContext(Dispatchers.IO) { library.downloads.delete(song.id) } }
-                        } else if (downloading == null) {
-                            downloading = song.id
-                            scope.launch {
-                                player.download(song.id)
-                                downloadedIds = withContext(Dispatchers.IO) {
-                                    library.downloads.ids().toSet()
-                                }
-                                downloading = null
-                            }
-                        }
-                    }
-                },
-                // Only when the song actually carries one. A menu entry that opens an empty page is
-                // worse than one that is not there.
-                onViewAlbum = queue.current?.album?.id?.let { id -> { openAlbumPage(id) } },
-                onShare = queue.current?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
-                onDetails = queue.current?.let { { showDetails = true } },
-            ),
-            onJumpToQueueIndex = { playerQueue.jumpTo(it) },
-            onOpenArtist = openArtistPage,
-        )
-        return
-    }
 
     // A play counts once this share of the song has been heard - the phone's minimum playback
     // duration - so skipping through a queue does not fill history and Stats with songs not heard.
@@ -886,6 +796,101 @@ internal fun App(
             }
             true
         }
+    }
+
+    // The full player takes the whole window. It is placed after every effect above, not before
+    // them: returning early used to take those effects out of composition while the player was
+    // open, so closing it ran them all again - and the one that restores the saved queue put the
+    // last session's queue back, leaving the bar on a different song from the one playing.
+    if (showFullPlayer) {
+        NowPlayingScreen(
+            playback = playback,
+            queue = queue,
+            seekBarStyle = settings.sliderStyle,
+            command = playerCommand,
+            onCommandHandled = { playerCommand = null },
+            positionMs = { positionState.value },
+            durationMs = duration,
+            liked = isLiked,
+            onSeek = player::seekTo,
+            onTogglePause = togglePlay,
+            onNext = playerQueue::next,
+            onPrevious = playerQueue::previous,
+            onToggleLike = toggleLike,
+            onToggleShuffle = playerQueue::toggleShuffle,
+            onCycleRepeat = playerQueue::cycleRepeat,
+            onClose = { showFullPlayer = false },
+            // Passed only when it is switched on - the pane shows nothing when the tap is null,
+            // so the setting is enforced by simply not handing it over.
+            spectrum = player.spectrum.takeIf { settings.showVisualizer },
+            playedFrames = player::playedFrames,
+            equalizer = player.equalizer,
+            eqStore = eqStore,
+            balance = player.balance,
+            timeStretch = player.timeStretch,
+            compressor = player.compressor,
+            // Only what the desktop build can actually do. Absent callbacks mean absent menu items,
+            // so nothing here promises a feature that has not been written - see PlayerActions.
+            lyrics = lyrics,
+            lyricsLoading = lyricsLoading,
+            onMoveInQueue = { from, to -> playerQueue.move(from, to) },
+            onRemoveFromQueue = { position -> playerQueue.removeAt(position) },
+            sleepRemainingMs = sleepRemaining,
+            onSleepTimer = { showSleepDialog = true },
+            downloaded = queue.current?.id in downloadedIds,
+            downloading = downloading != null && downloading == queue.current?.id,
+            showSeekButtons = settings.showSeekButtons,
+            lyricsTextScale = settings.lyricsTextScale,
+            lyricsAlignment = settings.lyricsAlignment,
+            playerButtons = PlayerButtonKind.decode(settings.playerButtons),
+            showQueueTitle = settings.showQueueTitle,
+            onRefetchLyrics = {
+                queue.current?.id?.let(lyricsRepository::forget)
+                lyricsAttempt++
+            },
+            lyricsOffsetMs = settings.lyricsOffsetMs,
+            onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
+            lyricsOnCoverClick = settings.lyricsOnCoverClick,
+            backgroundStyle = settings.background,
+            colourByValue = settings.colourByValue,
+            actions = PlayerActions(
+                onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
+                onAddToPlaylist = queue.current?.let { song -> { addingToPlaylist = song.toStored() } },
+                onViewArtist = queue.current?.artists?.firstOrNull()?.let { artist ->
+                    {
+                        openArtistPage(
+                            artist.id?.let { StoredArtist(it, artist.name) }
+                                ?: StoredArtist.unlinked(artist.name)
+                        )
+                    }
+                },
+                onDownload = queue.current?.let { song ->
+                    {
+                        if (song.id in downloadedIds) {
+                            downloadedIds = downloadedIds - song.id
+                            scope.launch { withContext(Dispatchers.IO) { library.downloads.delete(song.id) } }
+                        } else if (downloading == null) {
+                            downloading = song.id
+                            scope.launch {
+                                player.download(song.id)
+                                downloadedIds = withContext(Dispatchers.IO) {
+                                    library.downloads.ids().toSet()
+                                }
+                                downloading = null
+                            }
+                        }
+                    }
+                },
+                // Only when the song actually carries one. A menu entry that opens an empty page is
+                // worse than one that is not there.
+                onViewAlbum = queue.current?.album?.id?.let { id -> { openAlbumPage(id) } },
+                onShare = queue.current?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
+                onDetails = queue.current?.let { { showDetails = true } },
+            ),
+            onJumpToQueueIndex = { playerQueue.jumpTo(it) },
+            onOpenArtist = openArtistPage,
+        )
+        return
     }
 
     CompositionLocalProvider(
