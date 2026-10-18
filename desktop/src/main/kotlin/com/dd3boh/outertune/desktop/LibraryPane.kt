@@ -82,6 +82,9 @@ enum class SongSort(val label: String) { Default("Recently added"), Title("Title
 @Composable
 fun LibraryPane(
     library: LibraryStore,
+    /** Shows only this view, without the view chips - for a rail tab that is one part of the library. */
+    fixedView: LibraryView? = null,
+    initialSource: SongSource? = null,
     sync: YouTubeSync,
     signedIn: Boolean,
     downloadedIds: Set<String>,
@@ -95,8 +98,8 @@ fun LibraryPane(
     onOpenPlaylist: (StoredPlaylist) -> Unit = {},
     onOpenOnlinePlaylist: (com.zionhuang.innertube.models.PlaylistItem) -> Unit = {},
 ) {
-    var view by remember { mutableStateOf(LibraryView.Songs) }
-    var source by remember { mutableStateOf(SongSource.Liked) }
+    var view by remember(fixedView) { mutableStateOf(fixedView ?: LibraryView.Songs) }
+    var source by remember(initialSource) { mutableStateOf(initialSource ?: SongSource.Liked) }
     var sort by remember { mutableStateOf(SongSort.Default) }
     var filter by remember { mutableStateOf("") }
     val liked by library.liked.collectAsState()
@@ -130,7 +133,7 @@ fun LibraryPane(
                 }
             }
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        if (fixedView == null) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             LibraryView.entries.forEach { FilterChip(selected = view == it, onClick = { view = it }, label = { Text(it.label) }) }
         }
         Spacer(Modifier.size(8.dp))

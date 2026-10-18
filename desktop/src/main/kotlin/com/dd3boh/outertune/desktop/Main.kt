@@ -347,6 +347,11 @@ internal fun App(
     // Which section the navigation rail has selected. One value rather than a flag per pane, so two
     // panes can never both think they are showing.
     var tab by remember { mutableStateOf(settings.startTab) }
+    // A tab switched off while it is open hands over to the first one still on.
+    LaunchedEffect(settings.tabs) {
+        val tabs = NavTab.decode(settings.tabs)
+        if (tab != NavTab.Settings && tab !in tabs) tab = tabs.first()
+    }
     var openArtist by remember { mutableStateOf<StoredArtist?>(null) }
 
     // The album being looked at, by browse id, and whatever has been loaded for it. Two states
@@ -909,7 +914,7 @@ internal fun App(
         // sections, in the same order, as a NavigationRail rather than a row of text buttons.
         Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
             NavRail(
-                selected = tab,
+                selected = tab, tabs = NavTab.decode(settings.tabs),
                 onSelect = { next ->
                     // Choosing a section is leaving wherever you were: an open artist or album, a
                     // search, a playlist. Otherwise the rail would light up a tab whose page was
@@ -1151,6 +1156,14 @@ internal fun App(
                             )
                 } else {
                     LibraryPane(
+                        // Songs, Artists, Albums and Local files are the Library opened on one view.
+                        fixedView = when (tab) {
+                            NavTab.Songs, NavTab.LocalFiles -> LibraryView.Songs
+                            NavTab.Artists -> LibraryView.Artists
+                            NavTab.Albums -> LibraryView.Albums
+                            else -> null
+                        },
+                        initialSource = if (tab == NavTab.LocalFiles) SongSource.Local else null,
                         library = library,
                         sync = youTubeSync,
                         signedIn = accountState is AccountState.SignedIn,
@@ -1202,12 +1215,33 @@ internal fun App(
 }
 
 /** The sections the rail offers, in the phone's order. */
-enum class NavTab(val label: String) {
-    Home("Home"),
-    Songs("Library"),
-    Playlists("Playlists"),
-    Stats("Stats"),
-    Settings("Settings"),
+/**
+ * The sections the rail can show - the phone's tabs, with its letters, plus Stats. Which appear,
+ * and in what order, is a setting (see [Settings.tabs]); Settings is always there, at the bottom.
+ */
+enum class NavTab(val label: String, val code: Char) {
+    Home("Home", 'H'),
+    Songs("Songs", 'S'),
+    Artists("Artists", 'A'),
+    Albums("Albums", 'B'),
+    Playlists("Playlists", 'L'),
+    Library("Library", 'M'),
+    LocalFiles("Local files", 'O'),
+    Stats("Stats", 'T'),
+    Settings("Settings", '-'),
+    ;
+
+    companion object {
+        /** What the rail showed before tabs could be chosen, so updating changes nothing. */
+        const val DEFAULT = "HMLT"
+        val choosable get() = entries.filter { it != Settings }
+
+        fun decode(stored: String): List<NavTab> =
+            stored.ifBlank { DEFAULT }.mapNotNull { c -> choosable.firstOrNull { it.code == c } }.distinct()
+                .ifEmpty { listOf(Home) }
+
+        fun encode(tabs: List<NavTab>): String = tabs.distinct().joinToString("") { it.code.toString() }
+    }
 }
 
 /**
@@ -1217,13 +1251,13 @@ enum class NavTab(val label: String) {
  * two read as one app. Settings sits apart at the bottom: it is not a place music is found in.
  */
 @Composable
-private fun NavRail(selected: NavTab, onSelect: (NavTab) -> Unit) {
+private fun NavRail(selected: NavTab, tabs: List<NavTab>, onSelect: (NavTab) -> Unit) {
     NavigationRail(
         containerColor = MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp),
         modifier = Modifier.fillMaxHeight(),
     ) {
         Spacer(modifier = Modifier.weight(1f))
-        listOf(NavTab.Home, NavTab.Songs, NavTab.Playlists, NavTab.Stats).forEach { tab ->
+        tabs.forEach { tab ->
             NavigationRailItem(
                 selected = selected == tab,
                 onClick = { onSelect(tab) },
@@ -1242,11 +1276,16 @@ private fun NavRail(selected: NavTab, onSelect: (NavTab) -> Unit) {
     }
 }
 
-private fun NavTab.icon() = when (this) {
+/** The phone's icon for each section - Screens.kt - and its trending line for Stats. */
+internal fun NavTab.icon() = when (this) {
     NavTab.Home -> OuterTuneIcons.home
     NavTab.Songs -> OuterTuneIcons.musicNote
+    NavTab.Artists -> OuterTuneIcons.person
+    NavTab.Albums -> OuterTuneIcons.album
     NavTab.Playlists -> OuterTuneIcons.queueMusic
-    NavTab.Stats -> OuterTuneIcons.graphicEq
+    NavTab.Library -> OuterTuneIcons.libraryMusic
+    NavTab.LocalFiles -> OuterTuneIcons.sdCard
+    NavTab.Stats -> OuterTuneIcons.trendingUp
     NavTab.Settings -> OuterTuneIcons.settings
 }
 

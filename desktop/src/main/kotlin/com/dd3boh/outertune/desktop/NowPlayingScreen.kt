@@ -1481,6 +1481,9 @@ private fun ActionButtons(
             PlayerButtonKind.ALBUM -> actions.onViewAlbum
             PlayerButtonKind.SHARE -> actions.onShare
             PlayerButtonKind.DETAILS -> actions.onDetails
+            PlayerButtonKind.RADIO -> actions.onStartRadio
+            PlayerButtonKind.LIBRARY -> actions.onToggleLibrary
+            PlayerButtonKind.ADVANCED -> actions.onEqualizer
         }
         when {
             button == PlayerButtonKind.MENU -> if (actions.any) {
@@ -1528,7 +1531,7 @@ private fun ActionButtons(
                         modifier = Modifier.size(iconSize * 0.8f),
                     )
                     else -> Icon(
-                        imageVector = if (button == PlayerButtonKind.LIKE && liked) OuterTuneIcons.favorite else button.icon,
+                        imageVector = if (button == PlayerButtonKind.LIKE && liked) OuterTuneIcons.favorite else (if (button == PlayerButtonKind.LIBRARY && actions.inLibrary) OuterTuneIcons.libraryAddCheck else button.icon),
                         contentDescription = button.label,
                         // Dimmed once downloaded, which reads as "done" while keeping the button
                         // where it was; pressing it again removes the file.

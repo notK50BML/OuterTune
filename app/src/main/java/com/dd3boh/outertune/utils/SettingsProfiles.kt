@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.utils
 
+import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
+import com.dd3boh.outertune.constants.EnabledTabsKey
 import com.dd3boh.outertune.constants.SliderStyleKey
 import androidx.annotation.StringRes
 import androidx.datastore.core.DataStore
@@ -207,6 +209,7 @@ object SettingsProfiles {
                 put("pureBlack", p[PureBlackKey] ?: false)
                 put("dynamicTheme", p[DynamicThemeKey] ?: true)
                 put("sliderStyle", (p[SliderStyleKey] ?: "SQUIGGLY").lowercase())
+                put("tabs", p[EnabledTabsKey] ?: DEFAULT_ENABLED_TABS)
                 val custom = p[CustomThemeKey] ?: false
                 put("accentColor", if (custom) p[CustomThemeColorKey]?.let { String.format("#%06X", 0xFFFFFF and it) } else JSONObject.NULL)
             }
@@ -272,6 +275,8 @@ object SettingsProfiles {
                 str("themeMode") { p[DarkModeKey] = when (it) { "dark" -> "ON"; "light" -> "OFF"; else -> "AUTO" } }
                 bool("pureBlack", PureBlackKey)
                 bool("dynamicTheme", DynamicThemeKey)
+                // Only the letters this app has tabs for - the desktop's Stats (T) is not one.
+                str("tabs") { v -> v.filter { it in "HSFOABLM" }.toList().distinct().joinToString("").takeIf { it.isNotEmpty() }?.let { p[EnabledTabsKey] = it } }
                 str("sliderStyle") { v -> if (v.uppercase() in setOf("SQUIGGLY", "DEFAULT", "SLIM")) p[SliderStyleKey] = v.uppercase() }
                 if (c.has("accentColor")) {
                     if (c.isNull("accentColor")) {

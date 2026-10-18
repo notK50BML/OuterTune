@@ -12,8 +12,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
  * What can sit beside the song title on the player - the desktop's half of the phone's
  * PlayerButton, with the same stored codes so the two read the same.
  *
- * Only the actions the desktop's menu actually has: there is no radio, library or tempo item here,
- * so they are not offered as buttons either.
+ * The phone's full set, with the same codes, so an arrangement moves between the two in a settings
+ * profile. Tempo and pitch opens the equaliser, which is where the desktop keeps those knobs.
  */
 enum class PlayerButtonKind(val code: Char, val label: String) {
     LIKE('L', "Like"),
@@ -28,6 +28,9 @@ enum class PlayerButtonKind(val code: Char, val label: String) {
     ALBUM('U', "View album"),
     SHARE('H', "Copy link"),
     DETAILS('I', "Details"),
+    RADIO('R', "Start radio"),
+    LIBRARY('B', "Add to library"),
+    ADVANCED('T', "Tempo and pitch"),
     ;
 
     val icon: ImageVector
@@ -44,6 +47,9 @@ enum class PlayerButtonKind(val code: Char, val label: String) {
             ALBUM -> OuterTuneIcons.album
             SHARE -> OuterTuneIcons.share
             DETAILS -> OuterTuneIcons.info
+            RADIO -> OuterTuneIcons.radio
+            LIBRARY -> OuterTuneIcons.libraryAdd
+            ADVANCED -> OuterTuneIcons.tune
         }
 
     companion object {

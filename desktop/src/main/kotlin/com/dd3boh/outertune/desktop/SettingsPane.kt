@@ -105,6 +105,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Tabs", SettingsCategory.Appearance, "rail navigation sections home songs artists albums playlists library local stats order"),
     SettingEntry("Keyboard shortcuts", SettingsCategory.Keyboard, "keys keybinds hotkeys shortcut remap play pause next previous equaliser shuffle repeat volume"),
     SettingEntry("Theme", SettingsCategory.Appearance, "dark light system mode night"),
     SettingEntry("Pure black", SettingsCategory.Appearance, "amoled oled dark black"),
@@ -407,10 +408,28 @@ private fun AppearanceSettings(settings: Settings) {
             description = { it.description },
             onSelect = { settings.sliderStyle = it },
         )
+        var choosingTabs by remember { mutableStateOf(false) }
+        SettingRow(
+            title = "Tabs",
+            subtitle = NavTab.decode(settings.tabs).joinToString(", ") { it.label },
+            icon = OuterTuneIcons.libraryMusic,
+            onClick = { choosingTabs = true },
+        )
+        if (choosingTabs) {
+            TabsDialog(
+                current = NavTab.decode(settings.tabs),
+                onSave = {
+                    settings.tabs = NavTab.encode(it)
+                    if (settings.startTab !in it) settings.startTab = it.first()
+                    choosingTabs = false
+                },
+                onDismiss = { choosingTabs = false },
+            )
+        }
         SettingChoice(
             title = "Open on",
             icon = OuterTuneIcons.home,
-            options = NavTab.entries.filter { it != NavTab.Settings },
+            options = NavTab.decode(settings.tabs),
             selected = settings.startTab,
             label = { it.label },
             onSelect = { settings.startTab = it },

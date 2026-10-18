@@ -6,6 +6,13 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.SdCard
+import androidx.compose.material.icons.rounded.LibraryMusic
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.LibraryAddCheck
+import androidx.compose.material.icons.rounded.LibraryAdd
+import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
@@ -88,6 +95,10 @@ class IconGenerator {
         "playlistAdd" to Icons.AutoMirrored.Rounded.PlaylistAdd, "info" to Icons.Rounded.Info,
         "wifi" to Icons.Rounded.Wifi, "colorLens" to Icons.Rounded.ColorLens,
         "lyrics" to Icons.Rounded.Lyrics, "textRotationAngledown" to Icons.Rounded.TextRotationAngledown,
+        "radio" to Icons.Rounded.Radio, "libraryAdd" to Icons.Rounded.LibraryAdd,
+        "libraryAddCheck" to Icons.Rounded.LibraryAddCheck, "tune" to Icons.Rounded.Tune,
+        "libraryMusic" to Icons.Rounded.LibraryMusic, "sdCard" to Icons.Rounded.SdCard,
+        "trendingUp" to Icons.AutoMirrored.Rounded.TrendingUp,
     )
 
     @Test

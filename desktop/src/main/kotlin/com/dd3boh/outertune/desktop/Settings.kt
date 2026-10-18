@@ -176,6 +176,9 @@ class Settings(private val store: SettingsStore) {
     /** Which section the window opens on. */
     var startTab by enum("ui.startTab", NavTab.Home, NavTab.entries.filter { it != NavTab.Settings })
 
+    /** Which sections the rail shows, in order - the phone's enabled tabs. See [NavTab.decode]. */
+    var tabs by string("ui.tabs", NavTab.DEFAULT)
+
     // ---- Content ---------------------------------------------------------------------------
 
     /** Leaves explicit songs out of search results, Home and artist pages. */

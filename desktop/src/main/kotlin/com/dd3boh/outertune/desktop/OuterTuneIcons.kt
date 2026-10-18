@@ -161,6 +161,13 @@ object OuterTuneIcons {
     /** Android: `Icons.Rounded.Palette`. */
     val palette by icon(GeneratedIconPaths.palette)
     val keyboard by icon(GeneratedIconPaths.keyboard)
+    val radio by icon(GeneratedIconPaths.radio)
+    val libraryAdd by icon(GeneratedIconPaths.libraryAdd)
+    val libraryAddCheck by icon(GeneratedIconPaths.libraryAddCheck)
+    val tune by icon(GeneratedIconPaths.tune)
+    val libraryMusic by icon(GeneratedIconPaths.libraryMusic)
+    val sdCard by icon(GeneratedIconPaths.sdCard)
+    val trendingUp by icon(GeneratedIconPaths.trendingUp)
 
     /** Android: `Icons.Rounded.BlurOn`. */
     val blurOn by icon(GeneratedIconPaths.blurOn)
@@ -290,6 +297,13 @@ object OuterTuneIcons {
             "darkMode" to darkMode,
             "palette" to palette,
             "keyboard" to keyboard,
+            "radio" to radio,
+            "libraryAdd" to libraryAdd,
+            "libraryAddCheck" to libraryAddCheck,
+            "tune" to tune,
+            "libraryMusic" to libraryMusic,
+            "sdCard" to sdCard,
+            "trendingUp" to trendingUp,
             "blurOn" to blurOn,
             "delete" to delete,
             "history" to history,

@@ -137,6 +137,8 @@ object Profiles {
                 put("pureBlack", s.pureBlack)
                 put("dynamicTheme", s.dynamicTheme)
                 put("sliderStyle", s.sliderStyle.name.lowercase())
+                // The phone's tab letters; Stats (T) is the desktop's own and stays behind.
+                put("tabs", NavTab.encode(NavTab.decode(s.tabs)).filter { it != 'T' })
             }
             Category.Player -> {
                 put("buttons", s.playerButtons)
@@ -201,6 +203,7 @@ object Profiles {
                 str("themeMode") { v -> ThemeMode.entries.firstOrNull { it.name.equals(v, true) }?.let { s.themeMode = it } }
                 bool("pureBlack") { s.pureBlack = it }
                 bool("dynamicTheme") { s.dynamicTheme = it }
+                str("tabs") { v -> NavTab.decode(v).takeIf { v.isNotBlank() }?.let { s.tabs = NavTab.encode(it) } }
                 str("sliderStyle") { v -> SeekBarStyle.entries.firstOrNull { it.name.equals(v, true) }?.let { s.sliderStyle = it } }
             }
             Category.Player -> {
