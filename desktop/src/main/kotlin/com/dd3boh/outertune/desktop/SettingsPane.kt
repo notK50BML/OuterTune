@@ -68,16 +68,20 @@ import androidx.compose.ui.unit.dp
 
 /** The sections settings are grouped into, in the phone's order. */
 enum class SettingsCategory(val label: String, val blurb: String) {
-    Appearance("Appearance", "Theme, colours, fonts and text size"),
-    Player("Player and audio", "Transport, visualiser and the player screen"),
+    // The phone's sections, in its order and under its names (SettingsScreen.kt), so a setting is
+    // found in the same place on both. Keyboard is the one the phone has no need for.
+    Account("Account and sync", "Sign in to YouTube Music"),
+    Discord("Discord", "Show what you are playing on Discord"),
+    Appearance("Appearance", "Theme, colours, fonts, tabs and the player's look"),
+    Player("Player and audio", "Buttons, seek bar, queue, audio and the sleep timer"),
+    ListenTogether("Listen Together", "Play in sync with other devices"),
+    Content("Library and content", "Language, region and what shows up"),
+    Local("Local media", "Folders on this computer"),
     Lyrics("Lyrics", "Providers, timing and how lyrics look"),
     Keyboard("Keyboard", "Shortcuts for the player, each remappable"),
-    Content("Content", "What shows up in search, Home and artists"),
-    Account("Account", "Sign in to YouTube Music"),
-    Integrations("Integrations", "Discord and Listen Together"),
-    Local("Local music", "Folders on this computer"),
+    Privacy("Privacy", "Listening and search history"),
     Storage("Storage", "Downloaded songs"),
-    Privacy("Privacy and backup", "Listening history, importing, where things are kept"),
+    Backup("Backup and restore", "Backups, the phone's backups, settings profiles"),
     About("About", "Version and links"),
 }
 
@@ -88,10 +92,12 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
     SettingsCategory.Keyboard -> OuterTuneIcons.keyboard
     SettingsCategory.Content -> OuterTuneIcons.musicNote
     SettingsCategory.Account -> OuterTuneIcons.accountCircle
-    SettingsCategory.Integrations -> OuterTuneIcons.devices
+    SettingsCategory.Discord -> OuterTuneIcons.devices
+    SettingsCategory.ListenTogether -> OuterTuneIcons.cast
     SettingsCategory.Local -> OuterTuneIcons.musicNote
     SettingsCategory.Storage -> OuterTuneIcons.download
     SettingsCategory.Privacy -> OuterTuneIcons.history
+    SettingsCategory.Backup -> OuterTuneIcons.restore
     SettingsCategory.About -> OuterTuneIcons.info
 }
 
@@ -106,7 +112,7 @@ internal data class SettingEntry(val title: String, val category: SettingsCatego
 
 internal val SETTING_ENTRIES = listOf(
     SettingEntry("Queues to keep", SettingsCategory.Player, "multiple queues saved switch board history"),
-    SettingEntry("Player layout", SettingsCategory.Player, "layout editor custom arrange move cover position import"),
+    SettingEntry("Player layout", SettingsCategory.Appearance, "layout editor custom arrange move cover position import"),
     SettingEntry("Tabs", SettingsCategory.Appearance, "rail navigation sections home songs artists albums playlists library local stats order"),
     SettingEntry("Keyboard shortcuts", SettingsCategory.Keyboard, "keys keybinds hotkeys shortcut remap play pause next previous equaliser shuffle repeat volume"),
     SettingEntry("Theme", SettingsCategory.Appearance, "dark light system mode night"),
@@ -141,16 +147,18 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("LRCLIB", SettingsCategory.Lyrics, "lyrics provider lrclib"),
     SettingEntry("KuGou", SettingsCategory.Lyrics, "lyrics provider kugou"),
     SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
-    SettingEntry("Discord", SettingsCategory.Integrations, "rich presence rpc status token"),
-    SettingEntry("Listen Together", SettingsCategory.Integrations, "sync share lan network party"),
+    SettingEntry("Discord", SettingsCategory.Discord, "rich presence rpc status token"),
+    SettingEntry("Listen Together", SettingsCategory.ListenTogether, "sync share lan network party"),
     SettingEntry("Music folders", SettingsCategory.Local, "local files folder mp3 flac scan computer"),
     SettingEntry("Rescan", SettingsCategory.Local, "local files refresh scan folders"),
     SettingEntry("Downloads", SettingsCategory.Storage, "offline delete space disk"),
     SettingEntry("Keep listening history", SettingsCategory.Privacy, "history recent stats record"),
     SettingEntry("Clear listening history", SettingsCategory.Privacy, "history delete stats reset"),
     SettingEntry("Search history", SettingsCategory.Privacy, "search recent queries clear"),
-    SettingEntry("Import from a phone backup", SettingsCategory.Privacy, "restore backup android zip"),
-    SettingEntry("Where the library is stored", SettingsCategory.Privacy, "database file path backup sqlite"),
+    SettingEntry("Import from a phone backup", SettingsCategory.Backup, "restore backup android zip"),
+    SettingEntry("Settings profiles", SettingsCategory.Backup, "profile share theme export import equaliser"),
+    SettingEntry("Back up library", SettingsCategory.Backup, "export backup save"),
+    SettingEntry("Where the library is stored", SettingsCategory.Backup, "database file path backup sqlite"),
     SettingEntry("Version", SettingsCategory.About, "about github"),
 )
 
@@ -290,13 +298,12 @@ fun SettingsPane(
                 SettingsCategory.Lyrics -> LyricsSettings(settings, onClearLyricsCache)
                 SettingsCategory.Content -> ContentSettings(settings)
                 SettingsCategory.Account -> Section("YouTube Music") { AccountPane(account = account) }
-                SettingsCategory.Integrations -> {
-                    DiscordSettings(settings)
-                    ListenTogetherSettings(settings, listenTogether)
-                }
+                SettingsCategory.Discord -> DiscordSettings(settings)
+                SettingsCategory.ListenTogether -> ListenTogetherSettings(settings, listenTogether)
                 SettingsCategory.Local -> LocalMusicSettings(settings, library)
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
-                SettingsCategory.Privacy -> PrivacySettings(settings, library, libraryPath, onProfileApplied)
+                SettingsCategory.Privacy -> PrivacySettings(settings, library)
+                SettingsCategory.Backup -> BackupSettings(settings, library, libraryPath, onProfileApplied)
                 SettingsCategory.Keyboard -> KeyboardSettings(settings)
                 SettingsCategory.About -> AboutSettings()
             }
@@ -411,15 +418,7 @@ private fun AppearanceSettings(settings: Settings) {
                 onSelect = { settings.ferroReactivity = it },
             )
         }
-        SettingChoice(
-            title = "Seek bar",
-            icon = OuterTuneIcons.palette,
-            options = SeekBarStyle.entries,
-            selected = settings.sliderStyle,
-            label = { it.label },
-            description = { it.description },
-            onSelect = { settings.sliderStyle = it },
-        )
+        PlayerLayoutSetting(settings)
         var choosingTabs by remember { mutableStateOf(false) }
         SettingRow(
             title = "Tabs",
@@ -491,7 +490,15 @@ private fun PlayerSettings(settings: Settings) {
                 onDismiss = { arranging = false },
             )
         }
-        PlayerLayoutSetting(settings)
+        SettingChoice(
+            title = "Seek bar",
+            icon = OuterTuneIcons.palette,
+            options = SeekBarStyle.entries,
+            selected = settings.sliderStyle,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.sliderStyle = it },
+        )
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SettingRow(
             title = "Equaliser",
@@ -1115,17 +1122,9 @@ private fun DownloadSettings(downloads: Downloads, onDownloadsChanged: () -> Uni
 }
 
 @Composable
-private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPath: String, onProfileApplied: () -> Unit) {
+private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPath: String, onProfileApplied: () -> Unit) {
     val scope = rememberCoroutineScope()
-    Section("Library and backup") {
-        SettingSwitch(
-            title = "Keep listening history",
-            subtitle = "Records what has been played, which is what the recent list is made of.",
-            checked = settings.keepHistory,
-            onCheckedChange = { settings.keepHistory = it },
-            icon = OuterTuneIcons.history,
-        )
-        Spacer(modifier = Modifier.height(12.dp))
+    Section("Backup and restore") {
 
         // Merged into this library rather than replacing it, and safe to run twice - see
         // BackupImport. The summary is spelled out rather than reduced to "done", because the
@@ -1220,6 +1219,20 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPa
                 "playlists, history, cached lyrics and these settings.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun PrivacySettings(settings: Settings, library: LibraryStore) {
+    val scope = rememberCoroutineScope()
+    Section("Listen history") {
+        SettingSwitch(
+            title = "Keep listening history",
+            subtitle = "Records what has been played, which is what the recent list is made of.",
+            checked = settings.keepHistory,
+            onCheckedChange = { settings.keepHistory = it },
+            icon = OuterTuneIcons.history,
         )
     }
     Section("Search") {
