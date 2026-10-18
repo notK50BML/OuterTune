@@ -167,6 +167,9 @@ class Settings(private val store: SettingsStore) {
     /** How the player's background is drawn behind the cover's colours. */
     var background by enum("ui.background", BackgroundStyle.Gradient, BackgroundStyle.entries)
 
+    /** How hard the music drives the ferrofluid background. */
+    var ferroReactivity by enum("ui.ferroReactivity", FerroReactivity.Normal, FerroReactivity.entries)
+
     /** The player's seek bar - the phone's three styles, squiggly being its default too. */
     var sliderStyle by enum("ui.sliderStyle", SeekBarStyle.Squiggly, SeekBarStyle.entries)
 

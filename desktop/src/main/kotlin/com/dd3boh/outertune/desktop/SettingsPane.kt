@@ -401,6 +401,16 @@ private fun AppearanceSettings(settings: Settings) {
             description = { it.description },
             onSelect = { settings.background = it },
         )
+        if (settings.background == BackgroundStyle.Ferrofluid) {
+            SettingChoice(
+                title = "Ferrofluid reactivity",
+                icon = OuterTuneIcons.graphicEq,
+                options = FerroReactivity.entries,
+                selected = settings.ferroReactivity,
+                label = { it.label },
+                onSelect = { settings.ferroReactivity = it },
+            )
+        }
         SettingChoice(
             title = "Seek bar",
             icon = OuterTuneIcons.palette,

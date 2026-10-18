@@ -58,6 +58,7 @@ private const val FERROFLUID_SKSL = """
     uniform float time;
     uniform float field;      // the magnet: spring-filtered bass, 0..~1.3
     uniform float shimmer;    // treble
+    uniform float mid;        // the mids - each spike answers them on its own
     uniform float2 lean;      // where the field pulls the spikes, in pool units
     uniform float3 keyColor;  // the white-ish key light
     uniform float3 rimColor;  // the theme's colour, for the rim light
@@ -91,11 +92,15 @@ private const val FERROFLUID_SKSL = """
         float2 c = hexCentre(p);
         float rc = length(c);
         // The instability: nothing below the critical field, then a sharp onset.
-        float onset = smoothstep(0.16, 0.75, field);
+        float onset = smoothstep(0.08, 0.55, field);
         float envelope = smoothstep(R * 0.93, R * 0.18, rc);
         float h = hash(c);
         // About as tall as they are apart at full field, as real spikes are; taller in the middle.
-        float amp = 0.34 * onset * envelope * (0.75 + 0.5 * h) * (0.8 + 0.3 * field);
+        // Every spike also answers the mids on its own phase, so the crown dances spike by spike
+        // rather than rising and falling as one piece.
+        float h2 = hash(c + float2(7.13, 3.71));
+        float dance = 0.8 + mid * (0.9 * h2 + 0.4 * sin(time * (5.0 + 6.0 * h2) + h2 * 30.0));
+        float amp = 0.34 * onset * envelope * (0.75 + 0.5 * h) * (0.8 + 0.3 * field) * dance;
         // Tips lean with the field and tremble with the treble; the base stays put, so the spike
         // bends rather than sliding about.
         float2 tremble = shimmer * 0.018 * float2(sin(time * 23.0 + h * 40.0), cos(time * 19.0 + h * 31.0));
@@ -118,7 +123,7 @@ private const val FERROFLUID_SKSL = """
         float r = length(p);
         if (r > R) return -1.0;
         float edge = smoothstep(R, R * 0.86, r);
-        float ripple = shimmer * 0.0035 * sin(r * 46.0 - time * 17.0) * edge;
+        float ripple = shimmer * 0.006 * sin(r * 46.0 - time * 17.0) * edge;
         return dome(r) + spikes(p) * edge + ripple;
     }
 
@@ -241,6 +246,7 @@ internal data class FerrofluidFrame(
     val shimmer: Float = 0f,
     val leanX: Float = 0f,
     val leanZ: Float = 0f,
+    val mid: Float = 0f,
 )
 
 private val effect: RuntimeEffect? by lazy { runCatching { RuntimeEffect.makeForShader(FERROFLUID_SKSL) }.getOrNull() }
@@ -264,8 +270,11 @@ fun FerrofluidVisualiser(
     baseColor: Color,
     modifier: Modifier = Modifier,
     renderScale: Float = 0.6f,
+    /** How hard the music drives it - see [FerroReactivity]. */
+    reactivity: Float = 1f,
 ) {
     var frame by remember { mutableStateOf(FerrofluidFrame()) }
+    val currentReactivity by rememberUpdatedState(reactivity)
     val currentPlaying by rememberUpdatedState(playing)
 
     LaunchedEffect(tap) {
@@ -275,6 +284,7 @@ fun FerrofluidVisualiser(
         var velocity = 0f
         var bassAvg = 0f
         var shimmer = 0f
+        var mid = 0f
         var lastDrawn = 0L
         while (true) {
             withFrameNanos { now ->
@@ -283,7 +293,7 @@ fun FerrofluidVisualiser(
                 // The simulation runs every frame; the picture is only redrawn about forty times a
                 // second, and not at all once the pool has come to rest with nothing playing - the
                 // per-pixel march is the whole cost, and a still pool needs no new frames.
-                val settled = !currentPlaying && field < 0.002f && kotlin.math.abs(velocity) < 0.002f && shimmer < 0.002f
+                val settled = !currentPlaying && field < 0.002f && kotlin.math.abs(velocity) < 0.002f && shimmer < 0.002f && mid < 0.002f
                 time += dt
                 val levels = if (currentPlaying) tap.sample(playedFrames()) else FloatArray(0)
                 val bass = if (levels.size >= 4) (levels[0] + levels[1] + levels[2] + levels[3]) / 4f else 0f
@@ -293,10 +303,15 @@ fun FerrofluidVisualiser(
                 bassAvg += (bass - bassAvg) * (1f - exp(-dt * 6f))
                 // The magnet's field: an under-damped spring pulled toward the bass - it overshoots a
                 // hit, rings, and settles; with the music off it slumps back flat.
-                val target = (bass * 1.25f).coerceIn(0f, 1.2f)
-                val stiffness = 70f
-                val damping = 7.5f
-                velocity += (stiffness * (target - field) - damping * velocity) * dt + rise * 9f
+                val r = currentReactivity
+                // Square-rooted, so a quiet passage still moves it and a loud one does not just
+                // pin it at the top. A stiffer, lightly damped spring: hits snap up and ring.
+                val target = (kotlin.math.sqrt(bass) * 1.3f * r).coerceIn(0f, 1.3f)
+                val stiffness = 130f
+                val damping = 10f
+                velocity += (stiffness * (target - field) - damping * velocity) * dt + rise * 16f * r
+                val midLevel = if (levels.size >= 16) levels.copyOfRange(6, 16).average().toFloat() else 0f
+                mid += ((midLevel * 1.4f * r).coerceIn(0f, 1.5f) - mid) * (1f - exp(-dt * 14f))
                 field = (field + velocity * dt).coerceIn(0f, 1.35f)
                 shimmer += (treble * 1.6f - shimmer) * (1f - exp(-dt * 12f))
                 // The field drifts, so the spikes lean slowly one way and then another.
@@ -304,7 +319,7 @@ fun FerrofluidVisualiser(
                 val leanZ = 0.025f * cos(time * 0.27f + 0.7f)
                 if (!settled && now - lastDrawn >= 24_000_000L) {
                     lastDrawn = now
-                    frame = FerrofluidFrame(time, field, shimmer, leanX, leanZ)
+                    frame = FerrofluidFrame(time, field, shimmer, leanX, leanZ, mid)
                 }
             }
         }
@@ -347,10 +362,19 @@ internal fun FerrofluidScene(
         builder.uniform("time", frame.time)
         builder.uniform("field", frame.field)
         builder.uniform("shimmer", frame.shimmer)
+        builder.uniform("mid", frame.mid)
         builder.uniform("lean", frame.leanX, frame.leanZ)
         builder.uniform("keyColor", keyColor.red, keyColor.green, keyColor.blue)
         builder.uniform("rimColor", rimColor.red, rimColor.green, rimColor.blue)
         builder.uniform("baseColor", baseColor.red, baseColor.green, baseColor.blue)
         drawRect(brush = ShaderBrush(builder.makeShader()))
     }
+}
+
+/** How hard the music drives the ferrofluid - the phone's ferrofluid reactivity tiers. */
+enum class FerroReactivity(val label: String, val multiplier: Float) {
+    Subtle("Subtle", 0.6f),
+    Normal("Normal", 1f),
+    High("High", 1.5f),
+    Extreme("Extreme", 2.1f),
 }

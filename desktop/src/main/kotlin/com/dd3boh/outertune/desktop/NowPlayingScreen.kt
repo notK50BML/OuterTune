@@ -167,6 +167,7 @@ fun NowPlayingScreen(
     onSleepTimer: (() -> Unit)? = null,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
     seekBarStyle: SeekBarStyle = SeekBarStyle.Squiggly,
+    ferroReactivity: FerroReactivity = FerroReactivity.Normal,
     /** An imported Windows layout (Settings > Player > Player layout), or null for the built-in one. */
     playerLayout: PlayerLayout? = null,
     /** Queues kept aside, and switching to or removing one - see PlayerQueue.saved. */
@@ -279,6 +280,7 @@ fun NowPlayingScreen(
         liquidTap = liquidTap,
         playedFrames = playedFrames,
         playing = playback is PlaybackState.Playing,
+        ferroReactivity = ferroReactivity.multiplier,
     )
 
     // The window buttons over the top edge take the player's text colour while it is showing,
@@ -1035,6 +1037,7 @@ private fun PlayerBackground(
     liquidTap: VisualizerTap? = null,
     playedFrames: () -> Long = { 0L },
     playing: Boolean = false,
+    ferroReactivity: Float = 1f,
 ) {
     when (style) {
         BackgroundStyle.Gradient ->
@@ -1050,6 +1053,7 @@ private fun PlayerBackground(
                     keyColor = lerp(Color.White, MaterialTheme.colorScheme.primaryContainer, 0.12f),
                     rimColor = MaterialTheme.colorScheme.primary,
                     baseColor = top,
+                    reactivity = ferroReactivity,
                     // The lower part of the window only, so the crown rises into the space under the
                     // controls rather than through the cover and the buttons.
                     modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.42f),

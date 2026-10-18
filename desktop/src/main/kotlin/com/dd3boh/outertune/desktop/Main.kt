@@ -856,6 +856,7 @@ internal fun App(
             savedQueues = savedQueues,
             onSwitchQueue = playerQueue::switchTo,
             onRemoveSavedQueue = playerQueue::removeSaved,
+            ferroReactivity = settings.ferroReactivity,
             positionMs = { positionState.value },
             durationMs = duration,
             liked = isLiked,
