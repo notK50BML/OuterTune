@@ -43,6 +43,7 @@ import com.dd3boh.outertune.utils.LocalArtworkPath
 import com.dd3boh.outertune.utils.coilCoroutine
 import com.materialkolor.scheme.DynamicScheme
 import com.materialkolor.hct.Hct
+import com.materialkolor.scheme.SchemeMonochrome
 import com.materialkolor.scheme.SchemeTonalSpot
 import com.materialkolor.score.Score
 import kotlinx.coroutines.flow.collectLatest
@@ -50,8 +51,18 @@ import kotlinx.coroutines.launch
 
 val DefaultThemeColor = Color(0xFFED5564)
 
+/**
+ * The two monochrome accents. Neither can be its literal colour in both modes - black buttons
+ * vanish on a dark background, white ones on a light one - so each has a fallback:
+ *
+ * - Black is ink: black in light mode, white in dark mode. Always the most contrast there is.
+ * - White is soft: white in dark mode, and pale grey with black text in light mode.
+ */
+val MonochromeBlack = Color(0xFF000000)
+val MonochromeWhite = Color(0xFFFFFFFF)
+
 // Preset accent colors the user can choose from. Each value is a seed color; the full Material3
-// color scheme is generated from it via SchemeTonalSpot.
+// color scheme is generated from it via SchemeTonalSpot - or, for the last two, SchemeMonochrome.
 val PresetThemeColors = listOf(
     Color(0xFFED5564), // red
     Color(0xFFEC407A), // pink
@@ -66,7 +77,21 @@ val PresetThemeColors = listOf(
     Color(0xFFFFCA28), // yellow
     Color(0xFFFFA726), // orange
     Color(0xFF8D6E63), // brown
+    MonochromeBlack,
+    MonochromeWhite,
 )
+
+private fun monochromeScheme(white: Boolean, dark: Boolean): ColorScheme {
+    val base = SchemeMonochrome(Hct.fromInt(0xFF808080.toInt()), dark, 0.0).toColorScheme()
+    if (!white || dark) return base
+    return base.copy(
+        primary = Color(0xFFDCDCDC),
+        onPrimary = Color(0xFF000000),
+        primaryContainer = Color(0xFFEDEDED),
+        onPrimaryContainer = Color(0xFF000000),
+        inversePrimary = Color(0xFF3A3A3A),
+    )
+}
 
 @Composable
 fun OuterTuneTheme(
@@ -148,6 +173,9 @@ fun OuterTuneTheme(
             } else {
                 systemTheme
             }
+        } else if (customTheme && (themeColor == MonochromeBlack || themeColor == MonochromeWhite)) {
+            monochromeScheme(white = themeColor == MonochromeWhite, dark = darkTheme)
+                .pureBlack(darkTheme && pureBlack)
         } else {
             SchemeTonalSpot(Hct.fromInt(themeColor.toArgb()), darkTheme, 0.0)
                 .toColorScheme()
