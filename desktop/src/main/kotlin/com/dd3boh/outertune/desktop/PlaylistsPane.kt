@@ -359,6 +359,7 @@ private fun NameDialog(
         title = { Text(title) },
         text = {
             OutlinedTextField(
+                modifier = Modifier.typingField(),
                 value = name,
                 onValueChange = { name = it },
                 singleLine = true,
@@ -410,6 +411,7 @@ fun AddToPlaylistDialog(
 
                 if (creating) {
                     OutlinedTextField(
+                        modifier = Modifier.typingField(),
                         value = name,
                         onValueChange = { name = it },
                         singleLine = true,

@@ -675,7 +675,7 @@ private fun LinkArtistDialog(name: String, onDismiss: () -> Unit, onPick: (Artis
                     value = query,
                     onValueChange = { query = it },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.typingField().fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 val found = results

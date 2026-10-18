@@ -241,7 +241,7 @@ fun AccountPane(
                 value = pasted,
                 onValueChange = { pasted = it },
                 label = { Text("Cookie header or cookies.txt contents") },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.typingField().fillMaxWidth(),
                 maxLines = 6,
             )
             Spacer(modifier = Modifier.height(6.dp))

@@ -145,7 +145,7 @@ private fun CategoryDialog(
                         onValueChange = { name = it },
                         label = { Text("Name") },
                         singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.typingField().fillMaxWidth(),
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                 }

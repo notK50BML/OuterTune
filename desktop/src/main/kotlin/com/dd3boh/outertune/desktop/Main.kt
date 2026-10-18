@@ -1465,7 +1465,7 @@ private fun SearchBar(
         // Enter searches, so the keyboard flow is unbroken.
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() }),
-        modifier = Modifier
+        modifier = Modifier.typingField()
             .focusRequester(focus)
             .fillMaxWidth()
             .onPreviewKeyEvent {

@@ -6,6 +6,11 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.composed
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.isAltPressed
 import androidx.compose.ui.input.key.isCtrlPressed
@@ -148,7 +153,27 @@ object KeyRouter {
     @Volatile
     var handler: ((KeyEvent) -> Boolean)? = null
 
-    fun handle(event: KeyEvent): Boolean = handler?.invoke(event) ?: false
+    /**
+     * Text fields that have focus right now - see [typingField]. While any does, no shortcut runs:
+     * a letter typed into a box reaches the window as well as the box, so typing "cloud" into the
+     * AutoEQ search skipped to the next song. Only the main search box used to be exempt.
+     */
+    private val typingIn: MutableSet<Any> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    val typing: Boolean get() = typingIn.isNotEmpty()
+
+    internal fun typing(field: Any, focused: Boolean) {
+        if (focused) typingIn += field else typingIn -= field
+    }
+
+    fun handle(event: KeyEvent): Boolean = if (typing) false else handler?.invoke(event) ?: false
+}
+
+/** Marks a text field, so the keyboard shortcuts stand aside while it has focus - see KeyRouter. */
+fun Modifier.typingField(): Modifier = composed {
+    val field = remember { Any() }
+    DisposableEffect(field) { onDispose { KeyRouter.typing(field, false) } }
+    onFocusChanged { KeyRouter.typing(field, it.isFocused) }
 }
 
 /** Asks the full player to do something it owns - see NowPlayingScreen. */

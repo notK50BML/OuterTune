@@ -478,7 +478,7 @@ fun EqualizerPanel(
                             unfocusedLabelColor = onColour.copy(alpha = 0.6f),
                             cursorColor = accent,
                         ),
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.typingField().weight(1f),
                     )
                     TextButton(
                         enabled = newName.isNotBlank(),
@@ -597,7 +597,7 @@ private fun AutoEqSearch(
                     unfocusedBorderColor = onColour.copy(alpha = 0.3f),
                     cursorColor = accent,
                 ),
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.typingField().weight(1f),
             )
         }
 

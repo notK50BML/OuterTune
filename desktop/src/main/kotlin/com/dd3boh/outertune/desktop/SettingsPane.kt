@@ -242,7 +242,7 @@ fun SettingsPane(
                     focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                     unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
                 ),
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.typingField().fillMaxWidth(),
             )
             Spacer(modifier = Modifier.height(12.dp))
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -794,7 +794,7 @@ private fun DiscordSettings(settings: Settings) {
                     value = draft,
                     onValueChange = { draft = it },
                     label = { Text("Discord token") },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.typingField().fillMaxWidth(),
                     singleLine = true,
                 )
                 Spacer(modifier = Modifier.height(6.dp))
@@ -1446,7 +1446,7 @@ private fun FontSetting(settings: Settings) {
                     onValueChange = { filter = it },
                     placeholder = { Text(families?.let { "Search ${it.size} fonts" } ?: "Loading fonts…") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.typingField().fillMaxWidth(),
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 LazyColumn {

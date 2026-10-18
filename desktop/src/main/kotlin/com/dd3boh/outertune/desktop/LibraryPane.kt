@@ -200,7 +200,7 @@ fun LibraryPane(
                             focusedIndicatorColor = Color.Transparent,
                             unfocusedIndicatorColor = Color.Transparent,
                         ),
-                        modifier = Modifier.width(260.dp),
+                        modifier = Modifier.typingField().width(260.dp),
                     )
                 }
                 if (shown.isEmpty()) {
