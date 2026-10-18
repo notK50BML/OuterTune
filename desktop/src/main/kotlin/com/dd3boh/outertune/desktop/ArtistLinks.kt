@@ -13,7 +13,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.text.Normalizer
 
 /** What one artist name turned out to be on YouTube Music. [channelId] null: searched, nothing there. */
 data class ArtistLink(
@@ -45,19 +44,19 @@ data class ArtistLink(
  */
 object ArtistLinks {
 
-    private val FEATURED = Regex("""[(\[]?\s*\b(?:feat\.?|ft\.?|featuring)\s+([^)\]]+)[)\]]?""", RegexOption.IGNORE_CASE)
-    private val FEATURED_SPLIT = Regex("""\s*(?:,|&|\band\b|\bx\b)\s*""", RegexOption.IGNORE_CASE)
+    // The phone's own patterns, character for character (ArtistCreditEnricher): "feat." / "ft."
+    // with or without the dot, the names split on commas, "&" and "and".
+    private val FEATURED = Regex("""[(\[]?\s*\b(?:feat\.?|ft\.?)\s+([^)\]]+)[)\]]?""", RegexOption.IGNORE_CASE)
+    private val FEATURED_SPLIT = Regex("""\s*(?:,|&|\band\b)\s*""", RegexOption.IGNORE_CASE)
     private val AMPERSAND = Regex("""\s*&\s*""")
     private val TOPIC = Regex("""\s*-\s*Topic$""", RegexOption.IGNORE_CASE)
     private const val RECHECK_MS = 30L * 24 * 60 * 60 * 1000
 
-    /** Case, accents and spacing folded away, so "Beyoncé" and "beyonce " are one name. */
-    fun key(name: String): String =
-        Normalizer.normalize(name, Normalizer.Form.NFKD)
-            .replace(Regex("\\p{M}+"), "")
-            .lowercase()
-            .replace(Regex("\\s+"), " ")
-            .trim()
+    /**
+     * A name as the phone compares names: ignoring case and surrounding space, nothing more - so
+     * "Beyoncé" and "Beyonce" stay two names, exactly as they do there.
+     */
+    fun key(name: String): String = name.trim().lowercase()
 
     fun featuredNames(title: String): List<String> {
         val match = FEATURED.find(title) ?: return emptyList()
@@ -77,26 +76,46 @@ object ArtistLinks {
         val out = mutableListOf<StoredArtist>()
         for (credit in credits) {
             if (credit.linkable) { out += credit; continue }
-            linked(credit.name)?.let { out += it; continue }
-            // "X & Y" confirmed not to be an artist itself: whichever halves are. With none of them
-            // known either, the credit stays as it was - a local file keeps its artist offline.
+            // A placeholder whose name is a real artist: that artist. If the channel is already on
+            // the song, this is the phone's "rebrand" case - one credit, under the channel's name.
+            linked(credit.name)?.let { real ->
+                val at = out.indexOfFirst { it.id == real.id }
+                if (at >= 0) out[at] = real else out += real
+                continue
+            }
+            // "X & Y", once confirmed not to be an artist in its own right, is replaced by whichever
+            // halves are real - and only those: a half that is not a real artist is dropped, never
+            // kept as a guess. Decided only once every half has been looked up.
             val halves = ampersandHalves(credit.name)
             val known = links[key(credit.name)]
-            if (halves != null && known != null && known.channelId == null) {
-                val real = halves.mapNotNull(::linked)
-                if (real.isNotEmpty()) { out += real; continue }
+            if (halves != null && known != null && known.channelId == null &&
+                halves.all { links[key(it)] != null }
+            ) {
+                out += halves.mapNotNull(::linked)
+                continue
             }
             out += credit
         }
-        val names = out.map { key(it.name) }.toMutableSet()
+        // Two credits with the same name are one artist listed twice: the real channel stays.
+        val byName = out.groupBy { it.name.trim().lowercase() }
+        val deduped = out.filter { a ->
+            val same = byName[a.name.trim().lowercase()].orEmpty()
+            same.size == 1 || a == (same.firstOrNull { it.linkable } ?: same.first())
+        }.toMutableList()
+        // Featured artists named in the title and missing from the credits, when confirmed real.
+        val credited = deduped.map { it.name.lowercase() }.toMutableSet()
         for (name in featuredNames(title)) {
-            if (key(name) in names) continue
+            if (name.lowercase() in credited) continue
             val real = linked(name) ?: continue
-            if (out.any { it.id == real.id }) continue
-            out += real
-            names += key(real.name)
+            if (deduped.any { it.id == real.id }) continue
+            deduped += real
+            credited += real.name.lowercase()
         }
-        val result = out.distinctBy { it.id }
+        val result = deduped.distinctBy { it.id }
+        // The one place this departs from the phone: a local file is never left with no artist at
+        // all. The phone falls back to the album's artists there; a file on disk has nothing to fall
+        // back to, so it keeps what its tags said.
+        if (result.isEmpty() && credits.isNotEmpty()) return credits
         return if (result == credits) credits else result
     }
 
@@ -107,8 +126,8 @@ object ArtistLinks {
             add(credit.name)
             ampersandHalves(credit.name)?.let(::addAll)
         }
-        val credited = credits.map { key(it.name) }.toSet()
-        featuredNames(title).filter { key(it) !in credited }.forEach(::add)
+        val credited = credits.map { it.name.lowercase() }.toSet()
+        featuredNames(title).filter { it.lowercase() !in credited }.forEach(::add)
     }
 
     private val searching = Mutex()
@@ -144,9 +163,10 @@ object ArtistLinks {
     private suspend fun search(name: String): ArtistItem? {
         val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()
         lastSearchSucceeded = results != null
-        val target = key(name)
+        // The phone's rule exactly: the title, less " - Topic", equal to the name ignoring case,
+        // and a picture behind it. The artist's own channel over a Topic one when both come back.
         val candidates = results?.items.orEmpty().filterIsInstance<ArtistItem>()
-            .filter { key(it.title.replace(TOPIC, "")) == target && !it.thumbnail.isNullOrBlank() }
+            .filter { it.title.replace(TOPIC, "").trim().equals(name.trim(), ignoreCase = true) && !it.thumbnail.isNullOrBlank() }
         return candidates.firstOrNull { !TOPIC.containsMatchIn(it.title) } ?: candidates.firstOrNull()
     }
 

@@ -26,14 +26,30 @@ class ArtistLinksTest {
     }
 
     @Test
-    fun keysFoldCaseAccentsAndSpaces() {
-        assertEquals(ArtistLinks.key("Beyoncé"), ArtistLinks.key("  beyonce "))
+    fun keysIgnoreCaseAndSurroundingSpaceOnly() {
+        assertEquals(ArtistLinks.key("Coldplay"), ArtistLinks.key("  coldplay "))
+        assert(ArtistLinks.key("Beyoncé") != ArtistLinks.key("Beyonce"))
+    }
+
+    @Test
+    fun anAmpersandCreditWithNoRealHalvesKeepsALocalFileCredited() {
+        val credit = listOf(StoredArtist.unlinked("A & B"))
+        val links = listOf(link("A & B", null), link("A", null), link("B", null)).associateBy { it.nameKey }
+        assertEquals(credit, ArtistLinks.rewrite(credit, "x", links))
+    }
+
+    @Test
+    fun anUnrealHalfIsDropped() {
+        val credit = listOf(StoredArtist.unlinked("A & B"))
+        val links = listOf(link("A & B", null), link("A", "UCa"), link("B", null)).associateBy { it.nameKey }
+        assertEquals(listOf(StoredArtist("UCa", "A")), ArtistLinks.rewrite(credit, "x", links))
     }
 
     @Test
     fun localArtistTakesItsChannel() {
         val links = listOf(link("Coldplay", "UCcold")).associateBy { it.nameKey }
         val out = ArtistLinks.rewrite(listOf(StoredArtist.unlinked("Coldplay")), "Yellow", links)
+        assertEquals(emptyList<String>(), ArtistLinks.featuredNames("Song (featuring X)"))
         assertEquals(listOf(StoredArtist("UCcold", "Coldplay")), out)
     }
 

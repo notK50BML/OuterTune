@@ -495,9 +495,9 @@ fun NowPlayingScreen(
                         IconButton(onClick = onToggleShuffle, modifier = Modifier.size(transportSize)) {
                             ShuffleIcon(
                                 on = queue.shuffled,
-                                // Dimmed rather than hidden when off: a control that disappears is
-                                // harder to find again than one that is plainly inactive.
-                                tint = onBackground.copy(alpha = if (queue.shuffled) 1f else 0.55f),
+                                // Fully opaque either way: the arrows themselves say whether it is on -
+                                // straight when off, crossed when on - as on the phone.
+                                tint = onBackground,
                                 modifier = Modifier.size(transportIcon),
                             )
                         }
