@@ -22,7 +22,6 @@ enum class PlayerButtonKind(val code: Char, val label: String) {
     EQUALIZER('E', "Equaliser"),
     DOWNLOAD('D', "Download"),
     LYRICS('Y', "Lyrics"),
-    QUEUE('Q', "Play next"),
     PLAYLIST('P', "Add to playlist"),
     ARTIST('A', "View artist"),
     ALBUM('U', "View album"),
@@ -41,7 +40,6 @@ enum class PlayerButtonKind(val code: Char, val label: String) {
             EQUALIZER -> OuterTuneIcons.equalizer
             DOWNLOAD -> OuterTuneIcons.download
             LYRICS -> OuterTuneIcons.lyrics
-            QUEUE -> OuterTuneIcons.queueMusic
             PLAYLIST -> OuterTuneIcons.playlistAdd
             ARTIST -> OuterTuneIcons.person
             ALBUM -> OuterTuneIcons.album

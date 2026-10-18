@@ -121,7 +121,7 @@ data class PlayerLayout(
         const val SCHEMA_VERSION = 4
 
         const val DEFAULT_SPACING_DP = 16
-        const val DEFAULT_SIDE_PADDING_DP = 24
+        const val DEFAULT_SIDE_PADDING_DP = 32
 
         /**
          * The six top-level blocks every layout has always had. Deliberately not

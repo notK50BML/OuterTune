@@ -83,7 +83,7 @@ fun PlayerButtonsArrangement() {
     fun load(chosen: List<PlayerButton>) {
         items.clear()
         items += chosen.map { it to true }
-        items += PlayerButton.entries.filterNot { it in chosen }.map { it to false }
+        items += PlayerButton.CHOOSABLE.filterNot { it in chosen }.map { it to false }
     }
     LaunchedEffect(Unit) { load(current) }
     var refused by remember { mutableStateOf(false) }

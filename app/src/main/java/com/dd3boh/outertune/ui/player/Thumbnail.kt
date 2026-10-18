@@ -9,6 +9,8 @@
 
 package com.dd3boh.outertune.ui.player
 
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.unit.Dp
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -53,7 +55,11 @@ fun Thumbnail(
     sliderPositionProvider: () -> Long?,
     modifier: Modifier = Modifier,
     showLyricsOnClick: Boolean = false,
-    customMediaMetadata: MediaMetadata? = null
+    customMediaMetadata: MediaMetadata? = null,
+    /** From an imported layout (see PlayerLayout): the side inset, corner radius and size of the cover. */
+    horizontalPadding: Dp = PlayerHorizontalPadding,
+    cornerRadius: Dp = ThumbnailCornerRadius * 2,
+    sizeScale: Float = 1f,
 ) {
     val context = LocalContext.current
     val currentView = LocalView.current
@@ -88,7 +94,7 @@ fun Thumbnail(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = PlayerHorizontalPadding)
+                    .padding(horizontal = horizontalPadding)
             ) {
                 BoxWithConstraints(
                     modifier = Modifier
@@ -106,7 +112,14 @@ fun Thumbnail(
                         contentDescription = null,
                         modifier = Modifier
                             .aspectRatio(1f)
-                            .clip(RoundedCornerShape(ThumbnailCornerRadius * 2))
+                            // Scaled as a transform about its centre - the layout editor's "size" -
+                            // so a bigger or smaller cover moves nothing else, and the radius is
+                            // divided back out so the corners come out at the size asked for.
+                            .graphicsLayer {
+                                scaleX = sizeScale
+                                scaleY = sizeScale
+                            }
+                            .clip(RoundedCornerShape(cornerRadius / sizeScale.coerceAtLeast(0.05f)))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null,

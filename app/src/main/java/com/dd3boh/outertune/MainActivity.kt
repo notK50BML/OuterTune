@@ -9,6 +9,8 @@
 
 package com.dd3boh.outertune
 
+import com.dd3boh.outertune.utils.dataStore
+import androidx.datastore.preferences.core.edit
 import com.dd3boh.outertune.ui.screens.settings.PlayerLayoutEditorScreen
 import android.annotation.SuppressLint
 import android.app.NotificationManager
@@ -276,6 +278,14 @@ class MainActivity : ComponentActivity() {
         // Safe to run unconditionally: it asks YouTube nothing, and only reads the songs whose
         // stored rows actually show the fault, so a healthy library costs two indexed queries.
         lifecycleScope.launch { ArtistCreditEnricher.relinkAll(database) }
+        // Debug builds only: `adb shell am start ... --es ot_layout_b64 <base64 json>` sets the player
+        // layout ("" clears it), so a layout from the editor can be checked on an emulator.
+        if (BuildConfig.DEBUG) intent?.getStringExtra("ot_layout_b64")?.let { b64 ->
+            val json = String(android.util.Base64.decode(b64, android.util.Base64.DEFAULT))
+            lifecycleScope.launch {
+                dataStore.edit { it[com.dd3boh.outertune.constants.PlayerLayoutKey] = json }
+            }
+        }
         controllerViewModel.addControllerCallback(lifecycle) { controller, _ ->
             playerConnection = PlayerConnection(controllerViewModel, database)
         }

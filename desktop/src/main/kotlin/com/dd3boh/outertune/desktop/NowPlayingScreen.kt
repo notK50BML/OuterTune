@@ -1681,7 +1681,6 @@ private fun ActionButtons(
             PlayerButtonKind.EQUALIZER -> actions.onEqualizer
             PlayerButtonKind.DOWNLOAD -> onDownload
             PlayerButtonKind.LYRICS -> actions.onToggleLyrics
-            PlayerButtonKind.QUEUE -> actions.onAddToQueue
             PlayerButtonKind.PLAYLIST -> actions.onAddToPlaylist
             PlayerButtonKind.ARTIST -> actions.onViewArtist
             PlayerButtonKind.ALBUM -> actions.onViewAlbum

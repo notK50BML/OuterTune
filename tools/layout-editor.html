@@ -57,6 +57,8 @@
   .surface.stack { display: flex; flex-direction: column; }
   .blk { position: relative; flex-shrink: 0; }
   .blk.hidden { display: none; }
+  .blk.ghosted { opacity: .28; }
+  .surface.guided .blk { cursor: pointer; }
   .blk.sel { outline: 2px dashed var(--accent); outline-offset: 2px; border-radius: 4px; }
   .blk.multisel { outline: 2px solid var(--warn); outline-offset: 2px; border-radius: 4px; }
   .surface.free .blk { position: absolute; cursor: grab; touch-action: none; user-select: none; will-change: left, top, width; }
@@ -213,7 +215,7 @@
     <div class="card" id="modeCard">
       <h2>Mode</h2>
       <div class="modes">
-        <button data-mode="stack">Stacked</button>
+        <button data-mode="stack">Guided</button>
         <button data-mode="free">Free placement</button>
       </div>
       <div class="note" id="modeNote"></div>
@@ -234,11 +236,9 @@
           </select>
         </div>
         <div>
-          <label>&nbsp;</label>
-          <div class="note" style="padding:0;font-size:11px">
-            Only changes what is drawn at the bottom edge. The player area is the same either way,
-            so a layout works on both.
-          </div>
+          <label for="dpi">Density (dpi)</label>
+          <input type="number" id="dpi" min="120" max="800" step="1" value="420"
+                 title="Your phone's screen density - Settings > Display, or a spec sheet. 420 is a Pixel 7.">
         </div>
       </div>
       <div class="note">
@@ -296,7 +296,7 @@
         <button data-preset="airy">Airy</button>
         <button data-preset="cinema">Cinema</button>
         <button data-preset="dense">Everything</button>
-        <button data-preset="freeStart">Free: start from stacked</button>
+        <button data-preset="freeStart">Free: start from guided</button>
       </div>
     </div>
 
@@ -417,6 +417,7 @@ const ICON = {
    * triangle is therefore given the largest box and the square the smallest, which is the same
    * optical correction a type designer makes between a square and a round letter.
    */
+  download:      "M240,800Q207,800 183.5,776.5Q160,753 160,720L160,600L240,600L240,720Q240,720 240,720Q240,720 240,720L720,720Q720,720 720,720Q720,720 720,720L720,600L800,600L800,720Q800,753 776.5,776.5Q753,800 720,800L240,800ZM480,640L280,440L336,382L440,486L440,160L520,160L520,486L624,382L680,440L480,640Z",
   close:         "M256,760L200,704L424,480L200,256L256,200L480,424L704,200L760,256L536,480L760,704L704,760L480,536L256,760Z",
   queueMusic:    "M640,800Q590,800 555,765Q520,730 520,680Q520,630 555,595Q590,560 640,560Q651,560 661,561.5Q671,563 680,568L680,240L880,240L880,320L760,320L760,680Q760,730 725,765Q690,800 640,800ZM120,640L120,560L440,560L440,640L120,640ZM120,480L120,400L600,400L600,480L120,480ZM120,320L120,240L600,240L600,320L120,320Z",
   expandLess:    "M451.6,348.4L268,532c-15.599,15.599 -15.599,40.8 0,56.399c15.599,15.599 40.8,15.599 56.399,0L480,433.2l155.2,155.2c15.599,15.599 40.8,15.599 56.399,0c15.599,-15.599 15.599,-40.8 0,-56.399L508,348.4c-15.2,-15.599 -40.8,-15.599 -56.399,0Z",
@@ -527,7 +528,8 @@ function actionMembers(scale, visible = true) {
  */
 const PRESETS = {
   default: {
-    mode: "stack", spacing: 16, sidePadding: 24,
+    // Exactly the built-in player: no gaps between rows, its 32dp side inset.
+    mode: "stack", spacing: 0, sidePadding: 32,
     blocks: [
       { id: "artwork", visible: true, size: 100, radius: 12 },
       { id: "info", visible: true, scale: 100, align: "start" },
@@ -857,99 +859,6 @@ function naturalHeightPct(b, widthPct) {
  * though it were one of five buttons. Anything that is not a row of buttons is stacked instead,
  * which is what the blocks themselves imply.
  */
-function seedFreePositions() {
-  const pad = (state.sidePadding / (screen.width / 3)) * 100;
-  const gapPct = (state.spacing / (screen.height / 3)) * 100;
-  const w = round1(clamp(100 - pad * 2, 20, 100));
-  let y = 4;
-  const done = new Set();
-
-  const place = (b, widthPct) => {
-    b.w = widthPct;
-    b.x = 50;
-    const hPct = naturalHeightPct(b, widthPct);
-    b.y = round1(clamp(y + hPct / 2, 0, 100));
-    done.add(b.id);
-    y += hPct + gapPct;
-  };
-
-  for (const b of state.blocks) {
-    if (done.has(b.id)) continue;
-    if (b.x !== undefined && b.y !== undefined && b.w !== undefined) { done.add(b.id); continue; }
-
-    // The chosen buttons start where the player draws them: at the right end of the title's row,
-    // the title narrowed to make room - not as a row of their own.
-    if (b.id === "actions") {
-      const info = state.blocks.find(x => x.id === "info");
-      if (info && info.visible !== false) continue; // placed with the title
-      place(b, w); continue;
-    }
-    if (b.id === "info") {
-      const actions = state.blocks.find(x => x.id === "actions");
-      if (actions && !done.has("actions")) {
-        const aW = round1(((ROLE_STYLE.ghost.box * 2 * (get(actions, "scale") / 100)) + 10) / NOMINAL_PREVIEW_W * 100);
-        const left = 50 - w / 2;
-        place(b, round1(w - aW - 2));
-        b.x = round1(left + b.w / 2);
-        actions.w = aW;
-        actions.x = round1(left + w - aW / 2);
-        actions.y = b.y;
-        done.add("actions");
-        continue;
-      }
-    }
-    if (!b.group) { place(b, w); continue; }
-
-    const members = membersOf(b.group).filter(m => !done.has(m.id));
-    if (members.length === 0) { done.add(b.id); continue; }
-
-    if (members.every(m => isButton(m.id))) {
-      /*
-       * Spaced by the buttons' own widths, not by an even step.
-       *
-       * An even step assumes every button is the same size, and they are not - play/pause is 52px
-       * against 30px for a ghost icon. Dividing the span evenly therefore left the large button
-       * overlapping its neighbour by a few pixels while the small ones sat too far apart. Laying
-       * them out edge to edge with a fixed gap and centring the result cannot overlap by
-       * construction.
-       *
-       * Widths are converted through NOMINAL_PREVIEW_W so the stored percentages describe the same
-       * arrangement on a real phone, where the preview's own pixel size is irrelevant.
-       */
-      const visible = members.filter(m => m.visible !== false || m.id === "play_pause");
-      const row = visible.length ? visible : members;
-      const hPct = Math.max(...row.map(m => naturalHeightPct(m, w)));
-      const rowY = round1(clamp(y + hPct / 2, 0, 100));
-
-      const widthsPct = row.map(m => {
-        const box = ROLE_STYLE[MEMBER_ROLE[m.id].role].box * (get(m, "scale") / 100);
-        return (box / NOMINAL_PREVIEW_W) * 100;
-      });
-      const biggestBox = Math.max(...row.map(m =>
-        ROLE_STYLE[MEMBER_ROLE[m.id].role].box * (get(m, "scale") / 100)));
-      const gapPctX = ((biggestBox * BUTTON_GAP_RATIO) / NOMINAL_PREVIEW_W) * 100;
-      const total = widthsPct.reduce((a, b) => a + b, 0) + gapPctX * (row.length - 1);
-
-      let cursor = 50 - total / 2;
-      row.forEach((m, i) => {
-        m.x = round1(clamp(cursor + widthsPct[i] / 2, 0, 100));
-        m.y = rowY;
-        m.w = round1(clamp(widthsPct[i], 4, 40));
-        cursor += widthsPct[i] + gapPctX;
-        done.add(m.id);
-      });
-      // Hidden members still need coordinates, or unhiding one later puts it at the origin.
-      members.filter(m => !done.has(m.id)).forEach(m => {
-        m.x = 50; m.y = rowY; m.w = 10; done.add(m.id);
-      });
-      y += hPct + gapPct;
-    } else {
-      // Mixed or full-width members: stack them, each at its own natural size.
-      members.forEach(m => place(m, w));
-    }
-  }
-}
-
 function blockHeightPct(b, scr) {
   if (b.id === "artwork") {
     const wPx = (get(b, "w") / 100) * scr.width;
@@ -1000,13 +909,16 @@ function memberMarkup(b) {
     `${svg(ICON[spec.icon], glyph, style.fill)}</div>`;
 }
 
-/** The placeholder for the chosen buttons: the app's default, like and the menu. */
+/** Stand-ins for the chosen buttons: like, download, equaliser and the menu. */
+const PLAYER_BUTTON_PLACEHOLDERS = [ICON.heart, ICON.download, ICON.equalizer, ICON.more];
+
+/** The placeholder for the chosen buttons. */
 function actionsMarkup(b) {
   const s = get(b, "scale") / 100;
   const style = ROLE_STYLE.ghost;
   const box = Math.round(style.box * s), glyph = Math.round(style.glyph * s);
   return `<div class="cluster" style="gap:${Math.round(box * 0.3)}px" title="Your player buttons (Settings > Player buttons)">` +
-    [ICON.heart, ICON.more].map(d => `<div class="${style.cls}" style="width:${box}px;height:${box}px">${svg(d, glyph, style.fill)}</div>`).join("") +
+    PLAYER_BUTTON_PLACEHOLDERS.map(d => `<div class="${style.cls}" style="width:${box}px;height:${box}px">${svg(d, glyph, style.fill)}</div>`).join("") +
     `</div>`;
 }
 
@@ -1100,7 +1012,8 @@ function renderWindowsPreview() {
   const boxH = Math.round(boxW * scr.height / scr.width);
   phone.style.width = boxW + "px";
   phone.style.height = boxH + "px";
-  phone.querySelectorAll(".nav, .wincap, .winclose, .winqueue").forEach(n => n.remove());
+  phone.querySelectorAll(".nav, .wincap, .winclose, .winqueue, .pchrome").forEach(n => n.remove());
+  Object.assign(surface.style, { width: "", height: "", bottom: "" });
 
   const f = boxW / scr.width;            // preview px per desktop dp
   const k = winScale(scr);               // the desktop's own window scale
@@ -1163,7 +1076,7 @@ function renderWindowsPreview() {
     } else if (b.id === "actions") {
       const box = WIN_SIZES.action * k * f;
       node.title = "Your player buttons (Settings > Player buttons)";
-      node.innerHTML = `<div style="display:flex;gap:${7 * f}px">` + [ICON.heart, ICON.more]
+      node.innerHTML = `<div style="display:flex;gap:${7 * f}px">` + PLAYER_BUTTON_PLACEHOLDERS
         .map(d => `<div class="b disc" style="width:${box}px;height:${box}px">${svg(d, WIN_SIZES.actionIcon * k * f, "#1d1430")}</div>`).join("") + `</div>`;
     } else {
       const box = WIN_SIZES.transport * k * f;
@@ -1182,191 +1095,297 @@ function renderWindowsPreview() {
   note.style.color = "var(--ink-dim)";
 }
 
-function renderPreview() {
-  if (isWin()) { renderWindowsPreview(); return; }
-  document.body.classList.remove("win");
-  document.getElementById("phone").classList.remove("window");
-  document.getElementById("phone").querySelectorAll(".wincap, .winclose, .winqueue").forEach(n => n.remove());
-  Object.assign(document.getElementById("surface").style, { top: "", left: "", right: "" });
+/*
+ * The phone player, in dp, exactly as Player.kt lays it out - measured against the real thing on a
+ * 1080x2400 / 420dpi emulator, to the pixel. Both the guided and the free previews are drawn from
+ * these numbers, and free placement starts from the guided rects, so switching modes moves nothing
+ * and the phone draws an imported layout where this preview shows it.
+ *
+ *   status bar | equaliser handle (64) | cover, centred in what is left | title row (52)
+ *   | progress (slider 48, times 16, 12 under) | transport (72) | 24 | queue peek (48 x 1.2) | nav bar
+ */
+const DP = {
+  status: 24, handle: 64, spacer: 24, peek: 48 * 1.2,
+  navGesture: 24, navButtons: 48,
+  info: 52, title: 28, artist: 24,
+  progress: 76, slider: 48, times: 16,
+  play: 72, button: 32, playGap: 8,
+  // The chosen player buttons: 36dp discs 7dp apart after a 10dp lead, each drawn 5dp below its
+  // place (PlayerButtonsRow's offset) - so the row is 36dp tall but the discs sit 5dp lower.
+  action: 36, actionGap: 7, actionLead: 10, actionRow: 36, actionDrop: 5,
+};
+const ACTION_COUNT = PLAYER_BUTTON_PLACEHOLDERS.length;
+const ACTIONS_W = DP.actionLead + ACTION_COUNT * DP.action + (ACTION_COUNT - 1) * DP.actionGap;
+
+let screenDpi = 420;
+
+/** The phone in dp: its size, the bars, and the free-placement area (what x/y percentages mean). */
+function phoneDims(scr) {
+  const d = screenDpi / 160;
+  const W = scr.width / d, H = scr.height / d;
+  const nav = navMode === "buttons" ? DP.navButtons : DP.navGesture;
+  const area = { x: 0, y: DP.status, w: W, h: H - DP.status - nav - DP.peek - DP.spacer };
+  return { W, H, nav, area };
+}
+
+/** How tall a block is drawn, in dp (scale is a transform and does not change it). */
+function naturalH(id, wDp) {
+  if (id === "artwork") return wDp;
+  if (id === "info") return DP.info;
+  if (id === "progress") return DP.progress;
+  if (id === "actions") return DP.actionRow;
+  if (id === "play_pause") return DP.play;
+  if (id === "queue") return DP.peek;
+  return DP.button;
+}
+function naturalW(id) {
+  if (id === "play_pause") return DP.play;
+  if (id === "actions") return ACTIONS_W;
+  return DP.button;
+}
+
+/**
+ * Every visible block's rect in a guided layout, in dp from the top-left of the screen - Player.kt's
+ * PortraitPlayer and ControlsContent, step for step. Returns { rects, overflow }.
+ */
+function guidedRects(st, scr) {
+  const { W, H, nav } = phoneDims(scr);
+  const pad = st.sidePadding, sp = st.spacing;
+  const shows = b => b.visible !== false || b.id === "play_pause";
+  const info = st.blocks.find(b => b.id === "info");
+  const actions = st.blocks.find(b => b.id === "actions");
+  const actionsShown = actions && shows(actions) && info && shows(info);
+  const stacked = st.blocks.filter(b => shows(b) && !["queue", "artwork", "actions"].includes(b.id));
+  const units = layoutUnits(stacked).map(u => u.kind === "single" ? [u.block] : u.members);
+  const unitH = u => u.length === 1 && !isButton(u[0].id) ? naturalH(u[0].id) : Math.max(...u.map(b => naturalH(b.id)));
+  const total = units.reduce((a, u) => a + unitH(u), 0) + sp * Math.max(units.length - 1, 0);
+  const bottom = H - nav - DP.peek - DP.spacer;
+  const top = bottom - total;
+  const rects = {};
+
+  const art = st.blocks.find(b => b.id === "artwork");
+  const boxTop = DP.status + DP.handle;
+  if (art && shows(art)) {
+    const side = Math.max(0, Math.min(W - pad * 2, top - boxTop)) * get(art, "size") / 100;
+    rects.artwork = { x: W / 2 - side / 2, y: (boxTop + top) / 2 - side / 2, w: side, h: side };
+  }
+
+  let y = top;
+  for (const u of units) {
+    const h = unitH(u);
+    if (u.length === 1 && !isButton(u[0].id)) {
+      const b = u[0];
+      if (b.id === "info") {
+        const textW = W - pad * 2 - (actionsShown ? ACTIONS_W : 0);
+        rects.info = { x: pad, y, w: textW, h, rowW: W, rowX: 0 };
+        if (actionsShown) rects.actions = { x: W - pad - ACTIONS_W, y, w: ACTIONS_W, h: DP.actionRow, inRow: true };
+      } else {
+        rects[b.id] = { x: pad, y, w: W - pad * 2, h };
+      }
+    } else if (u.length === 1) {
+      // A button on a row of its own: StackBlock's full-width box, the button at its top-left.
+      const b = u[0], s = naturalW(b.id);
+      rects[b.id] = { x: 0, y, w: s, h: naturalH(b.id) };
+    } else {
+      // A row of buttons: play keeps its 72dp with 8dp either side, the rest share what is left.
+      const others = u.filter(b => b.id !== "play_pause");
+      const fixed = u.some(b => b.id === "play_pause") ? DP.play + DP.playGap * 2 : 0;
+      const cell = others.length ? (W - pad * 2 - fixed) / others.length : 0;
+      let x = pad;
+      for (const b of u) {
+        if (b.id === "play_pause") {
+          x += DP.playGap;
+          rects[b.id] = { x, y: y + h / 2 - DP.play / 2, w: DP.play, h: DP.play };
+          x += DP.play + DP.playGap;
+        } else {
+          const s = naturalW(b.id);
+          rects[b.id] = { x: x + cell / 2 - s / 2, y: y + h / 2 - s / 2, w: s, h: s };
+          x += cell;
+        }
+      }
+    }
+    y += h + sp;
+  }
+  return { rects, overflow: Math.max(0, boxTop - top) };
+}
+
+/** A free layout's rects: centred at x%/y% of the player area, w% wide, at their natural height. */
+function freeRects(st, scr) {
+  const { area } = phoneDims(scr);
+  const rects = {};
+  for (const b of st.blocks) {
+    if (b.id === "queue") continue;
+    const w = get(b, "w") / 100 * area.w;
+    const h = naturalH(b.id, w);
+    const cx = area.x + get(b, "x") / 100 * area.w, cy = area.y + get(b, "y") / 100 * area.h;
+    rects[b.id] = { x: cx - w / 2, y: cy - h / 2, w, h };
+  }
+  return rects;
+}
+
+/** Free placement seeded from the guided layout on screen - the same rects, as percentages. */
+function seedFreePositions() {
   const scr = activeScreen();
+  const { W, area } = phoneDims(scr);
+  const { rects } = guidedRects(state, scr);
+  for (const b of state.blocks) {
+    if (b.x !== undefined && b.y !== undefined && b.w !== undefined) continue;
+    const r = rects[b.id];
+    if (!r || b.id === "queue") { b.x = 50; b.y = 50; b.w = round1(naturalW(b.id) / W * 100); continue; }
+    // A free block's height is its natural height, so its centre is placed to land the content
+    // where the guided row had it (the player buttons sit in a 36dp row at the top of the 52dp title row).
+    const h = naturalH(b.id, r.w);
+    const cx = r.x + r.w / 2, cy = r.y + h / 2;
+    b.w = round1(r.w / area.w * 100);
+    b.x = round1((cx - area.x) / area.w * 100);
+    b.y = round1((cy - area.y) / area.h * 100);
+  }
+}
+
+/* ---------------------------------------- drawing ---------------------------------------- */
+
+const ANDROID_LOOK = {
+  primary: "#8f4a50", onPrimary: "#ffffff", ink: "#ffffff", dim: "#d9d0d3",
+  track: "#f2c4c8", art: "linear-gradient(150deg, #5b4a4c, #2a2224)",
+};
+
+/** A block's content at k px per dp - drawn as the phone draws it. */
+function phoneMarkup(b, r, k, opts = {}) {
+  const px = v => (v * k).toFixed(2) + "px";
+  const glyph = (path, size, color) => svg(path, Math.round(size * k), color);
+  if (b.id === "artwork") {
+    const rad = Math.min(get(b, "radius"), r.w / 2);
+    return `<div class="art" style="width:100%;height:100%;border-radius:${px(rad)};background:${ANDROID_LOOK.art}">${glyph(ICON.note, r.w * 0.26, "#cfcfe0")}</div>`;
+  }
+  if (b.id === "info") {
+    const centre = get(b, "align") === "center";
+    return `<div class="pinfo" style="width:${px(r.w)};text-align:${centre ? "center" : "left"}">
+      <div style="font:700 ${px(22)}/${px(DP.title)} Roboto,system-ui,sans-serif;color:${ANDROID_LOOK.ink};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Track title</div>
+      <div style="font:400 ${px(16)}/${px(DP.artist)} Roboto,system-ui,sans-serif;color:${ANDROID_LOOK.ink};white-space:nowrap;overflow:hidden">Artist name</div></div>`;
+  }
+  if (b.id === "progress") {
+    return `<div style="width:100%;height:${px(DP.progress)};position:relative">
+      <div style="position:absolute;left:0;right:0;top:${px(DP.slider / 2 - 2)};height:${px(4)};border-radius:99px;background:${ANDROID_LOOK.track}">
+        <i style="position:absolute;left:0;top:0;bottom:0;width:12%;border-radius:99px;background:${ANDROID_LOOK.primary}"></i></div>
+      <div style="position:absolute;left:${px(4)};right:${px(4)};top:${px(DP.slider)};display:flex;justify-content:space-between;font:500 ${px(12)}/${px(DP.times)} Roboto,system-ui,sans-serif;color:${ANDROID_LOOK.ink}"><span>0:20</span><span>3:45</span></div></div>`;
+  }
+  if (b.id === "actions") {
+    const circles = PLAYER_BUTTON_PLACEHOLDERS.map((d, i) =>
+      `<div style="position:absolute;left:${px(DP.actionLead + i * (DP.action + DP.actionGap))};top:${px(DP.actionDrop)};width:${px(DP.action)};height:${px(DP.action)};border-radius:50%;background:${ANDROID_LOOK.primary};display:grid;place-items:center">${glyph(d, 24, ANDROID_LOOK.onPrimary)}</div>`).join("");
+    return `<div style="position:relative;width:${px(ACTIONS_W)};height:${px(DP.actionRow)};margin:0 auto" title="Your player buttons (Settings > Player and audio > Player buttons)">${circles}</div>`;
+  }
+  if (b.id === "play_pause") {
+    return `<div style="width:${px(DP.play)};height:${px(DP.play)};margin:0 auto;border-radius:${px(26)};background:${ANDROID_LOOK.primary};display:grid;place-items:center">${glyph(ICON.pause, 36, ANDROID_LOOK.onPrimary)}</div>`;
+  }
+  const spec = MEMBER_ROLE[b.id];
+  if (!spec) return "";
+  // shuffle and repeat are 24dp glyphs in a 32dp box (4dp padding); the skips and seeks fill it.
+  const g = b.id === "shuffle" || b.id === "repeat" ? 24 : 32;
+  return `<div style="width:${px(DP.button)};height:${px(DP.button)};margin:0 auto;display:grid;place-items:center">${glyph(ICON[spec.icon], g, ANDROID_LOOK.ink)}</div>`;
+}
+
+/** The status bar, the equaliser handle (guided only), the queue peek and the nav bar. */
+function phoneChrome(phone, dims, k, guided) {
+  const px = v => (v * k).toFixed(2) + "px";
+  const chrome = document.createElement("div");
+  chrome.className = "pchrome";
+  const queue = state.blocks.find(b => b.id === "queue");
+  const qSel = selected === "queue";
+  chrome.innerHTML =
+    `<div style="position:absolute;left:${px(14)};top:0;height:${px(DP.status)};display:flex;align-items:center;font:500 ${px(13)} Roboto,system-ui,sans-serif;color:#ffffffcc">10:29</div>` +
+    (guided ? `<div style="position:absolute;left:50%;top:${px(DP.status + DP.handle / 2 - 3)};width:${px(54)};height:${px(6)};margin-left:${px(-27)};border-radius:99px;background:#ffffffaa"></div>` : "") +
+    `<div class="blk${queue && queue.visible === false ? " ghosted" : ""}${qSel ? " sel" : ""}" data-id="queue" style="position:absolute;left:0;right:0;bottom:${px(dims.nav)};height:${px(DP.peek)};display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;color:#fff">` +
+      `${svg(ICON.expandLess, Math.round(24 * k), "#ffffff")}<span style="font:500 ${px(14)} Roboto,system-ui,sans-serif">Track title</span></div>` +
+    (navMode === "buttons"
+      ? `<div style="position:absolute;left:0;right:0;bottom:0;height:${px(dims.nav)};display:flex;justify-content:space-around;align-items:center;opacity:.5">${svg(ICON.navBack, Math.round(18 * k), "#fff")}${svg(ICON.navHome, Math.round(18 * k), "#fff")}${svg(ICON.navRecents, Math.round(16 * k), "#fff")}</div>`
+      : `<div style="position:absolute;left:50%;bottom:${px(dims.nav / 2 - 2)};width:${px(108)};height:${px(4)};margin-left:${px(-54)};border-radius:99px;background:#ffffffcc"></div>`);
+  phone.appendChild(chrome);
+  chrome.querySelector('[data-id="queue"]').onclick = e => handleBlockClick(e, "queue");
+}
+
+function renderPhonePreview() {
+  document.body.classList.remove("win");
   const phone = document.getElementById("phone");
   const surface = document.getElementById("surface");
+  phone.classList.remove("window");
+  phone.querySelectorAll(".wincap, .winclose, .winqueue, .nav, .pchrome").forEach(n => n.remove());
 
+  const scr = activeScreen();
+  const dims = phoneDims(scr);
   const boxH = Math.round(clamp(320 * scr.height / scr.width, 380, 720));
   const boxW = Math.round(boxH * scr.width / scr.height);
+  const k = boxW / dims.W;
   phone.style.width = boxW + "px";
   phone.style.height = boxH + "px";
+  const px = v => (v * k).toFixed(2) + "px";
 
-  /*
-   * The player area stops above the navigation affordance, and every percentage in a free layout is
-   * measured against that area rather than the whole screen - which is what the app does, since its
-   * player is inset by the system bars. Reserving it here is why a block placed at y=100 lands on
-   * the edge of the player and not underneath the navigation bar.
-   */
-  const navPx = Math.round((NAV_INSET_DP / 800) * boxH);
-  surface.style.bottom = navPx + "px";
-  renderNav(navPx, boxW);
-
-  surface.className = "surface " + state.mode;
+  const guided = state.mode === "stack";
+  surface.className = "surface " + (guided ? "guided" : "free");
   surface.innerHTML = "";
+  Object.assign(surface.style, { padding: "0", gap: "0", right: "auto", bottom: "auto" });
+  // Free placement: the surface IS the player area, so its percentages are the file's.
+  const area = guided ? { x: 0, y: 0, w: dims.W, h: dims.H } : dims.area;
+  Object.assign(surface.style, { left: px(area.x), top: px(area.y), width: px(area.w), height: px(area.h) });
+  phoneChrome(phone, dims, k, guided);
 
-  if (state.mode === "stack") {
-    surface.style.padding = state.sidePadding + "px";
-    surface.style.gap = state.spacing + "px";
-  } else {
-    surface.style.padding = "0";
-    surface.style.gap = "0";
-  }
+  let overflow = 0;
+  const rects = guided ? (({ rects, overflow: o }) => { overflow = o; return rects; })(guidedRects(state, scr)) : freeRects(state, scr);
 
-  const actionsBlock = state.blocks.find(b => b.id === "actions");
-  if (state.mode === "stack") {
-    for (const unit of layoutUnits(state.blocks.filter(b => b.id !== "actions"))) {
-      const node = document.createElement("div");
-      node.style.flex = "none";
-
-      if (unit.kind === "single") {
-        const b = unit.block;
-        const isSel = selected === b.id;
-        node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
-        node.dataset.id = b.id;
-        if (b.id === "artwork") {
-          const w = Math.round((boxW - state.sidePadding * 2) * get(b, "size") / 100);
-          node.innerHTML = `<div style="width:${w}px;height:${w}px;margin:0 auto">${blockMarkup(b, w)}</div>`;
-        } else if (b.id === "info" && actionsBlock) {
-          // Title and the chosen buttons share one row - Player.kt's infoBlock.
-          const a = actionsBlock;
-          const aSel = selected === "actions";
-          node.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
-            <div style="flex:1;min-width:0">${blockMarkup(b, boxW)}</div>
-            <div class="blk${a.visible ? "" : " hidden"}${aSel ? " sel" : ""}" data-id="actions" style="flex:none">${actionsMarkup(a)}</div></div>`;
-          const actionsNode = node.querySelector('[data-id="actions"]');
-          actionsNode.onclick = e => { e.stopPropagation(); handleBlockClick(e, "actions"); };
-        } else {
-          node.innerHTML = blockMarkup(b, boxW);
-          if (b.id === "queue") {
-            /*
-             * Pinned to the bottom edge rather than pushed there by margin:auto.
-             *
-             * In the app this is the queue sheet's peek, which sits at the bottom of the window
-             * whatever else is on screen. As a flex item it was only at the bottom while the other
-             * blocks happened to fit - a large cover on a shorter screen pushed the column past the
-             * surface and the handle went off the bottom with it, which is not something the app
-             * can do.
-             */
-            node.style.position = "absolute";
-            node.style.left = state.sidePadding + "px";
-            node.style.right = state.sidePadding + "px";
-            node.style.bottom = "0";
-          }
-        }
-        const rot = get(b, "rot");
-        if (rot) { node.style.transform = `rotate(${rot}deg)`; node.style.transformOrigin = "center"; }
-        node.onclick = e => handleBlockClick(e, b.id);
-      } else {
-        const visibleMembers = unit.members.filter(m => m.visible !== false || m.id === "play_pause");
-        if (visibleMembers.length === 0) { node.classList.add("blk", "hidden"); surface.appendChild(node); continue; }
-        const anySel = unit.members.some(m => selected === m.id);
-        const anyMulti = unit.members.some(m => multiSelected.has(m.id));
-        node.className = "blk" + (anySel ? " sel" : "") + (anyMulti ? " multisel" : "");
-        node.dataset.group = unit.groupId;
-        /*
-         * Measured from the button edges, not picked by eye.
-         *
-         * 14px was chosen when every control was drawn at the same nominal box, and it stopped
-         * being enough once play/pause became genuinely larger than its neighbours: a 52px circle
-         * with 14px either side reads as crowded next to 30px glyphs, because the eye judges the
-         * gap against the size of what it separates rather than in absolute pixels. Scaling the gap
-         * with the row's largest control keeps the spacing looking constant at any scale.
-         */
-        const isControls = CONTROL_MEMBERS.includes(unit.members[0].id);
-        const biggest = Math.max(...unit.members.map(m =>
-          ROLE_STYLE[MEMBER_ROLE[m.id].role].box * (get(m, "scale") / 100)));
-        const gap = Math.round(isControls ? biggest * 0.42 : biggest * 0.8);
-        const inner = document.createElement("div");
-        inner.className = "cluster";
-        inner.style.gap = gap + "px";
-        for (const m of visibleMembers) {
-          const span = document.createElement("span");
-          span.className = "member";
-          span.dataset.id = m.id;
-          span.innerHTML = memberMarkup(m);
-          span.onclick = e => { e.stopPropagation(); handleBlockClick(e, m.id); };
-          inner.appendChild(span);
-        }
-        node.appendChild(inner);
+  for (const b of state.blocks) {
+    if (b.id === "queue") continue;
+    const r = rects[b.id];
+    const hidden = b.visible === false && b.id !== "play_pause";
+    // Hidden: listed, not drawn - in free placement shown faintly while selected, to find it.
+    if (!r || (hidden && selected !== b.id)) continue;
+    const node = document.createElement("div");
+    node.className = "blk" + (hidden ? " ghosted" : "") + (selected === b.id ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
+    node.dataset.id = b.id;
+    const scale = isButton(b.id) || b.id === "info" || b.id === "progress" ? get(b, "scale") / 100 : 1;
+    const rot = get(b, "rot");
+    if (guided) {
+      // The block's transform pivots on the box the phone scales: the full-width row for a
+      // block of its own, the button itself in a row of buttons.
+      const fullRow = b.id === "info" || b.id === "progress";
+      const box = fullRow ? { x: 0, w: dims.W } : { x: r.x, w: r.w };
+      Object.assign(node.style, {
+        position: "absolute", left: px(box.x), top: px(r.y), width: px(box.w), height: px(r.h),
+        transform: `scale(${scale}) rotate(${rot}deg)`, transformOrigin: "center",
+      });
+      const inner = fullRow ? `<div style="position:absolute;left:${px(r.x)};top:0;width:${px(r.w)}">${phoneMarkup(b, r, k)}</div>` : phoneMarkup(b, r, k);
+      node.innerHTML = inner;
+      if (b.id === "actions") {
+        node.style.transform = `scale(${get(state.blocks.find(x => x.id === "info"), "scale") / 100})`;
+        node.style.transformOrigin = `${px(dims.W / 2 - r.x)} ${px(r.h / 2)}`;
+        node.innerHTML = phoneMarkup(b, r, k);
       }
-      surface.appendChild(node);
-    }
-  } else {
-    for (const b of state.blocks) {
-      const node = document.createElement("div");
-      const isSel = selected === b.id;
-      if (b.id === "queue") {
-        // The queue is the bottom sheet's peek: the app keeps it on the bottom edge whatever the
-        // layout says (Player.kt has nothing to place for it), so it is pinned there, not dragged.
-        node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "");
-        node.dataset.id = b.id;
-        Object.assign(node.style, { left: "0", right: "0", bottom: "0", top: "auto", transform: "none", cursor: "default" });
-        node.innerHTML = blockMarkup(b, boxW);
-        node.onclick = e => handleBlockClick(e, b.id);
-        surface.appendChild(node);
-        continue;
-      }
-      node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
-      if (b.group) node.style.boxShadow = `inset 0 0 0 1px ${groupColor(b.group)}55`;
-      node.dataset.id = b.id;
-      const w = get(b, "w");
-      node.style.left = get(b, "x") + "%";
-      node.style.top = get(b, "y") + "%";
-      node.style.transform = `translate(-50%, -50%) rotate(${get(b, "rot")}deg)`;
-      // A button is sized by its own artwork, not by a percentage of the screen. Forcing every
-      // block to w% made the round controls overlap: the icon inside is a fixed pixel size, so a
-      // 52px play button inside a block the layout had decided was 40px wide simply spilled over
-      // its neighbours. Buttons are content-sized and centred; only the full-width blocks - cover,
-      // title, progress, queue - take a width from the layout.
-      if (isButton(b.id)) {
-        node.style.width = "auto";
-      } else {
-        node.style.width = w + "%";
-        if (b.id === "artwork") node.style.height = blockHeightPct(b, scr) + "%";
-      }
-      node.innerHTML = blockMarkup(b, boxW * w / 100);
+      node.onclick = e => handleBlockClick(e, b.id);
+    } else {
+      Object.assign(node.style, {
+        left: get(b, "x") + "%", top: get(b, "y") + "%", width: get(b, "w") + "%", height: px(r.h),
+        transform: `translate(-50%, -50%) rotate(${rot}deg)`,
+      });
+      node.innerHTML = `<div style="width:100%;height:100%;transform:scale(${scale});transform-origin:center">${phoneMarkup(b, r, k)}</div>`;
       node.appendChild(Object.assign(document.createElement("div"), { className: "handle" }));
-      attachDrag(node, b, boxW, boxH);
-      surface.appendChild(node);
+      attachDrag(node, b, area.w * k, area.h * k);
     }
+    surface.appendChild(node);
   }
 
-  /*
-   * The old wording - "your design is still 1080x2400" - did not say what it was telling anyone.
-   * The point is that the *design* is unchanged and only the preview has been reshaped, so this
-   * says that instead: the file still targets your screen, this is a check on a different shape.
-   */
   const base = previewAspect
     ? `Previewing a ${previewAspect.label} phone (${previewAspect.width}×${previewAspect.height}). ` +
       `Your layout is unchanged and still targets ${screen.width}×${screen.height}.`
-    : `Previewing your screen, ${screen.width}×${screen.height}.`;
-
-  /*
-   * Say so when the column does not fit.
-   *
-   * The surface clips, so an over-full stacked layout used to just quietly lose its lowest blocks -
-   * the preview looked fine and the phone would not. Measured after layout, which is the only point
-   * the real heights are known.
-   */
-  let warning = "";
-  if (state.mode === "stack") {
-    const visible = [...surface.children].filter(n => n.offsetParent !== null && !n.querySelector(".queue"));
-    const used = visible.reduce((a, n) => a + n.getBoundingClientRect().height, 0)
-      + state.spacing * Math.max(visible.length - 1, 0) + state.sidePadding * 2;
-    const overflow = Math.round(used - boxH);
-    if (overflow > 0) {
-      warning = " — this is about " + overflow + "px too tall for the screen; the lowest blocks will be cut off.";
-    }
-  }
+    : `Previewing your screen, ${screen.width}×${screen.height} at ${screenDpi}dpi (${Math.round(dims.W)}×${Math.round(dims.H)}dp).`;
+  const warning = overflow > 0
+    ? ` — about ${Math.round(overflow)}dp too tall: there is no room left for the cover.`
+    : "";
   const note = document.getElementById("stageNote");
   note.textContent = base + warning;
   note.style.color = warning ? "var(--warn)" : "var(--ink-dim)";
+}
+
+function renderPreview() {
+  if (isWin()) { renderWindowsPreview(); return; }
+  renderPhonePreview();
 }
 
 function handleBlockClick(e, id) {
@@ -1481,7 +1500,7 @@ function attachDrag(node, block, boxW, boxH) {
       if (snap) w = Math.round(w * 2) / 2;
       block.w = round1(clamp(w, 8, 100));
       node.style.width = block.w + "%";
-      if (block.id === "artwork") node.style.height = blockHeightPct(block, activeScreen()) + "%";
+      if (block.id === "artwork") node.style.height = (block.w / 100 * boxW) + "px";
     }
     queueJson();
   });
@@ -1718,7 +1737,7 @@ function toJson() {
     anchor: "center",
     // Recorded so a layout says what it was designed against, even though the player area is the
     // same either way - it is useful to know, and costs one field.
-    designedFor: { width: screen.width, height: screen.height, navigation: navMode },
+    designedFor: { width: screen.width, height: screen.height, navigation: navMode, dpi: screenDpi },
     spacing: state.spacing,
     sidePadding: state.sidePadding,
     blocks: state.blocks.map(b => {
@@ -1788,6 +1807,10 @@ function importJson(text) {
       width: clampNum(parsed.designedFor.width, 240, 4000, 1080),
       height: clampNum(parsed.designedFor.height, 320, 6000, 2400),
     };
+    if (parsed.designedFor.dpi) {
+      screenDpi = clampNum(parsed.designedFor.dpi, 120, 800, 420);
+      document.getElementById("dpi").value = screenDpi;
+    }
     if (parsed.designedFor.navigation === "buttons" || parsed.designedFor.navigation === "gesture") {
       navMode = parsed.designedFor.navigation;
     }
@@ -1865,10 +1888,15 @@ function syncControls() {
     b.className = b.dataset.mode === state.mode ? "on" : "";
   });
   document.getElementById("modeNote").innerHTML = state.mode === "stack"
-    ? "<strong>Stacked</strong> is the safe default: blocks sit in a column, so nothing overlaps and nothing can end up off-screen whatever the phone."
+    ? "<strong>Guided</strong> is the safe default: blocks sit in an ordered column, so nothing overlaps and nothing can end up off-screen whatever the phone."
     : "<strong>Free placement</strong> stores positions as percentages of the screen, so it scales with size — but a phone of a different <em>shape</em> will stretch it. Check the other ratios below the preview before exporting.";
 }
 
+document.getElementById("dpi").onchange = e => {
+  screenDpi = clampNum(e.target.value, 120, 800, 420);
+  e.target.value = screenDpi;
+  render();
+};
 document.getElementById("nav").onchange = e => {
   navMode = e.target.value;
   renderPreview();
@@ -1928,7 +1956,7 @@ document.querySelectorAll("[data-preset]").forEach(btn => {
       state.mode = "free";
       state.blocks.forEach(b => { delete b.x; delete b.y; delete b.w; });
       seedFreePositions();
-      toast("Froze the stacked layout into free placement.");
+      toast("Froze the guided layout into free placement.");
     } else {
       state = materialize(clone(PRESETS[key]));
       // A preset describes a stacked arrangement, so in free mode it has to be seeded into

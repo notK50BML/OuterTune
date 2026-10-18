@@ -109,7 +109,7 @@ fun PlayerLayoutSettings(
                 // describing, which makes a reset that did work look like one that did not.
                 description = current?.let {
                     val hidden = it.blocks.count { block -> !block.visible }
-                    val mode = if (it.mode == PlayerLayout.Mode.FREE) "free placement" else "stacked"
+                    val mode = if (it.mode == PlayerLayout.Mode.FREE) "free placement" else "guided"
                     "In use: $mode" + if (hidden > 0) ", $hidden block(s) hidden" else ""
                 } ?: error ?: stringResource(R.string.player_layout_import_description),
                 icon = { Icon(Icons.Rounded.FileOpen, null) },

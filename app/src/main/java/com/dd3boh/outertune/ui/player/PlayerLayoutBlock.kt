@@ -8,6 +8,7 @@
 
 package com.dd3boh.outertune.ui.player
 
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.runtime.Composable
@@ -53,7 +54,11 @@ fun FreeBlock(
             }
         }
     ) {
-        Box(modifier = Modifier.blockTransform(block)) { content() }
+        // Centred in the block's width, so a button placed at x% has its centre at x% - as the
+        // layout editor draws it - rather than hanging off the block's left edge.
+        Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+            Box(modifier = Modifier.blockTransform(block)) { content() }
+        }
     }
 }
 

@@ -135,6 +135,7 @@ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.PLAYER_DEBUG
 import com.dd3boh.outertune.constants.PlayerHorizontalPadding
+import com.dd3boh.outertune.constants.ThumbnailCornerRadius
 import com.dd3boh.outertune.constants.QueuePeekHeight
 import com.dd3boh.outertune.constants.DEFAULT_SHOW_LYRICS_ON_CLICK
 import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
@@ -282,10 +283,15 @@ fun PortraitPlayer(
     val playerConnection = LocalPlayerConnection.current ?: return
 
     val layoutJson by rememberPreference(PlayerLayoutKey, "")
-    val freePlacement = remember(layoutJson) {
-        layoutJson.isNotBlank() &&
-                PlayerLayout.parse(layoutJson).getOrNull()?.mode == PlayerLayout.Mode.FREE
+    val importedLayout = remember(layoutJson) {
+        if (layoutJson.isBlank()) null else PlayerLayout.parse(layoutJson).getOrNull()
     }
+    val freePlacement = importedLayout?.mode == PlayerLayout.Mode.FREE
+    // A guided layout's cover: its size, corner radius and the side inset everything shares.
+    val coverBlock = importedLayout?.block(PlayerLayout.BlockId.ARTWORK)
+    val coverPadding = importedLayout?.sidePaddingDp?.dp ?: PlayerHorizontalPadding
+    val coverRadius = coverBlock?.radiusDp?.dp ?: (ThumbnailCornerRadius * 2)
+    val coverScale = (coverBlock?.sizePercent ?: 100) / 100f
 
     val dismissedBound = WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
 
@@ -331,6 +337,9 @@ fun PortraitPlayer(
                             sliderPositionProvider = { freeSliderPosition },
                             showLyricsOnClick = showLyricsOnClick,
                             customMediaMetadata = meta,
+                            // In free placement the block's width is the cover's width - no inset.
+                            horizontalPadding = 0.dp,
+                            cornerRadius = coverRadius,
                         )
                     },
                 )
@@ -376,14 +385,19 @@ fun PortraitPlayer(
             }
 
 
-            if (!swipeToSkip) {
+            if (coverBlock?.visible == false) {
+                // A guided layout without the cover: the space stays, the controls keep their place.
+            } else if (!swipeToSkip) {
                 Thumbnail(
                     modifier = Modifier
 //                                .width(horizontalLazyGridItemWidth)
                         .animateContentSize(),
                     sliderPositionProvider = { sliderPosition },
                     showLyricsOnClick = showLyricsOnClick,
-                    customMediaMetadata = mediaMetadata
+                    customMediaMetadata = mediaMetadata,
+                    horizontalPadding = coverPadding,
+                    cornerRadius = coverRadius,
+                    sizeScale = coverScale,
                 )
             } else {
                 val thumbnailLazyGridState = rememberLazyGridState()
@@ -438,7 +452,10 @@ fun PortraitPlayer(
                                 .animateContentSize(),
                             sliderPositionProvider = { sliderPosition },
                             showLyricsOnClick = showLyricsOnClick,
-                            customMediaMetadata = it
+                            customMediaMetadata = it,
+                            horizontalPadding = coverPadding,
+                            cornerRadius = coverRadius,
+                            sizeScale = coverScale,
                         )
                     }
                 }
@@ -833,6 +850,14 @@ fun ControlsContent(
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             val hasImportedLayout = layoutJson.isNotBlank()
+            // The side inset of everything below the cover: the layout's own in a guided layout,
+            // none in free placement (a block's width there is exactly what it covers), the
+            // built-in 32dp otherwise.
+            val hPad = when {
+                artwork != null -> 0.dp
+                hasImportedLayout -> playerLayout.sidePaddingDp.dp
+                else -> PlayerHorizontalPadding
+            }
             val actionsVisible = playerLayout.isVisible(PlayerLayout.BlockId.ACTIONS)
             // action buttons for landscape (above title)
             if (compactWidth && actionsVisible && artwork == null) {
@@ -841,7 +866,7 @@ fun ControlsContent(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = PlayerHorizontalPadding, end = PlayerHorizontalPadding, bottom = 16.dp)
+                        .padding(start = hPad, end = hPad, bottom = 16.dp)
                 ) {
                     ActionButtons(playerSheetState, navController)
                 }
@@ -1010,10 +1035,15 @@ fun ControlsContent(
                     horizontalArrangement = Arrangement.Start,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = PlayerHorizontalPadding)
+                        .padding(horizontal = hPad)
                 ) {
                     Row {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            // A layout's "align": centred title and artist, as the editor shows.
+                            horizontalAlignment = if (playerLayout.block(PlayerLayout.BlockId.INFO).align == PlayerLayout.Align.CENTER)
+                                Alignment.CenterHorizontally else Alignment.Start,
+                        ) {
                             Text(
                                 text = mediaMetadata?.title ?: "",
                                 style = MaterialTheme.typography.titleLarge,
@@ -1083,7 +1113,9 @@ fun ControlsContent(
                 }
 
             }
-            val progressBlock: @Composable () -> Unit = {
+            // One Column, not three loose children: inside a layout's block (a Box) the times used to
+            // land on top of the slider.
+            val progressBlock: @Composable () -> Unit = { Column(modifier = Modifier.fillMaxWidth()) {
                 Slider(
                     value = (sliderPosition ?: position).toFloat(),
                     valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
@@ -1109,7 +1141,7 @@ fun ControlsContent(
                             animate = isPlaying && sliderPosition == null
                         )
                     },
-                    modifier = Modifier.padding(horizontal = PlayerHorizontalPadding)
+                    modifier = Modifier.padding(horizontal = hPad)
                 )
 
                 Row(
@@ -1117,7 +1149,7 @@ fun ControlsContent(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = PlayerHorizontalPadding + 4.dp)
+                        .padding(horizontal = hPad + 4.dp)
                 ) {
                     Text(
                         text = makeTimeString(sliderPosition ?: position),
@@ -1137,7 +1169,7 @@ fun ControlsContent(
                 }
 
                 Spacer(Modifier.height(12.dp))
-            }
+            } }
             // Schema 4: each of these is CONTROLS split into an individually
             // hideable/positionable piece. controlsBlock() below composes all seven back into
             // exactly the row it always was, so a v3 file (which never mentions any of them)
@@ -1275,7 +1307,7 @@ fun ControlsContent(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = PlayerHorizontalPadding)
+                        .padding(horizontal = hPad)
                 ) {
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { shuffleButtonBlock() }
                     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { skipPreviousButtonBlock() }
@@ -1382,7 +1414,7 @@ fun ControlsContent(
                         } else {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = PlayerHorizontalPadding)
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = hPad)
                             ) {
                                 unit.forEach { b ->
                                     // blockTransform (not StackBlock) - StackBlock forces
@@ -1393,7 +1425,12 @@ fun ControlsContent(
                                     // would rendering alone; grouping only changes whether it
                                     // shares a row.
                                     if (b.id == PlayerLayout.BlockId.PLAY_PAUSE) {
+                                        // 8dp either side, as controlsBlock() spaces it - without
+                                        // them the default layout, separated into its buttons,
+                                        // came out 16dp narrower than the built-in row.
+                                        Spacer(Modifier.width(8.dp))
                                         Box(modifier = Modifier.blockTransform(b)) { contentFor(b.id) }
+                                        Spacer(Modifier.width(8.dp))
                                     } else {
                                         Box(
                                             modifier = Modifier.weight(1f).blockTransform(b),

@@ -43,7 +43,13 @@ enum class PlayerButton(val code: Char, @StringRes val title: Int) {
 
         /** The stored string as buttons, in order. Unknown or repeated characters are skipped. */
         fun decode(stored: String): List<PlayerButton> =
-            stored.mapNotNull { c -> entries.firstOrNull { it.code == c } }.distinct().take(MAX)
+            stored.mapNotNull { c -> CHOOSABLE.firstOrNull { it.code == c } }.distinct().take(MAX)
+
+        /**
+         * What can sit beside the menu. Not "add to queue": with the song already playing, queueing
+         * it again from its own player makes no sense - it stays a PlayerActions action, for the menu.
+         */
+        val CHOOSABLE: List<PlayerButton> get() = entries.filter { it != QUEUE }
 
         fun encode(buttons: List<PlayerButton>): String = buttons.distinct().take(MAX).joinToString("") { it.code.toString() }
 
