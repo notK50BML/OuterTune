@@ -71,6 +71,9 @@ fun PlaylistsPane(
     /** Playlists saved on YouTube. Empty when signed out, which is not an error. */
     saved: List<PlaylistItem> = emptyList(),
     onPlaySaved: (PlaylistItem) -> Unit = {},
+    onDownloadAll: ((String, List<StoredSong>) -> Unit)? = null,
+    downloadedIds: Set<String> = emptySet(),
+    downloadingTitle: String? = null,
 ) {
     var naming by remember { mutableStateOf<NameRequest?>(null) }
     // Kept beside the local ones rather than on a tab of their own. They are the same kind of thing
@@ -222,6 +225,14 @@ fun PlaylistsPane(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (onDownloadAll != null) {
+                DownloadAllButton(
+                    songIds = songsInSelected.map { it.id },
+                    downloadedIds = downloadedIds,
+                    busy = downloadingTitle == selected.name,
+                    onDownload = { onDownloadAll(selected.name, songsInSelected) },
+                )
+            }
             TextButton(onClick = { naming = NameRequest(selected) }) { Text("Rename") }
             TextButton(onClick = { onDelete(selected); onSelect(null) }) { Text("Delete") }
         }

@@ -85,6 +85,10 @@ fun OnlinePlaylistPane(
     onBack: () -> Unit,
     onPlay: (List<SongItem>, Int) -> Unit,
     onShuffle: (List<SongItem>) -> Unit,
+    /** Downloads every song of the playlist - see BatchDownload. */
+    onDownloadAll: ((String, List<SongItem>) -> Unit)? = null,
+    downloadedIds: Set<String> = emptySet(),
+    downloadingTitle: String? = null,
     onAddToPlaylist: (StoredSong) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -144,6 +148,14 @@ fun OnlinePlaylistPane(
                                     Icon(OuterTuneIcons.shuffle, contentDescription = null, modifier = Modifier.width(18.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
                                     Text("Shuffle")
+                                }
+                                if (onDownloadAll != null) {
+                                    DownloadAllButton(
+                                        songIds = state.songs.map { it.id },
+                                        downloadedIds = downloadedIds,
+                                        busy = downloadingTitle == state.playlist.title,
+                                        onDownload = { onDownloadAll(state.playlist.title, state.songs) },
+                                    )
                                 }
                             }
                         }

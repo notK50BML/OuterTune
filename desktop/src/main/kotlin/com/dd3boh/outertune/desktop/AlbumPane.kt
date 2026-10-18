@@ -79,6 +79,9 @@ fun AlbumPane(
     onBack: () -> Unit,
     onPlay: (List<SongItem>, Int) -> Unit,
     onShuffle: (List<SongItem>) -> Unit,
+    onDownloadAll: ((String, List<SongItem>) -> Unit)? = null,
+    downloadedIds: Set<String> = emptySet(),
+    downloadingTitle: String? = null,
     onOpenArtist: (StoredArtist) -> Unit,
     onAddToPlaylist: (StoredSong) -> Unit,
     modifier: Modifier = Modifier,
@@ -115,6 +118,16 @@ fun AlbumPane(
                             onPlay = { onPlay(page.songs, 0) },
                             onShuffle = { onShuffle(page.songs) },
                             onOpenArtist = onOpenArtist,
+                            download = onDownloadAll?.let { download ->
+                                {
+                                    DownloadAllButton(
+                                        songIds = page.songs.map { it.id },
+                                        downloadedIds = downloadedIds,
+                                        busy = downloadingTitle == page.album.title,
+                                        onDownload = { download(page.album.title, page.songs) },
+                                    )
+                                }
+                            },
                         )
                     }
                     itemsIndexed(page.songs) { index, song ->
@@ -146,6 +159,7 @@ private fun Header(
     page: AlbumPage,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
+    download: (@Composable () -> Unit)? = null,
     onOpenArtist: (StoredArtist) -> Unit,
 ) {
     Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 28.dp, vertical = 12.dp)) {
@@ -190,6 +204,7 @@ private fun Header(
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Shuffle")
                 }
+                download?.invoke()
             }
         }
     }

@@ -280,6 +280,9 @@ internal fun App(
     var error by remember { mutableStateOf<String?>(null) }
     var searchFocused by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
+    // A playlist or album downloading in the background - see BatchDownload.
+    var batch by remember { mutableStateOf<BatchDownload?>(null) }
+    var batchJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null)}
     // Something for the full player to do as it appears - a shortcut's equaliser, lyrics or queue.
     var playerCommand by remember { mutableStateOf<PlayerCommand?>(null) }
     // Bumped by the search shortcut; the search box takes focus each time it changes.
@@ -428,6 +431,31 @@ internal fun App(
     // Filled in off the main thread rather than read during composition: ids() is a database query
     // plus a file check per row, and composition is not the place for either.
     var downloadedIds by remember(library) { mutableStateOf(emptySet<String>()) }
+    /**
+     * Downloads [songs] one after another, skipping any already saved, and puts each in the
+     * library first so it shows under Downloaded. One list at a time; cancelling stops after the
+     * song in flight. Sequential on purpose: several whole songs at once would each be slower, and
+     * the one being listened to would be competing with all of them.
+     */
+    val downloadAll: (String, List<SongItem>) -> Unit = downloadAll@{ title, songs ->
+        if (batch?.finished == false) return@downloadAll
+        val todo = songs.distinctBy { it.id }.filter { it.id !in downloadedIds && !LocalMusic.isLocal(it.id) }
+        if (todo.isEmpty()) return@downloadAll
+        batch = BatchDownload(title, todo.size)
+        batchJob = scope.launch {
+            var done = 0
+            var failed = 0
+            for (song in todo) {
+                withContext(Dispatchers.IO) { library.database.upsertSong(song.toStored(), (song.duration ?: 0) * 1000L) }
+                val result = player.download(song.id)
+                if (result.isSuccess) done++ else failed++
+                batch = BatchDownload(title, todo.size, done + failed, failed)
+                downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
+            }
+            batch = BatchDownload(title, todo.size, done + failed, failed, finished = true)
+        }
+    }
+    val downloadingTitle = batch?.takeIf { !it.finished }?.title
     LaunchedEffect(library) {
         downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
     }
@@ -987,6 +1015,9 @@ internal fun App(
                 val onlineList = openOnlinePlaylist
                 if (onlineList != null) {
                     OnlinePlaylistPane(
+                        onDownloadAll = downloadAll,
+                        downloadedIds = downloadedIds,
+                        downloadingTitle = downloadingTitle,
                         state = onlinePlaylist,
                         currentId = queue.current?.id,
                         onBack = { openOnlinePlaylist = null },
@@ -999,6 +1030,9 @@ internal fun App(
                     )
                 } else if (albumId != null) {
                     AlbumPane(
+                        onDownloadAll = downloadAll,
+                        downloadedIds = downloadedIds,
+                        downloadingTitle = downloadingTitle,
                         state = album,
                         currentId = queue.current?.id,
                         onBack = { openAlbumId = null },
@@ -1072,6 +1106,9 @@ internal fun App(
                     )
                 } else if (tab == NavTab.Playlists) {
                     PlaylistsPane(
+                        onDownloadAll = { title, songs -> downloadAll(title, songs.map { it.toItem() }) },
+                        downloadedIds = downloadedIds,
+                        downloadingTitle = downloadingTitle,
                         playlists = playlists,
                         selected = selectedPlaylist,
                         songsInSelected = openPlaylistSongs,
@@ -1199,6 +1236,16 @@ internal fun App(
             }
         }
 
+        batch?.let { current ->
+            BatchDownloadBar(
+                batch = current,
+                onCancel = {
+                    batchJob?.cancel()
+                    batch = current.copy(finished = true)
+                },
+                onDismiss = { batch = null },
+            )
+        }
         PlayerBar(
             playback = playback,
             queue = queue,
