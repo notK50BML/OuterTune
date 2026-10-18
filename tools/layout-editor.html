@@ -166,6 +166,16 @@
   .platforms button.on { background: var(--accent); color: #fff; border-color: transparent; }
   /* The Windows preview: a landscape window with OuterTune's own frame. */
   .phone.window { border-radius: 10px; }
+  /* Windows: a wide preview needs the page's width, so the page goes top/bottom - the window across
+     the top, the cards in columns underneath. */
+  body.win main { grid-template-columns: 1fr; }
+  body.win .stage { position: static; }
+  body.win .phone-slot { min-height: 0; width: 100%; }
+  body.win main > div:last-child {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; align-items: start;
+  }
+  body.win main > div:last-child > .card { margin: 0; }
+  body.win #stageNote { max-width: 640px !important; }
   .wincap { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: flex-end; align-items: center; pointer-events: none; }
   .wincap span { display: grid; place-items: center; opacity: .85; }
   .winclose { position: absolute; display: grid; place-items: center; pointer-events: none; }
@@ -1035,8 +1045,13 @@ function renderWindowsPreview() {
   const scr = activeScreen();
   const phone = document.getElementById("phone");
   const surface = document.getElementById("surface");
+  document.body.classList.add("win");
   phone.classList.add("window");
-  const boxW = 660;
+  // As wide as the page allows and no taller than about half the screen, so the whole window and
+  // the cards under it are both in view.
+  const avail = document.querySelector(".stage").clientWidth - 24;
+  const maxH = Math.max(260, window.innerHeight * 0.55);
+  const boxW = Math.round(clamp(Math.min(avail, maxH * scr.width / scr.height), 360, 1100));
   const boxH = Math.round(boxW * scr.height / scr.width);
   phone.style.width = boxW + "px";
   phone.style.height = boxH + "px";
@@ -1123,6 +1138,7 @@ function renderWindowsPreview() {
 
 function renderPreview() {
   if (isWin()) { renderWindowsPreview(); return; }
+  document.body.classList.remove("win");
   document.getElementById("phone").classList.remove("window");
   document.getElementById("phone").querySelectorAll(".wincap, .winclose, .winqueue").forEach(n => n.remove());
   Object.assign(document.getElementById("surface").style, { top: "", left: "", right: "" });
@@ -1897,6 +1913,9 @@ document.querySelectorAll("[data-winpreset]").forEach(btn => {
     toast("Loaded the " + btn.textContent.toLowerCase() + " preset.");
   };
 });
+
+// The Windows preview follows the page's width.
+window.addEventListener("resize", () => { if (isWin()) renderPreview(); });
 
 // Opened from the Windows app (Settings > Player layout > Open editor): start on Windows.
 if (location.hash === "#windows" || window.OT_PLATFORM === "windows") switchPlatform("windows");
