@@ -1301,6 +1301,17 @@ function renderPreview() {
     for (const b of state.blocks) {
       const node = document.createElement("div");
       const isSel = selected === b.id;
+      if (b.id === "queue") {
+        // The queue is the bottom sheet's peek: the app keeps it on the bottom edge whatever the
+        // layout says (Player.kt has nothing to place for it), so it is pinned there, not dragged.
+        node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "");
+        node.dataset.id = b.id;
+        Object.assign(node.style, { left: "0", right: "0", bottom: "0", top: "auto", transform: "none", cursor: "default" });
+        node.innerHTML = blockMarkup(b, boxW);
+        node.onclick = e => handleBlockClick(e, b.id);
+        surface.appendChild(node);
+        continue;
+      }
       node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
       if (b.group) node.style.boxShadow = `inset 0 0 0 1px ${groupColor(b.group)}55`;
       node.dataset.id = b.id;
