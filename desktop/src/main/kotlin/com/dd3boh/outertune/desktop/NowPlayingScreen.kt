@@ -209,9 +209,13 @@ fun NowPlayingScreen(
 
     val song = queue.current
     val (primary, secondary) = rememberArtworkColours(song?.thumbnail)
-    val top by animateColorAsState(primary.darken(0.45f))
-    val bottom by animateColorAsState(secondary.darken(0.75f))
-    val onBackground = contentColourFor(top)
+    // Ferrofluid is a black mirror and needs a dark room: a light backdrop would turn the text dark,
+    // and dark text over black spikes cannot be read. So that style always gets a dark backdrop and
+    // light text; every other style picks its text colour from the backdrop as before.
+    val ferro = backgroundStyle == BackgroundStyle.Ferrofluid
+    val top by animateColorAsState(primary.darken(if (ferro) 0.62f else 0.45f))
+    val bottom by animateColorAsState(secondary.darken(if (ferro) 0.85f else 0.75f))
+    val onBackground = if (ferro) Color.White else contentColourFor(top)
 
     // Two states, not three. The queue either is not in the way or has the window; a middle
     // "peeking" step meant the bar took two clicks to get back from, which is one more than a
