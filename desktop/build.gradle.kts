@@ -212,9 +212,6 @@ tasks.register<Jar>("fatJar") {
     description = "Builds a single runnable jar (java -jar outertune-desktop.jar)."
     archiveFileName.set("outertune-desktop.jar")
     manifest { attributes("Main-Class" to "com.dd3boh.outertune.desktop.MainKt") }
-    // Stored, not deflated: the zip and the installer each compress the whole app as one, and
-    // LZMA over the raw classes beats it over a jar of already-deflated entries by a wide margin.
-    entryCompression = ZipEntryCompression.STORED
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets["main"].output)
     dependsOn(configurations.runtimeClasspath)
@@ -285,8 +282,58 @@ val appImageInput = layout.buildDirectory.dir("app-input")
 val appImageOut = layout.buildDirectory.dir("jpackage")
 val appIcon = layout.projectDirectory.file("packaging/OuterTune.ico")
 
+/**
+ * `gradlew :desktop:shrunkJar` - the fat jar run through ProGuard (packaging/proguard.pro):
+ * shrinking only, so unused Compose and Kotlin classes go and nothing is renamed. What ships in the
+ * app image and the installer.
+ */
+val proguardTool: Configuration by configurations.creating
+dependencies {
+    proguardTool("com.guardsquare:proguard-base:7.7.0")
+    // ProGuard bundles a Kotlin metadata reader that stops at 2.2; this project is on 2.3.
+    proguardTool("org.jetbrains.kotlin:kotlin-metadata-jvm:2.3.20")
+}
+
+val shrunkJar = tasks.register<JavaExec>("shrunkJar") {
+    group = "distribution"
+    description = "Shrinks the fat jar with ProGuard (build/shrunk/outertune-desktop.jar)."
+    val fat = tasks.named<Jar>("fatJar")
+    dependsOn(fat)
+    val inJar = fat.flatMap { it.archiveFile }
+    val outJar = layout.buildDirectory.file("shrunk/outertune-desktop.jar")
+    val rules = layout.projectDirectory.file("packaging/proguard.pro").asFile
+    val services = layout.buildDirectory.dir("merged-services/META-INF/services")
+    val generated = layout.buildDirectory.file("shrunk/services.pro")
+    val jmods = javaToolchains.launcherFor { languageVersion.set(JavaLanguageVersion.of(21)) }
+        .map { it.metadata.installationPath.dir("jmods").asFile.absolutePath }
+    inputs.file(inJar)
+    inputs.file(rules)
+    outputs.file(outJar)
+    classpath = proguardTool
+    mainClass.set("proguard.ProGuard")
+    maxHeapSize = "3g"
+    doFirst {
+        // Everything named in a META-INF/services file is created by ServiceLoader, by name - the
+        // audio decoders, ktor's engine, the SQLite driver, coroutines' Swing dispatcher.
+        val keeps = services.get().asFile.listFiles().orEmpty()
+            .flatMap { it.readLines() }.map { it.trim() }.filter { it.isNotEmpty() }.distinct()
+            .joinToString("\n") { "-keep class $it { *; }" }
+        generated.get().asFile.apply { parentFile.mkdirs(); writeText(keeps + "\n") }
+        outJar.get().asFile.delete()
+    }
+    argumentProviders.add(CommandLineArgumentProvider {
+        listOf(
+            "-include", rules.absolutePath,
+            "-include", generated.get().asFile.absolutePath,
+            "-injars", inJar.get().asFile.absolutePath,
+            "-outjars", outJar.get().asFile.absolutePath,
+            "-libraryjars", jmods.get() + "(!**.jar;!module-info.class)",
+        )
+    })
+}
+
 val stageAppInput = tasks.register<Copy>("stageAppInput") {
-    from(tasks.named("fatJar"))
+    from(shrunkJar)
     into(appImageInput)
 }
 
@@ -318,7 +365,11 @@ val appImage = tasks.register<Exec>("appImage") {
             "jdk.crypto.ec", "jdk.crypto.cryptoki", "jdk.charsets", "jdk.zipfs", "jdk.accessibility",
             "jdk.localedata", "jdk.net",
         ).joinToString(","),
-        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --strip-native-commands --compress=zip-0",
+        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --strip-native-commands --compress=zip-6 " +
+            // Locale data for every language Java knows was 29MB of the 108MB runtime. These are the
+            // languages OuterTune's users are likeliest to run Windows in; any other falls back to
+            // the root locale's formats, which only changes how a date or number is written.
+            "--include-locales=en,ja,zh,ko,es,fr,de,it,pt,ru,nl,pl,tr,id,vi,th,ar,hi,uk",
         "--java-options", "-Xmx320m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m",
     )
 }

@@ -8,8 +8,8 @@ https://github.com/notK50BML/OuterTune.git. All work is committed and pushed. Th
 
 | What | Command | Output |
 |---|---|---|
-| Windows installer | `gradlew :desktop:installer` | `desktop/build/dist/OuterTune-setup.exe` (47.9MB) |
-| Windows portable zip | `gradlew :desktop:packageApp` | `desktop/build/dist/OuterTune-windows.zip` (77MB) |
+| Windows installer | `gradlew :desktop:installer` | `desktop/build/dist/OuterTune-setup.exe` (75.7MB, 93MB installed) |
+| Windows portable zip | `gradlew :desktop:packageApp` | `desktop/build/dist/OuterTune-windows.zip` (78MB) |
 | Android debug APKs | `gradlew :app:assembleFullDebug` | `app/build/outputs/apk/full/debug/` |
 | Desktop tests | `gradlew :desktop:test` | all passing |
 
@@ -51,7 +51,8 @@ https://github.com/notK50BML/OuterTune.git. All work is committed and pushed. Th
   longer closes them.
 - **Downloads:** a downloaded song, playlist or album shows the phone's downloaded icon
   (OfflinePin). Clicking it removes the download; for a list, every song in it.
-- **Installer:** see Builds above.
+- **Installer and size:** see Builds above. The jar is shrunk with ProGuard (`packaging/proguard.pro`,
+  shrinking only), and the runtime keeps locale data for 19 common languages only.
 - **Earlier:**
   - playlist and album "Download all"
   - saved queues (up to 19)
@@ -61,13 +62,16 @@ https://github.com/notK50BML/OuterTune.git. All work is committed and pushed. Th
 
 ## Open / next
 
-- **Installer, disk size:** the installed size is 226MB, up from 111MB. That is the price of the
-  small download: the jar is stored rather than deflated, and the runtime is jlinked with
-  `zip-0`. To swap back, revert those two lines in `desktop/build.gradle.kts` (`entryCompression`
-  and `--compress`).
-- **Installer, smaller still (optional):** ProGuard on the jar would probably take the installer
-  to about 35MB. Most of the jar is Compose and Skia. This was not done: it needs careful keep
-  rules and a full test pass.
+- **Installer, size trade-off:** the installed app is compressed, so the installer cannot
+  compress it much further: 75.7MB to download, 93MB installed. Storing the files uncompressed
+  instead gives about 40MB to download but about 180MB installed. That needs two changes in
+  `desktop/build.gradle.kts`: `entryCompression = STORED` on the shrunk jar, and `--compress=zip-0`.
+- **ProGuard rules:** only Compose, androidx.collection and the Kotlin standard library are shrunk;
+  everything else is kept whole. If something breaks only in the packaged app (a missing-class
+  error), add a `-keep` rule for it in `packaging/proguard.pro`. Startup and Home loading were
+  checked on the shrunk build; playback was not.
+- **More size cuts (optional):** shrinking ktor, kotlinx and okhttp too would save a few more MB,
+  at the risk of breaking things that are loaded by reflection.
 - **Installer, signing:** it is unsigned, so Windows SmartScreen will warn on first run.
 - **Bulk download removal:** removing a whole list's downloads happens at once, with no
   confirmation. Add one if misclicks become a problem.
