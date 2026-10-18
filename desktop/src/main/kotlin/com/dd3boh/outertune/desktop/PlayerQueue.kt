@@ -58,9 +58,13 @@ data class QueueState(
             else -> null
         }
 
-    /** Repeat makes both directions always available, since either end wraps. */
-    val hasPrevious: Boolean get() = repeat != RepeatMode.OFF || orderPosition > 0
-    val hasNext: Boolean get() = repeat != RepeatMode.OFF || orderPosition in 0 until order.lastIndex
+    /**
+     * Repeat-all makes both directions always available, since either end wraps. Repeat-one does
+     * not: the buttons move through the queue as if repeat were off, as on the phone - only a song
+     * ending on its own loops.
+     */
+    val hasPrevious: Boolean get() = repeat == RepeatMode.ALL || orderPosition > 0
+    val hasNext: Boolean get() = repeat == RepeatMode.ALL || orderPosition in 0 until order.lastIndex
 }
 
 /**
@@ -222,6 +226,9 @@ class PlayerQueue(
                 // For a sleep timer that means holding it for the rest of the night.
                 prefetchJob?.cancel()
                 player.dropPrefetch()
+            } else if (state.value.repeat == RepeatMode.ONE) {
+                // Repeat-one loops a song that ends on its own; the next button still moves on.
+                startCurrent()
             } else {
                 next()
             }
@@ -336,16 +343,19 @@ class PlayerQueue(
         if (after.current?.id != before?.id) startCurrent()
     }
 
+    /**
+     * The next song - pressed, or a song ending with repeat off or all. With repeat-one this still
+     * moves on, as the phone's next button does; the loop is only for a song that ends by itself
+     * (see onFinished above).
+     */
     fun next() {
         val queue = state.value
-        if (queue.repeat == RepeatMode.ONE) {
-            // Repeat-one restarts the same track rather than moving, which is the whole point of it.
-            startCurrent()
-            return
-        }
         if (queue.orderPosition >= queue.order.lastIndex) {
             if (queue.repeat == RepeatMode.ALL && queue.order.isNotEmpty()) {
                 moveTo(0)
+            } else if (queue.repeat == RepeatMode.ONE) {
+                // The last song, looping: there is no next, so the song carries on - as on the
+                // phone, rather than the button stopping playback.
             } else {
                 // End of the queue: stop rather than wrap. Wrapping unasked turns a finished queue
                 // into an endless one - which is what repeat is for, and it is off.
@@ -365,7 +375,7 @@ class PlayerQueue(
     fun previous() {
         val queue = state.value
         if (queue.orderPosition <= 0) {
-            if (queue.repeat != RepeatMode.OFF && queue.order.isNotEmpty()) moveTo(queue.order.lastIndex)
+            if (queue.repeat == RepeatMode.ALL && queue.order.isNotEmpty()) moveTo(queue.order.lastIndex)
             return
         }
         moveTo(queue.orderPosition - 1)

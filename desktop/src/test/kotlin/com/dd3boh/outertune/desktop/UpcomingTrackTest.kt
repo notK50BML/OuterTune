@@ -113,4 +113,15 @@ class UpcomingTrackTest {
         assertEquals("Song 0", one.copy(repeat = RepeatMode.ALL).upcoming?.title)
         assertEquals("Song 0", one.copy(repeat = RepeatMode.ONE).upcoming?.title)
     }
+
+    @Test
+    fun `repeat one leaves the buttons moving through the queue, as on the phone`() {
+        // Only a song ending on its own loops; next and previous still go somewhere.
+        assertEquals(true, queue(playing = 2, repeat = RepeatMode.ONE).hasNext)
+        assertEquals(true, queue(playing = 2, repeat = RepeatMode.ONE).hasPrevious)
+        // ...but nowhere past either end, which only repeat-all wraps.
+        assertEquals(false, queue(playing = 4, repeat = RepeatMode.ONE).hasNext)
+        assertEquals(false, queue(playing = 0, repeat = RepeatMode.ONE).hasPrevious)
+        assertEquals(true, queue(playing = 4, repeat = RepeatMode.ALL).hasNext)
+    }
 }
