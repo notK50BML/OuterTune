@@ -90,7 +90,7 @@ fun LyricsPane(
                 lyrics.lines.forEach { line ->
                     Text(
                         text = line.text,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
                         color = onColour.copy(alpha = 0.8f),
                         textAlign = textAlign,
                         modifier = Modifier.padding(vertical = 6.dp),
@@ -168,7 +168,7 @@ private fun SyncedLyrics(
                 if (active && line.words.isNotEmpty()) {
                     Text(
                         text = sungText(line, positionMs, onColour),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
                         fontWeight = FontWeight.Bold,
                         textAlign = textAlign,
                         modifier = modifier,
@@ -176,7 +176,7 @@ private fun SyncedLyrics(
                 } else {
                     Text(
                         text = line.text,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize),
+                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
                         fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                         color = onColour.copy(alpha = alpha),
                         textAlign = textAlign,

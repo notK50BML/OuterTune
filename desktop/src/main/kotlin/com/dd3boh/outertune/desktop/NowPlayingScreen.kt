@@ -386,7 +386,8 @@ fun NowPlayingScreen(
                         onColour = onBackground,
                         fontSize = 20.sp * scale * (lyricsTextScale / 100f),
                         alignment = lyricsAlignment,
-                        modifier = Modifier.fillMaxHeight(),
+                        // Ends above the lyric controls, so no line is ever read through them.
+                        modifier = Modifier.fillMaxHeight().padding(bottom = 76.dp),
                     )
                     LyricsHeader(
                         modifier = Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 28.dp),
