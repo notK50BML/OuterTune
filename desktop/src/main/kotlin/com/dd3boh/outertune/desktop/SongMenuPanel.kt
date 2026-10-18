@@ -111,7 +111,7 @@ fun RowActions(song: SongItem) {
 
 private fun rowButtonLook(button: RowButton, song: SongItem, actions: SongActions): Pair<ImageVector, String> = when (button) {
     RowButton.LIKE -> if (actions.isLiked(song.id)) OuterTuneIcons.favorite to "Unlike" else OuterTuneIcons.favoriteBorder to "Like"
-    RowButton.DOWNLOAD -> OuterTuneIcons.download to if (actions.isDownloaded(song.id)) "Remove download" else "Download"
+    RowButton.DOWNLOAD -> if (actions.isDownloaded(song.id)) OuterTuneIcons.offlinePin to "Remove download" else OuterTuneIcons.download to "Download"
     RowButton.PLAY_NEXT -> OuterTuneIcons.queueMusic to "Play next"
     RowButton.ADD_TO_QUEUE -> OuterTuneIcons.queueMusic to "Add to queue"
     RowButton.PLAYLIST -> OuterTuneIcons.playlistAdd to "Add to playlist"
@@ -267,7 +267,10 @@ fun SongMenuPanel(
             MenuTile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) },
             MenuTile("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) },
             MenuTile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) },
-            MenuTile(if (actions.isDownloaded(song.id)) "Remove download" else "Download", OuterTuneIcons.download) {
+            MenuTile(
+                if (actions.isDownloaded(song.id)) "Remove download" else "Download",
+                if (actions.isDownloaded(song.id)) OuterTuneIcons.offlinePin else OuterTuneIcons.download,
+            ) {
                 actions.toggleDownload(song)
             },
             MenuTile("Copy link", OuterTuneIcons.share) { actions.copyLink(song) },

@@ -457,8 +457,17 @@ internal fun App(
      */
     val downloadAll: (String, List<SongItem>) -> Unit = downloadAll@{ title, songs ->
         if (batch?.finished == false) return@downloadAll
-        val todo = songs.distinctBy { it.id }.filter { it.id !in downloadedIds && !LocalMusic.isLocal(it.id) }
-        if (todo.isEmpty()) return@downloadAll
+        val online = songs.distinctBy { it.id }.filter { !LocalMusic.isLocal(it.id) }
+        val todo = online.filter { it.id !in downloadedIds }
+        if (todo.isEmpty()) {
+            // Everything is already saved: the button reads "Downloaded", and pressing it removes
+            // the list's downloads, as pressing a downloaded song's mark does.
+            val gone = online.map { it.id }.toSet()
+            if (gone.isEmpty()) return@downloadAll
+            downloadedIds = downloadedIds - gone
+            scope.launch { withContext(Dispatchers.IO) { gone.forEach { library.downloads.delete(it) } } }
+            return@downloadAll
+        }
         batch = BatchDownload(title, todo.size)
         batchJob = scope.launch {
             var done = 0
@@ -924,6 +933,7 @@ internal fun App(
                         )
                     }
                 },
+                downloaded = queue.current?.id in downloadedIds,
                 onDownload = queue.current?.let { song ->
                     {
                         if (song.id in downloadedIds) {

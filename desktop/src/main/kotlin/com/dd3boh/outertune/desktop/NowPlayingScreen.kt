@@ -1736,11 +1736,15 @@ private fun ActionButtons(
                         modifier = Modifier.size(iconSize * 0.8f),
                     )
                     else -> Icon(
-                        imageVector = if (button == PlayerButtonKind.LIKE && liked) OuterTuneIcons.favorite else (if (button == PlayerButtonKind.LIBRARY && actions.inLibrary) OuterTuneIcons.libraryAddCheck else button.icon),
-                        contentDescription = button.label,
-                        // Dimmed once downloaded, which reads as "done" while keeping the button
-                        // where it was; pressing it again removes the file.
-                        tint = glyphTint.copy(alpha = if (button == PlayerButtonKind.DOWNLOAD && downloaded) 0.45f else 1f),
+                        imageVector = when {
+                            button == PlayerButtonKind.LIKE && liked -> OuterTuneIcons.favorite
+                            button == PlayerButtonKind.LIBRARY && actions.inLibrary -> OuterTuneIcons.libraryAddCheck
+                            // The phone's downloaded mark; pressing it again removes the file.
+                            button == PlayerButtonKind.DOWNLOAD && downloaded -> OuterTuneIcons.offlinePin
+                            else -> button.icon
+                        },
+                        contentDescription = if (button == PlayerButtonKind.DOWNLOAD && downloaded) "Remove download" else button.label,
+                        tint = glyphTint,
                         modifier = Modifier.size(iconSize),
                     )
                 }

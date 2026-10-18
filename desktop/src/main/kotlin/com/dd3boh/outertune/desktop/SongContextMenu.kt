@@ -111,7 +111,10 @@ private fun SongMenuItems(song: SongItem, actions: SongActions, close: () -> Uni
         actions.toggleLike(song)
     }
     entry("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) }
-    entry(if (actions.isDownloaded(song.id)) "Remove download" else "Download", OuterTuneIcons.download) {
+    entry(
+        if (actions.isDownloaded(song.id)) "Remove download" else "Download",
+        if (actions.isDownloaded(song.id)) OuterTuneIcons.offlinePin else OuterTuneIcons.download,
+    ) {
         actions.toggleDownload(song)
     }
     HorizontalDivider()

@@ -36,8 +36,8 @@ data class BatchDownload(
 )
 
 /**
- * "Download" for a whole list of songs. Shows "Downloaded" once every song is saved, and a spinner
- * while this list is the one downloading.
+ * "Download" for a whole list of songs. Shows "Downloaded", with the phone's downloaded mark, once
+ * every song is saved - pressing it then removes them - and a spinner while this list downloads.
  */
 @Composable
 fun DownloadAllButton(
@@ -47,11 +47,15 @@ fun DownloadAllButton(
     onDownload: () -> Unit,
 ) {
     val missing = songIds.count { it !in downloadedIds }
-    OutlinedButton(onClick = onDownload, enabled = songIds.isNotEmpty() && missing > 0 && !busy) {
+    OutlinedButton(onClick = onDownload, enabled = songIds.isNotEmpty() && !busy) {
         if (busy) {
             CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
         } else {
-            Icon(OuterTuneIcons.download, contentDescription = null, modifier = Modifier.width(18.dp))
+            Icon(
+                if (missing == 0) OuterTuneIcons.offlinePin else OuterTuneIcons.download,
+                contentDescription = null,
+                modifier = Modifier.width(18.dp),
+            )
         }
         Spacer(modifier = Modifier.width(8.dp))
         Text(

@@ -116,6 +116,9 @@ object OuterTuneIcons {
     /** An arrow into a tray: download, kept beside the like button where songs are acted on. */
     val download by icon(GeneratedIconPaths.download)
 
+    /** A tick in a disc: downloaded. The phone's mark for it, and pressing it removes the download. */
+    val offlinePin by icon(GeneratedIconPaths.offlinePin)
+
     /**
      * Two stacked bars: the grip for dragging a queue row.
      *
@@ -283,6 +286,7 @@ object OuterTuneIcons {
             "expandLess" to expandLess,
             "moreVert" to moreVert,
             "download" to download,
+            "offlinePin" to offlinePin,
             "dragHandle" to dragHandle,
             "bedtime" to bedtime,
             "fastForward" to fastForward,

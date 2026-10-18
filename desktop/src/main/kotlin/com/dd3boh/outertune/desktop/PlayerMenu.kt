@@ -36,6 +36,8 @@ data class PlayerActions(
     val onAddToQueue: (() -> Unit)? = null,
     val onAddToPlaylist: (() -> Unit)? = null,
     val onDownload: (() -> Unit)? = null,
+    /** Whether the song is saved: the download entry then reads "Remove download", with the tick. */
+    val downloaded: Boolean = false,
     val inLibrary: Boolean = false,
     val onToggleLibrary: (() -> Unit)? = null,
     val onViewArtist: (() -> Unit)? = null,
@@ -83,7 +85,11 @@ fun PlayerOverflowMenu(
                 tile("Start radio", OuterTuneIcons.radio, actions.onStartRadio)
                 tile("Add to queue", OuterTuneIcons.queueMusic, actions.onAddToQueue)
                 tile("Add to playlist", OuterTuneIcons.playlistAdd, actions.onAddToPlaylist)
-                tile("Download", OuterTuneIcons.download, actions.onDownload)
+                tile(
+                    if (actions.downloaded) "Remove download" else "Download",
+                    if (actions.downloaded) OuterTuneIcons.offlinePin else OuterTuneIcons.download,
+                    actions.onDownload,
+                )
                 tile(
                     if (actions.inLibrary) "Remove from library" else "Add to library",
                     if (actions.inLibrary) OuterTuneIcons.libraryAddCheck else OuterTuneIcons.libraryAdd,
