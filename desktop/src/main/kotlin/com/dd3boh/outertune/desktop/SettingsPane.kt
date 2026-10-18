@@ -194,6 +194,8 @@ fun SettingsPane(
     onDownloadsChanged: () -> Unit,
     library: LibraryStore,
     modifier: Modifier = Modifier,
+    /** After a profile is imported - see ProfilesSection. */
+    onProfileApplied: () -> Unit = {},
 ) {
     var category by remember { mutableStateOf(SettingsCategory.Appearance) }
     var query by remember { mutableStateOf("") }
@@ -288,7 +290,7 @@ fun SettingsPane(
                 }
                 SettingsCategory.Local -> LocalMusicSettings(settings, library)
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
-                SettingsCategory.Privacy -> PrivacySettings(settings, library, libraryPath)
+                SettingsCategory.Privacy -> PrivacySettings(settings, library, libraryPath, onProfileApplied)
                 SettingsCategory.About -> AboutSettings()
             }
             Spacer(modifier = Modifier.height(40.dp))
@@ -1057,7 +1059,7 @@ private fun DownloadSettings(downloads: Downloads, onDownloadsChanged: () -> Uni
 }
 
 @Composable
-private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPath: String) {
+private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPath: String, onProfileApplied: () -> Unit) {
     val scope = rememberCoroutineScope()
     Section("Library and backup") {
         SettingSwitch(
@@ -1146,6 +1148,9 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, libraryPa
                 )
             }
         }
+
+        Spacer(modifier = Modifier.height(12.dp))
+        ProfilesSection(settings, onApplied = onProfileApplied)
 
         Spacer(modifier = Modifier.height(12.dp))
         Text("Stored at", style = MaterialTheme.typography.bodyMedium)

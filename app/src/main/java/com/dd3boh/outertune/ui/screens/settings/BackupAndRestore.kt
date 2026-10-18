@@ -34,6 +34,7 @@ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.dialog.InfoLabel
 import com.dd3boh.outertune.ui.screens.settings.fragments.BackupAndRestoreFrag
+import com.dd3boh.outertune.ui.screens.settings.fragments.SettingsProfilesFrag
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.viewmodels.BackupRestoreViewModel
 
@@ -51,6 +52,8 @@ fun BackupAndRestore(
             .verticalScroll(rememberScrollState())
     ) {
         BackupAndRestoreFrag(viewModel)
+        Spacer(modifier = Modifier.height(16.dp))
+        SettingsProfilesFrag()
         Spacer(modifier = Modifier.height(16.dp))
         InfoLabel(stringResource(R.string.import_innertune_tooltip))
         Spacer(modifier = Modifier.height(8.dp))

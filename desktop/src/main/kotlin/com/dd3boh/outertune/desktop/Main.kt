@@ -968,6 +968,10 @@ internal fun App(
                         },
                         downloads = library.downloads,
                         library = library,
+                        // An imported equaliser is in the settings; the player reads them once.
+                        onProfileApplied = {
+                            settings.equalizerStore().applyTo(player.equalizer, player.compressor, player.balance)
+                        },
                         onDownloadsChanged = {
                             // Off the main thread like the other three. ids() is a query plus a file
                             // check per row, and this one was missed when the others were moved.

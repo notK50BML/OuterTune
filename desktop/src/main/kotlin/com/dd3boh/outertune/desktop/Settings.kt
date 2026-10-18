@@ -36,6 +36,23 @@ interface SettingsStore {
  */
 class Settings(private val store: SettingsStore) {
 
+    /** Every setting's key, and how to re-read it from the store - for profiles (see Profiles). */
+    private val reloaders = LinkedHashMap<String, () -> Unit>()
+
+    /** The keys of every setting, in declaration order. */
+    val keys: Set<String> get() = reloaders.keys
+
+    /** The stored text of a setting, as a profile carries it. */
+    fun raw(key: String): String? = store.get(key)
+
+    /** Writes a setting's stored text and updates what is on screen. Unknown keys are ignored. */
+    fun putRaw(key: String, value: String) {
+        val reload = reloaders[key] ?: return
+        store.put(key, value)
+        reload()
+    }
+
+
     // ---- Playback --------------------------------------------------------------------------
 
     /** The five-second seek buttons in the transport row. Off, as on Android. */
@@ -313,6 +330,10 @@ class Settings(private val store: SettingsStore) {
     ): ReadWriteProperty<Any?, T> = object : ReadWriteProperty<Any?, T> {
         private val state: MutableState<T> =
             mutableStateOf(store.get(key)?.let(parse) ?: default)
+
+        init {
+            reloaders[key] = { state.value = store.get(key)?.let(parse) ?: default }
+        }
 
         override fun getValue(thisRef: Any?, property: KProperty<*>): T = state.value
 

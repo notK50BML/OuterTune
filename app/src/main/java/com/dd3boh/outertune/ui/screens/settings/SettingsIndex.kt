@@ -146,6 +146,7 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/backup_restore", R.string.backup_restore, R.string.backup_restore),
     SettingsIndexEntry("settings/backup_restore", R.string.action_backup, R.string.backup_restore),
     SettingsIndexEntry("settings/backup_restore", R.string.action_restore, R.string.backup_restore),
+    SettingsIndexEntry("settings/backup_restore", R.string.profiles_title, R.string.backup_restore),
     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_title, R.string.backup_restore),
     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_frequency, R.string.backup_restore),
     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_frequency_unit, R.string.backup_restore),
