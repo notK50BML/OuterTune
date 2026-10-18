@@ -79,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusProperties
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.key.Key
@@ -1398,7 +1399,15 @@ private fun SearchBar(
         trailingIcon = {
             when {
                 searching -> CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                query.isNotEmpty() -> IconButton(onClick = { onQueryChange("") }) {
+                // Never takes focus itself: a click moving focus here took it off the box, which
+                // closed the search instead of clearing it. Clears and keeps typing in the box.
+                query.isNotEmpty() -> IconButton(
+                    onClick = {
+                        onQueryChange("")
+                        runCatching { focus.requestFocus() }
+                    },
+                    modifier = Modifier.focusProperties { canFocus = false },
+                ) {
                     Icon(OuterTuneIcons.close, contentDescription = "Clear", modifier = Modifier.size(20.dp))
                 }
             }
