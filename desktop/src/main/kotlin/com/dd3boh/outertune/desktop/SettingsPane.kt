@@ -105,6 +105,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Player layout", SettingsCategory.Player, "layout editor custom arrange move cover position import"),
     SettingEntry("Tabs", SettingsCategory.Appearance, "rail navigation sections home songs artists albums playlists library local stats order"),
     SettingEntry("Keyboard shortcuts", SettingsCategory.Keyboard, "keys keybinds hotkeys shortcut remap play pause next previous equaliser shuffle repeat volume"),
     SettingEntry("Theme", SettingsCategory.Appearance, "dark light system mode night"),
@@ -479,6 +480,7 @@ private fun PlayerSettings(settings: Settings) {
                 onDismiss = { arranging = false },
             )
         }
+        PlayerLayoutSetting(settings)
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
         SettingRow(
             title = "Equaliser",

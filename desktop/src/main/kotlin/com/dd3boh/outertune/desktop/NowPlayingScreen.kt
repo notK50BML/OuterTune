@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlin.math.roundToInt
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.graphics.lerp
 import kotlin.math.sin
 import kotlin.math.PI
@@ -165,6 +167,8 @@ fun NowPlayingScreen(
     onSleepTimer: (() -> Unit)? = null,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
     seekBarStyle: SeekBarStyle = SeekBarStyle.Squiggly,
+    /** An imported Windows layout (Settings > Player > Player layout), or null for the built-in one. */
+    playerLayout: PlayerLayout? = null,
     /** A keyboard shortcut's request - see KeyBindings. Handled once, then [onCommandHandled]. */
     command: PlayerCommand? = null,
     onCommandHandled: () -> Unit = {},
@@ -336,6 +340,281 @@ fun NowPlayingScreen(
         val actionSize = 40.dp * scale
         val actionIcon = 24.dp * scale
 
+        // The transport controls, laid out exactly as Player.kt's controlsBlock - shared by the
+        // built-in layout and an imported one, so both draw the same row.
+        val transportRow: @Composable () -> Unit = {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                IconButton(onClick = onToggleShuffle, modifier = Modifier.size(transportSize)) {
+                    ShuffleIcon(
+                        on = queue.shuffled,
+                        // Fully opaque either way: the arrows themselves say whether it is on -
+                        // straight when off, crossed when on - as on the phone.
+                        tint = onBackground,
+                        modifier = Modifier.size(transportIcon),
+                    )
+                }
+            }
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                IconButton(
+                    onClick = onPrevious,
+                    enabled = queue.hasPrevious,
+                    modifier = Modifier.size(transportSize),
+                ) {
+                    Icon(
+                        OuterTuneIcons.skipPrevious, "Previous",
+                        tint = onBackground, modifier = Modifier.size(transportIcon),
+                    )
+                }
+            }
+            // Off unless asked for, which is how the Android player ships - its seek
+            // increment defaults to OFF and the buttons are simply absent.
+            if (showSeekButtons) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    IconButton(
+                        onClick = { onSeek((positionMs() - SEEK_STEP_MS).coerceAtLeast(0)) },
+                        enabled = durationMs > 0,
+                    ) {
+                        Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground)
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            // The one filled control, because play/pause is the button being reached for.
+            //
+            // Its shape carries the state as well as its glyph: a circle while paused, a
+            // rounded square while playing. Two things saying the same thing is not
+            // redundancy here - the shape is readable from across a room and out of the
+            // corner of an eye, where a small triangle and a small pair of bars are not.
+            val playCorner by animateDpAsState(
+                if (playback is PlaybackState.Paused) playSize / 2 else playSize * 0.28f
+            )
+            FilledIconButton(
+                onClick = onTogglePause,
+                shape = RoundedCornerShape(playCorner),
+                modifier = Modifier.size(playSize),
+            ) {
+                Icon(
+                    if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
+                    contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
+                    modifier = Modifier.size(playIcon),
+                )
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            if (showSeekButtons) {
+                Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    IconButton(
+                        onClick = { onSeek((positionMs() + SEEK_STEP_MS).coerceAtMost(durationMs)) },
+                        enabled = durationMs > 0,
+                    ) {
+                        Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground)
+                    }
+                }
+            }
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                IconButton(
+                    onClick = onNext,
+                    enabled = queue.hasNext,
+                    modifier = Modifier.size(transportSize),
+                ) {
+                    Icon(
+                        OuterTuneIcons.skipNext, "Next",
+                        tint = onBackground, modifier = Modifier.size(transportIcon),
+                    )
+                }
+            }
+            Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                IconButton(onClick = onCycleRepeat, modifier = Modifier.size(transportSize)) {
+                    Icon(
+                        if (queue.repeat == RepeatMode.ONE) OuterTuneIcons.repeatOne else OuterTuneIcons.repeat,
+                        contentDescription = "Repeat",
+                        tint = onBackground.copy(alpha = if (queue.repeat == RepeatMode.OFF) 0.4f else 1f),
+                        modifier = Modifier.size(transportIcon),
+                    )
+                }
+            }
+        }
+        }
+
+        // One transport button on its own, for a layout that places them individually.
+        val transportMember: @Composable (String) -> Unit = { id ->
+            when (id) {
+                "shuffle" -> IconButton(onClick = onToggleShuffle, modifier = Modifier.size(transportSize)) {
+                    ShuffleIcon(on = queue.shuffled, tint = onBackground, modifier = Modifier.size(transportIcon))
+                }
+                "skip_previous" -> IconButton(onClick = onPrevious, enabled = queue.hasPrevious, modifier = Modifier.size(transportSize)) {
+                    Icon(OuterTuneIcons.skipPrevious, "Previous", tint = onBackground, modifier = Modifier.size(transportIcon))
+                }
+                "skip_next" -> IconButton(onClick = onNext, enabled = queue.hasNext, modifier = Modifier.size(transportSize)) {
+                    Icon(OuterTuneIcons.skipNext, "Next", tint = onBackground, modifier = Modifier.size(transportIcon))
+                }
+                "seek_backward" -> IconButton(onClick = { onSeek((positionMs() - SEEK_STEP_MS).coerceAtLeast(0)) }, modifier = Modifier.size(transportSize)) {
+                    Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
+                }
+                "seek_forward" -> IconButton(onClick = { onSeek((positionMs() + SEEK_STEP_MS).coerceAtMost(durationMs)) }, modifier = Modifier.size(transportSize)) {
+                    Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
+                }
+                "repeat" -> IconButton(onClick = onCycleRepeat, modifier = Modifier.size(transportSize)) {
+                    Icon(
+                        if (queue.repeat == RepeatMode.ONE) OuterTuneIcons.repeatOne else OuterTuneIcons.repeat,
+                        contentDescription = "Repeat",
+                        tint = onBackground.copy(alpha = if (queue.repeat == RepeatMode.OFF) 0.4f else 1f),
+                        modifier = Modifier.size(transportIcon),
+                    )
+                }
+                "play_pause" -> {
+                    val corner by animateDpAsState(if (playback is PlaybackState.Paused) playSize / 2 else playSize * 0.28f)
+                    FilledIconButton(onClick = onTogglePause, shape = RoundedCornerShape(corner), modifier = Modifier.size(playSize)) {
+                        Icon(
+                            if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
+                            contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
+                            modifier = Modifier.size(playIcon),
+                        )
+                    }
+                }
+            }
+        }
+
+        val playerActions = actions.copy(
+            onEqualizer = actions.onEqualizer ?: onToggleEqualizer,
+            onToggleLyrics = { showLyrics = !showLyrics },
+        )
+        val actionRow: @Composable (List<PlayerButtonKind>) -> Unit = { kinds ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                ActionButtons(
+                    liked = liked,
+                    actions = playerActions,
+                    onToggleLike = onToggleLike,
+                    onDownload = actions.onDownload,
+                    downloaded = downloaded,
+                    downloading = downloading,
+                    tint = onBackground,
+                    buttonSize = actionSize,
+                    iconSize = actionIcon,
+                    sleepRemainingMs = sleepRemainingMs,
+                    onSleepTimer = onSleepTimer,
+                    buttons = kinds,
+                )
+            }
+        }
+
+        val layout = playerLayout
+        if (layout != null) {
+            // An imported Windows layout: every block at its own place - its centre at (x%, y%) of
+            // the player area, w% of its width - which is exactly what the editor saves.
+            Box(modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp)) {
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    val areaW = maxWidth
+                    val areaH = maxHeight
+                    for (block in layout.blocks) {
+                        if (!block.visible) continue
+                        val w = areaW * (block.w / 100f)
+                        PlacedBlock(block, areaW, areaH) {
+                            when (block.id) {
+                                "artwork" -> {
+                                    val side = min(w, areaH)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(side)
+                                            .pointerHoverIcon(PointerIcon.Hand)
+                                            .clickable(
+                                                interactionSource = remember { MutableInteractionSource() },
+                                                indication = null,
+                                            ) { if (lyricsOnCoverClick && !showLyrics) showLyrics = true },
+                                    ) {
+                                        if (showLyrics) {
+                                            LyricsPane(
+                                                lyrics = lyrics,
+                                                loading = lyricsLoading,
+                                                positionMs = positionMs,
+                                                onSeek = onSeek,
+                                                onColour = onBackground,
+                                                fontSize = 20.sp * scale * (lyricsTextScale / 100f),
+                                                alignment = lyricsAlignment,
+                                                modifier = Modifier.fillMaxSize().padding(bottom = 76.dp),
+                                            )
+                                            LyricsHeader(
+                                                modifier = Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 20.dp),
+                                                tint = onBackground,
+                                                onClose = { showLyrics = false },
+                                                onRefetch = onRefetchLyrics,
+                                                offsetMs = lyricsOffsetMs,
+                                                onOffsetChange = onLyricsOffsetChange,
+                                            )
+                                        } else {
+                                            Artwork(song?.thumbnail, size = side, cornerRadius = block.radiusDp.dp * scale)
+                                        }
+                                    }
+                                }
+                                "info" -> Column(
+                                    horizontalAlignment = if (block.centred) Alignment.CenterHorizontally else Alignment.Start,
+                                    modifier = Modifier.width(w),
+                                ) {
+                                    Text(
+                                        text = song?.title ?: "Nothing playing",
+                                        style = MaterialTheme.typography.headlineMedium.copy(
+                                            fontSize = MaterialTheme.typography.headlineMedium.fontSize * scale,
+                                            lineHeight = MaterialTheme.typography.headlineMedium.lineHeight * scale,
+                                        ),
+                                        fontWeight = FontWeight.Bold,
+                                        color = onBackground,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        textAlign = if (block.centred) androidx.compose.ui.text.style.TextAlign.Center else null,
+                                    )
+                                    ArtistNames(
+                                        artists = song?.artists.orEmpty().map { artist ->
+                                            artist.id?.let { StoredArtist(it, artist.name) } ?: StoredArtist.unlinked(artist.name)
+                                        },
+                                        fallback = song?.artists?.joinToString { it.name } ?: "",
+                                        colour = onBackground.copy(alpha = 0.75f),
+                                        style = MaterialTheme.typography.titleMedium.copy(
+                                            fontSize = MaterialTheme.typography.titleMedium.fontSize * scale,
+                                        ),
+                                        onClick = onOpenArtist,
+                                    )
+                                }
+                                "actions" -> actionRow(playerButtons)
+                                "sleep_timer" -> actionRow(listOf(PlayerButtonKind.SLEEP))
+                                "like" -> actionRow(listOf(PlayerButtonKind.LIKE))
+                                "equalizer" -> actionRow(listOf(PlayerButtonKind.EQUALIZER))
+                                "menu" -> actionRow(listOf(PlayerButtonKind.MENU))
+                                "progress" -> if (durationMs > 0) Column(modifier = Modifier.width(w)) {
+                                    SlimSeekBar(
+                                        positionMs = positionMs,
+                                        durationMs = durationMs,
+                                        colour = onBackground,
+                                        onSeek = onSeek,
+                                        style = seekBarStyle,
+                                        playing = playback is PlaybackState.Playing,
+                                    )
+                                    Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
+                                        PositionLabel(positionMs, onBackground)
+                                        Text(formatDuration(durationMs), style = MaterialTheme.typography.bodySmall, color = onBackground)
+                                    }
+                                }
+                                "controls" -> Box(modifier = Modifier.width(w)) { transportRow() }
+                                "queue" -> Unit // the handle along the bottom, below
+                                else -> transportMember(block.id)
+                            }
+                        }
+                    }
+                    if (playback is PlaybackState.Failed) {
+                        Text(
+                            playback.reason,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 12.dp),
+                        )
+                    }
+                }
+                IconButton(onClick = onClose, modifier = Modifier.size(transportSize).align(Alignment.TopStart)) {
+                    Icon(OuterTuneIcons.close, contentDescription = "Back", tint = onBackground, modifier = Modifier.size(transportIcon))
+                }
+            }
+        } else {
         Row(
             verticalAlignment = Alignment.Top,
             modifier = Modifier
@@ -498,100 +777,7 @@ fun NowPlayingScreen(
                 // outside the weighting at its natural size between two 8dp spacers. Packing them
                 // with fixed spacing instead - which is what this used to do - leaves the row
                 // bunched to one side and the big button off centre.
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.fillMaxWidth(),
-                ) {
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(onClick = onToggleShuffle, modifier = Modifier.size(transportSize)) {
-                            ShuffleIcon(
-                                on = queue.shuffled,
-                                // Fully opaque either way: the arrows themselves say whether it is on -
-                                // straight when off, crossed when on - as on the phone.
-                                tint = onBackground,
-                                modifier = Modifier.size(transportIcon),
-                            )
-                        }
-                    }
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(
-                            onClick = onPrevious,
-                            enabled = queue.hasPrevious,
-                            modifier = Modifier.size(transportSize),
-                        ) {
-                            Icon(
-                                OuterTuneIcons.skipPrevious, "Previous",
-                                tint = onBackground, modifier = Modifier.size(transportIcon),
-                            )
-                        }
-                    }
-                    // Off unless asked for, which is how the Android player ships - its seek
-                    // increment defaults to OFF and the buttons are simply absent.
-                    if (showSeekButtons) {
-                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            IconButton(
-                                onClick = { onSeek((positionMs() - SEEK_STEP_MS).coerceAtLeast(0)) },
-                                enabled = durationMs > 0,
-                            ) {
-                                Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground)
-                            }
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    // The one filled control, because play/pause is the button being reached for.
-                    //
-                    // Its shape carries the state as well as its glyph: a circle while paused, a
-                    // rounded square while playing. Two things saying the same thing is not
-                    // redundancy here - the shape is readable from across a room and out of the
-                    // corner of an eye, where a small triangle and a small pair of bars are not.
-                    val playCorner by animateDpAsState(
-                        if (playback is PlaybackState.Paused) playSize / 2 else playSize * 0.28f
-                    )
-                    FilledIconButton(
-                        onClick = onTogglePause,
-                        shape = RoundedCornerShape(playCorner),
-                        modifier = Modifier.size(playSize),
-                    ) {
-                        Icon(
-                            if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
-                            contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
-                            modifier = Modifier.size(playIcon),
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    if (showSeekButtons) {
-                        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                            IconButton(
-                                onClick = { onSeek((positionMs() + SEEK_STEP_MS).coerceAtMost(durationMs)) },
-                                enabled = durationMs > 0,
-                            ) {
-                                Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground)
-                            }
-                        }
-                    }
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(
-                            onClick = onNext,
-                            enabled = queue.hasNext,
-                            modifier = Modifier.size(transportSize),
-                        ) {
-                            Icon(
-                                OuterTuneIcons.skipNext, "Next",
-                                tint = onBackground, modifier = Modifier.size(transportIcon),
-                            )
-                        }
-                    }
-                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                        IconButton(onClick = onCycleRepeat, modifier = Modifier.size(transportSize)) {
-                            Icon(
-                                if (queue.repeat == RepeatMode.ONE) OuterTuneIcons.repeatOne else OuterTuneIcons.repeat,
-                                contentDescription = "Repeat",
-                                tint = onBackground.copy(alpha = if (queue.repeat == RepeatMode.OFF) 0.4f else 1f),
-                                modifier = Modifier.size(transportIcon),
-                            )
-                        }
-                    }
-                }
+                transportRow()
 
                 if (playback is PlaybackState.Failed) {
                     Spacer(modifier = Modifier.height(12.dp))
@@ -600,8 +786,9 @@ fun NowPlayingScreen(
             }
         }
         }
+        }
 
-        QueueBar(
+        if (playerLayout?.block("queue")?.visible != false) QueueBar(
             queue = queue,
             onColour = onBackground,
             open = queueOpen,
@@ -1612,4 +1799,28 @@ private fun formatDuration(ms: Long): String {
     } else {
         "%d:%02d".format(seconds / 60, seconds % 60)
     }
+}
+
+/**
+ * A layout block at its place: centred on ([PlayerLayout.Block.x]%, [PlayerLayout.Block.y]%) of the
+ * player area, at its scale and rotation. Its width is decided by the content - see the caller.
+ */
+@Composable
+private fun PlacedBlock(block: PlayerLayout.Block, areaW: Dp, areaH: Dp, content: @Composable () -> Unit) {
+    Box(
+        modifier = Modifier
+            .layout { measurable, constraints ->
+                val placeable = measurable.measure(constraints.copy(minWidth = 0, minHeight = 0))
+                layout(constraints.maxWidth, constraints.maxHeight) {
+                    val cx = areaW.toPx() * block.x / 100f
+                    val cy = areaH.toPx() * block.y / 100f
+                    placeable.place((cx - placeable.width / 2f).roundToInt(), (cy - placeable.height / 2f).roundToInt())
+                }
+            }
+            .graphicsLayer {
+                scaleX = block.scale
+                scaleY = block.scale
+                rotationZ = block.rotation
+            },
+    ) { content() }
 }

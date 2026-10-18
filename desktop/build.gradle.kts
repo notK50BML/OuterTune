@@ -328,3 +328,8 @@ tasks.register<Zip>("packageApp") {
     archiveFileName.set("OuterTune-windows.zip")
     destinationDirectory.set(layout.buildDirectory.dir("dist"))
 }
+
+// The player layout editor ships inside the app (Settings > Player > Player layout > Open editor).
+tasks.named<ProcessResources>("processResources") {
+    from(rootProject.file("tools/layout-editor.html")) { into("editor") }
+}

@@ -148,6 +148,12 @@ data class PlayerLayout(
                 "This layout was made with a newer editor (v$version)."
             }
 
+            // The editor designs for the phone or for Windows, and a window's percentages describe a
+            // completely different shape - so a Windows layout is refused here, not squeezed in.
+            require(root.optString("platform", "android") != "windows") {
+                "That layout is for Windows. In the editor, switch to Phone and design one for the phone."
+            }
+
             val array = root.optJSONArray("blocks")
             require(array != null && array.length() > 0) { "That file has no blocks in it." }
 

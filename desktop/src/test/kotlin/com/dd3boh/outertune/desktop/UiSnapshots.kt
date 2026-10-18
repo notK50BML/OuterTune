@@ -147,7 +147,7 @@ class UiSnapshots {
     }
 
     @Composable
-    private fun Player(width: Int, eqOn: Boolean = false, buttons: String = "", background: BackgroundStyle = BackgroundStyle.Gradient, liquidTap: VisualizerTap? = null) {
+    private fun Player(width: Int, eqOn: Boolean = false, buttons: String = "", background: BackgroundStyle = BackgroundStyle.Gradient, liquidTap: VisualizerTap? = null, layout: PlayerLayout? = null) {
         NowPlayingScreen(
             playback = PlaybackState.Playing(songs[0].title),
             queue = queue(),
@@ -168,7 +168,17 @@ class UiSnapshots {
             backgroundStyle = background,
             liquidTap = liquidTap,
             playedFrames = { 1L },
+            playerLayout = layout,
         )
+    }
+
+    @Test
+    fun editorLayout() {
+        assumeTrue(outDir != null)
+        val json = javaClass.getResource("/editor-windows-default.json")!!.readText()
+        val layout = PlayerLayout.parse(json).getOrThrow()
+        capture("player_layout_editor", 1280, 800) { Player(1280, layout = layout) }
+        capture("player_builtin_1280", 1280, 800) { Player(1280) }
     }
 
     @Test

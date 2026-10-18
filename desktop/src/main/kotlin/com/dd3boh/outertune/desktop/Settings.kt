@@ -69,6 +69,9 @@ class Settings(private val store: SettingsStore) {
     /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
     var playerButtons by string("player.buttons", "")
 
+    /** An imported Windows player layout (see PlayerLayout), as its file's text. Empty: built-in. */
+    var playerLayout by string("player.layout", "")
+
     // ---- From the phone's Player and audio settings ---------------------------------------------
 
     /** Keeps the queue, and where in it playback was, between sessions. */

@@ -814,6 +814,9 @@ internal fun App(
             seekBarStyle = settings.sliderStyle,
             command = playerCommand,
             onCommandHandled = { playerCommand = null },
+            playerLayout = remember(settings.playerLayout) {
+                settings.playerLayout.takeIf { it.isNotBlank() }?.let { PlayerLayout.parse(it).getOrNull() }
+            },
             positionMs = { positionState.value },
             durationMs = duration,
             liked = isLiked,

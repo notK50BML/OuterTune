@@ -63,7 +63,7 @@ object Profiles {
     /** Which of this app's settings belong to which category. Personal ones are in none. */
     private fun categoryOf(key: String): Category? = when {
         key.startsWith("ui.") -> Category.Appearance
-        key in setOf("player.seekButtons", "player.visualizer", "player.buttons", "player.queueTitle",
+        key in setOf("player.seekButtons", "player.visualizer", "player.buttons", "player.queueTitle", "player.layout",
             "window.sideQueue", "sleep.fade", "sleep.defaultMinutes") || key.startsWith("keys.") -> Category.Player
         key.startsWith("eq.") -> Category.Equaliser
         key.startsWith("lyrics.") -> Category.Lyrics

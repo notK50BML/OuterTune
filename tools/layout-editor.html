@@ -160,13 +160,31 @@
     width: 100%; height: 140px; background: #0c0c10; color: var(--ink); border: 1px solid var(--line);
     border-radius: 10px; padding: 10px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; resize: vertical;
   }
+  /* Phone / Windows. */
+  .platforms { display: flex; gap: 6px; margin-left: auto; }
+  .platforms button { padding: 7px 14px; border-radius: 99px; }
+  .platforms button.on { background: var(--accent); color: #fff; border-color: transparent; }
+  /* The Windows preview: a landscape window with OuterTune's own frame. */
+  .phone.window { border-radius: 10px; }
+  .wincap { position: absolute; left: 0; right: 0; top: 0; display: flex; justify-content: flex-end; align-items: center; pointer-events: none; }
+  .wincap span { display: grid; place-items: center; opacity: .85; }
+  .winclose { position: absolute; display: grid; place-items: center; pointer-events: none; }
+  .winqueue { position: absolute; left: 0; right: 0; bottom: 0; display: flex; justify-content: flex-end; align-items: center; gap: 6px; color: #d6d6e0; pointer-events: none; }
+  .b.disc { background: #d6b8ff; }
+  .b.winplay { background: #d6b8ff; }
+  .winbar { position: relative; border-radius: 99px; background: #ffffff38; }
+  .winbar > i { position: absolute; left: 0; top: 0; bottom: 0; width: 30%; background: #fff; border-radius: 99px; }
 </style>
 </head>
 <body>
 
 <header>
   <h1>OuterTune &middot; Player Layout Editor</h1>
-  <span class="sub">Portrait player only &middot; landscape and tablet keep the built-in layout</span>
+  <span class="sub" id="headerSub">Portrait player only &middot; landscape and tablet keep the built-in layout</span>
+  <div class="platforms" id="platforms">
+    <button data-platform="android" class="on">Phone</button>
+    <button data-platform="windows">Windows</button>
+  </div>
 </header>
 
 <main>
@@ -182,7 +200,7 @@
   </div>
 
   <div>
-    <div class="card">
+    <div class="card" id="modeCard">
       <h2>Mode</h2>
       <div class="modes">
         <button data-mode="stack">Stacked</button>
@@ -191,15 +209,15 @@
       <div class="note" id="modeNote"></div>
     </div>
 
-    <div class="card">
-      <h2>Your screen</h2>
+    <div class="card" id="screenCard">
+      <h2 id="screenTitle">Your screen</h2>
       <div class="grid2">
         <div><label for="sw">Width (px)</label><input type="number" id="sw" min="240" max="4000" step="1"></div>
         <div><label for="sh">Height (px)</label><input type="number" id="sh" min="320" max="6000" step="1"></div>
       </div>
-      <div class="grid2" style="padding-top:0">
+      <div class="grid2" style="padding-top:0" id="navRow">
         <div>
-          <label for="nav">Navigation</label>
+          <label for="nav" id="navLabel">Navigation</label>
           <select id="nav">
             <option value="gesture">Gesture bar</option>
             <option value="buttons">Three buttons</option>
@@ -250,7 +268,14 @@
 
     <div class="card">
       <h2>Presets</h2>
-      <div class="btns">
+      <div class="btns" id="winPresets" style="display:none">
+        <button data-winpreset="default">Default</button>
+        <button data-winpreset="centred">Centred</button>
+        <button data-winpreset="mirrored">Cover on the right</button>
+        <button data-winpreset="bigcover">Big cover</button>
+        <button data-winpreset="minimal">Minimal, no cover</button>
+      </div>
+      <div class="btns" id="phonePresets">
         <button data-preset="default">Default</button>
         <button data-preset="compact">Compact</button>
         <button data-preset="artwork">Artwork first</button>
@@ -265,13 +290,13 @@
     <div class="card">
       <h2>Layout file</h2>
       <div class="btns">
-        <button class="primary" id="download">Download player-layout.json</button>
+        <button class="primary" id="download">Download <span id="fileName">player-layout.json</span></button>
         <button id="copy">Copy</button>
         <button id="paste">Import from box below</button>
       </div>
       <div class="toast" id="toast"></div>
       <div style="padding:0 6px 10px"><textarea id="json" spellcheck="false"></textarea></div>
-      <div class="note">In the app: Settings &rarr; Appearance &rarr; Player layout &rarr; Import.</div>
+      <div class="note" id="importNote">In the app: Settings &rarr; Appearance &rarr; Player layout &rarr; Import.</div>
     </div>
   </div>
 </main>
@@ -360,11 +385,12 @@ const ICON = {
   queue:         "M640,800Q590,800 555,765Q520,730 520,680Q520,630 555,595Q590,560 640,560Q651,560 661,561.5Q671,563 680,568L680,240L880,240L880,320L760,320L760,680Q760,730 725,765Q690,800 640,800ZM120,640L120,560L440,560L440,640L120,640ZM120,480L120,400L600,400L600,480L120,480ZM120,320L120,240L600,240L600,320L120,320Z",
   note:          "M400,840Q334,840 287,793Q240,746 240,680Q240,614 287,567Q334,520 400,520Q423,520 442.5,525.5Q462,531 480,542L480,120L720,120L720,280L560,280L560,680Q560,746 513,793Q466,840 400,840Z",
 
-  // Material Symbols, redrawn on the same 960 grid - the app uses Material icons for these four.
-  seek_backward: "M800,760L440,480L800,200L800,760ZM440,760L80,480L440,200L440,760Z",
-  seek_forward:  "M160,760L160,200L520,480L160,760ZM520,760L520,200L880,480L520,760Z",
-  sleep_timer:   "M524,800Q384,800 292,708Q200,616 200,480Q200,344 292,252Q384,160 524,160Q548,160 570,162Q592,164 614,169Q568,204 541,257Q514,310 514,372Q514,477 587,550Q660,623 765,623Q828,623 880,596Q853,690 776,745Q699,800 604,800Q564,800 524,800Z",
-  equalizer:     "M160,760L160,440L280,440L280,760L160,760ZM420,760L420,200L540,200L540,760L420,760ZM680,760L680,560L800,560L800,760L680,760Z",
+  // Material Rounded, exactly as the apps draw them (the desktop's GeneratedIconPaths, generated
+  // from the same Icons.Rounded the phone uses) - no longer redrawn approximations.
+  seek_backward: "M440,642.8L440,317.199c0,-32.4 -36.4,-51.199 -63.2,-32.8l-230.8,162.8c-22.4,16 -22.4,49.6 0,65.199l230.8,162.8c26.8,18.8 63.2,0 63.2,-32.4ZM506.4,512.8l230.8,162.8c26.4,18.8 63.2,-0.399 63.2,-32.8L800.4,317.199c0,-32.4 -36.4,-51.199 -63.2,-32.8l-230.8,162.8c-22.8,16 -22.8,49.6 0,65.6Z",
+  seek_forward:  "M223.2,675.6l230.8,-162.8c22.4,-16 22.4,-49.6 0,-65.199L223.2,284.4C196.4,266 160,284.8 160,317.199v325.6c0,32.4 36.4,51.199 63.2,32.8ZM520,317.199v325.6c0,32.4 36.4,51.199 63.2,32.8l230.8,-162.8c22.4,-16 22.4,-49.6 0,-65.199l-230.8,-162.8c-26.8,-18.8 -63.2,0 -63.2,32.4Z",
+  sleep_timer:   "M466,138.4c10.8,-28.4 -14.4,-58 -44.8,-53.6c-220.8,32 -378.8,242.8 -333.6,475.2c31.199,160.8 163.6,288.4 325.6,314.8c149.6,24.4 286.4,-34.8 372.8,-137.6c19.199,-22.8 7.6,-59.2 -22,-64.8C523.2,626.4 376.8,370.8 466,138.4Z",
+  equalizer:     "M480,800c44,0 80,-36 80,-80L560,240c0,-44 -36,-80 -80,-80s-80,36 -80,80v480c0,44 36,80 80,80ZM240,800c44,0 80,-36 80,-80v-160c0,-44 -36,-80 -80,-80s-80,36 -80,80v160c0,44 36,80 80,80ZM640,440v280c0,44 36,80 80,80s80,-36 80,-80v-280c0,-44 -36,-80 -80,-80s-80,36 -80,80Z",
   /*
    * The phone's own navigation marks - the three shapes Android actually draws, not arrow icons.
    *
@@ -374,10 +400,13 @@ const ICON = {
    * triangle is therefore given the largest box and the square the smallest, which is the same
    * optical correction a type designer makes between a square and a round letter.
    */
+  close:         "M256,760L200,704L424,480L200,256L256,200L480,424L704,200L760,256L536,480L760,704L704,760L480,536L256,760Z",
+  queueMusic:    "M640,800Q590,800 555,765Q520,730 520,680Q520,630 555,595Q590,560 640,560Q651,560 661,561.5Q671,563 680,568L680,240L880,240L880,320L760,320L760,680Q760,730 725,765Q690,800 640,800ZM120,640L120,560L440,560L440,640L120,640ZM120,480L120,400L600,400L600,480L120,480ZM120,320L120,240L600,240L600,320L120,320Z",
+  expandLess:    "M451.6,348.4L268,532c-15.599,15.599 -15.599,40.8 0,56.399c15.599,15.599 40.8,15.599 56.399,0L480,433.2l155.2,155.2c15.599,15.599 40.8,15.599 56.399,0c15.599,-15.599 15.599,-40.8 0,-56.399L508,348.4c-15.2,-15.599 -40.8,-15.599 -56.399,0Z",
   navRecents:    "M290,290L670,290L670,670L290,670L290,290Z",
   navHome:       "M480,250A230,230 0 1,1 479.9,250Z",
   navBack:       "M320,480L700,270L700,690L320,480Z",
-  more:          "M480,800Q447,800 423.5,776.5Q400,753 400,720Q400,687 423.5,663.5Q447,640 480,640Q513,640 536.5,663.5Q560,687 560,720Q560,753 536.5,776.5Q513,800 480,800ZM480,560Q447,560 423.5,536.5Q400,513 400,480Q400,447 423.5,423.5Q447,400 480,400Q513,400 536.5,423.5Q560,447 560,480Q560,513 536.5,536.5Q513,560 480,560ZM480,320Q447,320 423.5,296.5Q400,273 400,240Q400,207 423.5,183.5Q447,160 480,160Q513,160 536.5,183.5Q560,207 560,240Q560,273 536.5,296.5Q513,320 480,320Z",
+  more:          "M480,320c44,0 80,-36 80,-80s-36,-80 -80,-80s-80,36 -80,80s36,80 80,80ZM480,400c-44,0 -80,36 -80,80s36,80 80,80s80,-36 80,-80s-36,-80 -80,-80ZM480,640c-44,0 -80,36 -80,80s36,80 80,80s80,-36 80,-80s-36,-80 -80,-80Z",
 };
 
 /** One renderer for every icon, so none of them can drift onto a different grid again. */
@@ -567,6 +596,134 @@ const PRESETS = {
 };
 
 let state = materialize(clone(PRESETS.default));
+
+/*
+ * Which player is being designed. The phone's is a tall stack or free placement inside the
+ * portrait player; the desktop's is free placement inside a landscape window. Each keeps its own
+ * design while the other is shown, and the file says which it is for ("platform") - each app only
+ * accepts its own, since the same percentages describe completely different shapes.
+ */
+let platform = "android";
+const savedByPlatform = { android: null, windows: null };
+function isWin() { return platform === "windows"; }
+
+/*
+ * The desktop player's geometry, in its own units (dp at 100% scaling), measured from the app:
+ * the strip the window buttons sit in, the player's side padding, and the queue bar along the
+ * bottom. Every percentage in a Windows layout is of the area inside these - exactly the area the
+ * desktop's free layout measures against - so a block lands in the window where it sits here.
+ */
+const WIN = { caption: 32, side: 28, queueBar: 44 };
+const WIN_ASPECTS = [
+  { label: "16:10", width: 1280, height: 800 },
+  { label: "16:9", width: 1600, height: 900 },
+  { label: "3:2", width: 1500, height: 1000 },
+  { label: "21:9", width: 2560, height: 1080 },
+];
+/** The desktop's own sizes, before its window scale: play 72, transport 52/30, actions 40/24. */
+const WIN_SIZES = { play: 72, playIcon: 36, transport: 52, transportIcon: 30, action: 40, actionIcon: 24 };
+function winScale(scr) { return clamp(scr.width / 1100, 1, 2.2); }
+
+/** A transport row like the desktop's: four equal boxes and the play button between, centred on cx. */
+function winControls(cx, cy, widthPct, scr) {
+  const areaW = scr.width - WIN.side * 2;
+  const play = WIN_SIZES.play * winScale(scr) / areaW * 100;
+  const gap = 8 / areaW * 100;
+  const box = (widthPct - play - gap * 2) / 4;
+  const left = cx - widthPct / 2;
+  const at = {
+    shuffle: left + box * 0.5,
+    skip_previous: left + box * 1.5,
+    play_pause: left + box * 2 + gap + play / 2,
+    skip_next: left + box * 2 + gap * 2 + play + box * 0.5,
+    repeat: left + box * 3 + gap * 2 + play + box * 0.5,
+  };
+  return CONTROL_MEMBERS.map(id => at[id] !== undefined
+    ? { id, visible: true, x: round1(at[id]), y: cy, w: round1(id === "play_pause" ? play : box) }
+    : { id, visible: false, x: cx, y: cy, w: 6 });
+}
+
+/** The action buttons in a row, as the desktop spaces them (7dp apart), starting at x0. */
+function winActions(x0, y, ids, scr, visible = true) {
+  const areaW = scr.width - WIN.side * 2;
+  const step = (WIN_SIZES.action * winScale(scr) + 7) / areaW * 100;
+  return ACTION_MEMBERS.map(id => {
+    const i = ids.indexOf(id);
+    return { id, visible: visible && i >= 0, x: round1(x0 + Math.max(i, 0) * step), y, w: round1(step) };
+  });
+}
+
+/** Windows starting points. "default" is the desktop player as it ships. */
+function winPreset(key, scr) {
+  const all = ["sleep_timer", "like", "equalizer", "menu"];
+  switch (key) {
+    case "centred": return [
+      { id: "artwork", visible: true, x: 50, y: 30, w: 26, radius: 16 },
+      { id: "info", visible: true, x: 50, y: 63, w: 56, align: "center" },
+      { id: "progress", visible: true, x: 50, y: 73, w: 50 },
+      ...winControls(50, 85, 44, scr),
+      ...winActions(80, 63, all, scr),
+      { id: "queue", visible: true },
+    ];
+    case "mirrored": return [
+      { id: "artwork", visible: true, x: 76, y: 50, w: 34, radius: 16 },
+      { id: "info", visible: true, x: 25, y: 38, w: 28 },
+      { id: "progress", visible: true, x: 30, y: 49, w: 42 },
+      ...winControls(30, 60, 42, scr),
+      ...winActions(41, 38, all, scr),
+      { id: "queue", visible: true },
+    ];
+    case "bigcover": return [
+      { id: "artwork", visible: true, x: 28, y: 50, w: 48, radius: 8 },
+      { id: "info", visible: true, x: 70, y: 36, w: 24 },
+      { id: "progress", visible: true, x: 75, y: 49, w: 36 },
+      ...winControls(75, 61, 36, scr),
+      ...winActions(84, 36, ["like", "menu"], scr),
+      { id: "queue", visible: true },
+    ];
+    case "minimal": return [
+      { id: "artwork", visible: false, x: 50, y: 30, w: 26, radius: 16 },
+      { id: "info", visible: true, x: 50, y: 36, w: 60, align: "center" },
+      { id: "progress", visible: true, x: 50, y: 50, w: 50 },
+      ...winControls(50, 63, 40, scr),
+      ...winActions(50, 80, ["like"], scr),
+      { id: "queue", visible: false },
+    ];
+    default: return [
+      { id: "artwork", visible: true, x: 22, y: 50, w: 34, radius: 16 },
+      { id: "info", visible: true, x: 62, y: 38, w: 24 },
+      { id: "progress", visible: true, x: 70, y: 49, w: 40 },
+      ...winControls(70, 60, 40, scr),
+      ...winActions(76.5, 38, all, scr),
+      { id: "queue", visible: true },
+    ];
+  }
+}
+
+function loadWinPreset(key) {
+  state = { mode: "free", spacing: 16, sidePadding: 24, blocks: winPreset(key, screen) };
+}
+
+function switchPlatform(next) {
+  if (next === platform) return;
+  savedByPlatform[platform] = { state, screen, navMode, previewAspect };
+  platform = next;
+  const back = savedByPlatform[next];
+  if (back) {
+    ({ state, screen, navMode, previewAspect } = back);
+  } else if (next === "windows") {
+    screen = { width: 1280, height: 800 };
+    previewAspect = null;
+    loadWinPreset("default");
+  } else {
+    screen = { width: 1080, height: 2400 };
+    previewAspect = null;
+    state = materialize(clone(PRESETS.default));
+  }
+  selected = null;
+  multiSelected.clear();
+  render();
+}
 let screen = { width: 1080, height: 2400 };
 
 /*
@@ -868,7 +1025,107 @@ function renderNav(heightPx, boxW) {
   }
 }
 
+/*
+ * The Windows preview: a landscape window drawn the way OuterTune's desktop player draws itself -
+ * its own caption buttons at the top right, the close button top left, the queue bar along the
+ * bottom - and every block at the desktop's real sizes for that window, converted to the preview's
+ * scale. The same numbers the app uses, so what is placed here is where it lands there.
+ */
+function renderWindowsPreview() {
+  const scr = activeScreen();
+  const phone = document.getElementById("phone");
+  const surface = document.getElementById("surface");
+  phone.classList.add("window");
+  const boxW = 660;
+  const boxH = Math.round(boxW * scr.height / scr.width);
+  phone.style.width = boxW + "px";
+  phone.style.height = boxH + "px";
+  phone.querySelectorAll(".nav, .wincap, .winclose, .winqueue").forEach(n => n.remove());
+
+  const f = boxW / scr.width;            // preview px per desktop dp
+  const k = winScale(scr);               // the desktop's own window scale
+  const top = WIN.caption * f, side = WIN.side * f, bottom = WIN.queueBar * f;
+  Object.assign(surface.style, { top: top + "px", left: side + "px", right: side + "px", bottom: bottom + "px", padding: "0", gap: "0" });
+  const areaW = boxW - side * 2, areaH = boxH - top - bottom;
+
+  const cap = document.createElement("div");
+  cap.className = "wincap";
+  cap.style.height = top + "px";
+  cap.innerHTML = ["M200,520L200,440L760,440L760,520L200,520Z", "M240,720L240,240L720,240L720,720L240,720ZM300,660L660,660L660,300L300,300L300,660Z", ICON.close]
+    .map(d => `<span style="width:${46 * f}px;height:${top}px">${svg(d, Math.max(8, 14 * f), "#ffffff")}</span>`).join("");
+  phone.appendChild(cap);
+  const close = document.createElement("div");
+  close.className = "winclose";
+  Object.assign(close.style, { left: side + "px", top: top + "px", width: 52 * k * f + "px", height: 52 * k * f + "px" });
+  close.innerHTML = svg(ICON.close, 30 * k * f, "#ffffff");
+  phone.appendChild(close);
+  const queueVisible = (state.blocks.find(b => b.id === "queue") || {}).visible !== false;
+  if (queueVisible) {
+    const q = document.createElement("div");
+    q.className = "winqueue";
+    Object.assign(q.style, { height: bottom + "px", paddingRight: side + "px", fontSize: Math.max(8, 13 * f) + "px" });
+    q.innerHTML = `<span>Queue</span>${svg(ICON.expandLess, Math.max(8, 16 * f), "#d6d6e0").replace("<svg", '<svg style="transform:rotate(-90deg)"')}`;
+    phone.appendChild(q);
+  }
+
+  surface.className = "surface free";
+  surface.innerHTML = "";
+  for (const b of state.blocks) {
+    if (b.id === "queue") continue;
+    const node = document.createElement("div");
+    const isSel = selected === b.id;
+    node.className = "blk" + (b.visible ? "" : " hidden") + (isSel ? " sel" : "") + (multiSelected.has(b.id) ? " multisel" : "");
+    node.dataset.id = b.id;
+    const w = get(b, "w");
+    const s = get(b, "scale") / 100;
+    node.style.left = get(b, "x") + "%";
+    node.style.top = get(b, "y") + "%";
+    node.style.transform = `translate(-50%, -50%) rotate(${get(b, "rot")}deg) scale(${s})`;
+    const wPx = areaW * w / 100;
+    if (b.id === "artwork") {
+      const sidePx = Math.min(wPx, areaH);
+      const r = get(b, "radius") * k * f;
+      node.style.width = sidePx + "px";
+      node.innerHTML = `<div class="art" style="width:${sidePx}px;height:${sidePx}px;border-radius:${r}px">${svg(ICON.note, Math.max(18, sidePx * 0.26), "#cfcfe0")}</div>`;
+    } else if (b.id === "info") {
+      node.style.width = wPx + "px";
+      const centred = get(b, "align") === "center";
+      node.innerHTML = `<div class="info" style="text-align:${centred ? "center" : "left"}">
+        <div class="t" style="font-size:${28 * k * f}px;line-height:1.15">Track title</div>
+        <div class="a" style="font-size:${16 * k * f}px">Artist name</div></div>`;
+    } else if (b.id === "progress") {
+      node.style.width = wPx + "px";
+      node.innerHTML = `<div class="winbar" style="height:${Math.max(2, 4 * f)}px"><i></i></div>
+        <div class="times" style="font-size:${Math.max(7, 12 * f)}px;display:flex;justify-content:space-between;color:#e6e6ee"><span>1:12</span><span>3:45</span></div>`;
+    } else if (b.id === "play_pause") {
+      const box = WIN_SIZES.play * k * f;
+      node.innerHTML = `<div class="b winplay" style="width:${box}px;height:${box}px;border-radius:${box * 0.28}px">${svg(ICON.pause, WIN_SIZES.playIcon * k * f, "#111111")}</div>`;
+    } else if (ACTION_MEMBERS.includes(b.id)) {
+      const box = WIN_SIZES.action * k * f;
+      const icon = { sleep_timer: ICON.sleep_timer, like: ICON.heart, equalizer: ICON.equalizer, menu: ICON.more }[b.id];
+      node.innerHTML = `<div class="b disc" style="width:${box}px;height:${box}px">${svg(icon, WIN_SIZES.actionIcon * k * f, "#1d1430")}</div>`;
+    } else {
+      const box = WIN_SIZES.transport * k * f;
+      const icon = MEMBER_ROLE[b.id] ? ICON[MEMBER_ROLE[b.id].icon] : ICON.note;
+      node.innerHTML = `<div class="ico" style="width:${box}px;height:${box}px;opacity:1">${svg(icon, WIN_SIZES.transportIcon * k * f, "#ffffff")}</div>`;
+    }
+    node.appendChild(Object.assign(document.createElement("div"), { className: "handle" }));
+    attachDrag(node, b, areaW, areaH);
+    surface.appendChild(node);
+  }
+
+  const note = document.getElementById("stageNote");
+  note.textContent = previewAspect
+    ? `Previewing a ${previewAspect.label} window (${previewAspect.width}×${previewAspect.height}). Your layout is unchanged.`
+    : `Previewing a ${scr.width}×${scr.height} window. Positions are percentages of the player area, so the layout follows the window as it is resized.`;
+  note.style.color = "var(--ink-dim)";
+}
+
 function renderPreview() {
+  if (isWin()) { renderWindowsPreview(); return; }
+  document.getElementById("phone").classList.remove("window");
+  document.getElementById("phone").querySelectorAll(".wincap, .winclose, .winqueue").forEach(n => n.remove());
+  Object.assign(document.getElementById("surface").style, { top: "", left: "", right: "" });
   const scr = activeScreen();
   const phone = document.getElementById("phone");
   const surface = document.getElementById("surface");
@@ -1350,8 +1607,28 @@ function queueJson() {
 
 function toJson() {
   const free = state.mode === "free";
+  if (isWin()) {
+    return {
+      schemaVersion: SCHEMA_VERSION,
+      platform: "windows",
+      orientation: "landscape",
+      mode: "free",
+      anchor: "center",
+      designedFor: { width: screen.width, height: screen.height },
+      blocks: state.blocks.map(b => {
+        const out = { id: b.id, visible: !!b.visible };
+        if (b.id !== "queue") { out.x = get(b, "x"); out.y = get(b, "y"); out.w = get(b, "w"); }
+        if (b.id === "artwork") out.radius = get(b, "radius");
+        if (b.id === "info") out.align = get(b, "align");
+        if (b.id !== "queue" && b.id !== "artwork") out.scale = get(b, "scale");
+        if (get(b, "rot")) out.rot = get(b, "rot");
+        return out;
+      }),
+    };
+  }
   return {
     schemaVersion: SCHEMA_VERSION,
+    platform: "android",
     orientation: "portrait",
     mode: state.mode,
     anchor: "center",
@@ -1387,6 +1664,24 @@ function importJson(text) {
   try { parsed = JSON.parse(text); } catch (e) { return "That is not valid JSON."; }
   if (!parsed || !Array.isArray(parsed.blocks)) return "No blocks found in that file.";
   if (parsed.schemaVersion > SCHEMA_VERSION) return "That file is from a newer editor (v" + parsed.schemaVersion + ").";
+  const filePlatform = parsed.platform === "windows" ? "windows" : "android";
+  if (filePlatform !== platform) switchPlatform(filePlatform);
+  if (filePlatform === "windows") {
+    const blocks = [];
+    const seen = new Set();
+    for (const b of parsed.blocks) {
+      if (defOf(b.id) && !seen.has(b.id)) { seen.add(b.id); blocks.push(clone(b)); }
+    }
+    const base = winPreset("default", screen);
+    for (const d of base) if (!seen.has(d.id)) blocks.push(d);
+    state = { mode: "free", spacing: 16, sidePadding: 24, blocks };
+    if (parsed.designedFor) {
+      screen = { width: clampNum(parsed.designedFor.width, 640, 7680, 1280), height: clampNum(parsed.designedFor.height, 400, 4320, 800) };
+    }
+    selected = null; multiSelected.clear(); previewAspect = null;
+    render();
+    return null;
+  }
 
   const incoming = expandLegacy(parsed.blocks.map(clone));
   const seen = new Set();
@@ -1446,11 +1741,11 @@ function renderAspects() {
   const wrap = document.getElementById("aspects");
   wrap.innerHTML = "";
   const mine = document.createElement("button");
-  mine.textContent = "My screen";
+  mine.textContent = isWin() ? "My window" : "My screen";
   mine.className = previewAspect ? "" : "on";
   mine.onclick = () => { previewAspect = null; render(); };
   wrap.appendChild(mine);
-  for (const a of ASPECTS) {
+  for (const a of (isWin() ? WIN_ASPECTS : ASPECTS)) {
     const btn = document.createElement("button");
     btn.textContent = a.label;
     btn.className = previewAspect && previewAspect.label === a.label ? "on" : "";
@@ -1460,6 +1755,20 @@ function renderAspects() {
 }
 
 function syncControls() {
+  const win = isWin();
+  document.querySelectorAll("[data-platform]").forEach(b => { b.className = b.dataset.platform === platform ? "on" : ""; });
+  document.getElementById("modeCard").style.display = win ? "none" : "";
+  document.getElementById("winPresets").style.display = win ? "" : "none";
+  document.getElementById("phonePresets").style.display = win ? "none" : "";
+  document.getElementById("navRow").style.display = win ? "none" : "";
+  document.getElementById("screenTitle").textContent = win ? "Your window" : "Your screen";
+  document.getElementById("headerSub").textContent = win
+    ? "The Windows player \u00b7 free placement in the window"
+    : "Portrait player only \u00b7 landscape and tablet keep the built-in layout";
+  document.getElementById("fileName").textContent = win ? "player-layout-windows.json" : "player-layout.json";
+  document.getElementById("importNote").innerHTML = win
+    ? "In the Windows app: Settings &rarr; Player and audio &rarr; Player layout &rarr; Import."
+    : "In the app: Settings &rarr; Appearance &rarr; Player layout &rarr; Import.";
   document.getElementById("nav").value = navMode;
   document.getElementById("sw").value = screen.width;
   document.getElementById("sh").value = screen.height;
@@ -1467,7 +1776,7 @@ function syncControls() {
   document.getElementById("pad").value = state.sidePadding;
   document.getElementById("gapOut").textContent = state.spacing + "dp";
   document.getElementById("padOut").textContent = state.sidePadding + "dp";
-  document.getElementById("globalCard").style.display = state.mode === "stack" ? "" : "none";
+  document.getElementById("globalCard").style.display = !win && state.mode === "stack" ? "" : "none";
   document.querySelectorAll("[data-mode]").forEach(b => {
     b.className = b.dataset.mode === state.mode ? "on" : "";
   });
@@ -1553,10 +1862,11 @@ document.getElementById("download").onclick = () => {
   const blob = new Blob([JSON.stringify(toJson(), null, 2)], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "player-layout.json";
+  const name = isWin() ? "player-layout-windows.json" : "player-layout.json";
+  a.download = name;
   a.click();
   URL.revokeObjectURL(a.href);
-  toast("Saved player-layout.json");
+  toast("Saved " + name);
 };
 
 document.getElementById("copy").onclick = async () => {
@@ -1574,6 +1884,22 @@ document.getElementById("paste").onclick = () => {
   const err = importJson(document.getElementById("json").value);
   toast(err || "Imported.", !!err);
 };
+
+document.querySelectorAll("[data-platform]").forEach(btn => {
+  btn.onclick = () => switchPlatform(btn.dataset.platform);
+});
+document.querySelectorAll("[data-winpreset]").forEach(btn => {
+  btn.onclick = () => {
+    loadWinPreset(btn.dataset.winpreset);
+    selected = null;
+    multiSelected.clear();
+    render();
+    toast("Loaded the " + btn.textContent.toLowerCase() + " preset.");
+  };
+});
+
+// Opened from the Windows app (Settings > Player layout > Open editor): start on Windows.
+if (location.hash === "#windows" || window.OT_PLATFORM === "windows") switchPlatform("windows");
 
 render();
 </script>
