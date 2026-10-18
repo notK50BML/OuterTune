@@ -8,11 +8,8 @@ package com.dd3boh.outertune.desktop
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -20,6 +17,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
@@ -56,12 +54,8 @@ data class PlayerActions(
 }
 
 /**
- * The overflow menu, as a text list rather than the icon grid the phone uses.
- *
- * A grid of labelled icons is right on a touch screen, where the target has to be thumb-sized and
- * there is no pointer to aim. On a desktop the same list is a dropdown of plain text, which is what
- * every other application here does and what the right mouse button already trains people to expect.
- * Keeping the phone's grid would have meant inventing eight glyphs to say things a word says better.
+ * The player's overflow menu: the same animated panel of tiles as a song row's ⋮ - the phone's
+ * menu, opening out of the button below it, or above when the button is low in the window.
  */
 @Composable
 fun PlayerOverflowMenu(
@@ -81,33 +75,28 @@ fun PlayerOverflowMenu(
                 modifier = Modifier.size(iconSize),
             )
         }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            @Composable
-            fun item(label: String, action: (() -> Unit)?) {
-                if (action == null) return
-                DropdownMenuItem(
-                    text = { Text(label) },
-                    onClick = {
-                        open = false
-                        action()
-                    },
+        if (open) {
+            val tiles = buildList {
+                fun tile(label: String, icon: ImageVector, action: (() -> Unit)?) {
+                    if (action != null) add(MenuTile(label, icon, onClick = action))
+                }
+                tile("Start radio", OuterTuneIcons.radio, actions.onStartRadio)
+                tile("Add to queue", OuterTuneIcons.queueMusic, actions.onAddToQueue)
+                tile("Add to playlist", OuterTuneIcons.playlistAdd, actions.onAddToPlaylist)
+                tile("Download", OuterTuneIcons.download, actions.onDownload)
+                tile(
+                    if (actions.inLibrary) "Remove from library" else "Add to library",
+                    if (actions.inLibrary) OuterTuneIcons.libraryAddCheck else OuterTuneIcons.libraryAdd,
+                    actions.onToggleLibrary,
                 )
+                tile("View artist", OuterTuneIcons.person, actions.onViewArtist)
+                tile("View album", OuterTuneIcons.album, actions.onViewAlbum)
+                tile("Share", OuterTuneIcons.share, actions.onShare)
+                tile("Lyrics", OuterTuneIcons.lyrics, actions.onToggleLyrics)
+                tile("Details", OuterTuneIcons.info, actions.onDetails)
+                tile("Equaliser", OuterTuneIcons.equalizer, actions.onEqualizer)
             }
-
-            item("Start radio", actions.onStartRadio)
-            item("Add to queue", actions.onAddToQueue)
-            item("Add to playlist", actions.onAddToPlaylist)
-            item("Download", actions.onDownload)
-            item(
-                if (actions.inLibrary) "Remove from library" else "Add to library",
-                actions.onToggleLibrary,
-            )
-            item("View artist", actions.onViewArtist)
-            item("View album", actions.onViewAlbum)
-            item("Share", actions.onShare)
-            item("Toggle lyrics", actions.onToggleLyrics)
-            item("Details", actions.onDetails)
-            item("Equaliser", actions.onEqualizer)
+            MenuPanel(tiles = tiles, onDismiss = { open = false })
         }
     }
 }

@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -288,6 +290,13 @@ internal fun App(
     var searching by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var searchFocused by remember { mutableStateOf(false) }
+    // Whether the suggestions are open. Not the same as the box having focus: clicking anything in
+    // the panel takes focus off the box, and closing on that shut the panel before the click
+    // landed. Opened by focusing or typing; closed by Escape, a search, opening a result, or a
+    // click anywhere outside the box and its panel.
+    var searchOpen by remember { mutableStateOf(false) }
+    var searchArea by remember { mutableStateOf<androidx.compose.ui.geometry.Rect?>(null) }
+    var contentCoords by remember { mutableStateOf<androidx.compose.ui.layout.LayoutCoordinates?>(null) }
     var showFullPlayer by remember { mutableStateOf(false) }
     // A playlist or album downloading in the background - see BatchDownload.
     var batch by remember { mutableStateOf<BatchDownload?>(null) }
@@ -597,6 +606,7 @@ internal fun App(
         val text = query.trim()
         if (text.isEmpty()) return
         error = null
+        searchOpen = false
         searchedFor = text
         // A search is a place of its own: anything opened over the last one is left.
         openArtist = null
@@ -960,7 +970,24 @@ internal fun App(
         // Content and queue share the space above the player bar; the bar owns the bottom edge and
         // is always there. The rail down the left is the phone's landscape layout - the same
         // sections, in the same order, as a NavigationRail rather than a row of text buttons.
-        Row(modifier = Modifier.weight(1f).fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .onGloballyPositioned { contentCoords = it }
+                .pointerInput(Unit) {
+                    // Watches presses on their way down without consuming them, to close the
+                    // suggestions on a click outside - the click itself still does what it does.
+                    awaitPointerEventScope {
+                        while (true) {
+                            val event = awaitPointerEvent(androidx.compose.ui.input.pointer.PointerEventPass.Initial)
+                            if (event.type != androidx.compose.ui.input.pointer.PointerEventType.Press || !searchOpen) continue
+                            val at = contentCoords?.localToRoot(event.changes.first().position) ?: continue
+                            if (searchArea?.contains(at) != true) searchOpen = false
+                        }
+                    }
+                },
+        ) {
             NavRail(
                 selected = tab, tabs = NavTab.decode(settings.tabs),
                 onSelect = { next ->
@@ -984,12 +1011,13 @@ internal fun App(
                     .weight(2f)
                     .padding(start = 20.dp, end = 20.dp, top = 16.dp + LocalCaptionInset.current, bottom = 16.dp),
             ) {
-                if (tab != NavTab.Settings) {
+                if (tab != NavTab.Settings) Column(modifier = Modifier.onGloballyPositioned { searchArea = it.boundsInRoot() }) {
                     SearchBar(
                         focusRequest = focusSearch,
                         query = query,
                         onQueryChange = {
                             query = it
+                            searchOpen = true
                             // Clearing the box is leaving the search, as on the phone.
                             if (it.isBlank()) {
                                 searchedFor = null
@@ -997,10 +1025,14 @@ internal fun App(
                             }
                         },
                         onSearch = ::search,
-                        onFocusChange = { searchFocused = it },
+                        onFocusChange = {
+                            searchFocused = it
+                            if (it) searchOpen = true
+                        },
+                        onEscape = { searchOpen = false },
                         searching = searching,
                     )
-                    if (searchFocused && query.trim() != searchedFor) {
+                    if (searchOpen && query.trim() != searchedFor) {
                         SearchSuggestionsPanel(
                             query = query,
                             history = settings.searchHistory.lines().filter { it.isNotBlank() },
@@ -1012,6 +1044,7 @@ internal fun App(
                                 settings.searchHistory = settings.searchHistory.lines().filter { it != gone }.joinToString("\n")
                             },
                             onOpenItem = { item ->
+                                searchOpen = false
                                 when (item) {
                                     is SongItem -> playerQueue.play(listOf(item), 0, item.title)
                                     is AlbumItem -> openAlbumPage(item.browseId)
@@ -1385,6 +1418,7 @@ private fun SearchBar(
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onFocusChange: (Boolean) -> Unit,
+    onEscape: () -> Unit = {},
     searching: Boolean,
 ) {
     val focus = remember { FocusRequester() }
@@ -1424,6 +1458,9 @@ private fun SearchBar(
         modifier = Modifier
             .focusRequester(focus)
             .fillMaxWidth()
+            .onPreviewKeyEvent {
+                if (it.key == Key.Escape && it.type == KeyEventType.KeyDown) { onEscape(); true } else false
+            }
             .onFocusChanged { onFocusChange(it.isFocused) },
     )
 }

@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntRect
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -125,21 +129,51 @@ private fun runRowButton(button: RowButton, song: SongItem, actions: SongActions
     RowButton.SHARE -> actions.copyLink(song)
 }
 
+/** One option in a [MenuPanel]: a round icon over its label. Disabled ones stay, dimmed. */
+data class MenuTile(val label: String, val icon: ImageVector, val enabled: Boolean = true, val onClick: () -> Unit)
+
 /**
- * The phone's song menu as a desktop panel: the song at the top - cover, title, artist, a heart -
- * and every option underneath as a tile, in a rounded container that grows out of where it was
- * opened from and folds back into it.
+ * Where a menu panel opens: from the bottom-right of its button and growing down when there is
+ * room below, otherwise above it and growing up - the player's buttons can sit anywhere a layout
+ * puts them. [below] is reported back so the animation grows out of the right corner.
+ */
+private class MenuPositionProvider(
+    private val atPointer: IntOffset?,
+    private val onPlaced: (below: Boolean) -> Unit,
+) : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val origin = atPointer?.let { anchorBounds.topLeft + it }
+        val x = if (origin != null) origin.x else anchorBounds.right - popupContentSize.width
+        val belowY = origin?.y ?: anchorBounds.bottom
+        val below = belowY + popupContentSize.height <= windowSize.height
+        val y = if (below) belowY else (origin?.y ?: anchorBounds.top) - popupContentSize.height
+        onPlaced(below)
+        return IntOffset(
+            x.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0)),
+            y.coerceIn(0, (windowSize.height - popupContentSize.height).coerceAtLeast(0)),
+        )
+    }
+}
+
+/**
+ * The phone's menu as a desktop panel: an optional header, then every option as a tile, in a
+ * rounded container that grows out of where it was opened from and folds back into it.
  *
- * @param anchorEnd opens leftwards from the ⋮ at a row's end; otherwise downwards from the pointer.
+ * @param atPointer opens at this point inside the anchor (a right-click); otherwise from the
+ *   anchor's end, below or above it.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun SongMenuPanel(
-    song: SongItem,
-    actions: SongActions,
-    anchorEnd: Boolean,
-    offset: IntOffset = IntOffset.Zero,
+fun MenuPanel(
+    tiles: List<MenuTile>,
     onDismiss: () -> Unit,
+    atPointer: IntOffset? = null,
+    header: (@Composable (close: () -> Unit) -> Unit)? = null,
 ) {
     val shown = remember { MutableTransitionState(false) }
     LaunchedEffect(Unit) { shown.targetState = true }
@@ -148,25 +182,22 @@ fun SongMenuPanel(
         if (!shown.targetState && !shown.currentState) onDismiss()
     }
     val close = { shown.targetState = false }
+    var below by remember { mutableStateOf(true) }
+    val origin = when {
+        atPointer != null -> TransformOrigin(0f, if (below) 0f else 1f)
+        else -> TransformOrigin(1f, if (below) 0f else 1f)
+    }
 
     Popup(
-        alignment = if (anchorEnd) Alignment.TopEnd else Alignment.TopStart,
-        offset = offset,
+        popupPositionProvider = remember(atPointer) { MenuPositionProvider(atPointer) { below = it } },
         onDismissRequest = close,
         properties = PopupProperties(focusable = true),
     ) {
         AnimatedVisibility(
             visibleState = shown,
-            enter = scaleIn(
-                tween(180, easing = FastOutSlowInEasing),
-                initialScale = 0.6f,
-                transformOrigin = if (anchorEnd) TransformOrigin(1f, 0f) else TransformOrigin(0f, 0f),
-            ) + fadeIn(tween(140)),
-            exit = scaleOut(
-                tween(130),
-                targetScale = 0.7f,
-                transformOrigin = if (anchorEnd) TransformOrigin(1f, 0f) else TransformOrigin(0f, 0f),
-            ) + fadeOut(tween(110)),
+            enter = scaleIn(tween(180, easing = FastOutSlowInEasing), initialScale = 0.6f, transformOrigin = origin) +
+                fadeIn(tween(140)),
+            exit = scaleOut(tween(130), targetScale = 0.7f, transformOrigin = origin) + fadeOut(tween(110)),
         ) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
@@ -176,80 +207,101 @@ fun SongMenuPanel(
                 modifier = Modifier.width(340.dp),
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    // The song, as the phone's menu heads itself.
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
-                        Artwork(song.thumbnail, size = 48.dp, cornerRadius = 8.dp)
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(song.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text(
-                                song.artists.joinToString { it.name }.ifBlank { "Unknown artist" },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                        }
-                        val liked = actions.isLiked(song.id)
-                        IconButton(onClick = { actions.toggleLike(song) }) {
-                            Icon(
-                                if (liked) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder,
-                                contentDescription = if (liked) "Unlike" else "Like",
-                                tint = if (liked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                    if (header != null) {
+                        header(close)
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                         maxItemsInEachRow = 3,
                     ) {
-                        @Composable
-                        fun tile(label: String, icon: ImageVector, enabled: Boolean = true, onClick: () -> Unit) {
+                        for (tile in tiles) {
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 modifier = Modifier
                                     .width(102.dp)
                                     .clip(RoundedCornerShape(16.dp))
-                                    .clickable(enabled = enabled) { onClick(); close() }
+                                    .clickable(enabled = tile.enabled) { tile.onClick(); close() }
                                     .padding(vertical = 10.dp, horizontal = 4.dp),
                             ) {
                                 Box(
                                     contentAlignment = Alignment.Center,
                                     modifier = Modifier.size(36.dp).clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (enabled) 1f else 0.4f)),
+                                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (tile.enabled) 1f else 0.4f)),
                                 ) {
-                                    Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                                    Icon(tile.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
                                 }
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    label,
+                                    tile.label,
                                     style = MaterialTheme.typography.labelMedium,
                                     textAlign = TextAlign.Center,
                                     maxLines = 2,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (enabled) 1f else 0.4f),
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (tile.enabled) 1f else 0.4f),
                                 )
                             }
-                        }
-                        tile("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) }
-                        tile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) }
-                        tile("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) }
-                        tile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) }
-                        tile(if (actions.isDownloaded(song.id)) "Remove download" else "Download", OuterTuneIcons.download) {
-                            actions.toggleDownload(song)
-                        }
-                        tile("Copy link", OuterTuneIcons.share) { actions.copyLink(song) }
-                        val artist = song.artists.firstOrNull()
-                        tile("Go to artist", OuterTuneIcons.person, enabled = artist != null) {
-                            artist?.let { actions.openArtist(it.id?.let { id -> StoredArtist(id, it.name) } ?: StoredArtist.unlinked(it.name)) }
-                        }
-                        tile("Go to album", OuterTuneIcons.album, enabled = song.album?.id != null) {
-                            song.album?.id?.let(actions.openAlbum)
                         }
                     }
                 }
             }
         }
     }
+}
+
+/** A song's menu: the song at the top - cover, title, artist, a heart - and every option under it. */
+@Composable
+fun SongMenuPanel(
+    song: SongItem,
+    actions: SongActions,
+    anchorEnd: Boolean,
+    offset: IntOffset = IntOffset.Zero,
+    onDismiss: () -> Unit,
+) {
+    val artist = song.artists.firstOrNull()
+    MenuPanel(
+        onDismiss = onDismiss,
+        atPointer = if (anchorEnd) null else offset,
+        tiles = listOf(
+            MenuTile("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) },
+            MenuTile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) },
+            MenuTile("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) },
+            MenuTile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) },
+            MenuTile(if (actions.isDownloaded(song.id)) "Remove download" else "Download", OuterTuneIcons.download) {
+                actions.toggleDownload(song)
+            },
+            MenuTile("Copy link", OuterTuneIcons.share) { actions.copyLink(song) },
+            MenuTile("Go to artist", OuterTuneIcons.person, enabled = artist != null) {
+                artist?.let { actions.openArtist(it.id?.let { id -> StoredArtist(id, it.name) } ?: StoredArtist.unlinked(it.name)) }
+            },
+            MenuTile("Go to album", OuterTuneIcons.album, enabled = song.album?.id != null) {
+                song.album?.id?.let(actions.openAlbum)
+            },
+        ),
+        header = {
+            // The song, as the phone's menu heads itself.
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(4.dp)) {
+                Artwork(song.thumbnail, size = 48.dp, cornerRadius = 8.dp)
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(song.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        song.artists.joinToString { it.name }.ifBlank { "Unknown artist" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                val liked = actions.isLiked(song.id)
+                IconButton(onClick = { actions.toggleLike(song) }) {
+                    Icon(
+                        if (liked) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder,
+                        contentDescription = if (liked) "Unlike" else "Like",
+                        tint = if (liked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
+    )
 }
