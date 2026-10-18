@@ -6,6 +6,18 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlin.math.sin
+import kotlin.math.PI
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.Animatable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.wrapContentWidth
@@ -149,6 +161,7 @@ fun NowPlayingScreen(
     sleepRemainingMs: Long? = null,
     onSleepTimer: (() -> Unit)? = null,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
+    seekBarStyle: SeekBarStyle = SeekBarStyle.Squiggly,
     colourByValue: Boolean = true,
     onDownload: (() -> Unit)? = null,
     equalizer: Equalizer? = null,
@@ -437,6 +450,8 @@ fun NowPlayingScreen(
                         durationMs = durationMs,
                         colour = onBackground,
                         onSeek = onSeek,
+                        style = seekBarStyle,
+                        playing = playback is PlaybackState.Playing,
                     )
                     Row(
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -663,16 +678,38 @@ private fun SlimSeekBar(
     durationMs: Long,
     colour: Color,
     onSeek: (Long) -> Unit,
+    style: SeekBarStyle = SeekBarStyle.Squiggly,
+    playing: Boolean = false,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     var dragFraction by remember { mutableStateOf<Float?>(null) }
-    val thickness by animateDpAsState(if (hovered || dragFraction != null) 7.dp else 4.dp)
-    val played = dragFraction ?: (positionMs().toFloat() / durationMs).coerceIn(0f, 1f)
+    val active = hovered || dragFraction != null
+    val thickness by animateDpAsState(
+        when (style) {
+            SeekBarStyle.Slim -> if (active) 7.dp else 4.dp
+            SeekBarStyle.Default -> if (active) 12.dp else 9.dp
+            SeekBarStyle.Squiggly -> if (active) 6.dp else 4.dp
+        }
+    )
     val currentDuration by androidx.compose.runtime.rememberUpdatedState(durationMs)
 
-    Box(
-        contentAlignment = Alignment.CenterStart,
+    // The phone's squiggle: the played part waves while the song plays, and flattens out when it
+    // is paused or being dragged - a wave under the pointer would make the target hard to read.
+    val waving = style == SeekBarStyle.Squiggly && playing && dragFraction == null
+    val amplitude by animateDpAsState(if (waving) 3.dp else 0.dp, animationSpec = tween(300))
+    val phase = remember { Animatable(0f) }
+    LaunchedEffect(waving) {
+        if (waving) {
+            phase.snapTo(0f)
+            phase.animateTo(
+                (2 * PI).toFloat(),
+                infiniteRepeatable(tween(2500, easing = LinearEasing), androidx.compose.animation.core.RepeatMode.Restart),
+            )
+        }
+    }
+
+    Canvas(
         modifier = Modifier
             .fillMaxWidth()
             .height(24.dp)
@@ -697,20 +734,38 @@ private fun SlimSeekBar(
                 }
             },
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(thickness)
-                .clip(CircleShape)
-                .background(colour.copy(alpha = 0.22f)),
-        )
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(played)
-                .height(thickness)
-                .clip(CircleShape)
-                .background(colour),
-        )
+        // Position read here, in drawing, so a playback tick redraws the bar and recomposes nothing.
+        val played = dragFraction
+            ?: if (currentDuration > 0) (positionMs().toFloat() / currentDuration).coerceIn(0f, 1f) else 0f
+        val stroke = thickness.toPx()
+        val y = size.height / 2
+        val left = stroke / 2
+        val right = size.width - stroke / 2
+        val end = left + (right - left) * played
+        val amp = amplitude.toPx()
+        if (amp < 0.5f) {
+            drawLine(colour.copy(alpha = 0.22f), Offset(end, y), Offset(right, y), stroke, StrokeCap.Round)
+            drawLine(colour, Offset(left, y), Offset(end, y), stroke, StrokeCap.Round)
+            return@Canvas
+        }
+        // Waving: the rest of the track starts a little past the wave so its round end does not
+        // show beside the wave's off-centre tip.
+        val gap = 3.dp.toPx()
+        if (end + gap < right) {
+            drawLine(colour.copy(alpha = 0.22f), Offset(end + gap, y), Offset(right, y), stroke, StrokeCap.Round)
+        }
+        val wavelength = 36.dp.toPx()
+        val step = wavelength / 12
+        val path = Path().apply {
+            moveTo(left, y + amp * sin(phase.value))
+            var x = step
+            while (left + x <= end) {
+                lineTo(left + x, y + amp * sin((2 * PI).toFloat() * x / wavelength + phase.value))
+                x += step
+            }
+            lineTo(end, y + amp * sin((2 * PI).toFloat() * (end - left) / wavelength + phase.value))
+        }
+        drawPath(path, colour, style = Stroke(width = stroke, cap = StrokeCap.Round, join = StrokeJoin.Round))
     }
 }
 

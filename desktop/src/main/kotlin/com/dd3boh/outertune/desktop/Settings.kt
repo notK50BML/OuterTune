@@ -155,6 +155,9 @@ class Settings(private val store: SettingsStore) {
     /** How the player's background is drawn behind the cover's colours. */
     var background by enum("ui.background", BackgroundStyle.Gradient, BackgroundStyle.entries)
 
+    /** The player's seek bar - the phone's three styles, squiggly being its default too. */
+    var sliderStyle by enum("ui.sliderStyle", SeekBarStyle.Squiggly, SeekBarStyle.entries)
+
     /**
      * The typeface the whole app is set in, by family name as the system knows it. Empty is the
      * built-in default. Any font installed on the machine can be chosen - see [SystemFonts].
@@ -359,3 +362,10 @@ enum class BackgroundStyle(val label: String, val description: String) {
 }
 
 enum class LyricsAlignment(val label: String) { Centre("Centred"), Left("Left") }
+
+/** The player's seek bar, as on the phone. */
+enum class SeekBarStyle(val label: String, val description: String) {
+    Squiggly("Squiggly", "A gentle wave that moves while the song plays"),
+    Default("Default", "A thick rounded bar"),
+    Slim("Slim", "A thin rounded line"),
+}

@@ -136,6 +136,7 @@ object Profiles {
                 put("themeMode", s.themeMode.name.lowercase())
                 put("pureBlack", s.pureBlack)
                 put("dynamicTheme", s.dynamicTheme)
+                put("sliderStyle", s.sliderStyle.name.lowercase())
             }
             Category.Player -> {
                 put("buttons", s.playerButtons)
@@ -200,6 +201,7 @@ object Profiles {
                 str("themeMode") { v -> ThemeMode.entries.firstOrNull { it.name.equals(v, true) }?.let { s.themeMode = it } }
                 bool("pureBlack") { s.pureBlack = it }
                 bool("dynamicTheme") { s.dynamicTheme = it }
+                str("sliderStyle") { v -> SeekBarStyle.entries.firstOrNull { it.name.equals(v, true) }?.let { s.sliderStyle = it } }
             }
             Category.Player -> {
                 str("buttons") { s.playerButtons = PlayerButtonKind.encode(PlayerButtonKind.decode(it)) }

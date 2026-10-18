@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.utils
 
+import com.dd3boh.outertune.constants.SliderStyleKey
 import androidx.annotation.StringRes
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.MutablePreferences
@@ -205,6 +206,7 @@ object SettingsProfiles {
                 put("themeMode", when (p[DarkModeKey]) { "ON" -> "dark"; "OFF" -> "light"; else -> "system" })
                 put("pureBlack", p[PureBlackKey] ?: false)
                 put("dynamicTheme", p[DynamicThemeKey] ?: true)
+                put("sliderStyle", (p[SliderStyleKey] ?: "SQUIGGLY").lowercase())
                 val custom = p[CustomThemeKey] ?: false
                 put("accentColor", if (custom) p[CustomThemeColorKey]?.let { String.format("#%06X", 0xFFFFFF and it) } else JSONObject.NULL)
             }
@@ -270,6 +272,7 @@ object SettingsProfiles {
                 str("themeMode") { p[DarkModeKey] = when (it) { "dark" -> "ON"; "light" -> "OFF"; else -> "AUTO" } }
                 bool("pureBlack", PureBlackKey)
                 bool("dynamicTheme", DynamicThemeKey)
+                str("sliderStyle") { v -> if (v.uppercase() in setOf("SQUIGGLY", "DEFAULT", "SLIM")) p[SliderStyleKey] = v.uppercase() }
                 if (c.has("accentColor")) {
                     if (c.isNull("accentColor")) {
                         p[CustomThemeKey] = false

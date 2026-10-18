@@ -395,6 +395,15 @@ private fun AppearanceSettings(settings: Settings) {
             onSelect = { settings.background = it },
         )
         SettingChoice(
+            title = "Seek bar",
+            icon = OuterTuneIcons.palette,
+            options = SeekBarStyle.entries,
+            selected = settings.sliderStyle,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.sliderStyle = it },
+        )
+        SettingChoice(
             title = "Open on",
             icon = OuterTuneIcons.home,
             options = NavTab.entries.filter { it != NavTab.Settings },

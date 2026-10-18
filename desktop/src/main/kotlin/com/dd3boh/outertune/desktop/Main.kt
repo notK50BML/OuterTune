@@ -608,6 +608,7 @@ internal fun App(
         NowPlayingScreen(
             playback = playback,
             queue = queue,
+            seekBarStyle = settings.sliderStyle,
             positionMs = { positionState.value },
             durationMs = duration,
             liked = isLiked,
