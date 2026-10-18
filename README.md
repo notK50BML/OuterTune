@@ -100,7 +100,8 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Remade equaliser processing pipeline using a significantly less distortion-prone algorithm
 - Added auto gain to compensate for lower volume
 - Remade and tidied equaliser page
-- Removed rarely used settings to the settings page 
+- Removed rarely used settings to the settings page
+- Added a profile studio to tune equaliser profiles outside the main player
  
 ### Display and settings
 
@@ -218,9 +219,9 @@ Thank you very much for helping to make OuterTune accessible to many people worl
 
 Thanks to all our contributors! Check them out [here](https://github.com/OuterTune/OuterTune/graphs/contributors)
 
-[OuterTune](github.com/OuterTune/OuterTune) and [OuterTune by yuuichi-s](https://github.com/yuuichi-s/OuterTune) for almost all the main code, this is just a casual project to fix some small errors, but almost ALL credit goes to them.
+[OuterTune](github.com/OuterTune/OuterTune) and [AsterTune by yuuichi-s](https://github.com/yuuichi-s/OuterTune) for almost all the main code, this is just a casual project to fix some small errors, but almost ALL credit goes to them.
 
-Note: this builds on a few other Outertune forks, so a lot of credit goes to the OuterTune forks by [reocat](https://github.com/reocat/OuterTune) and of course [yuuichi-s](https://github.com/yuuichi-s/OuterTune)
+Note: this builds on a few other Outertune forks, so a lot of credit goes to the OuterTune forks by [reocat](https://github.com/reocat/OuterTune) and of course [yuuichi-s](https://github.com/yuuichi-s/AsterTune)
 
 [Metrolist](https://github.com/metrolistgroup/metrolist) for a really great framework of a stream and sync engine, without which this app would be 100% broken
 
@@ -231,6 +232,8 @@ would have been possible without it.
 experience done right.
 
 [Gramophone](https://github.com/FoedusProgramme/Gramophone) for emotional support, and a legendary lyrics parser
+
+[Poweramp Equaliser](https://powerampapp.com/) for inspiration on how to make a good equaliser UI
 
 [BetterLyrics](https://github.com/better-lyrics/better-lyrics) for their amazing word-by-word lyrics engine
 
