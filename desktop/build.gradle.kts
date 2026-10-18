@@ -212,6 +212,9 @@ tasks.register<Jar>("fatJar") {
     description = "Builds a single runnable jar (java -jar outertune-desktop.jar)."
     archiveFileName.set("outertune-desktop.jar")
     manifest { attributes("Main-Class" to "com.dd3boh.outertune.desktop.MainKt") }
+    // Stored, not deflated: the zip and the installer each compress the whole app as one, and
+    // LZMA over the raw classes beats it over a jar of already-deflated entries by a wide margin.
+    entryCompression = ZipEntryCompression.STORED
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
     from(sourceSets["main"].output)
     dependsOn(configurations.runtimeClasspath)
@@ -315,7 +318,7 @@ val appImage = tasks.register<Exec>("appImage") {
             "jdk.crypto.ec", "jdk.crypto.cryptoki", "jdk.charsets", "jdk.zipfs", "jdk.accessibility",
             "jdk.localedata", "jdk.net",
         ).joinToString(","),
-        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --strip-native-commands --compress=zip-6",
+        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --strip-native-commands --compress=zip-0",
         "--java-options", "-Xmx320m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m",
     )
 }
@@ -327,6 +330,43 @@ tasks.register<Zip>("packageApp") {
     from(appImageOut)
     archiveFileName.set("OuterTune-windows.zip")
     destinationDirectory.set(layout.buildDirectory.dir("dist"))
+}
+
+/**
+ * `gradlew :desktop:installer` - build/dist/OuterTune-setup.exe: the same app image as packageApp,
+ * as an Inno Setup installer (packaging/OuterTune.iss) with Start menu and desktop shortcuts and an
+ * uninstaller. Per-user, so no administrator prompt.
+ *
+ * Needs Inno Setup 6 on the build machine (`winget install JRSoftware.InnoSetup`); its compiler is
+ * looked for where winget and the official installer put it, or wherever -PisccPath= says.
+ */
+tasks.register<Exec>("installer") {
+    group = "distribution"
+    description = "Builds the Windows installer (build/dist/OuterTune-setup.exe). Needs Inno Setup 6."
+    dependsOn(appImage)
+    val script = layout.projectDirectory.file("packaging/OuterTune.iss").asFile
+    val source = appImageOut.get().asFile.resolve("OuterTune")
+    val out = layout.buildDirectory.dir("dist").get().asFile
+    val icon = appIcon.asFile
+    inputs.file(script)
+    inputs.dir(appImageOut)
+    outputs.file(out.resolve("OuterTune-setup.exe"))
+    val iscc = (findProperty("isccPath") as String?)
+        ?: listOfNotNull(
+            System.getenv("LOCALAPPDATA")?.let { "$it\\Programs\\Inno Setup 6\\ISCC.exe" },
+            "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe",
+            "C:\\Program Files\\Inno Setup 6\\ISCC.exe",
+        ).firstOrNull { File(it).exists() }
+        ?: "ISCC.exe"
+    executable(iscc)
+    args(
+        "/Q",
+        "/DSourceDir=${source.absolutePath}",
+        "/DOutDir=${out.absolutePath}",
+        "/DIconFile=${icon.absolutePath}",
+        "/DAppVersion=0.10.15",
+        script.absolutePath,
+    )
 }
 
 // The player layout editor ships inside the app (Settings > Player > Player layout > Open editor).
