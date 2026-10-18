@@ -422,7 +422,7 @@ class Database(file: File) {
         connection.prepareStatement(
             """
             INSERT INTO lyrics (songId, text, source, fetchedAt)
-            VALUES (?, ?, ?, ?)
+            SELECT ?, ?, ?, ? WHERE EXISTS (SELECT 1 FROM song WHERE id = ?)
             ON CONFLICT(songId) DO UPDATE SET
                 text = excluded.text, source = excluded.source, fetchedAt = excluded.fetchedAt
             """.trimIndent()
@@ -431,6 +431,11 @@ class Database(file: File) {
             st.setString(2, text)
             st.setString(3, source)
             st.setLong(4, System.currentTimeMillis())
+            // Only for songs the library has a row for. Lyrics are fetched as a song starts, which
+            // for a search result or a radio pick is before anything has written its row - and the
+            // foreign key then failed the insert. Unknown songs are simply looked up again next
+            // time; once played, liked or saved they are cached like any other.
+            st.setString(5, songId)
             st.executeUpdate()
         }
     }
