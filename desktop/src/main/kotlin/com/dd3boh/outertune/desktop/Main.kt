@@ -823,6 +823,7 @@ internal fun App(
             // Passed only when it is switched on - the pane shows nothing when the tap is null,
             // so the setting is enforced by simply not handing it over.
             spectrum = player.spectrum.takeIf { settings.showVisualizer },
+            liquidTap = player.spectrum.takeIf { settings.background == BackgroundStyle.Ferrofluid },
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
             eqStore = eqStore,

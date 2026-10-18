@@ -362,6 +362,7 @@ enum class BackgroundStyle(val label: String, val description: String) {
     Solid("Solid", "One colour from the cover, flat"),
     Frosted("Frosted glass", "The cover blurred behind a translucent pane"),
     BlurredCover("Blurred cover", "The cover itself, blurred to fill the window"),
+    Ferrofluid("Ferrofluid", "A pool of ferrofluid that the music magnetises into spikes"),
 }
 
 enum class LyricsAlignment(val label: String) { Centre("Centred"), Left("Left") }

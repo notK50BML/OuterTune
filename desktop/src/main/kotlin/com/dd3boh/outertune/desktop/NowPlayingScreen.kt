@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.graphics.lerp
 import kotlin.math.sin
 import kotlin.math.PI
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -149,6 +150,8 @@ fun NowPlayingScreen(
      * deletion the moment there is a settings screen to put it in.
      */
     spectrum: VisualizerTap? = null,
+    /** The spectrum for a background that moves with the music (Ferrofluid), whatever the visualiser setting. */
+    liquidTap: VisualizerTap? = null,
     playedFrames: () -> Long = { 0L },
     /** What the overflow menu offers. Items with no callback do not appear - see [PlayerActions]. */
     actions: PlayerActions = PlayerActions(),
@@ -261,6 +264,9 @@ fun NowPlayingScreen(
         thumbnail = song?.thumbnail,
         top = top,
         bottom = bottom,
+        liquidTap = liquidTap,
+        playedFrames = playedFrames,
+        playing = playback is PlaybackState.Playing,
     )
 
     // The window buttons over the top edge take the player's text colour while it is showing,
@@ -824,10 +830,30 @@ private fun PlayerBackground(
     thumbnail: String?,
     top: Color,
     bottom: Color,
+    liquidTap: VisualizerTap? = null,
+    playedFrames: () -> Long = { 0L },
+    playing: Boolean = false,
 ) {
     when (style) {
         BackgroundStyle.Gradient ->
             Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom))))
+
+        BackgroundStyle.Ferrofluid -> Box(modifier = Modifier.fillMaxSize().background(Brush.verticalGradient(listOf(top, bottom)))) {
+            // A pool along the bottom of the player, under the controls; lit by the cover's colours.
+            if (liquidTap != null && ferrofluidAvailable) {
+                FerrofluidVisualiser(
+                    tap = liquidTap,
+                    playedFrames = playedFrames,
+                    playing = playing,
+                    keyColor = lerp(Color.White, MaterialTheme.colorScheme.primaryContainer, 0.12f),
+                    rimColor = MaterialTheme.colorScheme.primary,
+                    baseColor = top,
+                    // The lower part of the window only, so the crown rises into the space under the
+                    // controls rather than through the cover and the buttons.
+                    modifier = Modifier.align(Alignment.BottomCenter).fillMaxWidth().fillMaxHeight(0.42f),
+                )
+            }
+        }
 
         BackgroundStyle.Solid ->
             Box(modifier = Modifier.fillMaxSize().background(top))

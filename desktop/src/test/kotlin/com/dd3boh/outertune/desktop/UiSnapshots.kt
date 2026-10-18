@@ -147,7 +147,7 @@ class UiSnapshots {
     }
 
     @Composable
-    private fun Player(width: Int, eqOn: Boolean = false, buttons: String = "") {
+    private fun Player(width: Int, eqOn: Boolean = false, buttons: String = "", background: BackgroundStyle = BackgroundStyle.Gradient, liquidTap: VisualizerTap? = null) {
         NowPlayingScreen(
             playback = PlaybackState.Playing(songs[0].title),
             queue = queue(),
@@ -165,7 +165,19 @@ class UiSnapshots {
             balance = Balance(),
             timeStretch = TimeStretch(),
             playerButtons = PlayerButtonKind.decode(buttons),
+            backgroundStyle = background,
+            liquidTap = liquidTap,
+            playedFrames = { 1L },
         )
+    }
+
+    @Test
+    fun ferrofluidPlayer() {
+        assumeTrue(outDir != null)
+        val tap = VisualizerTap(VISUALIZER_BANDS).apply {
+            submit(0L, FloatArray(VISUALIZER_BANDS) { if (it < 5) 0.9f else 0.35f })
+        }
+        capture("player_ferro", 1000, 640, settleFrames = 24) { Player(1000, background = BackgroundStyle.Ferrofluid, liquidTap = tap) }
     }
 
     @Test
