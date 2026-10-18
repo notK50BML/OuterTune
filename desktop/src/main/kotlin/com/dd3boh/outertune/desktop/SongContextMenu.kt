@@ -76,13 +76,14 @@ fun SongMenuArea(song: SongItem, modifier: Modifier = Modifier, content: @Compos
         content()
         val anchor = at
         if (actions != null && anchor != null) {
-            // A one-pixel anchor at the pointer, so the menu opens where the click was rather than
-            // under the row's bottom-left corner.
-            Box(modifier = Modifier.offset { IntOffset(anchor.x.roundToInt(), anchor.y.roundToInt()) }.size(1.dp)) {
-                DropdownMenu(expanded = true, onDismissRequest = { at = null }) {
-                    SongMenuItems(song, actions) { at = null }
-                }
-            }
+            // The same panel as the row's ⋮, opening where the click was.
+            SongMenuPanel(
+                song = song,
+                actions = actions,
+                anchorEnd = false,
+                offset = IntOffset(anchor.x.roundToInt(), anchor.y.roundToInt()),
+                onDismiss = { at = null },
+            )
         }
     }
 }

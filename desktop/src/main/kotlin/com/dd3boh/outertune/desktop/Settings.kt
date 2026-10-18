@@ -69,6 +69,10 @@ class Settings(private val store: SettingsStore) {
     /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
     var playerButtons by string("player.buttons", "")
 
+    /** Quick buttons beside the ⋮ on song rows, and whether the ⋮ shows - see RowButtons. */
+    var rowButtons by string("ui.rowButtons", "")
+    var rowMenu by bool("ui.rowMenu", true)
+
     /** An imported Windows player layout (see PlayerLayout), as its file's text. Empty: built-in. */
     var playerLayout by string("player.layout", "")
 

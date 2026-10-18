@@ -166,7 +166,6 @@ fun OnlinePlaylistPane(
                         Box(modifier = Modifier.weight(1f)) {
                             SongRow(song, playing = song.id == currentId) { onPlay(state.songs, index) }
                         }
-                        TextButton(onClick = { onAddToPlaylist(song.toStored()) }) { Text("+") }
                     }
                 }
                 item { Spacer(modifier = Modifier.height(24.dp)) }

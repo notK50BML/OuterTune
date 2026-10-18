@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
@@ -170,6 +172,19 @@ class UiSnapshots {
             playedFrames = { 1L },
             playerLayout = layout,
         )
+    }
+
+    @Test
+    fun songMenu() {
+        assumeTrue(outDir != null)
+        val actions = SongActions({}, {}, {}, {}, {}, { it == "song1" }, {}, { false }, {}, {}, {})
+        capture("song_menu", 900, 640, interact = { scene -> scene.click(862f, 46f) }) {
+            CompositionLocalProvider(LocalSongActions provides actions, LocalRowButtons provides RowButtons(listOf(RowButton.LIKE))) {
+                Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    songs.take(5).forEachIndexed { i, song -> SongRow(song, playing = i == 1) {} }
+                }
+            }
+        }
     }
 
     @Test

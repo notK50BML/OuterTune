@@ -286,7 +286,6 @@ fun ArtistPane(
                             onPlay(librarySongs.map { it.toItem() }, index)
                         }
                     }
-                    TextButton(onClick = { onAddToPlaylist(song) }) { Text("+") }
                 }
             }
         }
@@ -480,6 +479,7 @@ private fun SongListRow(song: SongItem, rank: Int, playing: Boolean, onClick: ()
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        RowActions(song)
     }
 }
 

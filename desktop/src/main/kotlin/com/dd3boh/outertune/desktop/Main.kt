@@ -946,6 +946,7 @@ internal fun App(
     // view - instead of starting over when it closes.
     Box(modifier = Modifier.fillMaxSize()) {
     CompositionLocalProvider(
+        LocalRowButtons provides RowButtons(RowButton.decode(settings.rowButtons), settings.rowMenu),
         LocalSongActions provides songActions,
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
     ) {
@@ -1455,10 +1456,6 @@ private fun Content(
                     Box(modifier = Modifier.weight(1f)) {
                         SongRow(song, playing = song.id == currentId) { onPlayResult(index) }
                     }
-                    // On the row rather than behind a context menu: filing a song is something done
-                    // while looking at search results, and a right-click menu on desktop Compose is
-                    // extra machinery for a single action.
-                    TextButton(onClick = { onAddToPlaylist(song.toStored()) }) { Text("+") }
                 }
             }
         }
@@ -1497,7 +1494,6 @@ private fun Content(
                     Box(modifier = Modifier.weight(1f)) {
                         StoredSongRow(song, playing = song.id == currentId) { onPlayStored(songs, index) }
                     }
-                    TextButton(onClick = { onAddToPlaylist(song) }) { Text("+") }
                 }
             }
         }
@@ -1553,7 +1549,7 @@ private fun QueuePane(
             // what is coming next - which is the only thing a queue is for.
             itemsIndexed(queue.order) { position, index ->
                 val song = queue.songs.getOrNull(index) ?: return@itemsIndexed
-                SongRow(song, playing = position == queue.orderPosition) { onJump(index) }
+                SongRow(song, playing = position == queue.orderPosition, actions = false) { onJump(index) }
             }
         }
     }
@@ -1657,7 +1653,7 @@ private fun PlayerBar(
 }
 
 @Composable
-internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Unit) = SongMenuArea(song) {
+internal fun SongRow(song: SongItem, playing: Boolean = false, actions: Boolean = true, onPlay: () -> Unit) = SongMenuArea(song) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1669,7 +1665,7 @@ internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Uni
             .padding(vertical = 6.dp, horizontal = 4.dp),
     ) {
         SongArtwork(song.thumbnail, size = 48.dp, playing = playing)
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 song.title,
                 fontWeight = FontWeight.Medium,
@@ -1685,12 +1681,13 @@ internal fun SongRow(song: SongItem, playing: Boolean = false, onPlay: () -> Uni
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (actions) RowActions(song)
     }
 }
 
 /** A row for a song out of the library, which keeps artists as one display string. */
 @Composable
-internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: () -> Unit) = SongMenuArea(song.toItem()) {
+internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, actions: Boolean = true, onPlay: () -> Unit) = SongMenuArea(song.toItem()) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1702,7 +1699,7 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: (
             .padding(vertical = 6.dp, horizontal = 4.dp),
     ) {
         SongArtwork(song.thumbnail, size = 48.dp, playing = playing)
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 song.title,
                 fontWeight = FontWeight.Medium,
@@ -1718,6 +1715,7 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, onPlay: (
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        if (actions) RowActions(song.toItem())
     }
 }
 

@@ -111,6 +111,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Song rows", SettingsCategory.Appearance, "row buttons three dots menu like download quick actions"),
     SettingEntry("Queues to keep", SettingsCategory.Player, "multiple queues saved switch board history"),
     SettingEntry("Player layout", SettingsCategory.Appearance, "layout editor custom arrange move cover position import"),
     SettingEntry("Tabs", SettingsCategory.Appearance, "rail navigation sections home songs artists albums playlists library local stats order"),
@@ -419,6 +420,26 @@ private fun AppearanceSettings(settings: Settings) {
             )
         }
         PlayerLayoutSetting(settings)
+        var choosingRow by remember { mutableStateOf(false) }
+        SettingRow(
+            title = "Song rows",
+            subtitle = (RowButton.decode(settings.rowButtons).map { it.label } + if (settings.rowMenu) listOf("⋮ menu") else emptyList())
+                .joinToString(", ").ifEmpty { "Nothing - right-click a song for its menu" },
+            icon = OuterTuneIcons.moreVert,
+            onClick = { choosingRow = true },
+        )
+        if (choosingRow) {
+            RowButtonsDialog(
+                current = RowButton.decode(settings.rowButtons),
+                menu = settings.rowMenu,
+                onSave = { buttons, menu ->
+                    settings.rowButtons = RowButton.encode(buttons)
+                    settings.rowMenu = menu
+                    choosingRow = false
+                },
+                onDismiss = { choosingRow = false },
+            )
+        }
         var choosingTabs by remember { mutableStateOf(false) }
         SettingRow(
             title = "Tabs",

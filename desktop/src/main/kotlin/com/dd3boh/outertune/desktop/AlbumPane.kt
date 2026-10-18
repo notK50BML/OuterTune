@@ -144,7 +144,6 @@ fun AlbumPane(
                                     onPlay(page.songs, index)
                                 }
                             }
-                            TextButton(onClick = { onAddToPlaylist(song.toStored()) }) { Text("+") }
                         }
                     }
                     item { Spacer(modifier = Modifier.height(24.dp)) }
