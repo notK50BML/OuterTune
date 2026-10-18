@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
@@ -77,7 +78,7 @@ class IconGenerator {
         "person" to Icons.Rounded.Person, "logout" to Icons.AutoMirrored.Rounded.Logout,
         "key" to Icons.Rounded.Key, "networkCheck" to Icons.Rounded.NetworkCheck,
         "graphicEq" to Icons.Rounded.GraphicEq, "darkMode" to Icons.Rounded.DarkMode,
-        "palette" to Icons.Rounded.Palette, "blurOn" to Icons.Rounded.BlurOn,
+        "palette" to Icons.Rounded.Palette, "blurOn" to Icons.Rounded.BlurOn, "keyboard" to Icons.Rounded.Keyboard,
         "delete" to Icons.Rounded.Delete, "history" to Icons.Rounded.History,
         "restore" to Icons.Rounded.Restore, "timer" to Icons.Rounded.Timer,
         "cast" to Icons.Rounded.Cast, "castConnected" to Icons.Rounded.CastConnected,

@@ -160,6 +160,7 @@ object OuterTuneIcons {
 
     /** Android: `Icons.Rounded.Palette`. */
     val palette by icon(GeneratedIconPaths.palette)
+    val keyboard by icon(GeneratedIconPaths.keyboard)
 
     /** Android: `Icons.Rounded.BlurOn`. */
     val blurOn by icon(GeneratedIconPaths.blurOn)
@@ -288,6 +289,7 @@ object OuterTuneIcons {
             "graphicEq" to graphicEq,
             "darkMode" to darkMode,
             "palette" to palette,
+            "keyboard" to keyboard,
             "blurOn" to blurOn,
             "delete" to delete,
             "history" to history,

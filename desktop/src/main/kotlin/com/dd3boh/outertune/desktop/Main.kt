@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -155,6 +156,8 @@ fun main() = application {
             )
         },
         state = windowState,
+        // Every key nothing focused has used - see KeyRouter and KeyBindings.
+        onKeyEvent = { KeyRouter.handle(it) },
     ) {
         LaunchedEffect(Unit) { WindowCorners.round(window) }
         // Pushed up from App, which is where the playing song is known. A plain state rather than a
@@ -271,6 +274,10 @@ internal fun App(
     var error by remember { mutableStateOf<String?>(null) }
     var searchFocused by remember { mutableStateOf(false) }
     var showFullPlayer by remember { mutableStateOf(false) }
+    // Something for the full player to do as it appears - a shortcut's equaliser, lyrics or queue.
+    var playerCommand by remember { mutableStateOf<PlayerCommand?>(null) }
+    // Bumped by the search shortcut; the search box takes focus each time it changes.
+    var focusSearch by remember { mutableStateOf(0) }
 
     // The home feed. Reloaded when the account changes, because signed out it is a prompt to sign in
     // and signed in it is a different page entirely - not a variation on the same one.
@@ -609,6 +616,8 @@ internal fun App(
             playback = playback,
             queue = queue,
             seekBarStyle = settings.sliderStyle,
+            command = playerCommand,
+            onCommandHandled = { playerCommand = null },
             positionMs = { positionState.value },
             durationMs = duration,
             liked = isLiked,
@@ -819,6 +828,60 @@ internal fun App(
     val keys = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { keys.requestFocus() } }
 
+    // Keyboard shortcuts. Rebuilt every composition so it always acts on the current state; the
+    // window calls it for any key nothing focused has used - see KeyRouter.
+    val keyBindings = remember(settings.keyBindings) { KeyBindings.decode(settings.keyBindings) }
+    var volumeBeforeMute by remember { mutableStateOf<Float?>(null) }
+    SideEffect {
+        KeyRouter.handler = handler@{ event ->
+            if (event.type != KeyEventType.KeyDown || searchFocused) return@handler false
+            // Windows' media controls handle the media keys once they are on - handling them here
+            // as well would act on every press twice.
+            when (event.key) {
+                Key.MediaPlayPause -> { if (!WindowsMediaControls.active) player.togglePause(); return@handler true }
+                Key.MediaNext -> { if (!WindowsMediaControls.active) playerQueue.next(); return@handler true }
+                Key.MediaPrevious -> { if (!WindowsMediaControls.active) playerQueue.previous(); return@handler true }
+                else -> Unit
+            }
+            val chord = Chord.of(event) ?: return@handler false
+            when (keyBindings.actionFor(chord) ?: return@handler false) {
+                KeyAction.PlayPause -> togglePlay()
+                KeyAction.Next -> playerQueue.next()
+                KeyAction.Previous -> playerQueue.previous()
+                KeyAction.SeekForward -> player.seekTo(player.positionMs.value + 10_000)
+                KeyAction.SeekBack -> player.seekTo((player.positionMs.value - 10_000).coerceAtLeast(0))
+                KeyAction.VolumeUp -> { player.volume = (player.volume + 0.05f).coerceAtMost(1f); volumeBeforeMute = null }
+                KeyAction.VolumeDown -> { player.volume = (player.volume - 0.05f).coerceAtLeast(0f); volumeBeforeMute = null }
+                KeyAction.Mute -> {
+                    val before = volumeBeforeMute
+                    if (before != null) { player.volume = before; volumeBeforeMute = null }
+                    else { volumeBeforeMute = player.volume; player.volume = 0f }
+                }
+                KeyAction.Shuffle -> playerQueue.toggleShuffle()
+                KeyAction.Repeat -> playerQueue.cycleRepeat()
+                KeyAction.Like -> toggleLike()
+                KeyAction.Equaliser -> { showFullPlayer = true; playerCommand = PlayerCommand.ToggleEqualiser }
+                KeyAction.Lyrics -> { showFullPlayer = true; playerCommand = PlayerCommand.ToggleLyrics }
+                KeyAction.Queue -> {
+                    if (showFullPlayer) playerCommand = PlayerCommand.ToggleQueue
+                    else settings.sideQueueOpen = !settings.sideQueueOpen
+                }
+                KeyAction.FullPlayer -> showFullPlayer = !showFullPlayer
+                KeyAction.Back -> {
+                    if (showFullPlayer) playerCommand = PlayerCommand.Back
+                    else return@handler false
+                }
+                KeyAction.Search -> {
+                    showFullPlayer = false
+                    if (tab == NavTab.Settings) tab = NavTab.Home
+                    focusSearch++
+                }
+                KeyAction.SleepTimer -> showSleepDialog = true
+            }
+            true
+        }
+    }
+
     CompositionLocalProvider(
         LocalSongActions provides songActions,
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
@@ -828,20 +891,6 @@ internal fun App(
             .fillMaxSize()
             .focusRequester(keys)
             .focusable()
-            .onPreviewKeyEvent { event ->
-                if (searchFocused || event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
-                when (event.key) {
-                    Key.Spacebar -> { player.togglePause(); true }
-                    // Windows' media controls handle the media keys once they are on - handling them
-                    // here as well would act on every press twice.
-                    Key.MediaPlayPause -> { if (!WindowsMediaControls.active) player.togglePause(); true }
-                    Key.DirectionRight -> { player.seekTo(player.positionMs.value + 10_000); true }
-                    Key.DirectionLeft -> { player.seekTo(player.positionMs.value - 10_000); true }
-                    Key.MediaNext -> { if (!WindowsMediaControls.active) playerQueue.next(); true }
-                    Key.MediaPrevious -> { if (!WindowsMediaControls.active) playerQueue.previous(); true }
-                    else -> false
-                }
-            },
     ) {
         // Content and queue share the space above the player bar; the bar owns the bottom edge and
         // is always there. The rail down the left is the phone's landscape layout - the same
@@ -872,6 +921,7 @@ internal fun App(
             ) {
                 if (tab != NavTab.Settings) {
                     SearchBar(
+                        focusRequest = focusSearch,
                         query = query,
                         onQueryChange = {
                             query = it
@@ -1194,12 +1244,16 @@ private fun NavTab.icon() = when (this) {
  */
 @Composable
 private fun SearchBar(
+    /** Changes when the search shortcut is pressed; the box takes focus. */
+    focusRequest: Int = 0,
     query: String,
     onQueryChange: (String) -> Unit,
     onSearch: () -> Unit,
     onFocusChange: (Boolean) -> Unit,
     searching: Boolean,
 ) {
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(focusRequest) { if (focusRequest > 0) runCatching { focus.requestFocus() } }
     TextField(
         value = query,
         onValueChange = onQueryChange,
@@ -1225,6 +1279,7 @@ private fun SearchBar(
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         keyboardActions = KeyboardActions(onSearch = { onSearch() }),
         modifier = Modifier
+            .focusRequester(focus)
             .fillMaxWidth()
             .onFocusChanged { onFocusChange(it.isFocused) },
     )

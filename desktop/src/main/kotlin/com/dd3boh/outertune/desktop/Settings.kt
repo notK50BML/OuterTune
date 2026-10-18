@@ -106,6 +106,9 @@ class Settings(private val store: SettingsStore) {
     /** Whether the queue handle names the queue beside its arrow, as the phone's does. */
     var showQueueTitle by bool("player.queueTitle", true)
 
+    /** Keyboard shortcuts that differ from the defaults - see KeyBindings. */
+    var keyBindings by string("keys.bindings", "")
+
     /** Whether the queue is docked down the right of the main window. */
     var sideQueueOpen by bool("window.sideQueue", true)
 

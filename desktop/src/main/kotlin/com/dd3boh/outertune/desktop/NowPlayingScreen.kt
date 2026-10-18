@@ -162,6 +162,9 @@ fun NowPlayingScreen(
     onSleepTimer: (() -> Unit)? = null,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
     seekBarStyle: SeekBarStyle = SeekBarStyle.Squiggly,
+    /** A keyboard shortcut's request - see KeyBindings. Handled once, then [onCommandHandled]. */
+    command: PlayerCommand? = null,
+    onCommandHandled: () -> Unit = {},
     colourByValue: Boolean = true,
     onDownload: (() -> Unit)? = null,
     equalizer: Equalizer? = null,
@@ -216,6 +219,21 @@ fun NowPlayingScreen(
     // previous song's words while the new one plays, which is worse than showing nothing - and the
     // cover of what is now playing is the more useful thing to land on.
     var showLyrics by remember(song?.id) { mutableStateOf(false) }
+    LaunchedEffect(command) {
+        when (command ?: return@LaunchedEffect) {
+            PlayerCommand.ToggleEqualiser -> equalizerOpen = !equalizerOpen
+            PlayerCommand.ToggleLyrics -> showLyrics = !showLyrics
+            PlayerCommand.ToggleQueue -> queueOpen = !queueOpen
+            // The innermost thing open closes first, and the player itself last.
+            PlayerCommand.Back -> when {
+                equalizerOpen -> equalizerOpen = false
+                queueOpen -> queueOpen = false
+                showLyrics -> showLyrics = false
+                else -> onClose()
+            }
+        }
+        onCommandHandled()
+    }
 
     // The player's own scheme, from the cover and matched to the background's brightness rather
     // than to the window's theme. The background is the cover darkened, so in a light window the

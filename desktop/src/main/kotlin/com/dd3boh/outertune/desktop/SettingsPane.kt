@@ -71,6 +71,7 @@ enum class SettingsCategory(val label: String, val blurb: String) {
     Appearance("Appearance", "Theme, colours, fonts and text size"),
     Player("Player and audio", "Transport, visualiser and the player screen"),
     Lyrics("Lyrics", "Providers, timing and how lyrics look"),
+    Keyboard("Keyboard", "Shortcuts for the player, each remappable"),
     Content("Content", "What shows up in search, Home and artists"),
     Account("Account", "Sign in to YouTube Music"),
     Integrations("Integrations", "Discord and Listen Together"),
@@ -84,6 +85,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
     SettingsCategory.Appearance -> OuterTuneIcons.palette
     SettingsCategory.Player -> OuterTuneIcons.play
     SettingsCategory.Lyrics -> OuterTuneIcons.lyrics
+    SettingsCategory.Keyboard -> OuterTuneIcons.keyboard
     SettingsCategory.Content -> OuterTuneIcons.musicNote
     SettingsCategory.Account -> OuterTuneIcons.accountCircle
     SettingsCategory.Integrations -> OuterTuneIcons.devices
@@ -103,6 +105,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Keyboard shortcuts", SettingsCategory.Keyboard, "keys keybinds hotkeys shortcut remap play pause next previous equaliser shuffle repeat volume"),
     SettingEntry("Theme", SettingsCategory.Appearance, "dark light system mode night"),
     SettingEntry("Pure black", SettingsCategory.Appearance, "amoled oled dark black"),
     SettingEntry("Colour the app from the artwork", SettingsCategory.Appearance, "dynamic material you palette cover color"),
@@ -291,6 +294,7 @@ fun SettingsPane(
                 SettingsCategory.Local -> LocalMusicSettings(settings, library)
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
                 SettingsCategory.Privacy -> PrivacySettings(settings, library, libraryPath, onProfileApplied)
+                SettingsCategory.Keyboard -> KeyboardSettings(settings)
                 SettingsCategory.About -> AboutSettings()
             }
             Spacer(modifier = Modifier.height(40.dp))
