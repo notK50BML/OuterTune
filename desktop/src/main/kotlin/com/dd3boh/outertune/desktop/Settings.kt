@@ -80,6 +80,12 @@ class Settings(private val store: SettingsStore) {
     /** The saved queue - see QueueSnapshot. */
     var savedQueue by string("player.savedQueue", "")
 
+    /** The queues kept aside (see PlayerQueue.saved), as a JSON array of queue snapshots. */
+    var savedQueues by string("player.savedQueues", "")
+
+    /** How many queues are kept aside - the phone's max queues. */
+    var maxQueues by int("player.maxQueues", 19)
+
     /** Evens out volume between tracks using YouTube's loudness figure. Only ever turns down. */
     var audioNormalisation by bool("player.normalise", false)
 

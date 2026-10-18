@@ -169,6 +169,10 @@ fun NowPlayingScreen(
     seekBarStyle: SeekBarStyle = SeekBarStyle.Squiggly,
     /** An imported Windows layout (Settings > Player > Player layout), or null for the built-in one. */
     playerLayout: PlayerLayout? = null,
+    /** Queues kept aside, and switching to or removing one - see PlayerQueue.saved. */
+    savedQueues: List<SavedQueue> = emptyList(),
+    onSwitchQueue: (SavedQueue) -> Unit = {},
+    onRemoveSavedQueue: (SavedQueue) -> Unit = {},
     /** A keyboard shortcut's request - see KeyBindings. Handled once, then [onCommandHandled]. */
     command: PlayerCommand? = null,
     onCommandHandled: () -> Unit = {},
@@ -804,6 +808,9 @@ fun NowPlayingScreen(
         if (!sideBySide) {
             QueueOverlay(
                 queue = queue,
+                savedQueues = savedQueues,
+                onSwitchQueue = onSwitchQueue,
+                onRemoveSavedQueue = onRemoveSavedQueue,
                 playback = playback,
                 onColour = onBackground,
                 background = bottom,
@@ -836,6 +843,9 @@ fun NowPlayingScreen(
             Box(modifier = Modifier.width(dockWidth).fillMaxHeight().clipToBounds()) {
                 QueueOverlay(
                     queue = queue,
+                    savedQueues = savedQueues,
+                    onSwitchQueue = onSwitchQueue,
+                    onRemoveSavedQueue = onRemoveSavedQueue,
                     playback = playback,
                     onColour = onBackground,
                     background = bottom,
@@ -1385,6 +1395,9 @@ private fun LyricsHeader(
 @Composable
 private fun QueueOverlay(
     queue: QueueState,
+    savedQueues: List<SavedQueue> = emptyList(),
+    onSwitchQueue: (SavedQueue) -> Unit = {},
+    onRemoveSavedQueue: (SavedQueue) -> Unit = {},
     onColour: Color,
     playback: PlaybackState = PlaybackState.Idle,
     background: Color,
@@ -1451,12 +1464,13 @@ private fun QueueOverlay(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(start = 28.dp, end = 28.dp, bottom = 8.dp),
             ) {
-                Text(
-                    text = queue.title,
+                QueueSwitcher(
+                    title = queue.title,
+                    saved = savedQueues,
+                    colour = onColour,
                     style = MaterialTheme.typography.titleMedium,
-                    color = onColour,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
+                    onSwitch = onSwitchQueue,
+                    onRemove = onRemoveSavedQueue,
                     modifier = Modifier.weight(1f),
                 )
                 Column(horizontalAlignment = Alignment.End) {

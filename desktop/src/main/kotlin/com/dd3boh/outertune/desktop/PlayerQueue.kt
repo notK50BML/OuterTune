@@ -158,6 +158,42 @@ class PlayerQueue(
     val state = MutableStateFlow(QueueState())
 
     /**
+     * Queues put aside - the phone's queue board. Playing something new keeps the queue it replaces
+     * here, by title, so going back to it picks up where it was; the newest last. Bounded by
+     * [maxSaved], the oldest dropping off.
+     */
+    val saved = MutableStateFlow<List<SavedQueue>>(emptyList())
+
+    /** How many queues are kept aside - the phone's "max queues", 19 by default. */
+    @Volatile
+    var maxSaved: Int = 19
+
+    /** Keeps [queue] aside under its title, replacing an older one of the same title. */
+    private fun stash(queue: QueueState, positionMs: Long) {
+        if (queue.songs.isEmpty()) return
+        saved.value = (saved.value.filter { it.state.title != queue.title } + SavedQueue(queue, positionMs))
+            .takeLast(maxSaved.coerceAtLeast(0))
+    }
+
+    /** Puts the current queue aside and plays [queue] from where it was left. */
+    fun switchTo(queue: SavedQueue) {
+        val current = state.value
+        saved.value = saved.value.filter { it !== queue }
+        stash(current, player.positionMs.value)
+        state.value = queue.state
+        startCurrent(queue.positionMs)
+    }
+
+    fun removeSaved(queue: SavedQueue) {
+        saved.value = saved.value.filter { it !== queue }
+    }
+
+    /** Restores the board from a previous session. */
+    fun restoreSaved(queues: List<SavedQueue>) {
+        saved.value = queues.takeLast(maxSaved.coerceAtLeast(0))
+    }
+
+    /**
      * Consulted at every track boundary; returning true stops instead of advancing.
      *
      * A hook rather than the queue knowing about sleep timers. "Stop after this one" is the only
@@ -207,6 +243,10 @@ class PlayerQueue(
     fun play(songs: List<SongItem>, startIndex: Int, title: String = "Queue", startAtMs: Long = 0L) {
         if (startIndex !in songs.indices) return
         val previous = state.value
+        // A different queue: the one it replaces is kept aside rather than lost. The same title
+        // again is the same queue being restarted, so it simply takes over.
+        if (previous.songs.isNotEmpty() && previous.title != title) stash(previous, player.positionMs.value)
+        saved.value = saved.value.filter { it.state.title != title }
         val order = buildOrder(songs.indices.toList(), previous.shuffled, startIndex)
         state.value = QueueState(
             songs = songs,
@@ -422,3 +462,6 @@ class PlayerQueue(
         }
     }
 }
+
+/** A queue put aside, and how far into its song it was. */
+data class SavedQueue(val state: QueueState, val positionMs: Long)

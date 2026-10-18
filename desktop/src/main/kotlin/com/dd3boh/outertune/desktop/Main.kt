@@ -266,6 +266,13 @@ internal fun App(
 
     val playback by player.state.collectAsState()
     val queue by playerQueue.state.collectAsState()
+    val savedQueues by playerQueue.saved.collectAsState()
+    LaunchedEffect(settings.maxQueues) { playerQueue.maxSaved = settings.maxQueues }
+    // The queues kept aside last time, back as they were; written again whenever they change.
+    LaunchedEffect(Unit) {
+        playerQueue.restoreSaved(QueueSnapshot.decodeAll(settings.savedQueues))
+        playerQueue.saved.collect { settings.savedQueues = QueueSnapshot.encodeAll(it) }
+    }
     val recent by library.recentlyPlayed.collectAsState()
     val liked by library.liked.collectAsState()
     // Held as state but never read here. Reading it in this function made the whole window
@@ -846,6 +853,9 @@ internal fun App(
             playerLayout = remember(settings.playerLayout) {
                 settings.playerLayout.takeIf { it.isNotBlank() }?.let { PlayerLayout.parse(it).getOrNull() }
             },
+            savedQueues = savedQueues,
+            onSwitchQueue = playerQueue::switchTo,
+            onRemoveSavedQueue = playerQueue::removeSaved,
             positionMs = { positionState.value },
             durationMs = duration,
             liked = isLiked,
@@ -1235,7 +1245,13 @@ internal fun App(
             ) {
                 Row {
                     HorizontalDivider(modifier = Modifier.fillMaxHeight().width(1.dp))
-                    QueuePane(queue, onClose = { settings.sideQueueOpen = false }) { playerQueue.jumpTo(it) }
+                    QueuePane(
+                        queue,
+                        saved = savedQueues,
+                        onSwitch = playerQueue::switchTo,
+                        onRemoveSaved = playerQueue::removeSaved,
+                        onClose = { settings.sideQueueOpen = false },
+                    ) { playerQueue.jumpTo(it) }
                 }
             }
         }
@@ -1488,7 +1504,14 @@ private fun Content(
 }
 
 @Composable
-private fun QueuePane(queue: QueueState, onClose: () -> Unit, onJump: (Int) -> Unit) {
+private fun QueuePane(
+    queue: QueueState,
+    saved: List<SavedQueue>,
+    onSwitch: (SavedQueue) -> Unit,
+    onRemoveSaved: (SavedQueue) -> Unit,
+    onClose: () -> Unit,
+    onJump: (Int) -> Unit,
+) {
     val listState = rememberLazyListState()
     // Brings the playing song into view when it changes, so the highlighted row is never off
     // somewhere above or below.
@@ -1506,10 +1529,13 @@ private fun QueuePane(queue: QueueState, onClose: () -> Unit, onJump: (Int) -> U
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(end = 8.dp).size(18.dp),
             )
-            Text(
-                "Queue  ${queue.orderPosition + 1}/${queue.songs.size}",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+            QueueSwitcher(
+                title = "${queue.title}  ${queue.orderPosition + 1}/${queue.songs.size}",
+                saved = saved,
+                colour = MaterialTheme.colorScheme.onSurface,
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                onSwitch = onSwitch,
+                onRemove = onRemoveSaved,
                 modifier = Modifier.weight(1f),
             )
             IconButton(onClick = onClose, modifier = Modifier.size(32.dp)) {

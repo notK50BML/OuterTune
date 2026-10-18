@@ -61,6 +61,17 @@ internal object QueueSnapshot {
         )).toString()
     }
 
+    /** Several queues, for the queue board. */
+    fun encodeAll(queues: List<SavedQueue>): String =
+        JsonArray(queues.map { JsonPrimitive(encode(it.state, it.positionMs)) }).toString()
+
+    fun decodeAll(text: String): List<SavedQueue> = runCatching {
+        if (text.isBlank()) return emptyList()
+        Json.parseToJsonElement(text).jsonArray.mapNotNull { element ->
+            decode(element.jsonPrimitive.content)?.let { (state, position) -> SavedQueue(state, position) }
+        }
+    }.getOrDefault(emptyList())
+
     fun decode(text: String): Pair<QueueState, Long>? = runCatching {
         if (text.isBlank()) return null
         val root = Json.parseToJsonElement(text).jsonObject

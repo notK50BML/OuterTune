@@ -105,6 +105,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Queues to keep", SettingsCategory.Player, "multiple queues saved switch board history"),
     SettingEntry("Player layout", SettingsCategory.Player, "layout editor custom arrange move cover position import"),
     SettingEntry("Tabs", SettingsCategory.Appearance, "rail navigation sections home songs artists albums playlists library local stats order"),
     SettingEntry("Keyboard shortcuts", SettingsCategory.Keyboard, "keys keybinds hotkeys shortcut remap play pause next previous equaliser shuffle repeat volume"),
@@ -509,6 +510,17 @@ private fun PlayerSettings(settings: Settings) {
             checked = settings.persistentQueue,
             onCheckedChange = { settings.persistentQueue = it },
             icon = OuterTuneIcons.queueMusic,
+        )
+        SettingSlider(
+            title = "Queues to keep",
+            subtitle = "Playing something new keeps the queue it replaces, to switch back to from the queue's title.",
+            icon = OuterTuneIcons.queueMusic,
+            value = settings.maxQueues,
+            range = 1..50,
+            step = 1,
+            format = { "$it" },
+            default = 19,
+            onChange = { settings.maxQueues = it },
         )
         SettingSlider(
             title = "Count a play after",
