@@ -346,3 +346,29 @@ afterEvaluate {
         add("fullImplementation", files("../prebuilt/ffMetadataEx-release.aar"))
     }
 }
+
+// The player layout editor (tools/layout-editor.html) ships inside the app as an asset - Settings >
+// Appearance > Player layout > Open the layout editor - the same file the Windows app bundles.
+abstract class CopyLayoutEditor : DefaultTask() {
+    @get:InputFile
+    abstract val source: RegularFileProperty
+
+    @get:OutputDirectory
+    abstract val outputDir: DirectoryProperty
+
+    @TaskAction
+    fun copy() {
+        val dir = outputDir.get().asFile.resolve("editor").apply { mkdirs() }
+        source.get().asFile.copyTo(dir.resolve("layout-editor.html"), overwrite = true)
+    }
+}
+
+val copyLayoutEditor = tasks.register<CopyLayoutEditor>("copyLayoutEditor") {
+    source.set(rootProject.layout.projectDirectory.file("tools/layout-editor.html"))
+}
+
+androidComponents {
+    onVariants { variant ->
+        variant.sources.assets?.addGeneratedSourceDirectory(copyLayoutEditor, CopyLayoutEditor::outputDir)
+    }
+}

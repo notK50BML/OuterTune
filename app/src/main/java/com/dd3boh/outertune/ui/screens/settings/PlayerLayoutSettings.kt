@@ -8,6 +8,7 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import androidx.compose.material.icons.rounded.DashboardCustomize
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Spacer
@@ -95,6 +96,12 @@ fun PlayerLayoutSettings(
     ) {
         PreferenceGroupTitle(title = stringResource(R.string.player_layout))
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.player_layout_open_editor)) },
+                description = stringResource(R.string.player_layout_open_editor_description),
+                icon = { Icon(Icons.Rounded.DashboardCustomize, null) },
+                onClick = { navController.navigate("settings/appearance/layout/editor") },
+            )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.player_layout_import)) },
                 // What is actually in use, always - not a message about the last thing that

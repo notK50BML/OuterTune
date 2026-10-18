@@ -518,7 +518,10 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="player_layout_import">Import a layout file</string>
     <string name="player_layout_import_description">Using the built-in layout</string>
     <string name="player_layout_imported">Layout imported.</string>
-    <string name="player_layout_reset">Back to the built-in layout</string>
+    <string name="player_layout_reset">Revert to the original layout</string>
+    <string name="player_layout_open_editor">Open the layout editor</string>
+    <string name="player_layout_open_editor_description">Arrange the player here, then apply it</string>
+    <string name="player_layout_applied">Layout applied</string>
     <string name="player_layout_reset_done">Back to the built-in layout.</string>
     <string name="player_layout_unreadable">That file could not be read.</string>
     <string name="player_layout_note">Layouts are made in the standalone editor and apply to the portrait player. Landscape and tablet keep the built-in layout, since they are laid out differently and one set of positions cannot serve all three.</string>

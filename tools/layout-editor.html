@@ -278,6 +278,9 @@
 
     <div class="card">
       <h2>Presets</h2>
+      <div class="btns" style="padding-bottom:0">
+        <button id="revert">Revert to the original layout</button>
+      </div>
       <div class="btns" id="winPresets" style="display:none">
         <button data-winpreset="default">Default</button>
         <button data-winpreset="centred">Centred</button>
@@ -300,6 +303,7 @@
     <div class="card">
       <h2>Layout file</h2>
       <div class="btns">
+        <button class="primary" id="apply" style="display:none">Apply to player</button>
         <button class="primary" id="download">Download <span id="fileName">player-layout.json</span></button>
         <button id="copy">Copy</button>
         <button id="paste">Import from box below</button>
@@ -358,10 +362,13 @@ const BLOCK_DEFS = [
   { id: "skip_next",     label: "Next",          knobs: ["scale", "rot"] },
   { id: "repeat",        label: "Repeat",        knobs: ["scale", "rot"] },
 
-  { id: "sleep_timer",   label: "Sleep timer",   knobs: ["scale", "rot"] },
-  { id: "like",          label: "Like",          knobs: ["scale", "rot"] },
-  { id: "equalizer",     label: "Equalizer",     knobs: ["scale", "rot"] },
-  { id: "menu",          label: "Overflow menu", knobs: ["scale", "rot"] },
+  /*
+   * The buttons beside the menu are chosen in the app (Settings > Player buttons), so a layout
+   * places them as one block - shown here with the app's default, like and the menu, standing in for
+   * whichever are chosen. Both apps draw "actions" as exactly that chosen row; on the phone, in a
+   * stacked layout, it sits beside the title, as the player draws it.
+   */
+  { id: "actions",       label: "Player buttons", knobs: ["scale", "rot"] },
 
   { id: "queue",    label: "Queue handle",       knobs: ["rot"] },
 ];
@@ -457,7 +464,7 @@ const NOMINAL_H = {
   controls: 8, actions: 5,
   shuffle: 5, seek_backward: 5, skip_previous: 6, play_pause: 8,
   seek_forward: 5, skip_next: 6, repeat: 5,
-  sleep_timer: 5, like: 5, equalizer: 5, menu: 5,
+  sleep_timer: 5, like: 5, equalizer: 5, menu: 5, actions: 5,
 };
 
 /*
@@ -499,7 +506,7 @@ function controlMembers(scale, visible = true) {
   }));
 }
 function actionMembers(scale, visible = true) {
-  return ACTION_MEMBERS.map(id => ({ id, visible, scale, group: "actions" }));
+  return [{ id: "actions", visible, scale }];
 }
 
 /*
@@ -654,13 +661,11 @@ function winControls(cx, cy, widthPct, scr) {
 }
 
 /** The action buttons in a row, as the desktop spaces them (7dp apart), starting at x0. */
+/** The chosen buttons as one block, its left edge at x0 (positions are centres, so shifted). */
 function winActions(x0, y, ids, scr, visible = true) {
   const areaW = scr.width - WIN.side * 2;
-  const step = (WIN_SIZES.action * winScale(scr) + 7) / areaW * 100;
-  return ACTION_MEMBERS.map(id => {
-    const i = ids.indexOf(id);
-    return { id, visible: visible && i >= 0, x: round1(x0 + Math.max(i, 0) * step), y, w: round1(step) };
-  });
+  const w = (WIN_SIZES.action * winScale(scr) * 2 + 7) / areaW * 100;
+  return [{ id: "actions", visible, x: round1(x0 + w / 2), y, w: round1(w) }];
 }
 
 /** Windows starting points. "default" is the desktop player as it ships. */
@@ -765,8 +770,16 @@ function activeScreen() { return previewAspect || screen; }
 function expandLegacy(blocks) {
   const out = [];
   for (const b of blocks) {
-    if (b.id === "controls" || b.id === "actions") {
-      const members = b.id === "controls" ? CONTROL_MEMBERS : ACTION_MEMBERS;
+    if (ACTION_MEMBERS.includes(b.id)) {
+      // An older file's separate action buttons: folded into the one block, at the first one's place.
+      if (!out.some(x => x.id === "actions")) {
+        const visible = blocks.some(m => ACTION_MEMBERS.includes(m.id) && m.visible !== false);
+        out.push({ ...b, id: "actions", visible, group: undefined });
+      }
+      continue;
+    }
+    if (b.id === "controls") {
+      const members = CONTROL_MEMBERS;
       const gid = b.id;
       for (const id of members) {
         out.push({
@@ -823,9 +836,9 @@ function ungroup(groupId) {
   toast("Ungrouped.");
 }
 
-/** Whether a block is one of the small round transport/action buttons. */
+/** Whether a block is one of the small round transport/action buttons, sized by its own artwork. */
 function isButton(id) {
-  return Object.prototype.hasOwnProperty.call(MEMBER_ROLE, id);
+  return id === "actions" || Object.prototype.hasOwnProperty.call(MEMBER_ROLE, id);
 }
 
 /** A block's natural height as a percentage of the screen, at its current scale. */
@@ -864,6 +877,27 @@ function seedFreePositions() {
     if (done.has(b.id)) continue;
     if (b.x !== undefined && b.y !== undefined && b.w !== undefined) { done.add(b.id); continue; }
 
+    // The chosen buttons start where the player draws them: at the right end of the title's row,
+    // the title narrowed to make room - not as a row of their own.
+    if (b.id === "actions") {
+      const info = state.blocks.find(x => x.id === "info");
+      if (info && info.visible !== false) continue; // placed with the title
+      place(b, w); continue;
+    }
+    if (b.id === "info") {
+      const actions = state.blocks.find(x => x.id === "actions");
+      if (actions && !done.has("actions")) {
+        const aW = round1(((ROLE_STYLE.ghost.box * 2 * (get(actions, "scale") / 100)) + 10) / NOMINAL_PREVIEW_W * 100);
+        const left = 50 - w / 2;
+        place(b, round1(w - aW - 2));
+        b.x = round1(left + b.w / 2);
+        actions.w = aW;
+        actions.x = round1(left + w - aW / 2);
+        actions.y = b.y;
+        done.add("actions");
+        continue;
+      }
+    }
     if (!b.group) { place(b, w); continue; }
 
     const members = membersOf(b.group).filter(m => !done.has(m.id));
@@ -966,7 +1000,18 @@ function memberMarkup(b) {
     `${svg(ICON[spec.icon], glyph, style.fill)}</div>`;
 }
 
+/** The placeholder for the chosen buttons: the app's default, like and the menu. */
+function actionsMarkup(b) {
+  const s = get(b, "scale") / 100;
+  const style = ROLE_STYLE.ghost;
+  const box = Math.round(style.box * s), glyph = Math.round(style.glyph * s);
+  return `<div class="cluster" style="gap:${Math.round(box * 0.3)}px" title="Your player buttons (Settings > Player buttons)">` +
+    [ICON.heart, ICON.more].map(d => `<div class="${style.cls}" style="width:${box}px;height:${box}px">${svg(d, glyph, style.fill)}</div>`).join("") +
+    `</div>`;
+}
+
 function blockMarkup(b, boxW) {
+  if (b.id === "actions") return actionsMarkup(b);
   const s = get(b, "scale") / 100;
   if (b.id === "artwork") {
     const r = Math.min(get(b, "radius") * (boxW / 360), boxW / 2);
@@ -1115,10 +1160,11 @@ function renderWindowsPreview() {
     } else if (b.id === "play_pause") {
       const box = WIN_SIZES.play * k * f;
       node.innerHTML = `<div class="b winplay" style="width:${box}px;height:${box}px;border-radius:${box * 0.28}px">${svg(ICON.pause, WIN_SIZES.playIcon * k * f, "#111111")}</div>`;
-    } else if (ACTION_MEMBERS.includes(b.id)) {
+    } else if (b.id === "actions") {
       const box = WIN_SIZES.action * k * f;
-      const icon = { sleep_timer: ICON.sleep_timer, like: ICON.heart, equalizer: ICON.equalizer, menu: ICON.more }[b.id];
-      node.innerHTML = `<div class="b disc" style="width:${box}px;height:${box}px">${svg(icon, WIN_SIZES.actionIcon * k * f, "#1d1430")}</div>`;
+      node.title = "Your player buttons (Settings > Player buttons)";
+      node.innerHTML = `<div style="display:flex;gap:${7 * f}px">` + [ICON.heart, ICON.more]
+        .map(d => `<div class="b disc" style="width:${box}px;height:${box}px">${svg(d, WIN_SIZES.actionIcon * k * f, "#1d1430")}</div>`).join("") + `</div>`;
     } else {
       const box = WIN_SIZES.transport * k * f;
       const icon = MEMBER_ROLE[b.id] ? ICON[MEMBER_ROLE[b.id].icon] : ICON.note;
@@ -1172,8 +1218,9 @@ function renderPreview() {
     surface.style.gap = "0";
   }
 
+  const actionsBlock = state.blocks.find(b => b.id === "actions");
   if (state.mode === "stack") {
-    for (const unit of layoutUnits(state.blocks)) {
+    for (const unit of layoutUnits(state.blocks.filter(b => b.id !== "actions"))) {
       const node = document.createElement("div");
       node.style.flex = "none";
 
@@ -1185,6 +1232,15 @@ function renderPreview() {
         if (b.id === "artwork") {
           const w = Math.round((boxW - state.sidePadding * 2) * get(b, "size") / 100);
           node.innerHTML = `<div style="width:${w}px;height:${w}px;margin:0 auto">${blockMarkup(b, w)}</div>`;
+        } else if (b.id === "info" && actionsBlock) {
+          // Title and the chosen buttons share one row - Player.kt's infoBlock.
+          const a = actionsBlock;
+          const aSel = selected === "actions";
+          node.innerHTML = `<div style="display:flex;align-items:center;gap:8px">
+            <div style="flex:1;min-width:0">${blockMarkup(b, boxW)}</div>
+            <div class="blk${a.visible ? "" : " hidden"}${aSel ? " sel" : ""}" data-id="actions" style="flex:none">${actionsMarkup(a)}</div></div>`;
+          const actionsNode = node.querySelector('[data-id="actions"]');
+          actionsNode.onclick = e => { e.stopPropagation(); handleBlockClick(e, "actions"); };
         } else {
           node.innerHTML = blockMarkup(b, boxW);
           if (b.id === "queue") {
@@ -1637,6 +1693,7 @@ function toJson() {
         if (b.id === "artwork") out.radius = get(b, "radius");
         if (b.id === "info") out.align = get(b, "align");
         if (b.id !== "queue" && b.id !== "artwork") out.scale = get(b, "scale");
+        if (b.group) out.group = b.group;
         if (get(b, "rot")) out.rot = get(b, "rot");
         return out;
       }),
@@ -1685,8 +1742,8 @@ function importJson(text) {
   if (filePlatform === "windows") {
     const blocks = [];
     const seen = new Set();
-    for (const b of parsed.blocks) {
-      if (defOf(b.id) && !seen.has(b.id)) { seen.add(b.id); blocks.push(clone(b)); }
+    for (const b of expandLegacy(parsed.blocks.map(clone))) {
+      if (defOf(b.id) && !seen.has(b.id)) { seen.add(b.id); blocks.push(b); }
     }
     const base = winPreset("default", screen);
     for (const d of base) if (!seen.has(d.id)) blocks.push(d);
@@ -1913,6 +1970,35 @@ document.querySelectorAll("[data-winpreset]").forEach(btn => {
     toast("Loaded the " + btn.textContent.toLowerCase() + " preset.");
   };
 });
+
+/*
+ * Inside the phone app (PlayerLayoutEditorScreen) the page is given a bridge, "OuterTune": the layout
+ * in use is loaded to start from, and Apply hands a new one straight to the player - no file to
+ * download and import. Revert puts the built-in player back.
+ */
+const inApp = typeof window.OuterTune !== "undefined";
+if (inApp) {
+  document.getElementById("apply").style.display = "";
+  document.getElementById("download").style.display = "none";
+  document.getElementById("importNote").textContent = "Apply puts this layout on the player straight away.";
+  try {
+    const current = window.OuterTune.current();
+    if (current) importJson(current);
+  } catch (e) { /* the built-in layout, then */ }
+}
+document.getElementById("apply").onclick = () => {
+  window.OuterTune.apply(JSON.stringify(toJson()));
+};
+document.getElementById("revert").onclick = () => {
+  if (isWin()) loadWinPreset("default"); else state = materialize(clone(PRESETS.default));
+  selected = null;
+  multiSelected.clear();
+  render();
+  if (inApp) { window.OuterTune.revert(); return; }
+  toast(isWin()
+    ? "Back to the original layout. In the app, Player layout \u2192 Revert does the same."
+    : "Back to the original layout. In the app, Player layout \u2192 Revert does the same.");
+};
 
 // The Windows preview follows the page's width.
 window.addEventListener("resize", () => { if (isWin()) renderPreview(); });

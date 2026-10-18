@@ -74,7 +74,7 @@ fun PlayerLayoutSetting(settings: Settings) {
                 }
             }
         }) { Text("Import…") }
-        if (custom) TextButton(onClick = { settings.playerLayout = ""; message = "Back to the built-in player." to false }) { Text("Reset") }
+        if (custom) TextButton(onClick = { settings.playerLayout = ""; message = "Back to the original layout." to false }) { Text("Revert to original") }
     }
     message?.let { (text, error) ->
         Text(

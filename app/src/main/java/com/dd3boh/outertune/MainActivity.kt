@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune
 
+import com.dd3boh.outertune.ui.screens.settings.PlayerLayoutEditorScreen
 import android.annotation.SuppressLint
 import android.app.NotificationManager
 import android.content.res.Configuration
@@ -764,6 +765,9 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable("settings/appearance/layout") {
                                         PlayerLayoutSettings(navController, scrollBehavior)
+                                    }
+                                    composable("settings/appearance/layout/editor") {
+                                        PlayerLayoutEditorScreen(navController)
                                     }
                                     composable("settings/library") {
                                         LibrarySettings(navController, scrollBehavior)
