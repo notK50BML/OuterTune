@@ -646,7 +646,7 @@ class DesktopPlayer {
                 compressor.reset()
                 timeStretch.reset()
                 trackMsBase = src.seek(target)
-                baseTempo = timeStretch.tempo
+                baseTempo = timeStretch.rate
                 positionMs.value = trackMsBase
             }
 
@@ -720,7 +720,7 @@ class DesktopPlayer {
 
             open.write(stretched, 0, stretched.size)
 
-            val tempo = timeStretch.tempo
+            val tempo = timeStretch.rate
             if (tempo != baseTempo) {
                 trackMsBase += ((open.longFramePosition - lineFrameBase) * 1000.0 * baseTempo / sampleRate).toLong()
                 lineFrameBase = open.longFramePosition

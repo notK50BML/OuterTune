@@ -919,9 +919,9 @@ private fun ListenTogetherSettings(settings: Settings, listenTogether: ListenTog
             RotaryDial(
                 value = settings.listenTogetherOffsetMs.toFloat(),
                 onValueChange = { settings.listenTogetherOffsetMs = it.toInt() },
-                valueRange = -500f..500f,
+                valueRange = -3000f..3000f,
                 color = if (settings.colourByValue) {
-                    ValueGradient.forValue(settings.listenTogetherOffsetMs.toFloat(), -500f..500f)
+                    ValueGradient.forValue(settings.listenTogetherOffsetMs.toFloat(), -3000f..3000f)
                 } else {
                     MaterialTheme.colorScheme.primary
                 },

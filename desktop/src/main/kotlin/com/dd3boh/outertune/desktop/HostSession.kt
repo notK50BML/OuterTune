@@ -146,13 +146,41 @@ class HostSession(
         // Starts due, so a follower connecting to an already-running session is served immediately
         // rather than after a poll interval.
         var pollsSinceTick = POLLS_PER_TICK
+        // The last reading, for noticing a change the moment it happens - see below.
+        var lastPlaying = false
+        var lastSpeed = 1f
+        var lastPolledTrack: String? = null
+        var lastPositionMs: Long? = null
+        var lastPolledAtMs = 0L
 
         while (scope.isActive) {
             // Polled far more often than it is broadcast. The anchor needs readings at least as
             // often as the player moves to catch the moment it actually advanced; a reading once a
             // second would only ever see a stale value and the interpolation would be anchored to
             // the wrong instant.
-            anchor.update(bridge.positionMs())
+            val positionNow = bridge.positionMs()
+            anchor.update(positionNow)
+
+            // Sent straight away rather than at the next once-a-second tick: a pause, a play, a
+            // speed change, a new song or a jump (a seek, a restart). Waiting for the tick left a
+            // follower up to a second behind every one of those - the delay that was so audible.
+            // Steady playback still goes out once a second; only a change is hurried.
+            val playingNow = bridge.isPlaying
+            val speedNow = bridge.speed
+            val trackNow = bridge.currentTrack?.videoId
+            val nowMs = System.nanoTime() / 1_000_000
+            lastPositionMs?.let { last ->
+                val expected = last + if (lastPlaying) ((nowMs - lastPolledAtMs) * lastSpeed).toLong() else 0L
+                val jumped = kotlin.math.abs(positionNow - expected) > JUMP_MS
+                if (playingNow != lastPlaying || speedNow != lastSpeed || trackNow != lastPolledTrack || jumped) {
+                    pollsSinceTick = POLLS_PER_TICK
+                }
+            }
+            lastPlaying = playingNow
+            lastSpeed = speedNow
+            lastPolledTrack = trackNow
+            lastPositionMs = positionNow
+            lastPolledAtMs = nowMs
 
             if (pollsSinceTick >= POLLS_PER_TICK) {
                 val track = bridge.currentTrack
@@ -214,10 +242,13 @@ class HostSession(
 
     private companion object {
         /** How often the player is read. Must be finer than the player's own update granularity. */
-        const val POLL_INTERVAL_MS = 250L
+        const val POLL_INTERVAL_MS = 100L
 
-        /** Polls per broadcast, so a tick goes out once a second. */
-        const val POLLS_PER_TICK = 4
+        /** Polls per broadcast, so a tick goes out once a second - sooner when something changes. */
+        const val POLLS_PER_TICK = 10
+
+        /** A position this far from where steady playback would have put it is a seek. */
+        const val JUMP_MS = 600L
 
         /** Ticks between repeats of an unchanged track - about half a minute. */
         const val TRACK_REPEAT_TICKS = 30

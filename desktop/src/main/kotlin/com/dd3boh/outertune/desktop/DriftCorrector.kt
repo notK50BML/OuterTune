@@ -181,8 +181,8 @@ class DriftCorrector(private val nowUs: () -> Long) {
         /** How long to spend closing a gap. Slow enough to be inaudible, quick enough to matter. */
         const val TIME_CONSTANT_MS = 3_000
 
-        /** Largest rate change. Beyond a few percent, tempo change stops being subliminal. */
-        const val MAX_NUDGE = 0.05
+        /** Largest rate change. Applied by resampling, so it moves pitch too - kept small enough not to be heard. */
+        const val MAX_NUDGE = 0.02
 
         /** Do not re-set the rate for a change smaller than this. */
         const val MIN_SPEED_STEP = 0.002f

@@ -59,7 +59,7 @@ class DesktopPlaybackBridge(
         get() = player.state.value is PlaybackState.Playing
 
     override val speed: Float
-        get() = player.timeStretch.tempo
+        get() = player.timeStretch.rate
 
     override fun positionMs(): Long = player.positionMs.value
 
@@ -79,10 +79,10 @@ class DesktopPlaybackBridge(
     }
 
     override fun setPlaybackSpeed(speed: Float) {
-        // Pitch is untouched - TimeStretch is WSOLA-based and changes tempo independently of pitch,
-        // same property Media3's Sonic-backed stretch gives the phone. That is the entire reason a
-        // few percent of drift correction can be inaudible.
-        player.timeStretch.tempo = speed
+        // Resampled rather than time-stretched - see TimeStretch.nudge. The stretch buffered and
+        // dropped audio every time a correction started or stopped, which was the stutter heard
+        // all through a session. And kept apart from the listener's own tempo setting.
+        player.timeStretch.nudge = speed
     }
 
     override suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean {

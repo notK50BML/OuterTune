@@ -46,6 +46,26 @@ class TimeStretch {
             field = value.coerceIn(MIN_TEMPO, MAX_TEMPO)
         }
 
+    /**
+     * A small rate change for Listen Together's drift correction, applied by resampling.
+     *
+     * Not through [tempo], which is WSOLA: that needs a few frames buffered before it puts anything
+     * out and drops what it holds when switched off, so every nudge on and every nudge off was a
+     * gap in the sound - every few seconds for as long as a session lasted. Resampling holds three
+     * samples and is continuous. It moves pitch with rate, but a nudge is at most a couple of
+     * percent and usually a fraction of one, which is not heard.
+     */
+    var nudge: Float = 1f
+        set(value) {
+            field = value.coerceIn(0.9f, 1.1f)
+        }
+
+    /** Song time per second of output: tempo and nudge together. What position is measured by. */
+    val rate: Float get() = tempo * nudge
+
+    /** Kept once used, so a nudge returning to 1 does not cut the stream - see [nudge]. */
+    private var nudgeResampler: Resampler? = null
+
     /** Pitch offset in semitones, 0 being unchanged. */
     var pitchSemitones: Float = 0f
         set(value) {
@@ -84,8 +104,25 @@ class TimeStretch {
         bigEndian: Boolean,
         sampleRate: Int,
     ): ByteArray {
-        if (!active || channels < 1 || sampleRate <= 0 || bitsPerSample != 16 || length <= 0) {
+        if (channels < 1 || sampleRate <= 0 || bitsPerSample != 16 || length <= 0) {
             return if (length == bytes.size) bytes else bytes.copyOf(length)
+        }
+        if (!active) {
+            // Only a nudge, or none: resampled alone, so the stream is never buffered or cut.
+            if (nudge == 1f && nudgeResampler == null) {
+                return if (length == bytes.size) bytes else bytes.copyOf(length)
+            }
+            if (configuredChannels != channels || configuredRate != sampleRate) {
+                nudgeResampler = null
+                configuredRate = sampleRate
+                configuredChannels = channels
+                wsola = null
+                resampler = null
+            }
+            val r = nudgeResampler ?: Resampler(channels).also { nudgeResampler = it }
+            val frames = length / (2 * channels)
+            val input = Pcm.deinterleave(bytes, frames, channels, bigEndian)
+            return Pcm.interleave(r.process(input, nudge.toDouble()), channels, bigEndian)
         }
         if (configuredRate != sampleRate || configuredChannels != channels) {
             wsola = Wsola(channels, sampleRate)
@@ -103,7 +140,7 @@ class TimeStretch {
         // Stretch by tempo/pitch, then resample by pitch: the resampling stage multiplies both, so
         // the stretch has to pre-divide the tempo by the same amount for tempo to land where asked.
         val stretched = stretcher.process(input, (tempo / pitchRatio).toFloat())
-        val resampled = interpolator.process(stretched, pitchRatio)
+        val resampled = interpolator.process(stretched, pitchRatio * nudge)
 
         return Pcm.interleave(resampled, channels, bigEndian)
     }
@@ -112,6 +149,7 @@ class TimeStretch {
     fun reset() {
         wsola = null
         resampler = null
+        nudgeResampler = null
         configuredRate = 0
         configuredChannels = 0
     }

@@ -73,10 +73,12 @@ class MediaPlaybackBridge(
     }
 
     override fun setPlaybackSpeed(speed: Float) {
-        // Pitch deliberately left at 1 while speed moves. Media3 then time-stretches through Sonic
-        // rather than resampling, so a few percent of correction changes tempo without touching
-        // pitch - which is the entire reason drift can be corrected without anyone hearing it.
-        player.playbackParameters = PlaybackParameters(speed, 1f)
+        // Pitch moved with speed, so Sonic resamples rather than time-stretching. Its stretch
+        // splices the audio continuously, and with a correction starting and stopping every few
+        // seconds that was heard as stutter all through a session; a resample is continuous. The
+        // pitch moves too, but a nudge is at most a couple of percent and usually a fraction of
+        // one, which nobody hears.
+        player.playbackParameters = PlaybackParameters(speed, speed)
     }
 
     override suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean {

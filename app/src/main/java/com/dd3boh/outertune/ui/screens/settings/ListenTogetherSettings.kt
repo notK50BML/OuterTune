@@ -108,13 +108,17 @@ fun ListenTogetherSettings(
         CounterDialog(
             title = stringResource(R.string.lt_offset_title),
             initialValue = offsetMs,
-            // Half a second either way. Beyond that the problem is not output latency.
-            upperBound = 500,
-            lowerBound = -500,
+            // Three seconds either way: Bluetooth speakers, TVs and soundbars can lag well past half
+            // a second, and the range has to reach wherever the speakers actually are.
+            upperBound = 3000,
+            lowerBound = -3000,
             unitDisplay = " ms",
             onDismiss = { showOffsetDialog = false },
             onConfirm = { onOffsetChange(it); showOffsetDialog = false },
             onReset = { onOffsetChange(0) },
+            resetValue = 0,
+            // Tens of milliseconds: finer than anyone can hear, and the slider stays usable over six seconds.
+            step = 10,
             onCancel = { showOffsetDialog = false },
         )
     }
