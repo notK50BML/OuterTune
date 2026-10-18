@@ -326,6 +326,8 @@ val UseLoginForBrowse = booleanPreferencesKey("useLoginForBrowse")
  * Local library
  */
 val LocalLibraryEnableKey = booleanPreferencesKey("localLibraryEnable")
+/** Match local files' artists to their YouTube Music channel after each scan - see LocalArtistLinker. */
+val LinkLocalArtistsKey = booleanPreferencesKey("linkLocalArtists")
 
 
 /**

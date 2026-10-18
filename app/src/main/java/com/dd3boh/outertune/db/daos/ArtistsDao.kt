@@ -67,6 +67,31 @@ interface ArtistsDao {
     @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE LIMIT 1")
     fun artistByNameIgnoreCase(name: String): ArtistEntity?
 
+    /** A real YouTube Music artist already in the library under [name] - see LocalArtistLinker. */
+    @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE AND isLocal != 1 AND id LIKE 'UC%' LIMIT 1")
+    fun remoteArtistByNameIgnoreCase(name: String): ArtistEntity?
+
+    /** Local songs whose title names someone featured, for LocalArtistLinker. */
+    @Query("""
+        SELECT id FROM song
+        WHERE isLocal = 1 AND (title LIKE '%feat%' OR title LIKE '%ft.%' OR title LIKE '% ft %')
+    """)
+    fun localSongIdsWithFeaturing(): List<String>
+
+    /** How many local songs are credited to [artistId] - whether "Unlink local files" applies. */
+    @Query("""
+        SELECT COUNT(*) FROM song_artist_map m JOIN song s ON s.id = m.songId
+        WHERE m.artistId = :artistId AND s.isLocal = 1
+    """)
+    fun localSongCountForArtist(artistId: String): Flow<Int>
+
+    /** Moves only the local songs' credits from [oldId] to [newId] - undoing a link. */
+    @Query("""
+        UPDATE song_artist_map SET artistId = :newId
+        WHERE artistId = :oldId AND songId IN (SELECT id FROM song WHERE isLocal = 1)
+    """)
+    fun moveLocalSongCredits(oldId: String, newId: String)
+
     @Query("SELECT * FROM artist WHERE isLocal = 1 AND name LIKE '%' || :name || '%'")
     fun localArtistsByNameFuzzy(name: String): List<ArtistEntity>
 

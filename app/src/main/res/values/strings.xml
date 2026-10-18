@@ -103,6 +103,12 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="view_album">View album</string>
     <string name="refetch">Refetch</string>
     <string name="share">Share</string>
+    <string name="link_artist_ytm">Link to YouTube Music</string>
+    <string name="unlink_local_files">Unlink local files</string>
+    <string name="link_artist_dialog_title">Link \"%1$s\" to YouTube Music</string>
+    <string name="link_artist_none_found">No artists found</string>
+    <string name="link_local_artists_title">Match local artists on YouTube Music</string>
+    <string name="link_local_artists_description">After a scan, link your files\' artists to their YouTube Music page when the name matches exactly. Searches YouTube Music by artist name.</string>
     <string name="delete">Delete</string>
     <string name="remove_from_history">Remove from history</string>
     <string name="remove_from_playlist">Remove from playlist</string>

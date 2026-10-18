@@ -8,6 +8,8 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import com.dd3boh.outertune.constants.LinkLocalArtistsKey
+import androidx.compose.material.icons.rounded.Link
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -69,6 +71,7 @@ fun LocalPlayerSettings(
     val (enabledFilters, onEnabledFiltersChange) = rememberPreference(EnabledFiltersKey, defaultValue = DEFAULT_ENABLED_FILTERS)
     val (enabledTabs, onEnabledTabsChange) = rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
     val (localLibEnable, onLocalLibEnableChange) = rememberPreference(LocalLibraryEnableKey, defaultValue = true)
+    val (linkArtists, onLinkArtistsChange) = rememberPreference(LinkLocalArtistsKey, defaultValue = true)
 
     LaunchedEffect(localLibEnable) {
         var containsFolders = enabledTabs.contains('F')
@@ -120,6 +123,13 @@ fun LocalPlayerSettings(
             InfoLabel(
                 text = stringResource(R.string.auto_scanner_tooltip),
                 modifier = Modifier.padding(top = 8.dp, bottom = 16.dp)
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.link_local_artists_title)) },
+                description = stringResource(R.string.link_local_artists_description),
+                icon = { Icon(Icons.Rounded.Link, null) },
+                checked = linkArtists,
+                onCheckedChange = onLinkArtistsChange
             )
         }
 

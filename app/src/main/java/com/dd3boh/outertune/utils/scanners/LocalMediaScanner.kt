@@ -8,6 +8,7 @@
 
 package com.dd3boh.outertune.utils.scanners
 
+import com.dd3boh.outertune.utils.LocalArtistLinker
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
@@ -68,6 +69,9 @@ import java.time.LocalDateTime
 import java.time.ZoneOffset
 
 class LocalMediaScanner(context: Context, scannerImpl: ScannerImpl) {
+    /** For LocalArtistLinker, which runs after each sync. */
+    private val appContext: Context = context.applicationContext
+
     // Hold the application context to avoid leaking an Activity/Service through the static scanner instance
     val context: Context = context.applicationContext
     private val TAG = LocalMediaScanner::class.simpleName.toString()
@@ -389,6 +393,8 @@ class LocalMediaScanner(context: Context, scannerImpl: ScannerImpl) {
             disableSongs(finalSongs.map { it.song }, database)
         }
         scannerState.value = 0
+        LocalArtistLinker.schedule(appContext, database)
+
         Log.i(TAG, "------------ SYNC: Finished Local Library Sync ------------")
     }
 
@@ -524,6 +530,8 @@ class LocalMediaScanner(context: Context, scannerImpl: ScannerImpl) {
         finalize(database)
 
         scannerState.value = 0
+        LocalArtistLinker.schedule(appContext, database)
+
         Log.i(TAG, "------------ SYNC: Finished Quick (additive delta) Library Sync ------------")
     }
 
@@ -633,6 +641,8 @@ class LocalMediaScanner(context: Context, scannerImpl: ScannerImpl) {
         }
 
         scannerState.value = 0
+        LocalArtistLinker.schedule(appContext, database)
+
         Log.i(TAG, "------------ SYNC: Finished Quick (additive delta) Library Sync ------------")
     }
 
@@ -883,6 +893,8 @@ class LocalMediaScanner(context: Context, scannerImpl: ScannerImpl) {
 
 
         scannerState.value = 0
+        LocalArtistLinker.schedule(appContext, database)
+
         Log.i(TAG, "------------ SYNC: Finished MediaStore FULL Library Sync ------------")
     }
 

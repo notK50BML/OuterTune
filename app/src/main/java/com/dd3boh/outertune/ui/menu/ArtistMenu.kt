@@ -1,5 +1,39 @@
 package com.dd3boh.outertune.ui.menu
 
+import coil3.compose.AsyncImage
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Column
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import kotlinx.coroutines.delay
+import com.zionhuang.innertube.models.ArtistItem
+import com.dd3boh.outertune.utils.LocalArtistLinker
+import androidx.compose.material.icons.rounded.LinkOff
+import androidx.compose.material.icons.rounded.Link
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.getValue
 import android.content.Intent
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -47,6 +81,21 @@ fun ArtistMenu(
     val isNetworkConnected = LocalNetworkConnected.current
     val artistState = database.artist(originalArtist.id).collectAsState(initial = originalArtist)
     val artist = artistState.value ?: originalArtist
+    // Local songs credited to a real channel are ones LocalArtistLinker linked, and can be unlinked.
+    val localSongCount by database.localSongCountForArtist(originalArtist.id).collectAsState(initial = 0)
+    var showLinkDialog by remember { mutableStateOf(false) }
+
+    if (showLinkDialog) {
+        LinkArtistDialog(
+            name = artist.artist.name,
+            onDismiss = { showLinkDialog = false },
+            onPick = { picked ->
+                showLinkDialog = false
+                coroutineScope.launch { LocalArtistLinker.linkByHand(context, database, artist.artist, picked) }
+                onDismiss()
+            },
+        )
+    }
 
     ArtistListItem(
         artist = artist,
@@ -129,6 +178,20 @@ fun ArtistMenu(
                 onDismiss()
             }
         }
+        if (!artist.artist.isYouTubeArtist && isNetworkConnected) {
+            GridMenuItem(
+                icon = { Icon(Icons.Rounded.Link, null) },
+                title = R.string.link_artist_ytm,
+            ) { showLinkDialog = true }
+        } else if (artist.artist.isYouTubeArtist && localSongCount > 0) {
+            GridMenuItem(
+                icon = { Icon(Icons.Rounded.LinkOff, null) },
+                title = R.string.unlink_local_files,
+            ) {
+                coroutineScope.launch { LocalArtistLinker.unlinkLocal(context, database, artist.artist) }
+                onDismiss()
+            }
+        }
         if (artist.artist.isYouTubeArtist) {
             GridMenuItem(
                 icon = Icons.Rounded.Share,
@@ -144,4 +207,57 @@ fun ArtistMenu(
             }
         }
     }
+}
+
+/** Picks the YouTube Music artist a local artist is, searched by their name to start with. */
+@Composable
+private fun LinkArtistDialog(name: String, onDismiss: () -> Unit, onPick: (ArtistItem) -> Unit) {
+    var query by remember { mutableStateOf(name) }
+    var results by remember { mutableStateOf<List<ArtistItem>?>(null) }
+    LaunchedEffect(query) {
+        delay(350)
+        results = null
+        results = runCatching { LocalArtistLinker.candidates(query) }.getOrDefault(emptyList())
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.link_artist_dialog_title, name)) },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = query,
+                    onValueChange = { query = it },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(8.dp))
+                val found = results
+                when {
+                    found == null -> CircularProgressIndicator(Modifier.padding(16.dp))
+                    found.isEmpty() -> Text(stringResource(R.string.link_artist_none_found), Modifier.padding(8.dp))
+                    else -> LazyColumn(Modifier.heightIn(max = 360.dp)) {
+                        items(found, key = { it.id }) { item ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onPick(item) }
+                                    .padding(vertical = 8.dp),
+                            ) {
+                                AsyncImage(
+                                    model = item.thumbnail,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(40.dp).clip(CircleShape),
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) } },
+    )
 }

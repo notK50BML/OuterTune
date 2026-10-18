@@ -152,6 +152,7 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_keep_count, R.string.backup_restore),
     SettingsIndexEntry("settings/local", R.string.local_library_enable_title, R.string.local_player_settings_title),
     SettingsIndexEntry("settings/local", R.string.auto_scanner_title, R.string.local_player_settings_title),
+    SettingsIndexEntry("settings/local", R.string.link_local_artists_title, R.string.local_player_settings_title),
     SettingsIndexEntry("settings/local", R.string.local_player_settings_title, R.string.local_player_settings_title),
     SettingsIndexEntry("settings/local", R.string.scanner_sensitivity_title, R.string.local_player_settings_title),
     SettingsIndexEntry("settings/local", R.string.scanner_strict_file_name_title, R.string.local_player_settings_title),
