@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -835,7 +836,7 @@ internal fun App(
     // them: returning early used to take those effects out of composition while the player was
     // open, so closing it ran them all again - and the one that restores the saved queue put the
     // last session's queue back, leaving the bar on a different song from the one playing.
-    if (showFullPlayer) {
+    val fullPlayer: @Composable () -> Unit = {
         NowPlayingScreen(
             playback = playback,
             queue = queue,
@@ -927,9 +928,12 @@ internal fun App(
             onJumpToQueueIndex = { playerQueue.jumpTo(it) },
             onOpenArtist = openArtistPage,
         )
-        return
     }
 
+    // The full player is laid over the main view rather than replacing it, so everything underneath
+    // keeps its place while it is open - the settings tab being read, scroll positions, the library
+    // view - instead of starting over when it closes.
+    Box(modifier = Modifier.fillMaxSize()) {
     CompositionLocalProvider(
         LocalSongActions provides songActions,
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
@@ -1260,6 +1264,17 @@ internal fun App(
             queueOpen = settings.sideQueueOpen,
             onToggleQueue = { settings.sideQueueOpen = !settings.sideQueueOpen },
         )
+    }
+    }
+    if (showFullPlayer) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                // Clicks on the player's empty space stop here rather than reaching the page below.
+                .pointerInput(Unit) {
+                    awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { if (!it.isConsumed) it.consume() } }
+                },
+        ) { fullPlayer() }
     }
     }
 }
