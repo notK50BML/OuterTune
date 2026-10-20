@@ -17,7 +17,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import org.json.JSONObject
+import org.json.JSONArray
 import java.io.File
 
 /**
@@ -41,14 +41,29 @@ import java.io.File
 object AppUpdater {
     private const val TAG = "AppUpdater"
 
-    /** The fork this build is distributed from - matches the repository the workflow runs in. */
-    private const val RELEASES_API = "https://api.github.com/repos/notk50bml/outertune/releases/latest"
+    /**
+     * The fork this build is distributed from - matches the repository the workflow runs in.
+     *
+     * The list rather than `/releases/latest`, because this repository publishes the desktop build
+     * from it too. A Windows release carries no apk, so when it is the newest one `/latest` returned
+     * a release this scan could find nothing in - which is indistinguishable here from being up to
+     * date, and so would have quietly stopped Android updates for as long as it stayed newest.
+     * Walking back through the list instead means a release with nothing for this device is skipped
+     * rather than treated as the end of the search.
+     */
+    private const val RELEASES_API = "https://api.github.com/repos/notk50bml/outertune/releases?per_page=30"
 
     /**
      * The build filename applicationVariants.all assembles, e.g.
      * `OuterTune-0.19-arm64-v8a-core-release-147.apk`. The trailing number is the versionCode,
      * which is what an upgrade is actually decided on - versionName is free text and two different
      * builds routinely share one.
+     *
+     * Anchored at both ends, and `.apk` is part of the match rather than a separate check. That is
+     * what keeps this from ever handing the package installer something it cannot install: the
+     * desktop build publishes `OuterTune-setup.exe` and `OuterTune-windows.zip` into these same
+     * releases, and both fail this pattern outright rather than being filtered out later by
+     * something a future edit could reorder or drop.
      */
     private val ASSET_NAME = Regex("""^OuterTune-.*-(\d+)\.apk$""")
 
@@ -90,17 +105,7 @@ object AppUpdater {
                 response.body?.string() ?: return@withContext null
             }
 
-            val release = JSONObject(body)
-            // The release's own name first, its tag second. This repo tags releases by flavour
-            // (Core-v0.18.2) while naming them by version (v0.18.2), and the tag is the wrong one
-            // to put in front of someone: "New release available - Core-v0.18.2" reads like the
-            // flavour is part of the version. Either is only a label - what an upgrade is actually
-            // decided on is the versionCode parsed from the asset filename below.
-            val versionName = release.optString("name")
-                .ifBlank { release.optString("tag_name") }
-                .removePrefix("v")
-            val notes = release.optString("body").orEmpty()
-            val assets = release.optJSONArray("assets") ?: return@withContext null
+            val releases = JSONArray(body)
 
             // Only an apk built for this device's abi and this build's flavour can replace this
             // install. A universal apk is accepted too, since it contains every abi.
@@ -114,24 +119,45 @@ object AppUpdater {
 
             var best: Update? = null
             for (wanted in flavorsToTry) {
-                for (i in 0 until assets.length()) {
-                    val asset = assets.optJSONObject(i) ?: continue
-                    val name = asset.optString("name")
-                    val code = ASSET_NAME.find(name)?.groupValues?.get(1)?.toIntOrNull() ?: continue
+                for (r in 0 until releases.length()) {
+                    val release = releases.optJSONObject(r) ?: continue
+                    // What /releases/latest used to exclude for us, kept now that the list is read
+                    // directly: this is the ordinary update channel, and a draft or a pre-release is
+                    // neither something to offer unasked nor something every install should take.
+                    if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
 
-                    val abiMatches = name.contains("universal") || abis.any { name.contains(it) }
-                    if (!abiMatches || !name.contains(wanted, ignoreCase = true)) continue
-                    if (code <= BuildConfig.VERSION_CODE) continue
-                    if (best != null && code <= best.versionCode) continue
+                    // The release's own name first, its tag second. This repo tags releases by
+                    // flavour (Core-v0.18.2) while naming them by version (v0.18.2), and the tag is
+                    // the wrong one to put in front of someone: "New release available -
+                    // Core-v0.18.2" reads like the flavour is part of the version. Either is only a
+                    // label - what an upgrade is decided on is the versionCode from the filename.
+                    val versionName = release.optString("name")
+                        .ifBlank { release.optString("tag_name") }
+                        .removePrefix("v")
+                    val notes = release.optString("body").orEmpty()
+                    val assets = release.optJSONArray("assets") ?: continue
 
-                    best = Update(
-                        versionCode = code,
-                        versionName = versionName.ifBlank { code.toString() },
-                        assetName = name,
-                        downloadUrl = asset.optString("browser_download_url"),
-                        sizeBytes = asset.optLong("size"),
-                        releaseNotes = notes,
-                    )
+                    for (i in 0 until assets.length()) {
+                        val asset = assets.optJSONObject(i) ?: continue
+                        val name = asset.optString("name")
+                        // Also the .apk gate - see ASSET_NAME. Anything else published alongside,
+                        // the desktop build's installer and zip included, stops here.
+                        val code = ASSET_NAME.find(name)?.groupValues?.get(1)?.toIntOrNull() ?: continue
+
+                        val abiMatches = name.contains("universal") || abis.any { name.contains(it) }
+                        if (!abiMatches || !name.contains(wanted, ignoreCase = true)) continue
+                        if (code <= BuildConfig.VERSION_CODE) continue
+                        if (best != null && code <= best.versionCode) continue
+
+                        best = Update(
+                            versionCode = code,
+                            versionName = versionName.ifBlank { code.toString() },
+                            assetName = name,
+                            downloadUrl = asset.optString("browser_download_url"),
+                            sizeBytes = asset.optLong("size"),
+                            releaseNotes = notes,
+                        )
+                    }
                 }
                 if (best != null) break
             }
