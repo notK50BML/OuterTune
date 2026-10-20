@@ -59,6 +59,7 @@ private const val FERROFLUID_SKSL = """
     uniform float field;      // the magnet: spring-filtered bass, 0..~1.3
     uniform float shimmer;    // treble
     uniform float mid;        // the mids - each spike answers them on its own
+    uniform float voice;      // mid-band onsets: syllables, as a ripple across the pool
     uniform float2 lean;      // where the field pulls the spikes, in pool units
     uniform float3 keyColor;  // the white-ish key light
     uniform float3 rimColor;  // the theme's colour, for the rim light
@@ -81,10 +82,14 @@ private const val FERROFLUID_SKSL = """
         return dot(a, a) < dot(b, b) ? p - a : p - b;
     }
 
-    // The resting pool, raised a little in the middle by the field.
+    // The resting pool, raised a little in the middle by the field, and rippling outward with the
+    // voice. The ripple rides on the surface rather than on the spikes: the spikes are the beat's,
+    // and a voice pushing them around would set the crown moving against the pulse. Travelling
+    // outward from the centre, so each syllable reads as something leaving rather than a flicker.
     float dome(float r) {
         float x = clamp(r / R, 0.0, 1.0);
-        return 0.085 * sqrt(max(1.0 - x * x, 0.0)) + field * 0.07 * exp(-r * r * 3.2);
+        float ripple = voice * 0.022 * sin(r * 9.0 - time * 7.0) * smoothstep(R, R * 0.1, r);
+        return 0.085 * sqrt(max(1.0 - x * x, 0.0)) + field * 0.07 * exp(-r * r * 3.2) + ripple;
     }
 
     // Spike height above the dome at p.
@@ -247,6 +252,7 @@ internal data class FerrofluidFrame(
     val leanX: Float = 0f,
     val leanZ: Float = 0f,
     val mid: Float = 0f,
+    val voice: Float = 0f,
 )
 
 private val effect: RuntimeEffect? by lazy { runCatching { RuntimeEffect.makeForShader(FERROFLUID_SKSL) }.getOrNull() }
@@ -285,6 +291,8 @@ fun FerrofluidVisualiser(
         var bassAvg = 0f
         var shimmer = 0f
         var mid = 0f
+        var midAvg = 0f
+        var voice = 0f
         var lastDrawn = 0L
         while (true) {
             withFrameNanos { now ->
@@ -293,7 +301,7 @@ fun FerrofluidVisualiser(
                 // The simulation runs every frame; the picture is only redrawn about forty times a
                 // second, and not at all once the pool has come to rest with nothing playing - the
                 // per-pixel march is the whole cost, and a still pool needs no new frames.
-                val settled = !currentPlaying && field < 0.002f && kotlin.math.abs(velocity) < 0.002f && shimmer < 0.002f && mid < 0.002f
+                val settled = !currentPlaying && field < 0.002f && kotlin.math.abs(velocity) < 0.002f && shimmer < 0.002f && mid < 0.002f && voice < 0.002f
                 time += dt
                 val levels = if (currentPlaying) tap.sample(playedFrames()) else FloatArray(0)
                 val bass = if (levels.size >= 4) (levels[0] + levels[1] + levels[2] + levels[3]) / 4f else 0f
@@ -309,9 +317,25 @@ fun FerrofluidVisualiser(
                 val target = (kotlin.math.sqrt(bass) * 1.3f * r).coerceIn(0f, 1.3f)
                 val stiffness = 130f
                 val damping = 10f
-                velocity += (stiffness * (target - field) - damping * velocity) * dt + rise * 16f * r
+                // The kick's share of the height, raised from 16. Loudness reaching the spikes runs
+                // through two paths: the square-rooted pool above, which is deliberately compressed
+                // so a quiet passage still moves and a loud one does not sit pinned at the ceiling,
+                // and this impulse. Making the pool louder costs that whole range at once; making
+                // the impulse louder only makes hits hit harder, which is what "the loudest sound
+                // throws the biggest spike" actually asks for, and it leaves the floor where it was.
+                velocity += (stiffness * (target - field) - damping * velocity) * dt + rise * 26f * r
                 val midLevel = if (levels.size >= 16) levels.copyOfRange(6, 16).average().toFloat() else 0f
                 mid += ((midLevel * 1.4f * r).coerceIn(0f, 1.5f) - mid) * (1f - exp(-dt * 14f))
+                // Vocals, as a ripple rather than a spike. The same rising-faster-than-its-own-average
+                // test the bass uses, run over the mid band where a voice sits, so the surface answers
+                // the singing between the beats. Deliberately not fed into the field: the bass is the
+                // magnet, and a voice pulling on the spikes would set them moving against the pulse
+                // everybody can hear. It also costs nothing on an instrumental, which is the failing
+                // of taking this from the lyrics instead - no synced words, no response at all, and
+                // estimated timings drift against the audio on most of what does have them.
+                val midRise = (midLevel - midAvg).coerceAtLeast(0f)
+                midAvg += (midLevel - midAvg) * (1f - exp(-dt * 7f))
+                voice += (midRise * 9f * r - voice) * (1f - exp(-dt * 18f))
                 field = (field + velocity * dt).coerceIn(0f, 1.35f)
                 shimmer += (treble * 1.6f - shimmer) * (1f - exp(-dt * 12f))
                 // The field drifts, so the spikes lean slowly one way and then another.
@@ -319,7 +343,7 @@ fun FerrofluidVisualiser(
                 val leanZ = 0.025f * cos(time * 0.27f + 0.7f)
                 if (!settled && now - lastDrawn >= 24_000_000L) {
                     lastDrawn = now
-                    frame = FerrofluidFrame(time, field, shimmer, leanX, leanZ, mid)
+                    frame = FerrofluidFrame(time, field, shimmer, leanX, leanZ, mid, voice)
                 }
             }
         }
@@ -363,6 +387,7 @@ internal fun FerrofluidScene(
         builder.uniform("field", frame.field)
         builder.uniform("shimmer", frame.shimmer)
         builder.uniform("mid", frame.mid)
+        builder.uniform("voice", frame.voice)
         builder.uniform("lean", frame.leanX, frame.leanZ)
         builder.uniform("keyColor", keyColor.red, keyColor.green, keyColor.blue)
         builder.uniform("rimColor", rimColor.red, rimColor.green, rimColor.blue)
