@@ -507,7 +507,7 @@ internal fun App(
             // music stopping mid-phrase. Back to full volume for whatever plays next.
             player.volume = sleepTimer.deadlineMs
                 ?.takeIf { settings.sleepFade }
-                ?.let { (sleepTimer.remainingMs() / SLEEP_FADE_MS.toFloat()).coerceIn(0f, 1f) }
+                ?.let { (sleepTimer.remainingMs() / (settings.sleepFadeSeconds * 1000f)).coerceIn(0f, 1f) }
                 ?: 1f
             sleepRemaining = when {
                 sleepTimer.deadlineMs != null -> sleepTimer.remainingMs()
@@ -517,7 +517,7 @@ internal fun App(
                 else -> null
             }
             // Finer while fading, so the ramp is smooth rather than a step a second.
-            delay(if (sleepTimer.deadlineMs != null && sleepTimer.remainingMs() < SLEEP_FADE_MS) 200 else 1000)
+            delay(if (sleepTimer.deadlineMs != null && sleepTimer.remainingMs() < settings.sleepFadeSeconds * 1000L) 200 else 1000)
         }
     }
 
@@ -594,7 +594,11 @@ internal fun App(
     // Music folders: what is known loads at once so local songs play immediately, then the
     // folders are rescanned in the background for anything added or changed since.
     LaunchedEffect(library) {
+        if (!settings.localEnabled) return@LaunchedEffect
         withContext(Dispatchers.IO) { LocalMusic.load(library) }
+        // Rescanning is what a large local library pays for at every launch, so it is declinable.
+        // Loading what is already known is not: that is the library, not a scan.
+        if (!settings.localScanOnStart) return@LaunchedEffect
         val folders = settings.localFolders.lines().filter { it.isNotBlank() }
         if (folders.isNotEmpty()) LocalMusic.scan(folders.map { java.io.File(it) }, library)
     }
@@ -723,6 +727,18 @@ internal fun App(
     // a restart - the phone needs one, because it reads the setting once in App.onCreate. Assigning
     // closes the old client and builds a new one, so requests already in flight are not moved over;
     // nothing retries them, which is why this is a setting people change while idle.
+    LaunchedEffect(settings.audioQuality) { player.quality = settings.audioQuality }
+
+    // One check at start-up, and one an hour after that. The interval itself is hours, so polling
+    // faster buys nothing, and a desktop app is left running for days - a start-up-only check would
+    // never fire for the people who need it most.
+    LaunchedEffect(settings.autoBackup, settings.autoBackupHours, settings.autoBackupKeep) {
+        while (settings.autoBackup) {
+            AutoBackup.runIfDue(library, settings.autoBackupHours, settings.autoBackupKeep)
+            delay(3_600_000L)
+        }
+    }
+
     LaunchedEffect(settings.proxyEnabled, settings.proxyUrl, settings.proxyType) {
         YouTube.proxy = if (!settings.proxyEnabled || settings.proxyUrl.isBlank()) {
             null
@@ -954,6 +970,7 @@ internal fun App(
             lyricsOffsetMs = settings.lyricsOffsetMs,
             onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
             playerScroll = settings.playerScroll,
+            seekStepMs = settings.seekIncrementSeconds * 1000L,
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
             backgroundStyle = settings.background,
             colourByValue = settings.colourByValue,
@@ -2049,4 +2066,3 @@ internal fun StoredSong.toItem() = SongItem(
 private const val MAX_SEARCH_HISTORY = 20
 
 /** How long the sleep timer's fade-out lasts. */
-private const val SLEEP_FADE_MS = 30_000L

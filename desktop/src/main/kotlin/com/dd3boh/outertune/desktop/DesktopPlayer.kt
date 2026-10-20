@@ -80,6 +80,16 @@ private const val MONO_BUFFER_SAMPLES = 8192
 
 class DesktopPlayer {
 
+    /**
+     * Which AAC bitrate to ask for - see the format pick in resolveAndFetchWith.
+     *
+     * A plain property set from the settings rather than a constructor argument, because the player
+     * outlives any one value of it: changing the setting should apply to the next song fetched, and
+     * a field read at fetch time does that without rebuilding anything that is currently playing.
+     */
+    @Volatile
+    var quality: AudioQuality = AudioQuality.Auto
+
     // Not private: ClientProbe reads CLIENTS, so "what does each client say today" is answered by
     // asking the same list the player asks rather than by a second copy that can drift from it.
     internal companion object {
@@ -551,7 +561,18 @@ class DesktopPlayer {
             return Resolved.Failure("the response carried no audio formats at all")
         }
 
-        val format = audio.firstOrNull { it.itag == ITAG_AAC_MEDIUM && !it.url.isNullOrBlank() }
+        // Within AAC-in-MP4, which is the one container the decode chain is built around: itags 139,
+        // 140 and 141 are the same codec at roughly 48, 128 and 256 kbps, so choosing between them
+        // changes the bitrate and nothing else downstream. Anything outside that set is still only a
+        // last resort, exactly as before - quality is a preference, playing at all is not.
+        val aac = audio.filter { it.mimeType.contains("mp4") && !it.url.isNullOrBlank() }
+        val format = when (quality) {
+            AudioQuality.High -> aac.maxByOrNull { it.bitrate }
+            AudioQuality.Low -> aac.minByOrNull { it.bitrate }
+            // The format the probes settled on, and only then the best on offer. Auto means "the
+            // one known to work here", not "the largest number available".
+            AudioQuality.Auto -> aac.firstOrNull { it.itag == ITAG_AAC_MEDIUM } ?: aac.maxByOrNull { it.bitrate }
+        }
             ?: audio.firstOrNull { it.mimeType.contains("mp4") && !it.url.isNullOrBlank() }
             ?: return Resolved.Failure(
                 "no direct-URL AAC format; offered ${audio.joinToString { "itag ${it.itag}" }}"

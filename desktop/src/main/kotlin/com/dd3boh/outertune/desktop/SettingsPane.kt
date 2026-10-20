@@ -484,11 +484,24 @@ private fun PlayerSettings(settings: Settings) {
     Section("Player") {
         SettingSwitch(
             title = "Seek buttons",
-            subtitle = "Five-second skip either side of play. Off by default, as on the phone.",
+            subtitle = "A skip either side of play. Off by default, as on the phone.",
             checked = settings.showSeekButtons,
             onCheckedChange = { settings.showSeekButtons = it },
             icon = OuterTuneIcons.fastForward,
         )
+        if (settings.showSeekButtons) {
+            SettingSlider(
+                title = "Seek by",
+                subtitle = "How far those buttons move.",
+                icon = OuterTuneIcons.fastForward,
+                value = settings.seekIncrementSeconds,
+                range = 5..60,
+                step = 5,
+                format = { "$it s" },
+                onChange = { settings.seekIncrementSeconds = it },
+                default = 5,
+            )
+        }
         SettingSwitch(
             title = "Show queue title",
             subtitle = "Name the queue beside the queue handle on the player.",
@@ -537,6 +550,15 @@ private fun PlayerSettings(settings: Settings) {
         )
     }
     Section("Audio") {
+        SettingChoice(
+            title = "Audio quality",
+            icon = OuterTuneIcons.graphicEq,
+            options = AudioQuality.entries,
+            selected = settings.audioQuality,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.audioQuality = it },
+        )
         SettingSwitch(
             title = "Audio normalisation",
             subtitle = "Evens out volume between songs using YouTube's loudness figure. Only ever turns down.",
@@ -585,11 +607,24 @@ private fun PlayerSettings(settings: Settings) {
     Section("Sleep timer") {
         SettingSwitch(
             title = "Fade out",
-            subtitle = "The last half minute fades to silence instead of stopping mid-phrase.",
+            subtitle = "The end of the timer fades to silence instead of stopping mid-phrase.",
             checked = settings.sleepFade,
             onCheckedChange = { settings.sleepFade = it },
             icon = OuterTuneIcons.bedtime,
         )
+        if (settings.sleepFade) {
+            SettingSlider(
+                title = "Fade length",
+                subtitle = "How long the music takes to reach silence.",
+                icon = OuterTuneIcons.bedtime,
+                value = settings.sleepFadeSeconds,
+                range = 5..120,
+                step = 5,
+                format = { "$it s" },
+                onChange = { settings.sleepFadeSeconds = it },
+                default = 30,
+            )
+        }
         SettingSlider(
             title = "Default time",
             subtitle = "Offered first when the sleep timer is opened.",
@@ -1046,6 +1081,23 @@ private fun LocalMusicSettings(settings: Settings, library: LibraryStore) {
         scope.launch { LocalMusic.scan(list.map { java.io.File(it) }, library) }
     }
 
+    Section("Local music") {
+        SettingSwitch(
+            title = "Use local music",
+            subtitle = "Reads the folders below. Off leaves them alone entirely.",
+            checked = settings.localEnabled,
+            onCheckedChange = { settings.localEnabled = it },
+            icon = OuterTuneIcons.musicNote,
+        )
+        SettingSwitch(
+            title = "Rescan at every start",
+            subtitle = "Picks up anything added or changed since. Off still loads what is already known, and the manual rescan still works.",
+            checked = settings.localScanOnStart,
+            onCheckedChange = { settings.localScanOnStart = it },
+            icon = OuterTuneIcons.restore,
+            divider = false,
+        )
+    }
     Section("Music folders") {
         if (folders.isEmpty()) {
             Text(
@@ -1154,6 +1206,51 @@ private fun DownloadSettings(downloads: Downloads, onDownloadsChanged: () -> Uni
 @Composable
 private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPath: String, onProfileApplied: () -> Unit) {
     val scope = rememberCoroutineScope()
+
+    Section("Automatic backups") {
+        // Counted from the folder rather than from a stored timestamp - see AutoBackup. What is on
+        // disk is what can actually be restored, so it is what the screen should report.
+        val existing = remember(settings.autoBackup, settings.autoBackupKeep, settings.autoBackupHours) {
+            AutoBackup.existing(AutoBackup.folder())
+        }
+        SettingSwitch(
+            title = "Back up automatically",
+            subtitle = "Keeps copies of the library beside it, so a bad import or a lost file is not the end of it.",
+            checked = settings.autoBackup,
+            onCheckedChange = { settings.autoBackup = it },
+            icon = OuterTuneIcons.restore,
+            divider = settings.autoBackup,
+        )
+        if (settings.autoBackup) {
+            SettingSlider(
+                title = "How often",
+                icon = OuterTuneIcons.timer,
+                value = settings.autoBackupHours,
+                range = 1..168,
+                step = 1,
+                format = { if (it % 24 == 0) "every ${it / 24} day${if (it > 24) "s" else ""}" else "every $it h" },
+                onChange = { settings.autoBackupHours = it },
+                default = 24,
+            )
+            SettingSlider(
+                title = "How many to keep",
+                subtitle = "The oldest is deleted once there are more than this.",
+                icon = OuterTuneIcons.delete,
+                value = settings.autoBackupKeep,
+                range = 1..20,
+                step = 1,
+                format = { "$it" },
+                onChange = { settings.autoBackupKeep = it },
+                default = 5,
+            )
+            SettingRow(
+                title = if (existing.isEmpty()) "No automatic backups yet" else "${existing.size} kept",
+                subtitle = AutoBackup.folder().absolutePath,
+                icon = OuterTuneIcons.download,
+            )
+        }
+    }
+
     Section("Backup and restore") {
 
         // Merged into this library rather than replacing it, and safe to run twice - see

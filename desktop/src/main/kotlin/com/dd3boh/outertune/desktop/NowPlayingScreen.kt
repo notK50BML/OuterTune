@@ -212,6 +212,8 @@ fun NowPlayingScreen(
     onLyricsOffsetChange: ((Int) -> Unit)? = null,
     /** What a scroll over the player does - see [PlayerScroll]. */
     playerScroll: PlayerScroll = PlayerScroll.Anywhere,
+    /** How far the seek buttons move. Was fixed at five seconds, which is now only the default. */
+    seekStepMs: Long = SEEK_STEP_DEFAULT_MS,
 ) {
     // Held here rather than inside the drawer: the handle at the top and the button in the actions
     // row both open the same panel, exactly as they do on Android, and two copies of the state would
@@ -418,7 +420,7 @@ fun NowPlayingScreen(
             if (showSeekButtons) {
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     IconButton(
-                        onClick = { onSeek((positionMs() - SEEK_STEP_MS).coerceAtLeast(0)) },
+                        onClick = { onSeek((positionMs() - seekStepMs).coerceAtLeast(0)) },
                         enabled = durationMs > 0,
                     ) {
                         Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground)
@@ -450,7 +452,7 @@ fun NowPlayingScreen(
             if (showSeekButtons) {
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     IconButton(
-                        onClick = { onSeek((positionMs() + SEEK_STEP_MS).coerceAtMost(durationMs)) },
+                        onClick = { onSeek((positionMs() + seekStepMs).coerceAtMost(durationMs)) },
                         enabled = durationMs > 0,
                     ) {
                         Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground)
@@ -494,10 +496,10 @@ fun NowPlayingScreen(
                 "skip_next" -> IconButton(onClick = onNext, enabled = queue.hasNext, modifier = Modifier.size(transportSize)) {
                     Icon(OuterTuneIcons.skipNext, "Next", tint = onBackground, modifier = Modifier.size(transportIcon))
                 }
-                "seek_backward" -> IconButton(onClick = { onSeek((positionMs() - SEEK_STEP_MS).coerceAtLeast(0)) }, modifier = Modifier.size(transportSize)) {
+                "seek_backward" -> IconButton(onClick = { onSeek((positionMs() - seekStepMs).coerceAtLeast(0)) }, modifier = Modifier.size(transportSize)) {
                     Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
                 }
-                "seek_forward" -> IconButton(onClick = { onSeek((positionMs() + SEEK_STEP_MS).coerceAtMost(durationMs)) }, modifier = Modifier.size(transportSize)) {
+                "seek_forward" -> IconButton(onClick = { onSeek((positionMs() + seekStepMs).coerceAtMost(durationMs)) }, modifier = Modifier.size(transportSize)) {
                     Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
                 }
                 "repeat" -> IconButton(onClick = onCycleRepeat, modifier = Modifier.size(transportSize)) {
@@ -1678,7 +1680,7 @@ private const val CLOSE_OVERSCROLL = 3f
 private val QUEUE_ROW_HEIGHT = 60.dp
 
 /** What the seek buttons move by. */
-private const val SEEK_STEP_MS = 5_000L
+private const val SEEK_STEP_DEFAULT_MS = 5_000L
 
 /**
  * How quiet the wheel must go before another downward scroll can put the player away again.

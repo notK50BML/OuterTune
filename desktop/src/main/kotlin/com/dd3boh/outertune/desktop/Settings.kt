@@ -102,6 +102,21 @@ class Settings(private val store: SettingsStore) {
     /** Sleep timer: fade the music out over its last half minute rather than cutting it. */
     var sleepFade by bool("sleep.fade", true)
 
+    /** How long that fade lasts, in seconds. The phone's default is 30 and so is this. */
+    var sleepFadeSeconds by int("sleep.fadeSeconds", 30)
+
+    /** Which AAC bitrate the stream fetch asks for - see [AudioQuality]. */
+    var audioQuality by enum("player.audioQuality", AudioQuality.Auto, AudioQuality.entries)
+
+    /**
+     * How far the seek buttons move, in seconds.
+     *
+     * The buttons themselves are [showSeekButtons]; this is only their size. The phone folds the
+     * two into one setting where "off" hides them, but the two controls already exist here and
+     * collapsing them would quietly change what the existing switch means.
+     */
+    var seekIncrementSeconds by int("player.seekIncrement", 5)
+
     /** What the sleep timer offers first, in minutes. */
     var sleepDefaultMinutes by int("sleep.defaultMinutes", 30)
 
@@ -209,6 +224,18 @@ class Settings(private val store: SettingsStore) {
     /** Folders on this computer whose music is in the library, one path per line. */
     var localFolders by string("local.folders", "")
 
+    /** Whether local files are looked at all. Off means the folders below are simply not read. */
+    var localEnabled by bool("local.enabled", true)
+
+    /**
+     * Whether the folders are rescanned every time the app starts.
+     *
+     * On by default, which is what it did before this setting existed - and unconditionally, which
+     * is the problem it solves: a large local library made every launch pay for a full scan with no
+     * way to decline. Off still leaves the manual rescan.
+     */
+    var localScanOnStart by bool("local.scanOnStart", true)
+
         /** Whether searches are remembered at all. */
     var keepSearchHistory by bool("search.keepHistory", true)
 
@@ -289,6 +316,20 @@ class Settings(private val store: SettingsStore) {
     }
 
     // ---- Library ---------------------------------------------------------------------------
+
+    /**
+     * Whether a backup is taken on a schedule - see [AutoBackup].
+     *
+     * On by default. Everything this app knows is in one file, and the cost of a copy beside it is
+     * a few megabytes; the cost of not having one is the library.
+     */
+    var autoBackup by bool("backup.auto", true)
+
+    /** How often, in hours. */
+    var autoBackupHours by int("backup.autoHours", 24)
+
+    /** How many to keep before the oldest is deleted. */
+    var autoBackupKeep by int("backup.autoKeep", 5)
 
     /** Whether played songs are recorded at all. */
     var keepHistory by bool("library.history", true)
@@ -434,6 +475,20 @@ enum class PlayerScroll(val label: String, val description: String) {
     ByPosition("By cursor position", "Equaliser only near the top, shrink only near the bottom"),
 
     Off("Off", "Scrolling never moves the player"),
+}
+
+/**
+ * Which AAC stream to ask YouTube for.
+ *
+ * All three are AAC-LC in MP4 - the one container the decode chain is built around - so this picks
+ * a bitrate and changes nothing else. Auto is the itag the probes settled on, which is the format
+ * every working client reliably offers; it is "the one known to work here", not "the biggest
+ * number", and High falls back to it when nothing larger is published for a track.
+ */
+enum class AudioQuality(val label: String, val description: String) {
+    Auto("Automatic", "The format known to work everywhere, about 128 kbps"),
+    High("High", "The best AAC stream offered for each song"),
+    Low("Low", "The smallest AAC stream, for a slow or metered connection"),
 }
 
 /** The two proxy kinds java.net.Proxy understands, as the phone offers them. */
