@@ -8,6 +8,7 @@ package com.dd3boh.outertune.desktop
 
 import kotlin.math.roundToInt
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.graphics.lerp
 import kotlin.math.sin
 import kotlin.math.PI
@@ -209,12 +210,20 @@ fun NowPlayingScreen(
     onRefetchLyrics: (() -> Unit)? = null,
     lyricsOffsetMs: Int = 0,
     onLyricsOffsetChange: ((Int) -> Unit)? = null,
+    /** What a scroll over the player does - see [PlayerScroll]. */
+    playerScroll: PlayerScroll = PlayerScroll.Anywhere,
 ) {
     // Held here rather than inside the drawer: the handle at the top and the button in the actions
     // row both open the same panel, exactly as they do on Android, and two copies of the state would
     // mean each one only knew about its own taps.
     var equalizerOpen by remember { mutableStateOf(false) }
     val onToggleEqualizer = { equalizerOpen = !equalizerOpen }
+
+    // The player's own height, for the by-position scroll mode - see the Scroll handler below. Zero
+    // until the first layout, which is also the only time there is no half for a pointer to be in.
+    var playerHeightPx by remember { mutableStateOf(0) }
+    // When the last downward scroll arrived, so a trackpad's momentum tail cannot act twice.
+    var lastScrollDown by remember { mutableStateOf(0L) }
 
     val song = queue.current
     val (primary, secondary) = rememberArtworkColours(song?.thumbnail)
@@ -300,19 +309,47 @@ fun NowPlayingScreen(
             .fillMaxSize()
             // Scrolling up at the top of the player pulls the equaliser down, which is the gesture
             // the drawer's own handle implies and the one that was missing - the handle could only
-            // be clicked, so "scroll up to see it" simply did nothing.
+            // be clicked, so "scroll up to see it" simply did nothing. Scrolling down is the other
+            // half of the same axis and puts the player away, which is what the phone's swipe down
+            // does; there was no pointer gesture for it at all before, only F and Esc.
+            .onSizeChanged { playerHeightPx = it.height }
             .onPointerEvent(PointerEventType.Scroll) { event ->
-                if (equalizer == null) return@onPointerEvent
+                if (playerScroll == PlayerScroll.Off) return@onPointerEvent
                 val change = event.changes.first()
                 // Only a scroll nothing else wanted. This handler sits on the whole player, so
                 // without the check, scrolling the lyrics or the queue - both of which are inside it
                 // - would also drag the equaliser down over what was being read.
                 if (change.isConsumed) return@onPointerEvent
-                // Opening only. Closing by scrolling cannot work and used to be written here as
-                // though it did: once open, the panel covers the window as its own overlay, so this
-                // handler - which lives on the player underneath - never sees another scroll. It
-                // closes by its handle or by a flick upward, which is the direction it came from.
-                if (change.scrollDelta.y < 0f && !equalizerOpen) equalizerOpen = true
+                // Which half the pointer is in, for the by-position mode. Taken from the event, so
+                // it is where this very scroll happened rather than wherever the pointer last was.
+                // Before the first layout there is no height to halve and so no half to be in.
+                val known = playerHeightPx > 0
+                val atTop = known && change.position.y <= playerHeightPx / 2f
+                val free = playerScroll == PlayerScroll.Anywhere
+                val delta = change.scrollDelta.y
+                when {
+                    // Opening only. Closing by scrolling cannot work and used to be written here as
+                    // though it did: once open, the panel covers the window as its own overlay, so
+                    // this handler - which lives on the player underneath - never sees another
+                    // scroll. It closes by its handle or by a flick upward, the direction it came from.
+                    delta < 0f && equalizer != null && !equalizerOpen && (free || atTop) -> {
+                        equalizerOpen = true
+                    }
+                    // Down puts the player away. Not while the equaliser is open: the panel is an
+                    // overlay over this, so a scroll arriving here means it is already closed, but
+                    // the check keeps that true if the panel ever stops covering the whole window.
+                    delta > 0f && !equalizerOpen && (free || (known && !atTop)) -> {
+                        // One flick is dozens of events on a trackpad, and all but the first arrive
+                        // after the player has already gone. Opening the equaliser shrugs that off
+                        // because it is idempotent; closing is not - the tail would land on whatever
+                        // the mini player sits over. So the gesture has to spend itself: the clock
+                        // is pushed forward by every event, and nothing fires until the wheel stops.
+                        val now = System.nanoTime()
+                        val quiet = now - lastScrollDown > SCROLL_DISMISS_GAP_NS
+                        lastScrollDown = now
+                        if (quiet) onClose()
+                    }
+                }
             },
     ) {
         // Pulled down from the top edge rather than sitting among the controls, which is where the
@@ -1642,6 +1679,14 @@ private val QUEUE_ROW_HEIGHT = 60.dp
 
 /** What the seek buttons move by. */
 private const val SEEK_STEP_MS = 5_000L
+
+/**
+ * How quiet the wheel must go before another downward scroll can put the player away again.
+ *
+ * Long enough to outlast a trackpad's momentum, which keeps delivering events well after the
+ * fingers have lifted, and short enough that deliberately doing it twice still works.
+ */
+private const val SCROLL_DISMISS_GAP_NS = 600_000_000L
 
 /**
  * The song's own controls: like, download, equaliser, and the overflow menu.

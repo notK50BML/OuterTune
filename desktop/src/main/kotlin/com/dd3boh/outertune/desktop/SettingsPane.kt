@@ -419,6 +419,15 @@ private fun AppearanceSettings(settings: Settings) {
                 onSelect = { settings.ferroReactivity = it },
             )
         }
+        SettingChoice(
+            title = "Scroll in the player",
+            icon = OuterTuneIcons.graphicEq,
+            options = PlayerScroll.entries,
+            selected = settings.playerScroll,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.playerScroll = it },
+        )
         PlayerLayoutSetting(settings)
         var choosingRow by remember { mutableStateOf(false) }
         SettingRow(

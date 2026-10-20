@@ -177,6 +177,9 @@ class Settings(private val store: SettingsStore) {
     /** The player's seek bar - the phone's three styles, squiggly being its default too. */
     var sliderStyle by enum("ui.sliderStyle", SeekBarStyle.Squiggly, SeekBarStyle.entries)
 
+    /** What scrolling over the player does - see [PlayerScroll]. */
+    var playerScroll by enum("player.scroll", PlayerScroll.Anywhere, PlayerScroll.entries)
+
     /**
      * The typeface the whole app is set in, by family name as the system knows it. Empty is the
      * built-in default. Any font installed on the machine can be chosen - see [SystemFonts].
@@ -385,6 +388,27 @@ enum class BackgroundStyle(val label: String, val description: String) {
 }
 
 enum class LyricsAlignment(val label: String) { Centre("Centred"), Left("Left") }
+
+/**
+ * What a scroll over the full player does.
+ *
+ * Up opens the equaliser, down puts the player away - one axis, two directions, which is about as
+ * much as a gesture with nothing drawn on screen can carry. Either way the scroll is ignored when
+ * something underneath already used it, so reading the lyrics or the queue never moves the player.
+ */
+enum class PlayerScroll(val label: String, val description: String) {
+    Anywhere("Anywhere", "Scroll up for the equaliser, down to shrink the player"),
+
+    /**
+     * The same two gestures, each confined to the half of the window it pulls from: the equaliser
+     * comes down from the top edge, and the player goes away downward. The halves are the cost -
+     * nothing marks where they meet, so the same flick two pixels apart does different things. It
+     * is offered rather than imposed for that reason, and the free version stays the default.
+     */
+    ByPosition("By cursor position", "Equaliser only near the top, shrink only near the bottom"),
+
+    Off("Off", "Scrolling never moves the player"),
+}
 
 /** The player's seek bar, as on the phone. */
 enum class SeekBarStyle(val label: String, val description: String) {

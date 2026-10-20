@@ -919,6 +919,7 @@ internal fun App(
             },
             lyricsOffsetMs = settings.lyricsOffsetMs,
             onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
+            playerScroll = settings.playerScroll,
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
             backgroundStyle = settings.background,
             colourByValue = settings.colourByValue,
