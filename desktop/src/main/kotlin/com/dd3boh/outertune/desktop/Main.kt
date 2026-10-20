@@ -93,10 +93,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.models.YouTubeClient
 import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.Artist
 import com.zionhuang.innertube.models.SongItem
@@ -697,6 +699,38 @@ internal fun App(
             }
         if (queue.current?.id == playedId && settings.keepHistory) {
             library.recordPlay(song.toStored(), (song.duration ?: 0) * 1000L)
+            // And on the account, if that was asked for. The metadata call is its own authenticated
+            // request rather than the one the stream came from: streams are deliberately fetched
+            // signed-out here, so the response that plays the song carries no tracking URL tied to
+            // anybody. Failures are swallowed - a history ping that does not land is not worth
+            // interrupting playback over, and the local record has already been written.
+            if (settings.shareHistoryWithYtm && account.state.value is AccountState.SignedIn) {
+                runCatching {
+                    // WEB_REMIX authenticated, as the phone's metadata path is: the tracking URL has
+                    // to come back on a request that carries the session, or it belongs to nobody.
+                    val tracking = YouTube.player(
+                        videoId = playedId,
+                        client = YouTubeClient.WEB_REMIX,
+                        authenticated = true,
+                    ).getOrNull()?.playbackTracking?.videostatsPlaybackUrl?.baseUrl
+                    if (tracking != null) YouTube.registerPlayback(playlistId = null, playbackTracking = tracking)
+                }
+            }
+        }
+    }
+
+    // The proxy, applied here rather than only at start-up so that changing it takes effect without
+    // a restart - the phone needs one, because it reads the setting once in App.onCreate. Assigning
+    // closes the old client and builds a new one, so requests already in flight are not moved over;
+    // nothing retries them, which is why this is a setting people change while idle.
+    LaunchedEffect(settings.proxyEnabled, settings.proxyUrl, settings.proxyType) {
+        YouTube.proxy = if (!settings.proxyEnabled || settings.proxyUrl.isBlank()) {
+            null
+        } else {
+            runCatching {
+                val (host, port) = settings.proxyUrl.trim().split(":").let { it[0] to it[1].toInt() }
+                java.net.Proxy(settings.proxyType.toJavaType(), java.net.InetSocketAddress(host, port))
+            }.getOrNull()
         }
     }
 
@@ -1634,48 +1668,87 @@ private fun PlayerBar(
     onToggleQueue: () -> Unit = {},
 ) {
     val song = queue.current
-    Column {
-        // A thin progress line rather than a slider: the bar is for glancing at, and the full
-        // player is where scrubbing belongs.
+    // A Box rather than a Column, so the progress line can sit on the bottom edge as the phone's
+    // does - underlining the bar against whatever it covers instead of drawing a rule between it
+    // and the content above, which is what stacking them in a Column amounted to.
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(MINI_PLAYER_HEIGHT)
+            // The rail's colour, so the two frame the content as one surface. The phone leaves this
+            // off because its mini player sits on the navigation bar and is already separated from
+            // the list; here it floats over scrolling content and would read as part of it.
+            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
+            .clickable(onClick = onExpand),
+    ) {
         LinearProgressIndicator(
             progress = { if (durationMs > 0) positionMs().toFloat() / durationMs else 0f },
-            modifier = Modifier.fillMaxWidth().height(2.dp),
+            drawStopIndicator = { },
+            modifier = Modifier.fillMaxWidth().height(2.dp).align(Alignment.BottomCenter),
         )
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                // The rail's colour, so the two frame the content as one surface - which is how the
-                // phone's mini player sits against its navigation bar.
-                .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
-                .clickable(onClick = onExpand)
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+            modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp),
         ) {
-            Artwork(song?.thumbnail, size = 48.dp, cornerRadius = 6.dp)
-            Column(modifier = Modifier.weight(1f)) {
+            // The phone's treatment: the artwork carries the state. A song that will not load says
+            // so on the thing that is not loading, rather than in the artist line - which is where
+            // it used to go, and which meant a failure read as the song simply being by somebody
+            // called "no internet connection".
+            Box(modifier = Modifier.padding(6.dp).size(ARTWORK_SIZE)) {
+                Artwork(song?.thumbnail, size = ARTWORK_SIZE, cornerRadius = THUMBNAIL_CORNER)
+                androidx.compose.animation.AnimatedVisibility(
+                    visible = playback is PlaybackState.Loading || playback is PlaybackState.Failed,
+                    enter = fadeIn(),
+                    exit = fadeOut(),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(ARTWORK_SIZE)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(THUMBNAIL_CORNER)),
+                    ) {
+                        if (playback is PlaybackState.Loading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.align(Alignment.Center).size(24.dp),
+                                strokeWidth = 2.dp,
+                                color = Color.White,
+                            )
+                        } else {
+                            Icon(
+                                OuterTuneIcons.info,
+                                contentDescription = (playback as? PlaybackState.Failed)?.reason,
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.align(Alignment.Center),
+                            )
+                        }
+                    }
+                }
+            }
+            Column(modifier = Modifier.weight(1f).padding(horizontal = 6.dp)) {
                 Text(
                     text = song?.title ?: "Nothing playing",
-                    fontWeight = FontWeight.Medium,
+                    color = if (song == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (song == null) MaterialTheme.colorScheme.onSurfaceVariant else Color.Unspecified,
                 )
                 Text(
+                    // The reason still belongs in words somewhere, since the icon only says that
+                    // something went wrong and not what - but it no longer displaces the artist on
+                    // the ordinary loading case, which is most of what this line ever shows.
                     text = when (playback) {
-                        is PlaybackState.Loading -> "Loading…"
                         is PlaybackState.Failed -> playback.reason
                         else -> song?.artists?.joinToString { it.name }?.ifBlank { "Unknown artist" }
                             ?: "Search for something to play"
                     },
-                    style = MaterialTheme.typography.bodySmall,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
                     color = if (playback is PlaybackState.Failed) {
                         MaterialTheme.colorScheme.error
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MaterialTheme.colorScheme.secondary
                     },
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
             if (song != null) {
@@ -1708,6 +1781,11 @@ private fun PlayerBar(
         }
     }
 }
+
+/** The bar's height, and the artwork and rounding inside it - the phone's Dimensions.kt numbers. */
+private val MINI_PLAYER_HEIGHT = 64.dp
+private val ARTWORK_SIZE = 48.dp
+private val THUMBNAIL_CORNER = 6.dp
 
 @Composable
 internal fun SongRow(song: SongItem, playing: Boolean = false, actions: Boolean = true, onPlay: () -> Unit) = SongMenuArea(song) {

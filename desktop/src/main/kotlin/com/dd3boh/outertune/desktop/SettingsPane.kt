@@ -303,7 +303,7 @@ fun SettingsPane(
                 SettingsCategory.ListenTogether -> ListenTogetherSettings(settings, listenTogether)
                 SettingsCategory.Local -> LocalMusicSettings(settings, library)
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
-                SettingsCategory.Privacy -> PrivacySettings(settings, library)
+                SettingsCategory.Privacy -> PrivacySettings(settings, library, account)
                 SettingsCategory.Backup -> BackupSettings(settings, library, libraryPath, onProfileApplied)
                 SettingsCategory.Keyboard -> KeyboardSettings(settings)
                 SettingsCategory.About -> AboutSettings()
@@ -1254,18 +1254,51 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
 }
 
 @Composable
-private fun PrivacySettings(settings: Settings, library: LibraryStore) {
-    val scope = rememberCoroutineScope()
-    Section("Listen history") {
+private fun PrivacySettings(settings: Settings, library: LibraryStore, account: Account) {
+    // Grouped the way the phone groups them: each kind of history owns its switch and its clear
+    // button, rather than the switches sitting in one place and the clearing in another. Pairing
+    // them is what makes "stop recording this, and get rid of what was recorded" one thought.
+    val accountState by account.state.collectAsState()
+    val signedIn = accountState is AccountState.SignedIn
+
+    Section("Listening history") {
         SettingSwitch(
             title = "Keep listening history",
-            subtitle = "Records what has been played, which is what the recent list is made of.",
+            subtitle = "Records what has been played, which is what the recent list and Stats are made of.",
             checked = settings.keepHistory,
             onCheckedChange = { settings.keepHistory = it },
             icon = OuterTuneIcons.history,
         )
+        // Only while signed in, and only while there is a local history to mirror. Offered against
+        // a signed-out app it would be a switch that cannot do anything, which reads as broken
+        // rather than as not applicable - so it is absent instead of disabled.
+        if (signedIn) {
+            SettingSwitch(
+                title = "Share listening history with YouTube Music",
+                subtitle = "Plays here also count on your account, so they reach your recommendations and other devices.",
+                checked = settings.shareHistoryWithYtm && settings.keepHistory,
+                onCheckedChange = { settings.shareHistoryWithYtm = it },
+                icon = OuterTuneIcons.cast,
+            )
+        }
+        var clearingPlays by remember { mutableStateOf(false) }
+        SettingRow(
+            title = if (clearingPlays) "Click again to clear listening history" else "Clear listening history",
+            subtitle = "Recently played and every count Stats is made of. Songs and playlists stay.",
+            icon = OuterTuneIcons.delete,
+            tint = MaterialTheme.colorScheme.error,
+            onClick = {
+                if (clearingPlays) {
+                    library.clearHistory()
+                    clearingPlays = false
+                } else {
+                    clearingPlays = true
+                }
+            },
+        )
     }
-    Section("Search") {
+
+    Section("Search history") {
         SettingSwitch(
             title = "Keep search history",
             subtitle = "Recent searches appear under the search box while it is empty.",
@@ -1273,28 +1306,50 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore) {
             onCheckedChange = { settings.keepSearchHistory = it },
             icon = OuterTuneIcons.search,
         )
+        var clearingSearches by remember { mutableStateOf(false) }
         SettingRow(
-            title = "Clear search history",
-            icon = OuterTuneIcons.delete,
-            onClick = { settings.searchHistory = "" },
-        )
-    }
-    Section("Clear") {
-        var confirming by remember { mutableStateOf(false) }
-        SettingRow(
-            title = if (confirming) "Click again to clear everything" else "Clear listening history",
-            subtitle = "Recently played and every count Stats is made of. Songs and playlists stay.",
+            title = if (clearingSearches) "Click again to clear search history" else "Clear search history",
             icon = OuterTuneIcons.delete,
             tint = MaterialTheme.colorScheme.error,
             onClick = {
-                if (confirming) {
-                    library.clearHistory()
-                    confirming = false
+                if (clearingSearches) {
+                    settings.searchHistory = ""
+                    clearingSearches = false
                 } else {
-                    confirming = true
+                    clearingSearches = true
                 }
             },
         )
+    }
+
+    Section("Proxy") {
+        SettingSwitch(
+            title = "Use a proxy",
+            subtitle = "Sends YouTube Music requests through a proxy. Takes effect straight away.",
+            checked = settings.proxyEnabled,
+            onCheckedChange = { settings.proxyEnabled = it },
+            icon = OuterTuneIcons.devices,
+            divider = settings.proxyEnabled,
+        )
+        if (settings.proxyEnabled) {
+            SettingChoice(
+                title = "Proxy type",
+                icon = OuterTuneIcons.devices,
+                options = ProxyKind.entries,
+                selected = settings.proxyType,
+                label = { it.label },
+                onSelect = { settings.proxyType = it },
+            )
+            SettingTextField(
+                title = "Proxy address",
+                subtitle = "As host:port - for example 127.0.0.1:8080.",
+                icon = OuterTuneIcons.devices,
+                value = settings.proxyUrl,
+                placeholder = "host:port",
+                onValueChange = { settings.proxyUrl = it },
+                divider = false,
+            )
+        }
     }
 }
 
@@ -1576,6 +1631,60 @@ private fun SettingSwitch(
         }
         Spacer(modifier = Modifier.width(12.dp))
         Switch(checked = checked, onCheckedChange = onCheckedChange)
+    }
+    if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+}
+
+/**
+ * A row whose value is typed rather than chosen - the phone's `EditTextPreference`.
+ *
+ * Written straight through on every keystroke, with no Save button. Everything else on this screen
+ * applies as it is changed, and a field that needed confirming would be the one control here that
+ * silently discarded what was typed if the category was left.
+ */
+@Composable
+private fun SettingTextField(
+    title: String,
+    value: String,
+    onValueChange: (String) -> Unit,
+    subtitle: String? = null,
+    icon: ImageVector? = null,
+    placeholder: String = "",
+    divider: Boolean = true,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+    ) {
+        if (icon != null) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 16.dp).size(24.dp),
+            )
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.bodyLarge)
+            if (subtitle != null) {
+                Text(
+                    subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        OutlinedTextField(
+            value = value,
+            onValueChange = onValueChange,
+            singleLine = true,
+            placeholder = { Text(placeholder, style = MaterialTheme.typography.bodyMedium) },
+            textStyle = MaterialTheme.typography.bodyMedium,
+            // Marked so the keyboard shortcuts stand aside while this has focus - without it,
+            // typing a host would skip tracks and toggle shuffle on the way through.
+            modifier = Modifier.width(220.dp).typingField(),
+        )
     }
     if (divider) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
 }

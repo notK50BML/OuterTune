@@ -293,6 +293,32 @@ class Settings(private val store: SettingsStore) {
     /** Whether played songs are recorded at all. */
     var keepHistory by bool("library.history", true)
 
+    /**
+     * Whether a play is also reported to the signed-in YouTube Music account.
+     *
+     * Off by default, which is the one place this deliberately does not follow the phone. There the
+     * setting is a *pause* switch and reporting is on, because the phone has always done it; this
+     * app never has, so defaulting it on would mean an update quietly starting to write to
+     * somebody's YouTube history. That is a thing to be asked for, not inherited.
+     *
+     * Only meaningful while signed in, and the settings screen hides it otherwise - see
+     * [AccountState.SignedIn]. It also rides on [keepHistory]: a play that is not recorded here is
+     * not reported there either, matching the phone, where the remote switch sits inside the local
+     * one's block.
+     */
+    var shareHistoryWithYtm by bool("library.historyYtm", false)
+
+    // ---- Network ------------------------------------------------------------------------------
+
+    /** Whether API requests go through a proxy. */
+    var proxyEnabled by bool("net.proxyEnabled", false)
+
+    /** The proxy as host:port. Only read when [proxyEnabled]. */
+    var proxyUrl by string("net.proxyUrl", "")
+
+    /** HTTP or SOCKS. */
+    var proxyType by enum("net.proxyType", ProxyKind.Http, ProxyKind.entries)
+
     // ---- Discord rich presence ---------------------------------------------------------------
 
     /**
@@ -408,6 +434,16 @@ enum class PlayerScroll(val label: String, val description: String) {
     ByPosition("By cursor position", "Equaliser only near the top, shrink only near the bottom"),
 
     Off("Off", "Scrolling never moves the player"),
+}
+
+/** The two proxy kinds java.net.Proxy understands, as the phone offers them. */
+enum class ProxyKind(val label: String) {
+    Http("HTTP"),
+    Socks("SOCKS"),
+    ;
+
+    fun toJavaType(): java.net.Proxy.Type =
+        if (this == Socks) java.net.Proxy.Type.SOCKS else java.net.Proxy.Type.HTTP
 }
 
 /** The player's seek bar, as on the phone. */
