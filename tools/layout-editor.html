@@ -993,6 +993,25 @@ function renderNav(heightPx, boxW) {
 }
 
 /*
+ * The frame's bezel, matching the 8px border .phone carries in the stylesheet.
+ *
+ * It has to be known here because .phone is border-box: handing it the screen size made the screen
+ * 16px smaller than the size everything inside was drawn against. The surface is laid out at the
+ * full width, so it began at the content box's left edge and ran 8px past its right one - putting
+ * every block half a bezel right of centre, with overflow:hidden quietly cropping what went past.
+ * On the phone preview that is the whole player sitting visibly off to the right; on the Windows
+ * one it also made the preview-pixels-per-dp scale about 2% too large, since it divided by a width
+ * that included the frame.
+ */
+const PHONE_BEZEL = 8;
+
+/** Sizes the frame so that its *content* box - the screen - is exactly w by h. */
+function setPhoneScreen(phone, w, h) {
+  phone.style.width = (w + PHONE_BEZEL * 2) + "px";
+  phone.style.height = (h + PHONE_BEZEL * 2) + "px";
+}
+
+/*
  * The Windows preview: a landscape window drawn the way OuterTune's desktop player draws itself -
  * its own caption buttons at the top right, the close button top left, the queue bar along the
  * bottom - and every block at the desktop's real sizes for that window, converted to the preview's
@@ -1010,8 +1029,7 @@ function renderWindowsPreview() {
   const maxH = Math.max(260, window.innerHeight * 0.55);
   const boxW = Math.round(clamp(Math.min(avail, maxH * scr.width / scr.height), 360, 1100));
   const boxH = Math.round(boxW * scr.height / scr.width);
-  phone.style.width = boxW + "px";
-  phone.style.height = boxH + "px";
+  setPhoneScreen(phone, boxW, boxH);
   phone.querySelectorAll(".nav, .wincap, .winclose, .winqueue, .pchrome").forEach(n => n.remove());
   Object.assign(surface.style, { width: "", height: "", bottom: "" });
 
@@ -1315,8 +1333,7 @@ function renderPhonePreview() {
   const boxH = Math.round(clamp(320 * scr.height / scr.width, 380, 720));
   const boxW = Math.round(boxH * scr.width / scr.height);
   const k = boxW / dims.W;
-  phone.style.width = boxW + "px";
-  phone.style.height = boxH + "px";
+  setPhoneScreen(phone, boxW, boxH);
   const px = v => (v * k).toFixed(2) + "px";
 
   const guided = state.mode === "stack";
