@@ -47,7 +47,16 @@ import androidx.compose.ui.unit.dp
 fun KeyboardSettings(settings: Settings) {
     val bindings = remember(settings.keyBindings) { KeyBindings.decode(settings.keyBindings) }
     var capturing by remember { mutableStateOf<KeyAction?>(null) }
+    // The last change that took a key off something else, kept until the next one so it can be
+    // undone. Only displacing changes are held: an ordinary bind has nothing to warn about.
+    var lastDisplacing by remember { mutableStateOf<Rebind?>(null) }
     fun save(next: KeyBindings) { settings.keyBindings = next.encode() }
+
+    /** Applies a change, and keeps it for Undo if it cost another action a key. */
+    fun applyRebind(result: Rebind) {
+        lastDisplacing = if (result.displaced.isEmpty()) null else result.copy(previous = bindings)
+        save(result.bindings)
+    }
 
     Column {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
@@ -57,7 +66,33 @@ fun KeyboardSettings(settings: Settings) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = { save(KeyBindings.DEFAULT) }) { Text("Reset all") }
+            TextButton(onClick = { lastDisplacing = null; save(KeyBindings.DEFAULT) }) { Text("Reset all") }
+        }
+        // Says what a reassignment cost, which nothing used to. Taking a key off another action is
+        // allowed - it is the only way to reassign one - but it happened in silence, so the first
+        // sign of it was a shortcut that had quietly stopped working with no reason on screen.
+        lastDisplacing?.message?.let { message ->
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(start = 12.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+                ) {
+                    Text(
+                        message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = {
+                        lastDisplacing?.previous?.let { save(it) }
+                        lastDisplacing = null
+                    }) { Text("Undo") }
+                }
+            }
         }
         KeyAction.entries.forEachIndexed { index, action ->
             if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
@@ -78,7 +113,7 @@ fun KeyboardSettings(settings: Settings) {
                         Capture(
                             onChord = { chord ->
                                 capturing = null
-                                save(bindings.bind(action, chord))
+                                applyRebind(bindings.bind(action, chord))
                             },
                             onCancel = { capturing = null },
                         )
@@ -98,7 +133,7 @@ fun KeyboardSettings(settings: Settings) {
                         "Reset",
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp).clickable { save(bindings.reset(action)) },
+                        modifier = Modifier.padding(start = 8.dp).clickable { applyRebind(bindings.reset(action)) },
                     )
                 }
             }

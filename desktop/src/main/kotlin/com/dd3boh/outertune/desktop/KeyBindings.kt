@@ -99,6 +99,26 @@ enum class KeyAction(val label: String, val defaults: List<Chord>) {
 }
 
 /**
+ * A binding change, with whatever it took off other actions to make room.
+ *
+ * Returned rather than applied silently because the taking is invisible otherwise: the key simply
+ * stops working somewhere else, days later, with nothing linking that back to the moment it was
+ * reassigned. [previous] is the state before the change, which is all an Undo needs.
+ */
+data class Rebind(val bindings: KeyBindings, val displaced: List<Displaced>, val previous: KeyBindings? = null) {
+
+    /** An action that lost a key, and whether losing it left that action with no key at all. */
+    data class Displaced(val action: KeyAction, val chord: Chord, val leftUnbound: Boolean)
+
+    /** What to put in front of the person, or null when nothing was displaced. */
+    val message: String?
+        get() = displaced.takeIf { it.isNotEmpty() }?.joinToString("; ") {
+            if (it.leftUnbound) "${it.action.label} now has no key"
+            else "${it.chord.label} taken from ${it.action.label}"
+        }
+}
+
+/**
  * Which keys do what. Stored as only the actions that differ from their defaults, so a new action
  * added later arrives with its default rather than unbound.
  */
@@ -108,7 +128,16 @@ class KeyBindings(private val overrides: Map<KeyAction, List<Chord>>) {
 
     fun isDefault(action: KeyAction) = action !in overrides
 
-    /** The action a chord triggers. The first action listing it wins, should two share one. */
+    /**
+     * The action a chord triggers, or null for one bound to nothing.
+     *
+     * First match wins, and "first" is declaration order in [KeyAction] - so this only means
+     * anything because [bind] and [reset] between them guarantee no chord is ever on two actions.
+     * That used to hold for [bind] alone, and the gap showed: a key handed to another action while
+     * this one was rebound away came back on [reset] without displacing it, both actions held it,
+     * and which one a press reached came down to where the two happen to sit in the enum. Invisible,
+     * and nothing to do with what anybody asked for.
+     */
     fun actionFor(chord: Chord): KeyAction? = KeyAction.entries.firstOrNull { chord in chordsFor(it) }
 
     fun with(action: KeyAction, chords: List<Chord>): KeyBindings {
@@ -117,16 +146,52 @@ class KeyBindings(private val overrides: Map<KeyAction, List<Chord>>) {
         return KeyBindings(next)
     }
 
-    /** Adds [chord] to [action], taking it off any other action that had it. */
-    fun bind(action: KeyAction, chord: Chord): KeyBindings {
+    /**
+     * Takes [chord] off every action except [keep], recording what it took.
+     *
+     * Reported rather than refused: taking the key is exactly what was asked for, so the job is to
+     * make the consequence visible, not to block it. [Rebind.Displaced.leftUnbound] marks the case
+     * worth saying out loud on its own - an action whose only key this was now has none at all, and
+     * nothing on the settings screen tells that apart from one nobody has touched.
+     */
+    private fun strip(chord: Chord, keep: KeyAction): Pair<KeyBindings, List<Rebind.Displaced>> {
         var next = this
+        val taken = mutableListOf<Rebind.Displaced>()
         for (other in KeyAction.entries) {
-            if (other != action && chord in next.chordsFor(other)) next = next.with(other, next.chordsFor(other) - chord)
+            if (other == keep) continue
+            val had = next.chordsFor(other)
+            if (chord !in had) continue
+            val left = had - chord
+            taken += Rebind.Displaced(other, chord, leftUnbound = left.isEmpty())
+            next = next.with(other, left)
         }
-        return next.with(action, next.chordsFor(action) + chord)
+        return next to taken
     }
 
-    fun reset(action: KeyAction) = KeyBindings(overrides - action)
+    /** Adds [chord] to [action], taking it off any other action that had it. */
+    fun bind(action: KeyAction, chord: Chord): Rebind {
+        val (next, taken) = strip(chord, action)
+        return Rebind(next.with(action, next.chordsFor(action) + chord), taken)
+    }
+
+    /**
+     * Puts [action] back to its defaults, displacing anything else that holds those keys.
+     *
+     * The displacing is the whole fix for a collision that was reachable in three ordinary steps.
+     * Rebind Like off L; give L to Shuffle, which [bind] allows because Like no longer holds it;
+     * reset Like. L is now on both. Dropping the override was all reset ever did, so it could not
+     * have seen that coming - it never looked at what the defaults were about to land on top of.
+     */
+    fun reset(action: KeyAction): Rebind {
+        var next = KeyBindings(overrides - action)
+        val taken = mutableListOf<Rebind.Displaced>()
+        for (chord in action.defaults) {
+            val (stripped, took) = next.strip(chord, action)
+            next = stripped
+            taken += took
+        }
+        return Rebind(next, taken)
+    }
 
     fun encode(): String = overrides.entries.joinToString(";") { (action, chords) ->
         action.name + "=" + chords.joinToString("|") { it.encode() }
