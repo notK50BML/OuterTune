@@ -203,6 +203,7 @@ import com.dd3boh.outertune.utils.SyncUtils
 import com.dd3boh.outertune.utils.lmScannerCoroutine
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
+import com.dd3boh.outertune.utils.reportException
 import com.valentinilk.shimmer.LocalShimmerTheme
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -277,7 +278,15 @@ class MainActivity : ComponentActivity() {
         //
         // Safe to run unconditionally: it asks YouTube nothing, and only reads the songs whose
         // stored rows actually show the fault, so a healthy library costs two indexed queries.
-        lifecycleScope.launch { ArtistCreditEnricher.relinkAll(database) }
+        // Not lifecycleScope: this activity has no configChanges, so a rotation or a theme change
+        // destroys it and cancelled the sweep wherever it had got to - which is most of why the
+        // repair appeared to work only sometimes. It guards itself against overlapping runs, so
+        // being launched again by the next activity is harmless.
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch {
+            runCatching { ArtistCreditEnricher.relinkAll(database) }
+                .onFailure { reportException(it) }
+        }
         // Debug builds only: `adb shell am start ... --es ot_layout_b64 <base64 json>` sets the player
         // layout ("" clears it), so a layout from the editor can be checked on an emulator.
         if (BuildConfig.DEBUG) intent?.getStringExtra("ot_layout_b64")?.let { b64 ->

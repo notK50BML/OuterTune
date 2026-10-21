@@ -30,6 +30,7 @@ import com.dd3boh.outertune.constants.YtmSyncContentKey
 import com.dd3boh.outertune.constants.decodeSyncString
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.normalizeArtistId
+import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.PlaylistEntity
 import com.dd3boh.outertune.db.entities.PlaylistSongMap
@@ -491,6 +492,14 @@ class SyncUtils @Inject constructor(
             executeSyncRemoteAlbums(bypass)
             executeSyncRemoteArtists(bypass)
             executeSyncRemotePlaylists(bypass)
+            // Once, after everything. The repair used to sit inside the library-songs sync alone,
+            // so a liked song, an album's tracks, a playlist's tracks or a synced artist row - all
+            // of which write credits through the same path, and all of which can write a stale name
+            // or a prefixed id - were never looked at. It is offline and only touches rows that
+            // show the fault, so running it over the whole library here costs two indexed queries
+            // on a healthy one.
+            runCatching { ArtistCreditEnricher.relinkAll(database) }
+                .onFailure { reportException(it) }
             markSynced(LastFullSyncKey)
             updateState { copy(overallStatus = SyncStatus.Completed, currentOperation = "") }
         } catch (e: CancellationException) {
@@ -765,14 +774,23 @@ class SyncUtils @Inject constructor(
 
             remoteArtists.forEach { remoteArtist ->
                 try {
-                    val localArtist = database.artist(remoteArtist.id).firstOrNull()
+                    // Normalised before the lookup, not only before the insert. The two disagreed:
+                    // an MPLAUC… artist was read under its raw id, found nothing because the row is
+                    // stored under the plain UC… form, and took the insert branch - where IGNORE
+                    // then dropped it on the id conflict. So a liked artist held under the prefixed
+                    // spelling never got its bookmark, its picture or its name, every single sync.
+                    val artistId = remoteArtist.id.normalizeArtistId()
+                    val localArtist = database.artist(artistId).firstOrNull()
                     val isLikedArtist = remoteArtist.id in likedArtistIds
                     database.transaction {
                         if (localArtist == null) {
                             insert(
                                 ArtistEntity(
-                                    id = remoteArtist.id.normalizeArtistId(),
-                                    name = remoteArtist.title,
+                                    id = artistId,
+                                    // Stripped, as every other write path strips it. Writing the
+                                    // raw title here put "X - Topic" names straight back into the
+                                    // table that migrations 22 through 25 existed to clean out.
+                                    name = remoteArtist.title.stripTopicSuffix(),
                                     thumbnailUrl = remoteArtist.thumbnail,
                                     channelId = remoteArtist.channelId,
                                     bookmarkedAt = if (isLikedArtist) LocalDateTime.now() else null
@@ -786,8 +804,9 @@ class SyncUtils @Inject constructor(
                             // this is the one path that sees the authoritative remote values and it
                             // was throwing them away for every artist that already existed.
                             var updated = localArtist.artist
-                            if (remoteArtist.title.isNotBlank() && updated.name != remoteArtist.title) {
-                                updated = updated.copy(name = remoteArtist.title)
+                            val remoteName = remoteArtist.title.stripTopicSuffix()
+                            if (remoteName.isNotBlank() && updated.name != remoteName) {
+                                updated = updated.copy(name = remoteName)
                             }
                             if (remoteArtist.thumbnail != null && updated.thumbnailUrl != remoteArtist.thumbnail) {
                                 updated = updated.copy(thumbnailUrl = remoteArtist.thumbnail)

@@ -48,8 +48,24 @@ object ArtistCreditEnricher {
     private const val TAG = "ArtistCreditEnricher"
 
     private val AMPERSAND_SPLIT = Regex("\\s*&\\s*")
+
+    /**
+     * The "(feat. X)" clause in a title.
+     *
+     * Now covers `featuring` and `w/` as well as `feat`/`ft`, which it did not: the old pattern was
+     * `(?:feat\.?|ft\.?)`, and because `feat\.?` matches the first four letters of "featuring" and
+     * then requires whitespace, a title reading "(featuring X)" matched nothing at all. `w/` is the
+     * other spelling that turns up often enough to matter.
+     *
+     * Deliberately still not `with`, `x` or `vs`. Those appear in real song titles far more often
+     * than they introduce a credit - "Dancing With Myself", "Marvin's Room x ...", "Godzilla vs
+     * Kong" - and every false positive here costs a search and can add a wrong artist to a song.
+     *
+     * The captured run stops at `[` as well as `)` and `]` now. It did not, so "Song ft. A [Deluxe]"
+     * captured "A [Deluxe" - one wasted search, and the name lost.
+     */
     private val FEATURED_ARTISTS = Regex(
-        """[(\[]?\s*\b(?:feat\.?|ft\.?)\s+([^)\]]+)[)\]]?""",
+        """[(\[]?\s*\b(?:featuring|feat\.?|ft\.?|w/)\s+([^)\]\[]+)[)\]]?""",
         RegexOption.IGNORE_CASE
     )
     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
@@ -76,12 +92,97 @@ object ArtistCreditEnricher {
      * refresh gesture. Those still run per song on playback, where one request is proportionate.
      */
     suspend fun relinkAll(database: MusicDatabase): Unit = withContext(Dispatchers.IO) {
-        mergePrefixedArtists(database)
+        // One sweep at a time. The activity can be created more than once in a process - a rotation
+        // or a theme change does it - and two sweeps merging the same duplicates concurrently would
+        // each see rows the other is deleting.
+        if (!sweeping.compareAndSet(false, true)) return@withContext
+        try {
+            mergePrefixedArtists(database)
+            mergeDuplicateNamedArtists(database)
 
-        val songIds = database.songIdsWithRepairableArtists()
-        if (songIds.isEmpty()) return@withContext
-        Timber.tag(TAG).d("relinking artists on ${songIds.size} song(s)")
-        songIds.forEach { enrich(database, it, allowNetwork = false) }
+            val songIds = database.songIdsWithRepairableArtists()
+            if (songIds.isEmpty()) return@withContext
+            Timber.tag(TAG).d("relinking artists on ${songIds.size} song(s)")
+            // Per song, so one unreadable row does not abandon every song after it - which is what
+            // a bare forEach over a whole library does the first time one of them throws.
+            songIds.forEach {
+                runCatching { enrich(database, it, allowNetwork = false) }
+                    .onFailure { e -> Timber.tag(TAG).w(e, "relink failed for song $it") }
+            }
+        } finally {
+            sweeping.set(false)
+        }
+    }
+
+    /** Guards [relinkAll] against overlapping runs - see its body. */
+    private val sweeping = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Folds a placeholder artist row into the real channel of the same name.
+     *
+     * The general duplicate merge existed only as a one-shot migration (MIGRATION_24_25), which
+     * means it ran once, on one upgrade, and never again. Every duplicate created after that - and
+     * they are created constantly, because [artistByNameIgnoreCase] mints a fresh placeholder for
+     * any name it cannot match exactly - was permanent. That is most of why the artist list fills
+     * up with the same name twice over.
+     *
+     * Deliberately narrower than the migration was. That merged purely by name, and two different
+     * channels really can share one: there are a dozen bands called Nirvana, and collapsing them
+     * would be a worse fault than leaving them apart. So a merge here needs one side to be a
+     * locally-minted placeholder - a row that stands for a name nobody has resolved yet, and which
+     * can therefore only ever have meant whatever real channel shares its name. Two real channel
+     * ids are left alone, which is the same rule [mergeableInto] already applies per song.
+     *
+     * Offline. It is reading rows it already has and deciding between them; nothing here asks
+     * YouTube anything.
+     */
+    private suspend fun mergeDuplicateNamedArtists(database: MusicDatabase) = withContext(Dispatchers.IO) {
+        val all = database.allArtistsOnce()
+        if (all.size < 2) return@withContext
+
+        // Local and remote artists are kept apart: a local file's "Various Artists" is not the
+        // YouTube channel of that name, and folding one into the other loses the distinction the
+        // library screen is built on.
+        val groups = all.groupBy { it.name.stripTopicSuffix().trim().lowercase() to it.isLocal }
+
+        for ((key, group) in groups) {
+            if (group.size < 2 || key.first.isEmpty()) continue
+            val real = group.filter { it.isYouTubeArtist }
+            val placeholders = group.filterNot { it.isYouTubeArtist }
+            if (placeholders.isEmpty()) continue
+
+            // One real channel to fold into, or - when there is none - the placeholder that has
+            // most to lose, so the survivor is the row already carrying a picture or a
+            // subscription rather than whichever happened to sort first.
+            val survivor = when {
+                real.size == 1 -> real.single()
+                real.size > 1 -> continue // ambiguous: two channels share this name, leave it alone
+                else -> placeholders.maxByOrNull {
+                    (if (it.bookmarkedAt != null) 2 else 0) + (if (!it.thumbnailUrl.isNullOrBlank()) 1 else 0)
+                } ?: continue
+            }
+
+            for (duplicate in group) {
+                if (duplicate.id == survivor.id) continue
+                if (duplicate.isYouTubeArtist) continue // never fold a real channel away
+                database.runInTransaction {
+                    // A subscription on the row about to go would otherwise disappear with it, and
+                    // an artist the user had added to their library would quietly stop being in it.
+                    if (duplicate.bookmarkedAt != null && database.artistById(survivor.id)?.bookmarkedAt == null) {
+                        database.artistById(survivor.id)?.let {
+                            database.update(it.copy(bookmarkedAt = duplicate.bookmarkedAt))
+                        }
+                    }
+                    // Collisions first, then move the rest - see deleteCollidingSongArtistMaps.
+                    database.deleteCollidingSongArtistMaps(duplicate.id, survivor.id)
+                    database.updateSongArtistMap(duplicate.id, survivor.id)
+                    database.deleteCollidingAlbumArtistMaps(duplicate.id, survivor.id)
+                    database.updateAlbumArtistMap(duplicate.id, survivor.id)
+                    database.safeDeleteArtist(duplicate.id)
+                }
+                Timber.tag(TAG).d("merged duplicate \"${duplicate.name}\" (${duplicate.id}) into ${survivor.id}")
+            }
+        }
     }
 
     /**
@@ -334,7 +435,10 @@ object ArtistCreditEnricher {
             song.artists.filterNot { old -> distinctFinalArtists.any { it.id == old.id } }
                 .forEach { database.safeDeleteArtist(it.id) }
             distinctFinalArtists.forEachIndexed { index, artist ->
-                database.insert(artist)
+                // Not plain insert(): that is IGNORE-on-conflict, so for an artist already in the
+                // table it wrote nothing - including the picture this run had just paid a search
+                // for, which is the value the skip-gate above depends on existing.
+                database.insertOrFillThumbnail(artist)
                 database.insert(SongArtistMap(songId = songId, artistId = artist.id, position = index))
             }
         }
@@ -346,7 +450,7 @@ object ArtistCreditEnricher {
         val featured = parseFeaturedArtistNames(song.song.title).filter { it.lowercase() !in creditedNames }
         for (name in featured) {
             val resolved = resolveArtistEntity(database, name, allowNetwork) ?: continue
-            database.insert(resolved)
+            database.insertOrFillThumbnail(resolved)
             database.insert(SongArtistMap(songId = songId, artistId = resolved.id, position = nextPosition))
             nextPosition++
             creditedNames += resolved.name.lowercase()
@@ -488,7 +592,20 @@ object ArtistCreditEnricher {
     ): ArtistEntity? {
         if (!allowNetwork || !artist.thumbnailUrl.isNullOrBlank()) return null
         val resolved = resolveArtist(artist.name, allowNetwork = true) ?: return null
-        if (resolved.id == artist.id) return null
+
+        if (resolved.id == artist.id) {
+            // The credit was right. That is the common case, and it used to return here having
+            // written nothing - which left the thumbnail null, which left the gate above open, so
+            // the same search ran again on the next play of that song, and the next, forever. For
+            // a well-credited library that is most of the requests this class ever makes, and
+            // enough of them to draw YouTube's automated-query throttle, which breaks playback
+            // rather than merely enrichment.
+            //
+            // Keeping the picture the search already returned costs nothing and is what the gate
+            // was always documented to rely on: a credit that has been through here is skipped.
+            val thumbnail = resolved.thumbnail ?: return null
+            return artist.copy(name = resolved.title.stripTopicSuffix(), thumbnailUrl = thumbnail)
+        }
 
         Timber.tag(TAG).d(
             "[$songId] \"${artist.name}\" was credited to ${artist.id}, which is not its channel - " +
@@ -514,13 +631,16 @@ object ArtistCreditEnricher {
     }
 
     /** Names mentioned in a "(feat. X, Y)"/"(ft. X)" segment of [title], if any. */
-    private fun parseFeaturedArtistNames(title: String): List<String> {
-        val match = FEATURED_ARTISTS.find(title) ?: return emptyList()
-        return match.groupValues[1]
-            .split(FEATURED_NAME_SPLIT)
+    private fun parseFeaturedArtistNames(title: String): List<String> =
+        // Every clause, not only the first. A title carrying two - "A ft. B (ft. C)", which is what
+        // a remix or a collaboration upload routinely looks like - used to lose everyone named
+        // after the first one, because this took find() and stopped.
+        FEATURED_ARTISTS.findAll(title)
+            .flatMap { it.groupValues[1].split(FEATURED_NAME_SPLIT).asSequence() }
             .map { it.trim() }
             .filter { it.isNotEmpty() }
-    }
+            .distinctBy { it.lowercase() }
+            .toList()
 
     /**
      * The real artist channel [name] resolves to, or null if search finds no matching one. An

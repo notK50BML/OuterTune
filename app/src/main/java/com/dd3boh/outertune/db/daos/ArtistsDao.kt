@@ -64,7 +64,27 @@ interface ArtistsDao {
      * [com.dd3boh.outertune.db.daos.AlbumsDao], and by
      * [com.dd3boh.outertune.utils.ArtistCreditEnricher]'s search-based resolution.
      */
-    @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE LIMIT 1")
+    /*
+     * Ordered, because LIMIT 1 without one is whichever row SQLite reaches first - which is not
+     * stable, and which matters the moment two rows share a name. New credits then scattered
+     * across both at random, so a duplicate pair fed itself: neither row ever became the one
+     * everything pointed at, and which one a given song got could change between runs.
+     *
+     * A real channel first - that is the row worth keeping and the one the credit means - then,
+     * among equals, the row that already carries a picture, then oldest by id so the answer is at
+     * least repeatable. The duplicate sweep in ArtistCreditEnricher collapses these pairs; this is
+     * what stops new ones being spread between them in the meantime.
+     */
+    @Query(
+        """
+        SELECT * FROM artist WHERE name = :name COLLATE NOCASE
+        ORDER BY
+            CASE WHEN id LIKE 'UC%' OR id LIKE 'MPLAUC%' THEN 0 ELSE 1 END,
+            CASE WHEN thumbnailUrl IS NULL OR thumbnailUrl = '' THEN 1 ELSE 0 END,
+            id
+        LIMIT 1
+        """
+    )
     fun artistByNameIgnoreCase(name: String): ArtistEntity?
 
     /** A real YouTube Music artist already in the library under [name] - see LocalArtistLinker. */
@@ -360,13 +380,40 @@ interface ArtistsDao {
             insert(artist)
             return artist
         }
-        if (existing.name != artist.name) {
+        if (existing.name != artist.name && healsName(existing.name, artist.name)) {
             val healed = existing.copy(name = artist.name)
             update(healed)
             return healed
         }
         return existing
     }
+
+    /**
+     * Inserts [artist], or fills in a picture the stored row is missing.
+     *
+     * [insert] is IGNORE-on-conflict, so for an artist that already exists it writes nothing at
+     * all. That is correct for a credit's name - see [healsName] - and wrong for a thumbnail, which
+     * is not a competing opinion but a value the row either has or does not. It also made
+     * ArtistCreditEnricher's one piece of caching ineffective: the enricher skips an artist that
+     * already has a picture, so a picture that is never stored means the artist is searched for
+     * again on every single play of every song they appear on.
+     *
+     * Only ever fills a blank. A row that already has a picture keeps the one it has.
+     */
+    fun insertOrFillThumbnail(artist: ArtistEntity): ArtistEntity {
+        val existing = artistById(artist.id)
+        if (existing == null) {
+            insert(artist)
+            return artist
+        }
+        if (existing.thumbnailUrl.isNullOrBlank() && !artist.thumbnailUrl.isNullOrBlank()) {
+            val filled = existing.copy(thumbnailUrl = artist.thumbnailUrl)
+            update(filled)
+            return filled
+        }
+        return existing
+    }
+
 
     @Transaction
     fun update(artist: ArtistEntity, artistPage: ArtistPage) {
@@ -399,6 +446,15 @@ interface ArtistsDao {
     /** Artist rows stored under the MPLA spelling of a channel id - see normalizeArtistId. */
     @Query("SELECT * FROM artist WHERE id LIKE 'MPLAUC%'")
     fun artistsWithPrefixedIds(): List<ArtistEntity>
+
+    /**
+     * Every artist row, for the duplicate sweep in ArtistCreditEnricher.
+     *
+     * A plain list rather than a Flow: the sweep reads once, merges, and is done. Observing the
+     * table it is in the middle of rewriting would re-trigger it on its own writes.
+     */
+    @Query("SELECT * FROM artist")
+    fun allArtistsOnce(): List<ArtistEntity>
 
     /**
      * Drops the credits that would collide before [updateSongArtistMap] moves the rest.
@@ -444,4 +500,28 @@ interface ArtistsDao {
     @Query("DELETE FROM artist WHERE isLocal = 1")
     fun nukeLocalArtists()
     // endregion
+}
+
+/**
+ * Whether replacing [stored] with [incoming] is a repair rather than a regression.
+ *
+ * This used to be "the two differ", and that was the single largest reason a fixed artist name
+ * did not stay fixed. Every ordinary write reaches here - a library sync, an album page, a
+ * playlist load, a song being queued - and each one carries whatever name its own sparse source
+ * happened to hold, which for a renamed channel is routinely the *old* one. So the artist page
+ * would repair "(G)I-DLE" to "i-dle", and the next sync would quietly put it back, in a loop
+ * nobody could see the far end of.
+ *
+ * A song credit is not authority on what an artist is currently called. [update] with an
+ * ArtistPage is: that is a deliberate fetch of the artist's own page, and it is left free to
+ * write any name it likes. This only lets through the two cases where the stored name is
+ * provably the worse of the two - it is empty, or it still carries the raw "- Topic" suffix
+ * that the incoming one has already had stripped. Everything else is left alone.
+ */
+private fun healsName(stored: String, incoming: String): Boolean {
+    if (incoming.isBlank()) return false
+    if (stored.isBlank()) return true
+    // Only in that direction. A stored name without the suffix must never be replaced by one
+    // carrying it - which is exactly what the remote-artist sync was doing from the other side.
+    return TOPIC_SUFFIX.containsMatchIn(stored) && !TOPIC_SUFFIX.containsMatchIn(incoming)
 }
