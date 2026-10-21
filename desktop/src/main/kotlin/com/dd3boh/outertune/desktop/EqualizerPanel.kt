@@ -142,6 +142,9 @@ fun EqualizerPanel(
     store: EqStore? = null,
     /** Left/right balance. Null hides the dial rather than showing one that does nothing. */
     balance: Balance? = null,
+    /** The live spectrum behind the curve, and where playback has reached. Both or neither. */
+    spectrum: VisualizerTap? = null,
+    playedFrames: (() -> Long)? = null,
 ) {
     // Seeded from the store where there is one, because the equaliser itself is restored at
     // startup rather than when this panel first opens (see Main) - by the time anyone looks at it,
@@ -348,38 +351,22 @@ fun EqualizerPanel(
                                         activeTrackColor = bandColour,
                                         inactiveTrackColor = onColour.copy(alpha = 0.18f),
                                     ),
-                                    // Filled from 0dB outward rather than from the bottom. The stock track
-                                    // fills from the minimum, which drew a flat curve as twelve half-full
-                                    // faders - every band looking boosted when none was.
+                                    // A channel with a cap in it rather than a line with a dot on it -
+                                    // see Fader.kt. Filled from 0dB outward, because the stock track
+                                    // fills from the minimum, which drew a flat curve as twelve
+                                    // half-full faders: every band looking boosted when none was.
                                     track = { state ->
-                                        val range = state.valueRange
-                                        val span = range.endInclusive - range.start
-                                        val zero = ((0f - range.start) / span).coerceIn(0f, 1f)
-                                        val at = ((state.value - range.start) / span).coerceIn(0f, 1f)
-                                        val inactive = onColour.copy(alpha = 0.18f)
-                                        Canvas(modifier = Modifier.fillMaxWidth().height(6.dp)) {
-                                            val y = size.height / 2
-                                            drawLine(
-                                                inactive, Offset(0f, y), Offset(size.width, y),
-                                                strokeWidth = size.height, cap = StrokeCap.Round,
-                                            )
-                                            // A tick at 0dB, so "flat" has a place to line up against.
-                                            drawLine(
-                                                onColour.copy(alpha = 0.45f),
-                                                Offset(size.width * zero, -3f),
-                                                Offset(size.width * zero, size.height + 3f),
-                                                strokeWidth = 2f,
-                                            )
-                                            if (at != zero) {
-                                                drawLine(
-                                                    bandColour,
-                                                    Offset(size.width * minOf(zero, at), y),
-                                                    Offset(size.width * maxOf(zero, at), y),
-                                                    strokeWidth = size.height, cap = StrokeCap.Round,
-                                                )
-                                            }
-                                        }
+                                        FaderTrack(
+                                            sliderState = state,
+                                            activeColor = bandColour,
+                                            inactiveColor = onColour.copy(alpha = 0.18f),
+                                            centerOrigin = true,
+                                            // A mark every quarter of the range: enough to judge a
+                                            // position against, few enough not to read as a scale.
+                                            detents = 4,
+                                        )
                                     },
+                                    thumb = { FaderCap(color = bandColour) },
                                     modifier = Modifier.rotateVertical(SLIDER_LENGTH),
                                 )
                             }
@@ -411,6 +398,8 @@ fun EqualizerPanel(
                     onColour = onColour,
                     height = 150.dp,
                     rangeDb = rangeFor(bands),
+                    spectrum = spectrum,
+                    playedFrames = playedFrames,
                 )
             }
         }

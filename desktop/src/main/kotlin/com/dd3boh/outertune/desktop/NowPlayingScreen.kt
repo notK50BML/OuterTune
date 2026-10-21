@@ -214,6 +214,8 @@ fun NowPlayingScreen(
     playerScroll: PlayerScroll = PlayerScroll.Anywhere,
     /** How far the seek buttons move. Was fixed at five seconds, which is now only the default. */
     seekStepMs: Long = SEEK_STEP_DEFAULT_MS,
+    /** The analyser drawn behind the equaliser's curve. Null draws the curve alone. */
+    eqSpectrum: VisualizerTap? = null,
 ) {
     // Held here rather than inside the drawer: the handle at the top and the button in the actions
     // row both open the same panel, exactly as they do on Android, and two copies of the state would
@@ -924,6 +926,8 @@ fun NowPlayingScreen(
             background = bottom,
             open = equalizerOpen,
             onClose = { equalizerOpen = false },
+            eqSpectrum = eqSpectrum,
+            playedFrames = playedFrames,
         )
     }
     }
@@ -1162,6 +1166,9 @@ private fun EqualizerOverlay(
     background: Color,
     open: Boolean,
     onClose: () -> Unit,
+    /** The analyser drawn behind the curve, and where playback has reached. Both or neither. */
+    eqSpectrum: VisualizerTap?,
+    playedFrames: () -> Long,
 ) {
     AnimatedVisibility(
         visible = open,
@@ -1235,6 +1242,8 @@ private fun EqualizerOverlay(
                     colourByValue = colourByValue,
                     store = eqStore,
                     balance = balance,
+                    spectrum = eqSpectrum,
+                    playedFrames = playedFrames,
                 )
             }
         }

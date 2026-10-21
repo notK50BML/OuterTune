@@ -560,6 +560,13 @@ private fun PlayerSettings(settings: Settings) {
             onSelect = { settings.audioQuality = it },
         )
         SettingSwitch(
+            title = "Spectrum behind the equaliser",
+            subtitle = "Draws what is actually playing behind the response curve, so a cut lands where the energy is.",
+            checked = settings.eqSpectrum,
+            onCheckedChange = { settings.eqSpectrum = it },
+            icon = OuterTuneIcons.graphicEq,
+        )
+        SettingSwitch(
             title = "Audio normalisation",
             subtitle = "Evens out volume between songs using YouTube's loudness figure. Only ever turns down.",
             checked = settings.audioNormalisation,

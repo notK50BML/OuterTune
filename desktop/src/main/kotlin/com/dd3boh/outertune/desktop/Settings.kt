@@ -284,6 +284,16 @@ class Settings(private val store: SettingsStore) {
     var eqBalance by float("eq.balance", 0f)
 
     /**
+     * Whether the live spectrum is drawn behind the equaliser's response curve.
+     *
+     * On. It is the one thing that turns the curve from a picture of twelve numbers into something
+     * you can actually equalise against - a cut at 3kHz means nothing on its own and means a great
+     * deal when 3kHz is visibly where the energy is. A setting because it is a per-frame redraw of
+     * the panel, which is worth declining on a slow machine.
+     */
+    var eqSpectrum by bool("eq.spectrum", true)
+
+    /**
      * The four above, as the panel wants them.
      *
      * The conversion lives here rather than in the panel so that the panel depends on an interface

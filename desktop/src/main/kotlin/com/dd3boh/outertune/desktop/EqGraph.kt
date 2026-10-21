@@ -10,7 +10,12 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
@@ -41,16 +46,70 @@ fun EqGraph(
     modifier: Modifier = Modifier,
     height: Dp = 120.dp,
     rangeDb: Float = 15f,
+    /**
+     * The live spectrum to draw behind the curve, and where playback has reached.
+     *
+     * Both or neither - the tap is a queue keyed on frame position, so a sample without a frame
+     * number is meaningless. Null draws the curve alone, which is what every test and preview does.
+     */
+    spectrum: VisualizerTap? = null,
+    playedFrames: (() -> Long)? = null,
 ) {
     // Recomputed only when the bands or the format change. It is a hundred and sixty evaluations of
     // a transfer function, which is nothing once but wasteful on every frame of a drag.
     val curve = remember(bands, sampleRate) { EqResponse.curve(bands, sampleRate) }
+
+    // The live spectrum, re-read every frame while there is one to read. Held as state rather than
+    // sampled inside the Canvas because a draw pass that pulls from a queue is a draw pass with a
+    // side effect: Compose is free to run it twice, and the second read would get a different
+    // answer - which shows up as the analyser dropping frames at random.
+    var levels by remember { mutableStateOf(FloatArray(0)) }
+    if (spectrum != null && playedFrames != null) {
+        LaunchedEffect(spectrum) {
+            while (true) {
+                withFrameNanos { }
+                levels = spectrum.sample(playedFrames()).copyOf()
+            }
+        }
+    }
 
     Canvas(modifier = modifier.fillMaxWidth().height(height)) {
         if (curve.isEmpty()) return@Canvas
 
         val midY = size.height / 2f
         fun yFor(db: Float) = midY - (db / rangeDb).coerceIn(-1f, 1f) * (size.height / 2f - 4f)
+
+        // What is actually coming through, behind what the equaliser is doing to it.
+        //
+        // This is the thing that separates an equaliser from a chart of twelve numbers: a cut at
+        // 3kHz means nothing on its own, and means a great deal when you can see that 3kHz is where
+        // the energy is. Drawn first and faintly, so it is a backdrop the curve is read against
+        // rather than a second line competing with it.
+        //
+        // Bars are placed by frequency on the same log axis the curve uses, so a peak in the
+        // analyser lines up with the part of the curve that governs it. A linear placement would
+        // put everything audible in the right-hand third and make the two disagree about where any
+        // given hertz is, which is worse than not drawing it.
+        if (levels.isNotEmpty()) {
+            val logSpan = Math.log(EqResponse.MAX_HZ / EqResponse.MIN_HZ)
+            val nyquist = sampleRate / 2.0
+            for (i in levels.indices) {
+                // The band's own slice of the spectrum, by its centre frequency.
+                val hz = nyquist * (i + 0.5) / levels.size
+                if (hz <= EqResponse.MIN_HZ || hz >= EqResponse.MAX_HZ) continue
+                val x = (Math.log(hz / EqResponse.MIN_HZ) / logSpan).toFloat() * size.width
+                val next = nyquist * (i + 1.5) / levels.size
+                val xNext = if (next >= EqResponse.MAX_HZ) size.width else
+                    (Math.log(next / EqResponse.MIN_HZ) / logSpan).toFloat() * size.width
+                val w = (xNext - x).coerceAtLeast(1.5f)
+                val h = (levels[i].coerceIn(0f, 1f)) * size.height * 0.9f
+                drawRect(
+                    color = onColour.copy(alpha = 0.16f),
+                    topLeft = Offset(x, size.height - h),
+                    size = androidx.compose.ui.geometry.Size(w * 0.85f, h),
+                )
+            }
+        }
 
         // The zero line, so a flat response is visibly flat rather than merely central.
         drawLine(

@@ -971,6 +971,7 @@ internal fun App(
             onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
             playerScroll = settings.playerScroll,
             seekStepMs = settings.seekIncrementSeconds * 1000L,
+            eqSpectrum = player.spectrum.takeIf { settings.eqSpectrum },
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
             backgroundStyle = settings.background,
             colourByValue = settings.colourByValue,
