@@ -1764,6 +1764,27 @@ private fun ActionButtons(
                 }
             }
 
+            // More than one artist: the button asks which, in the same panel the ⋮ uses, rather
+            // than always opening whoever happens to be credited first.
+            button == PlayerButtonKind.ARTIST && actions.artists.size > 1 && actions.onOpenArtist != null -> Box {
+                var picking by remember { mutableStateOf(false) }
+                ActionButton(onClick = { picking = true }, size = buttonSize) {
+                    Icon(
+                        imageVector = button.icon,
+                        contentDescription = "Choose artist",
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(iconSize),
+                    )
+                }
+                if (picking) {
+                    ArtistPickerPanel(
+                        artists = actions.artists,
+                        onPick = actions.onOpenArtist,
+                        onDismiss = { picking = false },
+                    )
+                }
+            }
+
             // A running timer shows the time left rather than the moon: "how long until the music
             // stops" should be answerable without opening anything.
             button == PlayerButtonKind.SLEEP && sleepRemainingMs != null && onSleepTimer != null -> Box(

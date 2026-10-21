@@ -978,14 +978,11 @@ internal fun App(
             actions = PlayerActions(
                 onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
                 onAddToPlaylist = queue.current?.let { song -> { addingToPlaylist = song.toStored() } },
-                onViewArtist = queue.current?.artists?.firstOrNull()?.let { artist ->
-                    {
-                        openArtistPage(
-                            artist.id?.let { StoredArtist(it, artist.name) }
-                                ?: StoredArtist.unlinked(artist.name)
-                        )
-                    }
+                onViewArtist = queue.current?.creditedArtists()?.firstOrNull()?.let { artist ->
+                    { openArtistPage(artist) }
                 },
+                artists = queue.current?.creditedArtists().orEmpty(),
+                onOpenArtist = openArtistPage,
                 downloaded = queue.current?.id in downloadedIds,
                 onDownload = queue.current?.let { song ->
                     {
@@ -1022,6 +1019,8 @@ internal fun App(
     CompositionLocalProvider(
         LocalRowButtons provides RowButtons(RowButton.decode(settings.rowButtons), settings.rowMenu),
         LocalSongActions provides songActions,
+        // Remembered: a static local that changes identity redraws everything under it.
+        LocalArtistThumbnail provides remember(library) { library::artistThumbnail },
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
     ) {
     Column(

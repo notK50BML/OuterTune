@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.IntRect
 import androidx.compose.animation.core.MutableTransitionState
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -18,6 +19,9 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -129,8 +133,18 @@ private fun runRowButton(button: RowButton, song: SongItem, actions: SongActions
     RowButton.SHARE -> actions.copyLink(song)
 }
 
-/** One option in a [MenuPanel]: a round icon over its label. Disabled ones stay, dimmed. */
-data class MenuTile(val label: String, val icon: ImageVector, val enabled: Boolean = true, val onClick: () -> Unit)
+/**
+ * One option in a [MenuPanel]: a round icon over its label. Disabled ones stay, dimmed.
+ *
+ * @param keepOpen for a tile that leads somewhere inside the panel (a page) rather than out of it.
+ */
+data class MenuTile(
+    val label: String,
+    val icon: ImageVector,
+    val enabled: Boolean = true,
+    val keepOpen: Boolean = false,
+    val onClick: () -> Unit,
+)
 
 /**
  * Where a menu panel opens: from the bottom-right of its button and growing down when there is
@@ -166,6 +180,8 @@ private class MenuPositionProvider(
  *
  * @param atPointer opens at this point inside the anchor (a right-click); otherwise from the
  *   anchor's end, below or above it.
+ * @param page shown instead of the header and tiles while non-null - a step inside the menu, such
+ *   as choosing which artist. It slides in over them and back out, in the same container.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -174,7 +190,11 @@ fun MenuPanel(
     onDismiss: () -> Unit,
     atPointer: IntOffset? = null,
     header: (@Composable (close: () -> Unit) -> Unit)? = null,
+    page: (@Composable (close: () -> Unit) -> Unit)? = null,
 ) {
+    // Kept past its own removal, so going back slides the page out instead of blanking it first.
+    var lastPage by remember { mutableStateOf(page) }
+    if (page != null) lastPage = page
     val shown = remember { MutableTransitionState(false) }
     LaunchedEffect(Unit) { shown.targetState = true }
     // Folded away, then gone: dismissing runs the closing animation first.
@@ -206,40 +226,58 @@ fun MenuPanel(
                 shadowElevation = 12.dp,
                 modifier = Modifier.width(340.dp),
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    if (header != null) {
-                        header(close)
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
-                    }
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                        maxItemsInEachRow = 3,
-                    ) {
-                        for (tile in tiles) {
-                            Column(
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                modifier = Modifier
-                                    .width(102.dp)
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .clickable(enabled = tile.enabled) { tile.onClick(); close() }
-                                    .padding(vertical = 10.dp, horizontal = 4.dp),
+                AnimatedContent(
+                    targetState = page != null,
+                    transitionSpec = {
+                        // Forward into a page slides it in from the right; back slides it out again.
+                        val into = targetState
+                        (slideInHorizontally(tween(200)) { if (into) it / 4 else -it / 4 } + fadeIn(tween(160))) togetherWith
+                            (slideOutHorizontally(tween(160)) { if (into) -it / 4 else it / 4 } + fadeOut(tween(120)))
+                    },
+                    modifier = Modifier.padding(12.dp),
+                ) { showingPage ->
+                    if (showingPage) {
+                        lastPage?.invoke(close)
+                    } else {
+                        Column {
+                            if (header != null) {
+                                header(close)
+                                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                            }
+                            FlowRow(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalArrangement = Arrangement.spacedBy(4.dp),
+                                maxItemsInEachRow = 3,
                             ) {
-                                Box(
-                                    contentAlignment = Alignment.Center,
-                                    modifier = Modifier.size(36.dp).clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (tile.enabled) 1f else 0.4f)),
-                                ) {
-                                    Icon(tile.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                                for (tile in tiles) {
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier
+                                            .width(102.dp)
+                                            .clip(RoundedCornerShape(16.dp))
+                                            .clickable(enabled = tile.enabled) {
+                                                tile.onClick()
+                                                if (!tile.keepOpen) close()
+                                            }
+                                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                                    ) {
+                                        Box(
+                                            contentAlignment = Alignment.Center,
+                                            modifier = Modifier.size(36.dp).clip(CircleShape)
+                                                .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (tile.enabled) 1f else 0.4f)),
+                                        ) {
+                                            Icon(tile.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                                        }
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Text(
+                                            tile.label,
+                                            style = MaterialTheme.typography.labelMedium,
+                                            textAlign = TextAlign.Center,
+                                            maxLines = 2,
+                                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (tile.enabled) 1f else 0.4f),
+                                        )
+                                    }
                                 }
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(
-                                    tile.label,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    textAlign = TextAlign.Center,
-                                    maxLines = 2,
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = if (tile.enabled) 1f else 0.4f),
-                                )
                             }
                         }
                     }
@@ -258,10 +296,18 @@ fun SongMenuPanel(
     offset: IntOffset = IntOffset.Zero,
     onDismiss: () -> Unit,
 ) {
-    val artist = song.artists.firstOrNull()
+    val artists = remember(song) { song.creditedArtists() }
+    // With more than one credit, "Go to artist" turns the panel into a list of them instead of
+    // guessing the first - see ArtistPickerList.
+    var pickingArtist by remember { mutableStateOf(false) }
     MenuPanel(
         onDismiss = onDismiss,
         atPointer = if (anchorEnd) null else offset,
+        page = if (pickingArtist) {
+            { close -> ArtistPickerList(artists, onBack = { pickingArtist = false }) { actions.openArtist(it); close() } }
+        } else {
+            null
+        },
         tiles = listOf(
             MenuTile("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) },
             MenuTile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) },
@@ -274,8 +320,8 @@ fun SongMenuPanel(
                 actions.toggleDownload(song)
             },
             MenuTile("Copy link", OuterTuneIcons.share) { actions.copyLink(song) },
-            MenuTile("Go to artist", OuterTuneIcons.person, enabled = artist != null) {
-                artist?.let { actions.openArtist(it.id?.let { id -> StoredArtist(id, it.name) } ?: StoredArtist.unlinked(it.name)) }
+            MenuTile("Go to artist", OuterTuneIcons.person, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
+                if (artists.size > 1) pickingArtist = true else artists.firstOrNull()?.let(actions.openArtist)
             },
             MenuTile("Go to album", OuterTuneIcons.album, enabled = song.album?.id != null) {
                 song.album?.id?.let(actions.openAlbum)

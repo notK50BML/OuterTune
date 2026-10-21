@@ -41,6 +41,12 @@ data class PlayerActions(
     val inLibrary: Boolean = false,
     val onToggleLibrary: (() -> Unit)? = null,
     val onViewArtist: (() -> Unit)? = null,
+    /**
+     * Every artist the song credits, with [onOpenArtist] to open one. With more than one, "View
+     * artist" and the artist button ask which, instead of [onViewArtist] opening the first.
+     */
+    val artists: List<StoredArtist> = emptyList(),
+    val onOpenArtist: ((StoredArtist) -> Unit)? = null,
     val onViewAlbum: (() -> Unit)? = null,
     val onShare: (() -> Unit)? = null,
     val onToggleLyrics: (() -> Unit)? = null,
@@ -67,6 +73,9 @@ fun PlayerOverflowMenu(
     iconSize: Dp,
 ) {
     var open by remember { mutableStateOf(false) }
+    var pickingArtist by remember { mutableStateOf(false) }
+    val onOpenArtist = actions.onOpenArtist
+    val chooseArtist = actions.artists.size > 1 && onOpenArtist != null
 
     Box {
         IconButton(onClick = { open = true }, modifier = Modifier.size(buttonSize)) {
@@ -95,14 +104,31 @@ fun PlayerOverflowMenu(
                     if (actions.inLibrary) OuterTuneIcons.libraryAddCheck else OuterTuneIcons.libraryAdd,
                     actions.onToggleLibrary,
                 )
-                tile("View artist", OuterTuneIcons.person, actions.onViewArtist)
+                if (chooseArtist) {
+                    add(MenuTile("View artist", OuterTuneIcons.person, keepOpen = true) { pickingArtist = true })
+                } else {
+                    tile("View artist", OuterTuneIcons.person, actions.onViewArtist)
+                }
                 tile("View album", OuterTuneIcons.album, actions.onViewAlbum)
                 tile("Share", OuterTuneIcons.share, actions.onShare)
                 tile("Lyrics", OuterTuneIcons.lyrics, actions.onToggleLyrics)
                 tile("Details", OuterTuneIcons.info, actions.onDetails)
                 tile("Equaliser", OuterTuneIcons.equalizer, actions.onEqualizer)
             }
-            MenuPanel(tiles = tiles, onDismiss = { open = false })
+            MenuPanel(
+                tiles = tiles,
+                onDismiss = { open = false; pickingArtist = false },
+                page = if (pickingArtist && onOpenArtist != null) {
+                    { close ->
+                        ArtistPickerList(actions.artists, onBack = { pickingArtist = false }) {
+                            onOpenArtist(it)
+                            close()
+                        }
+                    }
+                } else {
+                    null
+                },
+            )
         }
     }
 }

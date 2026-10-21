@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.unit.dp
@@ -185,6 +186,49 @@ class UiSnapshots {
                 }
             }
         }
+    }
+
+    @Test
+    fun artistPicker() {
+        assumeTrue(outDir != null)
+        val artists = listOf(
+            StoredArtist("UCdp", "Daft Punk"),
+            StoredArtist("UCjc", "Julian Casablancas"),
+            StoredArtist.unlinked("The Voidz"),
+        )
+        // On its own, as the player's artist button opens it.
+        capture("artist_picker", 560, 420) {
+            Box(modifier = Modifier.padding(start = 380.dp, top = 24.dp).size(40.dp)) {
+                ArtistPickerPanel(artists, onPick = {}, onDismiss = {})
+            }
+        }
+        // From a song's ⋮, clicked through: "Go to artist" on a two-artist song turns the panel
+        // into the list, and "← Back" returns to the tiles.
+        val actions = SongActions({}, {}, {}, {}, {}, { false }, {}, { false }, {}, {}, {})
+        val rows: @Composable () -> Unit = {
+            CompositionLocalProvider(LocalSongActions provides actions, LocalRowButtons provides RowButtons(listOf(RowButton.LIKE))) {
+                Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+                    listOf(songs[2], songs[0], songs[3]).forEach { SongRow(it, playing = false) {} }
+                }
+            }
+        }
+        // Each click on a clock that keeps moving, with time for the panel to finish animating in
+        // between - a click mid-animation lands on a tile that is still scaled up from its corner.
+        // capture() settles 120 frames (6s) before and after: start where the first settle ended,
+        // and finish well inside the second, so the clock only ever moves forward on the last frames.
+        fun ImageComposeScene.clicks(vararg points: Pair<Float, Float>) {
+            var at = 6_000_000_000L
+            for ((x, y) in points) {
+                sendPointerEvent(PointerEventType.Move, Offset(x, y))
+                render(at); at += 20_000_000L
+                sendPointerEvent(PointerEventType.Press, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+                render(at); at += 20_000_000L
+                sendPointerEvent(PointerEventType.Release, Offset(x, y), button = androidx.compose.ui.input.pointer.PointerButton.Primary)
+                repeat(20) { render(at); at += 50_000_000L; Thread.sleep(10) }
+            }
+        }
+        capture("artist_picker_menu", 900, 640, settleFrames = 120, interact = { it.clicks(862f to 46f, 602f to 350f) }, content = rows)
+        capture("artist_picker_back", 900, 640, settleFrames = 120, interact = { it.clicks(862f to 46f, 602f to 350f, 578f to 101f) }, content = rows)
     }
 
     @Test
