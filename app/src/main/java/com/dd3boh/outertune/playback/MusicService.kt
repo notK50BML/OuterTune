@@ -1579,8 +1579,33 @@ class MusicService : MediaLibraryService(),
         val isRetryableSourceError = error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_INVALID_HTTP_CONTENT_TYPE ||
             error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED
-        val failedMediaId = player.currentMediaItem?.mediaId
+        // Which song failed. Media3 loads the next song ahead, but reports a failure to load it only
+        // once the current one has been read to the end - while the player still says the current
+        // song is playing. Blaming that one dropped its good URL and re-prepared it at its saved
+        // position, so the last moments of a song that had played fine replayed, up to twice,
+        // before anything happened to the song that actually broke. Near the end with a next song
+        // waiting, the next song is the one that failed.
+        val duration = player.duration
+        val failedIsNext = player.hasNextMediaItem() && duration != C.TIME_UNSET &&
+            player.currentPosition >= duration - NEXT_ITEM_ERROR_WINDOW_MS
+        val failedMediaId = if (failedIsNext) {
+            player.getMediaItemAt(player.nextMediaItemIndex).mediaId
+        } else {
+            player.currentMediaItem?.mediaId
+        }
         val retryCount = failedMediaId?.let { sourceErrorRetryCount.getOrDefault(it, 0) } ?: 0
+        if (isRetryableSourceError && failedMediaId != null && retryCount < MAX_SOURCE_ERROR_RETRIES && failedIsNext) {
+            sourceErrorRetryCount[failedMediaId] = retryCount + 1
+            if (songUrlCache[failedMediaId]?.clientName == "WEB_REMIX") {
+                YTPlayerUtils.markWebRemixFailed(failedMediaId)
+            }
+            songUrlCache.remove(failedMediaId)
+            if (SERVICE_DEBUG) Log.w(TAG, "source error on the next item, retry ${retryCount + 1}/$MAX_SOURCE_ERROR_RETRIES: mediaId=$failedMediaId")
+            // Straight to the start of the song that failed, with a fresh URL and identity.
+            player.seekTo(player.nextMediaItemIndex, 0)
+            retryCurrentItemWithFreshIdentity()
+            return
+        }
         if (isRetryableSourceError && failedMediaId != null && retryCount < MAX_SOURCE_ERROR_RETRIES) {
             sourceErrorRetryCount[failedMediaId] = retryCount + 1
             // Recorded before the entry is dropped below - lets the retry's re-resolution skip
@@ -1909,6 +1934,9 @@ class MusicService : MediaLibraryService(),
          * (the case this exists for) without feeding that spiral.
          */
         const val MAX_SOURCE_ERROR_RETRIES = 2
+
+        /** How close to its end the current song must be for a load error to be the next song's. */
+        const val NEXT_ITEM_ERROR_WINDOW_MS = 3_000L
 
         const val COMMAND_GET_BINDER = "GET_BINDER"
     }

@@ -404,7 +404,15 @@ fun PortraitPlayer(
                 val currentItem by remember { derivedStateOf { thumbnailLazyGridState.firstVisibleItemIndex } }
                 val itemScrollOffset by remember { derivedStateOf { thumbnailLazyGridState.firstVisibleItemScrollOffset } }
 
+                // True while the grid is being scrolled by the effect below rather than by a swipe.
+                // That scroll counts as "in progress" too, and on a track change it starts from the
+                // previous song's cover - so the swipe handler read it as a swipe back and called
+                // seekToPreviousMediaItem(), replaying the song that had just finished, once, with
+                // nobody touching anything. A programmatic scroll is never a skip.
+                var autoScrolling by remember { mutableStateOf(false) }
+
                 LaunchedEffect(itemScrollOffset) {
+                    if (autoScrolling) return@LaunchedEffect
                     if (!thumbnailLazyGridState.isScrollInProgress || itemScrollOffset != 0) return@LaunchedEffect
 
                     if (currentItem > currentMediaIndex)
@@ -418,10 +426,15 @@ fun PortraitPlayer(
                     val index = maxOf(0, currentMediaIndex)
 
                     // Only animate scroll when player expanded, otherwise animated scroll won't work
-                    if (playerSheetState.isExpanded)
-                        thumbnailLazyGridState.animateScrollToItem(index)
-                    else
-                        thumbnailLazyGridState.scrollToItem(index)
+                    autoScrolling = true
+                    try {
+                        if (playerSheetState.isExpanded)
+                            thumbnailLazyGridState.animateScrollToItem(index)
+                        else
+                            thumbnailLazyGridState.scrollToItem(index)
+                    } finally {
+                        autoScrolling = false
+                    }
                 }
 
                 val horizontalLazyGridItemWidthFactor = 1f
@@ -657,7 +670,15 @@ fun LandscapePlayer(
                 val currentItem by remember { derivedStateOf { thumbnailLazyGridState.firstVisibleItemIndex } }
                 val itemScrollOffset by remember { derivedStateOf { thumbnailLazyGridState.firstVisibleItemScrollOffset } }
 
+                // True while the grid is being scrolled by the effect below rather than by a swipe.
+                // That scroll counts as "in progress" too, and on a track change it starts from the
+                // previous song's cover - so the swipe handler read it as a swipe back and called
+                // seekToPreviousMediaItem(), replaying the song that had just finished, once, with
+                // nobody touching anything. A programmatic scroll is never a skip.
+                var autoScrolling by remember { mutableStateOf(false) }
+
                 LaunchedEffect(itemScrollOffset) {
+                    if (autoScrolling) return@LaunchedEffect
                     if (!thumbnailLazyGridState.isScrollInProgress || itemScrollOffset != 0) return@LaunchedEffect
 
                     if (currentItem > currentMediaIndex)
@@ -671,10 +692,15 @@ fun LandscapePlayer(
                     val index = maxOf(0, currentMediaIndex)
 
                     // Only animate scroll when player expanded, otherwise animated scroll won't work
-                    if (playerSheetState.isExpanded)
-                        thumbnailLazyGridState.animateScrollToItem(index)
-                    else
-                        thumbnailLazyGridState.scrollToItem(index)
+                    autoScrolling = true
+                    try {
+                        if (playerSheetState.isExpanded)
+                            thumbnailLazyGridState.animateScrollToItem(index)
+                        else
+                            thumbnailLazyGridState.scrollToItem(index)
+                    } finally {
+                        autoScrolling = false
+                    }
                 }
 
                 val horizontalLazyGridItemWidthFactor = 1f
