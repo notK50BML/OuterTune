@@ -69,8 +69,11 @@ fun TabsDialog(current: List<NavTab>, onSave: (List<NavTab>) -> Unit, onDismiss:
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                Column(modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))) {
-                    items.forEachIndexed { index, (tab, on) ->
+                ReorderableColumn(
+                    items = items,
+                    key = { it.first },
+                    modifier = Modifier.border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp)),
+                ) { index, (tab, on), handle ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -87,14 +90,9 @@ fun TabsDialog(current: List<NavTab>, onSave: (List<NavTab>) -> Unit, onDismiss:
                             Icon(tab.icon(), contentDescription = null, modifier = Modifier.size(22.dp))
                             Spacer(modifier = Modifier.width(12.dp))
                             Text(tab.label, modifier = Modifier.weight(1f))
-                            IconButton(onClick = { items.add(index - 1, items.removeAt(index)) }, enabled = index > 0) {
-                                Icon(OuterTuneIcons.expandLess, "Move up", modifier = Modifier.size(20.dp))
-                            }
-                            IconButton(onClick = { items.add(index + 1, items.removeAt(index)) }, enabled = index < items.lastIndex) {
-                                Icon(OuterTuneIcons.expandLess, "Move down", modifier = Modifier.size(20.dp).rotate(180f))
-                            }
+                            DragHandle(handle)
+                            Spacer(modifier = Modifier.width(8.dp))
                         }
-                    }
                 }
             }
         },

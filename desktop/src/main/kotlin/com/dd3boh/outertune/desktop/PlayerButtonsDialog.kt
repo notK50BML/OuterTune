@@ -49,8 +49,7 @@ import androidx.compose.ui.unit.dp
  *
  * The result is a row and this is a column, so the two are tied together on screen: a preview of
  * the row sits above the list, and each switched-on item carries its position counted from the
- * left. Top of the list is leftmost. Arrows rather than dragging, because a list of a dozen rows
- * is quicker to nudge with a mouse than to drag.
+ * left. Top of the list is leftmost. Reordered by each row's handle, as on the phone.
  */
 @Composable
 fun PlayerButtonsDialog(
@@ -110,21 +109,22 @@ fun PlayerButtonsDialog(
                     chosen.forEach { PreviewDisc(it) }
                 }
                 Hint(
-                    "Top of the list is the leftmost button. Click to turn on or off, arrows to " +
-                        "reorder. Up to ${PlayerButtonKind.MAX}."
+                    "Top of the list is the leftmost button. Click to turn on or off, drag the handle " +
+                        "to reorder. Up to ${PlayerButtonKind.MAX}."
                 )
                 if (refused) Hint("Up to ${PlayerButtonKind.MAX} buttons. Turn one off first.", error = true)
                 if (PlayerButtonKind.MENU !in chosen) {
                     Hint("Without More options, anything not shown as a button cannot be reached from the player.", error = true)
                 }
                 Spacer(modifier = Modifier.height(8.dp))
-                Column(
+                ReorderableColumn(
+                    items = items,
+                    key = { it.first },
                     modifier = Modifier
                         .heightIn(max = 380.dp)
                         .border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(12.dp))
                         .verticalScroll(rememberScrollState()),
-                ) {
-                    items.forEachIndexed { index, (button, on) ->
+                ) { index, (button, on), handle ->
                         val position = chosen.indexOf(button)
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -169,20 +169,8 @@ fun PlayerButtonsDialog(
                                 color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.weight(1f),
                             )
-                            IconButton(
-                                onClick = { items.add(index - 1, items.removeAt(index)) },
-                                enabled = index > 0,
-                            ) {
-                                Icon(OuterTuneIcons.expandLess, "Move up", modifier = Modifier.size(20.dp))
-                            }
-                            IconButton(
-                                onClick = { items.add(index + 1, items.removeAt(index)) },
-                                enabled = index < items.lastIndex,
-                            ) {
-                                Icon(OuterTuneIcons.expandLess, "Move down", modifier = Modifier.size(20.dp).rotate(180f))
-                            }
+                            DragHandle(handle)
                         }
-                    }
                 }
             }
         },
