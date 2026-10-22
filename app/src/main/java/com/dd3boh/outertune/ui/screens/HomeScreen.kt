@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.screens
 
+import com.dd3boh.outertune.constants.ShowHomeChipsKey
 import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -141,6 +142,8 @@ fun HomeScreen(
     val recentActivity by viewModel.recentActivity.collectAsState()
 
     val selectedChip by viewModel.selectedChip.collectAsState()
+    val emptyChips by viewModel.emptyChips.collectAsState()
+    val showHomeChips by rememberPreference(ShowHomeChipsKey, defaultValue = true)
 
     val allLocalItems by viewModel.allLocalItems.collectAsState()
     val allYtItems by viewModel.allYtItems.collectAsState()
@@ -383,9 +386,10 @@ fun HomeScreen(
             state = lazylistState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
         ) {
-            item {
+            if (showHomeChips) item {
                 ChipsRow(
-                    chips = homePage?.chips?.mapNotNull { it to it.title } ?: emptyList(),
+                    // Without the ones known to have nothing to show - see HomeViewModel.emptyChips.
+                    chips = homePage?.chips?.filter { it.title !in emptyChips }?.map { it to it.title } ?: emptyList(),
                     currentValue = selectedChip,
                     onValueUpdate = {
                         viewModel.toggleChip(it)

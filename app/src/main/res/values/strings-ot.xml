@@ -306,6 +306,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="flat_subfolders_title">Flatten subfolders</string>
     <string name="flat_subfolders_description">Disable to preserve the file structure as on disk</string>
     <string name="show_artist_videos_as_songs_title">Show artist videos as songs</string>
+    <string name="show_home_chips_title">Mood chips on Home</string>
+    <string name="show_home_chips_description">The Relax, Workout, Energise… filters above the Home feed. Chips with nothing to show are hidden either way</string>
     <string name="artist_credit_enrichment_title">Artist credit enrichment</string>
     <string name="artist_credit_enrichment_description">Splits combined credits, finds featured artists, keeps names current when a channel is renamed, and merges duplicates. Off leaves credits exactly as YouTube or the file gave them</string>
     <string name="show_artist_videos_as_songs_description">When an artist page has no songs of its own, lay out its videos like a song list instead of a grid</string>

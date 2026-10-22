@@ -7,6 +7,8 @@
  */
 package com.dd3boh.outertune.ui.screens.settings
 
+import androidx.compose.material.icons.rounded.FilterList
+import com.dd3boh.outertune.constants.ShowHomeChipsKey
 import androidx.compose.material.icons.rounded.Person
 import com.dd3boh.outertune.constants.ArtistCreditEnrichmentKey
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +76,7 @@ fun LibrarySettings(
         defaultValue = true
     )
     val (artistEnrichment, onArtistEnrichmentChange) = rememberPreference(ArtistCreditEnrichmentKey, defaultValue = true)
+    val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = true)
 
     val downloadUtil = LocalDownloadUtil.current
     val snackbarHostState = LocalSnackbarHostState.current
@@ -122,6 +125,13 @@ fun LibrarySettings(
                 icon = { Icon(Icons.Rounded.SmartDisplay, null) },
                 checked = showArtistVideosAsSongs,
                 onCheckedChange = onShowArtistVideosAsSongsChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.show_home_chips_title)) },
+                description = stringResource(R.string.show_home_chips_description),
+                icon = { Icon(Icons.Rounded.FilterList, null) },
+                checked = showHomeChips,
+                onCheckedChange = onShowHomeChipsChange
             )
             SwitchPreference(
                 title = { Text(stringResource(R.string.artist_credit_enrichment_title)) },

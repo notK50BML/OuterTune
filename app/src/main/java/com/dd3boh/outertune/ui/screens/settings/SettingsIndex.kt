@@ -49,6 +49,7 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/library", R.string.flat_subfolders_title, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/library", R.string.show_artist_videos_as_songs_title, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/library", R.string.artist_credit_enrichment_title, R.string.grp_library_and_content),
+    SettingsIndexEntry("settings/library", R.string.show_home_chips_title, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/library", R.string.download_thumbnails_title, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/library", R.string.download_all_thumbnails_title, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/library", R.string.content_language, R.string.grp_library_and_content),

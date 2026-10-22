@@ -60,6 +60,20 @@ class HomeViewModel @Inject constructor(
     val accountPlaylists = MutableStateFlow<List<PlaylistItem>?>(null)
     val homePage = MutableStateFlow<HomePage?>(null)
     val selectedChip = MutableStateFlow<HomePage.Chip?>(null)
+
+    /**
+     * Each chip's page, fetched in the background once Home has loaded - see [prefetchChips]. A tap
+     * then shows it at once and refreshes it behind, rather than waiting a round trip with nothing
+     * on screen.
+     */
+    private val chipPages = java.util.concurrent.ConcurrentHashMap<String, HomePage>()
+
+    /**
+     * Chips whose page holds nothing this app can show - Podcasts, today, whose shelves parse to
+     * nothing. Hidden rather than offered: a chip that only ever answers "nothing here" is noise.
+     * Only a page that came back empty counts; one that failed to load is left alone.
+     */
+    val emptyChips = MutableStateFlow<Set<String>>(emptySet())
     private val previousHomePage = MutableStateFlow<HomePage?>(null)
     val explorePage = MutableStateFlow<ExplorePage?>(null)
     val playlists = database.playlists(PlaylistFilter.LIBRARY, PlaylistSortType.NAME, true)
@@ -171,7 +185,10 @@ class HomeViewModel @Inject constructor(
 
             val homeJob = async {
                 runCatching {
-                    YouTube.home().onSuccess { page -> homePage.value = page }
+                    YouTube.home().onSuccess { page ->
+                        homePage.value = page
+                        prefetchChips(page.chips.orEmpty())
+                    }
                         .onFailure { reportException(it) }
                 }.onFailure { reportException(it) }
             }
@@ -183,7 +200,9 @@ class HomeViewModel @Inject constructor(
                 }.onFailure { reportException(it) }
             }
 
-            val recentActivityJob = async {
+            // Not waited for: it writes the database, and the Recent activity row follows the
+            // database on its own. Waiting kept the refresh spinner going for a whole sync.
+            viewModelScope.launch(syncCoroutine) {
                 runCatching { syncUtils.syncRecentActivity() }.onFailure { reportException(it) }
             }
 
@@ -192,7 +211,6 @@ class HomeViewModel @Inject constructor(
                 (artistRecommendationsJob.await() + songRecommendationsJob.await()).shuffled()
             homeJob.await()
             exploreJob.await()
-            recentActivityJob.await()
         }
 
         allYtItems.value = similarRecommendations.value?.flatMap { it.items }.orEmpty() +
@@ -229,6 +247,28 @@ class HomeViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Every chip's page, all at once and in the background, after Home itself is on screen. Fills
+     * [chipPages] so a tap is instant, and [emptyChips] so chips with nothing to show are hidden.
+     */
+    private fun prefetchChips(chips: List<HomePage.Chip>) {
+        chipPages.clear()
+        emptyChips.value = emptySet()
+        if (chips.isEmpty()) return
+        viewModelScope.launch(Dispatchers.IO) {
+            chips.map { chip ->
+                async {
+                    val page = YouTube.home(params = chip.endpoint?.params).getOrNull() ?: return@async
+                    if (page.sections.isEmpty()) {
+                        emptyChips.update { it + chip.title }
+                    } else {
+                        chipPages[chip.title] = page
+                    }
+                }
+            }.awaitAll()
+        }
+    }
+
     /** The chip request in flight, so a second tap replaces the first rather than racing it. */
     private var chipJob: Job? = null
 
@@ -250,11 +290,17 @@ class HomeViewModel @Inject constructor(
         // second or two a tap looked like it had done nothing at all.
         selectedChip.value = chip
         chipJob?.cancel()
+        // Fetched already: shown now, and refreshed below like any other tap.
+        chipPages[chip.title]?.let { cached ->
+            homePage.value = cached.copy(chips = homePage.value?.chips)
+        }
         chipJob = viewModelScope.launch(Dispatchers.IO) {
             val nextSections = YouTube.home(params = chip.endpoint?.params).getOrNull()
             // Some chips - Podcasts, today - come back as shelves this app does not draw, which
             // parse to nothing. Showing an empty home for those reads as broken; saying so and
             // staying where you were does not.
+            // Already showing its fetched page: a refresh that fails changes nothing.
+            if (nextSections == null && chipPages.containsKey(chip.title)) return@launch
             if (nextSections == null || nextSections.sections.isEmpty()) {
                 if (selectedChip.value == chip) {
                     selectedChip.value = selectedBefore
@@ -275,6 +321,8 @@ class HomeViewModel @Inject constructor(
                 }
                 return@launch
             }
+            chipPages[chip.title] = nextSections
+            if (selectedChip.value != chip) return@launch
             homePage.value = nextSections.copy(
                 chips = homePage.value?.chips,
                 sections = nextSections.sections,
