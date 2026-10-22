@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.models.WatchEndpoint
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.async
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.ArtistItem
@@ -100,6 +104,61 @@ class HomeFeed {
         }
         HomeState.Ready(usable, page.chips.orEmpty(), page.continuation)
     }
+}
+
+/**
+ * "Similar to ..." shelves, as the phone's Home builds them (HomeViewModel): three of the artists
+ * played most get the related sections of their own artist pages, and two of the songs played most
+ * lately get YouTube's related tab. Labelled "Similar to" with the artist or song as the title.
+ *
+ * Every request runs at once rather than in turn, and each catches its own failure, so one slow or
+ * missing page leaves a gap rather than holding up or emptying the rest.
+ */
+suspend fun loadSimilar(library: LibraryStore): List<HomePage.Section> = withContext(Dispatchers.IO) {
+    coroutineScope {
+        val now = System.currentTimeMillis()
+        val byArtist = async {
+            runCatching {
+                library.topArtists(0L, 10).map { it.first }
+                    .filter { it.id.startsWith("UC") }
+                    .shuffled().take(3)
+                    .map { artist ->
+                        async {
+                            val page = YouTube.artist(artist.id).getOrNull() ?: return@async null
+                            val items = (page.sections.getOrNull(page.sections.size - 2)?.items.orEmpty() +
+                                page.sections.lastOrNull()?.items.orEmpty())
+                                .filter { it.isSupported }
+                                .distinctBy { it.id }
+                                .shuffled()
+                            if (items.isEmpty()) null else HomePage.Section(artist.name, "Similar to", null, null, items)
+                        }
+                    }.awaitAll().filterNotNull()
+            }.getOrDefault(emptyList())
+        }
+        val bySong = async {
+            runCatching {
+                library.topSongs(now - 14L * 24 * 60 * 60 * 1000, 10).map { it.first }
+                    .filterNot { LocalMusic.isLocal(it.id) }
+                    .shuffled().take(2)
+                    .map { song ->
+                        async {
+                            val endpoint = YouTube.next(WatchEndpoint(videoId = song.id)).getOrNull()?.relatedEndpoint
+                                ?: return@async null
+                            val related = YouTube.related(endpoint).getOrNull() ?: return@async null
+                            val items = (related.songs.shuffled().take(8) + related.albums.shuffled().take(4) +
+                                related.artists.shuffled().take(4) + related.playlists.shuffled().take(4)).shuffled()
+                            if (items.isEmpty()) null else HomePage.Section(song.title, "Similar to", song.thumbnail, null, items)
+                        }
+                    }.awaitAll().filterNotNull()
+            }.getOrDefault(emptyList())
+        }
+        (byArtist.await() + bySong.await()).shuffled()
+    }
+}
+
+/** The phone's "New releases" shelf, from Explore. Empty when YouTube does not answer. */
+suspend fun loadNewReleases(): List<AlbumItem> = withContext(Dispatchers.IO) {
+    YouTube.explore().getOrNull()?.newReleaseAlbums.orEmpty()
 }
 
 /**

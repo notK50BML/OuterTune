@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.models.PlaylistItem
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
 import androidx.compose.runtime.remember
@@ -91,6 +92,12 @@ fun HomePane(
     /** Asks for the next stretch of the feed; called as the bottom comes into view. */
     onLoadMore: () -> Unit = {},
     loadingMore: Boolean = false,
+    /** The playlists this account saved on YouTube - the phone's own row on Home. */
+    yourPlaylists: List<PlaylistItem> = emptyList(),
+    /** "Similar to ..." shelves - see loadSimilar. */
+    similar: List<HomePage.Section> = emptyList(),
+    /** Explore's new albums. */
+    newReleases: List<AlbumItem> = emptyList(),
 ) {
     val listState = rememberLazyListState()
     // As on the phone: the feed carries on as it is scrolled, a few shelves before the end.
@@ -150,6 +157,19 @@ fun HomePane(
                 ) { index -> onPlayStored(recent, index, "Keep listening") }
             }
         }
+        // Not while a mood chip is lit: then the page is that mood, and these are not.
+        if (yourPlaylists.isNotEmpty() && selectedChip == null) {
+            item {
+                Section(
+                    section = HomePage.Section("Your YouTube playlists", null, null, null, yourPlaylists),
+                    currentId = currentId,
+                    onPlaySong = onPlaySong,
+                    onPlayList = onPlayList,
+                    onOpenArtist = onOpenArtist,
+                    onOpenAlbum = onOpenAlbum,
+                )
+            }
+        }
         if (forgotten.isNotEmpty()) {
             item {
                 SongGrid(
@@ -207,7 +227,18 @@ fun HomePane(
             }
 
             is HomeState.Ready -> {
-                items(state.sections) { section ->
+                // The phone's own shelves woven into YouTube's: the "Similar to" ones after the first
+                // two of the feed, new releases after the fourth - or at the end of a short feed.
+                // Only on the whole feed; a mood chip's page is about that mood.
+                val feed = if (selectedChip != null) state.sections else buildList {
+                    val sections = state.sections
+                    addAll(sections.take(2))
+                    addAll(similar)
+                    addAll(sections.drop(2).take(2))
+                    if (newReleases.isNotEmpty()) add(HomePage.Section("New releases", null, null, null, newReleases))
+                    addAll(sections.drop(4))
+                }
+                items(feed) { section ->
                     Section(
                         section = section,
                         currentId = currentId,

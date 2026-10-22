@@ -328,6 +328,13 @@ internal fun App(
     LaunchedEffect(accountState, homeAttempt) {
         savedPlaylists = if (accountState is AccountState.SignedIn) loadSavedPlaylists() else emptyList()
     }
+    // The phone's shelves beside YouTube's feed: "Similar to" from what has been played, and Explore's
+    // new releases. On the same trigger as the feed, and each on its own so neither waits for the
+    // other or for the feed.
+    var homeSimilar by remember { mutableStateOf<List<HomePage.Section>>(emptyList()) }
+    var homeNewReleases by remember { mutableStateOf<List<AlbumItem>>(emptyList()) }
+    LaunchedEffect(accountState, homeAttempt) { homeSimilar = loadSimilar(library) }
+    LaunchedEffect(accountState, homeAttempt) { homeNewReleases = loadNewReleases() }
     // A mood chip, when one is lit. The chips themselves come from the unfiltered feed and are kept
     // while a filtered one is showing, since a filtered page does not list them again.
     var homeChip by remember { mutableStateOf<HomePage.Chip?>(null) }
@@ -1315,6 +1322,9 @@ internal fun App(
                                 onRetry = { homeAttempt++ },
                                 quickPicks = quickPicks,
                                 forgotten = forgotten,
+                                yourPlaylists = savedPlaylists,
+                                similar = homeSimilar.filterExplicitIf(settings.hideExplicit),
+                                newReleases = homeNewReleases.filterNot { settings.hideExplicit && it.explicit },
                                 chips = homeChips,
                                 selectedChip = homeChip,
                                 onChip = { homeChip = it },
@@ -2178,3 +2188,8 @@ internal fun StoredSong.toItem() = SongItem(
 private const val MAX_SEARCH_HISTORY = 20
 
 /** How long the sleep timer's fade-out lasts. */
+
+/** Drops explicit items from shelves when the setting asks, and shelves left empty by it. */
+private fun List<HomePage.Section>.filterExplicitIf(hide: Boolean): List<HomePage.Section> =
+    if (!hide) this else map { section -> section.copy(items = section.items.filterNot { it.explicit }) }
+        .filter { it.items.isNotEmpty() }
