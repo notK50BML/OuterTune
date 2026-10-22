@@ -518,7 +518,8 @@ interface ArtistsDao {
  * provably the worse of the two - it is empty, or it still carries the raw "- Topic" suffix
  * that the incoming one has already had stripped. Everything else is left alone.
  */
-private fun healsName(stored: String, incoming: String): Boolean {
+// Internal rather than private so HealsNameTest runs this rule itself, not a copy of it.
+internal fun healsName(stored: String, incoming: String): Boolean {
     if (incoming.isBlank()) return false
     if (stored.isBlank()) return true
     // Only in that direction. A stored name without the suffix must never be replaced by one

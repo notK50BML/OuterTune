@@ -62,10 +62,12 @@ object ArtistCreditEnricher {
      * Kong" - and every false positive here costs a search and can add a wrong artist to a song.
      *
      * The captured run stops at `[` as well as `)` and `]` now. It did not, so "Song ft. A [Deluxe]"
-     * captured "A [Deluxe" - one wasted search, and the name lost.
+     * captured "A [Deluxe" - one wasted search, and the name lost. It stops at `(` too: without
+     * that, "A ft. B (ft. C)" read as one name, "B (ft. C", and the second clause was never seen -
+     * the very case findAll() below exists for (see FeaturedArtistParsingTest).
      */
     private val FEATURED_ARTISTS = Regex(
-        """[(\[]?\s*\b(?:featuring|feat\.?|ft\.?|w/)\s+([^)\]\[]+)[)\]]?""",
+        """[(\[]?\s*\b(?:featuring|feat\.?|ft\.?|w/)\s+([^()\[\]]+)[)\]]?""",
         RegexOption.IGNORE_CASE
     )
     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
@@ -631,7 +633,8 @@ object ArtistCreditEnricher {
     }
 
     /** Names mentioned in a "(feat. X, Y)"/"(ft. X)" segment of [title], if any. */
-    private fun parseFeaturedArtistNames(title: String): List<String> =
+    // Internal so FeaturedArtistParsingTest runs the real parser rather than a copy.
+    internal fun parseFeaturedArtistNames(title: String): List<String> =
         // Every clause, not only the first. A title carrying two - "A ft. B (ft. C)", which is what
         // a remix or a collaboration upload routinely looks like - used to lose everyone named
         // after the first one, because this took find() and stopped.
