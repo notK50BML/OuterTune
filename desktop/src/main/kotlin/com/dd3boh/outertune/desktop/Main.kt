@@ -579,11 +579,25 @@ internal fun App(
     // the locale, while every player request comes back refused.
     var session by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
-        session = withContext(Dispatchers.IO) {
-            YouTube.visitorData().fold(
-                onSuccess = { YouTube.visitorData = it; "ready" },
-                onFailure = { "no session - playback will be refused (${it::class.simpleName}: ${it.message})" },
-            )
+        // Retried until it succeeds. It was asked once, and one failure - started before the
+        // network was up, a dropped request, YouTube having a bad minute - left every song refused
+        // until the app was restarted, with nothing to do about it but read the message. The delay
+        // grows so a machine that is genuinely offline is not hammering anything.
+        var attempt = 0
+        while (true) {
+            val result = withContext(Dispatchers.IO) { YouTube.visitorData() }
+            val data = result.getOrNull()
+            if (data != null) {
+                YouTube.visitorData = data
+                session = "ready"
+                break
+            }
+            val e = result.exceptionOrNull()
+            val wait = SESSION_RETRY_SECONDS[minOf(attempt, SESSION_RETRY_SECONDS.lastIndex)]
+            session = "no session - playback will be refused until it connects; retrying in ${wait}s " +
+                "(${e?.let { it::class.simpleName }}: ${e?.message})"
+            attempt++
+            delay(wait * 1000L)
         }
         // After visitorData, not alongside it: verifying a stored session is itself a request, and
         // one made without visitorData is refused - so restoring first would report a perfectly good
@@ -1528,6 +1542,9 @@ private fun SearchBar(
 }
 
 /** Only speaks up while connecting or when it failed; a working session needs no announcement. */
+/** How long to wait between attempts at a session: quick at first, then once a minute. */
+private val SESSION_RETRY_SECONDS = longArrayOf(2, 5, 10, 20, 30, 60)
+
 @Composable
 private fun SessionStatus(session: String?) {
     when (session) {
