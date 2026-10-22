@@ -248,7 +248,14 @@ class DesktopPlayer {
         // first tick because the follower is still at zero while the host is minutes in. Both
         // landed back at the start, which looks like the join simply not working.
         val duration = durationMs.value
-        pendingSeekMs = if (duration > 0) ms.coerceIn(0, duration) else ms.coerceAtLeast(0)
+        val target = if (duration > 0) ms.coerceIn(0, duration) else ms.coerceAtLeast(0)
+        pendingSeekMs = target
+        // Shown at once. The decode loop applies the seek on its next pass - after the write in
+        // flight, or, while paused, as soon as it notices - and until then the readout still held
+        // the old position: a dragged bar snapped back to where it had been, then jumped to where
+        // it was put. Only while a track is actually loaded, so a seek queued for a song that is
+        // still being fetched does not show a position nothing is playing at.
+        if (line != null) positionMs.value = target
     }
 
     /**
@@ -646,8 +653,10 @@ class DesktopPlayer {
 
         while (true) {
             if (!currentCoroutineContext().isActive || gen != generation) break
-            // Held here rather than by the audio line, which does not reliably block a write.
-            while (paused && currentCoroutineContext().isActive) delay(50)
+            // Held here rather than by the audio line, which does not reliably block a write. A
+            // seek is let through, so dragging the bar while paused moves the song there now rather
+            // than when it is next played.
+            while (paused && pendingSeekMs == null && currentCoroutineContext().isActive) delay(50)
             if (!currentCoroutineContext().isActive) break
 
             pendingSeekMs?.let { target ->
@@ -670,6 +679,8 @@ class DesktopPlayer {
                 baseTempo = timeStretch.rate
                 positionMs.value = trackMsBase
             }
+            // Sought while paused: back to waiting, without playing anything until resumed.
+            if (paused) continue
 
             val pcm = src.next() ?: break
             if (pcm.isEmpty()) continue
@@ -749,7 +760,9 @@ class DesktopPlayer {
             }
             // Scaled by tempo: at 1.5x each frame of output carries one and a half frames of song.
             if (gen != generation) break
-            positionMs.value =
+            // Not over a seek that is waiting to be applied: seekTo() has already shown its
+            // target, and writing the old position here flicked the bar back for a moment.
+            if (pendingSeekMs == null) positionMs.value =
                 trackMsBase + ((open.longFramePosition - lineFrameBase) * 1000.0 * tempo / sampleRate).toLong()
         }
         // Let whatever is buffered finish rather than cutting the last fraction of a second off.

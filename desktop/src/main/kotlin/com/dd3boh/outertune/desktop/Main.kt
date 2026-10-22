@@ -657,6 +657,25 @@ internal fun App(
     }
 
     // Play with nothing loaded but a restored queue starts its song where the last session left it.
+    // Before anything has started - a queue restored from last time - the player has no track
+    // loaded, so it reports no duration and no position, and the seek bar hid itself until play was
+    // pressed. The song's own length and the restored position stand in until then, and a seek in
+    // that state moves where it will start rather than asking an empty player to seek.
+    val notStarted = playback is PlaybackState.Idle && queue.current != null
+    val shownDuration = when {
+        duration > 0 -> duration
+        notStarted -> (queue.current?.duration ?: 0) * 1000L
+        else -> 0L
+    }
+    val shownPosition: () -> Long = {
+        if (player.state.value is PlaybackState.Idle && queue.current != null) restoredPositionMs ?: 0L
+        else positionState.value
+    }
+    val seekTo: (Long) -> Unit = { ms ->
+        if (player.state.value is PlaybackState.Idle && queue.current != null) restoredPositionMs = ms
+        else player.seekTo(ms)
+    }
+
     val togglePlay: () -> Unit = {
         val resumeAt = restoredPositionMs
         if (player.state.value is PlaybackState.Idle && queue.current != null) {
@@ -949,10 +968,10 @@ internal fun App(
             onSwitchQueue = playerQueue::switchTo,
             onRemoveSavedQueue = playerQueue::removeSaved,
             ferroReactivity = settings.ferroReactivity,
-            positionMs = { positionState.value },
-            durationMs = duration,
+            positionMs = shownPosition,
+            durationMs = shownDuration,
             liked = isLiked,
-            onSeek = player::seekTo,
+            onSeek = seekTo,
             onTogglePause = togglePlay,
             onNext = playerQueue::next,
             onPrevious = playerQueue::previous,
@@ -1396,8 +1415,8 @@ internal fun App(
         PlayerBar(
             playback = playback,
             queue = queue,
-            positionMs = { positionState.value },
-            durationMs = duration,
+            positionMs = shownPosition,
+            durationMs = shownDuration,
             liked = isLiked,
             onTogglePause = togglePlay,
             onNext = playerQueue::next,

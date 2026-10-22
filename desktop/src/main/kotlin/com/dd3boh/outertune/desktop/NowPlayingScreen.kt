@@ -437,7 +437,7 @@ fun NowPlayingScreen(
             // redundancy here - the shape is readable from across a room and out of the
             // corner of an eye, where a small triangle and a small pair of bars are not.
             val playCorner by animateDpAsState(
-                if (playback is PlaybackState.Paused) playSize / 2 else playSize * 0.28f
+                if (playback.showsPlay) playSize / 2 else playSize * 0.28f
             )
             FilledIconButton(
                 onClick = onTogglePause,
@@ -445,8 +445,8 @@ fun NowPlayingScreen(
                 modifier = Modifier.size(playSize),
             ) {
                 Icon(
-                    if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
-                    contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
+                    if (playback.showsPlay) OuterTuneIcons.play else OuterTuneIcons.pause,
+                    contentDescription = if (playback.showsPlay) "Play" else "Pause",
                     modifier = Modifier.size(playIcon),
                 )
             }
@@ -513,11 +513,11 @@ fun NowPlayingScreen(
                     )
                 }
                 "play_pause" -> {
-                    val corner by animateDpAsState(if (playback is PlaybackState.Paused) playSize / 2 else playSize * 0.28f)
+                    val corner by animateDpAsState(if (playback.showsPlay) playSize / 2 else playSize * 0.28f)
                     FilledIconButton(onClick = onTogglePause, shape = RoundedCornerShape(corner), modifier = Modifier.size(playSize)) {
                         Icon(
-                            if (playback is PlaybackState.Paused) OuterTuneIcons.play else OuterTuneIcons.pause,
-                            contentDescription = if (playback is PlaybackState.Paused) "Play" else "Pause",
+                            if (playback.showsPlay) OuterTuneIcons.play else OuterTuneIcons.pause,
+                            contentDescription = if (playback.showsPlay) "Play" else "Pause",
                             modifier = Modifier.size(playIcon),
                         )
                     }
@@ -1922,3 +1922,13 @@ private fun PlacedBlock(block: PlayerLayout.Block, areaW: Dp, areaH: Dp, content
             },
     ) { content() }
 }
+
+/**
+ * Whether the play/pause button offers "play": whenever nothing is playing or about to.
+ *
+ * It used to be only while Paused, so before anything had started - a queue restored from last
+ * time, the state Idle - the button showed pause, and pressing it started the song while it went
+ * on saying pause. Loading still shows pause: the song has been asked for and is on its way.
+ */
+internal val PlaybackState.showsPlay: Boolean
+    get() = this is PlaybackState.Paused || this is PlaybackState.Idle || this is PlaybackState.Failed
