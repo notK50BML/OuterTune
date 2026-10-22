@@ -111,6 +111,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Scroll in the player", SettingsCategory.Player, "scroll wheel anywhere close dismiss put away open equaliser"),
     SettingEntry("Song rows", SettingsCategory.Appearance, "row buttons three dots menu like download quick actions"),
     SettingEntry("Queues to keep", SettingsCategory.Player, "multiple queues saved switch board history"),
     SettingEntry("Player layout", SettingsCategory.Appearance, "layout editor custom arrange move cover position import"),
@@ -419,15 +420,6 @@ private fun AppearanceSettings(settings: Settings) {
                 onSelect = { settings.ferroReactivity = it },
             )
         }
-        SettingChoice(
-            title = "Scroll in the player",
-            icon = OuterTuneIcons.graphicEq,
-            options = PlayerScroll.entries,
-            selected = settings.playerScroll,
-            label = { it.label },
-            description = { it.description },
-            onSelect = { settings.playerScroll = it },
-        )
         PlayerLayoutSetting(settings)
         var choosingRow by remember { mutableStateOf(false) }
         SettingRow(
@@ -482,6 +474,15 @@ private fun AppearanceSettings(settings: Settings) {
 @Composable
 private fun PlayerSettings(settings: Settings) {
     Section("Player") {
+        SettingChoice(
+            title = "Scroll in the player",
+            icon = OuterTuneIcons.graphicEq,
+            options = PlayerScroll.entries,
+            selected = settings.playerScroll,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.playerScroll = it },
+        )
         SettingSwitch(
             title = "Seek buttons",
             subtitle = "A skip either side of play. Off by default, as on the phone.",
