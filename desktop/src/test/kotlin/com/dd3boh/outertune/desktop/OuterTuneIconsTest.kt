@@ -119,8 +119,9 @@ class OuterTuneIconsTest {
         // stopped checking something that is not in question, and quietly let a future 950-tall
         // edit through.
         // devices: Material's own Rounded.Devices spans the full width, and the icons are now the
-        // phone's exact shapes rather than redrawn to a house rule.
-        val fullBleedWidth = setOf("wifi", "networkCheck", "devices")
+        // phone's exact shapes rather than redrawn to a house rule. cloudDownload likewise: the
+        // phone's Downloaded-songs icon, Rounded.CloudDownload, whose cloud is drawn full width.
+        val fullBleedWidth = setOf("wifi", "networkCheck", "devices", "cloudDownload")
         OuterTuneIcons.allPaths.forEach { (name, path) ->
             val b = boundsOf(path)
             val longest = maxOf(b.width, b.height)
