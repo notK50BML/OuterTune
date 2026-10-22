@@ -92,16 +92,19 @@ fun EqGraph(
         // given hertz is, which is worse than not drawing it.
         if (levels.isNotEmpty()) {
             val logSpan = Math.log(EqResponse.MAX_HZ / EqResponse.MIN_HZ)
-            val nyquist = sampleRate / 2.0
+            fun xFor(hz: Double) =
+                (Math.log(hz.coerceIn(EqResponse.MIN_HZ, EqResponse.MAX_HZ) / EqResponse.MIN_HZ) / logSpan)
+                    .toFloat() * size.width
             for (i in levels.indices) {
-                // The band's own slice of the spectrum, by its centre frequency.
-                val hz = nyquist * (i + 0.5) / levels.size
-                if (hz <= EqResponse.MIN_HZ || hz >= EqResponse.MAX_HZ) continue
-                val x = (Math.log(hz / EqResponse.MIN_HZ) / logSpan).toFloat() * size.width
-                val next = nyquist * (i + 1.5) / levels.size
-                val xNext = if (next >= EqResponse.MAX_HZ) size.width else
-                    (Math.log(next / EqResponse.MIN_HZ) / logSpan).toFloat() * size.width
-                val w = (xNext - x).coerceAtLeast(1.5f)
+                // The band's own slice of the axis, from its edges. The analyser's bands are
+                // already log-spaced (40Hz up), not linear FFT bins - treating them as linear put
+                // the lowest band at about 400Hz and crowded the spectrum into the right of the
+                // graph, so no peak sat over the part of the curve that governs it.
+                val from = SpectrumAnalyzer.bandEdgeHz(i.toDouble(), levels.size, sampleRate)
+                val to = SpectrumAnalyzer.bandEdgeHz(i + 1.0, levels.size, sampleRate)
+                if (to <= EqResponse.MIN_HZ || from >= EqResponse.MAX_HZ) continue
+                val x = xFor(from)
+                val w = (xFor(to) - x).coerceAtLeast(1.5f)
                 val h = (levels[i].coerceIn(0f, 1f)) * size.height * 0.9f
                 drawRect(
                     color = onColour.copy(alpha = 0.16f),

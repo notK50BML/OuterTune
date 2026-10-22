@@ -275,13 +275,12 @@ class SpectrumAnalyzer(
     /** Which FFT bin each band starts at. */
     private val edges: IntArray = run {
         val nyquist = sampleRate / 2.0
-        val low = 40.0
-        val high = min(16_000.0, nyquist * 0.98)
         IntArray(bands + 1) { b ->
-            val hz = low * (high / low).pow(b.toDouble() / bands)
+            val hz = bandEdgeHz(b.toDouble(), bands, sampleRate)
             (hz / nyquist * (size / 2)).toInt().coerceIn(0, size / 2 - 1)
         }
     }
+
 
     /**
      * Folds one block of mono samples into the bars and returns them.
@@ -330,9 +329,20 @@ class SpectrumAnalyzer(
         levels.fill(0f)
     }
 
-    private companion object {
+    companion object {
         /** Quietest level shown. Below this is silence as far as the display is concerned. */
-        const val FLOOR_DB = -70.0
+        private const val FLOOR_DB = -70.0
+        private const val LOW_HZ = 40.0
+
+        /**
+         * Where band [position] begins, in hertz - fractional positions fall between edges, so
+         * `b + 0.5` is band b's centre on the log axis. Shared with anything that draws these bands
+         * against a frequency axis (EqGraph), so the two cannot disagree about where a band is.
+         */
+        fun bandEdgeHz(position: Double, bands: Int, sampleRate: Int): Double {
+            val high = min(16_000.0, sampleRate / 2.0 * 0.98)
+            return LOW_HZ * (high / LOW_HZ).pow(position / bands)
+        }
     }
 }
 
