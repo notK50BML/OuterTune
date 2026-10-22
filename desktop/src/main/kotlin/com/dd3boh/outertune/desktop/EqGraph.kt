@@ -106,10 +106,20 @@ fun EqGraph(
                 val x = xFor(from)
                 val w = (xFor(to) - x).coerceAtLeast(1.5f)
                 val h = (levels[i].coerceIn(0f, 1f)) * size.height * 0.9f
-                drawRect(
+                // Rounded across the top, flat where it meets the baseline - a bar, not a block.
+                val barW = w * 0.85f
+                val r = minOf(barW / 2f, h / 2f, 4.dp.toPx())
+                if (h > 0.5f) drawPath(
+                    androidx.compose.ui.graphics.Path().apply {
+                        addRoundRect(
+                            androidx.compose.ui.geometry.RoundRect(
+                                rect = androidx.compose.ui.geometry.Rect(x, size.height - h, x + barW, size.height),
+                                topLeft = androidx.compose.ui.geometry.CornerRadius(r),
+                                topRight = androidx.compose.ui.geometry.CornerRadius(r),
+                            )
+                        )
+                    },
                     color = onColour.copy(alpha = 0.16f),
-                    topLeft = Offset(x, size.height - h),
-                    size = androidx.compose.ui.geometry.Size(w * 0.85f, h),
                 )
             }
         }

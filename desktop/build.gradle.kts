@@ -352,7 +352,7 @@ val appImage = tasks.register<Exec>("appImage") {
     args(
         "--type", "app-image",
         "--name", "OuterTune",
-        "--app-version", "0.10.15",
+        "--app-version", "0.3.0", // DesktopVersion.NUMERIC - digits only, as Windows requires
         "--vendor", "OuterTune Project",
         "--icon", icon.absolutePath,
         "--input", inDir.absolutePath,
@@ -415,7 +415,8 @@ tasks.register<Exec>("installer") {
         "/DSourceDir=${source.absolutePath}",
         "/DOutDir=${out.absolutePath}",
         "/DIconFile=${icon.absolutePath}",
-        "/DAppVersion=0.10.15",
+        // Shown in the installer and Windows' Programs list; free text, unlike --app-version.
+        "/DAppVersion=0.3b",
         script.absolutePath,
     )
 }

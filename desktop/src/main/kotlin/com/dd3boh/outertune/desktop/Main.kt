@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.input.pointer.pointerHoverIcon
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
@@ -578,6 +582,8 @@ internal fun App(
     // be silent, which does not look like a failure: search keeps working because search only needs
     // the locale, while every player request comes back refused.
     var session by remember { mutableStateOf<String?>(null) }
+    // What went wrong, for the offline banner's tooltip - the banner itself says what it means.
+    var sessionError by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         // Retried until it succeeds. It was asked once, and one failure - started before the
         // network was up, a dropped request, YouTube having a bad minute - left every song refused
@@ -590,11 +596,13 @@ internal fun App(
             if (data != null) {
                 YouTube.visitorData = data
                 session = "ready"
+                sessionError = null
                 break
             }
             val e = result.exceptionOrNull()
             val wait = SESSION_RETRY_SECONDS[minOf(attempt, SESSION_RETRY_SECONDS.lastIndex)]
-            session = "no session - playback will be refused until it connects; retrying in ${wait}s " +
+            session = "offline"
+            sessionError = "Could not reach YouTube Music - trying again in ${wait}s. " +
                 "(${e?.let { it::class.simpleName }}: ${e?.message})"
             attempt++
             delay(wait * 1000L)
@@ -1046,6 +1054,19 @@ internal fun App(
         // Content and queue share the space above the player bar; the bar owns the bottom edge and
         // is always there. The rail down the left is the phone's landscape layout - the same
         // sections, in the same order, as a NavigationRail rather than a row of text buttons.
+        // Choosing a section is leaving wherever you were: an open artist or album, a search, a
+        // playlist. Otherwise the rail would light up a tab whose page was still hidden behind the
+        // last thing opened. Shared by the rail and the offline banner's "local files" link.
+        val selectTab: (NavTab) -> Unit = { next ->
+            tab = next
+            openArtist = null
+            openAlbumId = null
+            openPlaylist = null
+            openOnlinePlaylist = null
+            query = ""
+            searchedFor = null
+            error = null
+        }
         Row(
             modifier = Modifier
                 .weight(1f)
@@ -1066,19 +1087,7 @@ internal fun App(
         ) {
             NavRail(
                 selected = tab, tabs = NavTab.decode(settings.tabs),
-                onSelect = { next ->
-                    // Choosing a section is leaving wherever you were: an open artist or album, a
-                    // search, a playlist. Otherwise the rail would light up a tab whose page was
-                    // still hidden behind the last thing opened.
-                    tab = next
-                    openArtist = null
-                    openAlbumId = null
-                    openPlaylist = null
-                    openOnlinePlaylist = null
-                    query = ""
-                    searchedFor = null
-                    error = null
-                },
+                onSelect = selectTab,
             )
             // The rail and the queue run to the top edge; what is in this column keeps clear of the
             // window buttons over it.
@@ -1132,7 +1141,13 @@ internal fun App(
                     }
                     Spacer(modifier = Modifier.height(8.dp))
                 }
-                SessionStatus(session)
+                // Not on the Local files tab: that is where the banner sends you, and once there it
+                // has said all it has to say.
+                if (tab != NavTab.LocalFiles) SessionStatus(
+                    session = session,
+                    detail = sessionError,
+                    onLocalFiles = { selectTab(NavTab.LocalFiles) },
+                )
                 error?.let {
                     Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 8.dp))
                 }
@@ -1545,8 +1560,18 @@ private fun SearchBar(
 /** How long to wait between attempts at a session: quick at first, then once a minute. */
 private val SESSION_RETRY_SECONDS = longArrayOf(2, 5, 10, 20, 30, 60)
 
+/**
+ * What the app can do while it has no YouTube session: play local files, and nothing else.
+ *
+ * Worded as a mode rather than an error. It used to print the raw failure in red - "no session -
+ * playback will be refused (UnknownHostException: ...)" - which read as something broken when it
+ * is usually just a machine that is offline, and it said nothing about what still works. The
+ * detail is kept for anyone who wants it, on hover. The session keeps retrying underneath (see
+ * App), so the banner goes away by itself once YouTube can be reached.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun SessionStatus(session: String?) {
+private fun SessionStatus(session: String?, detail: String?, onLocalFiles: () -> Unit) {
     when (session) {
         null -> Text(
             "connecting…",
@@ -1555,12 +1580,57 @@ private fun SessionStatus(session: String?) {
             modifier = Modifier.padding(top = 8.dp),
         )
         "ready" -> Unit
-        else -> Text(
-            session,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error,
+        else -> TooltipArea(
+            tooltip = {
+                if (detail != null) Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.inverseSurface,
+                ) {
+                    Text(
+                        detail,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.inverseOnSurface,
+                        modifier = Modifier.padding(8.dp).widthIn(max = 420.dp),
+                    )
+                }
+            },
             modifier = Modifier.padding(top = 8.dp),
-        )
+        ) {
+            Surface(
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer,
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                ) {
+                    Icon(
+                        OuterTuneIcons.wifi,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        "Offline mode: you can only play ",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    )
+                    Text(
+                        "local files",
+                        style = MaterialTheme.typography.bodyMedium.copy(
+                            textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                        ),
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(4.dp))
+                            .clickable(onClick = onLocalFiles)
+                            .pointerHoverIcon(androidx.compose.ui.input.pointer.PointerIcon.Hand),
+                    )
+                }
+            }
+        }
     }
 }
 
