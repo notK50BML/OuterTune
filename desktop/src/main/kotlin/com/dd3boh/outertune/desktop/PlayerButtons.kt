@@ -59,10 +59,17 @@ enum class PlayerButtonKind(val code: Char, val label: String) {
         /** What the desktop player showed before this was a setting, so updating changes nothing. */
         const val LEGACY = "SLDEM"
 
+        /**
+         * Stored for "no buttons at all". It cannot be the empty string: that is what a setting
+         * nobody has touched reads as, so turning every button off came back as [LEGACY] - sleep,
+         * like, download, equaliser and the menu - the moment it was read.
+         */
+        const val NONE = "-"
+
         fun decode(stored: String): List<PlayerButtonKind> =
             stored.ifEmpty { LEGACY }.mapNotNull { c -> entries.firstOrNull { it.code == c } }.distinct().take(MAX)
 
         fun encode(buttons: List<PlayerButtonKind>): String =
-            buttons.distinct().take(MAX).joinToString("") { it.code.toString() }
+            buttons.distinct().take(MAX).joinToString("") { it.code.toString() }.ifEmpty { NONE }
     }
 }

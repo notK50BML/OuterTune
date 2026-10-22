@@ -630,6 +630,16 @@ fun NowPlayingScreen(
                                 "equalizer" -> actionRow(listOf(PlayerButtonKind.EQUALIZER))
                                 "menu" -> actionRow(listOf(PlayerButtonKind.MENU))
                                 "progress" -> if (durationMs > 0) Column(modifier = Modifier.width(w)) {
+                                    // Settings > Appearance > Visualiser: the bars above the bar.
+                                    spectrum?.let {
+                                        SpectrumBars(
+                                            tap = it,
+                                            playedFrames = playedFrames,
+                                            color = onBackground.copy(alpha = 0.7f),
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                            active = playback is PlaybackState.Playing,
+                                        )
+                                    }
                                     SlimSeekBar(
                                         positionMs = positionMs,
                                         durationMs = durationMs,
@@ -793,6 +803,17 @@ fun NowPlayingScreen(
                 Spacer(modifier = Modifier.height(20.dp))
 
                 if (durationMs > 0) {
+                    // The Visualiser setting. Its bars were taken out of this column at one point and
+                    // the setting left behind, so turning it on did nothing at all.
+                    spectrum?.let {
+                        SpectrumBars(
+                            tap = it,
+                            playedFrames = playedFrames,
+                            color = onBackground.copy(alpha = 0.7f),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            active = playback is PlaybackState.Playing,
+                        )
+                    }
                     // A thin line with a small mark on it, not a Material slider with a lozenge
                     // thumb and a chunky track. This is a readout that happens to be draggable - it
                     // is looked at constantly and touched rarely, so it should be quiet.

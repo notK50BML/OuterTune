@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.delay
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.IntSize
@@ -201,6 +202,16 @@ fun MenuPanel(
     LaunchedEffect(shown.currentState, shown.targetState) {
         if (!shown.targetState && !shown.currentState) onDismiss()
     }
+    // A backstop. The panel is a focusable popup, so while it exists every click outside it goes
+    // to closing it rather than to what was clicked. If the closing animation never reported back
+    // - the window hidden mid-animation, say - an invisible panel would sit over the app eating
+    // every click. Gone shortly after closing whatever the animation did.
+    LaunchedEffect(shown.targetState) {
+        if (!shown.targetState && shown.currentState) {
+            delay(600)
+            onDismiss()
+        }
+    }
     val close = { shown.targetState = false }
     var below by remember { mutableStateOf(true) }
     val origin = when {
@@ -211,7 +222,8 @@ fun MenuPanel(
     Popup(
         popupPositionProvider = remember(atPointer) { MenuPositionProvider(atPointer) { below = it } },
         onDismissRequest = close,
-        properties = PopupProperties(focusable = true),
+        // Only while open: a panel on its way out takes no clicks or keys from the app behind it.
+        properties = PopupProperties(focusable = shown.targetState),
     ) {
         AnimatedVisibility(
             visibleState = shown,
