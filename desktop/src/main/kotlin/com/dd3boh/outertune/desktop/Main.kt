@@ -1432,9 +1432,15 @@ internal fun App(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // Clicks on the player's empty space stop here rather than reaching the page below.
+                // Clicks on the player's empty space stop here rather than reaching the page below:
+                // a node with pointer input that is hit hides the siblings beneath it from the
+                // event, so listening is enough. It must not consume. This wrapper sees every event
+                // after the player's own controls, and a click is cancelled when a later handler
+                // consumes the pointer moving while it is held - so consuming here killed every
+                // click whose pointer drifted a pixel between press and release: the button lit
+                // up and nothing happened.
                 .pointerInput(Unit) {
-                    awaitPointerEventScope { while (true) awaitPointerEvent().changes.forEach { if (!it.isConsumed) it.consume() } }
+                    awaitPointerEventScope { while (true) awaitPointerEvent() }
                 },
         ) { fullPlayer() }
     }
