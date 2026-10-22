@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.basicMarquee
 import kotlin.math.roundToInt
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onSizeChanged
@@ -600,17 +601,16 @@ fun NowPlayingScreen(
                                     horizontalAlignment = if (block.centred) Alignment.CenterHorizontally else Alignment.Start,
                                     modifier = Modifier.width(w),
                                 ) {
-                                    Text(
-                                        text = song?.title ?: "Nothing playing",
-                                        style = MaterialTheme.typography.headlineMedium.copy(
-                                            fontSize = MaterialTheme.typography.headlineMedium.fontSize * scale,
-                                            lineHeight = MaterialTheme.typography.headlineMedium.lineHeight * scale,
-                                        ),
-                                        fontWeight = FontWeight.Bold,
-                                        color = onBackground,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis,
-                                        textAlign = if (block.centred) androidx.compose.ui.text.style.TextAlign.Center else null,
+                                    // As wide as the layout leaves free, not just the block's own
+                                    // width - see titleRoom - so a long title runs on along its row
+                                    // instead of wrapping under itself.
+                                    PlayerTitle(
+                                        title = song?.title ?: "Nothing playing",
+                                        colour = onBackground,
+                                        scale = scale,
+                                        blockWidth = w,
+                                        room = titleRoom(block, layout.blocks, areaW, areaH, scale),
+                                        centred = block.centred,
                                     )
                                     ArtistNames(
                                         artists = song?.artists.orEmpty().map { artist ->
@@ -758,17 +758,16 @@ fun NowPlayingScreen(
                 // the song's name rather than with the transport controls, which act on playback.
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = song?.title ?: "Nothing playing",
-                            style = MaterialTheme.typography.headlineMedium.copy(
-                                fontSize = MaterialTheme.typography.headlineMedium.fontSize * scale,
-                                lineHeight = MaterialTheme.typography.headlineMedium.lineHeight * scale,
-                            ),
-                            fontWeight = FontWeight.Bold,
-                            color = onBackground,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                            PlayerTitle(
+                                title = song?.title ?: "Nothing playing",
+                                colour = onBackground,
+                                scale = scale,
+                                blockWidth = maxWidth,
+                                room = maxWidth,
+                                centred = false,
+                            )
+                        }
                         ArtistNames(
                             artists = song?.artists.orEmpty().map { artist ->
                                 artist.id?.let { StoredArtist(it, artist.name) } ?: StoredArtist.unlinked(artist.name)
@@ -1953,3 +1952,68 @@ private fun PlacedBlock(block: PlayerLayout.Block, areaW: Dp, areaH: Dp, content
  */
 internal val PlaybackState.showsPlay: Boolean
     get() = this is PlaybackState.Paused || this is PlaybackState.Idle || this is PlaybackState.Failed
+
+/**
+ * The song title in the player: one line, as wide as [room] allows, scrolling only when even that
+ * is not enough - Android's title, which marquees rather than wraps.
+ *
+ * It used to wrap onto a second line within its block, so a long title stacked under itself even
+ * with half the row empty beside it. [blockWidth] is what the block is laid out at, so its place on
+ * screen does not move; the title is drawn wider than that, into [room], growing rightwards from a
+ * left-aligned block's edge and evenly both ways from a centred one's middle.
+ */
+@Composable
+private fun PlayerTitle(title: String, colour: Color, scale: Float, blockWidth: Dp, room: Dp, centred: Boolean) {
+    val style = MaterialTheme.typography.headlineMedium.copy(
+        fontSize = MaterialTheme.typography.headlineMedium.fontSize * scale,
+        lineHeight = MaterialTheme.typography.headlineMedium.lineHeight * scale,
+    )
+    Text(
+        text = title,
+        style = style,
+        fontWeight = FontWeight.Bold,
+        color = colour,
+        maxLines = 1,
+        modifier = Modifier
+            .layout { measurable, _ ->
+                val own = blockWidth.roundToPx()
+                val max = maxOf(room, blockWidth).roundToPx()
+                val placeable = measurable.measure(androidx.compose.ui.unit.Constraints(maxWidth = max))
+                layout(own, placeable.height) {
+                    // Left-aligned: from the block's left edge. Centred: about the block's middle.
+                    placeable.place(if (centred) (own - placeable.width) / 2 else 0, 0)
+                }
+            }
+            .basicMarquee(initialDelayMillis = 3000, repeatDelayMillis = 3000),
+    )
+}
+
+/**
+ * How wide a free-placement title may draw: from its block's edge (or its middle, when centred) to
+ * the nearest other block sharing its row, or the player's edge - never into another block.
+ *
+ * A block shares the row when its vertical extent overlaps the title's. Extents are estimates: the
+ * cover is as tall as it is wide (capped by the area), anything else about a button's height.
+ */
+private fun titleRoom(info: PlayerLayout.Block, blocks: List<PlayerLayout.Block>, areaW: Dp, areaH: Dp, scale: Float): Dp {
+    val w = areaW.value
+    val h = areaH.value
+    val infoHalfH = 36f * scale
+    val infoCy = h * info.y / 100f
+    val infoCx = w * info.x / 100f
+    val infoW = w * info.w / 100f
+    var leftLimit = 0f
+    var rightLimit = w
+    for (b in blocks) {
+        if (b === info || !b.visible || b.id == "queue") continue
+        val bw = w * b.w / 100f
+        val span = if (b.id == "artwork") minOf(bw, h) else bw
+        val halfH = if (b.id == "artwork") span / 2f else 28f * scale
+        if (kotlin.math.abs(h * b.y / 100f - infoCy) >= halfH + infoHalfH) continue
+        val bCx = w * b.x / 100f
+        if (bCx - span / 2f >= infoCx) rightLimit = minOf(rightLimit, bCx - span / 2f)
+        if (bCx + span / 2f <= infoCx) leftLimit = maxOf(leftLimit, bCx + span / 2f)
+    }
+    val room = if (info.centred) 2f * minOf(infoCx - leftLimit, rightLimit - infoCx) else rightLimit - (infoCx - infoW / 2f)
+    return maxOf(room - 12f, infoW).dp
+}
