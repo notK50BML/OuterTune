@@ -7,6 +7,8 @@
  */
 package com.dd3boh.outertune.ui.screens.settings
 
+import androidx.compose.material.icons.rounded.Person
+import com.dd3boh.outertune.constants.ArtistCreditEnrichmentKey
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -71,6 +73,7 @@ fun LibrarySettings(
         ShowArtistVideosAsSongsKey,
         defaultValue = true
     )
+    val (artistEnrichment, onArtistEnrichmentChange) = rememberPreference(ArtistCreditEnrichmentKey, defaultValue = true)
 
     val downloadUtil = LocalDownloadUtil.current
     val snackbarHostState = LocalSnackbarHostState.current
@@ -119,6 +122,13 @@ fun LibrarySettings(
                 icon = { Icon(Icons.Rounded.SmartDisplay, null) },
                 checked = showArtistVideosAsSongs,
                 onCheckedChange = onShowArtistVideosAsSongsChange
+            )
+            SwitchPreference(
+                title = { Text(stringResource(R.string.artist_credit_enrichment_title)) },
+                description = stringResource(R.string.artist_credit_enrichment_description),
+                icon = { Icon(Icons.Rounded.Person, null) },
+                checked = artistEnrichment,
+                onCheckedChange = onArtistEnrichmentChange
             )
         }
         Spacer(modifier = Modifier.height(16.dp))

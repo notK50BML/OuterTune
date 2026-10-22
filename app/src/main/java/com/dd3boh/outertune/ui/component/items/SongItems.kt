@@ -7,6 +7,7 @@
  */
 package com.dd3boh.outertune.ui.component.items
 
+import com.dd3boh.outertune.utils.ArtistNameRefresher
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -105,6 +106,9 @@ fun SongListItem(
     val menuState = LocalMenuState.current
     val haptic = LocalHapticFeedback.current
     val playerConnection = LocalPlayerConnection.current ?: return
+    // Queues this song's artists for a name check - see ArtistNameRefresher. Cheap: it skips any
+    // artist checked this week, and the checks themselves run one at a time in the background.
+    LaunchedEffect(song.id) { ArtistNameRefresher.enqueue(song.artists) }
 
     val listItem: @Composable () -> Unit = {
         ListItem(

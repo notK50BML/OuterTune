@@ -306,6 +306,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="flat_subfolders_title">Flatten subfolders</string>
     <string name="flat_subfolders_description">Disable to preserve the file structure as on disk</string>
     <string name="show_artist_videos_as_songs_title">Show artist videos as songs</string>
+    <string name="artist_credit_enrichment_title">Artist credit enrichment</string>
+    <string name="artist_credit_enrichment_description">Splits combined credits, finds featured artists, keeps names current when a channel is renamed, and merges duplicates. Off leaves credits exactly as YouTube or the file gave them</string>
     <string name="show_artist_videos_as_songs_description">When an artist page has no songs of its own, lay out its videos like a song list instead of a grid</string>
     <string name="lyrics_offset_title">Lyrics timing offset</string>
     <string name="lyrics_offset_description">Currently %1$d ms. Positive shows each line earlier, negative later - for lyrics that are consistently out of step with the song</string>

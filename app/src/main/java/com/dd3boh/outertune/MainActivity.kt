@@ -9,6 +9,9 @@
 
 package com.dd3boh.outertune
 
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import com.dd3boh.outertune.utils.dataStore
 import androidx.datastore.preferences.core.edit
 import com.dd3boh.outertune.ui.screens.settings.PlayerLayoutEditorScreen
@@ -282,8 +285,19 @@ class MainActivity : ComponentActivity() {
         // destroys it and cancelled the sweep wherever it had got to - which is most of why the
         // repair appeared to work only sometimes. It guards itself against overlapping runs, so
         // being launched again by the next activity is harmless.
+        // The enrichment switch (Settings > Library and content), followed for the life of the
+        // process; the first value arrives before the sweep below is allowed to start.
         @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
         kotlinx.coroutines.GlobalScope.launch {
+            dataStore.data
+                .map { it[com.dd3boh.outertune.constants.ArtistCreditEnrichmentKey] ?: true }
+                .distinctUntilChanged()
+                .collect { ArtistCreditEnricher.enabled = it }
+        }
+        com.dd3boh.outertune.utils.ArtistNameRefresher.start(applicationContext, database)
+        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
+        kotlinx.coroutines.GlobalScope.launch {
+            ArtistCreditEnricher.enabled = dataStore.data.first()[com.dd3boh.outertune.constants.ArtistCreditEnrichmentKey] ?: true
             runCatching { ArtistCreditEnricher.relinkAll(database) }
                 .onFailure { reportException(it) }
         }

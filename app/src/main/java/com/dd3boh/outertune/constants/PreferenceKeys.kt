@@ -182,6 +182,8 @@ val CrossfadeDurationKey = intPreferencesKey("crossfadeDuration")
  * laid out like a song list instead of the video grid/carousel it renders as by default.
  */
 val ShowArtistVideosAsSongsKey = booleanPreferencesKey("showArtistVideosAsSongs")
+/** Settings > Library and content: repair and refresh artist credits (ArtistCreditEnricher). On by default. */
+val ArtistCreditEnrichmentKey = booleanPreferencesKey("artistCreditEnrichment")
 
 
 /**

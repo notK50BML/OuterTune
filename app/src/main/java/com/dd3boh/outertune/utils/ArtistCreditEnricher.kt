@@ -50,26 +50,17 @@ object ArtistCreditEnricher {
     private val AMPERSAND_SPLIT = Regex("\\s*&\\s*")
 
     /**
-     * The "(feat. X)" clause in a title.
+     * Where a "(feat. X)" clause starts: the keyword and the space after it. The name that follows
+     * is read by [featuredClauseAt], not by this pattern - see there for why.
      *
-     * Now covers `featuring` and `w/` as well as `feat`/`ft`, which it did not: the old pattern was
-     * `(?:feat\.?|ft\.?)`, and because `feat\.?` matches the first four letters of "featuring" and
-     * then requires whitespace, a title reading "(featuring X)" matched nothing at all. `w/` is the
-     * other spelling that turns up often enough to matter.
+     * Covers `featuring` and `w/` as well as `feat`/`ft`: the old `feat\.?` matched the first four
+     * letters of "featuring" and then demanded whitespace, so "(featuring X)" matched nothing.
      *
      * Deliberately still not `with`, `x` or `vs`. Those appear in real song titles far more often
      * than they introduce a credit - "Dancing With Myself", "Marvin's Room x ...", "Godzilla vs
      * Kong" - and every false positive here costs a search and can add a wrong artist to a song.
-     *
-     * The captured run stops at `[` as well as `)` and `]` now. It did not, so "Song ft. A [Deluxe]"
-     * captured "A [Deluxe" - one wasted search, and the name lost. It stops at `(` too: without
-     * that, "A ft. B (ft. C)" read as one name, "B (ft. C", and the second clause was never seen -
-     * the very case findAll() below exists for (see FeaturedArtistParsingTest).
      */
-    private val FEATURED_ARTISTS = Regex(
-        """[(\[]?\s*\b(?:featuring|feat\.?|ft\.?|w/)\s+([^()\[\]]+)[)\]]?""",
-        RegexOption.IGNORE_CASE
-    )
+    private val FEATURED_KEYWORD = Regex("""\b(?:featuring|feat\.?|ft\.?|w/)\s+""", RegexOption.IGNORE_CASE)
     private val FEATURED_NAME_SPLIT = Regex("\\s*(?:,|&|\\band\\b)\\s*", RegexOption.IGNORE_CASE)
 
     /**
@@ -94,6 +85,7 @@ object ArtistCreditEnricher {
      * refresh gesture. Those still run per song on playback, where one request is proportionate.
      */
     suspend fun relinkAll(database: MusicDatabase): Unit = withContext(Dispatchers.IO) {
+        if (!enabled) return@withContext
         // One sweep at a time. The activity can be created more than once in a process - a rotation
         // or a theme change does it - and two sweeps merging the same duplicates concurrently would
         // each see rows the other is deleting.
@@ -116,8 +108,45 @@ object ArtistCreditEnricher {
         }
     }
 
+    /**
+     * Settings > Library and content > Artist credit enrichment. Off, nothing here runs: no repair
+     * sweep, no per-song enrichment, no name refresh (ArtistNameRefresher checks this too) - the
+     * credits stay exactly as YouTube or the file's tags gave them. Kept in step with the
+     * preference by MainActivity; a plain flag because every caller of this object would otherwise
+     * need a Context to read it.
+     */
+    @Volatile
+    var enabled: Boolean = true
+
     /** Guards [relinkAll] against overlapping runs - see its body. */
     private val sweeping = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    /**
+     * Moves everything credited to [duplicate] onto [survivorId] and removes [duplicate]: song and
+     * album credits, and a library bookmark the survivor does not already have. One transaction, so
+     * a failure part-way leaves both rows as they were rather than credits split between them.
+     */
+    internal fun mergeArtistInto(database: MusicDatabase, duplicate: ArtistEntity, survivorId: String) {
+        if (duplicate.id == survivorId) return
+        database.runInTransaction {
+            // A subscription on the row about to go would otherwise disappear with it, and an
+            // artist the user had added to their library would quietly stop being in it.
+            if (duplicate.bookmarkedAt != null && database.artistById(survivorId)?.bookmarkedAt == null) {
+                database.artistById(survivorId)?.let {
+                    database.update(it.copy(bookmarkedAt = duplicate.bookmarkedAt))
+                }
+            }
+            // Collisions first, then move the rest - see deleteCollidingSongArtistMaps.
+            database.deleteCollidingSongArtistMaps(duplicate.id, survivorId)
+            database.updateSongArtistMap(duplicate.id, survivorId)
+            database.deleteCollidingAlbumArtistMaps(duplicate.id, survivorId)
+            database.updateAlbumArtistMap(duplicate.id, survivorId)
+            database.safeDeleteArtist(duplicate.id)
+        }
+    }
+
+    /** The duplicate sweep on its own, for ArtistNameRefresher to run after a batch of renames. */
+    internal suspend fun mergeDuplicates(database: MusicDatabase) = mergeDuplicateNamedArtists(database)
 
     /**
      * Folds a placeholder artist row into the real channel of the same name.
@@ -167,21 +196,7 @@ object ArtistCreditEnricher {
             for (duplicate in group) {
                 if (duplicate.id == survivor.id) continue
                 if (duplicate.isYouTubeArtist) continue // never fold a real channel away
-                database.runInTransaction {
-                    // A subscription on the row about to go would otherwise disappear with it, and
-                    // an artist the user had added to their library would quietly stop being in it.
-                    if (duplicate.bookmarkedAt != null && database.artistById(survivor.id)?.bookmarkedAt == null) {
-                        database.artistById(survivor.id)?.let {
-                            database.update(it.copy(bookmarkedAt = duplicate.bookmarkedAt))
-                        }
-                    }
-                    // Collisions first, then move the rest - see deleteCollidingSongArtistMaps.
-                    database.deleteCollidingSongArtistMaps(duplicate.id, survivor.id)
-                    database.updateSongArtistMap(duplicate.id, survivor.id)
-                    database.deleteCollidingAlbumArtistMaps(duplicate.id, survivor.id)
-                    database.updateAlbumArtistMap(duplicate.id, survivor.id)
-                    database.safeDeleteArtist(duplicate.id)
-                }
+                mergeArtistInto(database, duplicate, survivor.id)
                 Timber.tag(TAG).d("merged duplicate \"${duplicate.name}\" (${duplicate.id}) into ${survivor.id}")
             }
         }
@@ -247,6 +262,7 @@ object ArtistCreditEnricher {
         /** False during [relinkAll] - see there for why a bulk pass does not search. */
         allowNetwork: Boolean = true,
     ): Unit = withContext(Dispatchers.IO) {
+        if (!enabled) return@withContext
         val song = database.song(songId).first() ?: return@withContext
 
         // Logged unconditionally, and at the top, because the interesting question when a credit
@@ -638,12 +654,47 @@ object ArtistCreditEnricher {
         // Every clause, not only the first. A title carrying two - "A ft. B (ft. C)", which is what
         // a remix or a collaboration upload routinely looks like - used to lose everyone named
         // after the first one, because this took find() and stopped.
-        FEATURED_ARTISTS.findAll(title)
-            .flatMap { it.groupValues[1].split(FEATURED_NAME_SPLIT).asSequence() }
+        FEATURED_KEYWORD.findAll(title)
+            .flatMap { featuredClauseAt(title, it.range.last + 1).split(FEATURED_NAME_SPLIT).asSequence() }
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .distinctBy { it.lowercase() }
             .toList()
+
+    /**
+     * The names after a feat. keyword, read from [start] up to the end of the clause.
+     *
+     * A scanner rather than a regular expression, because the clause's end depends on brackets
+     * that a name can contain itself: "(feat. (G)I-DLE)" must keep "(G)I-DLE" whole, while
+     * "ft. B (ft. C)" and "ft. A [Deluxe]" must stop before the bracket. A pattern that stops at
+     * every bracket loses the first; one that stops at none swallows the second. The rule is:
+     * - a closing bracket ends the clause unless it closes one opened inside the name;
+     * - an opening bracket is part of the name when it starts the name or follows a letter -
+     *   "(G)I-DLE", "Ke$ha(remix)" - and starts a new section when it follows a space after some
+     *   of the name: "B (ft. C)", "A [Deluxe]".
+     */
+    private fun featuredClauseAt(title: String, start: Int): String {
+        var depth = 0
+        var i = start
+        while (i < title.length) {
+            val c = title[i]
+            when (c) {
+                '(', '[' -> {
+                    val soFar = title.substring(start, i)
+                    if (depth == 0 && soFar.isNotBlank() && soFar.last().isWhitespace()) break
+                    depth++
+                }
+                ')', ']' -> {
+                    if (depth == 0) break
+                    depth--
+                }
+                // "Song ft. B - Remix": a spaced dash ends an unbracketed clause.
+                '-' -> if (depth == 0 && i > start && title[i - 1] == ' ' && title.getOrNull(i + 1) == ' ') break
+            }
+            i++
+        }
+        return title.substring(start, i)
+    }
 
     /**
      * The real artist channel [name] resolves to, or null if search finds no matching one. An
@@ -655,7 +706,7 @@ object ArtistCreditEnricher {
      * reads as a placeholder/junk channel rather than the actual artist - exactly the case this
      * should stay conservative about instead of linking to.
      */
-    private suspend fun resolveArtist(name: String, allowNetwork: Boolean = true): ArtistItem? {
+    internal suspend fun resolveArtist(name: String, allowNetwork: Boolean = true): ArtistItem? {
         if (!allowNetwork) return null
         val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()?.items
             ?: return null

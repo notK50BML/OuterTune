@@ -1,0 +1,159 @@
+/*
+ * Copyright (C) 2026 OuterTune Project
+ *
+ * SPDX-License-Identifier: GPL-3.0
+ */
+
+package com.dd3boh.outertune.utils
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.db.entities.ArtistEntity
+import com.dd3boh.outertune.db.normalizeArtistId
+import com.dd3boh.outertune.db.stripTopicSuffix
+import com.dd3boh.outertune.ui.utils.resize
+import com.zionhuang.innertube.YouTube
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import timber.log.Timber
+import java.util.concurrent.ConcurrentHashMap
+
+/**
+ * Keeps artist names current, everywhere, without anyone opening the artist's page.
+ *
+ * A credit carries whatever name its source held when it was written, and for a renamed channel
+ * that is the old one - "(G)I-DLE" long after the channel became "i-dle". The artist page fetch
+ * already writes the current name (ArtistsDao.update with an ArtistPage), but only for artists
+ * someone happens to open. Here, any artist whose song is shown in a list is queued and checked:
+ *
+ * - A real channel: its page is fetched and the name updated. If YouTube now sends that channel id
+ *   to a different channel - an old channel merged into a new one - every credit is moved onto the
+ *   new channel and the old row removed.
+ * - A placeholder (a credit no channel was ever matched to): its name is searched, and when that
+ *   finds the channel, the placeholder is folded into it.
+ * - After each batch the duplicate sweep runs, so a renamed channel and a placeholder that now
+ *   share its name become one artist.
+ *
+ * Gentle on purpose. YouTube throttles a client that sends too many automated requests, and that
+ * throttle takes playback down with it, so: one request at a time, [GAP_MS] apart; each artist at
+ * most once a week ([RECHECK_MS], remembered across launches); and nothing at all while artist
+ * credit enrichment is switched off. A library of a few hundred artists costs a few hundred
+ * requests spread across a week of browsing - fewer than playing the same songs used to cost.
+ */
+object ArtistNameRefresher {
+
+    private const val TAG = "ArtistNameRefresher"
+    private const val RECHECK_MS = 7L * 24 * 60 * 60 * 1000
+    private const val RETRY_FAILED_MS = 24L * 60 * 60 * 1000
+    private const val GAP_MS = 1500L
+
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val queue = Channel<String>(Channel.UNLIMITED)
+    private val pending: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    @Volatile private var database: MusicDatabase? = null
+    @Volatile private var checks: SharedPreferences? = null
+
+    /** Starts the worker. Safe to call more than once - only the first does anything. */
+    fun start(context: Context, database: MusicDatabase) {
+        if (this.database != null) return
+        synchronized(this) {
+            if (this.database != null) return
+            checks = context.applicationContext.getSharedPreferences("artist_name_checks", Context.MODE_PRIVATE)
+            this.database = database
+            scope.launch { work(database) }
+        }
+    }
+
+    /** Queues [artists] for a check, skipping any checked recently or already waiting. */
+    fun enqueue(artists: List<ArtistEntity>) {
+        if (!ArtistCreditEnricher.enabled || database == null) return
+        val now = System.currentTimeMillis()
+        for (artist in artists) {
+            if (artist.isLocal || artist.name.isBlank()) continue
+            if (now < (checks?.getLong(artist.id, 0L) ?: 0L)) continue
+            if (pending.add(artist.id)) queue.trySend(artist.id)
+        }
+    }
+
+    private suspend fun work(database: MusicDatabase) {
+        var renamedSinceSweep = false
+        for (id in queue) {
+            try {
+                if (!ArtistCreditEnricher.enabled) continue
+                val checked = runCatching { refresh(database, id) }
+                    .onFailure { Timber.tag(TAG).w(it, "refresh failed for $id") }
+                    .getOrDefault(false)
+                // Remembered either way, so an artist that cannot be checked - a deleted channel,
+                // a name search finds nothing for - is not asked about on every scroll. A failure
+                // is retried sooner than a success is re-checked.
+                val next = System.currentTimeMillis() + if (checked) RECHECK_MS else RETRY_FAILED_MS
+                checks?.edit()?.putLong(id, next)?.apply()
+                renamedSinceSweep = renamedSinceSweep || checked
+                delay(GAP_MS)
+            } finally {
+                pending.remove(id)
+            }
+            // A batch is done when nothing more is waiting: fold together whatever now shares a name.
+            if (renamedSinceSweep && pending.isEmpty()) {
+                runCatching { ArtistCreditEnricher.mergeDuplicates(database) }
+                    .onFailure { Timber.tag(TAG).w(it, "duplicate sweep failed") }
+                renamedSinceSweep = false
+            }
+        }
+    }
+
+    /** Checks one artist. True when YouTube answered, whatever it said. */
+    private suspend fun refresh(database: MusicDatabase, id: String): Boolean {
+        val artist = database.artistById(id) ?: return true
+        if (artist.isLocal) return true
+
+        if (artist.id.startsWith("UC") || artist.id.startsWith("MPLAUC")) {
+            val ownId = artist.id.normalizeArtistId()
+            val page = YouTube.artist(ownId).getOrNull() ?: return false
+            val pageId = page.artist.id.normalizeArtistId()
+            if (pageId.startsWith("UC") && pageId != ownId) {
+                // Redirected: this channel id now opens a different channel. That one is the
+                // artist; this row is a stale alias of it.
+                Timber.tag(TAG).d("\"${artist.name}\" ($ownId) now opens $pageId - moving its credits")
+                database.insertOrFillThumbnail(
+                    ArtistEntity(
+                        id = pageId,
+                        name = page.artist.title.stripTopicSuffix().ifBlank { artist.name },
+                        thumbnailUrl = page.artist.thumbnail?.resize(544, 544),
+                    )
+                )
+                database.artistById(pageId)?.let { database.update(it, page) }
+                ArtistCreditEnricher.mergeArtistInto(database, artist, pageId)
+            } else {
+                if (page.artist.title.stripTopicSuffix() != artist.name) {
+                    Timber.tag(TAG).d("\"${artist.name}\" is now \"${page.artist.title}\"")
+                }
+                database.update(artist, page)
+            }
+            return true
+        }
+
+        if (!artist.isYouTubeArtist) {
+            // A placeholder: no channel was ever matched to this name. Search finds it or not.
+            val resolved = ArtistCreditEnricher.resolveArtist(artist.name) ?: return true
+            val channelId = resolved.id.normalizeArtistId()
+            if (!channelId.startsWith("UC")) return true
+            database.insertOrFillThumbnail(
+                ArtistEntity(
+                    id = channelId,
+                    name = resolved.title.stripTopicSuffix().ifBlank { artist.name },
+                    thumbnailUrl = resolved.thumbnail,
+                )
+            )
+            Timber.tag(TAG).d("placeholder \"${artist.name}\" is channel $channelId - merging")
+            ArtistCreditEnricher.mergeArtistInto(database, artist, channelId)
+        }
+        return true
+    }
+}

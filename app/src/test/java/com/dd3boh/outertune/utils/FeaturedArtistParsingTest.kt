@@ -43,6 +43,19 @@ class FeaturedArtistParsingTest {
     }
 
     @Test
+    fun `a name with brackets of its own is kept whole`() {
+        assertEquals(listOf("(G)I-DLE"), parse("Song (feat. (G)I-DLE)"))
+        assertEquals(listOf("(G)I-DLE", "Yuqi"), parse("Song (feat. (G)I-DLE & Yuqi)"))
+        assertEquals(listOf("(G)I-DLE"), parse("Song ft. (G)I-DLE [Live]"))
+    }
+
+    @Test
+    fun `a spaced dash ends an unbracketed clause`() {
+        assertEquals(listOf("B"), parse("Song ft. B - Remix"))
+        assertEquals(listOf("Jay-Z"), parse("Song ft. Jay-Z"))
+    }
+
+    @Test
     fun `ordinary title words are not credits`() {
         assertEquals(emptyList<String>(), parse("Dancing With Myself"))
         assertEquals(emptyList<String>(), parse("Godzilla vs Kong"))
