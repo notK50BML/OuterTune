@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.ui.player
 
+import com.dd3boh.outertune.ui.component.ShuffleButton
 import android.content.res.Configuration
 import android.util.Log
 import androidx.activity.compose.BackHandler
@@ -1129,8 +1130,8 @@ fun BoxScope.QueueContent(
                         .padding(horizontal = PlayerHorizontalPadding)
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
-                        ResizableIconButton(
-                            if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+                        ShuffleButton(
+                            on = shuffleModeEnabled,
                             modifier = Modifier
                                 .size(TransportSize.Secondary)
                                 .padding(4.dp)

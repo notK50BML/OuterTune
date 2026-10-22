@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.ui.player
 
+import com.dd3boh.outertune.ui.component.ShuffleButton
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -1390,8 +1391,8 @@ private fun MiniPlaybackControls(color: Color?) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
     ) {
-        ResizableIconButton(
-            icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+        ShuffleButton(
+            on = shuffleModeEnabled,
             color = iconColor,
             modifier = Modifier.size(TransportSize.Secondary),
             onClick = { playerConnection.triggerShuffle() },

@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.ui.player
 
+import com.dd3boh.outertune.ui.component.ShuffleButton
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import android.util.Log
@@ -1202,8 +1203,8 @@ fun ControlsContent(
             // renders unchanged - these only matter once a layout actually asks for one by name.
             val shuffleModeEnabled by playerConnection.shuffleModeEnabled.collectAsState()
             val shuffleButtonBlock: @Composable () -> Unit = {
-                ResizableIconButton(
-                    icon = if (shuffleModeEnabled) R.drawable.shuffle_on else R.drawable.shuffle_off,
+                ShuffleButton(
+                    on = shuffleModeEnabled,
                     modifier = Modifier.size(32.dp).padding(4.dp),
                     color = onBackgroundColor,
                     enabled = playerConnection.player.currentMediaItem != null,
