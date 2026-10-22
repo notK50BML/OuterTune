@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.gestures.scrollBy
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.basicMarquee
 import kotlin.math.roundToInt
 import androidx.compose.ui.layout.layout
@@ -1566,8 +1570,61 @@ private fun QueueOverlay(
             var dragging by remember { mutableStateOf(-1) }
             var dragOffset by remember { mutableStateOf(0f) }
             val rowHeightPx = with(LocalDensity.current) { QUEUE_ROW_HEIGHT.toPx() }
+            val listState = rememberLazyListState()
+            val currentQueue by rememberUpdatedState(queue)
+            val currentOnMove by rememberUpdatedState(onMove)
 
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
+            // Moves the held row by however many whole rows the drag has travelled. Shared by the
+            // pointer and the edge scroll below, which both add to dragOffset.
+            fun stepDrag() {
+                val steps = (dragOffset / rowHeightPx).toInt()
+                if (steps != 0 && dragging >= 0) {
+                    val target = (dragging + steps).coerceIn(0, currentQueue.order.lastIndex)
+                    if (target != dragging) {
+                        // Pinned where it is. A lazy list keeps its first visible row in view by
+                        // key, so moving that row - the one at the top - scrolled the whole list
+                        // after it, and the rows jumped out from under the pointer.
+                        val first = listState.firstVisibleItemIndex
+                        val firstOffset = listState.firstVisibleItemScrollOffset
+                        currentOnMove(dragging, target)
+                        listState.requestScrollToItem(first, firstOffset)
+                        dragging = target
+                    }
+                    // Whatever was consumed by the step is taken off, so the remainder still counts
+                    // towards the next one.
+                    dragOffset -= steps * rowHeightPx
+                }
+            }
+
+            // The phone's queue: hold a row near the top or bottom of the list and the list
+            // scrolls, faster the nearer the edge, so a song can be carried further than the rows on
+            // screen. The scrolled distance is added to the drag, so the held row stays under the
+            // pointer and keeps stepping past the songs going by.
+            LaunchedEffect(dragging >= 0) {
+                if (dragging < 0) return@LaunchedEffect
+                var lastY: Float? = null
+                while (dragging >= 0) {
+                    withFrameNanos { }
+                    val info = listState.layoutInfo
+                    val row = info.visibleItemsInfo.firstOrNull { it.index == dragging }
+                    val y = row?.let { it.offset + dragOffset + rowHeightPx / 2f } ?: lastY ?: continue
+                    lastY = y
+                    val height = (info.viewportEndOffset - info.viewportStartOffset).toFloat()
+                    val zone = rowHeightPx * 1.2f
+                    val speed = when {
+                        y < zone -> -QUEUE_EDGE_SCROLL_PX * ((zone - y) / zone).coerceIn(0.15f, 1f)
+                        y > height - zone -> QUEUE_EDGE_SCROLL_PX * ((y - (height - zone)) / zone).coerceIn(0.15f, 1f)
+                        else -> 0f
+                    }
+                    if (speed != 0f) {
+                        val moved = listState.scrollBy(speed)
+                        dragOffset += moved
+                        stepDrag()
+                    }
+                }
+            }
+
+            LazyColumn(state = listState, modifier = Modifier.fillMaxSize()) {
                 // Play order, not the order added: with shuffle on, the list should read as what is
                 // coming next, which is the only thing a queue is for.
                 //
@@ -1579,6 +1636,11 @@ private fun QueueOverlay(
                     val song = queue.songs.getOrNull(index) ?: return@itemsIndexed
                     val current = position == queue.orderPosition
                     val held = position == dragging
+                    // Read when a drag starts, not captured: the handle's gesture is keyed by the
+                    // song, so it outlives reorders, and the position it was created with went stale
+                    // the moment anything moved - grabbing the row then dragged whichever song now
+                    // sat at its old place.
+                    val currentPosition by rememberUpdatedState(position)
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -1664,7 +1726,7 @@ private fun QueueOverlay(
                                 .pointerInput(song.id) {
                                     detectDragGestures(
                                         onDragStart = {
-                                            dragging = position
+                                            dragging = currentPosition
                                             dragOffset = 0f
                                         },
                                         onDragEnd = { dragging = -1; dragOffset = 0f },
@@ -1675,18 +1737,7 @@ private fun QueueOverlay(
                                         // Stepped a whole row at a time rather than continuously, so
                                         // the list settles between moves instead of thrashing while
                                         // the pointer crosses a boundary.
-                                        val steps = (dragOffset / rowHeightPx).toInt()
-                                        if (steps != 0 && dragging >= 0) {
-                                            val target = (dragging + steps)
-                                                .coerceIn(0, queue.order.lastIndex)
-                                            if (target != dragging) {
-                                                onMove(dragging, target)
-                                                dragging = target
-                                            }
-                                            // Whatever was consumed by the step is taken off, so the
-                                            // remainder still counts towards the next one.
-                                            dragOffset -= steps * rowHeightPx
-                                        }
+                                        stepDrag()
                                     }
                                 },
                         )
@@ -1707,6 +1758,9 @@ private const val CLOSE_OVERSCROLL = 3f
 
 /** Fixed, because the drag arithmetic above counts rows by height and has to be right about it. */
 private val QUEUE_ROW_HEIGHT = 60.dp
+
+/** How far the queue scrolls per frame with a held row right at its edge: about 14 rows a second at 60fps. */
+private const val QUEUE_EDGE_SCROLL_PX = 14f
 
 /** What the seek buttons move by. */
 private const val SEEK_STEP_DEFAULT_MS = 5_000L

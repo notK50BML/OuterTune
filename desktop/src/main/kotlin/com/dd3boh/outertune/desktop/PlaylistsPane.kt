@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
@@ -260,6 +261,9 @@ fun PlaylistsPane(
             // instead, every row would be told it now holds different content the moment anything
             // moved, and the drag in progress would be cancelled by its own first step.
             itemsIndexed(songsInSelected, key = { _, song -> song.id }) { index, song ->
+                // Read when a drag starts: the handle's gesture is keyed by the song and outlives
+                // reorders, so the index it was created with goes stale - see the queue's handle.
+                val currentIndex by rememberUpdatedState(index)
                 val held = index == dragging
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -303,7 +307,7 @@ fun PlaylistsPane(
                             .pointerInput(song.id) {
                                 detectDragGestures(
                                     onDragStart = {
-                                        dragging = index
+                                        dragging = currentIndex
                                         dragOffset = 0f
                                     },
                                     onDragEnd = { dragging = -1; dragOffset = 0f },
