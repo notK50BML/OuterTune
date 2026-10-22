@@ -48,13 +48,19 @@ class StatsViewModel @Inject constructor(
      */
     val statMetric = MutableStateFlow(StatMetric.TIME_LISTENED)
 
-    /** Whether the longer charts below the overview are open. */
-    val showExtended = MutableStateFlow(false)
+    /**
+     * How many songs the chart shows - 20, 50, 100 or every one. One chart now: the overview and
+     * the "Extended charts" below it showed the same ranking twice, at two lengths.
+     */
+    val songLimit = MutableStateFlow(SONG_LIMITS.first())
 
-    /** How far the longer charts go. */
-    val extendedLimit = MutableStateFlow(EXTENDED_LIMITS.first())
+    private val overviewRequest = combine(statPeriod, statMetric, songLimit) { period, metric, limit ->
+        Triple(period, metric, limit)
+    }
 
-    private val overviewRequest = combine(statPeriod, statMetric) { period, metric -> period to metric }
+    /** Plays and listening time in the period, for the header beside the title. */
+    val totals = statPeriod.flatMapLatest { period -> database.playTotals(period.toTimeMillis()) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     /**
      * Plays this account made anywhere else - the YouTube Music app, another phone, the web - read
@@ -74,24 +80,27 @@ class StatsViewModel @Inject constructor(
             .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
 
     val mostPlayedSongs = combine(
-        overviewRequest.flatMapLatest { (period, metric) ->
-            // A wider local set than the six shown, so the merge below has something to rank
-            // against - taking the local top six and then adding remote plays to them would let a
-            // song that is seventh locally but first overall stay invisible.
+        overviewRequest.flatMapLatest { (period, metric, limit) ->
+            // A wider local set than the chart shows, so the merge below has something to rank
+            // against - taking the local top N and then adding remote plays to them would let a
+            // song just outside it locally but first overall stay invisible.
             database.mostPlayedSongsWithStats(
                 period.toTimeMillis(),
-                limit = MERGE_POOL,
+                limit = maxOf(limit, MERGE_POOL),
                 byPlayTime = metric == StatMetric.TIME_LISTENED,
             )
         },
         remoteTally,
         statMetric,
-    ) { local, tally, metric -> mergeRemotePlays(local, tally, metric, limit = 6) }
+        songLimit,
+    ) { local, tally, metric, limit -> mergeRemotePlays(local, tally, metric, limit = limit) }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric) ->
+    val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric, limit) ->
         database.mostPlayedArtists(
             period.toTimeMillis(),
+            // As long as the chart, but a row of artist tiles has no use for thousands.
+            limit = limit.coerceAtMost(MAX_ARTISTS),
             byPlayTime = metric == StatMetric.TIME_LISTENED,
         ).map { artists ->
             artists.filter { it.artist.isYouTubeArtist }
@@ -103,54 +112,11 @@ class StatsViewModel @Inject constructor(
         database.mostPlayedAlbums(period.toTimeMillis())
     }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
-    /**
-     * The longer charts, queried only while the section is open.
-     *
-     * Collapsed emits an empty list rather than querying and hiding the result: these are the
-     * same joins as the overview but with the row cap lifted, and running them on every period
-     * change for a section nobody has opened is work for nothing.
-     */
-    private data class ExtendedRequest(
-        val period: StatPeriod,
-        val limit: Int,
-        val show: Boolean,
-        val metric: StatMetric,
-    )
-
-    private val extendedRequest =
-        combine(statPeriod, extendedLimit, showExtended, statMetric, ::ExtendedRequest)
-
-    val extendedSongs = extendedRequest.flatMapLatest { r ->
-        if (!r.show) {
-            flowOf(emptyList())
-        } else {
-            database.mostPlayedSongsWithStats(
-                r.period.toTimeMillis(),
-                limit = r.limit,
-                byPlayTime = r.metric == StatMetric.TIME_LISTENED,
-            )
-        }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
-    val extendedArtists = extendedRequest.flatMapLatest { r ->
-        if (!r.show) {
-            flowOf(emptyList())
-        } else {
-            database.mostPlayedArtists(
-                r.period.toTimeMillis(),
-                limit = r.limit,
-                byPlayTime = r.metric == StatMetric.TIME_LISTENED,
-            ).map { artists ->
-                artists.filter { it.artist.isYouTubeArtist }
-            }
-        }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
     init {
-        // The extended chart reaches artists the overview never showed, which are exactly the
-        // ones most likely to be missing a picture.
+        // A long chart reaches artists the old six never showed, which are exactly the ones most
+        // likely to be missing a picture.
         viewModelScope.launch {
-            extendedArtists.collect { artists ->
+            mostPlayedArtists.collect { artists ->
                 fetchMissingArtistArt(artists.map { it.artist })
             }
         }
@@ -290,7 +256,11 @@ class StatsViewModel @Inject constructor(
     }
 
     companion object {
-        val EXTENDED_LIMITS = listOf(20, 50, 100)
+        /** "All" is this: SQLite takes it as no limit worth the name. */
+        const val ALL = Int.MAX_VALUE
+        val SONG_LIMITS = listOf(20, 50, 100, ALL)
+
+        private const val MAX_ARTISTS = 100
 
         /** How many local rows to rank against before trimming to what is shown - see the call site. */
         private const val MERGE_POOL = 200

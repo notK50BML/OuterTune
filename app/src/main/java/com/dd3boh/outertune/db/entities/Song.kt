@@ -60,6 +60,12 @@ data class Song @JvmOverloads constructor(
 
 /** A [Song] paired with the listen stats a stats-screen ranking query already computed for it. */
 @Immutable
+/** Every play in a period, and how long they came to - the Stats header. */
+data class PlayTotals(
+    val plays: Int,
+    val playTime: Long,
+)
+
 data class SongPlayStats(
     @Embedded val song: Song,
     /** Total time this song was listened to within the query's time window, in milliseconds. */

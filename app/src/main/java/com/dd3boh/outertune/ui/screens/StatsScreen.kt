@@ -1,5 +1,10 @@
 package com.dd3boh.outertune.ui.screens
 
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material3.FilterChip
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -82,10 +87,8 @@ fun StatsScreen(
     val mostPlayedSongs by viewModel.mostPlayedSongs.collectAsState()
     val mostPlayedArtists by viewModel.mostPlayedArtists.collectAsState()
     val mostPlayedAlbums by viewModel.mostPlayedAlbums.collectAsState()
-    val showExtended by viewModel.showExtended.collectAsState()
-    val extendedLimit by viewModel.extendedLimit.collectAsState()
-    val extendedSongs by viewModel.extendedSongs.collectAsState()
-    val extendedArtists by viewModel.extendedArtists.collectAsState()
+    val songLimit by viewModel.songLimit.collectAsState()
+    val totals by viewModel.totals.collectAsState()
     val statMetric by viewModel.statMetric.collectAsState()
 
     val coroutineScope = rememberCoroutineScope()
@@ -114,16 +117,39 @@ fun StatsScreen(
             )
         }
 
+        // How to rank, then how far: time listened or times played | 20, 50, 100 or all - one row,
+        // as one question about the chart below.
         item(key = "statMetric") {
-            ChipsRow(
-                chips = listOf(
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 12.dp)
+                    .animateItem()
+            ) {
+                listOf(
                     StatMetric.TIME_LISTENED to stringResource(R.string.stats_by_time),
                     StatMetric.TIMES_PLAYED to stringResource(R.string.stats_by_count),
-                ),
-                currentValue = statMetric,
-                onValueUpdate = { viewModel.statMetric.value = it },
-                modifier = Modifier.animateItem()
-            )
+                ).forEach { (metric, label) ->
+                    FilterChip(
+                        selected = statMetric == metric,
+                        onClick = { viewModel.statMetric.value = metric },
+                        label = { Text(label) },
+                    )
+                }
+                Text("|", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.titleMedium)
+                StatsViewModel.SONG_LIMITS.forEach { limit ->
+                    FilterChip(
+                        selected = songLimit == limit,
+                        onClick = { viewModel.songLimit.value = limit },
+                        label = {
+                            Text(if (limit == StatsViewModel.ALL) stringResource(R.string.stats_limit_all) else limit.toString())
+                        },
+                    )
+                }
+            }
         }
 
         item(key = "mostPlayedSongs") {
@@ -247,114 +273,30 @@ fun StatsScreen(
             }
         }
 
-        item(key = "extendedHeader") {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { viewModel.showExtended.value = !showExtended }
-                    .padding(horizontal = 20.dp, vertical = 14.dp)
-                    .animateItem()
-            ) {
-                Text(
-                    text = stringResource(R.string.stats_extended_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f)
-                )
-                Icon(
-                    imageVector = if (showExtended) Icons.Rounded.ExpandLess else Icons.Rounded.ExpandMore,
-                    contentDescription = null
-                )
-            }
-        }
-
-        if (showExtended) {
-            item(key = "extendedLimits") {
-                ChipsRow(
-                    chips = StatsViewModel.EXTENDED_LIMITS.map { it to it.toString() },
-                    currentValue = extendedLimit,
-                    onValueUpdate = { viewModel.extendedLimit.value = it },
-                    modifier = Modifier.animateItem()
-                )
-            }
-
-            item(key = "extendedSongsTitle") {
-                NavigationTitle(
-                    title = stringResource(R.string.stats_extended_songs),
-                    modifier = Modifier.animateItem()
-                )
-            }
-            itemsIndexed(
-                items = extendedSongs,
-                // Prefixed because the overview above holds the same songs, and two items sharing
-                // a key in one LazyColumn is a crash, not a cosmetic problem.
-                key = { _, songStat -> "ext-song-" + songStat.song.id }
-            ) { index, songStat ->
-                SongListItem(
-                    song = songStat.song,
-                    navController = navController,
-                    isActive = songStat.song.id == mediaMetadata?.id,
-                    isPlaying = isPlaying,
-                    inSelectMode = false,
-                    isSelected = false,
-                    onSelectedChange = {},
-                    swipeEnabled = swipeEnabled,
-                    thumbnailSize = (ListThumbnailSize.value * density.density).roundToInt(),
-                    extraInfo = statValueText(statMetric, songStat),
-                    onPlay = {
-                        playerConnection.playQueue(
-                            ListQueue(
-                                title = mostPlayedSongTitle,
-                                items = extendedSongs.map { it.song.toMediaMetadata() },
-                                startIndex = index
-                            )
-                        )
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .animateItem()
-                )
-            }
-
-            item(key = "extendedArtists") {
-                NavigationTitle(
-                    title = stringResource(R.string.stats_extended_artists),
-                    modifier = Modifier.animateItem()
-                )
-                LazyRow(modifier = Modifier.animateItem()) {
-                    items(
-                        items = extendedArtists,
-                        key = { "ext-artist-" + it.id }
-                    ) { artist ->
-                        ArtistGridItem(
-                            artist = artist,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = { navController.navigate("artist/${artist.id}") },
-                                    onLongClick = {
-                                        menuState.show {
-                                            ArtistMenu(
-                                                originalArtist = artist,
-                                                coroutineScope = coroutineScope,
-                                                onDismiss = menuState::dismiss
-                                            )
-                                        }
-                                    }
-                                )
-                                .animateItem()
-                        )
-                    }
-                }
-            }
-        }
     }
     LazyColumnScrollbar(
         state = lazyListState,
     )
 
     TopAppBar(
-        title = { Text(stringResource(R.string.stats)) },
+        title = {
+            // The period's plays and listening time beside the title - the whole answer to "how
+            // much", before any chart.
+            Column {
+                Text(stringResource(R.string.stats))
+                totals?.let {
+                    Text(
+                        text = stringResource(
+                            R.string.stats_totals,
+                            java.text.NumberFormat.getIntegerInstance().format(it.plays),
+                            formatListening(it.playTime),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        },
         navigationIcon = {
             IconButton(
                 onClick = navController::navigateUp,
@@ -375,4 +317,14 @@ fun StatsScreen(
 private fun statValueText(metric: StatMetric, songStat: SongPlayStats): String = when (metric) {
     StatMetric.TIME_LISTENED -> makeTimeString(songStat.totalPlayTime)
     StatMetric.TIMES_PLAYED -> pluralStringResource(R.plurals.n_play, songStat.totalPlays, songStat.totalPlays)
+}
+
+/** Listening time as people say it: "56h 12m", "12m", "45s" - not a clock reading. */
+private fun formatListening(ms: Long): String {
+    val minutes = ms / 60_000
+    return when {
+        minutes >= 60 -> "${minutes / 60}h ${minutes % 60}m"
+        minutes > 0 -> "${minutes}m"
+        else -> "${ms / 1000}s"
+    }
 }

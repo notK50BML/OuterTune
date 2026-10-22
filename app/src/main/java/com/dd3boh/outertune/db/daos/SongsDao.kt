@@ -104,6 +104,10 @@ interface SongsDao {
         byPlayTime: Boolean = true,
     ): Flow<List<SongPlayStats>>
 
+    /** All plays since [fromTimeStamp] and their summed play time, for the Stats header. */
+    @Query("SELECT COUNT(*) AS plays, COALESCE(SUM(playTime), 0) AS playTime FROM event WHERE timestamp > :fromTimeStamp")
+    fun playTotals(fromTimeStamp: Long): Flow<com.dd3boh.outertune.db.entities.PlayTotals>
+
     @Query("SELECT sum(count) from playCount WHERE song = :songId")
     fun getLifetimePlayCount(songId: String?): Int
 
