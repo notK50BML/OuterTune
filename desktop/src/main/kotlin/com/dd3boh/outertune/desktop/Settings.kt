@@ -69,6 +69,9 @@ class Settings(private val store: SettingsStore) {
     /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
     var playerButtons by string("player.buttons", "")
 
+    /** Playlists shown as a grid of tiles rather than a list - the phone's view switch. */
+    var playlistsGrid by bool("ui.playlistsGrid", false)
+
     /** Account and sync - the phone's Settings > Account and sync, option for option. */
     var syncAuto by bool("sync.auto", true)
     /** What a sync brings in, in the phone's letters - see [SyncKind]. */

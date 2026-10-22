@@ -119,6 +119,13 @@ object OuterTuneIcons {
     /** A tick in a disc: downloaded. The phone's mark for it, and pressing it removes the download. */
     val offlinePin by icon(GeneratedIconPaths.offlinePin)
 
+    /** The phone's Downloaded songs playlist tile: a cloud with an arrow out of it. */
+    val cloudDownload by icon(GeneratedIconPaths.cloudDownload)
+
+    /** Grid and list - the phone's view switch for its library screens. */
+    val gridView by icon(GeneratedIconPaths.gridView)
+    val viewList by icon(GeneratedIconPaths.viewList)
+
     /**
      * Two stacked bars: the grip for dragging a queue row.
      *
@@ -287,6 +294,9 @@ object OuterTuneIcons {
             "moreVert" to moreVert,
             "download" to download,
             "offlinePin" to offlinePin,
+            "cloudDownload" to cloudDownload,
+            "gridView" to gridView,
+            "viewList" to viewList,
             "dragHandle" to dragHandle,
             "bedtime" to bedtime,
             "fastForward" to fastForward,

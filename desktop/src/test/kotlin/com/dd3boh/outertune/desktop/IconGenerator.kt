@@ -9,6 +9,9 @@ package com.dd3boh.outertune.desktop
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material.icons.rounded.OfflinePin
+import androidx.compose.material.icons.rounded.CloudDownload
+import androidx.compose.material.icons.rounded.GridView
+import androidx.compose.material.icons.automirrored.rounded.List
 import androidx.compose.material.icons.rounded.LibraryMusic
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.LibraryAddCheck
@@ -101,6 +104,8 @@ class IconGenerator {
         "libraryMusic" to Icons.Rounded.LibraryMusic, "sdCard" to Icons.Rounded.SdCard,
         "trendingUp" to Icons.AutoMirrored.Rounded.TrendingUp,
         "offlinePin" to Icons.Rounded.OfflinePin,
+        "cloudDownload" to Icons.Rounded.CloudDownload, "gridView" to Icons.Rounded.GridView,
+        "viewList" to Icons.AutoMirrored.Rounded.List,
     )
 
     @Test

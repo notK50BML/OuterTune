@@ -1284,6 +1284,10 @@ internal fun App(
                     )
                 } else if (tab == NavTab.Playlists) {
                     PlaylistsPane(
+                        liked = liked,
+                        downloaded = remember(downloadedIds) { library.songs(downloadedIds) },
+                        grid = settings.playlistsGrid,
+                        onToggleGrid = { settings.playlistsGrid = !settings.playlistsGrid },
                         onDownloadAll = { title, songs -> downloadAll(title, songs.map { it.toItem() }) },
                         downloadedIds = downloadedIds,
                         downloadingTitle = downloadingTitle,

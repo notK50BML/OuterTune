@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.material3.IconButton
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.platform.LocalDensity
@@ -75,8 +78,15 @@ fun PlaylistsPane(
     onDownloadAll: ((String, List<StoredSong>) -> Unit)? = null,
     downloadedIds: Set<String> = emptySet(),
     downloadingTitle: String? = null,
+    /** The phone's two automatic playlists, kept by the app rather than made: liked and downloaded. */
+    liked: List<StoredSong> = emptyList(),
+    downloaded: List<StoredSong> = emptyList(),
+    grid: Boolean = false,
+    onToggleGrid: () -> Unit = {},
 ) {
     var naming by remember { mutableStateOf<NameRequest?>(null) }
+    // Which automatic playlist is open, if one is: "liked" or "downloaded", as on the phone.
+    var auto by remember { mutableStateOf<String?>(null) }
     // Kept beside the local ones rather than on a tab of their own. They are the same kind of thing
     // to the person looking for them, and a tab would mean knowing which of two places a playlist
     // lives in before being able to find it.
@@ -94,6 +104,40 @@ fun PlaylistsPane(
         )
     }
 
+    auto?.let { which ->
+        val title = if (which == "liked") "Liked songs" else "Downloaded songs"
+        val songs = if (which == "liked") liked else downloaded
+        Column(modifier = Modifier.fillMaxSize()) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
+            ) {
+                TextButton(onClick = { auto = null }) { Text("← Playlists") }
+                Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                if (songs.isNotEmpty()) {
+                    TextButton(onClick = { onPlay(songs, 0) }) { Text("Play") }
+                    TextButton(onClick = { onPlay(songs.shuffled(), 0) }) { Text("Shuffle") }
+                }
+            }
+            if (songs.isEmpty()) {
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text(
+                        if (which == "liked") "No liked songs yet." else "Nothing downloaded yet.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            } else {
+                LazyColumn {
+                    itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                        StoredSongRow(song, playing = song.id == currentId) { onPlay(songs, index) }
+                    }
+                }
+            }
+        }
+        return
+    }
+
     if (selected == null) {
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
@@ -106,23 +150,34 @@ fun PlaylistsPane(
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
+                // The phone's view switch: shows what pressing it will give.
+                IconButton(onClick = onToggleGrid) {
+                    Icon(
+                        if (grid) OuterTuneIcons.viewList else OuterTuneIcons.gridView,
+                        contentDescription = if (grid) "Show as a list" else "Show as a grid",
+                        modifier = Modifier.size(20.dp),
+                    )
+                }
                 TextButton(onClick = { naming = NameRequest(null) }) { Text("New") }
             }
 
-            // Both, not just the local ones. With saved playlists present and none made here, the
-            // old check bailed out and showed "No playlists yet" over a list that was not empty.
-            if (playlists.isEmpty() && saved.isEmpty()) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(
-                        "No playlists yet.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            if (grid) {
+                PlaylistGrid(
+                    playlists = playlists,
+                    saved = saved,
+                    liked = liked,
+                    downloaded = downloaded,
+                    onOpenAuto = { auto = it },
+                    onSelect = onSelect,
+                    onPlaySaved = onPlaySaved,
+                )
                 return@Column
             }
 
             LazyColumn {
+                // The phone's automatic playlists first, with its icons for them.
+                item { AutoPlaylistRow("Liked songs", liked.size, OuterTuneIcons.favorite) { auto = "liked" } }
+                item { AutoPlaylistRow("Downloaded songs", downloaded.size, OuterTuneIcons.cloudDownload) { auto = "downloaded" } }
                 if (saved.isNotEmpty()) {
                     item {
                         Text(
@@ -241,7 +296,7 @@ fun PlaylistsPane(
         if (songsInSelected.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
-                    "Nothing here yet. Search for a song and use its + button.",
+                    "Nothing here yet. Use a song's ⋮ menu > Add to playlist.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -458,4 +513,91 @@ fun AddToPlaylistDialog(
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
     )
+}
+
+/** An automatic playlist in the list: its icon in a tile where a cover would be, as on the phone. */
+@Composable
+private fun AutoPlaylistRow(title: String, count: Int, icon: androidx.compose.ui.graphics.vector.ImageVector, onClick: () -> Unit) {
+    Card(
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp).clickable(onClick = onClick),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(10.dp)) {
+            IconTile(icon, size = 40.dp)
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold)
+                Text(
+                    if (count == 1) "1 song" else "$count songs",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** The phone's automatic-playlist thumbnail: its icon centred on a tinted square. */
+@Composable
+private fun IconTile(icon: androidx.compose.ui.graphics.vector.ImageVector, size: androidx.compose.ui.unit.Dp) {
+    Box(
+        contentAlignment = Alignment.Center,
+        modifier = Modifier
+            .size(size)
+            .clip(RoundedCornerShape(size * 0.15f))
+            .background(MaterialTheme.colorScheme.secondaryContainer),
+    ) {
+        Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(size * 0.5f))
+    }
+}
+
+/** Every playlist as a tile - cover (or icon) over its name and count - the phone's grid view. */
+@Composable
+private fun PlaylistGrid(
+    playlists: List<StoredPlaylist>,
+    saved: List<PlaylistItem>,
+    liked: List<StoredSong>,
+    downloaded: List<StoredSong>,
+    onOpenAuto: (String) -> Unit,
+    onSelect: (StoredPlaylist) -> Unit,
+    onPlaySaved: (PlaylistItem) -> Unit,
+) {
+    @Composable
+    fun tile(title: String, subtitle: String, onClick: () -> Unit, art: @Composable (androidx.compose.ui.unit.Dp) -> Unit) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable(onClick = onClick)
+                .padding(6.dp),
+        ) {
+            androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                art(maxWidth)
+            }
+            Spacer(modifier = Modifier.size(6.dp))
+            Text(title, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+    fun count(n: Int) = if (n == 1) "1 song" else "$n songs"
+
+    androidx.compose.foundation.lazy.grid.LazyVerticalGrid(
+        columns = androidx.compose.foundation.lazy.grid.GridCells.Adaptive(150.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        item { tile("Liked songs", count(liked.size), { onOpenAuto("liked") }) { IconTile(OuterTuneIcons.favorite, it) } }
+        item { tile("Downloaded songs", count(downloaded.size), { onOpenAuto("downloaded") }) { IconTile(OuterTuneIcons.cloudDownload, it) } }
+        items(saved.size) { i ->
+            val playlist = saved[i]
+            tile(
+                playlist.title,
+                listOfNotNull(playlist.author?.name, playlist.songCountText).joinToString(" · ").ifBlank { "Playlist" },
+                { onPlaySaved(playlist) },
+            ) { Artwork(playlist.thumbnail, size = it, cornerRadius = it * 0.06f) }
+        }
+        items(playlists.size) { i ->
+            val playlist = playlists[i]
+            tile(playlist.name, count(playlist.songCount), { onSelect(playlist) }) { IconTile(OuterTuneIcons.queueMusic, it) }
+        }
+    }
 }
