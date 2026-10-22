@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.flow.combine
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -750,7 +751,11 @@ internal fun App(
     LaunchedEffect(queue.current?.id) {
         val song = queue.current ?: return@LaunchedEffect
         val playedId = song.id
-        snapshotFlow { player.positionMs.value to player.durationMs.value }
+        // The player's own flows, combined. This was snapshotFlow { positionMs.value ... }, but
+        // those are StateFlows, not Compose state, so snapshotFlow saw no reads to track: it
+        // emitted once, at the start of the song, and never again - so no play was ever recorded
+        // and Stats only ever showed what a phone backup had brought in.
+        combine(player.positionMs, player.durationMs) { position, duration -> position to duration }
             .first { (position, duration) ->
                 duration > 0 && position >= duration * settings.minPlayPercent.coerceIn(0, 100) / 100
             }
