@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.YouTube
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.items
@@ -111,6 +112,13 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    SettingEntry("Use login for browsing content", SettingsCategory.Account, "personal recommendations premium guest signed in"),
+    SettingEntry("Show login token", SettingsCategory.Account, "cookie token copy session advanced login"),
+    SettingEntry("Automatically sync with your YouTube Music account", SettingsCategory.Account, "auto sync startup"),
+    SettingEntry("Sync now", SettingsCategory.Account, "sync manual refresh library liked"),
+    SettingEntry("What to sync", SettingsCategory.Account, "liked songs library songs albums artists playlists recent activity"),
+    SettingEntry("Sync mode", SettingsCategory.Account, "read only read write push likes"),
+    SettingEntry("Conflict resolution", SettingsCategory.Account, "overwrite keep local add remote"),
     SettingEntry("Scroll in the player", SettingsCategory.Player, "scroll wheel anywhere close dismiss put away open equaliser"),
     SettingEntry("Song rows", SettingsCategory.Appearance, "row buttons three dots menu like download quick actions"),
     SettingEntry("Queues to keep", SettingsCategory.Player, "multiple queues saved switch board history"),
@@ -212,6 +220,8 @@ fun SettingsPane(
     modifier: Modifier = Modifier,
     /** After a profile is imported - see ProfilesSection. */
     onProfileApplied: () -> Unit = {},
+    /** The account sync, for Account and sync's options. Null hides them. */
+    sync: YouTubeSync? = null,
 ) {
     var category by remember { mutableStateOf(SettingsCategory.Appearance) }
     var query by remember { mutableStateOf("") }
@@ -299,7 +309,10 @@ fun SettingsPane(
                 SettingsCategory.Player -> PlayerSettings(settings)
                 SettingsCategory.Lyrics -> LyricsSettings(settings, onClearLyricsCache)
                 SettingsCategory.Content -> ContentSettings(settings)
-                SettingsCategory.Account -> Section("YouTube Music") { AccountPane(account = account) }
+                SettingsCategory.Account -> {
+                    Section("YouTube Music") { AccountPane(account = account) }
+                    AccountSyncSettings(settings, account, sync)
+                }
                 SettingsCategory.Discord -> DiscordSettings(settings)
                 SettingsCategory.ListenTogether -> ListenTogetherSettings(settings, listenTogether)
                 SettingsCategory.Local -> LocalMusicSettings(settings, library)
@@ -1832,5 +1845,100 @@ private fun SettingRow(
                 )
             }
         }
+    }
+}
+
+/**
+ * The rest of the phone's Account and sync, under the sign-in: the login token, browsing signed in,
+ * and the sync - automatic or not, now, what it brings, read only or read write, and what wins.
+ * Shown signed in, as on the phone; signed out there is nothing to sync.
+ */
+@Composable
+private fun AccountSyncSettings(settings: Settings, account: Account, sync: YouTubeSync?) {
+    val state by account.state.collectAsState()
+    if (state !is AccountState.SignedIn) return
+    val scope = rememberCoroutineScope()
+
+    Section("Account") {
+        SettingSwitch(
+            title = "Use login for browsing content",
+            subtitle = "Recommendations made for you, and premium-only albums on a Premium account. Off browses as a guest.",
+            checked = settings.useLoginForBrowse,
+            onCheckedChange = { settings.useLoginForBrowse = it },
+            icon = OuterTuneIcons.accountCircle,
+        )
+        var tokenShown by remember { mutableStateOf(false) }
+        SettingRow(
+            title = if (tokenShown) "Hide login token" else "Show login token",
+            subtitle = if (tokenShown) {
+                YouTube.cookie?.let { if (it.length > 160) it.take(160) + "…" else it } ?: "None stored"
+            } else {
+                "For signing in on another computer: Account > paste it under \"Sign in\". Keep it private - it is your session."
+            },
+            icon = OuterTuneIcons.key,
+            onClick = { tokenShown = !tokenShown },
+        )
+        if (tokenShown) SettingRow(
+            title = "Copy login token",
+            icon = OuterTuneIcons.share,
+            onClick = { YouTube.cookie?.let(::copyToClipboard) },
+        )
+    }
+
+    if (sync == null) return
+    val syncing by sync.syncing.collectAsState()
+    val status by sync.status.collectAsState()
+    Section("Sync") {
+        SettingSwitch(
+            title = "Automatically sync with your YouTube Music account",
+            subtitle = "On signing in and each time the app starts.",
+            checked = settings.syncAuto,
+            onCheckedChange = { settings.syncAuto = it },
+            icon = OuterTuneIcons.restore,
+        )
+        SettingRow(
+            title = if (syncing) "Syncing…" else "Sync now",
+            subtitle = status ?: "Brings in what is ticked below.",
+            icon = OuterTuneIcons.restore,
+            onClick = if (syncing) null else ({ scope.launch { sync.syncAll() } }),
+        )
+        val chosen = SyncKind.decode(settings.syncContent)
+        Text(
+            "What to sync",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 16.dp, top = 12.dp, bottom = 4.dp),
+        )
+        SyncKind.entries.forEach { kind ->
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        settings.syncContent = SyncKind.encode(if (kind in chosen) chosen - kind else chosen + kind)
+                    }
+                    .padding(horizontal = 8.dp),
+            ) {
+                androidx.compose.material3.Checkbox(checked = kind in chosen, onCheckedChange = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(kind.label)
+            }
+        }
+        SettingChoice(
+            title = "Sync mode",
+            icon = OuterTuneIcons.restore,
+            options = SyncMode.entries,
+            selected = settings.syncMode,
+            label = { it.label },
+            onSelect = { settings.syncMode = it },
+        )
+        SettingChoice(
+            title = "Conflict resolution",
+            icon = OuterTuneIcons.restore,
+            options = SyncConflict.entries,
+            selected = settings.syncConflict,
+            label = { it.label },
+            onSelect = { settings.syncConflict = it },
+        )
     }
 }

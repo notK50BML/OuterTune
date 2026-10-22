@@ -324,10 +324,12 @@ internal fun App(
 
     // The playlists this account saved on YouTube. Fetched alongside the feed and on the same
     // trigger, since both are answers to "who is signed in" and neither means anything without one.
-    var savedPlaylists by remember { mutableStateOf<List<PlaylistItem>>(emptyList()) }
-    LaunchedEffect(accountState, homeAttempt) {
-        savedPlaylists = if (accountState is AccountState.SignedIn) loadSavedPlaylists() else emptyList()
-    }
+    // Part of the sync now (Settings > Account and sync > Playlists), so switching them off hides them.
+    val youTubeSync = remember { YouTubeSync(library) }
+    val savedPlaylists by youTubeSync.playlists.collectAsState()
+    val recentActivity by youTubeSync.recentActivity.collectAsState()
+    // Browsing signed in or not - the phone's "Use login for browsing content".
+    LaunchedEffect(settings.useLoginForBrowse) { YouTube.useLoginForBrowse = settings.useLoginForBrowse }
     // The phone's shelves beside YouTube's feed: "Similar to" from what has been played, and Explore's
     // new releases. On the same trigger as the feed, and each on its own so neither waits for the
     // other or for the feed.
@@ -634,13 +636,16 @@ internal fun App(
 
     // The account's library, synced on sign-in and whenever asked. Likes made here go to YouTube as
     // they happen, so the two lists converge without a sync having to pick a winner.
-    val youTubeSync = remember { YouTubeSync(library) }
+    youTubeSync.kinds = SyncKind.decode(settings.syncContent).toSet()
+    youTubeSync.overwrite = settings.syncConflict == SyncConflict.Overwrite
     LaunchedEffect(accountState) {
-        if (accountState is AccountState.SignedIn) youTubeSync.syncAll() else youTubeSync.clear()
+        if (accountState !is AccountState.SignedIn) youTubeSync.clear()
+        else if (settings.syncAuto) youTubeSync.syncAll()
     }
     fun likeAndPush(song: StoredSong) {
         library.toggleLiked(song)
-        if (accountState is AccountState.SignedIn) {
+        // Read only (Settings > Account and sync > Sync mode): a like here stays here.
+        if (accountState is AccountState.SignedIn && settings.syncMode == SyncMode.ReadWrite) {
             val nowLiked = library.isLiked(song.id)
             scope.launch { youTubeSync.pushLike(song.id, nowLiked) }
         }
@@ -1229,6 +1234,7 @@ internal fun App(
                     )
                 } else if (tab == NavTab.Settings) {
                     SettingsPane(
+                        sync = youTubeSync,
                         settings = settings,
                         account = account,
                         listenTogether = listenTogether,
@@ -1323,6 +1329,7 @@ internal fun App(
                                 quickPicks = quickPicks,
                                 forgotten = forgotten,
                                 yourPlaylists = savedPlaylists,
+                                recentActivity = recentActivity,
                                 similar = homeSimilar.filterExplicitIf(settings.hideExplicit),
                                 newReleases = homeNewReleases.filterNot { settings.hideExplicit && it.explicit },
                                 chips = homeChips,

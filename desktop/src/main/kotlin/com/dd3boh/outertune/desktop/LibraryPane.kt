@@ -65,7 +65,9 @@ enum class LibraryView(val label: String) { Songs("Songs"), Artists("Artists"), 
 
 /** Which songs the Songs view lists. */
 enum class SongSource(val label: String) {
-    Liked("Liked"), History("History"), Downloaded("Downloaded"), Local("On this computer")
+    Liked("Liked"), History("History"), Downloaded("Downloaded"), Local("On this computer"),
+    /** The account's library songs, from the sync - shown while there are any. */
+    YouTube("YouTube library")
 }
 
 /** How the Songs view is ordered. "Default" is each source's own order - newest first. */
@@ -110,6 +112,7 @@ fun LibraryPane(
     val status by sync.status.collectAsState()
     val remoteAlbums by sync.albums.collectAsState()
     val remoteArtists by sync.artists.collectAsState()
+    val remoteSongs by sync.librarySongs.collectAsState()
     val scope = rememberCoroutineScope()
 
     var downloaded by remember { mutableStateOf<List<StoredSong>>(emptyList()) }
@@ -145,6 +148,7 @@ fun LibraryPane(
                     SongSource.History -> recent
                     SongSource.Downloaded -> downloaded
                     SongSource.Local -> localTracks.map { it.song }
+                    SongSource.YouTube -> remember(remoteSongs) { remoteSongs.map { it.toStored() } }
                 }
                 val shown = remember(base, sort, filter) {
                     base.filter { filter.isBlank() || it.title.contains(filter, true) || it.artists.contains(filter, true) }
@@ -157,7 +161,7 @@ fun LibraryPane(
                         }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SongSource.entries.forEach {
+                    SongSource.entries.filter { it != SongSource.YouTube || remoteSongs.isNotEmpty() || source == it }.forEach {
                         FilterChip(selected = source == it, onClick = { source = it }, label = { Text(it.label) })
                     }
                     Spacer(Modifier.weight(1f))

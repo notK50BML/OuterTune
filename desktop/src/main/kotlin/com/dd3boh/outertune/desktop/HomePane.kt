@@ -94,6 +94,8 @@ fun HomePane(
     loadingMore: Boolean = false,
     /** The playlists this account saved on YouTube - the phone's own row on Home. */
     yourPlaylists: List<PlaylistItem> = emptyList(),
+    /** What the account played lately - the phone's Recent activity row, first under the chips. */
+    recentActivity: List<YTItem> = emptyList(),
     /** "Similar to ..." shelves - see loadSimilar. */
     similar: List<HomePage.Section> = emptyList(),
     /** Explore's new albums. */
@@ -137,6 +139,18 @@ fun HomePane(
                         )
                     }
                 }
+            }
+        }
+        if (recentActivity.isNotEmpty() && selectedChip == null) {
+            item {
+                Section(
+                    section = HomePage.Section("Recent activity", null, null, null, recentActivity),
+                    currentId = currentId,
+                    onPlaySong = onPlaySong,
+                    onPlayList = onPlayList,
+                    onOpenArtist = onOpenArtist,
+                    onOpenAlbum = onOpenAlbum,
+                )
             }
         }
         if (quickPicks.isNotEmpty()) {

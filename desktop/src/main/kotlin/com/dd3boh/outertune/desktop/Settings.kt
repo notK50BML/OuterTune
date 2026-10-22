@@ -69,6 +69,15 @@ class Settings(private val store: SettingsStore) {
     /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
     var playerButtons by string("player.buttons", "")
 
+    /** Account and sync - the phone's Settings > Account and sync, option for option. */
+    var syncAuto by bool("sync.auto", true)
+    /** What a sync brings in, in the phone's letters - see [SyncKind]. */
+    var syncContent by string("sync.content", SyncKind.ALL)
+    var syncMode by enum("sync.mode", SyncMode.ReadWrite, SyncMode.entries)
+    var syncConflict by enum("sync.conflict", SyncConflict.AddOnly, SyncConflict.entries)
+    /** Browse signed in - personal recommendations, premium-only albums - or signed out. */
+    var useLoginForBrowse by bool("account.loginForBrowse", true)
+
     /** Quick buttons beside the ⋮ on song rows, and whether the ⋮ shows - see RowButtons. */
     var rowButtons by string("ui.rowButtons", "")
     var rowMenu by bool("ui.rowMenu", true)
