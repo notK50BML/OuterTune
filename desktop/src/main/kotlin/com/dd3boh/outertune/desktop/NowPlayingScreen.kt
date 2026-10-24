@@ -594,6 +594,7 @@ fun NowPlayingScreen(
                                                 tint = onBackground,
                                                 onClose = { showLyrics = false },
                                                 onRefetch = onRefetchLyrics,
+                                                fetching = lyricsLoading,
                                                 offsetMs = lyricsOffsetMs,
                                                 onOffsetChange = onLyricsOffsetChange,
                                             )
@@ -735,6 +736,7 @@ fun NowPlayingScreen(
                         tint = onBackground,
                         onClose = { showLyrics = false },
                         onRefetch = onRefetchLyrics,
+                        fetching = lyricsLoading,
                         offsetMs = lyricsOffsetMs,
                         onOffsetChange = onLyricsOffsetChange,
                     )
@@ -1396,6 +1398,7 @@ private fun LyricsHeader(
     tint: Color,
     onClose: () -> Unit,
     onRefetch: (() -> Unit)?,
+    fetching: Boolean,
     offsetMs: Int,
     onOffsetChange: ((Int) -> Unit)?,
 ) {
@@ -1404,7 +1407,13 @@ private fun LyricsHeader(
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         Box {
             IconButton(onClick = { menu = true }) {
-                Icon(OuterTuneIcons.moreVert, contentDescription = "Lyrics options", tint = tint)
+                // A spinner while lyrics are being fetched, so "Fetch lyrics again" visibly does
+                // something where it was asked for, as on the phone.
+                if (fetching) {
+                    CircularProgressIndicator(color = tint, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                } else {
+                    Icon(OuterTuneIcons.moreVert, contentDescription = "Lyrics options", tint = tint)
+                }
             }
             androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                 if (onOffsetChange != null) {

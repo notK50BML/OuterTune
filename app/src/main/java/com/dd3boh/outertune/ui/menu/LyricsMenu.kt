@@ -81,6 +81,8 @@ fun LyricsMenu(
     mediaMetadataProvider: () -> MediaMetadata,
     onDismiss: () -> Unit,
     viewModel: LyricsMenuViewModel = hiltViewModel(),
+    /** True while Refetch is fetching, and false once it has finished whichever way. */
+    onRefetching: (Boolean) -> Unit = {},
     onRefreshRequest: (SemanticLyrics?) -> Unit,
 ) {
     val context = LocalContext.current
@@ -439,7 +441,8 @@ fun LyricsMenu(
             title = R.string.refetch
         ) {
             onDismiss()
-            viewModel.refetchLyrics(mediaMetadataProvider()) { onRefreshRequest(it) }
+            onRefetching(true)
+            viewModel.refetchLyrics(mediaMetadataProvider(), onFinished = { onRefetching(false) }) { onRefreshRequest(it) }
         }
         GridMenuItem(
             icon = Icons.Rounded.Search,

@@ -53,13 +53,21 @@ class LyricsMenuViewModel @Inject constructor(
         job = null
     }
 
-    fun refetchLyrics(mediaMetadata: MediaMetadata, onDone: (SemanticLyrics?) -> Unit) {
+    /**
+     * [onFinished] runs however the fetch ends - found, not found, timed out or failed - so whatever
+     * shows it is in progress can always stop. [onDone] only runs when there is a result to show.
+     */
+    fun refetchLyrics(mediaMetadata: MediaMetadata, onFinished: () -> Unit = {}, onDone: (SemanticLyrics?) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
-            withTimeoutOrNull(LYRIC_FETCH_TIMEOUT) {
-                // Keep the existing row until its replacement is ready so cancellation does not discard usable lyrics.
-                lyricsHelper.fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.MANUAL, forceRefresh = true)
-                val lyrics = lyricsHelper.getLyrics(mediaMetadata)
-                onDone(lyrics)
+            try {
+                withTimeoutOrNull(LYRIC_FETCH_TIMEOUT) {
+                    // Keep the existing row until its replacement is ready so cancellation does not discard usable lyrics.
+                    lyricsHelper.fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.MANUAL, forceRefresh = true)
+                    val lyrics = lyricsHelper.getLyrics(mediaMetadata)
+                    onDone(lyrics)
+                }
+            } finally {
+                onFinished()
             }
         }
     }

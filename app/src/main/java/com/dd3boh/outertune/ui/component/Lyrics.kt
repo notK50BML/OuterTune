@@ -9,6 +9,8 @@
 
 package com.dd3boh.outertune.ui.component
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
 import android.annotation.SuppressLint
 import android.content.res.Configuration
 import androidx.compose.foundation.clickable
@@ -145,6 +147,9 @@ fun Lyrics(
     // NOTE: lyricsModel is the current display lyrics that is updated by playerLyrics AND/OR manually
     val playerLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
     var lyricsModel by remember { mutableStateOf(playerLyrics) }
+    // While the lyrics menu's Refetch is running: the lyrics show the same placeholder as the first
+    // load, and the menu button a spinner, instead of nothing at all until the new ones arrive.
+    var refetching by remember { mutableStateOf(false) }
 
     val lines: SnapshotStateList<LyricLine> = remember { mutableStateListOf<LyricLine>() }
 
@@ -156,11 +161,7 @@ fun Lyrics(
         // The sweep renderer works entirely off each line's word list, so making it run on ordinary
         // line-synced lyrics is a matter of supplying that list rather than touching the renderer.
         // Lines that already carry real word timings are left alone by withEstimatedWordSync.
-        lyricsModel = if (estimatedWordSync && playerLyrics is SemanticLyrics.SyncedLyrics) {
-            (playerLyrics as SemanticLyrics.SyncedLyrics).withEstimatedWordSync()
-        } else {
-            playerLyrics
-        }
+        lyricsModel = playerLyrics.forDisplay(estimatedWordSync)
     }
 
     LaunchedEffect(lyricsModel) {
@@ -373,7 +374,7 @@ fun Lyrics(
         ) {
             val displayedCurrentLineIndex = if (isSeeking) deferredCurrentLineIndex else currentLineIndex
 
-            if (lyricsModel == null) {
+            if (lyricsModel == null || refetching) {
                 item {
                     ShimmerHost {
                         repeat(10) {
@@ -484,7 +485,7 @@ fun Lyrics(
             }
         }
 
-        if (lyricsModel == uninitializedLyric) {
+        if (lyricsModel == uninitializedLyric && !refetching) {
             Text(
                 text = stringResource(R.string.lyrics_not_found),
                 fontSize = lyricsFontSize.sp,
@@ -542,17 +543,29 @@ fun Lyrics(
                                     dbLyric
                                 },
                                 mediaMetadataProvider = { mediaMetadata },
-                                onRefreshRequest = { lyricsModel = it },
+                                // Through the same word-timing estimate as lyrics that arrive with
+                                // the song. Set as they were, refetched, edited or searched lyrics had
+                                // no sweep until the lyrics were closed and opened again.
+                                onRefreshRequest = { lyricsModel = it.forDisplay(estimatedWordSync) },
+                                onRefetching = { refetching = it },
                                 onDismiss = menuState::dismiss,
                             )
                         }
                     }
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.MoreHoriz,
-                        contentDescription = null,
-                        tint = textColor
-                    )
+                    if (refetching) {
+                        CircularProgressIndicator(
+                            color = textColor,
+                            strokeWidth = 2.dp,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Rounded.MoreHoriz,
+                            contentDescription = null,
+                            tint = textColor
+                        )
+                    }
                 }
             }
         }
@@ -587,6 +600,14 @@ const val animateScrollDuration = 300L
 val LyricsPreviewTime = 7.seconds
 
 /** How dim the not-yet-sung part of a karaoke line is, relative to the sung part. */
+/**
+ * Lyrics as the screen draws them: line-synced ones given estimated word timings when that is on,
+ * so the karaoke sweep runs on them. Lines that already carry real word timings are left alone by
+ * withEstimatedWordSync.
+ */
+private fun SemanticLyrics?.forDisplay(estimateWords: Boolean): SemanticLyrics? =
+    if (estimateWords && this is SemanticLyrics.SyncedLyrics) withEstimatedWordSync() else this
+
 private const val UNSUNG_ALPHA = 0.5f
 
 /** How dim a line that has already been sung is. Kept above [UNSUNG_ALPHA] so the two read apart. */
