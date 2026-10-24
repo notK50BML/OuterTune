@@ -137,17 +137,45 @@ object ArtistNameRefresher {
             val page = YouTube.artist(ownId).getOrNull() ?: return false
             val pageId = page.artist.id.normalizeArtistId()
 
-            // A Topic channel - YouTube's auto-generated "i-dle - Topic", a channel of its own
-            // beside the artist's real one. With the suffix stripped the two have the same name, so
-            // they sat side by side as two artists, and the sweep rightly will not merge two real
-            // channels on a name. The Topic page's songs say whose they are: when two or more of
-            // them credit one other channel, that is the artist, and this row is folded into it.
-            if (TOPIC_SUFFIX.containsMatchIn(page.artist.title)) {
-                val credits = page.sections.flatMap { it.items }.filterIsInstance<SongItem>()
-                    .flatMap { it.artists }
-                    .filter { it.id?.normalizeArtistId()?.let { a -> a.startsWith("UC") && a != ownId } == true }
-                val main = credits.groupingBy { it.id!!.normalizeArtistId() }.eachCount()
-                    .maxByOrNull { it.value }?.takeIf { it.value >= 2 }?.key
+            // Whose songs this page holds: each credited channel and how often.
+            val credits = page.sections.flatMap { it.items }.filterIsInstance<SongItem>()
+                .flatMap { it.artists }
+                .filter { it.id?.normalizeArtistId()?.startsWith("UC") == true }
+            val counts = credits.groupingBy { it.id!!.normalizeArtistId() }.eachCount()
+            val own = counts[ownId] ?: 0
+            val isTopic = TOPIC_SUFFIX.containsMatchIn(page.artist.title)
+
+            // One artist, two real channels with the same name - i-dle has two, both titled
+            // "i-dle", as does LE SSERAFIM; a Topic channel is the same thing with a suffix. The
+            // sweep rightly will not merge two real channels on a name alone, so the page decides:
+            // a channel whose songs are mostly credited to its namesake - or that has no songs of
+            // its own at all - is that namesake's alias, and is folded into it. Two channels that
+            // each credit themselves (two different bands that share a name) stay apart.
+            val key = ArtistCreditEnricher.artistKey(page.artist.title).ifEmpty { ArtistCreditEnricher.artistKey(artist.name) }
+            val siblings = database.allArtistsOnce().filter {
+                it.id != artist.id && !it.isLocal && it.isYouTubeArtist &&
+                    it.id.normalizeArtistId() != ownId &&
+                    (ArtistCreditEnricher.artistKey(it.name) == key || ArtistCreditEnricher.artistKey(it.name) == ArtistCreditEnricher.artistKey(artist.name))
+            }
+            if (siblings.isNotEmpty()) {
+                val credited = siblings.maxByOrNull { counts[it.id.normalizeArtistId()] ?: 0 }!!
+                val creditedCount = counts[credited.id.normalizeArtistId()] ?: 0
+                val target = when {
+                    creditedCount > own -> credited
+                    own == 0 && (isTopic || counts.isEmpty()) ->
+                        siblings.maxByOrNull { database.songCountForArtistOnce(it.id) }
+                    else -> null
+                }
+                if (target != null) {
+                    Timber.tag(TAG).d("\"${artist.name}\" ($ownId) is an alias of ${target.id} (credits $own vs $creditedCount) - merging")
+                    ArtistCreditEnricher.mergeArtistInto(database, artist, target.id)
+                    return true
+                }
+            }
+
+            // A Topic channel whose artist is not in the library yet: its songs name the artist.
+            if (isTopic) {
+                val main = counts.filterKeys { it != ownId }.maxByOrNull { it.value }?.takeIf { it.value >= 2 }?.key
                 if (main != null) {
                     val name = credits.first { it.id!!.normalizeArtistId() == main }.name
                     Timber.tag(TAG).d("\"${artist.name}\" ($ownId) is a Topic channel of $main - merging")

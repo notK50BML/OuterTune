@@ -98,6 +98,10 @@ interface ArtistsDao {
     """)
     fun localSongIdsWithFeaturing(): List<String>
 
+    /** How many songs of any kind credit [artistId] - which of two same-named channels the library uses. */
+    @Query("SELECT COUNT(*) FROM song_artist_map WHERE artistId = :artistId")
+    fun songCountForArtistOnce(artistId: String): Int
+
     /** How many local songs are credited to [artistId] - whether "Unlink local files" applies. */
     @Query("""
         SELECT COUNT(*) FROM song_artist_map m JOIN song s ON s.id = m.songId
