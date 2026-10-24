@@ -326,7 +326,12 @@ val shrunkJar = tasks.register<JavaExec>("shrunkJar") {
         listOf(
             "-include", rules.absolutePath,
             "-include", generated.get().asFile.absolutePath,
-            "-injars", inJar.get().asFile.absolutePath,
+            // The app image's runtime is 64-bit x86, so the fat jar's other Windows natives - kept
+            // there for anyone running it on their own 32-bit or ARM Java - can never load here.
+            "-injars", inJar.get().asFile.absolutePath + "(" + listOf(
+                "org/sqlite/native/Windows/x86/**", "org/sqlite/native/Windows/aarch64/**",
+                "org/sqlite/native/Windows/armv7/**", "com/sun/jna/win32-x86/**", "com/sun/jna/win32-aarch64/**",
+            ).joinToString(",") { "!$it" } + ")",
             "-outjars", outJar.get().asFile.absolutePath,
             "-libraryjars", jmods.get() + "(!**.jar;!module-info.class)",
         )
@@ -351,7 +356,24 @@ val appImage = tasks.register<Exec>("appImage") {
     doFirst { outDir.walkBottomUp().forEach { it.setWritable(true); it.delete() } }
     // jlink writes a second runtime archive for uncompressed object pointers, which a JVM capped at
     // 320MB never uses - 12MB of install for nothing.
-    doLast { outDir.resolve("OuterTune/runtime/bin/server/classes_nocoops.jsa").let { it.setWritable(true); it.delete() } }
+    //
+    // The rest of what goes is never loaded either. The api-ms-win-* and ucrtbase DLLs are the
+    // Universal C Runtime, shipped for Windows 7 and 8: Windows 10 always uses its own copy whatever
+    // sits beside the app, and Java 21 needs Windows 10. The .exe files are developer tools (java.exe
+    // itself only had to exist for jlink to write the CDS archive), and the .lib files, the class list
+    // and the PostScript font tables are for building against the runtime or printing from it.
+    doLast {
+        val runtime = outDir.resolve("OuterTune/runtime")
+        val unused = listOf(runtime.resolve("bin/server/classes_nocoops.jsa")) +
+            runtime.resolve("bin").listFiles().orEmpty().filter {
+                it.name.startsWith("api-ms-win-") || it.name == "ucrtbase.dll" || it.name.endsWith(".exe")
+            } +
+            runtime.resolve("lib").listFiles().orEmpty().filter {
+                it.name.endsWith(".lib") || it.name == "classlist" || it.name == "jrt-fs.jar" ||
+                    it.name.startsWith("psfont") || it.name.endsWith(".src")
+            }
+        unused.forEach { it.setWritable(true); it.delete() }
+    }
     executable(jpackageTool.get())
     args(
         "--type", "app-image",
@@ -363,17 +385,18 @@ val appImage = tasks.register<Exec>("appImage") {
         "--main-jar", "outertune-desktop.jar",
         "--main-class", "com.dd3boh.outertune.desktop.MainKt",
         "--dest", outDir.absolutePath,
+        // What the code reaches (jdeps), plus what is reached by name: jdk.crypto.ec for TLS,
+        // jdk.charsets for the code pages Chinese, Japanese and Korean Windows run in, jdk.zipfs for
+        // jar: paths, jdk.accessibility for screen readers. Not here, because nothing uses them:
+        // java.net.http (ktor talks through OkHttp), java.naming, PKCS#11 and jdk.net. Nor
+        // jdk.localedata: the interface is English, so dates and numbers are written the English
+        // way too, from the data java.base carries - and it was 8MB.
         "--add-modules", listOf(
-            "java.base", "java.desktop", "java.sql", "java.net.http", "java.naming", "java.logging",
-            "java.management", "java.prefs", "java.xml", "java.scripting", "jdk.unsupported",
-            "jdk.crypto.ec", "jdk.crypto.cryptoki", "jdk.charsets", "jdk.zipfs", "jdk.accessibility",
-            "jdk.localedata", "jdk.net",
+            "java.base", "java.desktop", "java.sql", "java.logging", "java.management", "java.prefs",
+            "java.xml", "java.scripting", "jdk.unsupported", "jdk.crypto.ec", "jdk.charsets",
+            "jdk.zipfs", "jdk.accessibility",
         ).joinToString(","),
-        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --compress=zip-6 " +
-            // Locale data for every language Java knows was 29MB of the 108MB runtime. These are the
-            // languages OuterTune's users are likeliest to run Windows in; any other falls back to
-            // the root locale's formats, which only changes how a date or number is written.
-            "--include-locales=en,ja,zh,ko,es,fr,de,it,pt,ru,nl,pl,tr,id,vi,th,ar,hi,uk " +
+        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --compress=zip-9 " +
             // A class-data-sharing archive of the runtime's own classes, made now rather than on
             // every start - see the java options below for the app's half.
             "--generate-cds-archive",
