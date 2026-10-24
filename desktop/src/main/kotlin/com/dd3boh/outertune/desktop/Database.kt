@@ -1163,7 +1163,13 @@ class Database(file: File) {
         return out
     }
 
-    /** Songs in the library credited to an artist, most recently played first. */
+    /**
+     * Songs in the library credited to an artist, most recently played first.
+     *
+     * In the library means kept: liked, in a playlist, downloaded, or a file on this computer. The
+     * song table also holds everything ever played, so without this an artist's "In your library"
+     * listed the whole history of them - songs heard once on a radio are not in anyone's library.
+     */
     fun songsByArtist(artistId: String): List<StoredSong> = synchronized(lock) {
         connection.prepareStatement(
             """
@@ -1172,6 +1178,10 @@ class Database(file: File) {
                 JOIN song s ON s.id = sa.songId
                 LEFT JOIN play_history h ON h.songId = s.id
             WHERE sa.artistId = ?
+              AND (EXISTS (SELECT 1 FROM liked l WHERE l.songId = s.id)
+                OR EXISTS (SELECT 1 FROM playlist_song p WHERE p.songId = s.id)
+                OR EXISTS (SELECT 1 FROM download d WHERE d.songId = s.id)
+                OR EXISTS (SELECT 1 FROM local_file f WHERE f.songId = s.id))
             ORDER BY COALESCE(h.playedAt, 0) DESC
             """.trimIndent()
         ).use { st ->
