@@ -42,7 +42,13 @@ data class LyricLine(
     val timeMs: Long?,
     val text: String,
     val words: List<LyricWord> = emptyList(),
-) {}
+    /**
+     * A second line at the same time - in an LRC file, a translation or romanisation. Drawn under
+     * the line and lit with it; as two lines of their own the later one won every lookup, so the
+     * original was never highlighted at all.
+     */
+    val translation: String? = null,
+)
 
 /**
  * A song's words.
@@ -136,8 +142,7 @@ object LrcParser {
             // Enhanced LRC marks each word with its own time. Read rather than discarded, so a
             // provider that happens to send enhanced lines gets word-by-word highlighting for free -
             // the format is far more common than the number of players that use it.
-            val words = parseWordTimings(body)
-            stamps.forEach { stamp ->
+            fun stampMs(stamp: MatchResult): Long {
                 val minutes = stamp.groupValues[1].toLong()
                 val seconds = stamp.groupValues[2].toLong()
                 val fraction = stamp.groupValues[3]
@@ -149,11 +154,26 @@ object LrcParser {
                     2 -> fraction.toLong() * 10
                     else -> fraction.take(3).toLong()
                 }
-                val at = (minutes * 60 + seconds) * 1000 + millis + offsetMs
+                return (minutes * 60 + seconds) * 1000 + millis
+            }
+            val firstStampMs = stampMs(stamps.first())
+            val parsedWords = parseWordTimings(body)
+            // Words before the first word mark - "[00:10]Hello <00:10.40>world" - were dropped, so
+            // "Hello" vanished while the line was sung. They start with the line.
+            val lead = WORD_TIMING.find(body)?.let { body.substring(0, it.range.first) }.orEmpty()
+            val words = if (parsedWords.isNotEmpty() && lead.isNotBlank()) {
+                listOf(LyricWord(lead.trim(), firstStampMs, parsedWords.first().startMs, lead.endsWith(" "))) + parsedWords
+            } else {
+                parsedWords
+            }
+            stamps.forEach { stamp ->
+                val at = stampMs(stamp) + offsetMs
                 // A repeated line's word times belong to its first occurrence, so they are moved to
                 // wherever this copy sits. Left alone, every repeat would highlight against the
-                // times of the first one and light up all at once.
-                val shift = at - ((words.firstOrNull()?.startMs ?: at) + offsetMs)
+                // times of the first one and light up all at once. Measured from the first stamp,
+                // not the first word, which left the first copy's opening word pulled back to the
+                // line's own time.
+                val shift = at - (firstStampMs + offsetMs)
                 timed += LyricLine(
                     timeMs = at,
                     text = text,
@@ -171,7 +191,20 @@ object LrcParser {
             // Sorted because multi-timestamp lines are written where they first occur, so a repeated
             // chorus arrives out of order.
             val sorted = timed.sortedBy { it.timeMs }
-            return Lyrics(closeFinalWords(sorted), synced = true, source = source)
+            // Lines sharing a time are one line and its translation: folded together, the first
+            // keeping its words, the rest drawn beneath it.
+            val merged = mutableListOf<LyricLine>()
+            for (line in sorted) {
+                val previous = merged.lastOrNull()
+                if (previous != null && previous.timeMs == line.timeMs && previous.text.isNotBlank() && line.text.isNotBlank()) {
+                    merged[merged.lastIndex] = previous.copy(
+                        translation = listOfNotNull(previous.translation, line.text).joinToString("\n"),
+                    )
+                } else {
+                    merged += line
+                }
+            }
+            return Lyrics(closeFinalWords(merged), synced = true, source = source)
         }
         return Lyrics(plain.map { LyricLine(null, it) }, synced = false, source = source)
     }

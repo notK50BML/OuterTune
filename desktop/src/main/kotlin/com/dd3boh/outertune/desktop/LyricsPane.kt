@@ -165,23 +165,35 @@ private fun SyncedLyrics(
                     .clickable { line.timeMs?.let(onSeek) }
                     .padding(horizontal = 24.dp, vertical = 6.dp)
 
-                if (active && line.words.isNotEmpty()) {
-                    Text(
-                        text = sungText(line, positionMs, onColour),
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
-                        fontWeight = FontWeight.Bold,
-                        textAlign = textAlign,
-                        modifier = modifier,
-                    )
-                } else {
-                    Text(
-                        text = line.text,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
-                        fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                        color = onColour.copy(alpha = alpha),
-                        textAlign = textAlign,
-                        modifier = modifier,
-                    )
+                androidx.compose.foundation.layout.Column(modifier = modifier) {
+                    if (active && line.words.isNotEmpty()) {
+                        Text(
+                            text = sungText(line, positionMs, onColour),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
+                            fontWeight = FontWeight.Bold,
+                            textAlign = textAlign,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    } else {
+                        Text(
+                            text = line.text,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
+                            fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
+                            color = onColour.copy(alpha = alpha),
+                            textAlign = textAlign,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    // The same moment's translation, smaller and quieter, lit with its line.
+                    line.translation?.let {
+                        Text(
+                            text = it,
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSize * 0.72f, lineHeight = fontSize * 0.95f),
+                            color = onColour.copy(alpha = alpha * 0.8f),
+                            textAlign = textAlign,
+                            modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                        )
+                    }
                 }
             }
         }
