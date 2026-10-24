@@ -145,6 +145,15 @@ object ArtistCreditEnricher {
         }
     }
 
+    /**
+     * What two spellings of one artist's name have in common: lower case, the "- Topic" suffix
+     * gone, and nothing but letters and digits - so "i-dle", "I-DLE" and "idle" share a key, as do
+     * "AC/DC" and "ACDC". Used to bring duplicates together; a match only ever folds a placeholder
+     * into the one real channel it matches, never one real channel into another.
+     */
+    internal fun artistKey(name: String): String =
+        name.stripTopicSuffix().lowercase().filter { it.isLetterOrDigit() }
+
     /** The duplicate sweep on its own, for ArtistNameRefresher to run after a batch of renames. */
     internal suspend fun mergeDuplicates(database: MusicDatabase) = mergeDuplicateNamedArtists(database)
 
@@ -174,7 +183,9 @@ object ArtistCreditEnricher {
         // Local and remote artists are kept apart: a local file's "Various Artists" is not the
         // YouTube channel of that name, and folding one into the other loses the distinction the
         // library screen is built on.
-        val groups = all.groupBy { it.name.stripTopicSuffix().trim().lowercase() to it.isLocal }
+        // By artistKey, not the exact name: "i-dle", "I-DLE" and "idle" are one artist written
+        // three ways, and grouping by the literal name never put them side by side.
+        val groups = all.groupBy { artistKey(it.name) to it.isLocal }
 
         for ((key, group) in groups) {
             if (group.size < 2 || key.first.isEmpty()) continue

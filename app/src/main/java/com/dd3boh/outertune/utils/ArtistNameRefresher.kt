@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.utils
 
+import com.zionhuang.innertube.models.SongItem
+import com.dd3boh.outertune.db.TOPIC_SUFFIX
 import android.content.Context
 import android.content.SharedPreferences
 import com.dd3boh.outertune.db.MusicDatabase
@@ -67,6 +69,23 @@ object ArtistNameRefresher {
             checks = context.applicationContext.getSharedPreferences("artist_name_checks", Context.MODE_PRIVATE)
             this.database = database
             scope.launch { work(database) }
+            // The whole library, not only artists that happen to be on screen - so an old name or a
+            // duplicate is put right without anyone scrolling past it. Most likely to be wrong
+            // first: credits no channel was matched to, then names more than one row shares.
+            scope.launch {
+                runCatching {
+                    val all = database.allArtistsOnce().filterNot { it.isLocal }
+                    val shared = all.groupBy { ArtistCreditEnricher.artistKey(it.name) }
+                        .filterValues { it.size > 1 }.values.flatten().mapTo(HashSet()) { it.id }
+                    enqueue(all.sortedBy {
+                        when {
+                            !it.isYouTubeArtist -> 0
+                            it.id in shared -> 1
+                            else -> 2
+                        }
+                    })
+                }.onFailure { Timber.tag(TAG).w(it, "could not queue the library") }
+            }
         }
     }
 
@@ -117,6 +136,27 @@ object ArtistNameRefresher {
             val ownId = artist.id.normalizeArtistId()
             val page = YouTube.artist(ownId).getOrNull() ?: return false
             val pageId = page.artist.id.normalizeArtistId()
+
+            // A Topic channel - YouTube's auto-generated "i-dle - Topic", a channel of its own
+            // beside the artist's real one. With the suffix stripped the two have the same name, so
+            // they sat side by side as two artists, and the sweep rightly will not merge two real
+            // channels on a name. The Topic page's songs say whose they are: when two or more of
+            // them credit one other channel, that is the artist, and this row is folded into it.
+            if (TOPIC_SUFFIX.containsMatchIn(page.artist.title)) {
+                val credits = page.sections.flatMap { it.items }.filterIsInstance<SongItem>()
+                    .flatMap { it.artists }
+                    .filter { it.id?.normalizeArtistId()?.let { a -> a.startsWith("UC") && a != ownId } == true }
+                val main = credits.groupingBy { it.id!!.normalizeArtistId() }.eachCount()
+                    .maxByOrNull { it.value }?.takeIf { it.value >= 2 }?.key
+                if (main != null) {
+                    val name = credits.first { it.id!!.normalizeArtistId() == main }.name
+                    Timber.tag(TAG).d("\"${artist.name}\" ($ownId) is a Topic channel of $main - merging")
+                    database.insertOrFillThumbnail(ArtistEntity(id = main, name = name.ifBlank { artist.name }))
+                    ArtistCreditEnricher.mergeArtistInto(database, artist, main)
+                    return true
+                }
+            }
+
             if (pageId.startsWith("UC") && pageId != ownId) {
                 // Redirected: this channel id now opens a different channel. That one is the
                 // artist; this row is a stale alias of it.
