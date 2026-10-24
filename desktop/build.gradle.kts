@@ -1,3 +1,4 @@
+import java.security.MessageDigest
 import java.util.zip.ZipFile
 
 /*
@@ -402,6 +403,37 @@ tasks.register<Exec>("installer") {
     inputs.file(script)
     inputs.dir(appImageOut)
     outputs.file(out.resolve("OuterTune-setup.exe"))
+    // Every file the installer ships, with its SHA-256 - so an update writes only what changed -
+    // and the plain list of them, which each install leaves behind so the next one can remove
+    // whatever it no longer ships. See packaging/OuterTune.iss.
+    val generated = layout.buildDirectory.dir("installer").get().asFile
+    val filesList = generated.resolve("files.iss")
+    val manifest = generated.resolve("manifest.txt")
+    doFirst {
+        generated.mkdirs()
+        val files = source.walkTopDown().filter { it.isFile }.sortedBy { it.path }.toList()
+        val digest = { f: File ->
+            val md = MessageDigest.getInstance("SHA-256")
+            f.inputStream().use { input ->
+                val buffer = ByteArray(1 shl 16)
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    md.update(buffer, 0, n)
+                }
+            }
+            md.digest().joinToString("") { b -> "%02x".format(b) }
+        }
+        val rel = { f: File -> f.relativeTo(source).path.replace('/', '\\') }
+        filesList.writeText(files.joinToString("\n", postfix = "\n") { f ->
+            val r = rel(f)
+            val dir = r.substringBeforeLast('\\', "")
+            val destDir = if (dir.isEmpty()) "{app}" else "{app}\\$dir"
+            "Source: \"${f.absolutePath}\"; DestDir: \"$destDir\"; Flags: ignoreversion; " +
+                "Check: Changed('$r', '${digest(f)}')"
+        })
+        manifest.writeText(files.joinToString("\r\n", postfix = "\r\n") { rel(it) })
+    }
     val iscc = (findProperty("isccPath") as String?)
         ?: listOfNotNull(
             System.getenv("LOCALAPPDATA")?.let { "$it\\Programs\\Inno Setup 6\\ISCC.exe" },
@@ -415,6 +447,8 @@ tasks.register<Exec>("installer") {
         "/DSourceDir=${source.absolutePath}",
         "/DOutDir=${out.absolutePath}",
         "/DIconFile=${icon.absolutePath}",
+        "/DFilesList=${filesList.absolutePath}",
+        "/DManifest=${manifest.absolutePath}",
         // Shown in the installer and Windows' Programs list; free text, unlike --app-version.
         "/DAppVersion=0.3b",
         script.absolutePath,
