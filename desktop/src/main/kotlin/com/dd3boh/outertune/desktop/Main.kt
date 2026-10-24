@@ -422,6 +422,14 @@ internal fun App(
         openArtist = null
         showFullPlayer = false
     }
+    // An artist or album opened from a playlist page is drawn over it, and Back returns to the
+    // playlist - so a playlist opened while one of those is showing has to clear it, or it would open
+    // underneath.
+    val openOnlinePlaylistPage = { item: PlaylistItem ->
+        openOnlinePlaylist = item
+        openArtist = null
+        openAlbumId = null
+    }
     // Handed over once. The player resolves audio, so it is the thing that knows how to fill the
     // cache, and it consults it before reaching for the network.
     LaunchedEffect(library) { player.downloads = library.downloads }
@@ -1089,8 +1097,6 @@ internal fun App(
     CompositionLocalProvider(
         LocalRowButtons provides RowButtons(RowButton.decode(settings.rowButtons), settings.rowMenu),
         LocalSongActions provides songActions,
-        // Remembered: a static local that changes identity redraws everything under it.
-        LocalArtistThumbnail provides remember(library) { library::artistThumbnail },
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
     ) {
     Column(
@@ -1182,7 +1188,7 @@ internal fun App(
                                     is SongItem -> playerQueue.play(listOf(item), 0, item.title)
                                     is AlbumItem -> openAlbumPage(item.browseId)
                                     is ArtistItem -> openArtistPage(StoredArtist(item.id, item.title))
-                                    is PlaylistItem -> openOnlinePlaylist = item
+                                    is PlaylistItem -> openOnlinePlaylistPage(item)
                                 }
                             },
                         )
@@ -1202,22 +1208,10 @@ internal fun App(
                 val albumId = openAlbumId
                 val artist = openArtist
                 val onlineList = openOnlinePlaylist
-                if (onlineList != null) {
-                    OnlinePlaylistPane(
-                        onDownloadAll = downloadAll,
-                        downloadedIds = downloadedIds,
-                        downloadingTitle = downloadingTitle,
-                        state = onlinePlaylist,
-                        currentId = queue.current?.id,
-                        onBack = { openOnlinePlaylist = null },
-                        onPlay = { songs, index -> playerQueue.play(songs, index, onlineList.title) },
-                        onShuffle = { songs ->
-                            val order = songs.shuffled()
-                            if (order.isNotEmpty()) playerQueue.play(order, 0, onlineList.title)
-                        },
-                        onAddToPlaylist = { addingToPlaylist = it },
-                    )
-                } else if (albumId != null) {
+                // A page opened from another is drawn over it: an artist or album opened from a
+                // playlist (or from the player while one was showing) used to stay hidden under the
+                // playlist until Back was pressed.
+                if (albumId != null) {
                     AlbumPane(
                         onDownloadAll = downloadAll,
                         downloadedIds = downloadedIds,
@@ -1246,8 +1240,23 @@ internal fun App(
                         onAddToPlaylist = { addingToPlaylist = it },
                         onOpenAlbum = openAlbumPage,
                         onOpenArtist = openArtistPage,
-                        onOpenPlaylist = { openArtist = null; openOnlinePlaylist = it },
+                        onOpenPlaylist = openOnlinePlaylistPage,
                         hideExplicit = settings.hideExplicit,
+                    )
+                } else if (onlineList != null) {
+                    OnlinePlaylistPane(
+                        onDownloadAll = downloadAll,
+                        downloadedIds = downloadedIds,
+                        downloadingTitle = downloadingTitle,
+                        state = onlinePlaylist,
+                        currentId = queue.current?.id,
+                        onBack = { openOnlinePlaylist = null },
+                        onPlay = { songs, index -> playerQueue.play(songs, index, onlineList.title) },
+                        onShuffle = { songs ->
+                            val order = songs.shuffled()
+                            if (order.isNotEmpty()) playerQueue.play(order, 0, onlineList.title)
+                        },
+                        onAddToPlaylist = { addingToPlaylist = it },
                     )
                 } else if (tab == NavTab.Settings) {
                     SettingsPane(
@@ -1285,7 +1294,7 @@ internal fun App(
                         onPlay = { songs, index -> playerQueue.play(songs, index, "Search: $searchedFor") },
                         onOpenAlbum = openAlbumPage,
                         onOpenArtist = openArtistPage,
-                        onOpenPlaylist = { openOnlinePlaylist = it },
+                        onOpenPlaylist = openOnlinePlaylistPage,
                     )
                 } else if (tab == NavTab.Stats) {
                     StatsPane(
@@ -1315,7 +1324,7 @@ internal fun App(
                         onRemoveSong = { playlist, song -> library.removeFromPlaylist(playlist.id, song.id) },
                         saved = savedPlaylists,
                         // Opens the playlist's page, as on the phone, rather than playing it blind.
-                        onPlaySaved = { playlist -> openOnlinePlaylist = playlist },
+                        onPlaySaved = openOnlinePlaylistPage,
                         onMoveSong = { playlist, from, to ->
                             val ids = openPlaylistSongs.map { it.id }.toMutableList()
                             if (to in ids.indices) {
@@ -1376,7 +1385,7 @@ internal fun App(
                                 onOpenAlbum = openAlbumPage,
                                 onPlayList = { item ->
                                     if (item is PlaylistItem) {
-                                        openOnlinePlaylist = item
+                                        openOnlinePlaylistPage(item)
                                         return@HomePane
                                     }
                                     item.playlistIdOrNull?.let { playlistId ->
@@ -1415,7 +1424,7 @@ internal fun App(
                             tab = NavTab.Playlists
                             openPlaylist = it
                         },
-                        onOpenOnlinePlaylist = { openOnlinePlaylist = it },
+                        onOpenOnlinePlaylist = openOnlinePlaylistPage,
                     )
                 }
             }
