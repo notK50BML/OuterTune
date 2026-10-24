@@ -114,7 +114,7 @@ internal data class SettingEntry(val title: String, val category: SettingsCatego
 internal val SETTING_ENTRIES = listOf(
     SettingEntry("Use login for browsing content", SettingsCategory.Account, "personal recommendations premium guest signed in"),
     SettingEntry("Show login token", SettingsCategory.Account, "cookie token copy session advanced login"),
-    SettingEntry("Automatically sync with your YouTube Music account", SettingsCategory.Account, "auto sync startup"),
+    SettingEntry("Sync automatically", SettingsCategory.Account, "auto sync startup youtube music account"),
     SettingEntry("Sync now", SettingsCategory.Account, "sync manual refresh library liked"),
     SettingEntry("What to sync", SettingsCategory.Account, "liked songs library songs albums artists playlists recent activity"),
     SettingEntry("Sync mode", SettingsCategory.Account, "read only read write push likes"),
@@ -498,7 +498,7 @@ private fun PlayerSettings(settings: Settings) {
         )
         SettingSwitch(
             title = "Seek buttons",
-            subtitle = "A skip either side of play. Off by default, as on the phone.",
+            subtitle = "Skip back and forward buttons either side of play.",
             checked = settings.showSeekButtons,
             onCheckedChange = { settings.showSeekButtons = it },
             icon = OuterTuneIcons.fastForward,
@@ -807,7 +807,7 @@ private fun DiscordSettings(settings: Settings) {
             Spacer(modifier = Modifier.height(6.dp))
             SettingSwitch(
                 title = "Show what's playing on Discord",
-                subtitle = "A card on the profile, the same one the phone app shows.",
+                subtitle = "Shows the song you are playing as a card on your Discord profile.",
                 checked = settings.enableDiscordRpc,
                 onCheckedChange = { settings.enableDiscordRpc = it },
                 icon = OuterTuneIcons.discord,
@@ -1102,9 +1102,9 @@ private fun LocalMusicSettings(settings: Settings, library: LibraryStore) {
         scope.launch { LocalMusic.scan(list.map { java.io.File(it) }, library) }
     }
 
-    Section("Local music") {
+    Section("Local media") {
         SettingSwitch(
-            title = "Use local music",
+            title = "Use local media",
             subtitle = "Reads the folders below. Off leaves them alone entirely.",
             checked = settings.localEnabled,
             onCheckedChange = { settings.localEnabled = it },
@@ -1112,7 +1112,7 @@ private fun LocalMusicSettings(settings: Settings, library: LibraryStore) {
         )
         SettingSwitch(
             title = "Rescan at every start",
-            subtitle = "Picks up anything added or changed since. Off still loads what is already known, and the manual rescan still works.",
+            subtitle = "Picks up songs added or changed since last time. Off still loads what is already known.",
             checked = settings.localScanOnStart,
             onCheckedChange = { settings.localScanOnStart = it },
             icon = OuterTuneIcons.restore,
@@ -1890,8 +1890,8 @@ private fun AccountSyncSettings(settings: Settings, account: Account, sync: YouT
     val status by sync.status.collectAsState()
     Section("Sync") {
         SettingSwitch(
-            title = "Automatically sync with your YouTube Music account",
-            subtitle = "On signing in and each time the app starts.",
+            title = "Sync automatically",
+            subtitle = "Syncs with your YouTube Music account when you sign in and each time the app starts.",
             checked = settings.syncAuto,
             onCheckedChange = { settings.syncAuto = it },
             icon = OuterTuneIcons.restore,
