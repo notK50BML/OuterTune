@@ -118,13 +118,21 @@ class YouTubeSync(private val library: LibraryStore) {
 
                 val songs = liked.await()
                 // Remote order: index 0 is the most recently liked.
-                val added = songs?.let { library.importLiked(it.map { song -> song.toStored() }) }
+                // Not a song whose like or unlike here is still on its way to YouTube (LikePushes):
+                // the account's list is about to change, and taking it as it stands would bring
+                // back a song just unliked.
+                val added = songs?.let {
+                    library.importLiked(it.map { song -> song.toStored() }.filterNot { song -> LikePushes.isPending(song.id) })
+                }
                 // Overwrite: a like here that the account no longer has is taken away, as the
                 // phone's "overwrite local content with remote content" does.
                 var removed = 0
                 if (songs != null && overwrite) {
                     val remote = songs.mapTo(HashSet()) { it.id }
-                    library.liked.value.filter { it.id !in remote && !LocalMusic.isLocal(it.id) }.forEach {
+                    // Nor one liked in the last minute, which YouTube does not have yet.
+                    library.liked.value.filter {
+                        it.id !in remote && !LocalMusic.isLocal(it.id) && !LikePushes.isPending(it.id)
+                    }.forEach {
                         library.database.setLiked(it, false, System.currentTimeMillis())
                         removed++
                     }
@@ -178,10 +186,19 @@ class YouTubeSync(private val library: LibraryStore) {
  *
  * Sent at once, an accidental unlike reached the account before it could be taken back, and its
  * list reordered. Now each change waits [DELAY_MS]; changed back inside that, nothing is sent at
- * all. Whatever is still waiting is sent when the window closes ([flushBlocking]).
+ * all. Whatever is still waiting is sent when the window closes ([flushBlocking]). While a change
+ * waits ([isPending]) the sync leaves that song alone, since YouTube's list does not show it yet.
  */
 object LikePushes {
     const val DELAY_MS = 60_000L
+
+    // Settable for tests, which cannot wait a minute or reach YouTube.
+    internal var delayMs = DELAY_MS
+    internal var retryDelaysMs = listOf(5_000L, 30_000L)
+
+    // likeVideo hands its failure back as a Result rather than throwing - unwrapped here, or a failed
+    // send would count as a sent one, and the next sync would quietly undo the change.
+    internal var send: suspend (String, Boolean) -> Unit = { id, liked -> YouTube.likeVideo(id, liked).getOrThrow() }
 
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
 
@@ -194,12 +211,26 @@ object LikePushes {
         previous?.job?.cancel()
         val remote = previous?.remoteLiked ?: !liked
         if (remote == liked) return // back to what YouTube already has
-        val job = scope.launch {
-            kotlinx.coroutines.delay(DELAY_MS)
+        // Started only once it is in [pending], so it cannot finish and remove itself first.
+        val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            kotlinx.coroutines.delay(delayMs)
             pending.remove(songId)
-            runCatching { YouTube.likeVideo(songId, liked) }
+            sendWithRetry(songId, liked)
         }
         pending[songId] = Pending(job, remote)
+        job.start()
+    }
+
+    /** Whether a like or unlike of [songId] is still waiting to be sent. */
+    fun isPending(songId: String): Boolean = pending.containsKey(songId)
+
+    private suspend fun sendWithRetry(songId: String, liked: Boolean) {
+        for (attempt in 0..retryDelaysMs.size) {
+            if (attempt > 0) kotlinx.coroutines.delay(retryDelaysMs[attempt - 1])
+            // A newer change for the same song has taken over; it sends its own.
+            if (pending.containsKey(songId)) return
+            if (runCatching { send(songId, liked) }.isSuccess) return
+        }
     }
 
     /** Sends everything still waiting, for up to a few seconds - called as the app closes. */
@@ -210,7 +241,7 @@ object LikePushes {
         waiting.forEach { it.value.job.cancel() }
         kotlinx.coroutines.runBlocking {
             kotlinx.coroutines.withTimeoutOrNull(5_000) {
-                waiting.map { (id, p) -> async { runCatching { YouTube.likeVideo(id, !p.remoteLiked) } } }.forEach { it.await() }
+                waiting.map { (id, p) -> async { runCatching { send(id, !p.remoteLiked) } } }.forEach { it.await() }
             }
         }
     }

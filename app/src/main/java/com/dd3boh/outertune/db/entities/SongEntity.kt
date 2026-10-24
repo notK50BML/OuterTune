@@ -59,7 +59,8 @@ data class SongEntity(
     // date - so an accidental unlike undone puts it back where it was in Liked songs, not at the
     // top. See LikeSync.
     fun localToggleLike(): SongEntity {
-        if (liked) LikeSync.rememberUnliked(id, likedDate)
+        // Only the liked-songs sync calls this, matching YouTube - nothing to offer Undo for.
+        if (liked) LikeSync.rememberUnliked(id, likedDate, offerUndo = false)
         return copy(
             liked = !liked,
             likedDate = if (!liked) LikeSync.likedDateFor(id) else null,
@@ -73,8 +74,9 @@ data class SongEntity(
             likedDate = if (!liked) LikeSync.likedDateFor(id) else null,
             inLibrary = if (!liked) inLibrary ?: LocalDateTime.now() else inLibrary
         ).also {
-            // A minute later, and not at all if it is changed back first - see LikeSync.
-            LikeSync.push(id, !liked)
+            // A minute later, and not at all if it is changed back first - see LikeSync. A file on
+            // this phone has no YouTube video to like.
+            if (!isLocal) LikeSync.push(id, !liked)
         }
     }
 

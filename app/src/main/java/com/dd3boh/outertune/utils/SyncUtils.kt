@@ -565,9 +565,12 @@ class SyncUtils @Inject constructor(
 
             // Unlike anything that is no longer liked remotely. Local files are never
             // represented upstream, so they are left alone.
+            // Nor a song liked here in the last minute, whose like has not reached YouTube yet -
+            // see LikeSync.isPending.
             database.likedSongsByNameAsc().first()
                 .filterNot { it.song.isLocal }
                 .filterNot { it.id in remoteIds }
+                .filterNot { LikeSync.isPending(it.id) }
                 .forEach { song ->
                     try {
                         database.update(song.song.localToggleLike())
@@ -580,6 +583,9 @@ class SyncUtils @Inject constructor(
             // Insert or re-stamp, deriving likedDate from the remote position.
             val now = LocalDateTime.now()
             remoteSongs.forEachIndexed { index, remoteSong ->
+                // Unliked here in the last minute, and YouTube does not know yet: liking it again
+                // from YouTube's list would undo what the user just did.
+                if (LikeSync.isPending(remoteSong.id)) return@forEachIndexed
                 try {
                     val likedDate = now.minusSeconds(index.toLong())
                     val localSong = database.song(remoteSong.id).firstOrNull()?.song

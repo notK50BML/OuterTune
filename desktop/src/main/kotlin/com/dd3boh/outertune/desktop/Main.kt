@@ -660,6 +660,13 @@ internal fun App(
         else if (settings.syncAuto) youTubeSync.syncAll()
     }
     var unlikedRecently by remember { mutableStateOf<List<StoredSong>>(emptyList()) }
+    // Offered for ten seconds after the last unlike.
+    if (unlikedRecently.isNotEmpty()) {
+        LaunchedEffect(unlikedRecently) {
+            delay(10_000)
+            unlikedRecently = emptyList()
+        }
+    }
     fun likeAndPush(song: StoredSong) {
         library.toggleLiked(song)
         val nowLiked = library.isLiked(song.id)
@@ -670,6 +677,12 @@ internal fun App(
         if (accountState is AccountState.SignedIn && settings.syncMode == SyncMode.ReadWrite) {
             LikePushes.schedule(song.id, nowLiked)
         }
+    }
+
+    val undoUnlikes = {
+        val songs = unlikedRecently
+        unlikedRecently = emptyList()
+        songs.forEach { if (!library.isLiked(it.id)) likeAndPush(it) }
     }
 
     fun search() {
@@ -1449,31 +1462,10 @@ internal fun App(
             }
         }
 
-        // Undo for unliking: liked again, each song goes back to where it was in Liked songs.
-        if (unlikedRecently.isNotEmpty()) {
-            LaunchedEffect(unlikedRecently) {
-                delay(10_000)
-                unlikedRecently = emptyList()
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(MaterialTheme.colorScheme.inverseSurface)
-                    .padding(horizontal = 16.dp, vertical = 4.dp),
-            ) {
-                Text(
-                    if (unlikedRecently.size == 1) "Removed from liked songs" else "${unlikedRecently.size} songs removed from liked songs",
-                    color = MaterialTheme.colorScheme.inverseOnSurface,
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.weight(1f),
-                )
-                TextButton(onClick = {
-                    val songs = unlikedRecently
-                    unlikedRecently = emptyList()
-                    songs.forEach { if (!library.isLiked(it.id)) likeAndPush(it) }
-                }) { Text("Undo", color = MaterialTheme.colorScheme.inversePrimary) }
-            }
+        // Undo for unliking: liked again, each song goes back to where it was in Liked songs. Over the
+        // full player instead when that is open - see below.
+        if (unlikedRecently.isNotEmpty() && !showFullPlayer) {
+            UnlikeUndoBar(unlikedRecently.size, onUndo = undoUnlikes, modifier = Modifier.fillMaxWidth())
         }
         batch?.let { current ->
             BatchDownloadBar(
@@ -1516,6 +1508,19 @@ internal fun App(
                     awaitPointerEventScope { while (true) awaitPointerEvent() }
                 },
         ) { fullPlayer() }
+        // The full player covers the window, the bar above the player bar included - and its heart
+        // is where an unlike is likeliest to be a slip. So Undo is offered over it, as a snackbar.
+        if (unlikedRecently.isNotEmpty()) {
+            UnlikeUndoBar(
+                unlikedRecently.size,
+                onUndo = undoUnlikes,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(start = 16.dp, end = 16.dp, bottom = 24.dp)
+                    .widthIn(max = 560.dp)
+                    .clip(RoundedCornerShape(8.dp)),
+            )
+        }
     }
     }
 }
@@ -2256,3 +2261,22 @@ private const val MAX_SEARCH_HISTORY = 20
 private fun List<HomePage.Section>.filterExplicitIf(hide: Boolean): List<HomePage.Section> =
     if (!hide) this else map { section -> section.copy(items = section.items.filterNot { it.explicit }) }
         .filter { it.items.isNotEmpty() }
+
+/** "Removed from liked songs", with Undo - shared by the bar above the player and the full player. */
+@Composable
+private fun UnlikeUndoBar(count: Int, onUndo: () -> Unit, modifier: Modifier = Modifier) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.inverseSurface)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Text(
+            if (count == 1) "Removed from liked songs" else "$count songs removed from liked songs",
+            color = MaterialTheme.colorScheme.inverseOnSurface,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        TextButton(onClick = onUndo) { Text("Undo", color = MaterialTheme.colorScheme.inversePrimary) }
+    }
+}

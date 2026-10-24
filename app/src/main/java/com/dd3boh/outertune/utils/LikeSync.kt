@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.utils
 
+import kotlinx.coroutines.CoroutineStart
+import androidx.annotation.VisibleForTesting
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,10 +32,32 @@ import java.util.concurrent.ConcurrentHashMap
  *   inside that minute sends nothing at all, so YouTube's list never moves. Anything still waiting
  *   is sent when the app goes to the background ([flushNow]), so nothing is lost to a closed app.
  * - [unliked] tells the UI, which offers Undo for a few seconds.
+ * - While a change is waiting ([isPending]) the liked-songs sync leaves that song alone: YouTube does
+ *   not have the change yet, so its list would otherwise undo it - a song just unliked coming back,
+ *   or one just liked disappearing.
  */
 object LikeSync {
 
     const val PUSH_DELAY_MS = 60_000L
+
+    /**
+     * Retries for a send that fails, after these waits. A dropped request used to be dropped for
+     * good, leaving the account disagreeing with the phone until the next sync quietly reverted the
+     * change.
+     */
+    private val RETRY_DELAYS_MS = listOf(5_000L, 30_000L)
+
+    // Settable for tests, which cannot wait a minute or reach YouTube.
+    @VisibleForTesting
+    internal var pushDelayMs = PUSH_DELAY_MS
+
+    @VisibleForTesting
+    internal var retryDelaysMs = RETRY_DELAYS_MS
+
+    // likeVideo hands its failure back as a Result rather than throwing - unwrapped here, or a
+    // failed send would count as a sent one.
+    @VisibleForTesting
+    internal var send: suspend (String, Boolean) -> Unit = { id, liked -> YouTube.likeVideo(id, liked).getOrThrow() }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -53,9 +77,15 @@ object LikeSync {
     /** A song id each time a song is unliked. */
     val unliked: SharedFlow<String> = _unliked
 
-    /** Called as a song is unliked: keeps its liked date and announces it. */
-    fun rememberUnliked(id: String, likedDate: LocalDateTime?) {
+    /**
+     * Called as a song is unliked: keeps its liked date, and - for an unlike the user made, which is
+     * what [offerUndo] means - offers it for Undo. The liked-songs sync unliking what YouTube no
+     * longer has is not offered: that is not a mistake to take back, and Undo would like it again on
+     * the account.
+     */
+    fun rememberUnliked(id: String, likedDate: LocalDateTime?, offerUndo: Boolean = true) {
         if (likedDate != null) likedDates[id] = likedDate
+        if (!offerUndo) return
         unlikedAt[id] = System.currentTimeMillis()
         _unliked.tryEmit(id)
     }
@@ -72,6 +102,17 @@ object LikeSync {
         return unlikedAt.filterValues { it >= since }.keys.toList()
     }
 
+    /**
+     * No longer offered for Undo - its bar has gone. Without this, a song whose bar had timed out was
+     * counted again by the next unlike's bar, and that bar's Undo liked it again too.
+     */
+    fun forgetUndo(ids: Collection<String>) {
+        ids.forEach { unlikedAt.remove(it) }
+    }
+
+    /** Whether a like or unlike of [id] is still waiting to reach YouTube Music. */
+    fun isPending(id: String): Boolean = pending.containsKey(id)
+
     /** Sends [liked] for [id] to YouTube Music after [PUSH_DELAY_MS], unless it is changed back first. */
     fun push(id: String, liked: Boolean) {
         val previous = pending.remove(id)
@@ -79,12 +120,25 @@ object LikeSync {
         val remote = previous?.remoteLiked ?: !liked
         // Back to what YouTube already has: nothing to send.
         if (remote == liked) return
-        val job = scope.launch {
-            delay(PUSH_DELAY_MS)
+        // Started only once it is in [pending], so it cannot finish and remove itself first.
+        val job = scope.launch(start = CoroutineStart.LAZY) {
+            delay(pushDelayMs)
             pending.remove(id)
-            runCatching { YouTube.likeVideo(id, liked) }.onFailure { reportException(it) }
+            sendWithRetry(id, liked)
         }
         pending[id] = Pending(job, remote)
+        job.start()
+    }
+
+    private suspend fun sendWithRetry(id: String, liked: Boolean) {
+        for (attempt in 0..retryDelaysMs.size) {
+            if (attempt > 0) delay(retryDelaysMs[attempt - 1])
+            // A newer change for the same song has taken over; it sends its own.
+            if (pending.containsKey(id)) return
+            val result = runCatching { send(id, liked) }
+            if (result.isSuccess) return
+            if (attempt == retryDelaysMs.size) result.exceptionOrNull()?.let { reportException(it) }
+        }
     }
 
     /** Sends everything still waiting, now - for the app going to the background. */
@@ -92,7 +146,7 @@ object LikeSync {
         for ((id, waiting) in pending.entries.toList()) {
             if (!pending.remove(id, waiting)) continue
             waiting.job.cancel()
-            scope.launch { runCatching { YouTube.likeVideo(id, !waiting.remoteLiked) }.onFailure { reportException(it) } }
+            scope.launch { sendWithRetry(id, !waiting.remoteLiked) }
         }
     }
 }

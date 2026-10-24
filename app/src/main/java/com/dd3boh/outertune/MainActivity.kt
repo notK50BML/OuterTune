@@ -357,6 +357,9 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     }
+                    // The bar has gone, so these are no longer on offer - or the next unlike's bar
+                    // would count them again, and its Undo like them again too.
+                    LikeSync.forgetUndo(ids)
                 }
             }
 
