@@ -349,6 +349,9 @@ val appImage = tasks.register<Exec>("appImage") {
     val icon = appIcon.asFile
     // jpackage marks what it writes read-only, which a plain recursive delete on Windows gives up on.
     doFirst { outDir.walkBottomUp().forEach { it.setWritable(true); it.delete() } }
+    // jlink writes a second runtime archive for uncompressed object pointers, which a JVM capped at
+    // 320MB never uses - 12MB of install for nothing.
+    doLast { outDir.resolve("OuterTune/runtime/bin/server/classes_nocoops.jsa").let { it.setWritable(true); it.delete() } }
     executable(jpackageTool.get())
     args(
         "--type", "app-image",
@@ -366,12 +369,20 @@ val appImage = tasks.register<Exec>("appImage") {
             "jdk.crypto.ec", "jdk.crypto.cryptoki", "jdk.charsets", "jdk.zipfs", "jdk.accessibility",
             "jdk.localedata", "jdk.net",
         ).joinToString(","),
-        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --strip-native-commands --compress=zip-6 " +
+        "--jlink-options", "--strip-debug --no-header-files --no-man-pages --compress=zip-6 " +
             // Locale data for every language Java knows was 29MB of the 108MB runtime. These are the
             // languages OuterTune's users are likeliest to run Windows in; any other falls back to
             // the root locale's formats, which only changes how a date or number is written.
-            "--include-locales=en,ja,zh,ko,es,fr,de,it,pt,ru,nl,pl,tr,id,vi,th,ar,hi,uk",
-        "--java-options", "-Xmx320m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m",
+            "--include-locales=en,ja,zh,ko,es,fr,de,it,pt,ru,nl,pl,tr,id,vi,th,ar,hi,uk " +
+            // A class-data-sharing archive of the runtime's own classes, made now rather than on
+            // every start - see the java options below for the app's half.
+            "--generate-cds-archive",
+        // AutoCreateSharedArchive: the first run records the app's classes into app.jsa beside the
+        // jar and every later start maps them in already parsed and verified, instead of reading
+        // and checking thousands of classes out of the jar each time. Where the folder is not
+        // writable (an all-users install in Program Files) the JVM skips it and starts as before.
+        "--java-options", "-Xmx320m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m " +
+            "-XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=\$APPDIR/app.jsa",
     )
 }
 
@@ -411,7 +422,10 @@ tasks.register<Exec>("installer") {
     val manifest = generated.resolve("manifest.txt")
     doFirst {
         generated.mkdirs()
-        val files = source.walkTopDown().filter { it.isFile }.sortedBy { it.path }.toList()
+        // Not app.jsa: that is the class-data cache the app writes on its first run (see the java
+        // options), and a copy left in the build folder by running it must not be shipped.
+        val files = source.walkTopDown().filter { it.isFile && it.extension != "jsa" || it.name == "classes.jsa" }
+            .sortedBy { it.path }.toList()
         val digest = { f: File ->
             val md = MessageDigest.getInstance("SHA-256")
             f.inputStream().use { input ->

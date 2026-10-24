@@ -57,6 +57,10 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 #include FilesList
 Source: "{#Manifest}"; DestDir: "{app}"; DestName: "manifest.txt"; Flags: ignoreversion
 
+[UninstallDelete]
+; The class-data cache the app writes beside its jar on first run, for a faster start.
+Type: files; Name: "{app}\app\app.jsa"
+
 [Icons]
 Name: "{autoprograms}\OuterTune"; Filename: "{app}\OuterTune.exe"
 Name: "{autodesktop}\OuterTune"; Filename: "{app}\OuterTune.exe"; Tasks: desktopicon
