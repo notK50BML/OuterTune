@@ -176,7 +176,9 @@ object Profiles {
                 put("alignment", if (s.lyricsAlignment == LyricsAlignment.Left) "left" else "center")
                 put("wordByWord", s.wordByWordLyrics)
                 put("estimateWordTimings", s.estimateWordTimings)
-                put("offsetMs", s.lyricsOffsetMs)
+                // Negated both ways: in the shared profile format a positive offset shows lines earlier,
+                // as the phone has it; the desktop setting means the opposite (later).
+                put("offsetMs", -s.lyricsOffsetMs)
                 put("openOnCoverClick", s.lyricsOnCoverClick)
                 put("lrclib", s.lyricsLrclib)
                 put("kugou", s.lyricsKugou)
@@ -247,7 +249,7 @@ object Profiles {
                 str("alignment") { s.lyricsAlignment = if (it == "left") LyricsAlignment.Left else LyricsAlignment.Centre }
                 bool("wordByWord") { s.wordByWordLyrics = it }
                 bool("estimateWordTimings") { s.estimateWordTimings = it }
-                int("offsetMs") { s.lyricsOffsetMs = it }
+                int("offsetMs") { s.lyricsOffsetMs = -it }
                 bool("openOnCoverClick") { s.lyricsOnCoverClick = it }
                 bool("lrclib") { s.lyricsLrclib = it }
                 bool("kugou") { s.lyricsKugou = it }

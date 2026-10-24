@@ -415,7 +415,9 @@ fun Lyrics(
                             )
                             // we allow clicking on blank lyrics, ignore item.isClickable
                             .clickable(enabled = isSynced && lyricsClickable) {
-                                playerConnection.player.seekTo(item.start.toLong())
+                                // The line's time less the offset, since highlighting runs at position + offset: seeking
+                                // to the raw time landed early, and lit the previous line.
+                                playerConnection.player.seekTo((item.start.toLong() - lyricOffset).coerceAtLeast(0L))
                                 currentLineIndex = index
                                 karaokePosition.longValue = item.start.toLong()
                                 lastPreviewTime = 0L
