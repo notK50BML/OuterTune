@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.desktop
 
 import kotlin.math.pow
+import com.zionhuang.innertube.NewPipeUtils
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.YouTubeClient
 import io.ktor.client.HttpClient
@@ -20,6 +21,7 @@ import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.delay
@@ -95,6 +97,10 @@ class DesktopPlayer {
     internal companion object {
         /** AAC-LC in MP4 at ~130kbps: the format every working client offers with a direct URL. */
         const val ITAG_AAC_MEDIUM = 140
+
+        /** The same codec at ~48kbps, and at ~256kbps (Premium accounts only). */
+        const val ITAG_AAC_LOW = 139
+        const val ITAG_AAC_HIGH = 141
 
         /** Samples per AAC-LC frame - fixed by the codec, which is what makes seeking arithmetic. */
         const val FRAME_SAMPLES = 1024L
@@ -535,7 +541,18 @@ class DesktopPlayer {
         // playable - which is the whole point of having downloaded it.
         downloads?.read(videoId)?.let { return Resolved.Audio(it) }
 
+        // NewPipe first. Since October 2026 YouTube answers the device clients below with "This video
+        // is unavailable", or - iOS - with a URL that serves the first megabyte and then 403s, which
+        // is how googlevideo treats a client it wants a proof-of-origin token from. NewPipe resolves
+        // the way the web player does, deciphering the signature and the throttling parameter with
+        // the player's own JavaScript (Rhino), and its URLs serve the whole song. It is the route
+        // Flow takes, and it was already here: the Android app grafts its URLs on as a last resort.
+        // The clients stay as the fallback in case YouTube turns either way round again.
         val failures = mutableListOf<String>()
+        when (val outcome = resolveAndFetchWithNewPipe(videoId)) {
+            is Resolved.Audio -> return outcome
+            is Resolved.Failure -> failures += "NewPipe: ${outcome.reason}"
+        }
         for (client in CLIENTS) {
             when (val outcome = resolveAndFetchWith(videoId, client)) {
                 is Resolved.Audio -> return outcome
@@ -545,6 +562,38 @@ class DesktopPlayer {
         // Every client's own reason, not just the last one - "403" from one client and "refused"
         // from another are different problems, and collapsing them hides which is which.
         return Resolved.Failure("no client could serve this track. ${failures.joinToString("; ")}")
+    }
+
+    private suspend fun resolveAndFetchWithNewPipe(videoId: String): Resolved = coroutineScope {
+        // NewPipe's streams carry no loudness figure, and normalisation needs one. A device client's
+        // player response still has it even where its own URLs are refused, so it is asked alongside
+        // - it answers well inside the time NewPipe takes, and costs nothing when it does not.
+        val loudness = async {
+            YouTube.player(videoId, client = YouTubeClient.IOS, authenticated = false).getOrNull()?.let { r ->
+                r.streamingData?.adaptiveFormats?.firstOrNull { it.itag == ITAG_AAC_MEDIUM }?.loudnessDb
+                    ?: r.playerConfig?.audioConfig?.loudnessDb
+            }
+        }
+        val streams = withContext(Dispatchers.IO) { NewPipeUtils.newPipePlayer(videoId) }.toMap()
+        if (streams.isEmpty()) {
+            loudness.cancel()
+            return@coroutineScope Resolved.Failure("extraction failed")
+        }
+        // The same AAC-in-MP4 family the clients are chosen from - see resolveAndFetchWith.
+        val preferred = when (quality) {
+            AudioQuality.High -> listOf(ITAG_AAC_HIGH, ITAG_AAC_MEDIUM, ITAG_AAC_LOW)
+            AudioQuality.Low -> listOf(ITAG_AAC_LOW, ITAG_AAC_MEDIUM)
+            AudioQuality.Auto -> listOf(ITAG_AAC_MEDIUM, ITAG_AAC_HIGH, ITAG_AAC_LOW)
+        }
+        val url = preferred.firstNotNullOfOrNull { streams[it] } ?: run {
+            loudness.cancel()
+            return@coroutineScope Resolved.Failure("no AAC stream; offered itags ${streams.keys.sorted()}")
+        }
+        val length = Regex("""[?&]clen=(\d+)""").find(url)?.groupValues?.get(1)?.toLongOrNull()
+        when (val fetched = fetchStream(url, length, YouTubeClient.USER_AGENT_WEB)) {
+            is Resolved.Audio -> fetched.copy(loudnessDb = loudness.await())
+            is Resolved.Failure -> fetched.also { loudness.cancel() }
+        }
     }
 
     private suspend fun resolveAndFetchWith(videoId: String, client: YouTubeClient): Resolved {
@@ -585,18 +634,21 @@ class DesktopPlayer {
                 "no direct-URL AAC format; offered ${audio.joinToString { "itag ${it.itag}" }}"
             )
 
-        val length = format.contentLength
-        val url = if (length != null && length > 0) "${format.url}&range=0-$length" else format.url!!
+        return when (val fetched = fetchStream(format.url!!, format.contentLength, client.userAgent)) {
+            is Resolved.Audio -> fetched.copy(loudnessDb = format.loudnessDb ?: response.playerConfig?.audioConfig?.loudnessDb)
+            is Resolved.Failure -> fetched
+        }
+    }
+
+    private suspend fun fetchStream(streamUrl: String, length: Long?, userAgent: String): Resolved {
+        val url = if (length != null && length > 0) "$streamUrl&range=0-$length" else streamUrl
         val http = HttpClient(OkHttp)
         return try {
-            val fetched = http.get(url) { header("User-Agent", client.userAgent) }
+            val fetched = http.get(url) { header("User-Agent", userAgent) }
             if (fetched.status.value !in 200..299) {
                 Resolved.Failure("stream fetch returned HTTP ${fetched.status.value}")
             } else {
-                Resolved.Audio(
-                    fetched.body<ByteArray>(),
-                    format.loudnessDb ?: response.playerConfig?.audioConfig?.loudnessDb,
-                )
+                Resolved.Audio(fetched.body<ByteArray>())
             }
         } catch (e: Exception) {
             Resolved.Failure("stream fetch failed - ${e::class.simpleName}: ${e.message}")
