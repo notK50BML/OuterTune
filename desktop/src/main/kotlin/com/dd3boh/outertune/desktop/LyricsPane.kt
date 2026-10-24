@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.animation.core.animateFloatAsState
@@ -100,7 +101,10 @@ fun LyricsPane(
 
             else -> SyncedLyrics(
                 lyrics = lyrics,
-                positionMs = rememberSmoothedPosition(positionMs),
+                // A read, not a value: passed as a number it recomposed every visible line every
+                // frame. Only what reads it now updates - the current-line lookup, and the one line
+                // being sung.
+                positionMs = rememberSmoothedPosition(positionMs).let { state -> { state.value } },
                 onSeek = onSeek,
                 onColour = onColour,
                 fontSize = fontSize,
@@ -113,14 +117,17 @@ fun LyricsPane(
 @Composable
 private fun SyncedLyrics(
     lyrics: Lyrics,
-    positionMs: Long,
+    positionMs: () -> Long,
     onSeek: (Long) -> Unit,
     onColour: Color,
     fontSize: TextUnit,
     textAlign: TextAlign,
 ) {
     val listState = rememberLazyListState()
-    val current = remember(lyrics, positionMs) { LrcParser.lineAt(lyrics.lines, positionMs) }
+    // Changes only when the line does, so the list recomposes once a line, not once a frame.
+    val current by remember(lyrics) { derivedStateOf { LrcParser.lineAt(lyrics.lines, positionMs()) } }
+    val lineStyle = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f)
+    val translationStyle = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSize * 0.72f, lineHeight = fontSize * 0.95f)
 
     // Scrolling stops following while the pointer is driving the list, and starts again a few
     // seconds after it stops. Without that, looking ahead at the next verse is impossible: the list
@@ -130,9 +137,8 @@ private fun SyncedLyrics(
         if (listState.isScrollInProgress) browsingUntil = System.currentTimeMillis() + BROWSE_GRACE_MS
     }
 
-    LaunchedEffect(current) {
-        if (current < 0) return@LaunchedEffect
-        if (System.currentTimeMillis() < browsingUntil) return@LaunchedEffect
+    suspend fun centreOnCurrent() {
+        if (current < 0) return
         val visible = listState.layoutInfo.visibleItemsInfo
         // Centred rather than scrolled to the top, so there is as much of what is coming as of what
         // has just been sung. The offset is half the viewport, which is what "centre" means when
@@ -140,6 +146,18 @@ private fun SyncedLyrics(
         val centreOffset = -(listState.layoutInfo.viewportSize.height / 2) +
             (visible.firstOrNull { it.index == current }?.size ?: 0) / 2
         listState.animateScrollToItem(current.coerceAtLeast(0), centreOffset)
+    }
+    LaunchedEffect(current) {
+        if (System.currentTimeMillis() < browsingUntil) return@LaunchedEffect
+        centreOnCurrent()
+    }
+    // And when browsing ends, back to the line being sung - it used to wait for the next line change,
+    // which in a slow song can be a while of looking at the wrong verse.
+    LaunchedEffect(browsingUntil) {
+        val wait = browsingUntil - System.currentTimeMillis()
+        if (wait <= 0) return@LaunchedEffect
+        kotlinx.coroutines.delay(wait)
+        if (!listState.isScrollInProgress) centreOnCurrent()
     }
 
     LazyColumn(
@@ -168,8 +186,8 @@ private fun SyncedLyrics(
                 androidx.compose.foundation.layout.Column(modifier = modifier) {
                     if (active && line.words.isNotEmpty()) {
                         Text(
-                            text = sungText(line, positionMs, onColour),
-                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
+                            text = sungText(line, positionMs(), onColour),
+                            style = lineStyle,
                             fontWeight = FontWeight.Bold,
                             textAlign = textAlign,
                             modifier = Modifier.fillMaxWidth(),
@@ -177,7 +195,7 @@ private fun SyncedLyrics(
                     } else {
                         Text(
                             text = line.text,
-                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
+                            style = lineStyle,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
                             color = onColour.copy(alpha = alpha),
                             textAlign = textAlign,
@@ -188,7 +206,7 @@ private fun SyncedLyrics(
                     line.translation?.let {
                         Text(
                             text = it,
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = fontSize * 0.72f, lineHeight = fontSize * 0.95f),
+                            style = translationStyle,
                             color = onColour.copy(alpha = alpha * 0.8f),
                             textAlign = textAlign,
                             modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
@@ -243,10 +261,11 @@ private fun sungText(line: LyricLine, positionMs: Long, onColour: Color): Annota
  * backwards except by a real jump (a seek), so a late report cannot make a word flicker.
  */
 @Composable
-private fun rememberSmoothedPosition(positionMs: () -> Long): Long {
+private fun rememberSmoothedPosition(positionMs: () -> Long): androidx.compose.runtime.State<Long> {
     var anchorMs by remember { mutableStateOf(positionMs()) }
     var anchorNanos by remember { mutableStateOf(System.nanoTime()) }
-    var shown by remember { mutableStateOf(positionMs()) }
+    val shownState = remember { mutableStateOf(positionMs()) }
+    var shown by shownState
     LaunchedEffect(Unit) {
         // Followed as a flow rather than read in composition, so a report does not recompose the
         // pane by itself - only the per-frame clock below does, and only while lyrics are open.
@@ -264,7 +283,7 @@ private fun rememberSmoothedPosition(positionMs: () -> Long): Long {
             }
         }
     }
-    return shown
+    return shownState
 }
 
 /** How far past the last reported position the clock may run on its own. */
