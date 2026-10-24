@@ -345,11 +345,9 @@ private fun ArtistHeader(
         val fullWidth = maxWidth
         Box(modifier = Modifier.fillMaxWidth().height(height).clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))) {
             if (thumbnail != null) {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    // Square art drawn at the full width and cropped by the box, centred on the face
-                    // that is nearly always in the upper middle of an artist photo.
-                    Artwork(thumbnail, size = fullWidth, cornerRadius = 0.dp)
-                }
+                // The artist's banner at the box's own shape, cropped from the top - where the face
+                // nearly always is - rather than a square cut from it and then the middle of that.
+                Artwork(thumbnail, size = fullWidth, height = height, cornerRadius = 0.dp, alignment = Alignment.TopCenter)
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.secondaryContainer))
             }

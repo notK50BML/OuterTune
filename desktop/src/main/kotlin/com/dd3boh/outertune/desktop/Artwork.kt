@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.Alignment
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -156,7 +157,22 @@ internal object ArtworkCache {
  */
 private fun String.atSize(pixels: Int): String = when {
     isBlank() -> this
-    contains("=w") && contains("-h") -> substringBefore("=w") + "=w$pixels-h$pixels-p-l90-rj"
+    // Scaled at its own shape. This forced every image to a pixels x pixels crop ("-p"), which is
+    // harmless for a square cover and wrecked an artist's wide banner: YouTube cut a square out of
+    // the middle, and the artist header then showed a strip of that - "half a picture".
+    contains("=w") && contains("-h") -> {
+        val m = Regex("""=w(\d+)-h(\d+)""").find(this)
+        val w = m?.groupValues?.get(1)?.toIntOrNull()
+        val h = m?.groupValues?.get(2)?.toIntOrNull()
+        if (w == null || h == null || w <= 0 || h <= 0 || w == h) {
+            substringBefore("=w") + "=w$pixels-h$pixels-p-l90-rj"
+        } else {
+            val scale = pixels.toDouble() / maxOf(w, h)
+            val sw = (w * scale).toInt().coerceAtLeast(1)
+            val sh = (h * scale).toInt().coerceAtLeast(1)
+            substringBefore("=w") + "=w$sw-h$sh-l90-rj"
+        }
+    }
     contains("=s") -> substringBefore("=s") + "=s$pixels"
     else -> this
 }
@@ -337,11 +353,16 @@ fun Artwork(
      * filling half the window - the radius has to grow with the art for the corner to look the same.
      */
     cornerRadius: Dp = 4.dp,
+    /** Drawn this tall when not square - a banner. Defaults to [size], a square. */
+    height: Dp = size,
+    /** Which part survives the crop when the image and the box differ in shape. */
+    alignment: Alignment = Alignment.Center,
 ) {
     // Requested at twice the drawn size, so it stays sharp on a high-DPI display and when the
     // window is scaled. Rounded up to a sane step rather than the exact dp, so a handful of sizes
     // are requested across the app instead of one cached image per pixel dimension.
-    val pixels = remember(size) { ((size.value.toInt() * 2 + 63) / 64 * 64).coerceIn(64, 1024) }
+    val longest = maxOf(size, height)
+    val pixels = remember(longest) { ((longest.value.toInt() * 2 + 63) / 64 * 64).coerceIn(64, 1280) }
 
     // Starts from whatever is already decoded for this cover at *any* size, which is usually the
     // small one a list row fetched a moment ago. Opening the player then shows the art immediately
@@ -360,7 +381,7 @@ fun Artwork(
 
     Box(
         modifier = modifier
-            .size(size)
+            .size(width = size, height = height)
             .clip(RoundedCornerShape(cornerRadius))
             .background(androidx.compose.material3.MaterialTheme.colorScheme.surfaceVariant),
     ) {
@@ -369,7 +390,8 @@ fun Artwork(
                 bitmap = it,
                 contentDescription = null,
                 contentScale = ContentScale.Crop,
-                modifier = Modifier.size(size),
+                alignment = alignment,
+                modifier = Modifier.size(width = size, height = height),
             )
         }
     }
