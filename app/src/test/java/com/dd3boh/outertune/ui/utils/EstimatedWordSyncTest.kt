@@ -196,8 +196,22 @@ class EstimatedWordSyncTest {
         // a sweep built on a number that is not a duration.
         assertNull(estimate(line("some words", 1000, 1000)).single().words)
         assertNull(estimate(line("some words", 1000, 500)).single().words)
-        // The LRC parser ends the final line at Long.MAX_VALUE for want of a next one.
-        assertNull(estimate(line("some words", 0, 10_000_000)).single().words)
+    }
+
+    @Test
+    fun `the last line is swept at the song's pace`() {
+        // The LRC parser ends the final line at Long.MAX_VALUE for want of a next one. It used to be
+        // left unlit; it is timed from the pace of the lines before it instead.
+        val out = estimate(
+            line("one two three four", 0, 2000),
+            line("five six seven eight", 2000, 4000),
+            line("nine ten eleven twelve", 4000, Long.MAX_VALUE),
+        )
+        val words = out.last().words!!
+        assertEquals(4, words.size)
+        assertEquals(4000uL, words.first().timeRange.first)
+        // Four lines' worth of pace, not the rest of time: the same couple of seconds as the others.
+        assertTrue(words.last().timeRange.last in 5000uL..9000uL)
     }
 
     @Test

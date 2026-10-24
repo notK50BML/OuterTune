@@ -272,9 +272,14 @@ fun Lyrics(
                     latchedPosition = reported
                     latchedAt = now
                 }
+                val next = latchedPosition + lyricOffset +
+                    if (playerConnection.player.isPlaying) now - latchedAt else 0L
+                // The player reports its position in steps, and a fresh report can land a few
+                // milliseconds behind where the extrapolation had got to - which drew as the sweep
+                // twitching backwards. Small steps back are held; a real seek is far larger.
+                val shown = karaokePosition.longValue
                 karaokePosition.longValue =
-                    latchedPosition + lyricOffset +
-                        if (playerConnection.player.isPlaying) now - latchedAt else 0L
+                    if (next < shown && shown - next < MAX_HELD_STEP_BACK_MS) shown else next
             }
             // Frame-synced while something is moving, idle polling otherwise, so a paused player
             // with the lyrics open does not hold the choreographer awake.
@@ -591,4 +596,6 @@ private const val CONSUMED_ALPHA = 0.65f
  * How often the karaoke position is refreshed when nothing is moving. Only exists so that a seek
  * made while paused still lands on screen; the sweep is frame-synced whenever it is actually moving.
  */
+/** How far back a position report may land and be held, rather than taken as a seek. */
+private const val MAX_HELD_STEP_BACK_MS = 250L
 private const val IDLE_KARAOKE_REFRESH_MS = 250L

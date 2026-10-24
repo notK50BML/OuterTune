@@ -91,11 +91,13 @@ private fun paceMsPerSyllable(lines: List<SemanticLyrics.LyricLine>): Double {
  */
 private fun estimateWords(line: SemanticLyrics.LyricLine, paceMs: Double): MutableList<Word>? {
     if (line.end <= line.start) return null
-    // The LRC parser has no next line to end the last one against, so it ends it at Long.MAX_VALUE.
-    // Spreading words across that would inch the highlight along at a rate of roughly nothing, which
-    // looks broken rather than approximate - and any line claiming to run for minutes is bad data
-    // whatever produced it. Falling back to the plain unswept line is the honest answer.
-    if (line.end - line.start > MAX_PLAUSIBLE_LINE_MS) return null
+    // The LRC parser has no next line to end the last one against, so it ends it at Long.MAX_VALUE,
+    // and a line followed by a long instrumental claims the whole break. Spreading words across
+    // either would inch the highlight along at a rate of roughly nothing. Neither duration says
+    // anything about the singing, so such a line is timed from the song's pace alone - the same
+    // estimate every other line is capped by - and the last line sweeps like the rest instead of
+    // being left unlit.
+    val durationKnown = line.end - line.start <= MAX_PLAUSIBLE_LINE_MS
 
     val spans = wordSpans(line.text)
     if (spans.isEmpty()) return null
@@ -112,7 +114,7 @@ private fun estimateWords(line: SemanticLyrics.LyricLine, paceMs: Double): Mutab
     val sungWeight = syllables.sum()
     if (sungWeight <= 0.0) return null
 
-    val available = (line.end - line.start).toDouble()
+    val available = if (durationKnown) (line.end - line.start).toDouble() else MAX_PLAUSIBLE_LINE_MS.toDouble()
     // What the words themselves plausibly take, from this song's own pace. Capped by the line's
     // real duration, so this can only ever finish a sweep early - never run it past the point where
     // the next line has already started.
