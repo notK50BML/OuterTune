@@ -896,7 +896,8 @@ private fun ToneDials(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        if (bassIndices.isNotEmpty()) {
+        // Each dial in an equal third, so this row and the tempo/pitch row below share columns.
+        if (bassIndices.isNotEmpty()) Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             RotaryDial(
                 value = bassGain,
                 onValueChange = { setRange(bassIndices, it) },
@@ -911,7 +912,7 @@ private fun ToneDials(
                 default = 0f,
             )
         }
-        if (balance != null) {
+        if (balance != null) Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             RotaryDial(
                 value = pan,
                 onValueChange = { pan = it; balance.value = it },
@@ -932,7 +933,7 @@ private fun ToneDials(
                 default = 0f,
             )
         }
-        if (trebleIndices.isNotEmpty()) {
+        if (trebleIndices.isNotEmpty()) Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
             RotaryDial(
                 value = trebleGain,
                 onValueChange = { setRange(trebleIndices, it) },
@@ -974,7 +975,7 @@ private fun PlaybackDials(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth(),
     ) {
-        RotaryDial(
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { RotaryDial(
             value = tempo,
             onValueChange = { tempo = it; timeStretch.tempo = it },
             valueRange = tempoRange,
@@ -988,8 +989,8 @@ private fun PlaybackDials(
             step = 0.005f,
             coarseStep = 0.05f,
             centeredAt = 1f,
-        )
-        RotaryDial(
+        ) }
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { RotaryDial(
             value = pitch,
             onValueChange = { pitch = it; timeStretch.pitchSemitones = it },
             valueRange = pitchRange,
@@ -1000,12 +1001,12 @@ private fun PlaybackDials(
             step = 0.1f,
             coarseStep = 1f,
             centeredAt = 0f,
-        )
-        Text(
+        ) }
+        Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) { Text(
             text = "Scroll to turn.\nShift for coarse steps.\nDouble-click to reset.",
             style = MaterialTheme.typography.bodySmall,
             color = onColour.copy(alpha = 0.6f),
-        )
+        ) }
     }
 }
 

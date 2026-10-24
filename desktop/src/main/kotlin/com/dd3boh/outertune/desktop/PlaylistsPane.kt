@@ -145,9 +145,10 @@ fun PlaylistsPane(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 4.dp),
             ) {
+                // The same heading as Library's, so the two read as sections of one app.
                 Text(
                     "Playlists",
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f),
                 )
@@ -246,19 +247,24 @@ fun PlaylistsPane(
                             .padding(vertical = 3.dp)
                             .clickable { onSelect(playlist) },
                     ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                playlist.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                fontWeight = FontWeight.Bold,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-                            Text(
-                                if (playlist.songCount == 1) "1 song" else "${playlist.songCount} songs",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
+                        // On a tile like every other row here, so the names line up.
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(10.dp)) {
+                            IconTile(OuterTuneIcons.queueMusic, size = 40.dp)
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    playlist.name,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    if (playlist.songCount == 1) "1 song" else "${playlist.songCount} songs",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
                         }
                     }
                 }
