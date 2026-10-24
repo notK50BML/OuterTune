@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
 import androidx.compose.material3.IconButton
@@ -325,6 +326,8 @@ fun PlaylistsPane(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(PLAYLIST_ROW_HEIGHT)
+                        // Above every other row while held - drawn in list order, the rows after it covered it.
+                        .zIndex(if (held) 1f else 0f)
                         // Lifted while held, so the row under the pointer is visibly the one being
                         // moved rather than one of several that shifted around it.
                         .graphicsLayer {

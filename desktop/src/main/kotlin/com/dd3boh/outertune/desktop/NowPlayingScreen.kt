@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.runtime.rememberUpdatedState
@@ -1647,6 +1648,8 @@ private fun QueueOverlay(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(QUEUE_ROW_HEIGHT)
+                            // Above every other row while held - drawn in list order, the rows after it covered it.
+                            .zIndex(if (held) 1f else 0f)
                             // Lifted while held, so the row being moved is visibly the one under the
                             // pointer rather than one of several that shifted.
                             .graphicsLayer {
