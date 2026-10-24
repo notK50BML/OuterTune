@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.ui.component
 
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
@@ -77,7 +78,11 @@ fun TopSheet(
 
                 detectVerticalDragGestures(
                     onDragStart = {
-                        state.dragStartedCollapsed = state.value <= state.collapsedBound
+                        // Within a few dp, not exactly: the collapse is a spring that spends its last
+                        // few hundred ms a pixel or two above rest, and a swipe started then counted
+                        // as "not from the mini player" - the first swipe away sprang back, the second
+                        // (once settled) worked.
+                        state.dragStartedCollapsed = state.value <= state.collapsedBound + 8.dp
                     },
                     onVerticalDrag = { change, dragAmount ->
                         velocityTracker.addPointerInputChange(change)

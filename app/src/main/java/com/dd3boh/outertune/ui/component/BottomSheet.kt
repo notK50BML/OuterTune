@@ -101,7 +101,11 @@ fun BottomSheet(
 
                 detectVerticalDragGestures(
                     onDragStart = {
-                        state.dragStartedCollapsed = state.value <= state.collapsedBound
+                        // Within a few dp, not exactly: the collapse is a spring that spends its last
+                        // few hundred ms a pixel or two above rest, and a swipe started then counted
+                        // as "not from the mini player" - the first swipe away sprang back, the second
+                        // (once settled) worked.
+                        state.dragStartedCollapsed = state.value <= state.collapsedBound + 8.dp
                     },
                     onVerticalDrag = { change, dragAmount ->
                         velocityTracker.addPointerInputChange(change)
@@ -268,8 +272,11 @@ class BottomSheetState(
             }
         } else {
             val l0 = dismissedBound
-            val l1 = (collapsedBound - dismissedBound) / 2
-            val l2 = (expandedBound - collapsedBound) / 2
+            // Midpoints as positions, not half-distances: (expanded - collapsed) / 2 is how far
+            // half the travel is, not where it is, so a slow drag down had to get about 72% of
+            // the way before the player would collapse instead of springing back up.
+            val l1 = dismissedBound + (collapsedBound - dismissedBound) / 2
+            val l2 = collapsedBound + (expandedBound - collapsedBound) / 2
             val l3 = expandedBound
 
             when (value) {
@@ -289,8 +296,9 @@ class BottomSheetState(
         }
     }
 
-    val preUpPostDownNestedScrollConnection
-        get() = object : NestedScrollConnection {
+    // One object for the sheet's life. A getter built a new one on every access, so a
+    // recomposition mid-drag handed the content a fresh connection with isTopReached reset.
+    val preUpPostDownNestedScrollConnection: NestedScrollConnection = object : NestedScrollConnection {
             var isTopReached = false
 
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
