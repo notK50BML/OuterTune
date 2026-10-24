@@ -410,10 +410,10 @@ class Database(file: File) {
 
     /** What is stored for a song's lyrics, if anything has been looked up. */
     fun lyrics(songId: String): CachedLyrics? = synchronized(lock) {
-        connection.prepareStatement("SELECT text, source FROM lyrics WHERE songId = ?").use { st ->
+        connection.prepareStatement("SELECT text, source, fetchedAt FROM lyrics WHERE songId = ?").use { st ->
             st.setString(1, songId)
             st.executeQuery().use { rs ->
-                if (rs.next()) CachedLyrics(rs.getString(1), rs.getString(2)) else null
+                if (rs.next()) CachedLyrics(rs.getString(1), rs.getString(2), rs.getLong(3)) else null
             }
         }
     }

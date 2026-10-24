@@ -551,24 +551,31 @@ internal fun App(
     var lyricsAttempt by remember { mutableStateOf(0) }
     LaunchedEffect(nowPlaying?.id, duration, settings.wordByWordLyrics, lyricsAttempt) {
         fetchedLyrics = null
+        // Reset before anything can return early, and again however this run ends: a lookup
+        // cancelled by a skip used to leave the spinner turning over the next song's lyrics.
+        lyricsLoading = false
         val song = nowPlaying ?: return@LaunchedEffect
         // Held off until the duration is known, because LrcLib matches on it - asking with zero
         // gets the wrong version of a song as often as it gets nothing.
         if (duration <= 0) return@LaunchedEffect
         lyricsLoading = true
-        lyricsRepository.useWordByWord = settings.wordByWordLyrics
-        lyricsRepository.useLrclib = settings.lyricsLrclib
-        lyricsRepository.useKugou = settings.lyricsKugou
-        val fetched = lyricsRepository.lyricsFor(
-            songId = song.id,
-            title = song.title,
-            artist = song.artists.firstOrNull()?.name.orEmpty(),
-            durationMs = duration,
-        )
-        // Applied on the way out rather than baked into the cache, so changing the offset does not
-        // mean re-fetching, and so a cached file is still the file the provider sent.
-        fetchedLyrics = fetched
-        lyricsLoading = false
+        try {
+            lyricsRepository.useWordByWord = settings.wordByWordLyrics
+            lyricsRepository.useLrclib = settings.lyricsLrclib
+            lyricsRepository.useKugou = settings.lyricsKugou
+            val fetched = lyricsRepository.lyricsFor(
+                songId = song.id,
+                title = song.title,
+                // Without a " - Topic" suffix, which no lyrics provider knows the artist by.
+                artist = song.artists.firstOrNull()?.name.orEmpty().replace(Regex("""\s*-\s*Topic$"""), ""),
+                durationMs = duration,
+            )
+            // Applied on the way out rather than baked into the cache, so changing the offset does
+            // not mean re-fetching, and so a cached file is still the file the provider sent.
+            fetchedLyrics = fetched
+        } finally {
+            lyricsLoading = false
+        }
     }
     val lyrics = remember(fetchedLyrics, settings.lyricsOffsetMs, settings.estimateWordTimings) {
         fetchedLyrics?.shiftedBy(settings.lyricsOffsetMs.toLong())

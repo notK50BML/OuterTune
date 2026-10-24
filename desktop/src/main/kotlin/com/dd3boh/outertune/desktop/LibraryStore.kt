@@ -30,7 +30,7 @@ data class StoredArtist(val id: String, val name: String) {
 }
 
 /** Lyrics as they were stored: the raw LRC (or plain text) and which provider gave it. */
-data class CachedLyrics(val text: String, val source: String)
+data class CachedLyrics(val text: String, val source: String, val fetchedAt: Long = 0L)
 
 /** One song as the desktop library stores it - enough to show it and to play it again. */
 data class StoredSong(

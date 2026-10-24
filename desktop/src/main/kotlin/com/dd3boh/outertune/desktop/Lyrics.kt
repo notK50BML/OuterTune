@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.ensureActive
 import com.dd3boh.betterlyrics.BetterLyrics
 import com.dd3boh.betterlyrics.TTMLParser
 import com.dd3boh.lrclib.LrcLib
@@ -357,8 +358,13 @@ class LyricsRepository(private val library: LibraryStore) {
             LocalMusic.bundledLyrics(songId)?.let { return@withContext LrcParser.parseAny(it, "File") }
         }
         library.cachedLyrics(songId)?.let { cached ->
-            return@withContext LrcParser.parseAny(cached.text, cached.source)
+            // A recorded miss is asked again after a week: providers add lyrics all the time, and a
+            // miss used to be forever.
+            val staleMiss = cached.source == NONE && System.currentTimeMillis() - cached.fetchedAt > MISS_TTL_MS
+            if (!staleMiss) return@withContext LrcParser.parseAny(cached.text, cached.source)
         }
+        // Whether any provider failed rather than answered "none" - see the end.
+        var failed = false
 
         val durationSeconds = (durationMs / 1000).toInt()
 
@@ -367,34 +373,43 @@ class LyricsRepository(private val library: LibraryStore) {
         // most likely to come back empty, which is why the other two follow rather than being
         // skipped once it is asked.
         if (useWordByWord) {
-            BetterLyrics.getLyrics(title, artist, durationSeconds).getOrNull()
+            BetterLyrics.getLyrics(title, artist, durationSeconds).also { if (it.isFailure) failed = true }.getOrNull()
                 ?.takeIf { it.isNotBlank() }
                 ?.let { ttml ->
                     val parsed = LrcParser.parseTtml(ttml, BETTERLYRICS)
                     // Only accepted if it actually parsed. TTML that yields no lines is a failure
                     // dressed as a success, and caching it would poison the song until cleared.
                     if (!parsed.isEmpty) {
+                        ensureActive()
                         library.cacheLyrics(songId, ttml, BETTERLYRICS)
                         return@withContext parsed
                     }
                 }
         }
 
-        if (useLrclib) LrcLib.getLyrics(title, artist, durationSeconds).getOrNull()?.takeIf { it.isNotBlank() }
+        if (useLrclib) LrcLib.getLyrics(title, artist, durationSeconds).also { if (it.isFailure) failed = true }
+            .getOrNull()?.takeIf { it.isNotBlank() }
             ?.let { text ->
+                ensureActive()
                 library.cacheLyrics(songId, text, LRCLIB)
                 return@withContext LrcParser.parse(text, LRCLIB)
             }
 
-        if (useKugou) KuGou.getLyrics(title, artist, durationSeconds).getOrNull()?.takeIf { it.isNotBlank() }
+        if (useKugou) KuGou.getLyrics(title, artist, durationSeconds).also { if (it.isFailure) failed = true }
+            .getOrNull()?.takeIf { it.isNotBlank() }
             ?.let { text ->
+                ensureActive()
                 library.cacheLyrics(songId, text, KUGOU)
                 return@withContext LrcParser.parse(text, KUGOU)
             }
 
-        // Recorded as a miss so the next play does not repeat both lookups. An empty string is the
-        // marker; it parses to an empty Lyrics, which the pane shows as "no lyrics found".
-        library.cacheLyrics(songId, "", NONE)
+        // Recorded as a miss so the next play does not repeat the lookups - but only a real one.
+        // The providers catch everything, cancellation included, so a song skipped mid-lookup or a
+        // request that failed offline came back as "nothing" and was recorded as "this song has no
+        // lyrics", for good. Now: not if this lookup was cancelled, and not if any provider failed
+        // rather than answered. An empty string is the marker; the pane shows "no lyrics found".
+        ensureActive()
+        if (!failed) library.cacheLyrics(songId, "", NONE)
         null
     }
 
@@ -406,5 +421,8 @@ class LyricsRepository(private val library: LibraryStore) {
         const val LRCLIB = "LRCLIB"
         const val KUGOU = "KuGou"
         const val NONE = "none"
+
+        /** How long a recorded "no lyrics" stands before the providers are asked again. */
+        const val MISS_TTL_MS = 7L * 24 * 60 * 60 * 1000
     }
 }
