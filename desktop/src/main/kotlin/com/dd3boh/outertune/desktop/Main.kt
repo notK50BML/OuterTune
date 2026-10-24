@@ -156,7 +156,8 @@ fun main() = application {
     val windowState = rememberWindowState(width = 1000.dp, height = 700.dp)
     val useNativeFrame = remember { System.getProperty("os.name").orEmpty().startsWith("Windows") }
     Window(
-        onCloseRequest = { player.stop(); exitApplication() },
+        // Likes still waiting to reach YouTube Music (LikePushes) go before the app does.
+        onCloseRequest = { player.stop(); LikePushes.flushBlocking(); exitApplication() },
         title = "OuterTune",
         // No Windows title bar: the app runs to the top edge and draws its own buttons. On Windows
         // the window keeps its real frame - shadow, snap, resize, animations - with only the caption
@@ -650,12 +651,16 @@ internal fun App(
         if (accountState !is AccountState.SignedIn) youTubeSync.clear()
         else if (settings.syncAuto) youTubeSync.syncAll()
     }
+    var unlikedRecently by remember { mutableStateOf<List<StoredSong>>(emptyList()) }
     fun likeAndPush(song: StoredSong) {
         library.toggleLiked(song)
-        // Read only (Settings > Account and sync > Sync mode): a like here stays here.
+        val nowLiked = library.isLiked(song.id)
+        // Offered back for a few seconds - see the bar above the player.
+        unlikedRecently = if (nowLiked) unlikedRecently.filterNot { it.id == song.id } else unlikedRecently + song
+        // Read only (Settings > Account and sync > Sync mode): a like here stays here. Sent a minute
+        // late, and not at all if changed back - see LikePushes.
         if (accountState is AccountState.SignedIn && settings.syncMode == SyncMode.ReadWrite) {
-            val nowLiked = library.isLiked(song.id)
-            scope.launch { youTubeSync.pushLike(song.id, nowLiked) }
+            LikePushes.schedule(song.id, nowLiked)
         }
     }
 
@@ -1435,6 +1440,32 @@ internal fun App(
             }
         }
 
+        // Undo for unliking: liked again, each song goes back to where it was in Liked songs.
+        if (unlikedRecently.isNotEmpty()) {
+            LaunchedEffect(unlikedRecently) {
+                delay(10_000)
+                unlikedRecently = emptyList()
+            }
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.inverseSurface)
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
+            ) {
+                Text(
+                    if (unlikedRecently.size == 1) "Removed from liked songs" else "${unlikedRecently.size} songs removed from liked songs",
+                    color = MaterialTheme.colorScheme.inverseOnSurface,
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(onClick = {
+                    val songs = unlikedRecently
+                    unlikedRecently = emptyList()
+                    songs.forEach { if (!library.isLiked(it.id)) likeAndPush(it) }
+                }) { Text("Undo", color = MaterialTheme.colorScheme.inversePrimary) }
+            }
+        }
         batch?.let { current ->
             BatchDownloadBar(
                 batch = current,

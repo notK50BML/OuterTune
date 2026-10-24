@@ -851,6 +851,14 @@ class Database(file: File) {
         }
     }
 
+    /** When [songId] was liked, or null when it is not. */
+    fun likedAt(songId: String): Long? = synchronized(lock) {
+        connection.prepareStatement("SELECT likedAt FROM liked WHERE songId = ?").use { st ->
+            st.setString(1, songId)
+            st.executeQuery().use { rs -> if (rs.next()) rs.getLong(1) else null }
+        }
+    }
+
     fun setLiked(song: StoredSong, liked: Boolean, atMs: Long) = synchronized(lock) {
         upsertSongLocked(song)
         if (liked) {

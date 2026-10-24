@@ -502,6 +502,11 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="stats_by_time">Time listened</string>
     <string name="stats_by_count">Times played</string>
     <string name="stats_limit_all">All</string>
+    <string name="removed_from_liked">Removed from liked songs</string>
+    <plurals name="n_removed_from_liked">
+        <item quantity="one">Removed from liked songs</item>
+        <item quantity="other">%d songs removed from liked songs</item>
+    </plurals>
     <string name="stats_totals">%1$s plays · %2$s</string>
     <string name="stats_extended_title">Extended charts</string>
     <string name="stats_extended_songs">Top songs</string>

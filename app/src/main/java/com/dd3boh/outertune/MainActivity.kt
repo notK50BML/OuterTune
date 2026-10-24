@@ -9,6 +9,13 @@
 
 package com.dd3boh.outertune
 
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
+import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarDuration
+import com.dd3boh.outertune.utils.LikeSync
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -263,6 +270,13 @@ class MainActivity : ComponentActivity() {
         super.onDestroy()
     }
 
+    // Likes and unlikes wait a minute before going to YouTube Music, so a change of mind sends
+    // nothing (LikeSync). Leaving the app sends whatever is still waiting.
+    override fun onStop() {
+        super.onStop()
+        LikeSync.flushNow()
+    }
+
     @SuppressLint("UnusedBoxWithConstraintsScope")
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -321,6 +335,30 @@ class MainActivity : ComponentActivity() {
             val coroutineScope = rememberCoroutineScope()
             val haptic = LocalHapticFeedback.current
             val snackbarHostState = remember { SnackbarHostState() }
+            // Undo for unliking (LikeSync): one bar for however many were just unliked, and Undo
+            // likes them again at their original dates - back where they were in Liked songs.
+            LaunchedEffect(Unit) {
+                LikeSync.unliked.collectLatest {
+                    // A moment for a multi-select unlike to finish, so it is one bar, not one per song.
+                    delay(300)
+                    val ids = LikeSync.unlikedWithin(UNDO_WINDOW_MS)
+                    if (ids.isEmpty()) return@collectLatest
+                    val result = snackbarHostState.showSnackbar(
+                        message = resources.getQuantityString(R.plurals.n_removed_from_liked, ids.size, ids.size),
+                        actionLabel = getString(R.string.undo),
+                        duration = SnackbarDuration.Long,
+                    )
+                    if (result == SnackbarResult.ActionPerformed) {
+                        withContext(Dispatchers.IO) {
+                            ids.forEach { id ->
+                                database.song(id).first()?.song?.takeIf { !it.liked }?.let { song ->
+                                    database.query { update(song.toggleLike()) }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
 
             val enableDynamicTheme by rememberPreference(DynamicThemeKey, defaultValue = true)
             val customTheme by rememberPreference(CustomThemeKey, defaultValue = false)
@@ -1190,3 +1228,6 @@ val LocalSyncUtils = staticCompositionLocalOf<SyncUtils> { error("No SyncUtils p
 val LocalAccountImageFetcher = staticCompositionLocalOf<AccountImageFetcher> { error("No AccountImageFetcher provided") }
 val LocalNetworkConnected = staticCompositionLocalOf<Boolean> { error("No Network Status provided") }
 val LocalSnackbarHostState = staticCompositionLocalOf<SnackbarHostState> { error("No SnackbarHostState provided") }
+
+/** How far back Undo reaches for songs unliked together. */
+private const val UNDO_WINDOW_MS = 15_000L

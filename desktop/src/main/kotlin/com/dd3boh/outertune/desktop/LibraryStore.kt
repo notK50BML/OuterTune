@@ -155,8 +155,17 @@ class LibraryStore(
     fun topArtists(sinceMs: Long, limit: Int = 30) = db.topArtists(sinceMs, limit)
     fun playTotals(sinceMs: Long) = db.playTotals(sinceMs)
 
+    /**
+     * When each song unliked this session had been liked. Liking it again restores that time, so an
+     * accidental unlike undone puts the song back where it was in Liked songs instead of on top.
+     */
+    private val unlikedDates = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
     fun toggleLiked(song: StoredSong) {
-        db.setLiked(song, liked = !isLiked(song.id), atMs = System.currentTimeMillis())
+        val nowLiked = !isLiked(song.id)
+        if (!nowLiked) db.likedAt(song.id)?.let { unlikedDates[song.id] = it }
+        val at = if (nowLiked) unlikedDates.remove(song.id) ?: System.currentTimeMillis() else System.currentTimeMillis()
+        db.setLiked(song, liked = nowLiked, atMs = at)
         liked.value = db.likedSongs()
     }
 

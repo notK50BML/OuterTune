@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.launch
 import com.zionhuang.innertube.models.YTItem
 import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.SongItem
@@ -169,5 +170,48 @@ class YouTubeSync(private val library: LibraryStore) {
         playlists.value = emptyList()
         recentActivity.value = emptyList()
         status.value = null
+    }
+}
+
+/**
+ * Likes and unlikes on their way to YouTube Music, a minute late on purpose.
+ *
+ * Sent at once, an accidental unlike reached the account before it could be taken back, and its
+ * list reordered. Now each change waits [DELAY_MS]; changed back inside that, nothing is sent at
+ * all. Whatever is still waiting is sent when the window closes ([flushBlocking]).
+ */
+object LikePushes {
+    const val DELAY_MS = 60_000L
+
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+
+    private class Pending(val job: kotlinx.coroutines.Job, val remoteLiked: Boolean)
+
+    private val pending = java.util.concurrent.ConcurrentHashMap<String, Pending>()
+
+    fun schedule(songId: String, liked: Boolean) {
+        val previous = pending.remove(songId)
+        previous?.job?.cancel()
+        val remote = previous?.remoteLiked ?: !liked
+        if (remote == liked) return // back to what YouTube already has
+        val job = scope.launch {
+            kotlinx.coroutines.delay(DELAY_MS)
+            pending.remove(songId)
+            runCatching { YouTube.likeVideo(songId, liked) }
+        }
+        pending[songId] = Pending(job, remote)
+    }
+
+    /** Sends everything still waiting, for up to a few seconds - called as the app closes. */
+    fun flushBlocking() {
+        val waiting = pending.entries.toList()
+        if (waiting.isEmpty()) return
+        pending.clear()
+        waiting.forEach { it.value.job.cancel() }
+        kotlinx.coroutines.runBlocking {
+            kotlinx.coroutines.withTimeoutOrNull(5_000) {
+                waiting.map { (id, p) -> async { runCatching { YouTube.likeVideo(id, !p.remoteLiked) } } }.forEach { it.await() }
+            }
+        }
     }
 }

@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.db.entities
 
+import com.dd3boh.outertune.utils.LikeSync
 import androidx.compose.runtime.Immutable
 import androidx.room.ColumnInfo
 import androidx.room.Entity
@@ -54,19 +55,26 @@ data class SongEntity(
     val dateModified: LocalDateTime? = null, // file property
 ) {
 
-    fun localToggleLike() = copy(
-        liked = !liked,
-        likedDate = if (!liked) LocalDateTime.now() else null,
-    )
+    // Unliking remembers when the song was liked, and liking it again this session restores that
+    // date - so an accidental unlike undone puts it back where it was in Liked songs, not at the
+    // top. See LikeSync.
+    fun localToggleLike(): SongEntity {
+        if (liked) LikeSync.rememberUnliked(id, likedDate)
+        return copy(
+            liked = !liked,
+            likedDate = if (!liked) LikeSync.likedDateFor(id) else null,
+        )
+    }
 
-    fun toggleLike() = copy(
-        liked = !liked,
-        likedDate = if (!liked) LocalDateTime.now() else null,
-        inLibrary = if (!liked) inLibrary ?: LocalDateTime.now() else inLibrary
-    ).also {
-        CoroutineScope(syncCoroutine).launch {
-            YouTube.likeVideo(id, !liked)
-            this.cancel()
+    fun toggleLike(): SongEntity {
+        if (liked) LikeSync.rememberUnliked(id, likedDate)
+        return copy(
+            liked = !liked,
+            likedDate = if (!liked) LikeSync.likedDateFor(id) else null,
+            inLibrary = if (!liked) inLibrary ?: LocalDateTime.now() else inLibrary
+        ).also {
+            // A minute later, and not at all if it is changed back first - see LikeSync.
+            LikeSync.push(id, !liked)
         }
     }
 
