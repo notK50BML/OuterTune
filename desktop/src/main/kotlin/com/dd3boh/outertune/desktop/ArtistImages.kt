@@ -32,7 +32,7 @@ import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Artists' pictures, for places that only know an artist's name and channel - Stats, the Library's
- * artist grid.
+ * artist grid, the list a song with several artists asks you to pick from.
  *
  * Fetched the first time an artist is shown, from their page, and kept in the library (the artist
  * table's thumbnail) so the next visit is instant and offline. A few at a time, so a grid of thirty
@@ -64,7 +64,8 @@ object ArtistImages {
         memory[artist.id]?.let { return it }
         if (artist.id in missing) return null
         return withContext(Dispatchers.IO) {
-            library?.artistThumbnail(artist.id)?.let { stored ->
+            // Blank is how the artist table stores "no picture yet", not a picture.
+            library?.artistThumbnail(artist.id)?.takeIf { it.isNotBlank() }?.let { stored ->
                 memory[artist.id] = stored
                 return@withContext stored
             }

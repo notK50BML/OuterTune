@@ -6,19 +6,15 @@
 
 package com.dd3boh.outertune.desktop
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.HorizontalDivider
@@ -26,19 +22,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.produceState
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.zionhuang.innertube.models.SongItem
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 
 /**
  * Every artist [this] song credits, in credit order, as the pages that would open them - a credit
@@ -48,12 +38,6 @@ import kotlinx.coroutines.withContext
 fun SongItem.creditedArtists(): List<StoredArtist> =
     artists.map { artist -> artist.id?.let { StoredArtist(it, artist.name) } ?: StoredArtist.unlinked(artist.name) }
         .distinctBy { it.id }
-
-/**
- * An artist's picture as the library last cached it, or null. Provided by the window; read on the
- * IO dispatcher, since it is a database lookup.
- */
-val LocalArtistThumbnail = staticCompositionLocalOf<(String) -> String?> { { null } }
 
 /**
  * Which of a song's artists to open: the phone's ArtistDialog, as a page of the desktop's menu
@@ -71,13 +55,6 @@ fun ArtistPickerList(
     onBack: (() -> Unit)?,
     onPick: (StoredArtist) -> Unit,
 ) {
-    val thumbnailFor = LocalArtistThumbnail.current
-    val thumbnails by produceState(emptyMap<String, String?>(), artists) {
-        value = withContext(Dispatchers.IO) {
-            artists.filter { it.linkable }.associate { it.id to runCatching { thumbnailFor(it.id) }.getOrNull() }
-        }
-    }
-
     Column {
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -104,14 +81,14 @@ fun ArtistPickerList(
         // A long feature list scrolls inside the panel instead of growing it past the window.
         Column(modifier = Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
             for (artist in artists) {
-                ArtistPickerRow(artist, thumbnails[artist.id]) { onPick(artist) }
+                ArtistPickerRow(artist) { onPick(artist) }
             }
         }
     }
 }
 
 @Composable
-private fun ArtistPickerRow(artist: StoredArtist, thumbnail: String?, onClick: () -> Unit) {
+private fun ArtistPickerRow(artist: StoredArtist, onClick: () -> Unit) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -120,7 +97,9 @@ private fun ArtistPickerRow(artist: StoredArtist, thumbnail: String?, onClick: (
             .clickable(onClick = onClick)
             .padding(horizontal = 8.dp, vertical = 6.dp),
     ) {
-        ArtistAvatar(artist.name, thumbnail, size = 40.dp)
+        // Fetched from the artist's page when the library has no picture yet, and kept - it used to
+        // show only what was already cached, so a featured artist never opened was just an initial.
+        ArtistAvatar(artist, size = 40.dp)
         Spacer(modifier = Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
@@ -138,29 +117,6 @@ private fun ArtistPickerRow(artist: StoredArtist, thumbnail: String?, onClick: (
                     maxLines = 1,
                 )
             }
-        }
-    }
-}
-
-/** The artist's picture in a circle, as the phone draws artists - or their initial until one is known. */
-@Composable
-private fun ArtistAvatar(name: String, thumbnail: String?, size: Dp) {
-    if (thumbnail != null) {
-        Artwork(thumbnail, size = size, cornerRadius = size / 2)
-    } else {
-        Box(
-            contentAlignment = Alignment.Center,
-            modifier = Modifier
-                .size(size)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.secondaryContainer),
-        ) {
-            Text(
-                name.trim().firstOrNull()?.uppercase() ?: "?",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-            )
         }
     }
 }
