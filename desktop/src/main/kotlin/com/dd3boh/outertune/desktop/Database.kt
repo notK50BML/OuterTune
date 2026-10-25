@@ -788,30 +788,39 @@ class Database(file: File) {
         }
     }
 
-    /** Most played songs since [sinceMs], with how many times each. */
+    /**
+     * Most played songs since [sinceMs], with how many times each - the same song under several ids
+     * counted once (see [mergeSameSongs]).
+     */
     fun topSongs(sinceMs: Long, limit: Int): List<Pair<StoredSong, Int>> = synchronized(lock) {
-        val counts = LinkedHashMap<String, Int>()
-        val songs = connection.prepareStatement(
+        // Every song played, not the first [limit]: two ids of one song can each sit below the cut
+        // and only make it once added together.
+        val rows = connection.prepareStatement(
             """
-            SELECT s.id, s.title, s.artists, s.thumbnail, COUNT(*) AS plays
+            SELECT s.id, s.title, s.artists, s.thumbnail, COUNT(*) AS plays, MAX(e.playedAt)
             FROM play_event e JOIN song s ON s.id = e.songId
             WHERE e.playedAt >= ?
-            GROUP BY s.id ORDER BY plays DESC, MAX(e.playedAt) DESC LIMIT ?
+            GROUP BY s.id
             """.trimIndent()
         ).use { st ->
             st.setLong(1, sinceMs)
-            st.setInt(2, limit)
             st.executeQuery().use { rs ->
                 buildList {
                     while (rs.next()) {
-                        counts[rs.getString(1)] = rs.getInt(5)
-                        add(StoredSong(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)))
+                        add(
+                            PlayedSong(
+                                StoredSong(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)),
+                                plays = rs.getInt(5),
+                                lastPlayedAt = rs.getLong(6),
+                            )
+                        )
                     }
                 }
             }
         }
-        val credits = creditsForLocked(songs.map { it.id })
-        songs.map { it.copy(artistList = credits[it.id].orEmpty()) to (counts[it.id] ?: 0) }
+        val top = mergeSameSongs(rows).take(limit)
+        val credits = creditsForLocked(top.map { it.song.id })
+        top.map { it.song.copy(artistList = credits[it.song.id].orEmpty()) to it.plays }
     }
 
     /** Most played artists since [sinceMs], by plays of songs they are credited on. */
@@ -836,7 +845,8 @@ class Database(file: File) {
     fun playTotals(sinceMs: Long): PlayTotals = synchronized(lock) {
         connection.prepareStatement(
             """
-            SELECT COUNT(*), COUNT(DISTINCT e.songId), COALESCE(SUM(s.durationMs), 0)
+            SELECT COUNT(*), COUNT(DISTINCT lower(trim(s.title)) || char(31) || lower(trim(s.artists))),
+                COALESCE(SUM(s.durationMs), 0)
             FROM play_event e JOIN song s ON s.id = e.songId WHERE e.playedAt >= ?
             """.trimIndent()
         ).use { st ->
@@ -1283,3 +1293,23 @@ data class StoredPlaylist(
 
 /** What [Database.playTotals] reports. Listening time counts each play as the song's full length. */
 data class PlayTotals(val plays: Int, val songs: Int, val listenedMs: Long)
+
+/** One song's plays in a period, before songs that are the same are merged. */
+internal data class PlayedSong(val song: StoredSong, val plays: Int, val lastPlayedAt: Long)
+
+/**
+ * The same song under different ids, counted as one: the same title by the same artists - a single
+ * and its album copy, a re-upload, a local file of a song also played from YouTube. Compared without
+ * case or surrounding spaces, and otherwise exactly, so two different songs that merely share a
+ * title stay apart. Plays are added together, and the id played most stands for the group, so its
+ * cover and the page it opens are the version actually listened to. Ordered by plays, then by the
+ * most recent play.
+ */
+internal fun mergeSameSongs(rows: List<PlayedSong>): List<PlayedSong> =
+    rows.groupBy { it.song.title.trim().lowercase() to it.song.artists.trim().lowercase() }
+        .values
+        .map { same ->
+            val main = same.maxWith(compareBy<PlayedSong> { it.plays }.thenBy { it.lastPlayedAt })
+            PlayedSong(main.song, plays = same.sumOf { it.plays }, lastPlayedAt = same.maxOf { it.lastPlayedAt })
+        }
+        .sortedWith(compareByDescending<PlayedSong> { it.plays }.thenByDescending { it.lastPlayedAt })
