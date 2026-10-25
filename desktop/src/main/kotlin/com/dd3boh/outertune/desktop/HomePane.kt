@@ -324,7 +324,7 @@ private fun SongGrid(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            song.artists,
+                            song.shownArtists(LocalCredits.current),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -391,7 +391,7 @@ private fun StoredCard(song: StoredSong, playing: Boolean, onClick: () -> Unit) 
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = song.artists,
+            text = song.shownArtists(LocalCredits.current),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,
@@ -509,7 +509,7 @@ private fun CardBody(item: YTItem, playing: Boolean, onClick: () -> Unit) {
             textAlign = if (artist) TextAlign.Center else TextAlign.Start,
             modifier = Modifier.fillMaxWidth(),
         )
-        item.subtitle.takeIf { it.isNotBlank() }?.let {
+        item.shownSubtitle().takeIf { it.isNotBlank() }?.let {
             Text(
                 text = it,
                 style = MaterialTheme.typography.bodySmall,

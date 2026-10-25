@@ -240,7 +240,7 @@ fun NowPlayingScreen(
     // When the last downward scroll arrived, so a trackpad's momentum tail cannot act twice.
     var lastScrollDown by remember { mutableStateOf(0L) }
 
-    val song = queue.current
+    val song = queue.current?.shown()
     val (primary, secondary) = rememberArtworkColours(song?.thumbnail)
     // Ferrofluid is a black mirror and needs a dark room: a light backdrop would turn the text dark,
     // and dark text over black spikes cannot be read. So that style always gets a dark backdrop and
@@ -1678,7 +1678,7 @@ private fun QueueOverlay(
                 // instant anything moved, and the drag in progress would be cancelled by its own
                 // first step.
                 itemsIndexed(queue.order, key = { _, index -> queue.songs.getOrNull(index)?.id ?: index }) { position, index ->
-                    val song = queue.songs.getOrNull(index) ?: return@itemsIndexed
+                    val song = queue.songs.getOrNull(index)?.shown() ?: return@itemsIndexed
                     val current = position == queue.orderPosition
                     val held = position == dragging
                     // Read when a drag starts, not captured: the handle's gesture is keyed by the

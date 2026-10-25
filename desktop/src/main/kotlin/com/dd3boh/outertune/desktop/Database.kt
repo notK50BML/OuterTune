@@ -308,6 +308,16 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 11) {
+                connection.createStatement().use { st ->
+                    // Set once an artist's name has been read from its own channel - see
+                    // renameArtist. A song's credits then cannot write an older spelling back.
+                    val has = st.executeQuery("PRAGMA table_info(artist)").use { rs ->
+                        generateSequence { if (rs.next()) rs.getString("name") else null }.any { it == "nameConfirmed" }
+                    }
+                    if (!has) st.executeUpdate("ALTER TABLE artist ADD COLUMN nameConfirmed INTEGER NOT NULL DEFAULT 0")
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -1162,7 +1172,10 @@ class Database(file: File) {
         if (song.artistList.isEmpty()) return
 
         connection.prepareStatement(
-            "INSERT INTO artist (id, name) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET name = excluded.name"
+            // A name confirmed from the artist's own channel stays: a song's credit can carry an
+            // older spelling ("(G)I-DLE" for "i-dle"), and writing it back undid the rename.
+            "INSERT INTO artist (id, name) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET " +
+                "name = CASE WHEN artist.nameConfirmed = 1 THEN artist.name ELSE excluded.name END"
         ).use { st ->
             song.artistList.forEach { artist ->
                 st.setString(1, artist.id)
@@ -1171,6 +1184,7 @@ class Database(file: File) {
             }
             st.executeBatch()
         }
+        onCreditsChanged()
         // Replaced rather than merged: the credits that came with the song are the credits, and
         // leaving an old one behind would show somebody who is no longer on the track.
         connection.prepareStatement("DELETE FROM song_artist WHERE songId = ?").use { st ->
@@ -1188,6 +1202,61 @@ class Database(file: File) {
             }
             st.executeBatch()
         }
+    }
+
+    /**
+     * Called whenever any song's credits or any artist's name change, so the credits every screen
+     * shows (LibraryStore.credits) are rebuilt. Set by the library; must only schedule work.
+     */
+    @Volatile
+    var onCreditsChanged: () -> Unit = {}
+
+    /**
+     * [id]'s name as its own channel has it now, kept for good - and the display string of every
+     * song crediting it rewritten to match. Returns whether anything changed.
+     */
+    fun renameArtist(id: String, name: String): Boolean = transaction {
+        if (name.isBlank()) return@transaction false
+        val changed = connection.prepareStatement(
+            "UPDATE artist SET name = ?, nameConfirmed = 1 WHERE id = ? AND (name != ? OR nameConfirmed = 0)"
+        ).use { st ->
+            st.setString(1, name)
+            st.setString(2, id)
+            st.setString(3, name)
+            st.executeUpdate() > 0
+        }
+        if (!changed) return@transaction false
+        val songIds = connection.prepareStatement("SELECT songId FROM song_artist WHERE artistId = ?").use { st ->
+            st.setString(1, id)
+            st.executeQuery().use { rs -> buildList { while (rs.next()) add(rs.getString(1)) } }
+        }
+        val credits = HashMap<String, List<StoredArtist>>()
+        songIds.chunked(500).forEach { credits.putAll(creditsForLocked(it)) }
+        connection.prepareStatement("UPDATE song SET artists = ? WHERE id = ?").use { st ->
+            credits.forEach { (songId, artists) ->
+                st.setString(1, artists.joinToString(", ") { it.name })
+                st.setString(2, songId)
+                st.addBatch()
+            }
+            st.executeBatch()
+        }
+        onCreditsChanged()
+        true
+    }
+
+    /** Every song's credits and every artist's name - what LibraryStore.credits is built from. */
+    fun creditIndex(): CreditIndex = synchronized(lock) {
+        val songs = HashMap<String, MutableList<StoredArtist>>()
+        val names = HashMap<String, String>()
+        connection.createStatement().use { st ->
+            st.executeQuery(
+                "SELECT sa.songId, a.id, a.name FROM song_artist sa JOIN artist a ON a.id = sa.artistId ORDER BY sa.songId, sa.position"
+            ).use { rs ->
+                while (rs.next()) songs.getOrPut(rs.getString(1)) { mutableListOf() } += StoredArtist(rs.getString(2), rs.getString(3))
+            }
+            st.executeQuery("SELECT id, name FROM artist").use { rs -> while (rs.next()) names[rs.getString(1)] = rs.getString(2) }
+        }
+        CreditIndex(songs, names)
     }
 
     /** A just-written song's credits, put through what is already known about its artists. */
@@ -1309,7 +1378,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 10
+        const val SCHEMA_VERSION = 11
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }
@@ -1375,4 +1444,14 @@ internal fun PlayTotals.withHistory(remote: Map<String, HistoryTally.Plays>, loc
         ms += extra * (history.song.duration ?: 0) * 1000L
     }
     return PlayTotals(this.plays + plays, this.songs + songs, listenedMs + ms)
+}
+
+/**
+ * The credits every screen shows: each library song's credits in order - repaired by ArtistLinks -
+ * and each artist's name by id, current once ArtistRenamer has read it from the channel.
+ */
+data class CreditIndex(val songs: Map<String, List<StoredArtist>>, val names: Map<String, String>) {
+    companion object {
+        val EMPTY = CreditIndex(emptyMap(), emptyMap())
+    }
 }

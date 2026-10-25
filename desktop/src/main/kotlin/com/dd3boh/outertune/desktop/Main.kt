@@ -267,7 +267,10 @@ internal fun App(
     val eqStore = remember(settings) { settings.equalizerStore() }
     // Only while history is switched on. The setting existed and was never consulted, so turning it
     // off changed nothing.
-    remember(library) { ArtistImages.library = library }
+    remember(library) {
+        ArtistImages.library = library
+        ArtistRenamer.library = library
+    }
     // Where a restored queue's song was when the last session ended - see the persistent queue.
     var restoredPositionMs by remember { mutableStateOf<Long?>(null) }
     LaunchedEffect(settings.contentLanguage, settings.contentCountry) {
@@ -823,6 +826,8 @@ internal fun App(
     LaunchedEffect(queue.current?.id) {
         val song = queue.current ?: return@LaunchedEffect
         runCatching { ArtistLinks.prepare(library, song.toStored()) }
+        // And whether its artists still go by the names their credits carry - see ArtistRenamer.
+        ArtistRenamer.check(library.database.songCredits(song.id).ifEmpty { song.creditedArtists() })
     }
 
     LaunchedEffect(queue.current?.id) {
@@ -926,7 +931,7 @@ internal fun App(
         }
     }
     LaunchedEffect(queue.current?.id, playback) {
-        val song = queue.current
+        val song = queue.current?.shown(library.credits.value)
         WindowsMediaControls.update(
             title = song?.title,
             artist = song?.artists?.joinToString { it.name },
@@ -1135,10 +1140,10 @@ internal fun App(
             actions = PlayerActions(
                 onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
                 onAddToPlaylist = queue.current?.let { song -> { addingToPlaylist = song.toStored() } },
-                onViewArtist = queue.current?.creditedArtists()?.firstOrNull()?.let { artist ->
+                onViewArtist = queue.current?.shown(library.credits.value)?.creditedArtists()?.firstOrNull()?.let { artist ->
                     { openArtistPage(artist) }
                 },
-                artists = queue.current?.creditedArtists().orEmpty(),
+                artists = queue.current?.shown(library.credits.value)?.creditedArtists().orEmpty(),
                 onOpenArtist = openArtistPage,
                 downloaded = queue.current?.id in downloadedIds,
                 // A file on this computer is already here, has no link and no YouTube album.
@@ -1176,6 +1181,9 @@ internal fun App(
     Box(modifier = Modifier.fillMaxSize()) {
     CompositionLocalProvider(
         LocalRowButtons provides RowButtons(RowButton.decode(settings.rowButtons), settings.rowMenu),
+        // The library's credits and artists' current names, which every song shown goes through -
+        // see SongItem.shown.
+        LocalCredits provides library.credits.collectAsState().value,
         LocalSongActions provides songActions,
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
     ) {
@@ -1950,7 +1958,7 @@ private fun PlayerBar(
     queueOpen: Boolean = true,
     onToggleQueue: () -> Unit = {},
 ) {
-    val song = queue.current
+    val song = queue.current?.shown()
     // A Box rather than a Column, so the progress line can sit on the bottom edge as the phone's
     // does - underlining the bar against whatever it covers instead of drawing a rule between it
     // and the content above, which is what stacking them in a Column amounted to.
@@ -2075,6 +2083,7 @@ private val THUMBNAIL_CORNER = 6.dp
 
 @Composable
 internal fun SongRow(song: SongItem, playing: Boolean = false, actions: Boolean = true, onPlay: () -> Unit) = SongMenuArea(song) {
+    @Suppress("NAME_SHADOWING") val song = song.shown()
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -2129,7 +2138,7 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, actions: 
                 color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
             Text(
-                text = song.artists.ifBlank { "Unknown artist" },
+                text = song.shownArtists(LocalCredits.current).ifBlank { "Unknown artist" },
                 style = MaterialTheme.typography.bodySmall,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -2183,7 +2192,7 @@ private fun SongDetailsDialog(
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 DetailRow("Title", song.title)
-                DetailRow("Artists", song.artists.joinToString { it.name }.ifBlank { "Unknown" })
+                DetailRow("Artists", song.shown().artists.joinToString { it.name }.ifBlank { "Unknown" })
                 song.album?.name?.takeIf { it.isNotBlank() }?.let { DetailRow("Album", it) }
                 if (!local) DetailRow("Video ID", song.id)
                 if (durationMs > 0) DetailRow("Duration", formatClock(durationMs))

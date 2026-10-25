@@ -314,7 +314,8 @@ fun SongMenuPanel(
     offset: IntOffset = IntOffset.Zero,
     onDismiss: () -> Unit,
 ) {
-    val artists = remember(song) { song.creditedArtists() }
+    val credits = LocalCredits.current
+    val artists = remember(song, credits) { song.shown(credits).creditedArtists() }
     val local = LocalMusic.isLocal(song.id)
     // With more than one credit, "Go to artist" turns the panel into a list of them instead of
     // guessing the first - see ArtistPickerList.
@@ -366,7 +367,7 @@ fun SongMenuPanel(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(song.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        song.artists.joinToString { it.name }.ifBlank { "Unknown artist" },
+                        song.shown().artists.joinToString { it.name }.ifBlank { "Unknown artist" },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

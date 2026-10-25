@@ -70,7 +70,10 @@ object ArtistImages {
                 return@withContext stored
             }
             gate.withPermit {
-                val fetched = YouTube.artist(artist.id).getOrNull()?.artist?.thumbnail
+                val page = YouTube.artist(artist.id).getOrNull()?.artist
+                // The page is fetched anyway, so its current name is learned too - see ArtistRenamer.
+                page?.title?.let { ArtistRenamer.learned(artist.id, it) }
+                val fetched = page?.thumbnail
                 if (fetched.isNullOrBlank()) {
                     missing += artist.id
                     null

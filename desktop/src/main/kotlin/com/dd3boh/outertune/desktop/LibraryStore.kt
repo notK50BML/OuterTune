@@ -6,6 +6,15 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.channels.BufferOverflow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.CoroutineScope
 import com.zionhuang.innertube.utils.HistoryTally
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
@@ -255,7 +264,29 @@ class LibraryStore(
         playlists.value = db.playlists()
     }
 
+    /**
+     * Every song's credits and every artist's current name - see [CreditIndex] and SongItem.shown.
+     * Rebuilt shortly after any credit or name changes, so a repaired credit or a rename reaches
+     * every screen without each one asking.
+     */
+    val credits = MutableStateFlow(CreditIndex.EMPTY)
+    private val creditScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val creditsDirty = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    init {
+        db.onCreditsChanged = { creditsDirty.tryEmit(Unit) }
+        creditScope.launch {
+            credits.value = db.creditIndex()
+            @OptIn(FlowPreview::class)
+            creditsDirty.debounce(400).collect { credits.value = db.creditIndex() }
+        }
+    }
+
+    /** See Database.renameArtist. */
+    fun renameArtist(id: String, name: String) = db.renameArtist(id, name)
+
     fun close() {
+        creditScope.cancel()
         // Let any setting still on its way to disk land before the file is closed under it.
         settingsWriter.shutdown()
         settingsWriter.awaitTermination(2, java.util.concurrent.TimeUnit.SECONDS)

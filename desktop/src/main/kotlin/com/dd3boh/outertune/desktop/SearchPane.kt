@@ -301,7 +301,7 @@ fun SearchSuggestionsPanel(
                 Column(Modifier.weight(1f)) {
                     Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        item.subtitle,
+                        item.shownSubtitle(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

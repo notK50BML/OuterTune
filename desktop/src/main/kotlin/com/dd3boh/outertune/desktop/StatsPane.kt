@@ -221,7 +221,7 @@ fun StatsPane(
                         overflow = TextOverflow.Ellipsis,
                     )
                     Text(
-                        song.artists,
+                        song.shownArtists(LocalCredits.current),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

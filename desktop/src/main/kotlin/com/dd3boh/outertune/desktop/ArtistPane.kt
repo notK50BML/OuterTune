@@ -146,6 +146,8 @@ fun ArtistPane(
                 onSuccess = {
                     // Kept for Stats and the Library, which show this artist without opening them.
                     ArtistImages.remember(artist.id, it.artist.thumbnail)
+                    // And its current name, which every song crediting it then shows.
+                    ArtistRenamer.learned(artist.id, it.artist.title)
                     ArtistContent.Loaded(it)
                 },
                 // YouTube's own error is a wall of JSON that helps nobody. With songs by this
@@ -175,7 +177,7 @@ fun ArtistPane(
 
     more?.let { section ->
         MoreItems(
-            artistName = (content as? ArtistContent.Loaded)?.page?.artist?.title ?: artist.name,
+            artistName = (content as? ArtistContent.Loaded)?.page?.artist?.title?.withoutTopic() ?: artist.name,
             section = section,
             currentId = currentId,
             visible = { it.visible() },
@@ -187,7 +189,7 @@ fun ArtistPane(
     }
 
     val page = (content as? ArtistContent.Loaded)?.page
-    val name = page?.artist?.title ?: artist.name
+    val name = page?.artist?.title?.withoutTopic() ?: artist.name
     val sections = page?.sections.orEmpty()
         .map { it.copy(items = it.items.visible()) }
         .filter { it.items.isNotEmpty() }
@@ -470,7 +472,7 @@ private fun SongListRow(song: SongItem, rank: Int, playing: Boolean, onClick: ()
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                listOfNotNull(song.artists.joinToString { it.name }, song.album?.name).joinToString(" · "),
+                listOfNotNull(song.shown().artists.joinToString { it.name }, song.album?.name).joinToString(" · "),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

@@ -205,6 +205,10 @@ val YTItem.playlistIdOrNull: String?
         else -> null
     }
 
+/** [subtitle], with a song's artists as they are shown everywhere - see SongItem.shown. */
+@androidx.compose.runtime.Composable
+fun YTItem.shownSubtitle(): String = if (this is SongItem) shown().subtitle else subtitle
+
 /** A line under the title: who it is by, or what it is. */
 val YTItem.subtitle: String
     get() = when (this) {
