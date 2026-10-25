@@ -447,13 +447,34 @@ internal fun App(
         discordPresence.updateAuth(
             settings.discordToken,
             settings.enableDiscordRpc,
-            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, player.positionMs.value),
+            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, player.positionMs.value, duration),
         )
     }
-    LaunchedEffect(queue.current?.id, playback) {
+    // Also when the length arrives - playing starts a moment before the player knows it, and the
+    // card's progress bar is drawn from it.
+    LaunchedEffect(queue.current?.id, playback, duration) {
         discordPresence.requestUpdate(
-            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, player.positionMs.value)
+            DiscordNowPlaying(queue.current, playback !is PlaybackState.Playing, player.positionMs.value, duration)
         )
+    }
+    // And after a seek, so the bar jumps with the song instead of carrying on from where it was:
+    // a position more than a few seconds from where steady playback would have it is a seek.
+    LaunchedEffect(discordPresence) {
+        var last = player.positionMs.value
+        var lastAt = System.currentTimeMillis()
+        while (true) {
+            delay(1_000)
+            val now = player.positionMs.value
+            val at = System.currentTimeMillis()
+            val expected = if (player.state.value is PlaybackState.Playing) last + (at - lastAt) else last
+            if (kotlin.math.abs(now - expected) > 3_000 && player.state.value is PlaybackState.Playing) {
+                discordPresence.requestUpdate(
+                    DiscordNowPlaying(queue.current, false, now, player.durationMs.value)
+                )
+            }
+            last = now
+            lastAt = at
+        }
     }
 
     // Listen Together. One instance for the window's lifetime, same protocol the phone speaks -

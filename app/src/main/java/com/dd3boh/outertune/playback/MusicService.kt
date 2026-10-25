@@ -524,7 +524,7 @@ class MusicService : MediaLibraryService(),
             } ?: return@collectLatest
             // The wait above can outlast the track it was for.
             if (player.currentMediaItem?.mediaId != mediaId) return@collectLatest
-            rpc.updateSong(song, player.currentPosition)
+            rpc.updateSong(song, player.currentPosition, player.duration)
         }
 
         // Track changes that the player does not announce as an event still move the metadata.

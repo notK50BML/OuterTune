@@ -29,12 +29,14 @@ class DiscordRPC(
     suspend fun updateSong(
         song: Song,
         currentPlaybackTimeMillis: Long = 0L,
+        /** The player's own length, used when the song's is not known yet - see sendPresence. */
+        playerDurationMillis: Long = 0L,
     ) = runCatching {
         val thisUpdate = ++latestUpdate
         updateMutex.withLock {
             // Something newer started while this one waited for the lock; that one wins.
             if (thisUpdate != latestUpdate) return@runCatching
-            sendPresence(song, currentPlaybackTimeMillis)
+            sendPresence(song, currentPlaybackTimeMillis, playerDurationMillis)
         }
     }.onFailure {
         // runCatching swallows CancellationException, which would quietly break the caller's
@@ -43,7 +45,7 @@ class DiscordRPC(
         if (it is CancellationException) throw it
     }
 
-    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long) {
+    private suspend fun sendPresence(song: Song, currentPlaybackTimeMillis: Long, playerDurationMillis: Long) {
         val currentTime = System.currentTimeMillis()
         val calculatedStartTime = currentTime - currentPlaybackTimeMillis
 
@@ -51,7 +53,10 @@ class DiscordRPC(
         // common for a track that has only just been inserted. Left alone that produced an end
         // timestamp earlier than the start, and Discord draws that as a bar stuck at zero.
         // Sending no end at all is better: Discord then shows elapsed time counting up.
+        // The player's length stands in, so the card keeps its progress bar for a song whose length
+        // has not been stored yet (C.TIME_UNSET is negative, so it is skipped the same way).
         val durationMs = song.song.duration.takeIf { it > 0 }?.times(1000L)
+            ?: playerDurationMillis.takeIf { it > 0 }
         val calculatedEndTime = durationMs?.let { currentTime + (it - currentPlaybackTimeMillis) }
 
         // Discord makes details and state clickable when a matching *_url is supplied, and there

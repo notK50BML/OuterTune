@@ -27,6 +27,12 @@ data class DiscordNowPlaying(
     val song: SongItem?,
     val paused: Boolean,
     val positionMs: Long,
+    /**
+     * The track's length as the player has it. A song from the library carries none of its own, and
+     * without a length Discord can only count elapsed time - no progress bar - so this is what the
+     * bar is drawn from, as the phone's card always has one.
+     */
+    val durationMs: Long = 0,
 )
 
 /**
@@ -57,7 +63,7 @@ class DiscordPresence(private val scope: CoroutineScope) {
                     if (now == null || now.song == null || now.paused) {
                         client.stopActivity()
                     } else {
-                        sendPresence(client, now.song, now.positionMs)
+                        sendPresence(client, now.song, now.positionMs, now.durationMs)
                     }
                 }.onFailure {
                     // Superseded work unwinding through here would look like it completed - let it
@@ -88,15 +94,20 @@ class DiscordPresence(private val scope: CoroutineScope) {
         rpc = null
     }
 
-    private suspend fun sendPresence(client: KizzyRPC, song: SongItem, positionMs: Long) {
+    private suspend fun sendPresence(client: KizzyRPC, song: SongItem, positionMs: Long, playerDurationMs: Long) {
         val currentTime = System.currentTimeMillis()
         val calculatedStartTime = currentTime - positionMs
 
-        // SongItem.duration is seconds and can be null for a track resolved without full metadata.
-        // Left alone that would compute an end before the start, which Discord draws as a bar stuck
-        // at zero - sending no end at all instead shows elapsed time counting up.
-        val durationMs = song.duration?.takeIf { it > 0 }?.times(1000L)
+        // The player's length first: SongItem.duration is null for every song played from the
+        // library, which left the card with no end and so no progress bar. Only when neither is
+        // known is the end left out - an end before the start draws as a bar stuck at zero.
+        val durationMs = playerDurationMs.takeIf { it > 0 } ?: song.duration?.takeIf { it > 0 }?.times(1000L)
         val calculatedEndTime = durationMs?.let { currentTime + (it - positionMs) }
+        // The artist's picture in the small circle, as on the phone - cached by the library once any
+        // artist page or list has shown it, and fetched here otherwise.
+        val artistPicture = song.artists.firstOrNull()?.let { artist ->
+            ArtistImages.url(artist.id?.let { StoredArtist(it, artist.name) } ?: StoredArtist.unlinked(artist.name))
+        }
 
         // Discord makes details and state clickable when a matching *_url is supplied. The artist
         // credit has no channel id for a result that never resolved one, and stays plain text then.
@@ -114,7 +125,7 @@ class DiscordPresence(private val scope: CoroutineScope) {
             ),
             stateUrl = artistUrl,
             largeImage = RpcImage.ExternalImage(song.thumbnail),
-            smallImage = null,
+            smallImage = artistPicture?.let { RpcImage.ExternalImage(it) },
             largeText = RpcText.fit(song.album?.name),
             smallText = RpcText.fit(song.artists.firstOrNull()?.name),
             buttons = listOf(
