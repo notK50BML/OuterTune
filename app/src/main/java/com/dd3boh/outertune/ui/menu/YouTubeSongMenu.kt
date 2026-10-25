@@ -113,16 +113,12 @@ fun YouTubeSongMenu(
                 onClick = {
                     database.transaction {
                         librarySong.let { librarySong ->
-                            val s: SongEntity
+                            // toggleLike sends it to YouTube Music itself, a minute late - see LikeSync.
                             if (librarySong == null) {
                                 insert(song.toMediaMetadata(), SongEntity::toggleLike)
-                                s = song.toMediaMetadata().toSongEntity().let(SongEntity::toggleLike)
                             } else {
-                                s = librarySong.song.toggleLike()
-                                update(s)
+                                update(librarySong.song.toggleLike())
                             }
-
-                            syncUtils.likeSong(s)
                         }
                     }
                 }

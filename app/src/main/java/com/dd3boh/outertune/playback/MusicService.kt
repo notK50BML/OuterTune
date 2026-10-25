@@ -931,12 +931,11 @@ class MusicService : MediaLibraryService(),
     fun toggleLike() {
         database.query {
             currentSong.value?.let {
+                // toggleLike sends it to YouTube Music itself, a minute late and not at all if it is
+                // changed back - see LikeSync. Sending it here as well went out at once, which is
+                // exactly what the delay exists to prevent.
                 val song = it.song.toggleLike()
                 update(song)
-
-                if (!song.isLocal) {
-                    syncUtils.likeSong(song)
-                }
             }
         }
     }

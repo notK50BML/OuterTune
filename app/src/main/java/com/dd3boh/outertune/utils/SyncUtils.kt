@@ -440,6 +440,11 @@ class SyncUtils @Inject constructor(
     /**
      * Like/unlike a single song upstream. Queued so rapid taps are executed in order.
      */
+    /**
+     * Sends [s]'s like or unlike now. Not for likes made in the app: SongEntity.toggleLike sends
+     * those itself, a minute late and only if they stick (LikeSync) - calling this as well sent
+     * every one at once, and an accidental unlike reached the account before Undo could stop it.
+     */
     fun likeSong(s: SongEntity) = enqueue(SyncOperation.LikeSong(s))
 
     /**

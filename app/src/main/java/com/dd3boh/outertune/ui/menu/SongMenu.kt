@@ -163,13 +163,10 @@ fun SongMenu(
         trailingContent = {
             IconButton(
                 onClick = {
+                    // toggleLike sends it to YouTube Music itself, a minute late - see LikeSync.
                     val s = song.song.toggleLike()
                     database.query {
                         update(s)
-                    }
-
-                    if (!s.isLocal) {
-                        syncUtils.likeSong(s)
                     }
                 }
             ) {

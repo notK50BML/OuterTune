@@ -57,7 +57,10 @@ object LikeSync {
     // likeVideo hands its failure back as a Result rather than throwing - unwrapped here, or a
     // failed send would count as a sent one.
     @VisibleForTesting
-    internal var send: suspend (String, Boolean) -> Unit = { id, liked -> YouTube.likeVideo(id, liked).getOrThrow() }
+    internal var send: suspend (String, Boolean) -> Unit = { id, liked ->
+        // Signed out there is no account to tell; the like stays on the phone.
+        if (!YouTube.cookie.isNullOrEmpty()) YouTube.likeVideo(id, liked).getOrThrow()
+    }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 

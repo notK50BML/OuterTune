@@ -200,19 +200,13 @@ fun SelectionMediaMetadataMenu(
             database.query {
                 if (allLiked) {
                     selection.forEach { song ->
-                        val s = song.toSongEntity().toggleLike()
-                        update(s)
-                        if (!s.isLocal) {
-                            syncUtils.likeSong(s)
-                        }
+                        // toggleLike sends it to YouTube Music itself, a minute late - see LikeSync.
+                        update(song.toSongEntity().toggleLike())
                     }
                 } else {
                     selection.filter { !it.liked }.forEach { song ->
-                        val s = song.toSongEntity().toggleLike()
-                        update(s)
-                        if (!s.isLocal) {
-                            syncUtils.likeSong(s)
-                        }
+                        // toggleLike sends it to YouTube Music itself, a minute late - see LikeSync.
+                        update(song.toSongEntity().toggleLike())
                     }
                 }
             }
