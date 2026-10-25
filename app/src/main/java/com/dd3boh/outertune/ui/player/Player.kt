@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.ui.player
 
+import com.dd3boh.outertune.ui.component.items.shownArtists
 import com.dd3boh.outertune.ui.component.ShuffleButton
 import android.annotation.SuppressLint
 import android.content.res.Configuration
@@ -1090,8 +1091,14 @@ fun ControlsContent(
                                     }
                             )
 
+                            // The library's repaired credits under their page names, as every song
+                            // row shows them - the queued metadata is a snapshot from before the
+                            // credits were repaired.
+                            val artists = mediaMetadata?.let { metadata ->
+                                shownArtists(metadata.id, metadata.artists.map { it.id to it.name })
+                            }
                             Row {
-                                mediaMetadata?.artists?.fastForEachIndexed { index, artist ->
+                                artists?.fastForEachIndexed { index, artist ->
                                     Text(
                                         text = artist.name,
                                         style = MaterialTheme.typography.titleMedium,
@@ -1108,7 +1115,7 @@ fun ControlsContent(
                                             }
                                     )
 
-                                    if (index != mediaMetadata?.artists?.lastIndex) {
+                                    if (index != artists.lastIndex) {
                                         Text(
                                             text = ", ",
                                             style = MaterialTheme.typography.titleMedium,

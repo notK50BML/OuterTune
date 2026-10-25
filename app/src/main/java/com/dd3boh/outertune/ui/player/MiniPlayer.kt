@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.ui.player
 
+import com.dd3boh.outertune.ui.component.items.shownArtistsText
 import android.annotation.SuppressLint
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -363,7 +364,7 @@ fun MiniMediaInfo(
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                text = mediaMetadata.artists.joinToString { it.name },
+                text = shownArtistsText(mediaMetadata.id, mediaMetadata.artists.map { it.id to it.name }),
                 color = MaterialTheme.colorScheme.secondary,
                 fontSize = 12.sp,
                 maxLines = 1,

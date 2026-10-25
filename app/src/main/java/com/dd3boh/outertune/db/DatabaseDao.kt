@@ -166,6 +166,12 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
     @Transaction
     fun insert(mediaMetadata: MediaMetadata, block: (SongEntity) -> SongEntity = { it }) {
         val isNewSong = insert(mediaMetadata.toSongEntity().let(block)) != -1L
+        // A song that already has credits keeps them. Those are what ArtistCreditEnricher and
+        // ArtistNameRefresher maintain - a combined "X & Y" split into two channels, an old alias
+        // folded into the artist's current one - and adding back whatever this metadata credits
+        // undid exactly that: an album page or a related-songs list re-added the raw "X & Y" or the
+        // retired "(G)I-DLE" channel beside the repaired credits. A song with none takes them all.
+        val keepCredits = !isNewSong && songArtistCount(mediaMetadata.id) > 0
         // Artist/genre mappings run even for a song that already existed: one first cached from a
         // sparse source (search, queue, related) can be missing artists a richer source - e.g. the
         // very album this call came from - actually credits it with, and previously this whole
@@ -174,7 +180,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
         // OnConflictStrategy.IGNORE on [songId, artistId]/[songId, genreId], so re-running this for
         // an existing song only ever adds a mapping that was missing, never duplicates or removes
         // one that's already there.
-        mediaMetadata.artists.forEachIndexed { index, artist ->
+        if (!keepCredits) mediaMetadata.artists.forEachIndexed { index, artist ->
             // A song's artist can come in credited under YouTube's auto-generated "- Topic"
             // channel - its own distinct channel id, separate from the artist's real one if they
             // have one. Matching by the stripped display name first (rather than trusting

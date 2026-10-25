@@ -335,7 +335,7 @@ fun MediaMetadataListItem(
 ) = ListItem(
     title = mediaMetadata.title,
     subtitle = joinByBullet(
-        mediaMetadata.artists.joinToString { it.name },
+        shownArtistsText(mediaMetadata.id, mediaMetadata.artists.map { it.id to it.name }),
         makeTimeString(mediaMetadata.duration * 1000L)
     ),
     badges = {
@@ -428,7 +428,7 @@ fun YouTubeListItem(
         title = item.title,
         subtitle = when (item) {
             is SongItem -> joinByBullet(
-                item.artists.joinToString { it.name },
+                shownArtistsText(item.id, item.artists.map { it.id to it.name }),
                 makeTimeString(item.duration?.times(1000L))
             )
 
@@ -505,7 +505,7 @@ fun YouTubeGridItem(
     subtitle = {
         val subtitle = when (item) {
             is SongItem -> joinByBullet(
-                item.artists.joinToString { it.name },
+                shownArtistsText(item.id, item.artists.map { it.id to it.name }),
                 makeTimeString(item.duration?.times(1000L))
             )
 

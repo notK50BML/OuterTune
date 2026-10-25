@@ -178,7 +178,9 @@ fun ArtistScreen(
     val artistHead = @Composable {
         if (artistPage != null || libraryArtist != null) {
             val thumbnail = artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl
-            val artistName = artistPage?.artist?.title ?: libraryArtist?.artist?.name
+            // Without a "- Topic" suffix, as the library stores the name - so the page reads the same
+            // name every song credits it under.
+            val artistName = artistPage?.artist?.title?.stripTopicSuffix() ?: libraryArtist?.artist?.name
 
             // A fixed square header, filled by cropping - which is what Metrolist does, and the
             // reason its artist pages look settled where this one did not.
@@ -634,7 +636,7 @@ fun ArtistScreen(
         )
 
         TopAppBar(
-            title = { if (!transparentAppBar) Text(artistPage?.artist?.title.orEmpty()) },
+            title = { if (!transparentAppBar) Text(artistPage?.artist?.title?.stripTopicSuffix().orEmpty()) },
             navigationIcon = {
                 IconButton(
                     onClick = navController::navigateUp,

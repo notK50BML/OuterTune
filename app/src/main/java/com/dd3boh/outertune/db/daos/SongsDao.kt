@@ -345,6 +345,10 @@ interface SongsDao {
     @Query("SELECT COALESCE(MAX(position), -1) + 1 FROM song_artist_map WHERE songId = :songId")
     fun nextArtistPosition(songId: String): Int
 
+    /** How many artists [songId] is credited to - see DatabaseDao.insert(MediaMetadata). */
+    @Query("SELECT COUNT(*) FROM song_artist_map WHERE songId = :songId")
+    fun songArtistCount(songId: String): Int
+
     // region downloaded Songs utils
     @Transaction
     @Query("SELECT * FROM song WHERE isLocal = 0 AND dateDownload IS NOT NULL AND dateDownload IS NOT 0")

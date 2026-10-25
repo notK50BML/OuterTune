@@ -9,6 +9,8 @@
 
 package com.dd3boh.outertune
 
+import com.dd3boh.outertune.db.normalizeArtistId
+import com.dd3boh.outertune.ui.component.items.LocalArtistNames
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
@@ -551,8 +553,16 @@ class MainActivity : ComponentActivity() {
                         onDispose { removeOnNewIntentListener(listener) }
                     }
 
+                    // Every artist's library name by channel id, for songs shown from YouTube's own
+                    // data - see LocalArtistNames.
+                    val artistNames by remember {
+                        database.allRemoteArtists().map { artists ->
+                            artists.associate { it.id.normalizeArtistId() to it.name }
+                        }
+                    }.collectAsState(initial = emptyMap())
                     CompositionLocalProvider(
                         LocalDatabase provides database,
+                        LocalArtistNames provides artistNames,
                         LocalContentColor provides contentColorFor(MaterialTheme.colorScheme.surface),
                         LocalMenuState provides MenuState(rememberModalBottomSheetState()),
                         LocalPlayerConnection provides playerConnection,

@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.menu
 
+import com.dd3boh.outertune.ui.component.items.shownArtistsText
 import android.content.Intent
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -96,7 +97,7 @@ fun YouTubeSongMenu(
     ListItem(
         title = song.title,
         subtitle = joinByBullet(
-            song.artists.joinToString { it.name },
+            shownArtistsText(song.id, song.artists.map { it.id to it.name }),
             song.duration?.let { makeTimeString(it * 1000L) }
         ),
         thumbnailContent = {
