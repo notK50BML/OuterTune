@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.produceState
+import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.pages.HistoryPage
+import com.zionhuang.innertube.utils.HistoryTally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -57,6 +61,26 @@ enum class StatsPeriod(val label: String, val days: Long?) {
     fun sinceMs(now: Long = System.currentTimeMillis()): Long = days?.let { now - it * 86_400_000L } ?: 0L
 }
 
+/**
+ * The account's YouTube Music history, newest first - as many pages as [MAX_HISTORY_PAGES] allows,
+ * since it has no end and each page is a request. Empty when it cannot be read.
+ */
+private suspend fun readHistory(): List<HistoryPage.HistorySection> {
+    val sections = ArrayList<HistoryPage.HistorySection>()
+    var page = YouTube.musicHistory().getOrNull() ?: return emptyList()
+    var pages = 0
+    while (true) {
+        sections += page.sections.orEmpty()
+        val next = page.continuation ?: break
+        if (++pages >= MAX_HISTORY_PAGES) break
+        page = YouTube.musicHistoryContinuation(next).getOrNull() ?: break
+    }
+    return sections
+}
+
+/** The phone's bound on history pages read for Stats. */
+private const val MAX_HISTORY_PAGES = 40
+
 private data class StatsData(
     val totals: PlayTotals,
     val songs: List<Pair<StoredSong, Int>>,
@@ -76,15 +100,25 @@ fun StatsPane(
     onPlay: (List<StoredSong>, Int) -> Unit,
     onOpenArtist: (StoredArtist) -> Unit,
     modifier: Modifier = Modifier,
+    /** Count plays from the account's YouTube Music history too - Settings, signed in only. */
+    includeRemote: Boolean = false,
 ) {
     var period by remember { mutableStateOf(StatsPeriod.Month) }
     var data by remember { mutableStateOf<StatsData?>(null) }
+    // The history, read once each time Stats is opened with the setting on, then counted per period.
+    val history by produceState(emptyList<HistoryPage.HistorySection>(), includeRemote) {
+        value = if (includeRemote) withContext(Dispatchers.IO) { readHistory() } else emptyList()
+    }
     // Re-read when the recent list changes too, so a song finishing while this is open is counted.
     val recent by library.recentlyPlayed.collectAsState()
-    LaunchedEffect(period, recent) {
+    LaunchedEffect(period, recent, history) {
         data = withContext(Dispatchers.IO) {
             val since = period.sinceMs()
-            StatsData(library.playTotals(since), library.topSongs(since), library.topArtists(since))
+            val remote = if (history.isEmpty()) emptyMap() else HistoryTally.tally(history, period.days)
+            val totals = library.playTotals(since).let { local ->
+                if (remote.isEmpty()) local else local.withHistory(remote, library.playCounts(since))
+            }
+            StatsData(totals, library.topSongs(since, remote = remote), library.topArtists(since))
         }
     }
 

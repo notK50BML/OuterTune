@@ -1352,6 +1352,7 @@ internal fun App(
                         currentId = queue.current?.id,
                         onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Stats") },
                         onOpenArtist = openArtistPage,
+                        includeRemote = settings.statsIncludeRemote && accountState is AccountState.SignedIn,
                     )
                 } else if (tab == NavTab.Playlists) {
                     PlaylistsPane(

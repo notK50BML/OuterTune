@@ -387,6 +387,13 @@ class Settings(private val store: SettingsStore) {
      */
     var shareHistoryWithYtm by bool("library.historyYtm", false)
 
+    /**
+     * Stats also counts plays from the account's YouTube Music history - other devices, the YouTube
+     * Music app, the web. Off by default, as on the phone: it is a run of requests each time Stats
+     * opens, and what it adds is counted the phone's way (see HistoryTally).
+     */
+    var statsIncludeRemote by bool("stats.includeRemote", false)
+
     // ---- Network ------------------------------------------------------------------------------
 
     /** Whether API requests go through a proxy. */

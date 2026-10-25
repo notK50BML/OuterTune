@@ -1460,6 +1460,13 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
                 onCheckedChange = { settings.shareHistoryWithYtm = it },
                 icon = OuterTuneIcons.cast,
             )
+            SettingSwitch(
+                title = "Count plays from other devices",
+                subtitle = "Stats adds plays from your YouTube Music history - other devices, the app, the web - without counting this computer's twice.",
+                checked = settings.statsIncludeRemote,
+                onCheckedChange = { settings.statsIncludeRemote = it },
+                icon = OuterTuneIcons.history,
+            )
         }
         var clearingPlays by remember { mutableStateOf(false) }
         SettingRow(

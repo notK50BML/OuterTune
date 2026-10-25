@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.utils.HistoryTally
 import kotlinx.coroutines.flow.MutableStateFlow
 import java.io.File
 import java.util.UUID
@@ -151,7 +152,9 @@ class LibraryStore(
         recentlyPlayed.value = emptyList()
     }
 
-    fun topSongs(sinceMs: Long, limit: Int = 50) = db.topSongs(sinceMs, limit)
+    fun topSongs(sinceMs: Long, limit: Int = 50, remote: Map<String, HistoryTally.Plays> = emptyMap()) =
+        db.topSongs(sinceMs, limit, remote)
+    fun playCounts(sinceMs: Long) = db.playCounts(sinceMs)
     fun topArtists(sinceMs: Long, limit: Int = 30) = db.topArtists(sinceMs, limit)
     fun playTotals(sinceMs: Long) = db.playTotals(sinceMs)
 

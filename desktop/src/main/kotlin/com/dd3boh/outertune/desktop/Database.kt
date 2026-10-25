@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.utils.HistoryTally
 import java.io.File
 import java.sql.Connection
 import java.sql.DriverManager
@@ -792,7 +793,12 @@ class Database(file: File) {
      * Most played songs since [sinceMs], with how many times each - the same song under several ids
      * counted once (see [mergeSameSongs]).
      */
-    fun topSongs(sinceMs: Long, limit: Int): List<Pair<StoredSong, Int>> = synchronized(lock) {
+    fun topSongs(
+        sinceMs: Long,
+        limit: Int,
+        /** Plays from the account's history for the same period - see HistoryTally. */
+        remote: Map<String, HistoryTally.Plays> = emptyMap(),
+    ): List<Pair<StoredSong, Int>> = synchronized(lock) {
         // Every song played, not the first [limit]: two ids of one song can each sit below the cut
         // and only make it once added together.
         val rows = connection.prepareStatement(
@@ -818,7 +824,7 @@ class Database(file: File) {
                 }
             }
         }
-        val top = mergeSameSongs(rows).take(limit)
+        val top = mergeSameSongs(withHistoryPlays(rows, remote)).take(limit)
         val credits = creditsForLocked(top.map { it.song.id })
         top.map { it.song.copy(artistList = credits[it.song.id].orEmpty()) to it.plays }
     }
@@ -842,6 +848,16 @@ class Database(file: File) {
     }
 
     /** Plays, distinct songs, and listening time (from the songs' lengths) since [sinceMs]. */
+    /** How many times each song was played here since [sinceMs]. */
+    fun playCounts(sinceMs: Long): Map<String, Int> = synchronized(lock) {
+        connection.prepareStatement(
+            "SELECT songId, COUNT(*) FROM play_event WHERE playedAt >= ? GROUP BY songId"
+        ).use { st ->
+            st.setLong(1, sinceMs)
+            st.executeQuery().use { rs -> buildMap { while (rs.next()) put(rs.getString(1), rs.getInt(2)) } }
+        }
+    }
+
     fun playTotals(sinceMs: Long): PlayTotals = synchronized(lock) {
         connection.prepareStatement(
             """
@@ -1328,3 +1344,35 @@ internal fun mergeSameSongs(rows: List<PlayedSong>): List<PlayedSong> =
             PlayedSong(main.song, plays = same.sumOf { it.plays }, lastPlayedAt = same.maxOf { it.lastPlayedAt })
         }
         .sortedWith(compareByDescending<PlayedSong> { it.plays }.thenByDescending { it.lastPlayedAt })
+
+/**
+ * [rows] with what the account's history adds: a song played here gains the history's plays beyond
+ * its own (the larger of the two, never the sum - see HistoryTally.extraPlays), and one played only
+ * elsewhere joins the chart from the history's own metadata, in memory only.
+ */
+internal fun withHistoryPlays(rows: List<PlayedSong>, remote: Map<String, HistoryTally.Plays>): List<PlayedSong> {
+    if (remote.isEmpty()) return rows
+    val known = rows.mapTo(HashSet()) { it.song.id }
+    val raised = rows.map { row ->
+        val history = remote[row.song.id] ?: return@map row
+        row.copy(plays = row.plays + HistoryTally.extraPlays(row.plays, history.plays))
+    }
+    val elsewhere = remote.values.filter { it.song.id !in known }.map { PlayedSong(it.song.toStored(), it.plays, 0L) }
+    return raised + elsewhere
+}
+
+/** [totals] with the plays and listening time the history adds over this computer's own. */
+internal fun PlayTotals.withHistory(remote: Map<String, HistoryTally.Plays>, localPlays: Map<String, Int>): PlayTotals {
+    if (remote.isEmpty()) return this
+    var plays = 0
+    var songs = 0
+    var ms = 0L
+    remote.values.forEach { history ->
+        val local = localPlays[history.song.id] ?: 0
+        val extra = HistoryTally.extraPlays(local, history.plays)
+        plays += extra
+        if (local == 0 && extra > 0) songs++
+        ms += extra * (history.song.duration ?: 0) * 1000L
+    }
+    return PlayTotals(this.plays + plays, this.songs + songs, listenedMs + ms)
+}
