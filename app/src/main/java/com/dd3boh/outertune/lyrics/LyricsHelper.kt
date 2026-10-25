@@ -109,8 +109,12 @@ class LyricsHelper @Inject constructor(
         // No usable positive cache in the preferred source. Fetch only when there is no row or the
         // negative cache is stale/invalid; a fresh negative cache is not re-fetched. LYRICS_NOT_FOUND is
         // never treated as a plain "row exists".
-        if (shouldFetch(mediaMetadata.id)) {
-            fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.MANUAL)
+        // A stored "not found" is also checked again once a session: showing no lyrics is the moment
+        // to look again, rather than trusting a miss up to a week old for a song whose lyrics have
+        // since been added.
+        val recheckMiss = dbLyrics == LYRICS_NOT_FOUND && missesRechecked.add(mediaMetadata.id)
+        if (recheckMiss || shouldFetch(mediaMetadata.id)) {
+            fetchAndStoreRemote(mediaMetadata, LyricsFetchRole.MANUAL, forceRefresh = recheckMiss)
             val fetched = database.lyrics(mediaMetadata.id).let { it.first()?.lyrics }
             if (fetched != null && fetched != LYRICS_NOT_FOUND) {
                 return parseResilient(fetched, parserOptions)
@@ -620,6 +624,9 @@ class LyricsHelper @Inject constructor(
         private const val MANUAL_TIMEOUT_PER_PROVIDER_MS = PROVIDER_TIMEOUT_MS + 1000L
     }
 }
+
+/** Songs whose stored "not found" has already been checked again this session - see LyricsHelper.getLyrics. */
+private val missesRechecked: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
 /** Time a negative cache (LYRICS_NOT_FOUND) is trusted before a fresh remote fetch is attempted. */
 const val NEGATIVE_CACHE_TTL_MS = 7L * 24 * 60 * 60 * 1000

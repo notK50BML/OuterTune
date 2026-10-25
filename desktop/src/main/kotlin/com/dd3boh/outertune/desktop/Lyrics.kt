@@ -393,7 +393,10 @@ class LyricsRepository(private val library: LibraryStore) {
         library.cachedLyrics(songId)?.let { cached ->
             // A recorded miss is asked again after a week: providers add lyrics all the time, and a
             // miss used to be forever.
-            val staleMiss = cached.source == NONE && System.currentTimeMillis() - cached.fetchedAt > MISS_TTL_MS
+            // And once a session regardless: "no lyrics found" is the moment to look again, rather
+            // than showing a week-old miss for a song whose lyrics have since been added.
+            val staleMiss = cached.source == NONE &&
+                (System.currentTimeMillis() - cached.fetchedAt > MISS_TTL_MS || missesRechecked.add(songId))
             if (!staleMiss) return@withContext LrcParser.parseAny(cached.text, cached.source)
         }
         // Whether any provider failed rather than answered "none" - see the end.
@@ -445,6 +448,9 @@ class LyricsRepository(private val library: LibraryStore) {
         if (!failed) library.cacheLyrics(songId, "", NONE)
         null
     }
+
+    /** Songs whose recorded miss has already been checked again this session - see [lyricsFor]. */
+    private val missesRechecked: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     /** Forgets what is stored for a song, so the next request goes back to the providers. */
     fun forget(songId: String) = library.clearLyrics(songId)
