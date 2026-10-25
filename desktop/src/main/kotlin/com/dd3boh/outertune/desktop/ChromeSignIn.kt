@@ -79,6 +79,11 @@ object ChromeSignIn {
     suspend fun signIn(
         timeoutMs: Long = 5 * 60 * 1000,
         onProgress: (Progress) -> Unit = {},
+        /**
+         * Whether a session found in the browser actually works. Asked before the browser is closed,
+         * so a session caught half-made is waited on rather than kept - see [awaitSession].
+         */
+        verify: (suspend (String) -> Boolean)? = null,
     ): String? = withContext(Dispatchers.IO) {
         val browser = findBrowser() ?: return@withContext null
         val profile = File(defaultDataDirectory(), "signin-profile")
@@ -103,7 +108,7 @@ object ChromeSignIn {
         try {
             val wsUrl = awaitDebuggerUrl(port) ?: return@withContext null
             onProgress(Progress.WaitingForSignIn)
-            awaitSession(wsUrl, timeoutMs, onProgress)
+            awaitSession(wsUrl, timeoutMs, onProgress, verify)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -159,7 +164,15 @@ object ChromeSignIn {
         wsUrl: String,
         timeoutMs: Long,
         onProgress: (Progress) -> Unit,
+        verify: (suspend (String) -> Boolean)?,
     ): String? {
+        // The first session that looked complete, and when. Signing in sets cookies in waves -
+        // Google's first, then YouTube's as the browser is sent on to music.youtube.com - and the
+        // browser used to be closed at the first sign of one, with a session YouTube did not yet
+        // honour. Now it stays open while the session is checked, and only a session that keeps
+        // failing for [VERIFY_GRACE_MS] is handed over anyway, so its own error can be shown.
+        var candidate: String? = null
+        var candidateSince = 0L
         val client = OkHttpClient.Builder()
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .build()
@@ -201,7 +214,10 @@ object ChromeSignIn {
                 val cookie = reply?.let { extractSession(it) }
                 if (cookie != null) {
                     onProgress(Progress.Reading)
-                    return cookie
+                    if (verify == null || verify(cookie)) return cookie
+                    if (candidate == null) candidateSince = System.currentTimeMillis()
+                    candidate = cookie
+                    if (System.currentTimeMillis() - candidateSince > VERIFY_GRACE_MS) return cookie
                 }
                 delay(1000)
             }
@@ -241,6 +257,7 @@ object ChromeSignIn {
         val cookies = result["cookies"] as? JsonArray ?: return null
 
         val found = LinkedHashMap<String, String>()
+        var onYouTube = false
         cookies.forEach { element ->
             val cookie = element as? JsonObject ?: return@forEach
             val domain = (cookie["domain"] as? JsonPrimitive)?.content?.removePrefix(".") ?: return@forEach
@@ -251,8 +268,12 @@ object ChromeSignIn {
             // A youtube.com cookie wins over a google.com one of the same name - the request about
             // to be signed is going to music.youtube.com.
             if (name !in found || domain.endsWith("youtube.com")) found[name] = value
+            if (name == "SAPISID" && domain.endsWith("youtube.com")) onYouTube = true
         }
-        if ("SAPISID" !in found) return null
+        // Not finished until the session has reached youtube.com. Google sets its SAPISID the moment
+        // the password is accepted, before the browser is sent on to YouTube - and a session taken
+        // from there is not one YouTube recognises yet.
+        if ("SAPISID" !in found || !onYouTube) return null
         return found.entries.joinToString("; ") { "${it.key}=${it.value}" }
     }
 
@@ -310,6 +331,9 @@ object ChromeSignIn {
      */
     private fun freePort(): Int = ServerSocket(0).use { it.localPort }
 
+    /** How long a session that YouTube does not accept is waited on before it is handed over anyway. */
+    private const val VERIFY_GRACE_MS = 20_000L
+
     private const val SIGN_IN_URL =
         "https://accounts.google.com/ServiceLogin?service=youtube&continue=https://music.youtube.com/"
 
@@ -327,5 +351,13 @@ object ChromeSignIn {
         "LOGIN_INFO",
         "PREF",
         "VISITOR_INFO1_LIVE",
+        // Google's session timestamps and their check cookies. Newer sessions are not honoured
+        // without them: YouTube answers a request that lacks them as signed out, which is what
+        // "account header missing" was.
+        "__Secure-1PSIDTS",
+        "__Secure-3PSIDTS",
+        "SIDCC",
+        "__Secure-1PSIDCC",
+        "__Secure-3PSIDCC",
     )
 }

@@ -123,7 +123,9 @@ class Account(private val db: Database) {
      * [ChromeSignIn] for why that is possible without bundling one.
      */
     suspend fun signInWithBrowser(onProgress: (ChromeSignIn.Progress) -> Unit = {}): AccountState {
-        val cookie = ChromeSignIn.signIn(onProgress = onProgress)
+        // Checked in the browser's lifetime, so a session caught before YouTube accepts it is waited
+        // on instead of stored - see ChromeSignIn.awaitSession.
+        val cookie = ChromeSignIn.signIn(onProgress = onProgress, verify = { verify(it) is AccountState.SignedIn })
             ?: return AccountState.Expired("Sign-in was not completed.").also { state.value = it }
         return signIn(cookie)
     }

@@ -134,5 +134,13 @@ object FirefoxCookies {
         "LOGIN_INFO",
         "PREF",
         "VISITOR_INFO1_LIVE",
+        // Google's session timestamps and their check cookies. Newer sessions are not honoured
+        // without them: YouTube answers a request that lacks them as signed out, which is what
+        // "account header missing" was.
+        "__Secure-1PSIDTS",
+        "__Secure-3PSIDTS",
+        "SIDCC",
+        "__Secure-1PSIDCC",
+        "__Secure-3PSIDCC",
     )
 }

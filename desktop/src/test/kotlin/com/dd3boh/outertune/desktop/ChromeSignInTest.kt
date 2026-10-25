@@ -54,6 +54,30 @@ class ChromeSignInTest {
     }
 
     @Test
+    fun `a session that has not reached youtube yet is not finished`() {
+        // Google sets its cookies the moment the password is accepted, before the browser is sent
+        // on to music.youtube.com. Taking the session there gave YouTube a sign-in it did not yet
+        // honour: the account menu came back without its header, and sign-in failed.
+        val message = reply(
+            cookie("SAPISID", "google-copy", ".google.com"),
+            cookie("SID", "sid", ".google.com"),
+        )
+        assertNull(ChromeSignIn.extractSession(message))
+    }
+
+    @Test
+    fun `the session timestamps are kept`() {
+        val message = reply(
+            cookie("SAPISID", "abc", ".youtube.com"),
+            cookie("__Secure-3PSIDTS", "ts", ".youtube.com"),
+            cookie("__Secure-1PSIDTS", "ts1", ".google.com"),
+        )
+        val session = ChromeSignIn.extractSession(message)!!
+        assertTrue(session.contains("__Secure-3PSIDTS=ts"))
+        assertTrue(session.contains("__Secure-1PSIDTS=ts1"))
+    }
+
+    @Test
     fun `an empty jar yields nothing`() {
         assertNull(ChromeSignIn.extractSession(reply()))
     }
