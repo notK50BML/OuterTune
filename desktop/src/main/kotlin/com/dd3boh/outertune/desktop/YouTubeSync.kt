@@ -165,11 +165,6 @@ class YouTubeSync(private val library: LibraryStore) {
         }
     }
 
-    /** Sends a like or unlike made here to the account, so YouTube's list follows this one. */
-    suspend fun pushLike(songId: String, liked: Boolean) = withContext(Dispatchers.IO) {
-        YouTube.likeVideo(songId, liked)
-    }
-
     /** Forgets the account's lists, on sign-out. Liked songs already brought in stay. */
     fun clear() {
         albums.value = emptyList()
