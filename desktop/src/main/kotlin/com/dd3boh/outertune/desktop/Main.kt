@@ -1095,6 +1095,8 @@ internal fun App(
             showSeekButtons = settings.showSeekButtons,
             lyricsTextScale = settings.lyricsTextScale,
             lyricsAlignment = settings.lyricsAlignment,
+            lyricsHighlight = settings.lyricsHighlight,
+            lyricsKind = lyricsKindOf(fetchedLyrics, settings.estimateWordTimings).takeIf { settings.lyricsShowKind },
             playerButtons = when {
                 !currentIsLocal -> PlayerButtonKind.decode(settings.playerButtons)
                 settings.localPlayerButtonsOwn -> PlayerButtonKind.decodeLocal(settings.localPlayerButtons)

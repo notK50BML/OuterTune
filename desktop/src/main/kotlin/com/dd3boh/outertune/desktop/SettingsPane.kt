@@ -754,6 +754,22 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             label = { it.label },
             onSelect = { settings.lyricsAlignment = it },
         )
+        SettingChoice(
+            title = "Word highlight",
+            icon = OuterTuneIcons.textRotationAngledown,
+            options = LyricsHighlight.entries,
+            selected = settings.lyricsHighlight,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.lyricsHighlight = it },
+        )
+        SettingSwitch(
+            title = "Show lyrics type",
+            subtitle = "A small tag by the lyrics controls: word-synced, line-synced, estimated or unsynced.",
+            checked = settings.lyricsShowKind,
+            onCheckedChange = { settings.lyricsShowKind = it },
+            icon = OuterTuneIcons.info,
+        )
         SettingSlider(
             title = "Lyrics timing offset",
             subtitle = "Shifts every line. Positive is later.",

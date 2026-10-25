@@ -72,6 +72,7 @@ fun LyricsPane(
     modifier: Modifier = Modifier,
     fontSize: TextUnit = 22.sp,
     alignment: LyricsAlignment = LyricsAlignment.Centre,
+    highlight: LyricsHighlight = LyricsHighlight.Fade,
 ) {
     val textAlign = if (alignment == LyricsAlignment.Left) TextAlign.Start else TextAlign.Center
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -109,6 +110,7 @@ fun LyricsPane(
                 onColour = onColour,
                 fontSize = fontSize,
                 textAlign = textAlign,
+                highlight = highlight,
             )
         }
     }
@@ -122,6 +124,7 @@ private fun SyncedLyrics(
     onColour: Color,
     fontSize: TextUnit,
     textAlign: TextAlign,
+    highlight: LyricsHighlight,
 ) {
     val listState = rememberLazyListState()
     // Changes only when the line does, so the list recomposes once a line, not once a frame.
@@ -184,7 +187,15 @@ private fun SyncedLyrics(
                     .padding(horizontal = 24.dp, vertical = 6.dp)
 
                 androidx.compose.foundation.layout.Column(modifier = modifier) {
-                    if (active && line.words.isNotEmpty()) {
+                    if (active && line.words.isNotEmpty() && highlight == LyricsHighlight.Sweep) {
+                        SweepLyricLine(
+                            line = line,
+                            style = lineStyle.copy(fontWeight = FontWeight.Bold, textAlign = textAlign),
+                            sungColor = onColour,
+                            unsungColor = onColour.copy(alpha = UNSUNG_ALPHA),
+                            positionMs = positionMs,
+                        )
+                    } else if (active && line.words.isNotEmpty()) {
                         Text(
                             text = sungText(line, positionMs(), onColour),
                             style = lineStyle,

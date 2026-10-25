@@ -281,6 +281,12 @@ class Settings(private val store: SettingsStore) {
      */
     var estimateWordTimings by bool("lyrics.estimateWords", true)
 
+    /** How the line being sung lights its words. The desktop's own fade by default; the phone's sweep on request. */
+    var lyricsHighlight by enum("lyrics.highlight", LyricsHighlight.Fade, LyricsHighlight.entries)
+
+    /** The small tag beside the lyrics controls saying what timing the lyrics carry. */
+    var lyricsShowKind by bool("lyrics.showKind", true)
+
     // ---- Equaliser -------------------------------------------------------------------------
 
     /**

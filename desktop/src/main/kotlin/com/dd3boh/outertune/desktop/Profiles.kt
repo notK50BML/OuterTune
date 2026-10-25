@@ -176,6 +176,8 @@ object Profiles {
                 put("alignment", if (s.lyricsAlignment == LyricsAlignment.Left) "left" else "center")
                 put("wordByWord", s.wordByWordLyrics)
                 put("estimateWordTimings", s.estimateWordTimings)
+                put("highlightStyle", if (s.lyricsHighlight == LyricsHighlight.Sweep) "sweep" else "fade")
+                put("showLyricsType", s.lyricsShowKind)
                 // Negated both ways: in the shared profile format a positive offset shows lines earlier,
                 // as the phone has it; the desktop setting means the opposite (later).
                 put("offsetMs", -s.lyricsOffsetMs)
@@ -249,6 +251,8 @@ object Profiles {
                 str("alignment") { s.lyricsAlignment = if (it == "left") LyricsAlignment.Left else LyricsAlignment.Centre }
                 bool("wordByWord") { s.wordByWordLyrics = it }
                 bool("estimateWordTimings") { s.estimateWordTimings = it }
+                str("highlightStyle") { s.lyricsHighlight = if (it == "sweep") LyricsHighlight.Sweep else LyricsHighlight.Fade }
+                bool("showLyricsType") { s.lyricsShowKind = it }
                 int("offsetMs") { s.lyricsOffsetMs = -it }
                 bool("openOnCoverClick") { s.lyricsOnCoverClick = it }
                 bool("lrclib") { s.lyricsLrclib = it }

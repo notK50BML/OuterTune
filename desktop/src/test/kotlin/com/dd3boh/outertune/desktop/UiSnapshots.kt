@@ -150,7 +150,17 @@ class UiSnapshots {
     }
 
     @Composable
-    private fun Player(width: Int, eqOn: Boolean = false, buttons: String = "", background: BackgroundStyle = BackgroundStyle.Gradient, liquidTap: VisualizerTap? = null, layout: PlayerLayout? = null) {
+    private fun Player(
+        width: Int,
+        eqOn: Boolean = false,
+        buttons: String = "",
+        background: BackgroundStyle = BackgroundStyle.Gradient,
+        liquidTap: VisualizerTap? = null,
+        layout: PlayerLayout? = null,
+        highlight: LyricsHighlight = LyricsHighlight.Fade,
+        kind: LyricsKind? = null,
+        shownLyrics: Lyrics = lyrics,
+    ) {
         NowPlayingScreen(
             playback = PlaybackState.Playing(songs[0].title),
             queue = queue(),
@@ -160,7 +170,9 @@ class UiSnapshots {
             onSeek = {}, onTogglePause = {}, onNext = {}, onPrevious = {},
             onToggleLike = {}, onToggleShuffle = {}, onCycleRepeat = {}, onClose = {},
             actions = PlayerActions(onStartRadio = {}, onAddToQueue = {}, onShare = {}),
-            lyrics = lyrics,
+            lyrics = shownLyrics,
+            lyricsHighlight = highlight,
+            lyricsKind = kind,
             onDownload = {},
             onSleepTimer = {},
             equalizer = remember { Equalizer().apply { enabled = eqOn; if (eqOn) EqProfiles.factoryDefault("Rock")?.let(::setBands) } },
@@ -258,6 +270,14 @@ class UiSnapshots {
         capture("queue_wide", 1400, 860, interact = { it.click(500f, 840f) }) { Player(1400) }
         capture("queue_narrow", 900, 700, interact = { it.click(450f, 680f) }) { Player(900) }
         capture("lyrics", 1280, 800, interact = { it.click(300f, 400f) }) { Player(1280) }
+        // Words estimated and lit both ways, with the kind tag: the current line is 13.5s into a
+        // line that starts at 12s.
+        capture("lyrics_sweep", 1280, 800, interact = { it.click(300f, 400f) }) {
+            Player(1280, highlight = LyricsHighlight.Sweep, kind = LyricsKind.Estimated, shownLyrics = lyrics.withEstimatedWords())
+        }
+        capture("lyrics_fade", 1280, 800, interact = { it.click(300f, 400f) }) {
+            Player(1280, highlight = LyricsHighlight.Fade, kind = LyricsKind.Estimated, shownLyrics = lyrics.withEstimatedWords())
+        }
         capture("eq", 1280, 900, interact = {
             it.sendPointerEvent(PointerEventType.Scroll, Offset(640f, 300f), scrollDelta = Offset(0f, -1f))
         }) { Player(1280) }

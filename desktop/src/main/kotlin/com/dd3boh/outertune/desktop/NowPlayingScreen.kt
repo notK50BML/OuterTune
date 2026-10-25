@@ -209,6 +209,9 @@ fun NowPlayingScreen(
     /** Lyrics text size, in percent of the default. */
     lyricsTextScale: Int = 100,
     lyricsAlignment: LyricsAlignment = LyricsAlignment.Centre,
+    lyricsHighlight: LyricsHighlight = LyricsHighlight.Fade,
+    /** What timing the lyrics carry, for the tag by the lyrics controls - null hides it. */
+    lyricsKind: LyricsKind? = null,
     /** The title-row buttons, in order - see PlayerButtonKind. */
     playerButtons: List<PlayerButtonKind> = PlayerButtonKind.decode(""),
     showQueueTitle: Boolean = true,
@@ -587,6 +590,7 @@ fun NowPlayingScreen(
                                                 onColour = onBackground,
                                                 fontSize = 20.sp * scale * (lyricsTextScale / 100f),
                                                 alignment = lyricsAlignment,
+                                                highlight = lyricsHighlight,
                                                 modifier = Modifier.fillMaxSize().padding(bottom = 76.dp),
                                             )
                                             LyricsHeader(
@@ -595,6 +599,7 @@ fun NowPlayingScreen(
                                                 onClose = { showLyrics = false },
                                                 onRefetch = onRefetchLyrics,
                                                 fetching = lyricsLoading,
+                                                kind = lyricsKind,
                                                 offsetMs = lyricsOffsetMs,
                                                 onOffsetChange = onLyricsOffsetChange,
                                             )
@@ -728,6 +733,7 @@ fun NowPlayingScreen(
                         onColour = onBackground,
                         fontSize = 20.sp * scale * (lyricsTextScale / 100f),
                         alignment = lyricsAlignment,
+                        highlight = lyricsHighlight,
                         // Ends above the lyric controls, so no line is ever read through them.
                         modifier = Modifier.fillMaxHeight().padding(bottom = 76.dp),
                     )
@@ -737,6 +743,7 @@ fun NowPlayingScreen(
                         onClose = { showLyrics = false },
                         onRefetch = onRefetchLyrics,
                         fetching = lyricsLoading,
+                        kind = lyricsKind,
                         offsetMs = lyricsOffsetMs,
                         onOffsetChange = onLyricsOffsetChange,
                     )
@@ -1399,12 +1406,14 @@ private fun LyricsHeader(
     onClose: () -> Unit,
     onRefetch: (() -> Unit)?,
     fetching: Boolean,
+    kind: LyricsKind?,
     offsetMs: Int,
     onOffsetChange: ((Int) -> Unit)?,
 ) {
     var menu by remember { mutableStateOf(false) }
     var offsetDialog by remember { mutableStateOf(false) }
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
+        kind?.let { LyricsKindTag(it, tint, Modifier.padding(end = 4.dp)) }
         Box {
             IconButton(onClick = { menu = true }) {
                 // A spinner while lyrics are being fetched, so "Fetch lyrics again" visibly does
