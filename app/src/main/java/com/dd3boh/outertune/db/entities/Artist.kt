@@ -4,6 +4,14 @@ import androidx.compose.runtime.Immutable
 import androidx.room.Embedded
 
 @Immutable
+/** One artist's plays and listening time in a period - Stats' artist row. */
+data class ArtistPlayStats(
+    @Embedded
+    val artist: ArtistEntity,
+    val totalPlayTime: Long,
+    val totalPlays: Int,
+)
+
 data class Artist(
     @Embedded
     val artist: ArtistEntity,

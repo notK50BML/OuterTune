@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.db.daos
 
+import com.dd3boh.outertune.db.entities.ArtistPlayStats
 import androidx.room.Dao
 import androidx.room.Delete
 import androidx.room.Insert
@@ -227,6 +228,30 @@ interface ArtistsDao {
      * so an artist could be missing from the chart while their track sat at number one just above
      * it. Reading from event fixes all three, because it is the same source the song chart uses.
      */
+    /**
+     * The most played artists since [fromTimeStamp] with their plays and listening time - the same
+     * ranking as [mostPlayedArtists], with the numbers Stats shows under each artist.
+     */
+    @Query("""
+        SELECT artist.*, ranked.totalPlayTime AS totalPlayTime, ranked.totalPlays AS totalPlays
+        FROM artist
+            JOIN (SELECT sam.artistId AS rankedArtistId,
+                         SUM(event.playTime) AS totalPlayTime,
+                         COUNT(*)            AS totalPlays
+                  FROM event
+                      JOIN song_artist_map sam ON sam.songId = event.songId
+                  WHERE event.timestamp > :fromTimeStamp
+                  GROUP BY sam.artistId) AS ranked
+                 ON ranked.rankedArtistId = artist.id
+        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC
+        LIMIT :limit
+    """)
+    fun mostPlayedArtistStats(
+        fromTimeStamp: Long,
+        limit: Int,
+        byPlayTime: Boolean,
+    ): Flow<List<ArtistPlayStats>>
+
     @Query("""
         SELECT
             artist.*,

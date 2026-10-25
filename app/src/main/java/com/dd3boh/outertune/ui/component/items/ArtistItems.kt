@@ -109,9 +109,11 @@ fun ArtistGridItem(
         }
     },
     fillMaxWidth: Boolean = false,
+    /** In place of the song count - Stats shows the artist's plays or listening time. */
+    subtitle: String? = null,
 ) = GridItem(
     title = artist.artist.name,
-    subtitle = getNSongsString(artist.songCount, artist.downloadCount),
+    subtitle = subtitle ?: getNSongsString(artist.songCount, artist.downloadCount),
     badges = badges,
     thumbnailContent = {
         AsyncImage(

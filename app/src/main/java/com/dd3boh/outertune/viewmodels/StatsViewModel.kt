@@ -134,7 +134,7 @@ class StatsViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric, limit) ->
-        database.mostPlayedArtists(
+        database.mostPlayedArtistStats(
             period.toTimeMillis(),
             // As long as the chart, but a row of artist tiles has no use for thousands.
             limit = limit.coerceAtMost(MAX_ARTISTS),

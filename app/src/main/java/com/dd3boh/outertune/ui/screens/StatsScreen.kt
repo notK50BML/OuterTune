@@ -1,5 +1,11 @@
 package com.dd3boh.outertune.ui.screens
 
+import com.dd3boh.outertune.db.entities.Artist
+import androidx.compose.runtime.remember
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.rememberScrollState
@@ -152,6 +158,78 @@ fun StatsScreen(
             }
         }
 
+        // The period at a glance, in two boxes - the desktop's tiles. The one the chart is ranked
+        // by is lit, so the boxes and the choice above them read as one thing.
+        totals?.let { t ->
+            item(key = "statTotals") {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 12.dp)
+                        .animateItem()
+                ) {
+                    StatTile(
+                        label = stringResource(R.string.stats_tile_plays),
+                        value = java.text.NumberFormat.getIntegerInstance().format(t.plays),
+                        highlighted = statMetric == StatMetric.TIMES_PLAYED,
+                        modifier = Modifier.weight(1f),
+                    )
+                    StatTile(
+                        label = stringResource(R.string.stats_tile_time),
+                        value = formatListening(t.playTime),
+                        highlighted = statMetric == StatMetric.TIME_LISTENED,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            }
+        }
+
+        // Top artists first, in one sideways row, each with the plays or listening time the chart
+        // is ranked by.
+        if (mostPlayedArtists.isNotEmpty()) item(key = "mostPlayedArtists") {
+            NavigationTitle(
+                title = stringResource(R.string.most_played_artists),
+                modifier = Modifier.animateItem()
+            )
+
+            LazyRow(
+                contentPadding = PaddingValues(horizontal = 6.dp),
+                modifier = Modifier.animateItem()
+            ) {
+                items(
+                    items = mostPlayedArtists,
+                    key = { it.artist.id }
+                ) { stats ->
+                    val artist = remember(stats) { Artist(artist = stats.artist, songCount = 0, downloadCount = 0) }
+                    ArtistGridItem(
+                        artist = artist,
+                        subtitle = when (statMetric) {
+                            StatMetric.TIME_LISTENED -> formatListening(stats.totalPlayTime)
+                            StatMetric.TIMES_PLAYED -> pluralStringResource(R.plurals.n_play, stats.totalPlays, stats.totalPlays)
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .combinedClickable(
+                                onClick = {
+                                    navController.navigate("artist/${artist.id}")
+                                },
+                                onLongClick = {
+                                    menuState.show {
+                                        ArtistMenu(
+                                            originalArtist = artist,
+                                            coroutineScope = coroutineScope,
+                                            onDismiss = menuState::dismiss
+                                        )
+                                    }
+                                }
+                            )
+                            .animateItem()
+                    )
+                }
+            }
+        }
+
         item(key = "mostPlayedSongs") {
             NavigationTitle(
                 title = stringResource(R.string.most_played_songs),
@@ -192,43 +270,6 @@ fun StatsScreen(
                     .fillMaxWidth()
                     .animateItem()
             )
-        }
-
-        item(key = "mostPlayedArtists") {
-            NavigationTitle(
-                title = stringResource(R.string.most_played_artists),
-                modifier = Modifier.animateItem()
-            )
-
-            LazyRow(
-                modifier = Modifier.animateItem()
-            ) {
-                items(
-                    items = mostPlayedArtists,
-                    key = { it.id }
-                ) { artist ->
-                    ArtistGridItem(
-                        artist = artist,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .combinedClickable(
-                                onClick = {
-                                    navController.navigate("artist/${artist.id}")
-                                },
-                                onLongClick = {
-                                    menuState.show {
-                                        ArtistMenu(
-                                            originalArtist = artist,
-                                            coroutineScope = coroutineScope,
-                                            onDismiss = menuState::dismiss
-                                        )
-                                    }
-                                }
-                            )
-                            .animateItem()
-                    )
-                }
-            }
         }
 
         if (mostPlayedAlbums.isNotEmpty()) {
@@ -280,22 +321,7 @@ fun StatsScreen(
 
     TopAppBar(
         title = {
-            // The period's plays and listening time beside the title - the whole answer to "how
-            // much", before any chart.
-            Column {
-                Text(stringResource(R.string.stats))
-                totals?.let {
-                    Text(
-                        text = stringResource(
-                            R.string.stats_totals,
-                            java.text.NumberFormat.getIntegerInstance().format(it.plays),
-                            formatListening(it.playTime),
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
+            Text(stringResource(R.string.stats))
         },
         navigationIcon = {
             IconButton(
@@ -317,6 +343,22 @@ fun StatsScreen(
 private fun statValueText(metric: StatMetric, songStat: SongPlayStats): String = when (metric) {
     StatMetric.TIME_LISTENED -> makeTimeString(songStat.totalPlayTime)
     StatMetric.TIMES_PLAYED -> pluralStringResource(R.plurals.n_play, songStat.totalPlays, songStat.totalPlays)
+}
+
+/** One number in a rounded box, its label above - lit when it is what the chart is ranked by. */
+@Composable
+private fun StatTile(label: String, value: String, highlighted: Boolean, modifier: Modifier = Modifier) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (highlighted) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
+        contentColor = if (highlighted) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
+        modifier = modifier,
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(label, style = MaterialTheme.typography.labelMedium)
+            Text(value, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, maxLines = 1)
+        }
+    }
 }
 
 /** Listening time as people say it: "56h 12m", "12m", "45s" - not a clock reading. */
