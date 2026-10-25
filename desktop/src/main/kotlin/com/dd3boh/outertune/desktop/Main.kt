@@ -660,6 +660,17 @@ internal fun App(
         account.restore()
     }
 
+    // Updates: last time's download removed, then a look for a new version if it has been a while.
+    LaunchedEffect(Unit) {
+        withContext(Dispatchers.IO) { DesktopUpdater.cleanUp() }
+        if (!settings.updateAutoCheck) return@LaunchedEffect
+        val now = System.currentTimeMillis()
+        if (now - (settings.updateLastCheck.toLongOrNull() ?: 0L) < UPDATE_CHECK_INTERVAL_MS) return@LaunchedEffect
+        settings.updateLastCheck = now.toString()
+        val found = DesktopUpdater.check() ?: return@LaunchedEffect
+        if (settings.updateAutoDownload) DesktopUpdater.download(found)
+    }
+
     // Music folders: what is known loads at once so local songs play immediately, then the
     // folders are rescanned in the background for anything added or changed since.
     LaunchedEffect(library) {
@@ -1512,6 +1523,7 @@ internal fun App(
         if (unlikedRecently.isNotEmpty() && !showFullPlayer) {
             UnlikeUndoBar(unlikedRecently.size, onUndo = undoUnlikes, modifier = Modifier.fillMaxWidth())
         }
+        UpdateBar()
         batch?.let { current ->
             BatchDownloadBar(
                 batch = current,
@@ -2326,5 +2338,63 @@ private fun UnlikeUndoBar(count: Int, onUndo: () -> Unit, modifier: Modifier = M
             modifier = Modifier.weight(1f),
         )
         TextButton(onClick = onUndo) { Text("Undo", color = MaterialTheme.colorScheme.inversePrimary) }
+    }
+}
+
+/** How often the automatic update check may run. */
+private const val UPDATE_CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000L
+
+/**
+ * Runs a downloaded update and closes OuterTune for it: likes still waiting are sent first, as on
+ * any close, and the installer opens the app again when it is done.
+ */
+internal fun installUpdateAndQuit(installer: java.io.File) {
+    if (!DesktopUpdater.install(installer)) {
+        DesktopUpdater.state.value = DesktopUpdater.State.Failed("The installer could not be started.")
+        return
+    }
+    LikePushes.flushBlocking()
+    kotlin.system.exitProcess(0)
+}
+
+/** A new version, found or downloaded: one line above the player with what to do about it. */
+@Composable
+private fun UpdateBar() {
+    val scope = rememberCoroutineScope()
+    val state by DesktopUpdater.state.collectAsState()
+    var dismissed by remember { mutableStateOf(false) }
+    val text: String
+    val action: Pair<String, () -> Unit>?
+    when (val s = state) {
+        is DesktopUpdater.State.Available -> {
+            text = "OuterTune ${s.update.name} is available."
+            action = "Download" to { scope.launch { DesktopUpdater.download(s.update) }; Unit }
+        }
+        is DesktopUpdater.State.Downloading -> {
+            text = "Downloading OuterTune ${s.update.name}… ${(s.progress * 100).toInt()}%"
+            action = null
+        }
+        is DesktopUpdater.State.Ready -> {
+            text = "OuterTune ${s.update.name} is ready. Installing closes and reopens the app."
+            action = "Install" to { installUpdateAndQuit(s.installer) }
+        }
+        else -> return
+    }
+    if (dismissed) return
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+    ) {
+        Text(
+            text,
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
+            style = MaterialTheme.typography.bodyMedium,
+            modifier = Modifier.weight(1f),
+        )
+        action?.let { (label, run) -> TextButton(onClick = run) { Text(label) } }
+        TextButton(onClick = { dismissed = true }) { Text("Later") }
     }
 }

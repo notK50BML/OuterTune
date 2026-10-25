@@ -424,6 +424,17 @@ class Settings(private val store: SettingsStore) {
     /** Whether to actually publish presence updates, independent of whether a token is stored. */
     var enableDiscordRpc by bool("discord.enabled", true)
 
+    // ---- Updates ------------------------------------------------------------------------------
+
+    /** Look for a new version on GitHub at start, at most every few hours - the phone's default, on. */
+    var updateAutoCheck by bool("update.autoCheck", true)
+
+    /** Download a new version as soon as it is found, ready to install - off, as on the phone. */
+    var updateAutoDownload by bool("update.autoDownload", false)
+
+    /** When the last check ran, in epoch milliseconds - so starting the app often is not a request each time. */
+    var updateLastCheck by string("update.lastCheck", "0")
+
     // ---- Listen Together --------------------------------------------------------------------
 
     /**

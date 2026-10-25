@@ -24,6 +24,10 @@
 #ifndef AppVersion
   #define AppVersion "0.0.0"
 #endif
+; Digits only, for the file name the app's updater looks for: OuterTune-setup-<x.y.z>.exe.
+#ifndef AppNumeric
+  #define AppNumeric "0.0.0"
+#endif
 
 [Setup]
 AppId={{6B0E7D52-3C1F-4C8E-9C61-0F7A3E5B2D41}
@@ -40,7 +44,7 @@ PrivilegesRequiredOverridesAllowed=dialog
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir={#OutDir}
-OutputBaseFilename=OuterTune-setup
+OutputBaseFilename=OuterTune-setup-{#AppNumeric}
 SetupIconFile={#IconFile}
 UninstallDisplayIcon={app}\OuterTune.exe
 Compression=lzma2/ultra64
@@ -67,6 +71,8 @@ Name: "{autodesktop}\OuterTune"; Filename: "{app}\OuterTune.exe"; Tasks: desktop
 
 [Run]
 Filename: "{app}\OuterTune.exe"; Description: "{cm:LaunchProgram,OuterTune}"; Flags: nowait postinstall skipifsilent
+; An update from inside the app runs silently and closes the app first - so it is opened again here.
+Filename: "{app}\OuterTune.exe"; Flags: nowait; Check: WizardSilent
 
 [Code]
 const

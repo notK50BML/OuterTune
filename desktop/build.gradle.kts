@@ -419,7 +419,7 @@ tasks.register<Zip>("packageApp") {
 }
 
 /**
- * `gradlew :desktop:installer` - build/dist/OuterTune-setup.exe: the same app image as packageApp,
+ * `gradlew :desktop:installer` - build/dist/OuterTune-setup-<version>.exe: the same app image as packageApp,
  * as an Inno Setup installer (packaging/OuterTune.iss) with Start menu and desktop shortcuts and an
  * uninstaller. Per-user, so no administrator prompt.
  *
@@ -428,7 +428,7 @@ tasks.register<Zip>("packageApp") {
  */
 tasks.register<Exec>("installer") {
     group = "distribution"
-    description = "Builds the Windows installer (build/dist/OuterTune-setup.exe). Needs Inno Setup 6."
+    description = "Builds the Windows installer (build/dist/OuterTune-setup-<version>.exe). Needs Inno Setup 6."
     dependsOn(appImage)
     val script = layout.projectDirectory.file("packaging/OuterTune.iss").asFile
     val source = appImageOut.get().asFile.resolve("OuterTune")
@@ -436,7 +436,8 @@ tasks.register<Exec>("installer") {
     val icon = appIcon.asFile
     inputs.file(script)
     inputs.dir(appImageOut)
-    outputs.file(out.resolve("OuterTune-setup.exe"))
+    // Named with the version, which is how the app's updater recognises it on a release.
+    outputs.file(out.resolve("OuterTune-setup-0.3.0.exe"))
     // Every file the installer ships, with its SHA-256 - so an update writes only what changed -
     // and the plain list of them, which each install leaves behind so the next one can remove
     // whatever it no longer ships. See packaging/OuterTune.iss.
@@ -488,6 +489,8 @@ tasks.register<Exec>("installer") {
         "/DManifest=${manifest.absolutePath}",
         // Shown in the installer and Windows' Programs list; free text, unlike --app-version.
         "/DAppVersion=0.3b",
+        // DesktopVersion.NUMERIC: the installer's file name carries it for the updater.
+        "/DAppNumeric=0.3.0",
         script.absolutePath,
     )
 }

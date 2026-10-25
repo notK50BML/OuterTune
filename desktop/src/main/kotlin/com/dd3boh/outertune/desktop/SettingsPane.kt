@@ -320,7 +320,7 @@ fun SettingsPane(
                 SettingsCategory.Privacy -> PrivacySettings(settings, library, account)
                 SettingsCategory.Backup -> BackupSettings(settings, library, libraryPath, onProfileApplied)
                 SettingsCategory.Keyboard -> KeyboardSettings(settings)
-                SettingsCategory.About -> AboutSettings()
+                SettingsCategory.About -> AboutSettings(settings)
             }
             Spacer(modifier = Modifier.height(40.dp))
         }
@@ -1541,12 +1541,56 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
 }
 
 @Composable
-private fun AboutSettings() {
+private fun AboutSettings(settings: Settings) {
+    val scope = rememberCoroutineScope()
+    val update by DesktopUpdater.state.collectAsState()
     Section("OuterTune for desktop") {
         SettingRow(
             title = "Version",
             subtitle = DesktopVersion.NAME,
             icon = OuterTuneIcons.info,
+        )
+        SettingRow(
+            title = when (val state = update) {
+                is DesktopUpdater.State.Available -> "Download OuterTune ${state.update.name}"
+                is DesktopUpdater.State.Ready -> "Install OuterTune ${state.update.name}"
+                else -> "Check for updates"
+            },
+            subtitle = when (val state = update) {
+                DesktopUpdater.State.Idle -> "From the project's releases on GitHub."
+                DesktopUpdater.State.Checking -> "Checking…"
+                DesktopUpdater.State.UpToDate -> "This is the latest version."
+                is DesktopUpdater.State.Available -> "A new version is available."
+                is DesktopUpdater.State.Downloading -> "Downloading… ${(state.progress * 100).toInt()}%"
+                is DesktopUpdater.State.Ready -> "Downloaded. Installing closes OuterTune and opens it again."
+                is DesktopUpdater.State.Failed -> state.reason
+            },
+            icon = OuterTuneIcons.restore,
+            onClick = {
+                when (val state = update) {
+                    is DesktopUpdater.State.Available -> scope.launch { DesktopUpdater.download(state.update) }
+                    is DesktopUpdater.State.Ready -> installUpdateAndQuit(state.installer)
+                    is DesktopUpdater.State.Checking, is DesktopUpdater.State.Downloading -> Unit
+                    else -> scope.launch {
+                        settings.updateLastCheck = System.currentTimeMillis().toString()
+                        DesktopUpdater.check()
+                    }
+                }
+            },
+        )
+        SettingSwitch(
+            title = "Check for updates automatically",
+            subtitle = "When OuterTune starts, at most every few hours.",
+            checked = settings.updateAutoCheck,
+            onCheckedChange = { settings.updateAutoCheck = it },
+            icon = OuterTuneIcons.restore,
+        )
+        SettingSwitch(
+            title = "Download updates automatically",
+            subtitle = "Ready to install when found. Installing still waits for you.",
+            checked = settings.updateAutoDownload,
+            onCheckedChange = { settings.updateAutoDownload = it },
+            icon = OuterTuneIcons.download,
         )
         SettingRow(
             title = "Source code",
