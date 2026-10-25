@@ -643,6 +643,7 @@ internal fun App(
     // folders are rescanned in the background for anything added or changed since.
     LaunchedEffect(library) {
         if (!settings.localEnabled) return@LaunchedEffect
+        LocalMusic.removed = LocalMusic.removedFrom(settings.localRemoved)
         withContext(Dispatchers.IO) { LocalMusic.load(library) }
         // Rescanning is what a large local library pays for at every launch, so it is declinable.
         // Loading what is already known is not: that is the library, not a scan.
@@ -736,6 +737,8 @@ internal fun App(
     }
 
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
+    /** The current song is a file on this computer - no like, download or link for it. */
+    val currentIsLocal = queue.current?.id?.let(LocalMusic::isLocal) == true
     val toggleLike = { queue.current?.let { likeAndPush(it.toStored()) }; Unit }
 
     if (showSleepDialog) {
@@ -940,6 +943,11 @@ internal fun App(
         openArtist = openArtistPage,
         openAlbum = openAlbumPage,
         copyLink = { copyToClipboard(watchUrl(it.id)) },
+        removeFromLibrary = { song ->
+            LocalMusic.remove(song.id, library)?.let { path ->
+                settings.localRemoved = (settings.localRemoved.lines().filter { it.isNotBlank() } + path).distinct().joinToString("\n")
+            }
+        },
     )
     }
 
@@ -1055,7 +1063,11 @@ internal fun App(
             showSeekButtons = settings.showSeekButtons,
             lyricsTextScale = settings.lyricsTextScale,
             lyricsAlignment = settings.lyricsAlignment,
-            playerButtons = PlayerButtonKind.decode(settings.playerButtons),
+            playerButtons = when {
+                !currentIsLocal -> PlayerButtonKind.decode(settings.playerButtons)
+                settings.localPlayerButtonsOwn -> PlayerButtonKind.decodeLocal(settings.localPlayerButtons)
+                else -> PlayerButtonKind.decode(settings.playerButtons).filter { it.forLocalFiles }
+            },
             showQueueTitle = settings.showQueueTitle,
             onRefetchLyrics = {
                 queue.current?.id?.let(lyricsRepository::forget)
@@ -1078,7 +1090,8 @@ internal fun App(
                 artists = queue.current?.creditedArtists().orEmpty(),
                 onOpenArtist = openArtistPage,
                 downloaded = queue.current?.id in downloadedIds,
-                onDownload = queue.current?.let { song ->
+                // A file on this computer is already here, has no link and no YouTube album.
+                onDownload = queue.current?.takeUnless { currentIsLocal }?.let { song ->
                     {
                         if (song.id in downloadedIds) {
                             downloadedIds = downloadedIds - song.id
@@ -1098,7 +1111,7 @@ internal fun App(
                 // Only when the song actually carries one. A menu entry that opens an empty page is
                 // worse than one that is not there.
                 onViewAlbum = queue.current?.album?.id?.let { id -> { openAlbumPage(id) } },
-                onShare = queue.current?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
+                onShare = queue.current?.takeUnless { currentIsLocal }?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
                 onDetails = queue.current?.let { { showDetails = true } },
             ),
             onJumpToQueueIndex = { playerQueue.jumpTo(it) },
@@ -1322,7 +1335,14 @@ internal fun App(
                 } else if (tab == NavTab.Playlists) {
                     PlaylistsPane(
                         liked = liked,
-                        downloaded = remember(downloadedIds) { library.songs(downloadedIds) },
+                        // Music on this computer is as offline as a download, so it is listed here too,
+                        // after the downloads.
+                        downloaded = run {
+                            val localTracks by LocalMusic.tracks.collectAsState()
+                            remember(downloadedIds, localTracks) {
+                                library.songs(downloadedIds) + localTracks.map { it.song }.sortedBy { it.title.lowercase() }
+                            }
+                        },
                         grid = settings.playlistsGrid,
                         onToggleGrid = { settings.playlistsGrid = !settings.playlistsGrid },
                         onDownloadAll = { title, songs -> downloadAll(title, songs.map { it.toItem() }) },
@@ -1963,7 +1983,10 @@ private fun PlayerBar(
             }
             if (song != null) {
                 ClockText(positionMs, durationMs)
-                LikeButton(liked = liked, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = onToggleLike)
+                // Nothing to like for a file on this computer - see PlayerButtonKind.forLocalFiles.
+                if (!LocalMusic.isLocal(song.id)) {
+                    LikeButton(liked = liked, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = onToggleLike)
+                }
             }
             IconButton(onClick = onPrevious, enabled = queue.hasPrevious) {
                 Icon(OuterTuneIcons.skipPrevious, "Previous")

@@ -69,6 +69,16 @@ class Settings(private val store: SettingsStore) {
     /** The title-row buttons, in order, as [PlayerButtonKind] codes. Empty means the original set. */
     var playerButtons by string("player.buttons", "")
 
+    /**
+     * Whether a file on this computer gets its own buttons ([localPlayerButtons]) rather than the
+     * ones above. Either way it never shows one that cannot apply to a file - see
+     * PlayerButtonKind.forLocalFiles.
+     */
+    var localPlayerButtonsOwn by bool("player.localButtons.own", true)
+
+    /** The local-file buttons, as [PlayerButtonKind] codes. Empty means PlayerButtonKind.LOCAL_DEFAULT. */
+    var localPlayerButtons by string("player.localButtons", "")
+
     /** Playlists shown as a grid of tiles rather than a list - the phone's view switch. */
     var playlistsGrid by bool("ui.playlistsGrid", false)
 
@@ -235,6 +245,12 @@ class Settings(private val store: SettingsStore) {
 
     /** Folders on this computer whose music is in the library, one path per line. */
     var localFolders by string("local.folders", "")
+
+    /**
+     * Files taken out of the library with "Remove from library", one path a line. The files stay on
+     * disk; a scan passes over them until they are restored in Settings > Local media.
+     */
+    var localRemoved by string("local.removed", "")
 
     /** Whether local files are looked at all. Off means the folders below are simply not read. */
     var localEnabled by bool("local.enabled", true)

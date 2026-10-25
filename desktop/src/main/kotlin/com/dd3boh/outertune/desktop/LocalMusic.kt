@@ -79,6 +79,28 @@ object LocalMusic {
 
     fun track(id: String): LocalTrack? = paths[id]
 
+    /**
+     * Files removed from the library (Settings.localRemoved), lower-cased: a scan passes over them.
+     * Set from the settings at start and whenever the list changes.
+     */
+    @Volatile
+    var removed: Set<String> = emptySet()
+
+    fun removedFrom(stored: String): Set<String> = stored.lines().filter { it.isNotBlank() }.map { it.lowercase() }.toSet()
+
+    /**
+     * Takes the file behind [id] out of the library - not off the disk - and returns its path for
+     * the settings to keep, or null when it is not a known local file. Out of every list at once;
+     * kept out of later scans by [removed].
+     */
+    fun remove(id: String, library: LibraryStore): String? {
+        val path = paths[id]?.file?.absolutePath ?: return null
+        removed = removed + path.lowercase()
+        library.removeLocalFile(path)
+        load(library)
+        return path
+    }
+
     /** Loads what the library already knows, so local songs play without a rescan. */
     fun load(library: LibraryStore) {
         val all = library.localTracks()
@@ -102,6 +124,8 @@ object LocalMusic {
                 root.walkTopDown()
                     .onEnter { !it.name.startsWith(".") }
                     .filter { it.isFile && it.extension.lowercase() in EXTENSIONS }
+                    // Removed from the library by hand: still on disk, not in the library.
+                    .filter { it.absolutePath.lowercase() !in removed }
                     .forEach { found += it }
             }
             var added = 0

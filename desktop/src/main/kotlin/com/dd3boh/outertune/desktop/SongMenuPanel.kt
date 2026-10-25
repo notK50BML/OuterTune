@@ -85,6 +85,9 @@ enum class RowButton(val code: Char, val label: String) {
     }
 }
 
+/** Row buttons with no meaning for a file on this computer, left off its row. */
+private val YOUTUBE_ONLY_ROW_BUTTONS = setOf(RowButton.LIKE, RowButton.DOWNLOAD, RowButton.RADIO, RowButton.SHARE)
+
 /** What song rows show at their end: [buttons], then the ⋮ when [menu]. */
 data class RowButtons(val buttons: List<RowButton> = emptyList(), val menu: Boolean = true)
 
@@ -95,8 +98,11 @@ val LocalRowButtons = compositionLocalOf { RowButtons() }
 fun RowActions(song: SongItem) {
     val actions = LocalSongActions.current ?: return
     val config = LocalRowButtons.current
+    // A file on this computer has nothing to like, download, link to or start a radio from.
+    val local = LocalMusic.isLocal(song.id)
     Row(verticalAlignment = Alignment.CenterVertically) {
         for (button in config.buttons) {
+            if (local && button in YOUTUBE_ONLY_ROW_BUTTONS) continue
             val (icon, label) = rowButtonLook(button, song, actions)
             IconButton(onClick = { runRowButton(button, song, actions) }, modifier = Modifier.size(36.dp)) {
                 Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
@@ -309,6 +315,7 @@ fun SongMenuPanel(
     onDismiss: () -> Unit,
 ) {
     val artists = remember(song) { song.creditedArtists() }
+    val local = LocalMusic.isLocal(song.id)
     // With more than one credit, "Go to artist" turns the panel into a list of them instead of
     // guessing the first - see ArtistPickerList.
     var pickingArtist by remember { mutableStateOf(false) }
@@ -320,7 +327,19 @@ fun SongMenuPanel(
         } else {
             null
         },
-        tiles = listOf(
+        tiles = if (local) {
+            // A file on this computer: no radio, download, link or YouTube album - and it can be
+            // taken out of the library, which a YouTube song leaves through its like or playlists.
+            listOf(
+                MenuTile("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) },
+                MenuTile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) },
+                MenuTile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) },
+                MenuTile("Go to artist", OuterTuneIcons.person, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
+                    if (artists.size > 1) pickingArtist = true else artists.firstOrNull()?.let(actions.openArtist)
+                },
+                MenuTile("Remove from library", OuterTuneIcons.delete) { actions.removeFromLibrary(song) },
+            )
+        } else listOf(
             MenuTile("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) },
             MenuTile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) },
             MenuTile("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) },
@@ -354,13 +373,15 @@ fun SongMenuPanel(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                val liked = actions.isLiked(song.id)
-                IconButton(onClick = { actions.toggleLike(song) }) {
-                    Icon(
-                        if (liked) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder,
-                        contentDescription = if (liked) "Unlike" else "Like",
-                        tint = if (liked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                if (!local) {
+                    val liked = actions.isLiked(song.id)
+                    IconButton(onClick = { actions.toggleLike(song) }) {
+                        Icon(
+                            if (liked) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder,
+                            contentDescription = if (liked) "Unlike" else "Like",
+                            tint = if (liked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         },

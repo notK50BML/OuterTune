@@ -767,6 +767,13 @@ class Database(file: File) {
         gone.size
     }
 
+    fun removeLocalFile(path: String) = synchronized(lock) {
+        connection.prepareStatement("DELETE FROM local_file WHERE path = ?").use { st ->
+            st.setString(1, path)
+            st.executeUpdate()
+        }
+    }
+
     /** A clean, compact copy of the whole library at [target] - SQLite's own VACUUM INTO. */
     fun exportTo(target: java.io.File) = synchronized(lock) {
         target.delete()

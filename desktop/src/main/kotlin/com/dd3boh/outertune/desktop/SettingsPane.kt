@@ -547,6 +547,35 @@ private fun PlayerSettings(settings: Settings) {
                 onDismiss = { arranging = false },
             )
         }
+        SettingSwitch(
+            title = "Separate buttons for local files",
+            subtitle = "Files on this computer get their own player buttons. Like, download and other YouTube-only buttons never show for them.",
+            checked = settings.localPlayerButtonsOwn,
+            onCheckedChange = { settings.localPlayerButtonsOwn = it },
+            icon = OuterTuneIcons.sdCard,
+        )
+        if (settings.localPlayerButtonsOwn) {
+            var arrangingLocal by remember { mutableStateOf(false) }
+            SettingRow(
+                title = "Local file player buttons",
+                subtitle = PlayerButtonKind.decodeLocal(settings.localPlayerButtons).joinToString(", ") { it.label },
+                icon = OuterTuneIcons.moreVert,
+                onClick = { arrangingLocal = true },
+            )
+            if (arrangingLocal) {
+                PlayerButtonsDialog(
+                    title = "Local file player buttons",
+                    current = PlayerButtonKind.decodeLocal(settings.localPlayerButtons),
+                    available = PlayerButtonKind.entries.filter { it.forLocalFiles },
+                    defaults = PlayerButtonKind.decodeLocal(""),
+                    onSave = {
+                        settings.localPlayerButtons = PlayerButtonKind.encode(it)
+                        arrangingLocal = false
+                    },
+                    onDismiss = { arrangingLocal = false },
+                )
+            }
+        }
         SettingChoice(
             title = "Seek bar",
             icon = OuterTuneIcons.palette,
@@ -1168,6 +1197,39 @@ private fun LocalMusicSettings(settings: Settings, library: LibraryStore) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(vertical = 6.dp),
             )
+        }
+    }
+    // Files taken out with "Remove from library", to put back. Restoring rescans, which is what
+    // brings a file in.
+    val removed = settings.localRemoved.lines().filter { it.isNotBlank() }
+    if (removed.isNotEmpty()) {
+        Section("Removed from library") {
+            removed.forEach { path ->
+                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                    Icon(
+                        OuterTuneIcons.musicNote,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(end = 16.dp).size(24.dp),
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(java.io.File(path).nameWithoutExtension, style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            path,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    TextButton(onClick = {
+                        val remaining = removed - path
+                        settings.localRemoved = remaining.joinToString("\n")
+                        LocalMusic.removed = LocalMusic.removedFrom(settings.localRemoved)
+                        rescan(folders)
+                    }, enabled = !scanning) { Text("Restore") }
+                }
+            }
         }
     }
 }

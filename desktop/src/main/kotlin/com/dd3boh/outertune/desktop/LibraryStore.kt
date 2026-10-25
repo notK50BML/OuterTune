@@ -190,6 +190,9 @@ class LibraryStore(
     }
     fun removeLocalFilesNotIn(present: Set<String>) = db.removeLocalFilesNotIn(present)
 
+    /** Takes one file out of the library's list of local files. The song row, plays and likes stay. */
+    fun removeLocalFile(path: String) = db.removeLocalFile(path)
+
     /** Songs by id, in the order given, skipping any the library has never seen. */
     fun songs(ids: Collection<String>): List<StoredSong> = ids.mapNotNull { db.song(it) }
 

@@ -56,27 +56,31 @@ fun PlayerButtonsDialog(
     current: List<PlayerButtonKind>,
     onSave: (List<PlayerButtonKind>) -> Unit,
     onDismiss: () -> Unit,
+    title: String = "Player buttons",
+    /** The buttons on offer - every one, or for files on this computer only those that apply. */
+    available: List<PlayerButtonKind> = PlayerButtonKind.entries,
+    /** What Reset goes back to. */
+    defaults: List<PlayerButtonKind> = PlayerButtonKind.decode(PlayerButtonKind.DEFAULT),
 ) {
     val items = remember {
         mutableStateListOf<Pair<PlayerButtonKind, Boolean>>().apply {
-            addAll(current.map { it to true })
-            addAll(PlayerButtonKind.entries.filterNot { it in current }.map { it to false })
+            addAll(current.filter { it in available }.map { it to true })
+            addAll(available.filterNot { it in current }.map { it to false })
         }
     }
     var refused by remember { mutableStateOf(false) }
     val chosen = items.filter { it.second }.map { it.first }
 
     fun reset() {
-        val defaults = PlayerButtonKind.decode(PlayerButtonKind.DEFAULT)
         items.clear()
         items.addAll(defaults.map { it to true })
-        items.addAll(PlayerButtonKind.entries.filterNot { it in defaults }.map { it to false })
+        items.addAll(available.filterNot { it in defaults }.map { it to false })
         refused = false
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Player buttons") },
+        title = { Text(title) },
         confirmButton = { TextButton(onClick = { onSave(chosen) }) { Text("Save") } },
         dismissButton = {
             Row {

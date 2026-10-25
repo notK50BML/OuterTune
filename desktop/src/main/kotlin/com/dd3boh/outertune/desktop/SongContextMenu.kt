@@ -51,6 +51,8 @@ class SongActions(
     val openArtist: (StoredArtist) -> Unit,
     val openAlbum: (String) -> Unit,
     val copyLink: (SongItem) -> Unit,
+    /** For a file on this computer: out of the library, the file left where it is. */
+    val removeFromLibrary: (SongItem) -> Unit = {},
 )
 
 val LocalSongActions = compositionLocalOf<SongActions?> { null }
