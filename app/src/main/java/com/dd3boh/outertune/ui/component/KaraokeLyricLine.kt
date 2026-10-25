@@ -8,6 +8,9 @@
 
 package com.dd3boh.outertune.ui.component
 
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -189,6 +192,46 @@ fun KaraokeLyricLine(
             }
         }
     }
+}
+
+/**
+ * One lyric line with each word brightening over the time it is sung - the desktop's style, offered
+ * beside the sweep (Settings > Lyrics > Word highlight).
+ *
+ * One paragraph with a colour span per word rather than a row of words, so it wraps and aligns
+ * exactly as the plain line does. It reads the position during composition, so it recomposes each
+ * frame - which is why, like the sweep, only the lines near the playhead are drawn this way.
+ */
+@Composable
+fun FadeLyricLine(
+    text: String,
+    words: List<Word>,
+    style: TextStyle,
+    sungColor: Color,
+    unsungColor: Color,
+    positionProvider: () -> Long,
+    modifier: Modifier = Modifier,
+) {
+    val position = positionProvider()
+    val safeWords = remember(text, words) {
+        words.filter { it.charRange.first in text.indices && it.charRange.last < text.length }
+    }
+    val annotated = buildAnnotatedString {
+        append(text)
+        addStyle(SpanStyle(color = unsungColor), 0, text.length)
+        for (word in safeWords) {
+            val start = word.timeRange.first.toLong()
+            val end = word.timeRange.last.toLong()
+            val through = when {
+                position >= end -> 1f
+                position < start -> 0f
+                else -> (position - start).toFloat() / (end - start).coerceAtLeast(1)
+            }
+            if (through <= 0f) continue
+            addStyle(SpanStyle(color = lerp(unsungColor, sungColor, through)), word.charRange.first, word.charRange.last + 1)
+        }
+    }
+    Text(text = annotated, style = style, modifier = modifier.fillMaxWidth())
 }
 
 /** Width of the gradient at the sweep's leading edge, as a fraction of the line's height. */

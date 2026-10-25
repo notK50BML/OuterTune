@@ -210,6 +210,17 @@ val LyricKaraokeEnable = booleanPreferencesKey("lyricKaraokeEnable")
 val LyricEstimatedWordSync = booleanPreferencesKey("lyricEstimatedWordSync")
 
 /**
+ * How the line being sung lights its words: the phone's own sweep (the default), or the desktop's
+ * fade - each word brightening over the time it is sung. See [LyricHighlightStyle].
+ */
+val LyricHighlightStyleKey = stringPreferencesKey("lyricHighlightStyle")
+
+enum class LyricHighlightStyle { SWEEP, FADE }
+
+/** The small tag by the lyrics controls saying what timing the lyrics carry. On by default. */
+val LyricShowTypeKey = booleanPreferencesKey("lyricShowType")
+
+/**
  * Milliseconds added to the playback position before deciding which lyric line is current.
  *
  * Positive shows lines earlier, negative later - which is the way round it needs to be, because the

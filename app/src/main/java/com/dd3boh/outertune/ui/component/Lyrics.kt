@@ -9,6 +9,11 @@
 
 package com.dd3boh.outertune.ui.component
 
+import androidx.compose.material3.Surface
+import androidx.compose.foundation.shape.RoundedCornerShape
+import com.dd3boh.outertune.constants.LyricShowTypeKey
+import com.dd3boh.outertune.constants.LyricHighlightStyle
+import com.dd3boh.outertune.constants.LyricHighlightStyleKey
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import android.annotation.SuppressLint
@@ -126,6 +131,8 @@ fun Lyrics(
     val lyricsClickable by rememberPreference(LyricClickable, true)
     val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
     val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, false)
+    val highlightStyle by rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
+    val showLyricsType by rememberPreference(LyricShowTypeKey, true)
     // Added to the playback position everywhere it is compared against a lyric time, so a file that
     // is uniformly early or late can be pulled into place. Applied here rather than by rewriting the
     // timestamps: the lyrics themselves are not wrong to store, only wrong to trust at face value.
@@ -147,6 +154,8 @@ fun Lyrics(
     // NOTE: lyricsModel is the current display lyrics that is updated by playerLyrics AND/OR manually
     val playerLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
     var lyricsModel by remember { mutableStateOf(playerLyrics) }
+    // The lyrics as they arrived, before word timings were estimated - what the type tag describes.
+    var arrivedLyrics by remember { mutableStateOf(playerLyrics) }
     // While the lyrics menu's Refetch is running: the lyrics show the same placeholder as the first
     // load, and the menu button a spinner, instead of nothing at all until the new ones arrive.
     var refetching by remember { mutableStateOf(false) }
@@ -161,6 +170,7 @@ fun Lyrics(
         // The sweep renderer works entirely off each line's word list, so making it run on ordinary
         // line-synced lyrics is a matter of supplying that list rather than touching the renderer.
         // Lines that already carry real word timings are left alone by withEstimatedWordSync.
+        arrivedLyrics = playerLyrics
         lyricsModel = playerLyrics.forDisplay(estimatedWordSync)
     }
 
@@ -453,7 +463,20 @@ fun Lyrics(
                             if (displayedCurrentLineIndex < 0) index == 0
                             else index == displayedCurrentLineIndex || index == displayedCurrentLineIndex + 1
 
-                        if (karaoke) {
+                        if (karaoke && highlightStyle == LyricHighlightStyle.FADE) {
+                            FadeLyricLine(
+                                text = item.text,
+                                words = words.orEmpty(),
+                                style = LocalTextStyle.current.copy(
+                                    fontSize = lyricFontSizeAdjusted.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    textAlign = textAlign,
+                                ),
+                                sungColor = textColor,
+                                unsungColor = textColor.copy(alpha = UNSUNG_ALPHA),
+                                positionProvider = { karaokePosition.longValue },
+                            )
+                        } else if (karaoke) {
                             KaraokeLyricLine(
                                 text = item.text,
                                 words = words.orEmpty(),
@@ -515,6 +538,23 @@ fun Lyrics(
                         bottom = if (landscapeOffset) QueuePeekHeight * 1.2f + 8.dp else 0.dp,
                     )
             ) {
+                // What timing the lyrics carry - Settings > Lyrics > Show lyrics type.
+                val typeLabel = arrivedLyrics.typeLabel(estimating = estimatedWordSync && karaokeEnabled)
+                if (showLyricsType && typeLabel != null) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = textColor.copy(alpha = 0.12f),
+                        contentColor = textColor.copy(alpha = 0.85f),
+                        modifier = Modifier.align(Alignment.CenterVertically).padding(end = 4.dp),
+                    ) {
+                        Text(
+                            stringResource(typeLabel),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        )
+                    }
+                }
                 IconButton(
                     onClick = { onShowLyricsChange(false) }
                 ) {
@@ -546,7 +586,10 @@ fun Lyrics(
                                 // Through the same word-timing estimate as lyrics that arrive with
                                 // the song. Set as they were, refetched, edited or searched lyrics had
                                 // no sweep until the lyrics were closed and opened again.
-                                onRefreshRequest = { lyricsModel = it.forDisplay(estimatedWordSync) },
+                                onRefreshRequest = {
+                                    arrivedLyrics = it
+                                    lyricsModel = it.forDisplay(estimatedWordSync)
+                                },
                                 onRefetching = { refetching = it },
                                 onDismiss = menuState::dismiss,
                             )
@@ -605,6 +648,16 @@ val LyricsPreviewTime = 7.seconds
  * so the karaoke sweep runs on them. Lines that already carry real word timings are left alone by
  * withEstimatedWordSync.
  */
+/** What timing [this] carries, for the tag by the lyrics controls - null when there is nothing to describe. */
+private fun SemanticLyrics?.typeLabel(estimating: Boolean): Int? = when {
+    this == null || this == uninitializedLyric -> null
+    this !is SemanticLyrics.SyncedLyrics -> R.string.lyrics_type_unsynced
+    text.isEmpty() -> null
+    text.any { !it.words.isNullOrEmpty() } -> R.string.lyrics_type_word
+    estimating -> R.string.lyrics_type_estimated
+    else -> R.string.lyrics_type_line
+}
+
 private fun SemanticLyrics?.forDisplay(estimateWords: Boolean): SemanticLyrics? =
     if (estimateWords && this is SemanticLyrics.SyncedLyrics) withEstimatedWordSync() else this
 

@@ -503,6 +503,15 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="stats_by_count">Times played</string>
     <string name="stats_limit_all">All</string>
     <string name="removed_from_liked">Removed from liked songs</string>
+    <string name="lyrics_highlight_title">Word highlight</string>
+    <string name="lyrics_highlight_sweep">Sweep</string>
+    <string name="lyrics_highlight_fade">Fade in</string>
+    <string name="lyrics_show_type_title">Show lyrics type</string>
+    <string name="lyrics_show_type_description">A small tag by the lyrics controls: word-synced, line-synced, estimated or unsynced</string>
+    <string name="lyrics_type_word">Word-synced</string>
+    <string name="lyrics_type_line">Line-synced</string>
+    <string name="lyrics_type_estimated">Estimated</string>
+    <string name="lyrics_type_unsynced">Unsynced</string>
     <plurals name="n_removed_from_liked">
         <item quantity="one">Removed from liked songs</item>
         <item quantity="other">%d songs removed from liked songs</item>

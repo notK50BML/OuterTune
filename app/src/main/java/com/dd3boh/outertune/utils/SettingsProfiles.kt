@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.utils
 
+import com.dd3boh.outertune.constants.LyricShowTypeKey
+import com.dd3boh.outertune.constants.LyricHighlightStyle
+import com.dd3boh.outertune.constants.LyricHighlightStyleKey
 import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
 import com.dd3boh.outertune.constants.EnabledTabsKey
 import com.dd3boh.outertune.constants.SliderStyleKey
@@ -248,6 +251,8 @@ object SettingsProfiles {
                 put("alignment", when (p[LyricsTextPositionKey]) { "LEFT" -> "left"; "RIGHT" -> "right"; else -> "center" })
                 put("wordByWord", p[LyricKaraokeEnable] ?: false)
                 put("estimateWordTimings", p[LyricEstimatedWordSync] ?: false)
+                put("highlightStyle", if (p[LyricHighlightStyleKey] == LyricHighlightStyle.FADE.name) "fade" else "sweep")
+                put("showLyricsType", p[LyricShowTypeKey] ?: true)
                 put("offsetMs", p[LyricOffsetKey] ?: 0)
                 put("openOnCoverClick", p[ShowLyricsOnClickKey] ?: true)
                 put("lrclib", p[EnableLrcLibKey] ?: true)
@@ -341,6 +346,8 @@ object SettingsProfiles {
                 str("alignment") { p[LyricsTextPositionKey] = when (it) { "left" -> "LEFT"; "right" -> "RIGHT"; else -> "CENTER" } }
                 bool("wordByWord", LyricKaraokeEnable)
                 bool("estimateWordTimings", LyricEstimatedWordSync)
+                str("highlightStyle") { p[LyricHighlightStyleKey] = if (it == "fade") LyricHighlightStyle.FADE.name else LyricHighlightStyle.SWEEP.name }
+                bool("showLyricsType", LyricShowTypeKey)
                 int("offsetMs", LyricOffsetKey)
                 bool("openOnCoverClick", ShowLyricsOnClickKey)
                 bool("lrclib", EnableLrcLibKey)

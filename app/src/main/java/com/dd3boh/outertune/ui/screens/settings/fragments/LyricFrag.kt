@@ -7,6 +7,10 @@
  */
 package com.dd3boh.outertune.ui.screens.settings.fragments
 
+import androidx.compose.material.icons.rounded.Info
+import com.dd3boh.outertune.constants.LyricShowTypeKey
+import com.dd3boh.outertune.constants.LyricHighlightStyle
+import com.dd3boh.outertune.constants.LyricHighlightStyleKey
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -386,6 +390,8 @@ fun ColumnScope.LyricAdvancedFrag() {
     val (lyricUpdateSpeed, onLyricsUpdateSpeedChange) = rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
     val (lyricsFancy, onLyricsFancyChange) = rememberPreference(LyricKaraokeEnable, false)
     val (estimatedWordSync, onEstimatedWordSyncChange) = rememberPreference(LyricEstimatedWordSync, false)
+    val (highlightStyle, onHighlightStyleChange) = rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
+    val (showLyricsType, onShowLyricsTypeChange) = rememberPreference(LyricShowTypeKey, true)
     val (syncedLyricsClickable, onSyncedLyricsClickable) = rememberPreference(LyricClickable, defaultValue = true)
 
     ElevatedCard(
@@ -420,6 +426,29 @@ fun ColumnScope.LyricAdvancedFrag() {
             onCheckedChange = onEstimatedWordSyncChange,
             // Only supplies the timings the karaoke sweep consumes, so it does nothing on its own.
             isEnabled = lyricsFancy
+        )
+
+        EnumListPreference(
+            title = { Text(stringResource(R.string.lyrics_highlight_title)) },
+            icon = { Icon(Icons.Rounded.TextRotationAngledown, null) },
+            selectedValue = highlightStyle,
+            onValueSelected = onHighlightStyleChange,
+            values = LyricHighlightStyle.entries,
+            valueText = {
+                when (it) {
+                    LyricHighlightStyle.SWEEP -> stringResource(R.string.lyrics_highlight_sweep)
+                    LyricHighlightStyle.FADE -> stringResource(R.string.lyrics_highlight_fade)
+                }
+            },
+            isEnabled = lyricsFancy,
+        )
+
+        SwitchPreference(
+            title = { Text(stringResource(R.string.lyrics_show_type_title)) },
+            description = stringResource(R.string.lyrics_show_type_description),
+            icon = { Icon(Icons.Rounded.Info, null) },
+            checked = showLyricsType,
+            onCheckedChange = onShowLyricsTypeChange,
         )
 
         ListPreference(
