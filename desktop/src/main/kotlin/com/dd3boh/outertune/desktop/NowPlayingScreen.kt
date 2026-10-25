@@ -217,6 +217,8 @@ fun NowPlayingScreen(
     showQueueTitle: Boolean = true,
     /** Throws away this song's cached lyrics and asks the providers again. */
     onRefetchLyrics: (() -> Unit)? = null,
+    /** Edit, search and remove for the current song's lyrics - the phone's lyrics menu. */
+    lyricsActions: LyricsActions? = null,
     lyricsOffsetMs: Int = 0,
     onLyricsOffsetChange: ((Int) -> Unit)? = null,
     /** What a scroll over the player does - see [PlayerScroll]. */
@@ -600,6 +602,7 @@ fun NowPlayingScreen(
                                                 onRefetch = onRefetchLyrics,
                                                 fetching = lyricsLoading,
                                                 kind = lyricsKind,
+                                                actions = lyricsActions,
                                                 offsetMs = lyricsOffsetMs,
                                                 onOffsetChange = onLyricsOffsetChange,
                                             )
@@ -744,6 +747,7 @@ fun NowPlayingScreen(
                         onRefetch = onRefetchLyrics,
                         fetching = lyricsLoading,
                         kind = lyricsKind,
+                        actions = lyricsActions,
                         offsetMs = lyricsOffsetMs,
                         onOffsetChange = onLyricsOffsetChange,
                     )
@@ -1407,11 +1411,16 @@ private fun LyricsHeader(
     onRefetch: (() -> Unit)?,
     fetching: Boolean,
     kind: LyricsKind?,
+    actions: LyricsActions?,
     offsetMs: Int,
     onOffsetChange: ((Int) -> Unit)?,
 ) {
     var menu by remember { mutableStateOf(false) }
     var offsetDialog by remember { mutableStateOf(false) }
+    var editing by remember { mutableStateOf(false) }
+    var searching by remember { mutableStateOf(false) }
+    if (editing && actions != null) EditLyricsDialog(actions, onDismiss = { editing = false })
+    if (searching && actions != null) SearchLyricsDialog(actions, onDismiss = { searching = false })
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
         kind?.let { LyricsKindTag(it, tint, Modifier.padding(end = 4.dp)) }
         Box {
@@ -1437,6 +1446,23 @@ private fun LyricsHeader(
                         text = { Text("Fetch lyrics again") },
                         leadingIcon = { Icon(OuterTuneIcons.restore, null, modifier = Modifier.size(20.dp)) },
                         onClick = { menu = false; onRefetch() },
+                    )
+                }
+                if (actions != null) {
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Edit lyrics") },
+                        leadingIcon = { Icon(OuterTuneIcons.edit, null, modifier = Modifier.size(20.dp)) },
+                        onClick = { menu = false; editing = true },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Search lyrics") },
+                        leadingIcon = { Icon(OuterTuneIcons.search, null, modifier = Modifier.size(20.dp)) },
+                        onClick = { menu = false; searching = true },
+                    )
+                    androidx.compose.material3.DropdownMenuItem(
+                        text = { Text("Remove lyrics") },
+                        leadingIcon = { Icon(OuterTuneIcons.delete, null, modifier = Modifier.size(20.dp)) },
+                        onClick = { menu = false; actions.remove() },
                     )
                 }
             }

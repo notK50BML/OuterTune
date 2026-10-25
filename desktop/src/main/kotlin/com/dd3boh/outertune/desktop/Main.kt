@@ -1107,6 +1107,17 @@ internal fun App(
                 queue.current?.id?.let(lyricsRepository::forget)
                 lyricsAttempt++
             },
+            lyricsActions = queue.current?.let { song ->
+                val artist = song.artists.firstOrNull()?.name.orEmpty().replace(Regex("""\s*-\s*Topic$"""), "")
+                LyricsActions(
+                    title = song.title,
+                    artist = artist,
+                    stored = { lyricsRepository.stored(song.id) },
+                    save = { text, source -> lyricsRepository.save(song.id, text, source); lyricsAttempt++ },
+                    search = { title, by, onFound -> lyricsRepository.candidates(title, by, duration, onFound) },
+                    remove = { lyricsRepository.remove(song.id); lyricsAttempt++ },
+                )
+            },
             lyricsOffsetMs = settings.lyricsOffsetMs,
             onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
             playerScroll = settings.playerScroll,

@@ -391,6 +391,9 @@ class LyricsRepository(private val library: LibraryStore) {
             LocalMusic.bundledLyrics(songId)?.let { return@withContext LrcParser.parseAny(it, "File") }
         }
         library.cachedLyrics(songId)?.let { cached ->
+            // Removed by hand from the lyrics menu: none, and not looked for again until fetched
+            // again by hand - unlike a miss, which is.
+            if (cached.source == REMOVED) return@withContext null
             // A recorded miss is asked again after a week: providers add lyrics all the time, and a
             // miss used to be forever.
             // And once a session regardless: "no lyrics found" is the moment to look again, rather
@@ -449,6 +452,32 @@ class LyricsRepository(private val library: LibraryStore) {
         null
     }
 
+    /** The stored text for [songId] as it came - LRC or TTML - or null; for the lyrics editor. */
+    fun stored(songId: String): String? =
+        library.cachedLyrics(songId)?.takeIf { it.source != NONE && it.source != REMOVED }?.text
+
+    /** Keeps [text] as [songId]'s lyrics - edited by hand, or picked from a search. */
+    fun save(songId: String, text: String, source: String) = library.cacheLyrics(songId, text, source)
+
+    /** No lyrics for [songId], kept that way until fetched again by hand ([forget]). */
+    fun remove(songId: String) = library.cacheLyrics(songId, "", REMOVED)
+
+    /**
+     * Every candidate the providers have for [title] by [artist], each passed to [onFound] as it
+     * arrives - LRCLIB's matches, then KuGou's, then BetterLyrics' one. Providers that are switched
+     * off are asked anyway: this is a search the user asked for by hand.
+     */
+    suspend fun candidates(title: String, artist: String, durationMs: Long, onFound: (LyricsCandidate) -> Unit) =
+        withContext(Dispatchers.IO) {
+            val seconds = if (durationMs > 0) (durationMs / 1000).toInt() else -1
+            runCatching { LrcLib.getAllLyrics(title, artist, seconds) { onFound(LyricsCandidate(LRCLIB, it)) } }
+            ensureActive()
+            runCatching { KuGou.getAllPossibleLyricsOptions(title, artist, seconds) { onFound(LyricsCandidate(KUGOU, it)) } }
+            ensureActive()
+            BetterLyrics.getLyrics(title, artist, seconds.coerceAtLeast(0)).getOrNull()?.takeIf { it.isNotBlank() }
+                ?.let { onFound(LyricsCandidate(BETTERLYRICS, it)) }
+        }
+
     /** Songs whose recorded miss has already been checked again this session - see [lyricsFor]. */
     private val missesRechecked: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
@@ -460,6 +489,9 @@ class LyricsRepository(private val library: LibraryStore) {
         const val LRCLIB = "LRCLIB"
         const val KUGOU = "KuGou"
         const val NONE = "none"
+
+        /** Lyrics removed by hand - see [remove]. */
+        const val REMOVED = "removed"
 
         /** How long a recorded "no lyrics" stands before the providers are asked again. */
         const val MISS_TTL_MS = 7L * 24 * 60 * 60 * 1000
