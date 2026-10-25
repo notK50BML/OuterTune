@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.viewmodels
 
+import com.dd3boh.outertune.utils.mergeSameSongs
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -223,7 +224,9 @@ class StatsViewModel @Inject constructor(
         metric: StatMetric,
         limit: Int,
     ): List<SongPlayStats> {
-        if (tally.isEmpty()) return local.take(limit)
+        // The same song under two ids counts once - see mergeSameSongs. After the remote plays are
+        // added, so a song's plays from everywhere end up in the one entry.
+        if (tally.isEmpty()) return rank(mergeSameSongs(local), metric, limit)
 
         val merged = local.map { stats ->
             val remote = tally[stats.song.id] ?: return@map stats
@@ -248,12 +251,15 @@ class StatsViewModel @Inject constructor(
             )
         }
 
-        return merged
+        return rank(mergeSameSongs(merged), metric, limit)
+    }
+
+    private fun rank(songs: List<SongPlayStats>, metric: StatMetric, limit: Int): List<SongPlayStats> =
+        songs
             .sortedByDescending {
                 if (metric == StatMetric.TIME_LISTENED) it.totalPlayTime else it.totalPlays.toLong()
             }
             .take(limit)
-    }
 
     companion object {
         /** "All" is this: SQLite takes it as no limit worth the name. */
