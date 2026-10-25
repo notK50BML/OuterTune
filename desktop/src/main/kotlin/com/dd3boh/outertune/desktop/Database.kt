@@ -924,17 +924,32 @@ class Database(file: File) {
      * after it a second earlier, so sorting by when it was liked reproduces the remote list. Songs
      * already liked here keep their own date - an import adds, it does not reshuffle.
      */
+    /**
+     * The account's liked songs, newest first, as YouTube Music lists them. Each is dated by its place
+     * in that list - songs already liked here included - so Liked songs reads in the account's order.
+     *
+     * It used to date only songs new to this library and leave the rest alone, which mixed three
+     * clocks: likes made here, likes brought in by each sync, and whatever the first import stamped
+     * - and the list followed none of them. The caller leaves out songs whose own like or unlike is
+     * still on its way to YouTube (LikePushes), so those keep the date given here. Returns how many
+     * were newly liked.
+     */
     fun importLiked(songs: List<StoredSong>, nowMs: Long): Int = transaction {
         var added = 0
         songs.forEachIndexed { index, song ->
             upsertSongLocked(song)
+            val known = connection.prepareStatement("SELECT 1 FROM liked WHERE songId = ?").use { st ->
+                st.setString(1, song.id)
+                st.executeQuery().use { it.next() }
+            }
             connection.prepareStatement(
-                "INSERT INTO liked (songId, likedAt) VALUES (?, ?) ON CONFLICT(songId) DO NOTHING"
+                "INSERT INTO liked (songId, likedAt) VALUES (?, ?) ON CONFLICT(songId) DO UPDATE SET likedAt = excluded.likedAt"
             ).use { st ->
                 st.setString(1, song.id)
                 st.setLong(2, nowMs - index * 1000L)
-                added += st.executeUpdate()
+                st.executeUpdate()
             }
+            if (!known) added++
         }
         added
     }

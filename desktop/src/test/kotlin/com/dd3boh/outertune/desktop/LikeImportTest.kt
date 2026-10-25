@@ -34,6 +34,18 @@ class LikeImportTest {
     }
 
     @Test
+    fun `songs already liked here take YouTube's order too`() {
+        // Liked here in one order, liked on the account in another: the account's wins, or the list
+        // is a mix of the two that matches neither.
+        val library = LibraryStore(Files.createTempDirectory("like-import").toFile())
+        library.toggleLiked(song("c"))
+        library.toggleLiked(song("a"))
+        library.importLiked(listOf(song("a"), song("b"), song("c")))
+        assertEquals(listOf("a", "b", "c"), library.liked.value.map { it.id })
+        library.close()
+    }
+
+    @Test
     fun `importing the same list twice changes nothing the second time`() {
         val library = LibraryStore(Files.createTempDirectory("like-import").toFile())
         library.importLiked(listOf(song("a"), song("b")))
