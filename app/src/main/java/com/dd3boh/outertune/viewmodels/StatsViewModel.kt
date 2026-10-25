@@ -1,5 +1,8 @@
 package com.dd3boh.outertune.viewmodels
 
+import com.dd3boh.outertune.db.entities.PlayTotals
+import com.zionhuang.innertube.pages.HistoryPage
+import com.zionhuang.innertube.utils.HistoryTally
 import com.dd3boh.outertune.utils.mergeSameSongs
 import android.content.Context
 import androidx.lifecycle.ViewModel
@@ -59,9 +62,6 @@ class StatsViewModel @Inject constructor(
         Triple(period, metric, limit)
     }
 
-    /** Plays and listening time in the period, for the header beside the title. */
-    val totals = statPeriod.flatMapLatest { period -> database.playTotals(period.toTimeMillis()) }
-        .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     /**
      * Plays this account made anywhere else - the YouTube Music app, another phone, the web - read
@@ -71,31 +71,67 @@ class StatsViewModel @Inject constructor(
      * most of what it adds is already counted locally. Off, this whole feature is one map lookup
      * against an empty map.
      */
-    private val remoteTally: StateFlow<Map<String, RemotePlays>> =
+    private val remoteHistory: StateFlow<List<HistoryPage.HistorySection>> =
         context.dataStore.data
             .map { it[StatsIncludeRemoteKey] ?: false }
             .distinctUntilChanged()
             .flatMapLatest { enabled ->
-                if (!enabled) flowOf(emptyMap()) else flow { emit(fetchRemoteTally()) }
+                if (!enabled) flowOf(emptyList()) else flow { emit(fetchRemoteHistory()) }
             }
-            .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    /**
+     * Each song's plays in the history, for the period shown. Only sections inside the period count
+     * (see HistoryTally) - the whole history used to be added to every period, so a week's chart
+     * gained plays from months ago.
+     */
+    private val remoteTally: StateFlow<Map<String, HistoryTally.Plays>> =
+        combine(remoteHistory, statPeriod) { sections, period ->
+            if (sections.isEmpty()) emptyMap() else HistoryTally.tally(sections, period.days())
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+
+    /**
+     * A wider local set than the chart shows, so the merge below has something to rank against -
+     * taking the local top N and then adding remote plays to them would let a song just outside it
+     * locally but first overall stay invisible. Also what the totals' history plays are measured
+     * against.
+     */
+    private val localPool = overviewRequest.flatMapLatest { (period, metric, limit) ->
+        database.mostPlayedSongsWithStats(
+            period.toTimeMillis(),
+            limit = maxOf(limit, MERGE_POOL),
+            byPlayTime = metric == StatMetric.TIME_LISTENED,
+        )
+    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     val mostPlayedSongs = combine(
-        overviewRequest.flatMapLatest { (period, metric, limit) ->
-            // A wider local set than the chart shows, so the merge below has something to rank
-            // against - taking the local top N and then adding remote plays to them would let a
-            // song just outside it locally but first overall stay invisible.
-            database.mostPlayedSongsWithStats(
-                period.toTimeMillis(),
-                limit = maxOf(limit, MERGE_POOL),
-                byPlayTime = metric == StatMetric.TIME_LISTENED,
-            )
-        },
+        localPool,
         remoteTally,
         statMetric,
         songLimit,
     ) { local, tally, metric, limit -> mergeRemotePlays(local, tally, metric, limit = limit) }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    /**
+     * Plays and listening time in the period, for the header beside the title - with what the
+     * history adds over this device's own plays, so the totals agree with the chart under them.
+     */
+    val totals = combine(
+        statPeriod.flatMapLatest { period -> database.playTotals(period.toTimeMillis()) },
+        remoteTally,
+        localPool,
+    ) { local, tally, pool ->
+        if (local == null || tally.isEmpty()) return@combine local
+        val localPlays = pool.associate { it.song.id to it.totalPlays }
+        var plays = 0
+        var time = 0L
+        tally.values.forEach { remote ->
+            val extra = HistoryTally.extraPlays(localPlays[remote.song.id] ?: 0, remote.plays)
+            plays += extra
+            time += extra * (remote.song.duration ?: 0) * 1000L
+        }
+        PlayTotals(plays = local.plays + plays, playTime = local.playTime + time)
+    }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric, limit) ->
         database.mostPlayedArtists(
@@ -176,8 +212,6 @@ class StatsViewModel @Inject constructor(
             }
     }
 
-    /** One song's plays from elsewhere, with the metadata to show it if it isn't known locally. */
-    private data class RemotePlays(val song: SongItem, val plays: Int)
 
     /**
      * Walks YouTube's history and counts how many times each song appears.
@@ -191,23 +225,20 @@ class StatsViewModel @Inject constructor(
      * Bounded by [MAX_HISTORY_PAGES] because history has no end: each page is one round trip, and
      * paging until YouTube runs out would be an unbounded number of them for a diminishing tail.
      */
-    private suspend fun fetchRemoteTally(): Map<String, RemotePlays> {
-        val tally = HashMap<String, RemotePlays>()
+    private suspend fun fetchRemoteHistory(): List<HistoryPage.HistorySection> {
+        val sections = ArrayList<HistoryPage.HistorySection>()
         var page = YouTube.musicHistory().getOrElse {
             reportException(it)
-            return emptyMap()
+            return emptyList()
         }
         var pagesRead = 0
         while (true) {
-            page.sections.orEmpty().flatMap { it.songs }.forEach { song ->
-                val seen = tally[song.id]
-                tally[song.id] = seen?.copy(plays = seen.plays + 1) ?: RemotePlays(song, 1)
-            }
+            sections += page.sections.orEmpty()
             val continuation = page.continuation ?: break
             if (++pagesRead >= MAX_HISTORY_PAGES) break
             page = YouTube.musicHistoryContinuation(continuation).getOrNull() ?: break
         }
-        return tally
+        return sections
     }
 
     /**
@@ -220,7 +251,7 @@ class StatsViewModel @Inject constructor(
      */
     private fun mergeRemotePlays(
         local: List<SongPlayStats>,
-        tally: Map<String, RemotePlays>,
+        tally: Map<String, HistoryTally.Plays>,
         metric: StatMetric,
         limit: Int,
     ): List<SongPlayStats> {
@@ -228,11 +259,14 @@ class StatsViewModel @Inject constructor(
         // added, so a song's plays from everywhere end up in the one entry.
         if (tally.isEmpty()) return rank(mergeSameSongs(local), metric, limit)
 
+        // The larger of the local and history counts, not their sum: plays this device shared with
+        // YouTube Music are in both - see HistoryTally.extraPlays.
         val merged = local.map { stats ->
             val remote = tally[stats.song.id] ?: return@map stats
+            val extra = HistoryTally.extraPlays(stats.totalPlays, remote.plays)
             stats.copy(
-                totalPlays = stats.totalPlays + remote.plays,
-                totalPlayTime = stats.totalPlayTime + remote.plays * stats.song.song.duration * 1000L,
+                totalPlays = stats.totalPlays + extra,
+                totalPlayTime = stats.totalPlayTime + extra * stats.song.song.duration.coerceAtLeast(0) * 1000L,
             )
         }.toMutableList()
 
@@ -275,3 +309,7 @@ class StatsViewModel @Inject constructor(
         private const val MAX_HISTORY_PAGES = 40
     }
 }
+
+/** The period's length in days, or null for all time - what HistoryTally counts sections against. */
+private fun StatPeriod.days(): Long? =
+    if (this == StatPeriod.ALL) null else Duration.between(toLocalDateTime(), LocalDateTime.now()).toDays()
