@@ -854,7 +854,10 @@ class LocalMediaScanner(context: Context, scannerImpl: ScannerImpl) {
                             mimeType = mime,
                             codecs = mime.substringAfter('/'),
                             bitrate = bitrate ?: -1,
-                            sampleRate = bitsPerSample,
+                            // Bit depth was written into the sample rate here, so the details showed
+                            // a sample rate of "16 Hz" and no bit depth at all.
+                            sampleRate = null,
+                            bitsPerSample = bitsPerSample?.takeIf { it > 0 },
                             contentLength = duration.toLong(),
                             loudnessDb = null,
                         )

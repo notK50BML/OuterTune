@@ -92,6 +92,30 @@ object NewPipeUtils {
         emptyList()
     }
 
+    /** What the video's page says about it, for a song's details. Any part YouTube does not give is null. */
+    data class VideoStats(
+        val views: Long?,
+        val likes: Long?,
+        /** As YouTube writes it, e.g. "2024-03-01" or "Mar 1, 2024". */
+        val uploaded: String?,
+        val uploader: String?,
+    )
+
+    /**
+     * Views, likes, upload date and channel for [videoId], read the way the streams are - through
+     * NewPipe's StreamInfo, which carries all of them; the player response the apps otherwise use
+     * has views only. One request and a page parse, so for a details screen, not a list.
+     */
+    fun videoStats(videoId: String): Result<VideoStats> = runCatching {
+        val info = StreamInfo.getInfo(NewPipe.getService(0), "https://www.youtube.com/watch?v=$videoId")
+        VideoStats(
+            views = info.viewCount.takeIf { it >= 0 },
+            likes = info.likeCount.takeIf { it >= 0 },
+            uploaded = info.uploadDate?.offsetDateTime()?.toLocalDate()?.toString() ?: info.textualUploadDate,
+            uploader = info.uploaderName?.takeIf { it.isNotBlank() },
+        )
+    }
+
     fun getStreamUrl(format: PlayerResponse.StreamingData.Format, videoId: String): Result<String> =
         runCatching {
             val url = format.url ?: format.signatureCipher?.let { signatureCipher ->

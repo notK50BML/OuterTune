@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.ui.dialog
 
+import com.zionhuang.innertube.NewPipeUtils
 import androidx.compose.runtime.getValue
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.constants.HideSettingsDescriptionsKey
@@ -530,6 +531,17 @@ fun DetailsDialog(
     val snackbarHostState = LocalSnackbarHostState.current
 
     val viewCount = remember(mediaMetadata.id) { mutableStateOf<String?>(null) }
+    // Likes and upload date, from the video's page through NewPipe - the player response carries
+    // views only. Views come from there too when it answers, as one consistent snapshot.
+    val likeCount = remember(mediaMetadata.id) { mutableStateOf<String?>(null) }
+    val uploaded = remember(mediaMetadata.id) { mutableStateOf<String?>(null) }
+    LaunchedEffect(mediaMetadata.id) {
+        if (mediaMetadata.isLocal) return@LaunchedEffect
+        val stats = withContext(Dispatchers.IO) { NewPipeUtils.videoStats(mediaMetadata.id).getOrNull() } ?: return@LaunchedEffect
+        stats.likes?.let { likeCount.value = NumberFormat.getIntegerInstance().format(it) }
+        stats.views?.let { viewCount.value = NumberFormat.getIntegerInstance().format(it) }
+        uploaded.value = stats.uploaded
+    }
     LaunchedEffect(mediaMetadata.id) {
         if (!mediaMetadata.isLocal) {
             // LaunchedEffect runs on the composition's own (main-thread) dispatcher.
@@ -541,7 +553,7 @@ fun DetailsDialog(
                 YTPlayerUtils.playerResponseForMetadata(mediaMetadata.id)
                     .getOrNull()?.videoDetails?.viewCount?.toLongOrNull()
             }
-            if (count != null) {
+            if (count != null && viewCount.value == null) {
                 viewCount.value = NumberFormat.getIntegerInstance().format(count)
             }
         }
@@ -579,6 +591,8 @@ fun DetailsDialog(
                 if (!mediaMetadata.isLocal) {
                     details.add("Itag" to currentFormat?.itag?.toString())
                     details.add(stringResource(R.string.ytm_view_count) to viewCount.value)
+                    details.add(stringResource(R.string.song_likes) to likeCount.value)
+                    details.add(stringResource(R.string.song_uploaded) to uploaded.value)
                 } else {
                     mediaMetadata.trackNumber?.let {
                         details.add(stringResource(R.string.track_number) to it.toString())
@@ -596,10 +610,13 @@ fun DetailsDialog(
                         stringResource(R.string.codecs) to currentFormat?.codecs,
                         stringResource(R.string.bitrate) to currentFormat?.bitrate?.let { "${it / 1000} Kbps" },
                         stringResource(R.string.sample_rate) to currentFormat?.sampleRate?.let { "$it Hz" },
-                        stringResource(R.string.bits_per_sample) to (currentFormat?.bitsPerSample?.toString()
-                            ?: stringResource(R.string.unknown)),
                     )
                 )
+                // A file's own bit depth. YouTube's streams are lossy (AAC, Opus), which have no
+                // bit depth to report - so for them the row is left out rather than always "Unknown".
+                if (mediaMetadata.isLocal) {
+                    details.add(stringResource(R.string.bits_per_sample) to currentFormat?.bitsPerSample?.let { "$it-bit" })
+                }
 
                 if (!mediaMetadata.isLocal) {
                     details.add(stringResource(R.string.loudness) to currentFormat?.loudnessDb?.let { "$it dB" })

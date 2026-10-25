@@ -504,6 +504,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="stats_limit_all">All</string>
     <string name="removed_from_liked">Removed from liked songs</string>
     <string name="lyrics_highlight_title">Word highlight</string>
+    <string name="song_likes">Likes</string>
+    <string name="song_uploaded">Uploaded</string>
     <string name="lyrics_highlight_sweep">Sweep</string>
     <string name="lyrics_highlight_fade">Fade in</string>
     <string name="lyrics_show_type_title">Show lyrics type</string>
