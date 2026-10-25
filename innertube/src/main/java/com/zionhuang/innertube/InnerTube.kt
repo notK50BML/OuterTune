@@ -30,9 +30,12 @@ import java.util.concurrent.TimeUnit
 class InnerTube {
     private var httpClient = createClient()
 
+    // The bare language, not the full tag: YouTube refuses a tag it does not list ("en-SG") with
+    // 400 Invalid argument on every request. Both apps set their own; this is what the tests and any
+    // other caller get.
     var locale = YouTubeLocale(
-        gl = Locale.getDefault().country,
-        hl = Locale.getDefault().toLanguageTag()
+        gl = Locale.getDefault().country.ifEmpty { "US" },
+        hl = Locale.getDefault().language.ifEmpty { "en" }
     )
     var visitorData: String? = null
     var dataSyncId: String? = null
