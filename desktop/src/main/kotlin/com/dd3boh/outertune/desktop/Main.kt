@@ -710,7 +710,10 @@ internal fun App(
     val notStarted = playback is PlaybackState.Idle && queue.current != null
     val shownDuration = when {
         duration > 0 -> duration
-        notStarted -> (queue.current?.duration ?: 0) * 1000L
+        // A song from the library carries no length of its own; a file on this computer knows it.
+        notStarted -> queue.current?.let { song ->
+            song.duration?.times(1000L) ?: LocalMusic.track(song.id)?.durationMs
+        } ?: 0L
         else -> 0L
     }
     val shownPosition: () -> Long = {

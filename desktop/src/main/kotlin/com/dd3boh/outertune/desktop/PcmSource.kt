@@ -93,7 +93,7 @@ internal class AacSource(
 /**
  * A music file on disk - MP3, FLAC, Ogg Vorbis, M4A/AAC, WAV or AIFF - through Java Sound's
  * decoder plugins, converted to 16-bit PCM so the processing loop sees one format whatever the file
- * was.
+ * was - including 24-bit FLAC, which its decoder will not convert and [next] narrows itself.
  *
  * Streamed, not loaded: an album of FLAC is gigabytes. Seeking reopens the file and skips forward,
  * which for compressed formats means decoding up to the point - a fraction of a second for most
@@ -106,13 +106,19 @@ internal class FileSource(
 ) : PcmSource {
     private var stream: AudioInputStream = open()
     private val format: AudioFormat = stream.format
+
+    /**
+     * Bytes per sample as decoded: 2 normally, 3 or 4 when the decoder could only give the file's
+     * own depth (see [open]) and [next] narrows each sample to 16 bits itself.
+     */
+    private val sampleBytes = (format.sampleSizeInBits + 7) / 8
     private val frameBytes = format.frameSize.coerceAtLeast(1)
     private val block = ByteArray(BLOCK_FRAMES * frameBytes)
 
     override val sampleRate = format.sampleRate.toInt()
     override val channels = format.channels
-    override val bitsPerSample = format.sampleSizeInBits
-    override val bigEndian = format.isBigEndian
+    override val bitsPerSample = 16
+    override val bigEndian = false
     override val durationMs: Long = knownDurationMs.takeIf { it > 0 }
         ?: stream.frameLength.takeIf { it > 0 }?.let { it * 1000 / sampleRate.coerceAtLeast(1) }
         ?: 0L
@@ -131,11 +137,24 @@ internal class FileSource(
             base.sampleRate,
             false,
         )
-        return if (base.encoding == AudioFormat.Encoding.PCM_SIGNED && base.sampleSizeInBits == 16 && !base.isBigEndian) {
-            source
-        } else {
-            AudioSystem.getAudioInputStream(target, source)
+        if (base.encoding == AudioFormat.Encoding.PCM_SIGNED && base.sampleSizeInBits == 16 && !base.isBigEndian) {
+            return source
         }
+        if (AudioSystem.isConversionSupported(target, base)) return AudioSystem.getAudioInputStream(target, source)
+        // Not every decoder can change depth as it decodes: the FLAC plugin gives a 24-bit file only
+        // as 24-bit PCM, and asked for 16 it refused outright, so a hi-res FLAC would not play at all.
+        // Decoded at the file's own depth instead, and narrowed in next().
+        val bits = base.sampleSizeInBits.takeIf { it > 16 } ?: 16
+        val native = AudioFormat(
+            AudioFormat.Encoding.PCM_SIGNED,
+            base.sampleRate,
+            bits,
+            base.channels,
+            base.channels * ((bits + 7) / 8),
+            base.sampleRate,
+            false,
+        )
+        return AudioSystem.getAudioInputStream(native, source)
     }
 
     override fun next(): ByteArray? {
@@ -148,7 +167,17 @@ internal class FileSource(
         if (filled == 0) return null
         // Whole frames only, so a stereo sample is never split across two blocks.
         val whole = filled - filled % frameBytes
-        return block.copyOf(whole)
+        if (sampleBytes == 2) return block.copyOf(whole)
+        // Deeper than 16 bits: each little-endian sample keeps its top two bytes, which is the
+        // 16-bit value the same sound would have had - truncation, inaudible below the noise floor.
+        val samples = whole / sampleBytes
+        val out = ByteArray(samples * 2)
+        for (i in 0 until samples) {
+            val top = i * sampleBytes + sampleBytes - 2
+            out[i * 2] = block[top]
+            out[i * 2 + 1] = block[top + 1]
+        }
+        return out
     }
 
     override fun seek(ms: Long): Long {
