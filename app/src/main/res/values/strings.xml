@@ -36,9 +36,9 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="last_week">Last week</string>
 
     <!-- Stats -->
-    <string name="most_played_songs">Most played songs</string>
-    <string name="most_played_artists">Most played artists</string>
-    <string name="most_played_albums">Most played albums</string>
+    <string name="most_played_songs">Top songs</string>
+    <string name="most_played_artists">Top artists</string>
+    <string name="most_played_albums">Top albums</string>
 
     <!-- Search -->
     <string name="search">Search</string>
