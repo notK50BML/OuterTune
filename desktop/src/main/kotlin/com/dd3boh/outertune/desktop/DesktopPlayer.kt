@@ -48,6 +48,21 @@ import javax.sound.sampled.DataLine
 import javax.sound.sampled.SourceDataLine
 
 /** What the UI needs to know about playback, and nothing more. */
+/**
+ * What is actually being played, for a song's details: the stream YouTube served or the file on disk.
+ * Any part that is not known is null.
+ */
+data class StreamDetails(
+    val format: String,
+    val bitrateKbps: Int? = null,
+    val sampleRate: Int? = null,
+    /** Lossless files only - lossy audio (AAC, MP3, Opus) has no bit depth of its own. */
+    val bitsPerSample: Int? = null,
+    val sizeBytes: Long? = null,
+    val loudnessDb: Double? = null,
+    val path: String? = null,
+)
+
 sealed interface PlaybackState {
     data object Idle : PlaybackState
     data class Loading(val title: String) : PlaybackState
@@ -102,6 +117,9 @@ class DesktopPlayer {
         const val ITAG_AAC_LOW = 139
         const val ITAG_AAC_HIGH = 141
 
+        /** What each AAC itag is encoded at, for when YouTube's own figure is not to hand. */
+        val NOMINAL_KBPS = mapOf(ITAG_AAC_LOW to 48, ITAG_AAC_MEDIUM to 128, ITAG_AAC_HIGH to 256)
+
         /** Samples per AAC-LC frame - fixed by the codec, which is what makes seeking arithmetic. */
         const val FRAME_SAMPLES = 1024L
 
@@ -123,6 +141,9 @@ class DesktopPlayer {
     }
 
     val state = MutableStateFlow<PlaybackState>(PlaybackState.Idle)
+
+    /** The current song's stream or file - see [StreamDetails]. */
+    val stream = MutableStateFlow<StreamDetails?>(null)
 
     private var job: Job? = null
 
@@ -306,6 +327,7 @@ class DesktopPlayer {
         durationMs.value = 0
         pendingSeekMs = startAtMs.takeIf { it > 0 }
         nowPlayingId = videoId
+        stream.value = null
         state.value = PlaybackState.Loading(title)
         val gen = generation
         job = scope.launch(Dispatchers.IO) {
@@ -316,6 +338,7 @@ class DesktopPlayer {
                 val prepared = ready?.let { awaitPrefetch(it) }
                 val audio = when (val outcome = prepared ?: resolveAndFetch(videoId)) {
                     is Resolved.Audio -> {
+                        stream.value = outcome.details
                         // YouTube's figure is how far above its reference the track is mastered;
                         // a positive one is taken off, a negative one left alone.
                         trackGain = outcome.loudnessDb?.takeIf { it > 0 }
@@ -497,7 +520,7 @@ class DesktopPlayer {
 
     /** Either the song's bytes, or a reason specific enough to act on. */
     private sealed interface Resolved {
-        data class Audio(val bytes: ByteArray, val loudnessDb: Double? = null) : Resolved
+        data class Audio(val bytes: ByteArray, val loudnessDb: Double? = null, val details: StreamDetails? = null) : Resolved
         data class Failure(val reason: String) : Resolved
     }
 
@@ -539,7 +562,12 @@ class DesktopPlayer {
     private suspend fun resolveAndFetch(videoId: String): Resolved {
         // A downloaded song never touches the network, and never asks YouTube whether it is still
         // playable - which is the whole point of having downloaded it.
-        downloads?.read(videoId)?.let { return Resolved.Audio(it) }
+        downloads?.read(videoId)?.let { bytes ->
+            return Resolved.Audio(
+                bytes,
+                details = StreamDetails("AAC (downloaded)", sizeBytes = bytes.size.toLong(), path = downloads?.fileFor(videoId)?.absolutePath),
+            )
+        }
 
         // NewPipe first. Since October 2026 YouTube answers the device clients below with "This video
         // is unavailable", or - iOS - with a URL that serves the first megabyte and then 403s, which
@@ -568,11 +596,10 @@ class DesktopPlayer {
         // NewPipe's streams carry no loudness figure, and normalisation needs one. A device client's
         // player response still has it even where its own URLs are refused, so it is asked alongside
         // - it answers well inside the time NewPipe takes, and costs nothing when it does not.
+        // Its format list also describes the stream NewPipe hands over - bitrate, sample rate - for
+        // the song's details.
         val loudness = async {
-            YouTube.player(videoId, client = YouTubeClient.IOS, authenticated = false).getOrNull()?.let { r ->
-                r.streamingData?.adaptiveFormats?.firstOrNull { it.itag == ITAG_AAC_MEDIUM }?.loudnessDb
-                    ?: r.playerConfig?.audioConfig?.loudnessDb
-            }
+            YouTube.player(videoId, client = YouTubeClient.IOS, authenticated = false).getOrNull()
         }
         val streams = withContext(Dispatchers.IO) { NewPipeUtils.newPipePlayer(videoId) }.toMap()
         if (streams.isEmpty()) {
@@ -585,13 +612,29 @@ class DesktopPlayer {
             AudioQuality.Low -> listOf(ITAG_AAC_LOW, ITAG_AAC_MEDIUM)
             AudioQuality.Auto -> listOf(ITAG_AAC_MEDIUM, ITAG_AAC_HIGH, ITAG_AAC_LOW)
         }
-        val url = preferred.firstNotNullOfOrNull { streams[it] } ?: run {
+        val itag = preferred.firstOrNull { it in streams }
+        val url = itag?.let { streams[it] } ?: run {
             loudness.cancel()
             return@coroutineScope Resolved.Failure("no AAC stream; offered itags ${streams.keys.sorted()}")
         }
         val length = Regex("""[?&]clen=(\d+)""").find(url)?.groupValues?.get(1)?.toLongOrNull()
         when (val fetched = fetchStream(url, length, YouTubeClient.USER_AGENT_WEB)) {
-            is Resolved.Audio -> fetched.copy(loudnessDb = loudness.await())
+            is Resolved.Audio -> {
+                val response = loudness.await()
+                val format = response?.streamingData?.adaptiveFormats?.firstOrNull { it.itag == itag }
+                val gain = format?.loudnessDb ?: response?.streamingData?.adaptiveFormats
+                    ?.firstOrNull { it.itag == ITAG_AAC_MEDIUM }?.loudnessDb ?: response?.playerConfig?.audioConfig?.loudnessDb
+                fetched.copy(
+                    loudnessDb = gain,
+                    details = StreamDetails(
+                        format = "AAC · itag $itag",
+                        bitrateKbps = format?.bitrate?.div(1000) ?: NOMINAL_KBPS[itag],
+                        sampleRate = format?.audioSampleRate,
+                        sizeBytes = fetched.bytes.size.toLong(),
+                        loudnessDb = gain,
+                    ),
+                )
+            }
             is Resolved.Failure -> fetched.also { loudness.cancel() }
         }
     }
@@ -635,7 +678,19 @@ class DesktopPlayer {
             )
 
         return when (val fetched = fetchStream(format.url!!, format.contentLength, client.userAgent)) {
-            is Resolved.Audio -> fetched.copy(loudnessDb = format.loudnessDb ?: response.playerConfig?.audioConfig?.loudnessDb)
+            is Resolved.Audio -> {
+                val gain = format.loudnessDb ?: response.playerConfig?.audioConfig?.loudnessDb
+                fetched.copy(
+                    loudnessDb = gain,
+                    details = StreamDetails(
+                        format = "AAC · itag ${format.itag}",
+                        bitrateKbps = format.bitrate / 1000,
+                        sampleRate = format.audioSampleRate,
+                        sizeBytes = fetched.bytes.size.toLong(),
+                        loudnessDb = gain,
+                    ),
+                )
+            }
             is Resolved.Failure -> fetched
         }
     }
@@ -846,6 +901,17 @@ class DesktopPlayer {
                 // M4A through the same AAC decoder YouTube audio uses - see M4aReader for why.
                 val source = if (M4aReader.isM4a(file)) M4aReader.open(file) else FileSource(file, durationMs)
                 if (gen != generation) { source.close(); return@launch }
+                val extension = file.extension.lowercase()
+                stream.value = StreamDetails(
+                    format = extension.uppercase().ifEmpty { "File" },
+                    bitrateKbps = source.durationMs.takeIf { it > 0 }?.let { (file.length() * 8 / it).toInt() },
+                    sampleRate = source.sampleRate,
+                    // Only a lossless file has a bit depth of its own; a decoder's output depth for
+                    // MP3 or AAC is not the song's.
+                    bitsPerSample = (source as? FileSource)?.sourceBitsPerSample?.takeIf { extension in LOSSLESS },
+                    sizeBytes = file.length(),
+                    path = file.absolutePath,
+                )
                 state.value = PlaybackState.Playing(title)
                 play(source, gen)
                 if (currentCoroutineContext().isActive && gen == generation) {
@@ -950,3 +1016,6 @@ private class InMemoryChannel(private val data: ByteArray) : SeekableByteChannel
     override fun isOpen(): Boolean = open
     override fun close() { open = false }
 }
+
+/** File types whose bit depth is the music's own. */
+private val LOSSLESS = setOf("flac", "wav", "aif", "aiff", "alac")

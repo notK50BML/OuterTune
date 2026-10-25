@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.produceState
+import com.zionhuang.innertube.NewPipeUtils
 import kotlinx.coroutines.flow.combine
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.foundation.layout.widthIn
@@ -793,6 +797,8 @@ internal fun App(
             SongDetailsDialog(
                 song = song,
                 durationMs = duration,
+                stream = player.stream.collectAsState().value,
+                plays = remember(song.id) { library.playCounts(0)[song.id] ?: 0 },
                 onDismiss = { showDetails = false },
                 onCopyLink = { copyToClipboard(watchUrl(song.id)) },
             )
@@ -2160,22 +2166,47 @@ private fun formatClock(ms: Long): String {
 private fun SongDetailsDialog(
     song: SongItem,
     durationMs: Long,
+    stream: StreamDetails?,
+    plays: Int,
     onDismiss: () -> Unit,
     onCopyLink: () -> Unit,
 ) {
+    val local = LocalMusic.isLocal(song.id)
+    // Views, likes and upload date from the video's page - the phone's details read the same.
+    val stats by produceState<NewPipeUtils.VideoStats?>(null, song.id) {
+        if (!local) value = withContext(Dispatchers.IO) { NewPipeUtils.videoStats(song.id).getOrNull() }
+    }
+    val numbers = java.text.NumberFormat.getIntegerInstance(java.util.Locale.ENGLISH)
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Details") },
         text = {
-            Column {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 DetailRow("Title", song.title)
                 DetailRow("Artists", song.artists.joinToString { it.name }.ifBlank { "Unknown" })
-                DetailRow("Video ID", song.id)
+                song.album?.name?.takeIf { it.isNotBlank() }?.let { DetailRow("Album", it) }
+                if (!local) DetailRow("Video ID", song.id)
                 if (durationMs > 0) DetailRow("Duration", formatClock(durationMs))
+                DetailRow("Plays", numbers.format(plays))
+                if (!local) {
+                    DetailRow("Views", stats?.views?.let(numbers::format) ?: "…")
+                    DetailRow("Likes", stats?.likes?.let(numbers::format) ?: "…")
+                    stats?.uploaded?.let { DetailRow("Uploaded", it) }
+                    stats?.uploader?.let { DetailRow("Channel", it) }
+                }
+                stream?.let { s ->
+                    DetailRow("Format", s.format)
+                    s.bitrateKbps?.let { DetailRow("Bitrate", "$it kbps") }
+                    s.sampleRate?.let { DetailRow("Sample rate", "${numbers.format(it)} Hz") }
+                    s.bitsPerSample?.let { DetailRow("Bit depth", "$it-bit") }
+                    s.loudnessDb?.let { DetailRow("Loudness", "%.1f dB".format(java.util.Locale.ENGLISH, it)) }
+                    s.sizeBytes?.let { DetailRow("Size", Downloads.formatSize(it)) }
+                    s.path?.let { DetailRow(if (local) "File" else "Saved at", it) }
+                }
             }
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } },
-        dismissButton = { TextButton(onClick = onCopyLink) { Text("Copy link") } },
+        dismissButton = if (local) null else ({ TextButton(onClick = onCopyLink) { Text("Copy link") } }),
     )
 }
 

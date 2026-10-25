@@ -104,6 +104,10 @@ internal class FileSource(
     /** From the tags when known; some decoders cannot tell how long a stream is. */
     knownDurationMs: Long = 0,
 ) : PcmSource {
+    /** The file's own bit depth, before conversion - for a song's details. Null when it has none to give. */
+    var sourceBitsPerSample: Int? = null
+        private set
+
     private var stream: AudioInputStream = open()
     private val format: AudioFormat = stream.format
 
@@ -126,6 +130,7 @@ internal class FileSource(
     private fun open(): AudioInputStream {
         val source = AudioSystem.getAudioInputStream(file)
         val base = source.format
+        sourceBitsPerSample = base.sampleSizeInBits.takeIf { it > 0 }
         // Signed 16-bit at the file's own rate and channel count: what the loop and the line expect,
         // and what every decoder plugin can produce.
         val target = AudioFormat(
