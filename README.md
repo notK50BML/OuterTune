@@ -2,6 +2,8 @@
 
 [![OuterTune app icon](https://github.com/OuterTune/OuterTune/blob/lite/assets/outertune.webp)](https://github.com/OuterTune/OuterTune/blob/lite/assets/outertune.webp)
 
+Keep Android Open! Please sign this petition: https://c.org/4ZMvPdZjpp
+
 [![Android Stable](https://img.shields.io/github/v/tag/notk50bml/outertune?filter=%21%2A-Windows&sort=semver&label=Android%20Stable)](https://github.com/notk50bml/outertune/releases) [![Windows Beta](https://img.shields.io/github/v/release/notk50bml/outertune?filter=*-Windows&sort=semver&label=Windows%20Beta)](https://github.com/notk50bml/outertune/releases) [![License](https://img.shields.io/github/license/notK50BML/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
 A music player which puts your personalised experience above all else. This app was engineered to be lightweight, yet feature-packed. Along with the functions of the original app, this fork also adds word-by-word lyrics, a completely free-placement UI editor, an audio visualiser, Discord rich presence and much more. This player also is heavily customisable and features a Material You design for accents and player colours for a dynamic theme. 
