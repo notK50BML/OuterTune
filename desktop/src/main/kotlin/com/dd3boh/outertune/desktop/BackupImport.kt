@@ -224,7 +224,8 @@ object BackupImport {
                             // here, so they become unlinked credits keyed by name - which is what
                             // this library already does for a credit with no channel behind it.
                             artistId == null || artistId.startsWith("LA") -> StoredArtist.unlinked(name)
-                            else -> StoredArtist(artistId, name)
+                            // The phone normalises on write, but a backup can predate that.
+                            else -> StoredArtist(artistId.normalizeArtistId(), name)
                         }
                     }
                 }

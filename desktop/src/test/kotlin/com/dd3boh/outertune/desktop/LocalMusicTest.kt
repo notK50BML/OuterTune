@@ -29,6 +29,9 @@ class LocalMusicTest {
         assertEquals(listOf("A", "B", "C"), LocalMusic.artistsFrom(emptyList(), listOf("A; B / C"), ""))
         assertEquals(listOf("Simon & Garfunkel"), LocalMusic.artistsFrom(emptyList(), listOf("Simon & Garfunkel"), ""))
         assertEquals(listOf("Tyler, The Creator"), LocalMusic.artistsFrom(emptyList(), listOf("Tyler, The Creator"), ""))
+        // A slash with no spaces is part of the name.
+        assertEquals(listOf("AC/DC"), LocalMusic.artistsFrom(emptyList(), listOf("AC/DC"), ""))
+        assertEquals(listOf("AC/DC", "Ozzy"), LocalMusic.artistsFrom(emptyList(), listOf("AC/DC / Ozzy"), ""))
         // The multi-value field wins when present; album artist is the last resort.
         assertEquals(listOf("X", "Y"), LocalMusic.artistsFrom(listOf("X", "Y"), listOf("X & Y"), ""))
         assertEquals(listOf("Band"), LocalMusic.artistsFrom(emptyList(), emptyList(), "Band"))

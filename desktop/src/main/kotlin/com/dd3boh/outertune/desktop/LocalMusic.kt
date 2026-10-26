@@ -39,9 +39,9 @@ data class LocalTrack(
  * only a local song has - where its file is - is kept beside it (see Database.localFiles).
  *
  * **Artists come from the tags, every one of them.** The multi-value ARTISTS field where the file
- * has one, otherwise ARTIST split on the separators taggers use between names - ";", "/", and
- * "feat." / "ft." - but never on "&" or ",", which are as often part of one name ("Simon &
- * Garfunkel", "Tyler, The Creator") as between two.
+ * has one, otherwise ARTIST split on the separators taggers use between names - ";", " / ", and
+ * "feat." / "ft." - but never on "&", "," or an unspaced "/", which are as often part of one name
+ * ("Simon & Garfunkel", "Tyler, The Creator", "AC/DC") as between two.
  */
 object LocalMusic {
 
@@ -209,7 +209,8 @@ object LocalMusic {
 
     private const val BATCH = 200
 
-    private val SEPARATORS = Regex("\\s*(?:;|\\u0000|\\s/\\s|/|\\s+feat\\.?\\s+|\\s+ft\\.?\\s+|\\s+featuring\\s+)\\s*", RegexOption.IGNORE_CASE)
+    // "/" only with a space either side: bare, it is part of too many names - "AC/DC", "Au/Ra".
+    private val SEPARATORS = Regex("\\s*(?:;|\\u0000|\\s/\\s|\\s+feat\\.?\\s+|\\s+ft\\.?\\s+|\\s+featuring\\s+)\\s*", RegexOption.IGNORE_CASE)
 
     /**
      * A local song's cover: the art embedded in the file, or failing that the image sitting beside

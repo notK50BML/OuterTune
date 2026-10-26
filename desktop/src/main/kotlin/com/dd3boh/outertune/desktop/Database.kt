@@ -1186,6 +1186,11 @@ class Database(file: File) {
      */
     private fun writeCreditsLocked(song: StoredSong) {
         if (song.artistList.isEmpty()) return
+        // Each artist once, under one spelling of its id. song_artist is keyed on (songId,
+        // artistId), so the same id twice - a channel credited under both MPLAUC… and UC…, or two
+        // tag names that lower-case alike - threw part-way and left the song with only some of its
+        // credits. And the same name twice is one artist shown twice, whatever the ids say.
+        val credits = ArtistLinks.dedupeCredits(song.artistList.map { it.copy(id = it.id.normalizeArtistId()) })
 
         connection.prepareStatement(
             // A name confirmed from the artist's own channel stays: a song's credit can carry an
@@ -1193,7 +1198,7 @@ class Database(file: File) {
             "INSERT INTO artist (id, name) VALUES (?, ?) ON CONFLICT(id) DO UPDATE SET " +
                 "name = CASE WHEN artist.nameConfirmed = 1 THEN artist.name ELSE excluded.name END"
         ).use { st ->
-            song.artistList.forEach { artist ->
+            credits.forEach { artist ->
                 st.setString(1, artist.id)
                 st.setString(2, artist.name)
                 st.addBatch()
@@ -1208,9 +1213,9 @@ class Database(file: File) {
             st.executeUpdate()
         }
         connection.prepareStatement(
-            "INSERT INTO song_artist (songId, artistId, position) VALUES (?, ?, ?)"
+            "INSERT OR IGNORE INTO song_artist (songId, artistId, position) VALUES (?, ?, ?)"
         ).use { st ->
-            song.artistList.forEachIndexed { index, artist ->
+            credits.forEachIndexed { index, artist ->
                 st.setString(1, song.id)
                 st.setString(2, artist.id)
                 st.setInt(3, index)
@@ -1250,7 +1255,13 @@ class Database(file: File) {
         songIds.chunked(500).forEach { credits.putAll(creditsForLocked(it)) }
         connection.prepareStatement("UPDATE song SET artists = ? WHERE id = ?").use { st ->
             credits.forEach { (songId, artists) ->
-                st.setString(1, artists.joinToString(", ") { it.name })
+                // A song credited to two channels that now share this name - an artist's old
+                // channel and its new one - would otherwise read "i-dle, i-dle". There is no
+                // evidence here that the two rows are one artist, so the rows stay; the song just
+                // lists the name once.
+                val shown = ArtistLinks.dedupeCredits(artists)
+                if (shown != artists) writeCreditsLocked(StoredSong(id = songId, title = "", artists = "", artistList = shown))
+                st.setString(1, shown.joinToString(", ") { it.name })
                 st.setString(2, songId)
                 st.addBatch()
             }

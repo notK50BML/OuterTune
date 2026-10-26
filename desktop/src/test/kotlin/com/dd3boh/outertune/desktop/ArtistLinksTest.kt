@@ -39,18 +39,101 @@ class ArtistLinksTest {
     }
 
     @Test
-    fun anUnrealHalfIsDropped() {
+    fun anUnrealHalfKeepsTheCombinedCredit() {
+        // "Mumford & Sons" missing an exact match while some channel "Mumford" exists is no reason
+        // to credit the song to that channel and drop the rest.
         val credit = listOf(StoredArtist.unlinked("A & B"))
         val links = listOf(link("A & B", null), link("A", "UCa"), link("B", null)).associateBy { it.nameKey }
-        assertEquals(listOf(StoredArtist("UCa", "A")), ArtistLinks.rewrite(credit, "x", links))
+        assertEquals(credit, ArtistLinks.rewrite(credit, "x", links))
+    }
+
+    @Test
+    fun aNameUnlinkedByHandIsNotSplit() {
+        // Unlinking by hand records the name with no channel, like a search that found nothing -
+        // but it means "not that channel", not "not an artist".
+        val credit = listOf(StoredArtist.unlinked("A & B"))
+        val links = listOf(
+            link("A & B", null).copy(manual = true), link("A", "UCa"), link("B", "UCb"),
+        ).associateBy { it.nameKey }
+        assertEquals(credit, ArtistLinks.rewrite(credit, "x", links))
     }
 
     @Test
     fun localArtistTakesItsChannel() {
         val links = listOf(link("Coldplay", "UCcold")).associateBy { it.nameKey }
         val out = ArtistLinks.rewrite(listOf(StoredArtist.unlinked("Coldplay")), "Yellow", links)
-        assertEquals(emptyList<String>(), ArtistLinks.featuredNames("Song (featuring X)"))
         assertEquals(listOf(StoredArtist("UCcold", "Coldplay")), out)
+    }
+
+    @Test
+    fun featuredClausesReadLikeThePhone() {
+        assertEquals(listOf("X"), ArtistLinks.featuredNames("Song (featuring X)"))
+        assertEquals(listOf("X"), ArtistLinks.featuredNames("Song w/ X"))
+        assertEquals(listOf("B", "C"), ArtistLinks.featuredNames("Song ft. B (ft. C)"))
+        assertEquals(listOf("(G)I-DLE"), ArtistLinks.featuredNames("Song (feat. (G)I-DLE)"))
+        assertEquals(listOf("B"), ArtistLinks.featuredNames("Song ft. B - Remix"))
+        assertEquals(listOf("A"), ArtistLinks.featuredNames("Song ft. A [Deluxe]"))
+        assertEquals(emptyList<String>(), ArtistLinks.featuredNames("Dancing With Myself"))
+    }
+
+    @Test
+    fun aFeaturedNameAlreadyCreditedIsNotSplitIntoMore() {
+        val links = listOf(link("Tyler", "UCtyler"), link("The Creator", "UCcreator")).associateBy { it.nameKey }
+        val credits = listOf(StoredArtist("UCtc", "Tyler, The Creator"))
+        assertEquals(credits, ArtistLinks.rewrite(credits, "Song (feat. Tyler, The Creator)", links))
+    }
+
+    @Test
+    fun aFeaturedBandIsTakenWholeBeforeItsPieces() {
+        val credits = listOf(StoredArtist("UCa", "A"))
+        val title = "Song (feat. Earth, Wind & Fire)"
+        val pieces = listOf(link("Earth", "UCearth"), link("Wind", "UCwind"), link("Fire", "UCfire"))
+        // The whole is a band: it, not its pieces.
+        val band = (pieces + link("Earth, Wind & Fire", "UCewf")).associateBy { it.nameKey }
+        assertEquals(credits + StoredArtist("UCewf", "Earth, Wind & Fire"), ArtistLinks.rewrite(credits, title, band))
+        // Not yet looked up as a whole: nothing.
+        assertEquals(credits, ArtistLinks.rewrite(credits, title, pieces.associateBy { it.nameKey }))
+        // Confirmed not one artist: the pieces that are.
+        val split = (pieces + link("Earth, Wind & Fire", null)).associateBy { it.nameKey }
+        assertEquals(
+            credits + listOf(StoredArtist("UCearth", "Earth"), StoredArtist("UCwind", "Wind"), StoredArtist("UCfire", "Fire")),
+            ArtistLinks.rewrite(credits, title, split),
+        )
+    }
+
+    @Test
+    fun theSameNameTwiceIsOneCredit() {
+        val out = ArtistLinks.dedupeCredits(
+            listOf(StoredArtist.unlinked("i-dle"), StoredArtist("UCa", "I-DLE"), StoredArtist("UCa", "I-DLE"), StoredArtist("UCb", "B")),
+        )
+        assertEquals(listOf(StoredArtist("UCa", "I-DLE"), StoredArtist("UCb", "B")), out)
+    }
+
+    @Test
+    fun duplicateCreditsAreStoredOnceUnderOneId() {
+        val library = LibraryStore(Files.createTempDirectory("ot-dupes").toFile())
+        // The same channel under both spellings, and two tag names that lower-case alike: this
+        // used to throw on song_artist's key and leave the song half-credited.
+        library.database.upsertSong(
+            StoredSong(
+                "s1", "Song", "A, A, x, X",
+                artistList = listOf(
+                    StoredArtist("MPLAUCa", "A"), StoredArtist("UCa", "A"),
+                    StoredArtist.unlinked("x"), StoredArtist.unlinked("X"),
+                ),
+            )
+        )
+        assertEquals(listOf(StoredArtist("UCa", "A"), StoredArtist.unlinked("x")), library.database.songCredits("s1"))
+    }
+
+    @Test
+    fun aRenameThatMakesTwoCreditsAlikeShowsTheNameOnce() {
+        val library = LibraryStore(Files.createTempDirectory("ot-rename").toFile())
+        library.database.upsertSong(
+            StoredSong("s1", "Song", "(G)I-DLE, i-dle", artistList = listOf(StoredArtist("UCold", "(G)I-DLE"), StoredArtist("UCnew", "i-dle")))
+        )
+        library.database.renameArtist("UCold", "i-dle")
+        assertEquals(listOf("i-dle"), library.database.songCredits("s1").map { it.name })
     }
 
     @Test
@@ -61,7 +144,9 @@ class ArtistLinksTest {
 
     @Test
     fun featuredArtistIsAddedOnlyWhenConfirmed() {
-        val links = listOf(link("Dua Lipa", "UCdua"), link("Nobody", null)).associateBy { it.nameKey }
+        // The clause is looked up whole first; only once that is no artist are its names tried.
+        val links = listOf(link("Dua Lipa & Nobody", null), link("Dua Lipa", "UCdua"), link("Nobody", null))
+            .associateBy { it.nameKey }
         val credits = listOf(StoredArtist("UCelton", "Elton John"))
         val out = ArtistLinks.rewrite(credits, "Cold Heart (feat. Dua Lipa & Nobody)", links)
         assertEquals(listOf(StoredArtist("UCelton", "Elton John"), StoredArtist("UCdua", "Dua Lipa")), out)

@@ -2388,7 +2388,7 @@ internal fun SongItem.toStored() = StoredSong(
     // Kept as separate entries as well as a joined string. The string is what gets shown when
     // nothing better is known; these are what make a name clickable.
     artistList = artists.map { artist ->
-        artist.id?.let { StoredArtist(it, artist.name) } ?: StoredArtist.unlinked(artist.name)
+        artist.id?.let { StoredArtist(it.normalizeArtistId(), artist.name) } ?: StoredArtist.unlinked(artist.name)
     },
 )
 

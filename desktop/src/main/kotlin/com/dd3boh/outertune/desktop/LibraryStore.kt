@@ -39,6 +39,14 @@ data class StoredArtist(val id: String, val name: String) {
     }
 }
 
+/**
+ * The bare channel id for an artist, whichever of YouTube's two spellings arrived - the phone's
+ * normalizeArtistId. YouTube Music credits one channel both as UC… and as MPLAUC…, and stored as
+ * given, one artist became two rows: two entries in the library, and both on a song credited
+ * under each.
+ */
+fun String.normalizeArtistId(): String = if (startsWith("MPLAUC")) removePrefix("MPLA") else this
+
 /** Lyrics as they were stored: the raw LRC (or plain text) and which provider gave it. */
 data class CachedLyrics(val text: String, val source: String, val fetchedAt: Long = 0L)
 
