@@ -157,11 +157,24 @@ fun main() = application {
         settings.equalizerStore().applyTo(player.equalizer, player.compressor, player.balance)
     }
 
+    // One way out, whichever close button is used: playback stopped and likes still waiting sent.
+    // The app's own caption bar - the usual path on Windows - only stopped the player, so a like
+    // made in the last minute never reached YouTube Music.
+    val quit = {
+        player.stop()
+        LikePushes.flushBlocking()
+        exitApplication()
+    }
+    // And the library closed once the window has finished with it: the last settings and the
+    // queue written, SQLite closed cleanly - on every way out, the updater's included.
+    remember(library) {
+        Runtime.getRuntime().addShutdownHook(Thread { runCatching { library.close() } })
+    }
+
     val windowState = rememberWindowState(width = 1000.dp, height = 700.dp)
     val useNativeFrame = remember { System.getProperty("os.name").orEmpty().startsWith("Windows") }
     Window(
-        // Likes still waiting to reach YouTube Music (LikePushes) go before the app does.
-        onCloseRequest = { player.stop(); LikePushes.flushBlocking(); exitApplication() },
+        onCloseRequest = quit,
         title = "OuterTune",
         // No Windows title bar: the app runs to the top edge and draws its own buttons. On Windows
         // the window keeps its real frame - shadow, snap, resize, animations - with only the caption
@@ -244,7 +257,7 @@ fun main() = application {
                     if (customChrome) CaptionBar(
                         state = windowState,
                         defaultTint = MaterialTheme.colorScheme.onSurface,
-                        onClose = { player.stop(); exitApplication() },
+                        onClose = quit,
                     )
                 }
             }
@@ -550,17 +563,27 @@ internal fun App(
     var showSleepDialog by remember { mutableStateOf(false) }
     LaunchedEffect(sleepTimer) {
         playerQueue.stopAtBoundary = { sleepTimer.songEnded() }
+        // The volume as it was when a fade began, put back when the fade ends either way.
+        var volumeBeforeFade: Float? = null
         while (true) {
             if (sleepTimer.dueNow()) {
                 player.pause()
-                player.volume = 1f
+                volumeBeforeFade?.let { player.volume = it }
+                volumeBeforeFade = null
             }
             // The phone's sleep fade: the last half minute ramps down to silence instead of the
-            // music stopping mid-phrase. Back to full volume for whatever plays next.
-            player.volume = sleepTimer.deadlineMs
+            // music stopping mid-phrase. The volume is only touched while that is happening - this
+            // used to set it to full every second, timer or not, so the volume keys lasted a second.
+            val fade = sleepTimer.deadlineMs
                 ?.takeIf { settings.sleepFade }
                 ?.let { (sleepTimer.remainingMs() / (settings.sleepFadeSeconds * 1000f)).coerceIn(0f, 1f) }
-                ?: 1f
+            if (fade != null && fade < 1f) {
+                val base = volumeBeforeFade ?: player.volume.also { volumeBeforeFade = it }
+                player.volume = base * fade
+            } else if (volumeBeforeFade != null) {
+                player.volume = volumeBeforeFade!!
+                volumeBeforeFade = null
+            }
             sleepRemaining = when {
                 sleepTimer.deadlineMs != null -> sleepTimer.remainingMs()
                 // End-of-song has no countdown to show. Zero is the signal for "set, but not
@@ -1011,7 +1034,9 @@ internal fun App(
             // Windows' media controls handle the media keys once they are on - handling them here
             // as well would act on every press twice.
             when (event.key) {
-                Key.MediaPlayPause -> { if (!WindowsMediaControls.active) player.togglePause(); return@handler true }
+                // togglePlay, not the player's own toggle: with a restored queue nothing is loaded yet,
+                // and only togglePlay knows to start it.
+                Key.MediaPlayPause -> { if (!WindowsMediaControls.active) togglePlay(); return@handler true }
                 Key.MediaNext -> { if (!WindowsMediaControls.active) playerQueue.next(); return@handler true }
                 Key.MediaPrevious -> { if (!WindowsMediaControls.active) playerQueue.previous(); return@handler true }
                 else -> Unit
@@ -1021,8 +1046,9 @@ internal fun App(
                 KeyAction.PlayPause -> togglePlay()
                 KeyAction.Next -> playerQueue.next()
                 KeyAction.Previous -> playerQueue.previous()
-                KeyAction.SeekForward -> player.seekTo(player.positionMs.value + 10_000)
-                KeyAction.SeekBack -> player.seekTo((player.positionMs.value - 10_000).coerceAtLeast(0))
+                // By the "Seek by" setting, as the player's seek buttons are.
+                KeyAction.SeekForward -> player.seekTo(player.positionMs.value + settings.seekIncrementSeconds * 1000L)
+                KeyAction.SeekBack -> player.seekTo((player.positionMs.value - settings.seekIncrementSeconds * 1000L).coerceAtLeast(0))
                 KeyAction.VolumeUp -> { player.volume = (player.volume + 0.05f).coerceAtMost(1f); volumeBeforeMute = null }
                 KeyAction.VolumeDown -> { player.volume = (player.volume - 0.05f).coerceAtLeast(0f); volumeBeforeMute = null }
                 KeyAction.Mute -> {
