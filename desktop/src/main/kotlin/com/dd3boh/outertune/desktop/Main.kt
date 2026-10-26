@@ -1149,6 +1149,7 @@ internal fun App(
                 else -> PlayerButtonKind.decode(settings.playerButtons).filter { it.forLocalFiles }
             },
             showQueueTitle = settings.showQueueTitle,
+            queueHandleTop = settings.queueHandleTop,
             onRefetchLyrics = {
                 queue.current?.id?.let(lyricsRepository::forget)
                 lyricsAttempt++

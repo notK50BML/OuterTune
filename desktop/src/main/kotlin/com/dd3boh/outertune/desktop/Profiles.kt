@@ -63,7 +63,7 @@ object Profiles {
     /** Which of this app's settings belong to which category. Personal ones are in none. */
     private fun categoryOf(key: String): Category? = when {
         key.startsWith("ui.") -> Category.Appearance
-        key in setOf("player.seekButtons", "player.visualizer", "player.buttons", "player.queueTitle", "player.layout",
+        key in setOf("player.seekButtons", "player.visualizer", "player.buttons", "player.queueTitle", "player.queueHandleTop", "player.layout",
             "window.sideQueue", "sleep.fade", "sleep.defaultMinutes") || key.startsWith("keys.") -> Category.Player
         key.startsWith("eq.") -> Category.Equaliser
         key.startsWith("lyrics.") -> Category.Lyrics
@@ -143,6 +143,7 @@ object Profiles {
             Category.Player -> {
                 put("buttons", s.playerButtons)
                 put("showQueueTitle", s.showQueueTitle)
+                put("queueHandleTop", s.queueHandleTop)
                 put("sleepFade", s.sleepFade)
                 put("sleepDefaultMinutes", s.sleepDefaultMinutes)
             }
@@ -213,6 +214,7 @@ object Profiles {
             Category.Player -> {
                 str("buttons") { s.playerButtons = PlayerButtonKind.encode(PlayerButtonKind.decode(it)) }
                 bool("showQueueTitle") { s.showQueueTitle = it }
+                bool("queueHandleTop") { s.queueHandleTop = it }
                 bool("sleepFade") { s.sleepFade = it }
                 int("sleepDefaultMinutes") { s.sleepDefaultMinutes = it }
             }

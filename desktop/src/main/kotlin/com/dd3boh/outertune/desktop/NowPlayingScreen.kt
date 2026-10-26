@@ -218,6 +218,8 @@ fun NowPlayingScreen(
     /** The title-row buttons, in order - see PlayerButtonKind. */
     playerButtons: List<PlayerButtonKind> = PlayerButtonKind.decode(""),
     showQueueTitle: Boolean = true,
+    /** With the queue docked beside the player, its handle along the top rather than the bottom. */
+    queueHandleTop: Boolean = true,
     /** Throws away this song's cached lyrics and asks the providers again. */
     onRefetchLyrics: (() -> Unit)? = null,
     /** Edit, search and remove for the current song's lyrics - the phone's lyrics menu. */
@@ -370,9 +372,9 @@ fun NowPlayingScreen(
                 }
             },
     ) {
-        // Docked beside the player, the queue's handle runs along the top, its arrow pointing at the
-        // side the queue comes in from. Stacked, it stays at the bottom - see below.
-        if (sideBySide && playerLayout?.block("queue")?.visible != false) QueueBar(
+        // Docked beside the player, the queue's handle runs along the top - unless set to the bottom -
+        // its arrow pointing at the side the queue comes in from. Stacked, it stays at the bottom.
+        if (sideBySide && queueHandleTop && playerLayout?.block("queue")?.visible != false) QueueBar(
             queue = queue,
             onColour = onBackground,
             open = queueOpen,
@@ -888,12 +890,14 @@ fun NowPlayingScreen(
         }
         }
 
-        // The sheet slides up from here, so its handle is at the bottom, pointing up.
-        if (!sideBySide && playerLayout?.block("queue")?.visible != false) QueueBar(
+        // The sheet slides up from here, so its handle is at the bottom, pointing up - and the docked
+        // queue's too, when it is set to the bottom.
+        if ((!sideBySide || !queueHandleTop) && playerLayout?.block("queue")?.visible != false) QueueBar(
             queue = queue,
             onColour = onBackground,
             open = queueOpen,
             onToggle = { queueOpen = !queueOpen },
+            sideways = sideBySide,
             showTitle = showQueueTitle,
         )
     }

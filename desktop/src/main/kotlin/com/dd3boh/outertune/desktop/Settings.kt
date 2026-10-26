@@ -165,6 +165,9 @@ class Settings(private val store: SettingsStore) {
     /** Whether the queue handle names the queue beside its arrow, as the phone's does. */
     var showQueueTitle by bool("player.queueTitle", true)
 
+    /** With the queue docked beside the player, its handle along the top rather than the bottom. */
+    var queueHandleTop by bool("player.queueHandleTop", true)
+
     /** Keyboard shortcuts that differ from the defaults - see KeyBindings. */
     var keyBindings by string("keys.bindings", "")
 
