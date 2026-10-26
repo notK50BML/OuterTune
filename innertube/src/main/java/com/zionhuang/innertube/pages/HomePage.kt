@@ -74,7 +74,10 @@ data class HomePage(
                             thumbnail = renderer.thumbnailRenderer.musicThumbnailRenderer?.getThumbnailUrl() ?: return null,
                             explicit = renderer.subtitleBadges?.find {
                                 it.musicInlineBadgeRenderer?.icon?.iconType == "MUSIC_EXPLICIT_BADGE"
-                            } != null
+                            } != null,
+                            // Kept for its playlist: a station on the home page is a song to YouTube,
+                            // its first one, with the station's list as the playlist to play it in.
+                            endpoint = renderer.navigationEndpoint.watchEndpoint,
                         )
                     }
 

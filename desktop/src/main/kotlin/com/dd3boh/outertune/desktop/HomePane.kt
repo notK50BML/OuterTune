@@ -413,7 +413,8 @@ private fun Section(
     // song indices below line up with the list actually being shown.
     val items = section.items.filter { it.isSupported }
     if (items.isEmpty()) return
-    val songs = items.filterIsInstance<SongItem>()
+    // Stations are not songs to queue behind one another - see isStation.
+    val songs = items.filterIsInstance<SongItem>().filterNot { it.isStation }
 
     Column(modifier = Modifier.padding(bottom = 24.dp)) {
         section.label?.let {
@@ -443,7 +444,7 @@ private fun Section(
                         when (item) {
                             // Played with the rest of its row behind it, so a section behaves like
                             // an album rather than a series of one-song sessions.
-                            is SongItem -> onPlaySong(songs, songs.indexOf(item).coerceAtLeast(0))
+                            is SongItem -> if (item.isStation) onPlayList(item) else onPlaySong(songs, songs.indexOf(item).coerceAtLeast(0))
                             is ArtistItem -> onOpenArtist(StoredArtist(item.id, item.title))
                             // An album opens rather than plays, now that there is a page for it -
                             // clicking a cover to be shown the record is what every music app does,

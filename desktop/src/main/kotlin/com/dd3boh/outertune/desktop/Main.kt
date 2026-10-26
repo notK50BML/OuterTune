@@ -1527,6 +1527,15 @@ internal fun App(
                                 },
                                 onOpenAlbum = openAlbumPage,
                                 onPlayList = { item ->
+                                    // A station: its own list, from its first song on.
+                                    val station = (item as? SongItem)?.endpoint?.takeIf { item.isStation }
+                                    if (station != null) {
+                                        scope.launch {
+                                            val songs = withContext(Dispatchers.IO) { YouTube.next(station).getOrNull()?.items }
+                                            if (!songs.isNullOrEmpty()) playerQueue.play(songs, 0, item.title)
+                                        }
+                                        return@HomePane
+                                    }
                                     if (item is PlaylistItem) {
                                         openOnlinePlaylistPage(item)
                                         return@HomePane

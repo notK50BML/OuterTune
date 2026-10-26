@@ -205,6 +205,15 @@ val YTItem.playlistIdOrNull: String?
         else -> null
     }
 
+/**
+ * A station or mix on the home page. YouTube sends one as a song - its first - with the station's
+ * own list as the playlist to play it in; a plain song's playlist, when it has one, is just its own
+ * radio (RDAMVM + its id). Played as a song, a station gave one track and then went on to the next
+ * station's first, since the rest of its row was queued behind it.
+ */
+val YTItem.isStation: Boolean
+    get() = this is SongItem && endpoint?.playlistId?.let { !it.startsWith("RDAMVM") } == true
+
 /** [subtitle], with a song's artists as they are shown everywhere - see SongItem.shown. */
 @androidx.compose.runtime.Composable
 fun YTItem.shownSubtitle(): String = if (this is SongItem) shown().subtitle else subtitle
