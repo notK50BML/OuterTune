@@ -306,12 +306,14 @@ class InnerTube {
         params: String? = null,
         continuation: String? = null,
         setLogin: Boolean = false,
+        /** Asks as if from this country instead of the content country - see YouTube.album. */
+        gl: String? = null,
     ) = httpClient.post("browse") {
         ytClient(client, setLogin = setLogin || useLoginForBrowse)
         setBody(
             BrowseBody(
                 context = client.toContext(
-                    locale,
+                    gl?.let { locale.copy(gl = it) } ?: locale,
                     visitorData,
                     if (setLogin || useLoginForBrowse) dataSyncId else null
                 ),

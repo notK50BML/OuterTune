@@ -212,8 +212,25 @@ object YouTube {
         )
     }
 
-    suspend fun album(browseId: String, withSongs: Boolean = true): Result<AlbumPage> = runCatching {
-        val response = innerTube.browse(WEB_REMIX, browseId).body<BrowseResponse>()
+    /**
+     * An album, asked for again as if from the US when the content country cannot have it.
+     *
+     * Some albums are withheld from some countries - or kept for Premium there - while the US
+     * catalogue lists them, and YouTube answers with a page that has no album on it. The US is the
+     * least restricted, so a page that fails here is tried once from there before giving up.
+     * Only the page: whether the songs then play is up to where the connection is, not this.
+     */
+    suspend fun album(browseId: String, withSongs: Boolean = true): Result<AlbumPage> {
+        val here = albumFrom(browseId, withSongs, gl = null)
+        if (here.isSuccess || locale.gl.equals(OPEN_REGION, ignoreCase = true)) return here
+        return albumFrom(browseId, withSongs, OPEN_REGION).takeIf { it.isSuccess } ?: here
+    }
+
+    /** The least restricted catalogue - see [album]. */
+    private const val OPEN_REGION = "US"
+
+    private suspend fun albumFrom(browseId: String, withSongs: Boolean, gl: String?): Result<AlbumPage> = runCatching {
+        val response = innerTube.browse(WEB_REMIX, browseId, gl = gl).body<BrowseResponse>()
         val playlistId = response.microformat?.microformatDataRenderer?.urlCanonical?.substringAfterLast('=')!!
         AlbumPage(
             album = AlbumItem(
@@ -229,7 +246,7 @@ object YouTube {
                 year = response.contents.twoColumnBrowseResultsRenderer.tabs.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()?.musicResponsiveHeaderRenderer?.subtitle?.runs?.lastOrNull()?.text?.toIntOrNull(),
                 thumbnail = response.contents.twoColumnBrowseResultsRenderer.tabs.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()?.musicResponsiveHeaderRenderer?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.lastOrNull()?.url!!,
             ),
-            songs = if (withSongs) albumSongs(playlistId).getOrThrow() else emptyList(),
+            songs = if (withSongs) albumSongs(playlistId, gl).getOrThrow() else emptyList(),
             otherVersions = response.contents.twoColumnBrowseResultsRenderer.secondaryContents?.sectionListRenderer?.contents?.getOrNull(1)?.musicCarouselShelfRenderer?.contents
                 ?.mapNotNull { it.musicTwoRowItemRenderer }
                 ?.mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
@@ -237,8 +254,8 @@ object YouTube {
         )
     }
 
-    suspend fun albumSongs(playlistId: String): Result<List<SongItem>> = runCatching {
-        var response = innerTube.browse(WEB_REMIX, "VL$playlistId").body<BrowseResponse>()
+    suspend fun albumSongs(playlistId: String, gl: String? = null): Result<List<SongItem>> = runCatching {
+        var response = innerTube.browse(WEB_REMIX, "VL$playlistId", gl = gl).body<BrowseResponse>()
         val songs = response.contents?.twoColumnBrowseResultsRenderer
             ?.secondaryContents?.sectionListRenderer
             ?.contents?.firstOrNull()
@@ -253,6 +270,7 @@ object YouTube {
             response = innerTube.browse(
                 client = WEB_REMIX,
                 continuation = continuation,
+                gl = gl,
             ).body<BrowseResponse>()
             val continuationItems = response.onResponseReceivedActions?.firstOrNull()
                 ?.appendContinuationItemsAction?.continuationItems
