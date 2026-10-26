@@ -206,7 +206,7 @@ class LibraryStore(
     fun removeLocalFile(path: String) = db.removeLocalFile(path)
 
     /** Songs by id, in the order given, skipping any the library has never seen. */
-    fun songs(ids: Collection<String>): List<StoredSong> = ids.mapNotNull { db.song(it) }
+    fun songs(ids: Collection<String>): List<StoredSong> = db.songs(ids)
 
     // ---- playlists -------------------------------------------------------------------------
 

@@ -56,7 +56,54 @@ import java.util.Collections
  */
 internal object ArtworkCache {
     private const val MAX_ENTRIES = 60
-    private val images = Collections.synchronizedMap(LinkedHashMap<String, ImageBitmap>())
+    // Access-ordered, so the one dropped at the cap is the least recently drawn, not the oldest
+    // loaded - a cover on screen the whole time is never the one thrown away.
+    private val images = Collections.synchronizedMap(LinkedHashMap<String, ImageBitmap>(16, 0.75f, true))
+
+    /**
+     * Covers on disk, one file per picture holding the largest copy seen - so a cover that has been
+     * shown once is there offline, which is what a downloaded song needs, and an app start does not
+     * fetch every cover again. Pruned to [DISK_LIMIT_BYTES], oldest first.
+     */
+    private val diskDir by lazy { java.io.File(defaultDataDirectory(), "artwork").apply { mkdirs() } }
+
+    private fun diskFile(url: String): java.io.File {
+        val digest = java.security.MessageDigest.getInstance("SHA-1").digest(url.sizeKey().toByteArray())
+        return java.io.File(diskDir, digest.joinToString("") { "%02x".format(it) } + ".img")
+    }
+
+    private fun readDisk(url: String): ImageBitmap? = runCatching {
+        diskFile(url).takeIf { it.isFile }?.readBytes()?.let { Image.makeFromEncoded(it).toComposeImageBitmap() }
+    }.getOrNull()
+
+    /** Keeps [bytes] for [url]'s picture unless a larger copy is already kept. */
+    private fun writeDisk(url: String, bytes: ByteArray, width: Int) {
+        runCatching {
+            val file = diskFile(url)
+            val kept = if (file.isFile) runCatching { Image.makeFromEncoded(file.readBytes()).width }.getOrDefault(0) else 0
+            if (width <= kept) return
+            val part = java.io.File(file.path + ".part")
+            part.writeBytes(bytes)
+            java.nio.file.Files.move(part.toPath(), file.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+
+    /** Keeps a large copy of [thumbnail] on disk, for a song that has just been downloaded. */
+    suspend fun keepForOffline(thumbnail: String) {
+        if (thumbnail.isNotBlank()) load(thumbnail.atSize(1080))
+    }
+
+    /** Drops the least recently written covers past [DISK_LIMIT_BYTES]. Called once at start. */
+    fun pruneDisk() {
+        runCatching {
+            val files = diskDir.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() } ?: return
+            var total = 0L
+            files.forEach { f ->
+                total += f.length()
+                if (total > DISK_LIMIT_BYTES) f.delete()
+            }
+        }
+    }
     private val client by lazy { HttpClient(OkHttp) }
 
     /**
@@ -86,18 +133,28 @@ internal object ArtworkCache {
             return withContext(Dispatchers.IO) { LocalMusic.artwork(url) }?.also { put(url, it) }
         }
         return withContext(Dispatchers.IO) {
+            // A kept copy at least as large as asked for is used straight away.
+            val wanted = Regex("""=w(\d+)""").find(url)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val kept = readDisk(url)
+            if (kept != null && kept.width >= wanted) {
+                put(url, kept)
+                return@withContext kept
+            }
             repeat(ATTEMPTS) { attempt ->
-                val image = runCatching {
+                val fetched = runCatching {
                     val bytes: ByteArray = client.get(url).body()
-                    Image.makeFromEncoded(bytes).toComposeImageBitmap()
+                    bytes to Image.makeFromEncoded(bytes).toComposeImageBitmap()
                 }.getOrNull()
-                if (image != null) {
+                if (fetched != null) {
+                    val (bytes, image) = fetched
                     put(url, image)
+                    writeDisk(url, bytes, image.width)
                     return@withContext image
                 }
                 if (attempt < ATTEMPTS - 1) delay(RETRY_DELAY_MS * (attempt + 1))
             }
-            null
+            // Offline, or the CDN refused: a smaller kept copy beats no cover at all.
+            kept?.also { put(url, it) }
         }
     }
 
@@ -139,6 +196,8 @@ internal object ArtworkCache {
 
     /** The part of a URL that identifies the cover rather than the size asked for. */
     private fun String.sizeKey(): String = substringBefore("=w").substringBefore("=s")
+
+    private const val DISK_LIMIT_BYTES = 200L * 1024 * 1024
 
     private const val ATTEMPTS = 3
     private const val RETRY_DELAY_MS = 400L

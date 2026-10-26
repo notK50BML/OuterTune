@@ -339,6 +339,7 @@ class DesktopPlayer {
                 val audio = when (val outcome = prepared ?: resolveAndFetch(videoId)) {
                     is Resolved.Audio -> {
                         stream.value = outcome.details
+                        currentAudio = videoId to outcome.bytes
                         // YouTube's figure is how far above its reference the track is mastered;
                         // a positive one is taken off, a negative one left alone.
                         trackGain = outcome.loudnessDb?.takeIf { it > 0 }
@@ -544,6 +545,14 @@ class DesktopPlayer {
      * streamed - one format-selection code path rather than two that can disagree about which itag
      * to take.
      */
+    /**
+     * The audio of the song playing now, kept so downloading it is a file write rather than a second
+     * fetch of what was fetched a minute ago - "download" from the player bar used to do exactly
+     * that. Only the current song's: one song's bytes, which are in memory while it plays anyway.
+     */
+    @Volatile
+    private var currentAudio: Pair<String, ByteArray>? = null
+
     suspend fun download(videoId: String): Result<Unit> = withContext(Dispatchers.IO) {
         // On IO explicitly, and this is the whole reason the dispatcher is stated. Callers are UI
         // code, so a Compose scope dispatches on the main thread - and everything inside here is
@@ -553,6 +562,10 @@ class DesktopPlayer {
         val store = downloads
             ?: return@withContext Result.failure(IllegalStateException("downloads are not set up"))
         if (store.has(videoId)) return@withContext Result.success(Unit)
+        // Already fetched - playing, or prefetched as the next song: saved without another fetch.
+        currentAudio?.takeIf { it.first == videoId }?.let { return@withContext store.save(videoId, it.second) }
+        prefetched.get()?.takeIf { it.videoId == videoId && it.bytes.isCompleted && !it.bytes.isCancelled }
+            ?.let { (it.bytes.getCompleted() as? Resolved.Audio)?.let { audio -> return@withContext store.save(videoId, audio.bytes) } }
         when (val outcome = resolveAndFetch(videoId)) {
             is Resolved.Audio -> store.save(videoId, outcome.bytes)
             is Resolved.Failure -> Result.failure(IllegalStateException(outcome.reason))
@@ -695,9 +708,12 @@ class DesktopPlayer {
         }
     }
 
+    /** One client for every stream fetch, so connections to the CDN are reused rather than reopened. */
+    private val streamHttp by lazy { HttpClient(OkHttp) }
+
     private suspend fun fetchStream(streamUrl: String, length: Long?, userAgent: String): Resolved {
         val url = if (length != null && length > 0) "$streamUrl&range=0-$length" else streamUrl
-        val http = HttpClient(OkHttp)
+        val http = streamHttp
         return try {
             val fetched = http.get(url) { header("User-Agent", userAgent) }
             if (fetched.status.value !in 200..299) {
@@ -707,8 +723,6 @@ class DesktopPlayer {
             }
         } catch (e: Exception) {
             Resolved.Failure("stream fetch failed - ${e::class.simpleName}: ${e.message}")
-        } finally {
-            http.close()
         }
     }
 

@@ -933,6 +933,22 @@ class Database(file: File) {
         song.copy(artistList = creditsForLocked(listOf(song.id))[song.id].orEmpty())
     }
 
+    /** Songs by id, in the order given, in a few queries rather than one per song. */
+    fun songs(ids: Collection<String>): List<StoredSong> = synchronized(lock) {
+        val byId = HashMap<String, StoredSong>()
+        ids.distinct().chunked(500).forEach { chunk ->
+            connection.prepareStatement(
+                "SELECT id, title, artists, thumbnail FROM song WHERE id IN (${chunk.joinToString(",") { "?" }})"
+            ).use { st ->
+                chunk.forEachIndexed { i, id -> st.setString(i + 1, id) }
+                st.executeQuery().use { rows -> rows.toSongs().forEach { byId[it.id] = it } }
+            }
+        }
+        val credits = HashMap<String, List<StoredArtist>>()
+        byId.keys.chunked(500).forEach { credits.putAll(creditsForLocked(it)) }
+        ids.mapNotNull { id -> byId[id]?.let { it.copy(artistList = credits[id].orEmpty()) } }
+    }
+
     fun likedSongs(): List<StoredSong> = synchronized(lock) {
         connection.createStatement().use { st ->
             st.executeQuery(

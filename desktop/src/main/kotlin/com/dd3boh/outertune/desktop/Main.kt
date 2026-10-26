@@ -541,7 +541,7 @@ internal fun App(
             var failed = 0
             for (song in todo) {
                 withContext(Dispatchers.IO) { library.database.upsertSong(song.toStored(), (song.duration ?: 0) * 1000L) }
-                val result = player.download(song.id)
+                val result = player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
                 if (result.isSuccess) done++ else failed++
                 batch = BatchDownload(title, todo.size, done + failed, failed)
                 downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
@@ -693,7 +693,10 @@ internal fun App(
 
     // Updates: last time's download removed, then a look for a new version if it has been a while.
     LaunchedEffect(Unit) {
-        withContext(Dispatchers.IO) { DesktopUpdater.cleanUp() }
+        withContext(Dispatchers.IO) {
+            DesktopUpdater.cleanUp()
+            ArtworkCache.pruneDisk()
+        }
         if (!settings.updateAutoCheck) return@LaunchedEffect
         val now = System.currentTimeMillis()
         if (now - (settings.updateLastCheck.toLongOrNull() ?: 0L) < UPDATE_CHECK_INTERVAL_MS) return@LaunchedEffect
@@ -1000,7 +1003,7 @@ internal fun App(
             } else if (downloading == null) {
                 downloading = song.id
                 scope.launch {
-                    player.download(song.id)
+                    player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
                     downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
                     downloading = null
                 }
@@ -1182,7 +1185,7 @@ internal fun App(
                         } else if (downloading == null) {
                             downloading = song.id
                             scope.launch {
-                                player.download(song.id)
+                                player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
                                 downloadedIds = withContext(Dispatchers.IO) {
                                     library.downloads.ids().toSet()
                                 }
@@ -1424,11 +1427,16 @@ internal fun App(
                         liked = liked,
                         // Music on this computer is as offline as a download, so it is listed here too,
                         // after the downloads.
+                        // Read off the UI thread - it used to run a query per downloaded song in the
+                        // middle of drawing the screen, again after every song of a batch download.
                         downloaded = run {
                             val localTracks by LocalMusic.tracks.collectAsState()
-                            remember(downloadedIds, localTracks) {
-                                library.songs(downloadedIds) + localTracks.map { it.song }.sortedBy { it.title.lowercase() }
+                            val songs by produceState(emptyList<StoredSong>(), downloadedIds, localTracks) {
+                                value = withContext(Dispatchers.IO) {
+                                    library.songs(downloadedIds) + localTracks.map { it.song }.sortedBy { it.title.lowercase() }
+                                }
                             }
+                            songs
                         },
                         grid = settings.playlistsGrid,
                         onToggleGrid = { settings.playlistsGrid = !settings.playlistsGrid },
