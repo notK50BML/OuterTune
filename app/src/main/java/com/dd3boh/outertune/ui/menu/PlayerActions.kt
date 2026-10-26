@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.ui.menu
 
+import com.dd3boh.outertune.playback.removeDownloadKeepingCache
 import android.content.Intent
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -142,7 +143,7 @@ fun rememberPlayerActions(
             PlayerButton.EQUALIZER -> equalizerPanelState.visible = true
             PlayerButton.DOWNLOAD -> when (downloadState) {
                 Download.STATE_COMPLETED, Download.STATE_QUEUED, Download.STATE_DOWNLOADING ->
-                    DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, mediaMetadata.id, false)
+                    removeDownloadKeepingCache(mediaMetadata.id)
                 else -> {
                     database.transaction { insert(mediaMetadata) }
                     downloadUtil.download(mediaMetadata)

@@ -7,6 +7,7 @@
  */
 package com.dd3boh.outertune.ui.screens.settings
 
+import com.dd3boh.outertune.constants.RemovedDownloadsToCacheKey
 import androidx.compose.material.icons.rounded.FilterList
 import com.dd3boh.outertune.constants.ShowHomeChipsKey
 import androidx.compose.material.icons.rounded.Person
@@ -70,7 +71,7 @@ fun LibrarySettings(
         defaultValue = true
     )
     val (flatSubfolders, onFlatSubfoldersChange) = rememberPreference(FlatSubfoldersKey, defaultValue = true)
-    val (downloadThumbnails, onDownloadThumbnailsChange) = rememberPreference(DownloadThumbnailsKey, defaultValue = false)
+    val (removedToCache, onRemovedToCacheChange) = rememberPreference(RemovedDownloadsToCacheKey, defaultValue = true)
     val (showArtistVideosAsSongs, onShowArtistVideosAsSongsChange) = rememberPreference(
         ShowArtistVideosAsSongsKey,
         defaultValue = true
@@ -149,12 +150,13 @@ fun LibrarySettings(
         ElevatedCard(
             modifier = Modifier.fillMaxWidth()
         ) {
+            // Downloads always save the full-resolution cover now - the setting for it is gone.
             SwitchPreference(
-                title = { Text(stringResource(R.string.download_thumbnails_title)) },
-                description = stringResource(R.string.download_thumbnails_description),
+                title = { Text(stringResource(R.string.removed_downloads_to_cache_title)) },
+                description = stringResource(R.string.removed_downloads_to_cache_desc),
                 icon = { Icon(Icons.Rounded.Image, null) },
-                checked = downloadThumbnails,
-                onCheckedChange = onDownloadThumbnailsChange
+                checked = removedToCache,
+                onCheckedChange = onRemovedToCacheChange
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.download_all_thumbnails_title)) },

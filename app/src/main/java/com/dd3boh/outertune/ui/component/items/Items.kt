@@ -416,8 +416,9 @@ fun YouTubeListItem(
             Icon.Library()
         }
         if (item is SongItem) {
-            val downloads by LocalDownloadUtil.current.downloads.collectAsState()
-            Icon.Download(downloads[item.id])
+            // This song's own state, not the whole map - see DownloadUtil.getDownload.
+            val download by LocalDownloadUtil.current.getDownload(item.id).collectAsState(initial = null)
+            Icon.Download(download)
         }
     },
     isActive: Boolean = false,
@@ -482,8 +483,9 @@ fun YouTubeGridItem(
             Icon.Library()
         }
         if (item is SongItem) {
-            val downloads by LocalDownloadUtil.current.downloads.collectAsState()
-            Icon.Download(downloads[item.id])
+            // This song's own state, not the whole map - see DownloadUtil.getDownload.
+            val download by LocalDownloadUtil.current.getDownload(item.id).collectAsState(initial = null)
+            Icon.Download(download)
         }
     },
     thumbnailRatio: Float = if (item is SongItem) 16f / 9 else 1f,

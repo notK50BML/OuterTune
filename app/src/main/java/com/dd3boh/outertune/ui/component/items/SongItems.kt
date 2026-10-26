@@ -135,7 +135,9 @@ fun SongListItem(
             },
             thumbnailContent = {
                 ItemThumbnail(
-                    thumbnailUrl = song.song.thumbnailUrl,
+                    // The saved full-resolution cover when there is one, so a downloaded song's row
+                    // stops fetching and caching a low-resolution copy of the same picture.
+                    thumbnailUrl = song.song.thumbnailPath ?: song.song.thumbnailUrl,
                     preferredSize = thumbnailSize,
                     albumIndex = albumIndex,
                     isActive = isActive,

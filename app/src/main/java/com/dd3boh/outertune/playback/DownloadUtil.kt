@@ -1,5 +1,7 @@
 package com.dd3boh.outertune.playback
 
+import com.dd3boh.outertune.constants.MaxSongCacheSizeKey
+import com.dd3boh.outertune.constants.RemovedDownloadsToCacheKey
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Uri
@@ -97,6 +99,10 @@ class DownloadUtil @Inject constructor(
 ) {
     val TAG = DownloadUtil::class.simpleName.toString()
 
+    init {
+        instance = this
+    }
+
     private val connectivityManager = context.getSystemService<ConnectivityManager>()!!
     private val audioQuality by enumPreference(context, AudioQualityKey, AudioQuality.AUTO)
 
@@ -109,13 +115,22 @@ class DownloadUtil @Inject constructor(
     @Volatile
     private var downloadOnWifiOnly = true
 
+    /** Removed downloads go to the song cache (when it has room) - see [removeDownload]. */
     @Volatile
-    private var downloadThumbnails = false
+    private var removedDownloadsToCache = true
+
+    /** The song cache's size limit in MB as set; 0 means it keeps nothing. */
+    @Volatile
+    private var songCacheMb = 0
+
+    /** One fetch per cover at a time - see [downloadThumbnail]. */
+    private val thumbnailLocks = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.sync.Mutex>()
     /** Same shape as MusicService's - see that one's doc for why the headers have to travel
      *  with the URL. */
     private data class CachedStreamUrl(val url: String, val expiresAt: Long, val headers: Map<String, String>)
 
-    private val songUrlCache = HashMap<String, CachedStreamUrl>()
+    // Concurrent: up to five download tasks read and write it at once, on Media3's own threads.
+    private val songUrlCache = java.util.concurrent.ConcurrentHashMap<String, CachedStreamUrl>()
     private val thumbnailHttpClient = OkHttpClient.Builder()
         .proxy(YouTube.proxy)
         .build()
@@ -131,6 +146,10 @@ class DownloadUtil @Inject constructor(
     private val dataSourceFactory = ResolvingDataSource.Factory(
         CacheDataSource.Factory()
             .setCache(playerCache)
+            // Read what the song cache already holds, but do not write to it: the download cache is
+            // where these bytes are going, and writing them here too doubled every download's flash
+            // writes and let a few downloads at once push the songs being streamed out of the cache.
+            .setCacheWriteDataSinkFactory(null)
             .setUpstreamDataSourceFactory(
                 OkHttpDataSource.Factory(
                     OkHttpClient.Builder()
@@ -148,8 +167,15 @@ class DownloadUtil @Inject constructor(
             )
     ) { dataSpec ->
         val mediaId = dataSpec.key ?: error("No media id")
-        val length = if (dataSpec.length >= 0) dataSpec.length else 1
-        if (playerCache.isCached(mediaId, dataSpec.position, length)) {
+        // Only a song the cache holds all of may go unresolved. Checking just its first byte, as this
+        // did for an open-ended request, passed a bare video id on whenever the start was cached, and
+        // the read failed at the first gap until Media3's retry resolved it properly.
+        val cached = if (dataSpec.length >= 0) {
+            playerCache.isCached(mediaId, dataSpec.position, dataSpec.length)
+        } else {
+            cachedLengthOrNull(playerCache, mediaId) != null
+        }
+        if (cached) {
             return@Factory dataSpec
         }
 
@@ -304,7 +330,9 @@ class DownloadUtil @Inject constructor(
      */
     private val downloadScanMutex = Mutex()
 
-    fun getDownload(songId: String): Flow<LocalDateTime?> = downloads.map { it[songId] }
+    // Only when this song's own state changes - the map changes with every other download too, and
+    // a row watching it redrew on each of them.
+    fun getDownload(songId: String): Flow<LocalDateTime?> = downloads.map { it[songId] }.distinctUntilChanged()
 
     fun download(songs: List<MediaMetadata>) {
         if (songs.any { downloads.value[it.id] == null }) notifyIfWaitingForWifi()
@@ -327,7 +355,10 @@ class DownloadUtil @Inject constructor(
     }
 
     private fun maybeDownloadThumbnail(songId: String, thumbnailUrl: String?) {
-        if (thumbnailUrl == null || !downloadThumbnails) return
+        if (thumbnailUrl == null) return
+        // Only when there is not already a whole one - a song downloaded again, or one whose cover
+        // was fetched on its own, needs nothing more.
+        if (isCompleteImage(File(thumbnailDir, "$songId.jpg"))) return
         CoroutineScope(dlCoroutine).launch { downloadThumbnail(songId, thumbnailUrl) }
     }
 
@@ -340,27 +371,127 @@ class DownloadUtil @Inject constructor(
      * caller.
      */
     suspend fun downloadThumbnail(songId: String, thumbnailUrl: String? = null) {
-        val url = (thumbnailUrl ?: database.song(songId).first()?.song?.thumbnailUrl)
-            ?.resize(1080, 1080) ?: return
+        val original = thumbnailUrl ?: database.song(songId).first()?.song?.thumbnailUrl ?: return
         val file = File(thumbnailDir, "$songId.jpg")
-        try {
-            val request = okhttp3.Request.Builder().url(url).build()
-            withContext(Dispatchers.IO) {
-                thumbnailHttpClient.newCall(request).execute().use { response ->
-                    val body = response.body
-                    if (!response.isSuccessful || body == null) {
-                        Log.w(TAG, "Thumbnail download failed for $songId: HTTP ${response.code}")
-                        return@withContext
+        // One at a time per song. Two fetches of the same cover - a download and "download all
+        // thumbnails", or a refresh - used to write the same file at once.
+        thumbnailLocks.getOrPut(songId) { kotlinx.coroutines.sync.Mutex() }.withLock {
+            // Fetched into a file of its own and only moved into place once it is known to be whole.
+            // Written straight into place, a cover was readable while half-written - the player drew
+            // its top half and then kept that - and a dropped connection left a cut-off file behind
+            // for good. The full-resolution copy first, then the size the song came with, since
+            // YouTube has no full-resolution image for some videos.
+            val part = File(thumbnailDir, "$songId.jpg.part")
+            for (url in listOf(original.resize(1080, 1080), original).distinct()) {
+                try {
+                    val ok = withContext(Dispatchers.IO) {
+                        thumbnailHttpClient.newCall(okhttp3.Request.Builder().url(url).build()).execute().use { response ->
+                            val body = response.body
+                            if (!response.isSuccessful) return@use false
+                            part.outputStream().use { out -> body.byteStream().copyTo(out) }
+                            val expected = body.contentLength()
+                            (expected < 0 || part.length() == expected) && isCompleteImage(part)
+                        }
                     }
-                    file.outputStream().use { out -> body.byteStream().copyTo(out) }
+                    if (!ok) {
+                        part.delete()
+                        continue
+                    }
+                    withContext(Dispatchers.IO) {
+                        java.nio.file.Files.move(
+                            part.toPath(), file.toPath(),
+                            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
+                            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
+                        )
+                    }
+                    database.song(songId).first()?.song?.takeIf { it.thumbnailPath != file.absolutePath }
+                        ?.copy(thumbnailPath = file.absolutePath)
+                        ?.let { database.update(it) }
+                    return@withLock
+                } catch (e: IOException) {
+                    part.delete()
+                    Log.w(TAG, "Thumbnail download failed for $songId from $url: ${e.message}")
                 }
             }
-            if (!file.exists()) return
-            database.song(songId).first()?.song?.copy(thumbnailPath = file.absolutePath)
-                ?.let { database.update(it) }
+            Log.w(TAG, "No usable thumbnail for $songId")
+        }
+    }
+
+    /**
+     * Whether [file] is a whole image: there, not empty, and - for a JPEG, which is what these are -
+     * ending in the end-of-image marker. A cover cut off mid-download draws as only its top part.
+     */
+    private fun isCompleteImage(file: File): Boolean {
+        val length = file.length()
+        if (!file.isFile || length < 4) return false
+        return try {
+            java.io.RandomAccessFile(file, "r").use { raf ->
+                val head = ByteArray(2).also { raf.readFully(it) }
+                if (head[0] != 0xFF.toByte() || head[1] != 0xD8.toByte()) return true // not a JPEG: no marker to check
+                // The marker can be followed by a little padding.
+                val tailSize = minOf(length, 64L).toInt()
+                raf.seek(length - tailSize)
+                val tail = ByteArray(tailSize).also { raf.readFully(it) }
+                (0 until tailSize - 1).any { tail[it] == 0xFF.toByte() && tail[it + 1] == 0xD9.toByte() }
+            }
         } catch (e: IOException) {
+            false
+        }
+    }
+
+    /**
+     * Fetches again any downloaded cover that is missing or was cut off - covers saved before
+     * [downloadThumbnail] wrote them safely, which is where a song's cover missing its bottom half
+     * came from. Cheap when there is nothing to do: one look at each file.
+     */
+    suspend fun repairThumbnails() {
+        database.downloadedSongs().first()
+            .filter { it.song.thumbnailPath != null && !isCompleteImage(File(it.song.thumbnailPath!!)) }
+            .forEach { song ->
+                File(song.song.thumbnailPath!!).delete()
+                downloadThumbnail(song.id, song.song.thumbnailUrl)
+            }
+    }
+
+    /**
+     * Removes the download of [id] - the one way every screen removes one.
+     *
+     * When "keep removed downloads in the song cache" is on and the song cache has room, the song is
+     * copied into the song cache first, so it still plays offline until the cache needs the space,
+     * and downloading it again needs no fetch (see [promoteCachedSong]). Otherwise, or if the copy
+     * fails, it is deleted outright as before. Its saved cover goes either way.
+     */
+    fun removeDownload(id: String) {
+        enqueueScope.launch {
+            if (removedDownloadsToCache && songCacheMb != 0) demoteToPlayerCache(id)
+            removeThumbnail(id)
+            DownloadService.sendRemoveDownload(context, ExoDownloadService::class.java, id, false)
+        }
+    }
+
+    /** Copies a downloaded song into the song cache - the reverse of [promoteCachedSong]. */
+    private fun demoteToPlayerCache(mediaId: String) {
+        val contentLength = cachedLengthOrNull(downloadCache, mediaId) ?: return
+        if (playerCache.isCached(mediaId, 0, contentLength)) return
+        try {
+            val dataSpec = DataSpec.Builder()
+                .setUri(mediaId.toUri())
+                .setKey(mediaId)
+                .setPosition(0)
+                .setLength(contentLength)
+                .build()
+            val writer = CacheDataSource.Factory()
+                .setCache(playerCache)
+                .setUpstreamDataSourceFactory(
+                    CacheDataSource.Factory()
+                        .setCache(downloadCache)
+                        .setCacheWriteDataSinkFactory(null)
+                )
+                .createDataSource()
+            CacheWriter(writer, dataSpec, null, null).cache()
+            Log.d(TAG, "Kept $mediaId in the song cache as its download is removed")
+        } catch (e: Exception) {
             reportException(e)
-            file.delete()
         }
     }
 
@@ -383,7 +514,7 @@ class DownloadUtil @Inject constructor(
         isDownloadingAllThumbnails.value = true
         try {
             database.downloadedSongs().first()
-                .filter { it.song.thumbnailPath == null }
+                .filter { it.song.thumbnailPath == null || !isCompleteImage(File(it.song.thumbnailPath!!)) }
                 .forEach { downloadThumbnail(it.id, it.song.thumbnailUrl) }
         } finally {
             isDownloadingAllThumbnails.value = false
@@ -849,6 +980,11 @@ class DownloadUtil @Inject constructor(
     }
 
     companion object {
+        /** The one instance, for [removeDownloadKeepingCache]. Set as Hilt creates it. */
+        @Volatile
+        var instance: DownloadUtil? = null
+            private set
+
         val STATE_DOWNLOADING: LocalDateTime = Instant.ofEpochMilli(1).atZone(ZoneOffset.UTC).toLocalDateTime()
         val STATE_INVALID: LocalDateTime = Instant.ofEpochMilli(0).atZone(ZoneOffset.UTC).toLocalDateTime()
 
@@ -871,13 +1007,16 @@ class DownloadUtil @Inject constructor(
         // shows up when tapping download. Reading a volatile field instead costs nothing.
         CoroutineScope(dlCoroutine).launch {
             context.dataStore.data
-                .map { (it[DownloadOnWifiOnlyKey] != false) to (it[DownloadThumbnailsKey] == true) }
+                .map { Triple(it[DownloadOnWifiOnlyKey] != false, it[RemovedDownloadsToCacheKey] != false, it[MaxSongCacheSizeKey] ?: 0) }
                 .distinctUntilChanged()
-                .collect { (wifiOnly, thumbnails) ->
+                .collect { (wifiOnly, toCache, cacheMb) ->
                     downloadOnWifiOnly = wifiOnly
-                    downloadThumbnails = thumbnails
+                    removedDownloadsToCache = toCache
+                    songCacheMb = cacheMb
                 }
         }
+        // Covers saved before they were written safely may be cut off; fetch those again.
+        CoroutineScope(dlCoroutine).launch { runCatching { repairThumbnails() }.onFailure { reportException(it) } }
 
         downloadManager.addListener(
             object : DownloadManager.Listener {
@@ -920,8 +1059,16 @@ class DownloadUtil @Inject constructor(
                             val updateTime =
                                 Instant.ofEpochMilli(download.updateTimeMs).atZone(ZoneOffset.UTC).toLocalDateTime()
                             database.updateDownloadStatus(download.request.id, updateTime)
-                        } else {
+                        } else if (download.state != Download.STATE_QUEUED &&
+                            download.state != Download.STATE_DOWNLOADING &&
+                            download.state != Download.STATE_RESTARTING
+                        ) {
+                            // Only when it can have changed anything. Queued and in-progress downloads
+                            // wrote "not downloaded" over a song that already was not, and every such
+                            // write re-ran every live song query in the app - with several downloads
+                            // going, a steady storm of them, which is what froze the phone.
                             database.updateDownloadStatus(download.request.id, null)
+                            if (download.state == Download.STATE_REMOVING) removeThumbnail(download.request.id)
                         }
                     }
                 }
@@ -981,3 +1128,12 @@ fun downloadDateFor(state: Int, updateTimeMs: Long): LocalDateTime? = when (stat
 
 fun stateToLocalDateTime(download: Download): LocalDateTime =
     downloadDateFor(download.state, download.updateTimeMs) ?: STATE_INVALID
+
+/**
+ * Removes a download through [DownloadUtil.removeDownload], which keeps the song in the song cache
+ * when that setting is on. Callable from anywhere a song's download is removed; falls back to a plain
+ * removal before the download utility exists.
+ */
+fun removeDownloadKeepingCache(id: String) {
+    DownloadUtil.instance?.removeDownload(id)
+}

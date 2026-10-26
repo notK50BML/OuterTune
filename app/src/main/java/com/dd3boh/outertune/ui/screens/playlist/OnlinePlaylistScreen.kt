@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.screens.playlist
 
+import com.dd3boh.outertune.playback.removeDownloadKeepingCache
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -273,12 +274,7 @@ fun OnlinePlaylistScreen(
                         }
 
                         songs.forEach { song ->
-                            DownloadService.sendRemoveDownload(
-                                context,
-                                ExoDownloadService::class.java,
-                                song.id,
-                                false
-                            )
+                            removeDownloadKeepingCache(song.id)
                         }
                     }
                 ) {
@@ -430,12 +426,7 @@ fun OnlinePlaylistScreen(
                                                         IconButton(
                                                             onClick = {
                                                                 songs.forEach { song ->
-                                                                    DownloadService.sendRemoveDownload(
-                                                                        context,
-                                                                        ExoDownloadService::class.java,
-                                                                        song.id,
-                                                                        false
-                                                                    )
+                                                                    removeDownloadKeepingCache(song.id)
                                                                 }
                                                             }
                                                         ) {

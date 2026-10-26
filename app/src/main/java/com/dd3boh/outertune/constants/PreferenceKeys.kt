@@ -285,6 +285,12 @@ val MaxImageCacheSizeKey = intPreferencesKey("maxImageCacheSize")
 val MaxSongCacheSizeKey = intPreferencesKey("maxSongCacheSize")
 
 /**
+ * Whether removing a download keeps the song in the song cache rather than deleting it outright -
+ * see DownloadUtil.removeDownload. On by default; only does anything when the song cache has room.
+ */
+val RemovedDownloadsToCacheKey = booleanPreferencesKey("removedDownloadsToCache")
+
+/**
  * When a full-size artwork request fails to load, fall back to a lower-resolution one instead of
  * showing nothing - the CDN occasionally rejects a very large size (or times out on it) for art
  * that loads fine smaller.

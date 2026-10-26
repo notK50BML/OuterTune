@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.menu
 
+import com.dd3boh.outertune.playback.removeDownloadKeepingCache
 import com.dd3boh.outertune.ui.component.items.shownArtistsText
 import android.content.Intent
 import androidx.compose.foundation.layout.PaddingValues
@@ -190,12 +191,7 @@ fun YouTubeSongMenu(
                 downloadUtil.download(song.toMediaMetadata())
             },
             onRemoveDownload = {
-                DownloadService.sendRemoveDownload(
-                    context,
-                    ExoDownloadService::class.java,
-                    song.id,
-                    false
-                )
+                removeDownloadKeepingCache(song.id)
             }
         )
         if (artists.any { it.id != null }) {

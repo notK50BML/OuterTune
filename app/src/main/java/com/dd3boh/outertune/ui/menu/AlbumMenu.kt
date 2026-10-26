@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.menu
 
+import com.dd3boh.outertune.playback.removeDownloadKeepingCache
 import android.content.Intent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -229,12 +230,7 @@ fun AlbumMenu(
                 },
                 onRemoveDownload = {
                     songs.forEach { song ->
-                        DownloadService.sendRemoveDownload(
-                            context,
-                            ExoDownloadService::class.java,
-                            song.id,
-                            false
-                        )
+                        removeDownloadKeepingCache(song.id)
                     }
                 }
             )
