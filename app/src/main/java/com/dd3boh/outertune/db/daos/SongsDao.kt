@@ -10,6 +10,7 @@ import androidx.room.RewriteQueriesToDropUnusedColumns
 import androidx.room.Transaction
 import androidx.room.Update
 import com.dd3boh.outertune.constants.SongSortType
+import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.PlayCountEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongEntity
@@ -348,6 +349,18 @@ interface SongsDao {
     /** How many artists [songId] is credited to - see DatabaseDao.insert(MediaMetadata). */
     @Query("SELECT COUNT(*) FROM song_artist_map WHERE songId = :songId")
     fun songArtistCount(songId: String): Int
+
+    /** The ids [songId] is credited to, read inside a transaction by ArtistCreditEnricher.enrich. */
+    @Query("SELECT artistId FROM song_artist_map WHERE songId = :songId ORDER BY position")
+    fun songArtistIdsOnce(songId: String): List<String>
+
+    /** The artists [songId] is credited to, in order - see DatabaseDao.insert(MediaMetadata). */
+    @Query("""
+        SELECT artist.* FROM song_artist_map JOIN artist ON artist.id = song_artist_map.artistId
+        WHERE song_artist_map.songId = :songId
+        ORDER BY song_artist_map.position
+    """)
+    fun songArtistsOnce(songId: String): List<ArtistEntity>
 
     // region downloaded Songs utils
     @Transaction

@@ -88,6 +88,23 @@ interface ArtistsDao {
     )
     fun artistByNameIgnoreCase(name: String): ArtistEntity?
 
+    /**
+     * [artistByNameIgnoreCase] among local artists only, or remote ones only. A local file's
+     * "Nirvana" is not a YouTube channel of that name, and matching across the two credited local
+     * files to channels and streamed songs to local placeholders.
+     */
+    @Query(
+        """
+        SELECT * FROM artist WHERE name = :name COLLATE NOCASE AND isLocal = :isLocal
+        ORDER BY
+            CASE WHEN id LIKE 'UC%' OR id LIKE 'MPLAUC%' THEN 0 ELSE 1 END,
+            CASE WHEN thumbnailUrl IS NULL OR thumbnailUrl = '' THEN 1 ELSE 0 END,
+            id
+        LIMIT 1
+        """
+    )
+    fun artistByNameAndKind(name: String, isLocal: Boolean): ArtistEntity?
+
     /** A real YouTube Music artist already in the library under [name] - see LocalArtistLinker. */
     @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE AND isLocal != 1 AND id LIKE 'UC%' LIMIT 1")
     fun remoteArtistByNameIgnoreCase(name: String): ArtistEntity?

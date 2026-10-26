@@ -35,4 +35,12 @@ class ArtistKeyTest {
         assertEquals(key("태연"), key("태연 - Topic"))
         assertNotEquals("", key("태연"))
     }
+
+    @Test
+    fun `a credit key keeps names of punctuation alone apart`() {
+        // artistKey reduces both of these to nothing; a song crediting "!!!" and "???" is still
+        // crediting two artists.
+        assertNotEquals(ArtistCreditEnricher.creditKey("!!!"), ArtistCreditEnricher.creditKey("???"))
+        assertEquals(ArtistCreditEnricher.creditKey("i-dle"), ArtistCreditEnricher.creditKey("I-DLE"))
+    }
 }

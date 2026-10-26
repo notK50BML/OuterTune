@@ -13,15 +13,21 @@ import com.dd3boh.outertune.db.entities.AlbumArtistMap
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
+import com.dd3boh.outertune.db.namesAnArtist
 import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.TOPIC_SUFFIX
 import com.dd3boh.outertune.db.stripTopicSuffix
+import com.dd3boh.outertune.ui.utils.resize
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.ArtistItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import timber.log.Timber
+import java.io.IOException
+import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Fixes two cases where a song's credited artists are less complete than what YouTube Music
@@ -31,10 +37,9 @@ import timber.log.Timber
  *   as one Run with no navigationEndpoint rather than crediting X and Y separately, which lands in
  *   the database as one ArtistEntity with a generated local id (see [ArtistEntity.isYouTubeArtist]).
  *   "X & Y" might genuinely be one act's own name (a duo whose real channel title contains "&"),
- *   so it's only replaced once confirmed it doesn't exist as an artist in its own right; once
- *   confirmed, it's removed and swapped for whichever of X/Y individually resolve to a real,
- *   populated channel - a half that doesn't resolve is dropped too, never kept as an unconfirmed
- *   guess.
+ *   so it's only replaced once confirmed it doesn't exist as an artist in its own right, and only
+ *   when every one of X and Y resolves to a real, populated channel. Anything less leaves the
+ *   credit as it is: "Mumford & Sons" failing an exact match is no evidence that "Sons" is a band.
  * - An artist named in the title's "(feat. X, Y)"/"(ft. X)" text but missing from the credited
  *   list gets added, once a search confirms the name is a real artist.
  *
@@ -122,13 +127,33 @@ object ArtistCreditEnricher {
     private val sweeping = java.util.concurrent.atomic.AtomicBoolean(false)
 
     /**
+     * Held by every write here that rewrites credits or folds one artist into another: [enrich]'s
+     * apply step, [mergeArtistInto] (which the sweep, ArtistNameRefresher and LocalArtistLinker all
+     * go through), and the album backfill.
+     *
+     * Playback and a download rescan can enrich the same song at once, and the refresher can merge
+     * an artist that song credits in between. Each of those is a read, some searching, then a
+     * write, and interleaved they resurrected the very duplicates they were removing. The
+     * transaction in [enrich] already refuses to write over credits that changed under it; this
+     * keeps the writes themselves from overlapping. Reentrant, because enrich merges while holding
+     * it, and never held across a suspension - only around synchronous database work.
+     */
+    private val creditLock = ReentrantLock()
+
+    /** Combined names already found not to split into real artists, so playback does not ask again. */
+    private val unsplittable: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Channels [repointDeadTopicChannel] has already looked at this run of the app. */
+    private val checkedChannels: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /**
      * Moves everything credited to [duplicate] onto [survivorId] and removes [duplicate]: song and
      * album credits, and a library bookmark the survivor does not already have. One transaction, so
      * a failure part-way leaves both rows as they were rather than credits split between them.
      */
     internal fun mergeArtistInto(database: MusicDatabase, duplicate: ArtistEntity, survivorId: String) {
         if (duplicate.id == survivorId) return
-        database.runInTransaction {
+        creditLock.withLock { database.runInTransaction {
             // A subscription on the row about to go would otherwise disappear with it, and an
             // artist the user had added to their library would quietly stop being in it.
             if (duplicate.bookmarkedAt != null && database.artistById(survivorId)?.bookmarkedAt == null) {
@@ -142,7 +167,7 @@ object ArtistCreditEnricher {
             database.deleteCollidingAlbumArtistMaps(duplicate.id, survivorId)
             database.updateAlbumArtistMap(duplicate.id, survivorId)
             database.safeDeleteArtist(duplicate.id)
-        }
+        } }
     }
 
     /**
@@ -153,6 +178,13 @@ object ArtistCreditEnricher {
      */
     internal fun artistKey(name: String): String =
         name.stripTopicSuffix().lowercase().filter { it.isLetterOrDigit() }
+
+    /**
+     * [artistKey] for comparing the credits of one song, where a name made only of punctuation
+     * ("!!!") must still compare equal to itself and to nothing else rather than to every other
+     * such name through a shared empty key.
+     */
+    internal fun creditKey(name: String): String = artistKey(name).ifEmpty { name.trim().lowercase() }
 
     /** The duplicate sweep on its own, for ArtistNameRefresher to run after a batch of renames. */
     internal suspend fun mergeDuplicates(database: MusicDatabase) = mergeDuplicateNamedArtists(database)
@@ -238,7 +270,7 @@ object ArtistCreditEnricher {
             // half-applied. A crash between the collision delete and the update does not leave the
             // merge unfinished, it loses those credits outright, and the next run has nothing left
             // to tell it they were ever there. The loop is already on Dispatchers.IO.
-            database.runInTransaction {
+            creditLock.withLock { database.runInTransaction {
                 // Keep whatever the bare-id row already holds; only create one when the channel is
                 // known solely under the prefixed spelling, carrying its name and picture across.
                 val survivor = database.artistById(newId)
@@ -262,7 +294,7 @@ object ArtistCreditEnricher {
                 database.deleteCollidingAlbumArtistMaps(old.id, newId)
                 database.updateAlbumArtistMap(old.id, newId)
                 database.safeDeleteArtist(old.id)
-            }
+            } }
             Timber.tag(TAG).d("merged artist row ${old.id} (\"${old.name}\") into $newId")
         }
     }
@@ -300,6 +332,14 @@ object ArtistCreditEnricher {
             return@withContext
         }
 
+        // Everything from here to the apply step only reads and searches; nothing is written until
+        // all of it is done. See the apply step for why.
+        val search = Searches(allowNetwork)
+        // Placeholders found to stand for a channel this run credits - see creditFor.
+        val placeholders = HashMap<String, ArtistEntity>()
+        // Channel renames noticed by the rebrand check, written onto the stored row when applied.
+        val renames = HashMap<String, String>()
+
         // Rebuilt from scratch rather than patched in place: once any combined credit's count of
         // real artists differs from 1, every position after it shifts, and rewriting the whole
         // list from here is simpler and safer than adjusting individual positions.
@@ -327,7 +367,7 @@ object ArtistCreditEnricher {
                 continue
             }
             if (artist.isYouTubeArtist) {
-                val repointed = repointDeadTopicChannel(database, songId, artist, allowNetwork)
+                val repointed = repointDeadTopicChannel(songId, artist, allowNetwork, search)
                 if (repointed != null) {
                     finalArtists += repointed
                     changed = true
@@ -336,25 +376,46 @@ object ArtistCreditEnricher {
                 }
                 continue
             }
-            val candidates = splitAmpersandCandidates(artist.name)
-            if (candidates == null) {
+            // Split only with a search to confirm it by. Offline - the relink sweep, playback with
+            // no connection - there is nothing to confirm anything with, and "X & Y" used to be
+            // dropped outright because nobody could be asked. A local file's own artist is never
+            // split either: its tags are the user's, and linking it is LocalArtistLinker's job.
+            val candidates = if (allowNetwork && !artist.isLocal) splitAmpersandCandidates(artist.name) else null
+            if (candidates == null || creditKey(artist.name) in unsplittable) {
                 finalArtists += artist
                 continue
             }
 
             // "X & Y" might be a real act's own name - only treat it as fake once its own name
-            // fails to resolve to a real, populated channel.
-            val realCombined = resolveArtistEntity(database, artist.name, allowNetwork)
-            if (realCombined != null) {
-                finalArtists += realCombined
-                if (realCombined.id != artist.id) changed = true
-                continue
+            // fails to resolve to a real, populated channel. A search that failed is not that
+            // answer, so the credit stays as it is until one succeeds.
+            when (val combined = search(artist.name)) {
+                is Lookup.Found -> {
+                    val realCombined = creditFor(database, combined.item, placeholders)
+                    finalArtists += realCombined
+                    if (realCombined.id != artist.id) changed = true
+                    continue
+                }
+                Lookup.Unknown -> {
+                    finalArtists += artist
+                    continue
+                }
+                Lookup.NotFound -> Unit
             }
 
-            // Confirmed it doesn't exist as an artist on its own: drop it, keeping only whichever
-            // half(s) DO resolve to a real, populated channel - an unresolved half is dropped
-            // too, never kept as an unconfirmed guess.
-            val realHalves = candidates.mapNotNull { resolveArtistEntity(database, it, allowNetwork) }
+            // Confirmed it doesn't exist as an artist on its own - but it is only replaced when every
+            // half is a real, populated channel. One half that does not resolve puts the split
+            // itself in doubt ("Mumford & Sons" missing an exact match while some channel called
+            // "Sons" exists), and keeping only the halves that did resolve traded one wrong credit
+            // for another. Remembered for the rest of the run, so each play does not ask again.
+            val halves = candidates.map { search(it) }
+            if (!halves.all { it is Lookup.Found }) {
+                if (halves.none { it is Lookup.Unknown }) unsplittable += creditKey(artist.name)
+                Timber.tag(TAG).d("[$songId] combined credit \"${artist.name}\" kept: not every half is a real artist")
+                finalArtists += artist
+                continue
+            }
+            val realHalves = halves.map { creditFor(database, (it as Lookup.Found).item, placeholders) }
             finalArtists += realHalves
             changed = true
             Timber.tag(TAG).d("[$songId] combined credit \"${artist.name}\" doesn't exist on its own - replaced with ${realHalves.map { it.name }}")
@@ -364,7 +425,8 @@ object ArtistCreditEnricher {
         // It happens after a rebrand once the real channel's name catches up with the placeholder's
         // (both then read i-dle), and it happens when a song is credited to both an artist's real
         // channel and the auto-generated Topic one YouTube made for them, which carry the same name
-        // and different ids.
+        // and different ids. Compared by creditKey, so "i-dle" and "I-DLE" are the same name here
+        // as they are to the duplicate sweep.
         //
         // Which to keep is not a coin toss: it is the one whose channel actually has this song,
         // because that is the page a listener tapping the name is trying to reach. That is what the
@@ -375,14 +437,14 @@ object ArtistCreditEnricher {
         //
         // Costs one search per duplicated name, and only when a song actually has one.
         val duplicatedNames = finalArtists
-            .groupBy { it.name.trim().lowercase() }
+            .groupBy { creditKey(it.name) }
             .filterValues { it.size > 1 }
             .keys
         if (duplicatedNames.isNotEmpty()) {
             val winners = HashMap<String, ArtistEntity>()
             for (key in duplicatedNames) {
-                val dupes = finalArtists.filter { it.name.trim().lowercase() == key }
-                val canonicalId = resolveArtist(dupes.first().name, allowNetwork)?.id
+                val dupes = finalArtists.filter { creditKey(it.name) == key }
+                val canonicalId = (search(dupes.first().name) as? Lookup.Found)?.item?.id?.normalizeArtistId()
                 val winner = dupes.firstOrNull { it.id == canonicalId }
                     ?: dupes.firstOrNull { it.isYouTubeArtist }
                     ?: dupes.first()
@@ -395,7 +457,7 @@ object ArtistCreditEnricher {
 
             val deduped = mutableListOf<ArtistEntity>()
             for (artist in finalArtists) {
-                val key = artist.name.trim().lowercase()
+                val key = creditKey(artist.name)
                 if (key !in duplicatedNames) {
                     deduped += artist
                 } else if (winners[key]?.id == artist.id && deduped.none { it.id == artist.id }) {
@@ -421,30 +483,34 @@ object ArtistCreditEnricher {
         // single credit, named as the page it opens.
         //
         // Only attempted when the song holds both kinds at once, so the search this costs is paid
-        // on the rare shape that can actually be a rebrand rather than on every song.
-        if (finalArtists.any { it.isYouTubeArtist } && finalArtists.any { !it.isYouTubeArtist }) {
+        // on the rare shape that can actually be a rebrand rather than on every song. A local
+        // file's artist is left out: what its tags say is the user's, not a rebrand to tidy away.
+        if (finalArtists.any { it.isYouTubeArtist } && finalArtists.any { !it.isYouTubeArtist && !it.isLocal }) {
             val collapsed = mutableListOf<ArtistEntity>()
             for (artist in finalArtists) {
-                if (artist.isYouTubeArtist) {
+                if (artist.isYouTubeArtist || artist.isLocal) {
                     collapsed += artist
                     continue
                 }
 
-                // resolveArtist, not resolveArtistEntity. The latter prefers an existing library row
-                // with the resolved name - and in exactly this case that row is the placeholder
-                // being examined, so it handed back the placeholder's own local id, which of course
-                // never matched a real channel and the collapse never fired. What is needed here is
-                // the channel the name resolves to upstream, regardless of what is already stored.
-                val resolved = resolveArtist(artist.name, allowNetwork)
+                // The channel the name resolves to upstream, regardless of what is already stored -
+                // a stored row with the resolved name is, in exactly this case, the placeholder
+                // being examined, and its local id never matches a real channel.
+                val resolved = (search(artist.name) as? Lookup.Found)?.item
                 val cleanName = resolved?.title?.stripTopicSuffix()
-                val sameChannel = resolved?.let { r -> finalArtists.firstOrNull { it.id == r.id && it.isYouTubeArtist } }
+                val sameChannel = resolved?.let { r ->
+                    finalArtists.firstOrNull { it.id == r.id.normalizeArtistId() && it.isYouTubeArtist }
+                }
                 if (sameChannel == null || cleanName == null) {
                     collapsed += artist
                     continue
                 }
                 if (sameChannel.name != cleanName) {
                     Timber.tag(TAG).d("[$songId] ${sameChannel.id} renamed upstream: \"${sameChannel.name}\" -> \"$cleanName\"")
-                    database.update(sameChannel.copy(name = cleanName))
+                    // Written in the apply step, onto the row as stored then. sameChannel can be a
+                    // copy made earlier in this run, and writing it whole over the row lost anything
+                    // set on it since - a bookmark, most visibly.
+                    renames[sameChannel.id] = cleanName
                     collapsed.replaceAll { if (it.id == sameChannel.id) it.copy(name = cleanName) else it }
                 }
                 Timber.tag(TAG).d("[$songId] dropping \"${artist.name}\", a placeholder for ${sameChannel.id} under its new name")
@@ -459,34 +525,110 @@ object ArtistCreditEnricher {
         // can't hold that same id twice at two different positions.
         val distinctFinalArtists = finalArtists.distinctBy { it.id }
 
-        if (changed) {
-            song.artists.forEach { database.deleteSongArtistMap(songId, it.id) }
-            song.artists.filterNot { old -> distinctFinalArtists.any { it.id == old.id } }
-                .forEach { database.safeDeleteArtist(it.id) }
-            distinctFinalArtists.forEachIndexed { index, artist ->
-                // Not plain insert(): that is IGNORE-on-conflict, so for an artist already in the
-                // table it wrote nothing - including the picture this run had just paid a search
-                // for, which is the value the skip-gate above depends on existing.
-                database.insertOrFillThumbnail(artist)
-                database.insert(SongArtistMap(songId = songId, artistId = artist.id, position = index))
+        // Add any featured artist named in the title but missing from the (possibly just
+        // rewritten) credited list.
+        val featured = featuredToAdd(database, song.song.title, distinctFinalArtists, search, placeholders)
+
+        if (changed || featured.isNotEmpty()) {
+            // The apply step. Everything above was decided against credits read before a round of
+            // searching, and in that time playback, a download rescan or the name refresher can
+            // have rewritten them - two enrich runs of one song used to interleave their
+            // delete-and-insert and put back the very duplicates each had removed. So the writes
+            // happen together, in one transaction, and only if the song's credits are still the
+            // ones this run read; otherwise nothing is written and the next pass starts afresh.
+            val snapshot = song.artists.map { it.id }.toSet()
+            val written = creditLock.withLock {
+                val applied = database.runInTransaction {
+                    if (database.songArtistIdsOnce(songId).toSet() != snapshot) return@runInTransaction false
+                    if (changed) {
+                        song.artists.forEach { database.deleteSongArtistMap(songId, it.id) }
+                        song.artists.filterNot { old -> distinctFinalArtists.any { it.id == old.id } }
+                            .forEach { database.safeDeleteArtist(it.id) }
+                        distinctFinalArtists.forEachIndexed { index, artist ->
+                            // Not plain insert(): that is IGNORE-on-conflict, so for an artist already in the
+                            // table it wrote nothing - including the picture this run had just paid a search
+                            // for, which is the value the skip-gate above depends on existing.
+                            database.insertOrFillThumbnail(artist)
+                            database.insert(SongArtistMap(songId = songId, artistId = artist.id, position = index))
+                        }
+                        renames.forEach { (id, name) ->
+                            database.artistById(id)?.takeIf { it.name != name }?.let { database.update(it.copy(name = name)) }
+                        }
+                    }
+                    featured.forEach { artist ->
+                        database.insertOrFillThumbnail(artist)
+                        // nextArtistPosition rather than a count - positions can have gaps, see there.
+                        database.insert(
+                            SongArtistMap(songId = songId, artistId = artist.id, position = database.nextArtistPosition(songId))
+                        )
+                        Timber.tag(TAG).d("[$songId] added featured artist \"${artist.name}\"")
+                    }
+                    true
+                }
+                // Now that the channels they stand for are stored, fold in the placeholders the
+                // searches matched by name - only for channels this run actually credited.
+                if (applied) {
+                    val credited = (if (changed) distinctFinalArtists else emptyList()).map { it.id } + featured.map { it.id }
+                    placeholders.filterKeys { it in credited }.forEach { (channelId, placeholder) ->
+                        mergeArtistInto(database, placeholder, channelId)
+                        Timber.tag(TAG).d("merged placeholder \"${placeholder.name}\" (${placeholder.id}) into $channelId")
+                    }
+                }
+                applied
+            }
+            if (!written) {
+                Timber.tag(TAG).d("[$songId] credits changed while this was searching - left for the next pass")
+                return@withContext
             }
         }
 
-        // Add any featured artist named in the title but missing from the (possibly just
-        // rewritten) credited list.
-        val creditedNames = distinctFinalArtists.map { it.name.lowercase() }.toMutableSet()
-        var nextPosition = distinctFinalArtists.size
-        val featured = parseFeaturedArtistNames(song.song.title).filter { it.lowercase() !in creditedNames }
-        for (name in featured) {
-            val resolved = resolveArtistEntity(database, name, allowNetwork) ?: continue
-            database.insertOrFillThumbnail(resolved)
-            database.insert(SongArtistMap(songId = songId, artistId = resolved.id, position = nextPosition))
-            nextPosition++
-            creditedNames += resolved.name.lowercase()
-            Timber.tag(TAG).d("[$songId] added featured artist \"${resolved.name}\"")
-        }
-
         backfillAlbumArtists(database, song)
+    }
+
+    /**
+     * The artists named in [title]'s feat. clauses that the song does not already credit, each
+     * confirmed by a search to be a real, populated channel.
+     *
+     * Read as runs of names rather than name by name. Commas, "&" and "and" separate featured
+     * artists, but they also sit inside one artist's name - "Tyler, The Creator", "Earth, Wind &
+     * Fire", "Florence and the Machine" - and cutting on them first credited the song to whatever
+     * channels answered to "Tyler" or "The Machine", even when the song already credited the act by
+     * its full name. So the names already credited are taken out of the clause first (see
+     * [featuredGroups]), what is left is searched as written, and it is only split when that whole
+     * is confirmed not to be an artist. A search that failed splits nothing.
+     */
+    private suspend fun featuredToAdd(
+        database: MusicDatabase,
+        title: String,
+        credited: List<ArtistEntity>,
+        search: Searches,
+        placeholders: MutableMap<String, ArtistEntity>,
+    ): List<ArtistEntity> {
+        val ids = credited.mapTo(HashSet()) { it.id.normalizeArtistId() }
+        val keys = credited.mapTo(HashSet()) { creditKey(it.name) }
+        val out = mutableListOf<ArtistEntity>()
+        fun take(item: ArtistItem) {
+            val artist = creditFor(database, item, placeholders)
+            // The search can answer with a channel the song already credits, under another spelling
+            // of its name; crediting it a second time is the duplicate this class exists to remove.
+            if (artist.id.normalizeArtistId() in ids || creditKey(artist.name) in keys) return
+            ids += artist.id.normalizeArtistId()
+            keys += creditKey(artist.name)
+            out += artist
+        }
+        for (group in featuredGroups(title, credited.map { it.name })) {
+            when (val whole = search(group.whole)) {
+                is Lookup.Found -> {
+                    take(whole.item)
+                    continue
+                }
+                Lookup.Unknown -> continue
+                Lookup.NotFound -> Unit
+            }
+            if (group.parts.size < 2) continue
+            group.parts.forEach { part -> (search(part) as? Lookup.Found)?.let { take(it.item) } }
+        }
+        return out
     }
 
     /**
@@ -550,20 +692,27 @@ object ArtistCreditEnricher {
                 )
                 return
             }
-            database.query { unlinkAlbumArtists(albumId) }
             Timber.tag(TAG).d("[$albumId] album credited $storedIds but its tracks credit $sharedIds - repointing")
         }
 
-        shared.forEachIndexed { index, artist ->
-            val artistId = artist.id.normalizeArtistId()
-            // The map row's artistId is a foreign key onto artist.id, and normalising can point it
-            // at a spelling no row is stored under yet - a channel held only as MPLAUC… has no
-            // bare-id row until mergePrefixedArtists runs, and this can reach an album before that
-            // does. Inserting the artist first guarantees the parent exists; it is IGNORE on
-            // conflict, so an artist already in the library keeps the row it has rather than being
-            // overwritten by the track's copy of it.
-            database.insert(artist.copy(id = artistId))
-            database.insert(AlbumArtistMap(albumId = albumId, artistId = artistId, order = index))
+        // The unlink and the inserts together, synchronously, in one transaction. The unlink used to
+        // go through database.query, which only queues the work on Room's executor - so it could run
+        // after the inserts below and wipe the credits it was meant to make room for.
+        creditLock.withLock {
+            database.runInTransaction {
+                if (stored.isNotEmpty()) database.unlinkAlbumArtists(albumId)
+                shared.forEachIndexed { index, artist ->
+                    val artistId = artist.id.normalizeArtistId()
+                    // The map row's artistId is a foreign key onto artist.id, and normalising can point it
+                    // at a spelling no row is stored under yet - a channel held only as MPLAUC… has no
+                    // bare-id row until mergePrefixedArtists runs, and this can reach an album before that
+                    // does. Inserting the artist first guarantees the parent exists; it is IGNORE on
+                    // conflict, so an artist already in the library keeps the row it has rather than being
+                    // overwritten by the track's copy of it.
+                    database.insert(artist.copy(id = artistId))
+                    database.insert(AlbumArtistMap(albumId = albumId, artistId = artistId, order = index))
+                }
+            }
         }
         if (stored.isEmpty()) {
             Timber.tag(TAG).d("[$albumId] album had no artists - took ${shared.map { it.name }} from its ${tracks.size} tracks")
@@ -584,12 +733,18 @@ object ArtistCreditEnricher {
         val albumArtists = database.album(albumId).first()?.artists.orEmpty()
         if (albumArtists.isEmpty()) return
 
-        albumArtists.forEachIndexed { index, artist ->
-            // Both inserts are OnConflictStrategy.IGNORE, so an artist already in the library keeps
-            // the row it has (name, thumbnail, bookmark and all) rather than being overwritten by
-            // the album's copy of it.
-            database.insert(artist)
-            database.insert(SongArtistMap(songId = song.song.id, artistId = artist.id, position = index))
+        creditLock.withLock {
+            database.runInTransaction {
+                // Checked again here: another pass may have credited the song since it was read.
+                if (database.songArtistCount(song.song.id) > 0) return@runInTransaction
+                albumArtists.forEachIndexed { index, artist ->
+                    // Both inserts are OnConflictStrategy.IGNORE, so an artist already in the library keeps
+                    // the row it has (name, thumbnail, bookmark and all) rather than being overwritten by
+                    // the album's copy of it.
+                    database.insert(artist)
+                    database.insert(SongArtistMap(songId = song.song.id, artistId = artist.id, position = index))
+                }
+            }
         }
         Timber.tag(TAG).d("[${song.song.id}] no credited artists - inherited ${albumArtists.map { it.name }} from album $albumId")
     }
@@ -606,23 +761,27 @@ object ArtistCreditEnricher {
      * credit run rather than the channel, so it reads right and opens nothing.
      *
      * Searching the name finds the channel YouTube itself answers with, which is the populated one
-     * - resolveArtist already requires a non-blank thumbnail, and a bare Topic channel has none.
+     * - lookUpArtist already requires a non-blank thumbnail, and a bare Topic channel has none.
      *
      * Gated on the stored artist having no thumbnail, which is what keeps this from costing a
      * request per credit forever: a credit that has been through here, or whose page has been
-     * opened, has one and is skipped. That gate also happens to select the right candidates, since
-     * an artist row built from a credit run alone starts without a picture.
+     * opened, has one and is skipped. The gate is not what decides a repoint, though - every newly
+     * stored artist starts without a picture - so see below for what does.
      */
     private suspend fun repointDeadTopicChannel(
-        database: MusicDatabase,
         songId: String,
         artist: ArtistEntity,
         allowNetwork: Boolean,
+        search: Searches,
     ): ArtistEntity? {
         if (!allowNetwork || !artist.thumbnailUrl.isNullOrBlank()) return null
-        val resolved = resolveArtist(artist.name, allowNetwork = true) ?: return null
+        // Once per channel per run of the app. The gate above normally stops a repeat, but a
+        // channel with no picture to fill it with would otherwise cost a search and a page fetch on
+        // every play.
+        if (!checkedChannels.add(artist.id)) return null
+        val resolved = (search(artist.name) as? Lookup.Found)?.item ?: return null
 
-        if (resolved.id == artist.id) {
+        if (resolved.id.normalizeArtistId() == artist.id) {
             // The credit was right. That is the common case, and it used to return here having
             // written nothing - which left the thumbnail null, which left the gate above open, so
             // the same search ran again on the next play of that song, and the next, forever. For
@@ -636,14 +795,32 @@ object ArtistCreditEnricher {
             return artist.copy(name = resolved.title.stripTopicSuffix(), thumbnailUrl = thumbnail)
         }
 
+        // A different channel answers to the name. On its own that says nothing about the credit:
+        // there are a dozen bands called Nirvana and search answers with the famous one, so a song
+        // by any of the others was moved onto it the first time it played. Only a credit whose own
+        // channel is a dead end is repointed - its page will not load, or its title names nobody,
+        // the " - Topic" case above. Anything else is the channel YouTube credited, and it stays,
+        // with its own picture stored so the gate closes.
+        val page = YouTube.artist(artist.id)
+        if (page.exceptionOrNull() is IOException) {
+            // A dropped connection is not a dead channel. Asked again on a later play.
+            checkedChannels.remove(artist.id)
+            return null
+        }
+        val own = page.getOrNull()?.artist
+        if (own != null && own.title.namesAnArtist()) {
+            val thumbnail = own.thumbnail?.resize(544, 544) ?: return null
+            return artist.copy(thumbnailUrl = thumbnail)
+        }
+
         Timber.tag(TAG).d(
-            "[$songId] \"${artist.name}\" was credited to ${artist.id}, which is not its channel - " +
+            "[$songId] \"${artist.name}\" was credited to ${artist.id}, a dead channel - " +
                 "repointing to ${resolved.id}"
         )
         // Stored with the picture the search already returned, so the gate above closes and this
         // artist is never searched for again.
         return ArtistEntity(
-            id = resolved.id,
+            id = resolved.id.normalizeArtistId(),
             name = resolved.title.stripTopicSuffix(),
             thumbnailUrl = resolved.thumbnail,
         )
@@ -671,6 +848,73 @@ object ArtistCreditEnricher {
             .filter { it.isNotEmpty() }
             .distinctBy { it.lowercase() }
             .toList()
+
+    /**
+     * A stretch of a feat. clause the song does not credit yet: [whole] as written, and the [parts]
+     * its separators would cut it into. See [featuredToAdd] for which of the two is searched.
+     */
+    internal data class FeaturedGroup(val whole: String, val parts: List<String>)
+
+    /**
+     * [title]'s feat. clauses with every name the song already credits ([credited]) taken out,
+     * compared by [creditKey]. What remains comes back as runs of adjacent names.
+     *
+     * Taken out whole, longest stretch first: with "Tyler, The Creator" credited, "(feat. Tyler,
+     * The Creator)" leaves nothing, where comparing the pieces one at a time left "Tyler" and "The
+     * Creator" to be searched as two more artists. And taken out before anything is split, so
+     * "(feat. B, C & D)" with C credited leaves B and D as two separate runs, not "B, C & D" to be
+     * searched as one name.
+     */
+    internal fun featuredGroups(title: String, credited: Collection<String>): List<FeaturedGroup> {
+        val creditedKeys = credited.mapTo(HashSet()) { creditKey(it) }
+        return FEATURED_KEYWORD.findAll(title)
+            .flatMap { uncreditedRuns(featuredClauseAt(title, it.range.last + 1), creditedKeys).asSequence() }
+            .distinctBy { creditKey(it.whole) }
+            .toList()
+    }
+
+    private fun uncreditedRuns(clause: String, creditedKeys: Set<String>): List<FeaturedGroup> {
+        // Each name's place in the clause, so a stretch of several reads back exactly as written -
+        // "Tyler, The Creator", separators and all.
+        val names = mutableListOf<IntRange>()
+        var from = 0
+        fun addName(end: Int) {
+            var s = from
+            var e = end
+            while (s < e && clause[s].isWhitespace()) s++
+            while (e > s && clause[e - 1].isWhitespace()) e--
+            if (s < e) names += s until e
+        }
+        for (separator in FEATURED_NAME_SPLIT.findAll(clause)) {
+            addName(separator.range.first)
+            from = separator.range.last + 1
+        }
+        addName(clause.length)
+        fun text(first: Int, last: Int) = clause.substring(names[first].first, names[last].last + 1)
+
+        val taken = BooleanArray(names.size)
+        for (length in names.size downTo 1) {
+            for (first in 0..names.size - length) {
+                val last = first + length - 1
+                if ((first..last).any { taken[it] }) continue
+                if (creditKey(text(first, last)) in creditedKeys) (first..last).forEach { taken[it] = true }
+            }
+        }
+
+        val runs = mutableListOf<FeaturedGroup>()
+        var i = 0
+        while (i < names.size) {
+            if (taken[i]) {
+                i++
+                continue
+            }
+            var j = i
+            while (j + 1 < names.size && !taken[j + 1]) j++
+            runs += FeaturedGroup(text(i, j), (i..j).map { text(it, it) })
+            i = j + 1
+        }
+        return runs
+    }
 
     /**
      * The names after a feat. keyword, read from [start] up to the end of the clause.
@@ -707,20 +951,47 @@ object ArtistCreditEnricher {
         return title.substring(start, i)
     }
 
+    /** What a search for one artist name came back with - see [lookUpArtist]. */
+    internal sealed interface Lookup {
+        /** A real, populated channel goes by this name. */
+        data class Found(val item: ArtistItem) : Lookup
+
+        /** YouTube answered, and no real channel goes by this name. */
+        data object NotFound : Lookup
+
+        /**
+         * No answer at all - offline, a failed request, or a pass not allowed to search. Says
+         * nothing about the name, so nothing may be removed or replaced on the strength of it.
+         * Telling this apart from [NotFound] is the point: treating the two alike is how an
+         * offline sweep dropped every "X & Y" credit it met.
+         */
+        data object Unknown : Lookup
+    }
+
     /**
-     * The real artist channel [name] resolves to, or null if search finds no matching one. An
-     * artist with no official channel is only findable under YouTube's auto-generated "X - Topic"
-     * channel, so the match compares against both the raw and Topic-stripped title.
+     * One [enrich] run's searches, by name, so a name asked about twice - a combined credit and
+     * then the rebrand check, say - costs one request.
+     */
+    private class Searches(private val allowNetwork: Boolean) {
+        private val answers = HashMap<String, Lookup>()
+        suspend operator fun invoke(name: String): Lookup =
+            answers.getOrPut(name.trim().lowercase()) { ArtistCreditEnricher.lookUpArtist(name, allowNetwork) }
+    }
+
+    /**
+     * The real artist channel [name] resolves to, if search finds a matching one. An artist with no
+     * official channel is only findable under YouTube's auto-generated "X - Topic" channel, so the
+     * match compares against both the raw and Topic-stripped title.
      *
      * A title match with a blank thumbnail is rejected rather than accepted: a real, populated
      * YTM artist channel always has one, so a same-named result with no profile picture behind it
      * reads as a placeholder/junk channel rather than the actual artist - exactly the case this
      * should stay conservative about instead of linking to.
      */
-    internal suspend fun resolveArtist(name: String, allowNetwork: Boolean = true): ArtistItem? {
-        if (!allowNetwork) return null
+    internal suspend fun lookUpArtist(name: String, allowNetwork: Boolean = true): Lookup {
+        if (!allowNetwork) return Lookup.Unknown
         val results = YouTube.search(name, YouTube.SearchFilter.FILTER_ARTIST).getOrNull()?.items
-            ?: return null
+            ?: return Lookup.Unknown
         val candidates = results.filterIsInstance<ArtistItem>()
             .filter {
                 it.title.stripTopicSuffix().equals(name, ignoreCase = true) && !it.thumbnail.isNullOrBlank()
@@ -736,22 +1007,38 @@ object ArtistCreditEnricher {
         // original. stripTopicSuffix deliberately returns the input unchanged when stripping would
         // leave nothing, so a channel titled exactly "- Topic" compares equal to its own stripped
         // form and would be read here as a real channel - the one kind this is meant to avoid.
-        return candidates.firstOrNull { !TOPIC_SUFFIX.containsMatchIn(it.title) }
+        val pick = candidates.firstOrNull { !TOPIC_SUFFIX.containsMatchIn(it.title) }
             ?: candidates.firstOrNull()
+        return pick?.let { Lookup.Found(it) } ?: Lookup.NotFound
     }
 
+    /** [lookUpArtist]'s channel, or null for both "no such artist" and "could not ask". */
+    internal suspend fun resolveArtist(name: String, allowNetwork: Boolean = true): ArtistItem? =
+        (lookUpArtist(name, allowNetwork) as? Lookup.Found)?.item
+
     /**
-     * [resolveArtist], but resolved to a real ArtistEntity ready to credit: its title has the
-     * "- Topic" suffix stripped (see [resolveArtist]'s own doc), and if an artist already exists
-     * in the database under that clean name, its existing id/name are reused instead of minting a
-     * second entity for the same real-world artist under a different id.
+     * The credit for a channel a search found: the row already stored under that channel's id, or
+     * a new one carrying the name and picture the search returned.
+     *
+     * By id, not by name. This used to hand back whichever row matched the name, and that could be
+     * the placeholder being replaced, a local file's artist, or a different channel of the same
+     * name - so the "resolved" credit was often the unresolved one again. A placeholder with the
+     * name is noted in [placeholders] instead, to be folded into the channel once the credit is
+     * written: it never named anything else.
      */
-    private suspend fun resolveArtistEntity(database: MusicDatabase, name: String, allowNetwork: Boolean = true): ArtistEntity? {
-        val resolved = resolveArtist(name, allowNetwork) ?: return null
-        val cleanName = resolved.title.stripTopicSuffix()
-        val existing = database.artistByNameIgnoreCase(cleanName)
-        return existing ?: ArtistEntity(id = resolved.id, name = cleanName)
+    private fun creditFor(
+        database: MusicDatabase,
+        found: ArtistItem,
+        placeholders: MutableMap<String, ArtistEntity>,
+    ): ArtistEntity {
+        val id = found.id.normalizeArtistId()
+        val cleanName = found.title.stripTopicSuffix()
+        database.artistByNameAndKind(cleanName, isLocal = false)
+            ?.takeIf { !it.isYouTubeArtist }
+            ?.let { placeholders[id] = it }
+        return database.artistById(id) ?: ArtistEntity(id = id, name = cleanName, thumbnailUrl = found.thumbnail)
     }
+
     /**
      * Credits songs with the artist whose page actually lists them.
      *
@@ -850,7 +1137,7 @@ object ArtistCreditEnricher {
             if (sameName.isEmpty()) {
                 // No credit of this name at all: the page is telling us about an artist the song
                 // does not know it has.
-                database.runInTransaction {
+                creditLock.withLock { database.runInTransaction {
                     database.insert(pageArtist)
                     database.insert(
                         SongArtistMap(
@@ -861,7 +1148,7 @@ object ArtistCreditEnricher {
                             position = database.nextArtistPosition(songId),
                         )
                     )
-                }
+                } }
                 Timber.tag(TAG).d("[$songId] credited \"$pageName\" ($pageArtistId), whose page lists it")
                 continue
             }
@@ -892,7 +1179,7 @@ object ArtistCreditEnricher {
                 // delete and the update loses those credits outright - and the loop's own next read
                 // would otherwise race the writes it just asked for, since a merge moves every
                 // credit the old row holds, including ones belonging to songs still to come.
-                database.runInTransaction {
+                creditLock.withLock { database.runInTransaction {
                     // The surviving row inherits the subscription, which would otherwise be deleted
                     // along with the duplicate: an artist the user had added to their library would
                     // quietly stop being in it, with nothing on screen to say why.
@@ -925,7 +1212,7 @@ object ArtistCreditEnricher {
                     database.deleteCollidingAlbumArtistMaps(duplicate.id, pageArtistId)
                     database.updateAlbumArtistMap(duplicate.id, pageArtistId)
                     database.safeDeleteArtist(duplicate.id)
-                }
+                } }
                 Timber.tag(TAG).i(
                     "[$songId] merged \"${duplicate.name}\" ${duplicate.id} into $pageArtistId, whose page lists this song"
                 )

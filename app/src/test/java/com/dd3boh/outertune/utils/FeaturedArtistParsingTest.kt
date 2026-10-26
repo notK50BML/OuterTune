@@ -67,4 +67,48 @@ class FeaturedArtistParsingTest {
     fun `a name credited twice is listed once`() {
         assertEquals(listOf("B"), parse("Song (feat. B) [ft. b]"))
     }
+
+    // ---- what the enricher actually searches: ArtistCreditEnricher.featuredGroups -------------
+
+    private fun groups(title: String, vararg credited: String) =
+        ArtistCreditEnricher.featuredGroups(title, credited.toList())
+            .map { it.whole to it.parts }
+
+    @Test
+    fun `a name the song already credits is not searched again, commas and all`() {
+        // Compared piece by piece, "Tyler" and "The Creator" were each searched as another artist.
+        assertEquals(emptyList<Any>(), groups("Song (feat. Tyler, The Creator)", "Tyler, The Creator"))
+        assertEquals(emptyList<Any>(), groups("Song (feat. Earth, Wind & Fire)", "Earth, Wind & Fire"))
+        // By artistKey, not by exact spelling.
+        assertEquals(emptyList<Any>(), groups("Song (feat. I-DLE)", "i-dle"))
+    }
+
+    @Test
+    fun `what is not credited is offered whole before it is offered in pieces`() {
+        assertEquals(
+            listOf("Earth, Wind & Fire" to listOf("Earth", "Wind", "Fire")),
+            groups("Song (feat. Earth, Wind & Fire)"),
+        )
+        assertEquals(
+            listOf("Florence and the Machine" to listOf("Florence", "the Machine")),
+            groups("Song (feat. Florence and the Machine)"),
+        )
+    }
+
+    @Test
+    fun `a credited name in the middle leaves the names either side apart`() {
+        assertEquals(
+            listOf("B" to listOf("B"), "D" to listOf("D")),
+            groups("Song (feat. B, C & D)", "C"),
+        )
+    }
+
+    @Test
+    fun `brackets and dashes end a clause exactly as for the name list`() {
+        assertEquals(listOf("(G)I-DLE" to listOf("(G)I-DLE")), groups("Song (feat. (G)I-DLE)"))
+        assertEquals(listOf("B" to listOf("B")), groups("Song ft. B - Remix"))
+        assertEquals(listOf("B" to listOf("B"), "C" to listOf("C")), groups("Song ft. B (ft. C)"))
+        assertEquals(listOf("X" to listOf("X")), groups("Song (featuring X)"))
+        assertEquals(listOf("X" to listOf("X")), groups("Song w/ X"))
+    }
 }
