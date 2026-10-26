@@ -442,6 +442,11 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                     C.ENCODING_PCM_FLOAT -> inputBuffer.getFloat()
                     else -> 0f
                 }
+                // The visualiser hears the song as decoded, the same as on the bypass path. It used
+                // to be fed after the headroom gain - Smart headroom and normalisation take 6-12 dB
+                // off before the equaliser - and its envelopes are scaled for full level, so with
+                // either on it barely moved.
+                if (feedVisualizer) frameSum += sample
 
                 // First, on the signal as the decoder produced it. See the field's own doc.
                 sample = exciter.process(sample, ch)
@@ -470,8 +475,6 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
                 if (compressorEnabled) {
                     sample = compStates[ch].process(sample, compCoeffs)
                 }
-
-                if (feedVisualizer) frameSum += sample
 
                 sample *= when (ch) {
                     0 -> leftGain
