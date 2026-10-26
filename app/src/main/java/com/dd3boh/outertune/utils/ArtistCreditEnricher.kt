@@ -17,6 +17,7 @@ import com.dd3boh.outertune.db.namesAnArtist
 import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.TOPIC_SUFFIX
 import com.dd3boh.outertune.db.stripTopicSuffix
+import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.ui.utils.resize
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.ArtistItem
@@ -185,6 +186,30 @@ object ArtistCreditEnricher {
      * such name through a shared empty key.
      */
     internal fun creditKey(name: String): String = artistKey(name).ifEmpty { name.trim().lowercase() }
+
+    /**
+     * Which of [incoming] a song already credited with [existing] should also be credited with -
+     * for DatabaseDao.insert(MediaMetadata), which otherwise keeps a song's credits once it has any.
+     *
+     * Only real channels, and only from a source that agrees with everything the song already
+     * credits. Such a source simply knows more - a song first cached from a search result naming
+     * its lead artist, now seen on an album page that names the guest as well - and its extra
+     * names are appended. A source that disagrees is the case keeping credits exists for: an album
+     * page still crediting "(G)I-DLE"'s retired channel on a song the refresher moved onto the
+     * current one, or a raw "X & Y" that has since been split. Either would put a duplicate back.
+     */
+    internal fun creditsToAppend(
+        existing: List<ArtistEntity>,
+        incoming: List<MediaMetadata.Artist>,
+    ): List<MediaMetadata.Artist> {
+        val real = incoming.filter { it.hasArtistPage && it.name.isNotBlank() && " & " !in it.name }
+        fun same(a: MediaMetadata.Artist, e: ArtistEntity) =
+            a.id.orEmpty().normalizeArtistId() == e.id.normalizeArtistId() || creditKey(a.name) == creditKey(e.name)
+        if (!existing.all { e -> real.any { same(it, e) } }) return emptyList()
+        return real.filter { a -> existing.none { same(a, it) } }
+            .distinctBy { it.id.orEmpty().normalizeArtistId() }
+            .distinctBy { creditKey(it.name) }
+    }
 
     /** The duplicate sweep on its own, for ArtistNameRefresher to run after a batch of renames. */
     internal suspend fun mergeDuplicates(database: MusicDatabase) = mergeDuplicateNamedArtists(database)

@@ -37,6 +37,7 @@ import com.dd3boh.outertune.extensions.toSQLiteQuery
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.models.MultiQueueObject
 import com.dd3boh.outertune.models.toMediaMetadata
+import com.dd3boh.outertune.utils.ArtistCreditEnricher
 import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.ArtistItem
 import com.zionhuang.innertube.models.PlaylistItem
@@ -171,29 +172,42 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
         // folded into the artist's current one - and adding back whatever this metadata credits
         // undid exactly that: an album page or a related-songs list re-added the raw "X & Y" or the
         // retired "(G)I-DLE" channel beside the repaired credits. A song with none takes them all.
-        val keepCredits = !isNewSong && songArtistCount(mediaMetadata.id) > 0
-        // Artist/genre mappings run even for a song that already existed: one first cached from a
+        //
+        // Keeping them is not the same as never adding to them, though. A song first cached from a
         // sparse source (search, queue, related) can be missing artists a richer source - e.g. the
-        // very album this call came from - actually credits it with, and previously this whole
-        // function returned immediately on the SongEntity insert's OnConflictStrategy.IGNORE,
-        // silently discarding that richer artist list. The inserts below are already
-        // OnConflictStrategy.IGNORE on [songId, artistId]/[songId, genreId], so re-running this for
-        // an existing song only ever adds a mapping that was missing, never duplicates or removes
-        // one that's already there.
-        if (!keepCredits) mediaMetadata.artists.forEachIndexed { index, artist ->
+        // very album this call came from - actually credits it with, and refusing every incoming
+        // credit left it short of them for good. So a source that agrees with every credit the
+        // song already has may append the real channels it adds; one that disagrees adds nothing.
+        // See ArtistCreditEnricher.creditsToAppend for that rule.
+        val existingCredits = if (isNewSong) emptyList() else songArtistsOnce(mediaMetadata.id)
+        if (existingCredits.isNotEmpty()) {
+            ArtistCreditEnricher.creditsToAppend(existingCredits, mediaMetadata.artists).forEach { artist ->
+                val cleanName = artist.name.stripTopicSuffix()
+                val artistId = creditArtistId(artist.id, artist.name, artist.isLocal)
+                // The "- Topic" lookup can land on a row the song already credits under its own
+                // spelling of the name.
+                if (existingCredits.any { it.id.normalizeArtistId() == artistId }) return@forEach
+                insertOrHealArtist(ArtistEntity(id = artistId, name = cleanName, isLocal = artist.isLocal))
+                insert(SongArtistMap(songId = mediaMetadata.id, artistId = artistId, position = nextArtistPosition(mediaMetadata.id)))
+            }
+        }
+        // Artist/genre mappings run even for a song that already existed - see above for the
+        // artists. Previously this whole function returned immediately on the SongEntity insert's
+        // OnConflictStrategy.IGNORE, silently discarding a richer source's data. The inserts below
+        // are already OnConflictStrategy.IGNORE on [songId, artistId]/[songId, genreId], so
+        // re-running this for an existing song only ever adds a mapping that was missing, never
+        // duplicates or removes one that's already there.
+        if (existingCredits.isEmpty()) mediaMetadata.artists.forEachIndexed { index, artist ->
             // A song's artist can come in credited under YouTube's auto-generated "- Topic"
             // channel - its own distinct channel id, separate from the artist's real one if they
-            // have one. Matching by the stripped display name first (rather than trusting
-            // artist.id outright) means a "- Topic" credit for an artist already known under their
-            // real channel merges into that existing entity instead of creating a second,
-            // differently-named one for the same real-world artist - the same clean-name dedup
-            // ArtistCreditEnricher and the one-time migrations already use, just applied
-            // prospectively for every song synced from here on rather than as a one-time fixup.
-            // insertOrHealArtist additionally corrects a stale "- Topic" name already sitting
-            // under this id from before this dedup existed, which a plain insert (and even this
-            // same lookup) could never fix on their own - see its own doc.
+            // have one. Matching such a credit by its stripped display name means it merges into
+            // the artist's existing entity instead of creating a second, differently-named one for
+            // the same real-world artist; a credit with an ordinary channel id keeps that id - see
+            // creditArtistId. insertOrHealArtist additionally corrects a stale "- Topic" name
+            // already sitting under this id from before this dedup existed, which a plain insert
+            // (and even this same lookup) could never fix on their own - see its own doc.
             val cleanName = artist.name.stripTopicSuffix()
-            val artistId = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId()
+            val artistId = creditArtistId(artist.id, artist.name, artist.isLocal)
             insertOrHealArtist(
                 ArtistEntity(
                     id = artistId,
@@ -283,7 +297,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                 // doc for why a plain insert isn't enough on its own either.
                 val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
+                    id = creditArtistId(artist.id, artist.name, isLocal = false),
                     name = cleanName
                 )
             }
@@ -328,7 +342,7 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                 // doc for why a plain insert isn't enough on its own either.
                 val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
+                    id = creditArtistId(artist.id, artist.name, isLocal = false),
                     name = cleanName
                 )
             }

@@ -291,7 +291,7 @@ interface AlbumsDao : ArtistsDao {
                 // either.
                 val cleanName = artist.name.stripTopicSuffix()
                 ArtistEntity(
-                    id = (artistByNameIgnoreCase(cleanName)?.id ?: artist.id ?: ArtistEntity.generateArtistId()).normalizeArtistId(),
+                    id = creditArtistId(artist.id, artist.name, isLocal = false),
                     name = cleanName
                 )
             }

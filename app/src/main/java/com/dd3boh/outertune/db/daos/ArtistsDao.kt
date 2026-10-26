@@ -20,6 +20,7 @@ import com.dd3boh.outertune.db.entities.LocalArtistThumbnail
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
 import com.dd3boh.outertune.db.TOPIC_SUFFIX
+import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.extensions.reversed
 import com.dd3boh.outertune.ui.utils.resize
@@ -104,6 +105,22 @@ interface ArtistsDao {
         """
     )
     fun artistByNameAndKind(name: String, isLocal: Boolean): ArtistEntity?
+
+    /**
+     * The id a credit arriving from a sync is stored under.
+     *
+     * The id it came with, whenever it came with one. Looking the name up first - which is what
+     * this used to do for every credit - stored a song by one of the dozen bands called Nirvana
+     * under whichever Nirvana the library happened to know already. The name decides only where
+     * the id cannot: a credit with no id at all, and one from an auto-generated "- Topic" channel,
+     * which belongs with the artist's own row when the library has one. Either way only among
+     * artists of the same kind, local or remote - see [artistByNameAndKind].
+     */
+    fun creditArtistId(id: String?, name: String, isLocal: Boolean): String {
+        val cleanName = name.stripTopicSuffix()
+        val byName = if (id == null || cleanName != name.trim()) artistByNameAndKind(cleanName, isLocal) else null
+        return (byName?.id ?: id ?: ArtistEntity.generateArtistId()).normalizeArtistId()
+    }
 
     /** A real YouTube Music artist already in the library under [name] - see LocalArtistLinker. */
     @Query("SELECT * FROM artist WHERE name = :name COLLATE NOCASE AND isLocal != 1 AND id LIKE 'UC%' LIMIT 1")
