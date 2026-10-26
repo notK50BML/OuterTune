@@ -254,4 +254,24 @@ class EqualizerTest {
         assertTrue("with makeup the song should be back near its own level, was $raised dB", raised > -2.5 && raised < 0.5)
         assertTrue("without it a -6dB curve should stay quieter, was $quiet dB", quiet < -4.0)
     }
+
+    @Test
+    fun `cutting only some bands still turns the rest up`() {
+        fun bassCut(makeup: Boolean): Equalizer = Equalizer().apply {
+            enabled = true
+            cutMakeup = makeup
+            setBands(Equalizer.DEFAULT_BANDS.map { if (it.freqHz <= 250f) it.copy(gainDb = -9f) else it })
+        }
+        fun midLevel(eq: Equalizer): Double {
+            val original = tone(1000.0, 1)
+            val filtered = original.copyOf()
+            eq.reset()
+            eq.process(filtered, filtered.size, bits, 1, bigEndian = true, sampleRate = rate)
+            return 20.0 * log10(rms(filtered, 1) / rms(original, 1))
+        }
+        // The mids are untouched by the curve, so all that moves them is the makeup.
+        val with = midLevel(bassCut(makeup = true))
+        val without = midLevel(bassCut(makeup = false))
+        assertTrue("a bass cut should turn the rest up, was $with dB against $without dB", with - without > 0.5)
+    }
 }

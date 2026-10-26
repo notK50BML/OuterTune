@@ -624,7 +624,7 @@ private fun PlayerSettings(settings: Settings) {
         )
         SettingSwitch(
             title = "Turn up for EQ cuts",
-            subtitle = "When every equaliser band is turned down, raise the volume so it is back at the song's level. Never louder than the song.",
+            subtitle = "When equaliser bands are turned down, raise the volume by the loudness the cuts take away, so the song stays about as loud as it was.",
             checked = settings.eqCutMakeup,
             onCheckedChange = { settings.eqCutMakeup = it },
             icon = OuterTuneIcons.equalizer,

@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.desktop
 
 import kotlin.math.roundToLong
+import kotlin.math.log10
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sin
@@ -272,13 +273,18 @@ class Equalizer {
 
         val curve = EqResponse.curve(current, sampleRate, points = 240)
         val peakDb = curve.maxOrNull()?.coerceAtLeast(0f) ?: 0f
-        // A curve that only cuts is turned up by its shortfall, up to 12dB - measured up to 16kHz,
-        // because past it the filters drift back towards 0dB as they near Nyquist and a curve cut
-        // 10dB everywhere audible measured as cut by 1dB there.
-        val musicalPeakDb = curve.filterIndexed { i, _ ->
-            EqResponse.frequencyAt(i / (curve.size - 1f)) <= 16_000.0
-        }.maxOrNull() ?: 0f
-        val makeupDb = if (cutMakeup && peakDb <= 0f) (-musicalPeakDb).coerceIn(0f, 12f) else 0f
+        // A curve that cuts is turned up by the loudness it takes away, up to 12dB: its power
+        // averaged over 20Hz-16kHz on the curve's log axis, about how music spreads its energy.
+        // It used to be the curve's highest point, which only moved for a curve cut everywhere -
+        // cutting the bass alone left the mids at 0dB and the makeup at nothing. Past 16kHz the
+        // filters drift back to 0dB near Nyquist, and streams carry next to nothing there anyway.
+        // Whatever this pushes past full scale is the limiter's to catch.
+        val audible = curve.filterIndexed { i, _ ->
+            EqResponse.frequencyAt(i / (curve.size - 1f)) in 20.0..16_000.0
+        }
+        val meanPowerDb = if (audible.isEmpty()) 0f
+        else (10.0 * log10(audible.sumOf { 10.0.pow(it / 10.0) } / audible.size)).toFloat()
+        val makeupDb = if (cutMakeup) (-meanPowerDb).coerceIn(0f, 12f) else 0f
         preGain = 10f.pow((makeupDb - peakDb) / 20f)
         limiter.configure(sampleRate, channels)
         frame = FloatArray(channels)

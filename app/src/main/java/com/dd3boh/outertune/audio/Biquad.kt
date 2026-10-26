@@ -153,6 +153,28 @@ class BiquadCoefficients(
             return peak
         }
 
+        /**
+         * The loudness [cascade] takes away or adds, in dB: its power averaged over 20Hz-16kHz on a
+         * log axis, which is about how music spreads its energy (roughly equal per octave).
+         *
+         * What the cut makeup turns back up by. It used to use the curve's highest point, which
+         * only moved for a curve cut everywhere - cutting the bass alone left the mids at 0dB and
+         * the makeup at nothing, so it never seemed to do anything.
+         */
+        fun meanPowerGainDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float {
+            if (cascade.isEmpty() || sampleRateHz <= 0) return 0f
+            val lowHz = 20f
+            val highHz = minOf(16_000f, sampleRateHz / 2f * 0.99f).coerceAtLeast(lowHz * 2f)
+            val logLow = ln(lowHz)
+            val logSpan = ln(highHz) - logLow
+            var power = 0.0
+            for (i in 0 until PROBE_POINTS) {
+                val hz = exp(logLow + logSpan * i / (PROBE_POINTS - 1f))
+                power += 10.0.pow(cascadeDb(cascade, hz, sampleRateHz) / 10.0)
+            }
+            return (10.0 * log10(power / PROBE_POINTS)).toFloat()
+        }
+
         fun peakGainDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float {
             if (cascade.isEmpty() || sampleRateHz <= 0) return 0f
             val nyquist = sampleRateHz / 2f

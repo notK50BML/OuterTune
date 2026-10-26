@@ -320,8 +320,9 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // just turned up by. Only a boost larger than the headroom costs anything.
         val peakDb = BiquadCoefficients.peakGainDb(built, sr).coerceIn(0f, MAX_HEADROOM_DB)
         curvePeakDb = peakDb
-        // A curve that only cuts, turned back up by its own shortfall - see setCutMakeup.
-        val makeupDb = if (cutMakeup) (-BiquadCoefficients.musicalPeakGainDb(built, sr)).coerceIn(0f, MAX_MAKEUP_DB) else 0f
+        // A curve that cuts, turned back up by the loudness it takes away - see setCutMakeup and
+        // meanPowerGainDb. Whatever that pushes past full scale is the limiter's to catch.
+        val makeupDb = if (cutMakeup) (-BiquadCoefficients.meanPowerGainDb(built, sr)).coerceIn(0f, MAX_MAKEUP_DB) else 0f
         makeupLinear = 10f.pow(makeupDb / 20f)
         val attenuationDb = max(peakDb * headroomFactor, normalisationDb) - makeupDb
         preGainLinear = 10f.pow(-attenuationDb / 20f)
