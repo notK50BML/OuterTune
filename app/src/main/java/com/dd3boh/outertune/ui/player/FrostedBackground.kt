@@ -262,3 +262,33 @@ private fun Bitmap.averageLuminance(): Float? {
     }
     return if (counted == 0) null else (total / counted).toFloat()
 }
+
+/**
+ * Whether the top strip of the image at [url] is light - for icons drawn over the top of a header
+ * photo, such as the artist page's back arrow while its bar is transparent. They took the theme's
+ * colour, which knows nothing about the photo, so they could vanish into it. Null until measured.
+ */
+@Composable
+fun rememberImageTopIsLight(url: String?): Boolean? {
+    val context = LocalContext.current
+    var isLight by remember(url) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(url) {
+        if (url.isNullOrBlank()) return@LaunchedEffect
+        withContext(coilCoroutine) {
+            val bitmap = context.imageLoader.execute(
+                ImageRequest.Builder(context).data(url).size(64).allowHardware(false).build()
+            ).image?.toBitmap() ?: return@withContext
+            val rows = (bitmap.height * 0.3f).toInt().coerceAtLeast(1)
+            var sum = 0f
+            var n = 0
+            for (y in 0 until rows) for (x in 0 until bitmap.width) {
+                val c = bitmap.getPixel(x, y)
+                sum += (0.2126f * android.graphics.Color.red(c) + 0.7152f * android.graphics.Color.green(c) +
+                    0.0722f * android.graphics.Color.blue(c)) / 255f
+                n++
+            }
+            isLight = n > 0 && sum / n > LIGHT_BACKGROUND_THRESHOLD
+        }
+    }
+    return isLight
+}

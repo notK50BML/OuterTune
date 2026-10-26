@@ -299,6 +299,49 @@ private fun List<Color>.average(): Color = Color(
 /** Used when a cover has no usable colour, or none has loaded yet. */
 private val DEFAULT_COLOURS = Color(0xFF2A2A32) to Color(0xFF14141A)
 
+/**
+ * Whether the top-left corner of [url]'s image is light, as it shows when cropped to [aspect]
+ * (width / height) from its top centre - for a control drawn over that corner, such as the artist
+ * banner's back button, which was always white and vanished on a bright photo. Null until known.
+ */
+@Composable
+fun rememberTopLeftIsLight(url: String?, aspect: Float): Boolean? {
+    var light by remember(url, aspect) { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(url, aspect) {
+        val image = url?.takeIf { it.isNotBlank() }?.let { ArtworkCache.load(it.atSize(256)) } ?: return@LaunchedEffect
+        light = withContext(Dispatchers.Default) { image.cornerLuminance(aspect) > 0.55f }
+    }
+    return light
+}
+
+/** Mean luminance of the top-left corner of this image cropped to [aspect] from its top centre. */
+private fun ImageBitmap.cornerLuminance(aspect: Float): Float {
+    val pixels = runCatching { toPixelMap() }.getOrNull() ?: return 0f
+    val imageAspect = width.toFloat() / height
+    // The visible crop: full width from the top when the image is taller than the box, else a
+    // centred slice of full height.
+    val cropW = if (imageAspect < aspect) width.toFloat() else height * aspect
+    val cropH = if (imageAspect < aspect) width / aspect else height.toFloat()
+    val cropX = (width - cropW) / 2f
+    var sum = 0f
+    var n = 0
+    val x1 = (cropX + cropW * 0.3f).toInt().coerceAtMost(width)
+    val y1 = (cropH * 0.25f).toInt().coerceAtMost(height)
+    val step = maxOf(1, (x1 - cropX.toInt()) / 24)
+    var x = cropX.toInt()
+    while (x < x1) {
+        var y = 0
+        while (y < y1) {
+            val c = pixels[x, y]
+            sum += 0.2126f * c.red + 0.7152f * c.green + 0.0722f * c.blue
+            n++
+            y += step
+        }
+        x += step
+    }
+    return if (n == 0) 0f else sum / n
+}
+
 /** The cover's colours, recomputed only when the URL changes. */
 @Composable
 fun rememberArtworkColours(url: String?): Pair<Color, Color> {

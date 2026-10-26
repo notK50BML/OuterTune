@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
@@ -362,8 +363,11 @@ private fun ArtistHeader(
                     )
                 ),
             )
+            // Dark on a bright photo, white on a dark one - it was always white, and vanished on the
+            // light ones.
+            val cornerLight = rememberTopLeftIsLight(thumbnail, aspect = fullWidth / height)
             TextButton(onClick = onBack, modifier = Modifier.padding(8.dp)) {
-                Text("← Back", color = Color.White)
+                Text("← Back", color = if (cornerLight == true) Color(0xFF111111) else Color.White)
             }
             Row(
                 verticalAlignment = Alignment.Bottom,
@@ -419,12 +423,16 @@ private fun ArtistHeader(
 private fun SectionHeader(title: String, onMore: (() -> Unit)?) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
+    // The highlight is a rounded box with room above and below the title, rather than a hard strip
+    // hugging the line of text. The spacing is split around it so the title sits where it always did.
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
-            .padding(start = 28.dp, end = 20.dp, top = 24.dp, bottom = 8.dp)
-            .let { if (onMore != null) it.hoverable(interaction).pointerHoverIcon(PointerIcon.Hand).clickable(onClick = onMore) else it },
+            .padding(start = 16.dp, end = 8.dp, top = 14.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .let { if (onMore != null) it.hoverable(interaction).pointerHoverIcon(PointerIcon.Hand).clickable(onClick = onMore) else it }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
     ) {
         Text(
             title,

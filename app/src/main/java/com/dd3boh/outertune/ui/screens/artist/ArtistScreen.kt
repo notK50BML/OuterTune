@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.ui.screens.artist
 
+import com.dd3boh.outertune.ui.player.rememberImageTopIsLight
 import android.content.Intent
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
@@ -635,6 +636,7 @@ fun ArtistScreen(
             }
         )
 
+        val headerTopIsLight = rememberImageTopIsLight(artistPage?.artist?.thumbnail ?: libraryArtist?.artist?.thumbnailUrl)
         TopAppBar(
             title = { if (!transparentAppBar) Text(artistPage?.artist?.title?.stripTopicSuffix().orEmpty()) },
             navigationIcon = {
@@ -701,7 +703,18 @@ fun ArtistScreen(
             windowInsets = TopBarInsets,
             scrollBehavior = scrollBehavior,
             colors = if (transparentAppBar) {
-                TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent)
+                // Over the photo: dark icons on a bright one, light on a dark one - see
+                // rememberImageTopIsLight. Before it is measured, the theme's colour as before.
+                val iconColor = when (headerTopIsLight) {
+                    true -> Color(0xFF111111)
+                    false -> Color.White
+                    null -> MaterialTheme.colorScheme.onSurface
+                }
+                TopAppBarDefaults.topAppBarColors(
+                    containerColor = Color.Transparent,
+                    navigationIconContentColor = iconColor,
+                    actionIconContentColor = iconColor,
+                )
             } else {
                 TopAppBarDefaults.topAppBarColors()
             }
