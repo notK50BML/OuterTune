@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.playback
 
+import com.dd3boh.outertune.constants.EqCutMakeupKey
 import android.app.PendingIntent
 import android.content.ComponentName
 import android.content.Context
@@ -680,6 +681,11 @@ class MusicService : MediaLibraryService(),
                     equalizerAudioProcessor.setSmartHeadroom(it.smart)
                     equalizerAudioProcessor.setHeadroom(it.factor)
                 }
+
+            dataStore.data
+                .map { it[EqCutMakeupKey] ?: true }
+                .distinctUntilChanged()
+                .collectLatest(scope) { equalizerAudioProcessor.setCutMakeup(it) }
 
             dataStore.data
                 .map { it[SkipSilenceKey] ?: false }

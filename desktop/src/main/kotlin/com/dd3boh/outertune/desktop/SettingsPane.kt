@@ -617,6 +617,13 @@ private fun PlayerSettings(settings: Settings) {
             icon = OuterTuneIcons.graphicEq,
         )
         SettingSwitch(
+            title = "Turn up for EQ cuts",
+            subtitle = "When every equaliser band is turned down, raise the volume so it is back at the song's level. Never louder than the song.",
+            checked = settings.eqCutMakeup,
+            onCheckedChange = { settings.eqCutMakeup = it },
+            icon = OuterTuneIcons.equalizer,
+        )
+        SettingSwitch(
             title = "Skip songs that cannot play",
             subtitle = "Moves on to the next song instead of stopping.",
             checked = settings.skipOnError,

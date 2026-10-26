@@ -132,6 +132,27 @@ class BiquadCoefficients(
          * "Full Bass & Treble", because the two differ in exactly the way a single weighting
          * cannot express.
          */
+        /**
+         * The cascade's highest point across where music actually is - 20Hz to 16kHz - which may be
+         * below zero, unlike [peakGainDb]. What a curve that only cuts is turned back up by: past
+         * 16kHz these filters drift back towards 0dB as they near Nyquist, and a curve cut by 10dB
+         * everywhere audible measured as cut by 1dB there; streams carry next to nothing above it.
+         */
+        fun musicalPeakGainDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float {
+            if (cascade.isEmpty() || sampleRateHz <= 0) return 0f
+            val lowHz = 20f
+            val highHz = minOf(16_000f, sampleRateHz / 2f * 0.99f).coerceAtLeast(lowHz * 2f)
+            val logLow = ln(lowHz)
+            val logSpan = ln(highHz) - logLow
+            var peak = -Float.MAX_VALUE
+            for (i in 0 until PROBE_POINTS) {
+                val hz = exp(logLow + logSpan * i / (PROBE_POINTS - 1f))
+                val db = cascadeDb(cascade, hz, sampleRateHz)
+                if (db > peak) peak = db
+            }
+            return peak
+        }
+
         fun peakGainDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float {
             if (cascade.isEmpty() || sampleRateHz <= 0) return 0f
             val nyquist = sampleRateHz / 2f

@@ -133,6 +133,12 @@ val EqAutoSaveProfilesKey = booleanPreferencesKey("eqAutoSaveProfiles")
 /** How much of its own boost the equaliser compensates for - see [com.dd3boh.outertune.constants.EqHeadroom]. */
 val EqHeadroomKey = stringPreferencesKey("eqHeadroom")
 
+/**
+ * Turn the volume up when the equaliser only cuts - the counterpart of headroom. On by default; see
+ * EqualizerAudioProcessor.setCutMakeup.
+ */
+val EqCutMakeupKey = booleanPreferencesKey("eqCutMakeup")
+
 /** Per-song equaliser overrides - see [com.dd3boh.outertune.models.SongEqualizerProfiles]. */
 val SongEqualizerProfilesKey = stringPreferencesKey("songEqualizerProfiles")
 

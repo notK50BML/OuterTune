@@ -277,6 +277,7 @@ internal fun App(
         YouTube.locale = YouTubeLocale(gl = settings.contentCountry, hl = settings.contentLanguage)
     }
     LaunchedEffect(settings.audioNormalisation) { player.normalise = settings.audioNormalisation }
+    LaunchedEffect(settings.eqCutMakeup) { player.equalizer.cutMakeup = settings.eqCutMakeup }
     val playerQueue = remember {
         // Counted below, once enough of the song has been heard - not here, at the start.
         PlayerQueue(player, scope, onPlayed = {})

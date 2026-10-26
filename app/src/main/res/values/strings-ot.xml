@@ -506,6 +506,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_highlight_title">Word highlight</string>
     <string name="song_likes">Likes</string>
     <string name="stats_tile_plays">Plays</string>
+    <string name="eq_cut_makeup_title">Turn up for cuts</string>
+    <string name="eq_cut_makeup_desc">When every band is turned down, raise the volume so the curve\'s loudest point is back at the song\'s level. Never louder than the song itself</string>
     <string name="stats_tile_time">Listening time</string>
     <string name="song_uploaded">Uploaded</string>
     <string name="lyrics_highlight_sweep">Sweep</string>

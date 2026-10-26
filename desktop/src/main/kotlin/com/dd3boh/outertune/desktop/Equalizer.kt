@@ -201,6 +201,19 @@ class Equalizer {
      */
     private var preGain = 1f
 
+    /**
+     * Whether a curve that only cuts is turned back up by its own shortfall, so its loudest point
+     * sits at the song's level - the counterpart of the headroom above, and the phone's "Turn up for
+     * cuts". It cannot lift anything above the level it arrived at, so nothing new can clip.
+     */
+    @Volatile
+    var cutMakeup: Boolean = true
+        set(value) {
+            if (field == value) return
+            field = value
+            configuredRate = 0 // rebuilt with the new pre-gain on the next block
+        }
+
     /** The headroom currently applied, in dB, as a positive number - for tests and a meter. */
     internal val headroomDb: Float get() = -20f * kotlin.math.log10(preGain)
 
@@ -257,8 +270,16 @@ class Equalizer {
         configuredRate = sampleRate
         configuredChannels = channels
 
-        val peakDb = EqResponse.curve(current, sampleRate, points = 240).maxOrNull()?.coerceAtLeast(0f) ?: 0f
-        preGain = 10f.pow(-peakDb / 20f)
+        val curve = EqResponse.curve(current, sampleRate, points = 240)
+        val peakDb = curve.maxOrNull()?.coerceAtLeast(0f) ?: 0f
+        // A curve that only cuts is turned up by its shortfall, up to 12dB - measured up to 16kHz,
+        // because past it the filters drift back towards 0dB as they near Nyquist and a curve cut
+        // 10dB everywhere audible measured as cut by 1dB there.
+        val musicalPeakDb = curve.filterIndexed { i, _ ->
+            EqResponse.frequencyAt(i / (curve.size - 1f)) <= 16_000.0
+        }.maxOrNull() ?: 0f
+        val makeupDb = if (cutMakeup && peakDb <= 0f) (-musicalPeakDb).coerceIn(0f, 12f) else 0f
+        preGain = 10f.pow((makeupDb - peakDb) / 20f)
         limiter.configure(sampleRate, channels)
         frame = FloatArray(channels)
     }

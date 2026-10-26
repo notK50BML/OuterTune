@@ -73,6 +73,14 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     @Volatile
     private var headroomFactor: Float = 1f
 
+    /** Whether a curve that only cuts is turned back up - see [setCutMakeup]. */
+    @Volatile
+    private var cutMakeup: Boolean = true
+
+    /** What [cutMakeup] adds for the current curve, as a linear gain (1 when it adds nothing). */
+    @Volatile
+    private var makeupLinear: Float = 1f
+
     /** SMART headroom: attenuate by measured need rather than by the whole boost. See [EqHeadroom]. */
     @Volatile
     private var smartHeadroom: Boolean = false
@@ -228,6 +236,23 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         recomputeCoefficients()
     }
 
+    /**
+     * Turns the volume back up for a curve that only cuts.
+     *
+     * The counterpart of headroom. A boost is paid for by turning everything down by the curve's
+     * highest point; a curve whose highest point is below zero - every band turned down - just made
+     * the song quieter, and the way to get it back was to add gain by hand. With this on, such a
+     * curve is raised by exactly that much, so its loudest point sits where the song was. Measured
+     * from the curve's peak, so it can never lift anything above the level it arrived at: nothing new
+     * can clip. A curve that cuts some bands and leaves others at zero has its peak at zero and is
+     * left alone - quieter in the bands that were cut, which is what cutting them asked for.
+     */
+    fun setCutMakeup(enabled: Boolean) {
+        if (enabled == cutMakeup) return
+        cutMakeup = enabled
+        recomputeCoefficients()
+    }
+
     /** Turns SMART headroom on or off - see [EqHeadroom.SMART]. */
     fun setSmartHeadroom(enabled: Boolean) {
         smartHeadroom = enabled
@@ -295,7 +320,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // just turned up by. Only a boost larger than the headroom costs anything.
         val peakDb = BiquadCoefficients.peakGainDb(built, sr).coerceIn(0f, MAX_HEADROOM_DB)
         curvePeakDb = peakDb
-        val attenuationDb = max(peakDb * headroomFactor, normalisationDb)
+        // A curve that only cuts, turned back up by its own shortfall - see setCutMakeup.
+        val makeupDb = if (cutMakeup) (-BiquadCoefficients.musicalPeakGainDb(built, sr)).coerceIn(0f, MAX_MAKEUP_DB) else 0f
+        makeupLinear = 10f.pow(makeupDb / 20f)
+        val attenuationDb = max(peakDb * headroomFactor, normalisationDb) - makeupDb
         preGainLinear = 10f.pow(-attenuationDb / 20f)
 
         val comp = compressorSettings
@@ -411,7 +439,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             recentPeak = max(bufferPeak, recentPeak * fall).coerceAtLeast(1e-4f)
             val roomDb = -20f * log10(recentPeak)
             val neededDb = (curvePeakDb - roomDb).coerceIn(0f, curvePeakDb)
-            smartTarget = 10f.pow(-max(neededDb, normalisationDb) / 20f)
+            smartTarget = 10f.pow(-max(neededDb, normalisationDb) / 20f) * makeupLinear
             val sr = configuredSampleRate.coerceAtLeast(1).toFloat()
             smartAttack = 1f - exp(-1f / (sr * SMART_ATTACK_S))
             smartRelease = 1f - exp(-1f / (sr * SMART_RECOVER_S))
@@ -600,6 +628,9 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
          * no matter how good the estimate was.
          */
         const val MAX_HEADROOM_DB = 15f
+
+        /** The most a cut-only curve is turned back up - see setCutMakeup. */
+        const val MAX_MAKEUP_DB = 12f
 
 
     }

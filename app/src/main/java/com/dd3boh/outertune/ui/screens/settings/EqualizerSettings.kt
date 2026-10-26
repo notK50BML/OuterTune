@@ -8,6 +8,7 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import com.dd3boh.outertune.constants.EqCutMakeupKey
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -170,6 +171,7 @@ fun EqualizerSettingsScreen(
     var showSaveAsDialog by remember { mutableStateOf(false) }
     var showAutoEqDialog by remember { mutableStateOf(false) }
     val (headroom, onHeadroomChange) = rememberEnumPreference(EqHeadroomKey, defaultValue = EqHeadroom.AUTO)
+    val (cutMakeup, onCutMakeupChange) = rememberPreference(EqCutMakeupKey, defaultValue = true)
     var showPanelSettings by rememberPreference(EqShowPanelSettingsKey, defaultValue = false)
     var autoSaveProfiles by rememberPreference(EqAutoSaveProfilesKey, defaultValue = false)
 
@@ -194,6 +196,14 @@ fun EqualizerSettingsScreen(
             description = stringResource(R.string.eq_studio_desc),
             icon = { Icon(Icons.Rounded.Tune, null) },
             onClick = { navController.navigate("settings/player/equalizer/studio") }
+        )
+
+        SwitchPreference(
+            title = { Text(stringResource(R.string.eq_cut_makeup_title)) },
+            description = stringResource(R.string.eq_cut_makeup_desc),
+            icon = { Icon(Icons.Rounded.Tune, null) },
+            checked = cutMakeup,
+            onCheckedChange = onCutMakeupChange,
         )
 
         EnumListPreference(

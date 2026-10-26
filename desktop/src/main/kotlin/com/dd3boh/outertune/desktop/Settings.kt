@@ -115,6 +115,9 @@ class Settings(private val store: SettingsStore) {
     /** Evens out volume between tracks using YouTube's loudness figure. Only ever turns down. */
     var audioNormalisation by bool("player.normalise", false)
 
+    /** Turn the volume up when the equaliser only cuts - see Equalizer.cutMakeup. */
+    var eqCutMakeup by bool("eq.cutMakeup", true)
+
     /** Moves on to the next song when one cannot be played, rather than stopping. */
     var skipOnError by bool("player.skipOnError", true)
 
