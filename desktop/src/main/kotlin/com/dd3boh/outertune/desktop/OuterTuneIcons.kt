@@ -185,6 +185,7 @@ object OuterTuneIcons {
     /** Android: `Icons.Rounded.Delete`. */
     val delete by icon(GeneratedIconPaths.delete)
     val edit by icon(GeneratedIconPaths.edit)
+    val check by icon(GeneratedIconPaths.check)
 
     /** Android: `Icons.Rounded.History`. */
     val history by icon(GeneratedIconPaths.history)
@@ -322,6 +323,7 @@ object OuterTuneIcons {
             "blurOn" to blurOn,
             "delete" to delete,
             "edit" to edit,
+            "check" to check,
             "history" to history,
             "restore" to restore,
             "timer" to timer,

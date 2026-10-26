@@ -7,6 +7,9 @@
  */
 package com.dd3boh.outertune.ui.screens.settings.fragments
 
+import androidx.compose.foundation.layout.width
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.material3.Checkbox
 import androidx.compose.material.icons.rounded.Info
 import com.dd3boh.outertune.constants.LyricShowTypeKey
 import com.dd3boh.outertune.constants.LyricHighlightStyle
@@ -207,37 +210,25 @@ fun ColumnScope.LyricSourceFrag() {
     fun resolvedOrder(stored: String) =
         orderProviders(REMOTE_LYRICS_PROVIDERS, stored.split(',').map { it.trim() }.filter { it.isNotEmpty() })
 
+    // Which providers are switched on, edited with the order in one list - ticked and dragged, as
+    // the tabs are - and written back together on confirm. The YouTube sources have no switch.
+    val enabledFor = mapOf(
+        "simpmusic" to (enableSimpMusic to onEnableSimpMusicChange),
+        "betterlyrics" to (enableBetterLyrics to onEnableBetterLyricsChange),
+        "lrclib" to (enableLrcLib to onEnableLrcLibChange),
+        "kugou" to (enableKugou to onEnableKugouChange),
+    )
+    val workingEnabled = remember { mutableStateMapOf<String, Boolean>() }
+
     fun resetProviderList(stored: String) {
         mutableProviders.clear()
         mutableProviders.addAll(resolvedOrder(stored))
+        workingEnabled.clear()
+        enabledFor.forEach { (id, state) -> workingEnabled[id] = state.first }
     }
 
     LaunchedEffect(providerOrder) { resetProviderList(providerOrder) }
 
-    SwitchPreference(
-        title = { Text(stringResource(R.string.enable_simpmusic)) },
-        icon = { Icon(Icons.Rounded.Lyrics, null) },
-        checked = enableSimpMusic,
-        onCheckedChange = onEnableSimpMusicChange
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.enable_betterlyrics)) },
-        icon = { Icon(Icons.Rounded.Lyrics, null) },
-        checked = enableBetterLyrics,
-        onCheckedChange = onEnableBetterLyricsChange
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.enable_lrclib)) },
-        icon = { Icon(Icons.Rounded.Lyrics, null) },
-        checked = enableLrcLib,
-        onCheckedChange = onEnableLrcLibChange
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.enable_kugou)) },
-        icon = { Icon(Icons.Rounded.Lyrics, null) },
-        checked = enableKugou,
-        onCheckedChange = onEnableKugouChange
-    )
     val (refreshInterval, onRefreshIntervalChange) = rememberEnumPreference(
         key = LyricsRefreshIntervalKey,
         defaultValue = LyricsRefreshInterval.NEVER
@@ -256,12 +247,29 @@ fun ColumnScope.LyricSourceFrag() {
             }
         }
     )
-    PreferenceEntry(
-        title = { Text(stringResource(R.string.lyrics_provider_order_title)) },
-        description = resolvedOrder(providerOrder).joinToString(", ") { it.name },
-        icon = { Icon(Icons.Rounded.Reorder, null) },
-        onClick = { showProviderOrder = true }
-    )
+    // Under the mode, which decides what follows it: in my order, the one list to tick and drag; on
+    // automatic, where every provider is asked at once and order does not matter, just which are on.
+    if (fetchMode == LyricsFetchMode.MANUAL) {
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.lyrics_provider_order_title)) },
+            // The ones switched on, in the order they are asked.
+            description = resolvedOrder(providerOrder)
+                .filter { enabledFor[it.id]?.first != false }
+                .joinToString(", ") { it.name },
+            icon = { Icon(Icons.Rounded.Reorder, null) },
+            onClick = { showProviderOrder = true }
+        )
+    } else {
+        resolvedOrder(providerOrder).forEach { provider ->
+            val (enabled, onChange) = enabledFor[provider.id] ?: return@forEach
+            SwitchPreference(
+                title = { Text(provider.name) },
+                icon = { Icon(Icons.Rounded.Lyrics, null) },
+                checked = enabled,
+                onCheckedChange = onChange,
+            )
+        }
+    }
     EnumListPreference(
         title = { Text(stringResource(R.string.lyrics_refresh_title)) },
         icon = { Icon(Icons.Rounded.Refresh, null) },
@@ -307,6 +315,7 @@ fun ColumnScope.LyricSourceFrag() {
             onDismiss = { showProviderOrder = false },
             onConfirm = {
                 onProviderOrderChange(mutableProviders.joinToString(",") { it.id })
+                enabledFor.forEach { (id, state) -> workingEnabled[id]?.let { if (it != state.first) state.second(it) } }
                 showProviderOrder = false
             },
             onReset = {
@@ -343,7 +352,17 @@ fun ColumnScope.LyricSourceFrag() {
                                 .padding(start = 12.dp, end = 16.dp, top = 8.dp, bottom = 8.dp)
                                 .fillMaxWidth()
                         ) {
-                            Text(text = provider.name)
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                                if (provider.id in enabledFor) {
+                                    Checkbox(
+                                        checked = workingEnabled[provider.id] != false,
+                                        onCheckedChange = { workingEnabled[provider.id] = it },
+                                    )
+                                } else {
+                                    Spacer(Modifier.width(48.dp))
+                                }
+                                Text(text = provider.name)
+                            }
                             Icon(
                                 imageVector = Icons.Rounded.DragHandle,
                                 contentDescription = null,

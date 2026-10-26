@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.ensureActive
 import com.dd3boh.betterlyrics.BetterLyrics
 import com.dd3boh.betterlyrics.TTMLParser
@@ -407,40 +408,50 @@ class LyricsRepository(private val library: LibraryStore) {
 
         val durationSeconds = (durationMs / 1000).toInt()
 
-        // BetterLyrics first, because word timings are strictly more than line timings - a
-        // word-timed file can always be shown as lines, and the reverse is not true. It is also the
-        // most likely to come back empty, which is why the other two follow rather than being
-        // skipped once it is asked.
-        if (useWordByWord) {
-            BetterLyrics.getLyrics(title, artist, durationSeconds).also { if (it.isFailure) failed = true }.getOrNull()
-                ?.takeIf { it.isNotBlank() }
-                ?.let { ttml ->
-                    val parsed = LrcParser.parseTtml(ttml, BETTERLYRICS)
-                    // Only accepted if it actually parsed. TTML that yields no lines is a failure
-                    // dressed as a success, and caching it would poison the song until cleared.
-                    if (!parsed.isEmpty) {
-                        ensureActive()
-                        library.cacheLyrics(songId, ttml, BETTERLYRICS)
-                        return@withContext parsed
-                    }
-                }
+        // In the order set in Settings > Lyrics > Lyrics providers - by default BetterLyrics first,
+        // because word timings are strictly more than line timings, then LRCLIB, then KuGou - and
+        // only the ones switched on.
+        val enabled = order.filter { source ->
+            when (source) {
+                LyricsSource.BetterLyrics -> useWordByWord
+                LyricsSource.LrcLib -> useLrclib
+                LyricsSource.KuGou -> useKugou
+            }
         }
-
-        if (useLrclib) LrcLib.getLyrics(title, artist, durationSeconds).also { if (it.isFailure) failed = true }
-            .getOrNull()?.takeIf { it.isNotBlank() }
-            ?.let { text ->
-                ensureActive()
-                library.cacheLyrics(songId, text, LRCLIB)
-                return@withContext LrcParser.parse(text, LRCLIB)
+        if (inOrder) {
+            for (source in enabled) {
+                val result = fetchFrom(source, title, artist, durationSeconds)
+                if (result.isFailure) failed = true
+                result.getOrNull()?.let { (text, parsed) ->
+                    ensureActive()
+                    library.cacheLyrics(songId, text, source.id)
+                    return@withContext parsed
+                }
             }
-
-        if (useKugou) KuGou.getLyrics(title, artist, durationSeconds).also { if (it.isFailure) failed = true }
-            .getOrNull()?.takeIf { it.isNotBlank() }
-            ?.let { text ->
-                ensureActive()
-                library.cacheLyrics(songId, text, KUGOU)
-                return@withContext LrcParser.parse(text, KUGOU)
+        } else if (enabled.isNotEmpty()) {
+            // Automatic: every provider at once, and the first synced lyrics back win. Plain lyrics
+            // are only taken once nobody has synced ones - then the highest in the order.
+            val answers = kotlinx.coroutines.channels.Channel<Pair<LyricsSource, Result<Pair<String, Lyrics>?>>>(enabled.size)
+            val jobs = enabled.map { source -> launch { answers.send(source to fetchFrom(source, title, artist, durationSeconds)) } }
+            val plain = HashMap<LyricsSource, Pair<String, Lyrics>>()
+            repeat(enabled.size) {
+                val (source, result) = answers.receive()
+                if (result.isFailure) failed = true
+                val found = result.getOrNull() ?: return@repeat
+                if (found.second.synced) {
+                    jobs.forEach { it.cancel() }
+                    ensureActive()
+                    library.cacheLyrics(songId, found.first, source.id)
+                    return@withContext found.second
+                }
+                plain[source] = found
             }
+            enabled.firstNotNullOfOrNull { source -> plain[source]?.let { source to it } }?.let { (source, found) ->
+                ensureActive()
+                library.cacheLyrics(songId, found.first, source.id)
+                return@withContext found.second
+            }
+        }
 
         // Recorded as a miss so the next play does not repeat the lookups - but only a real one.
         // The providers catch everything, cancellation included, so a song skipped mid-lookup or a
@@ -476,6 +487,45 @@ class LyricsRepository(private val library: LibraryStore) {
             ensureActive()
             BetterLyrics.getLyrics(title, artist, seconds.coerceAtLeast(0)).getOrNull()?.takeIf { it.isNotBlank() }
                 ?.let { onFound(LyricsCandidate(BETTERLYRICS, it)) }
+        }
+
+    /** The order providers are asked in - Settings > Lyrics > Lyrics providers. */
+    @Volatile
+    var order: List<LyricsSource> = LyricsSource.DEFAULT
+
+    /** One at a time in [order] when true; otherwise all at once - see LyricsFetchMode. */
+    @Volatile
+    var inOrder: Boolean = false
+
+    /**
+     * One provider's lyrics for a song, as the text to keep and the parsed lyrics - null when it has
+     * none, a failure when it could not be asked. A word-timed file that parses to nothing counts as
+     * none: caching it would poison the song until cleared.
+     */
+    private suspend fun fetchFrom(source: LyricsSource, title: String, artist: String, durationSeconds: Int): Result<Pair<String, Lyrics>?> =
+        when (source) {
+            LyricsSource.BetterLyrics -> BetterLyrics.getLyrics(title, artist, durationSeconds).map { ttml ->
+                ttml?.takeIf { it.isNotBlank() }?.let { text -> LrcParser.parseTtml(text, BETTERLYRICS).takeIf { !it.isEmpty }?.let { text to it } }
+            }
+            LyricsSource.LrcLib -> LrcLib.getLyrics(title, artist, durationSeconds).map { text ->
+                text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, LRCLIB) }
+            }
+            LyricsSource.KuGou -> KuGou.getLyrics(title, artist, durationSeconds).map { text ->
+                text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, KUGOU) }
+            }
+        }
+
+    /**
+     * [songId]'s lyrics from [source] alone - the lyrics menu's "Get lyrics from", for when the
+     * provider that answered first has the wrong version or worse timings. Kept as the song's
+     * lyrics when found; null when that provider has none.
+     */
+    suspend fun lyricsFrom(source: LyricsSource, songId: String, title: String, artist: String, durationMs: Long): Lyrics? =
+        withContext(Dispatchers.IO) {
+            fetchFrom(source, title, artist, (durationMs / 1000).toInt()).getOrNull()?.let { (text, parsed) ->
+                library.cacheLyrics(songId, text, source.id)
+                parsed
+            }
         }
 
     /** Songs whose recorded miss has already been checked again this session - see [lyricsFor]. */

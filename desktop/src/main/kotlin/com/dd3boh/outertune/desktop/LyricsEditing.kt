@@ -59,6 +59,10 @@ class LyricsActions(
     val search: suspend (title: String, artist: String, onFound: (LyricsCandidate) -> Unit) -> Unit,
     /** No lyrics for this song, for good - until fetched again by hand. */
     val remove: () -> Unit,
+    /** Where the lyrics showing came from, as a LyricsSource id or "File"/"Edited". */
+    val source: String? = null,
+    /** This song's lyrics from one provider alone; false when it has none. */
+    val useProvider: suspend (LyricsSource) -> Boolean = { false },
 )
 
 /** One provider's lyrics for a search. */

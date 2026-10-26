@@ -30,6 +30,7 @@ import androidx.compose.material.icons.rounded.ColorLens
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.DragHandle
 import androidx.compose.material.icons.rounded.Equalizer
@@ -91,7 +92,7 @@ class IconGenerator {
         "key" to Icons.Rounded.Key, "networkCheck" to Icons.Rounded.NetworkCheck,
         "graphicEq" to Icons.Rounded.GraphicEq, "darkMode" to Icons.Rounded.DarkMode,
         "palette" to Icons.Rounded.Palette, "blurOn" to Icons.Rounded.BlurOn, "keyboard" to Icons.Rounded.Keyboard,
-        "delete" to Icons.Rounded.Delete, "history" to Icons.Rounded.History, "edit" to Icons.Rounded.Edit,
+        "delete" to Icons.Rounded.Delete, "history" to Icons.Rounded.History, "edit" to Icons.Rounded.Edit, "check" to Icons.Rounded.Check,
         "restore" to Icons.Rounded.Restore, "timer" to Icons.Rounded.Timer,
         "cast" to Icons.Rounded.Cast, "castConnected" to Icons.Rounded.CastConnected,
         "stop" to Icons.Rounded.Stop, "devices" to Icons.Rounded.Devices,

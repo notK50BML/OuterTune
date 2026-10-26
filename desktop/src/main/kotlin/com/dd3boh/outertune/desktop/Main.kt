@@ -624,6 +624,8 @@ internal fun App(
             lyricsRepository.useWordByWord = settings.wordByWordLyrics
             lyricsRepository.useLrclib = settings.lyricsLrclib
             lyricsRepository.useKugou = settings.lyricsKugou
+            lyricsRepository.order = LyricsSource.ordered(settings.lyricsProviderOrder)
+            lyricsRepository.inOrder = settings.lyricsFetchMode == LyricsFetchMode.InMyOrder
             val fetched = lyricsRepository.lyricsFor(
                 songId = song.id,
                 title = song.title,
@@ -1157,6 +1159,12 @@ internal fun App(
                     save = { text, source -> lyricsRepository.save(song.id, text, source); lyricsAttempt++ },
                     search = { title, by, onFound -> lyricsRepository.candidates(title, by, duration, onFound) },
                     remove = { lyricsRepository.remove(song.id); lyricsAttempt++ },
+                    source = fetchedLyrics?.source,
+                    useProvider = { source ->
+                        val found = lyricsRepository.lyricsFrom(source, song.id, song.title, artist, duration)
+                        if (found != null) lyricsAttempt++
+                        found != null
+                    },
                 )
             },
             lyricsOffsetMs = settings.lyricsOffsetMs,

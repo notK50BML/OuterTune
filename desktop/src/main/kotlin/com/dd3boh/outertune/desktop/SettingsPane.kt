@@ -699,27 +699,40 @@ private fun PlayerSettings(settings: Settings) {
 @Composable
 private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
     Section("Sources") {
-        SettingSwitch(
-            title = "Word-by-word lyrics",
-            subtitle = "Asks BetterLyrics first, which times each word. Falls back to LRCLIB and KuGou.",
-            checked = settings.wordByWordLyrics,
-            onCheckedChange = { settings.wordByWordLyrics = it },
+        // The mode first, since it decides what follows: in my order, one list to tick and drag; on
+        // automatic, where every provider is asked at once and order does not matter, which are on.
+        SettingChoice(
+            title = "Provider selection",
             icon = OuterTuneIcons.lyrics,
+            options = LyricsFetchMode.entries,
+            selected = settings.lyricsFetchMode,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.lyricsFetchMode = it },
         )
-        SettingSwitch(
-            title = "LRCLIB",
-            subtitle = "Line-timed lyrics, asked after BetterLyrics.",
-            checked = settings.lyricsLrclib,
-            onCheckedChange = { settings.lyricsLrclib = it },
-            icon = OuterTuneIcons.lyrics,
-        )
-        SettingSwitch(
-            title = "KuGou",
-            subtitle = "Asked last; strongest for Chinese-language songs.",
-            checked = settings.lyricsKugou,
-            onCheckedChange = { settings.lyricsKugou = it },
-            icon = OuterTuneIcons.lyrics,
-        )
+        if (settings.lyricsFetchMode == LyricsFetchMode.InMyOrder) {
+            var choosingProviders by remember { mutableStateOf(false) }
+            SettingRow(
+                title = "Provider priority",
+                subtitle = LyricsSource.ordered(settings.lyricsProviderOrder)
+                    .filter { settings.isEnabled(it) }
+                    .joinToString(", ") { it.label }
+                    .ifEmpty { "None - lyrics only from files on this computer" },
+                icon = OuterTuneIcons.dragHandle,
+                onClick = { choosingProviders = true },
+            )
+            if (choosingProviders) LyricsProvidersDialog(settings, onDismiss = { choosingProviders = false })
+        } else {
+            LyricsSource.ordered(settings.lyricsProviderOrder).forEach { source ->
+                SettingSwitch(
+                    title = source.label,
+                    subtitle = source.blurb,
+                    checked = settings.isEnabled(source),
+                    onCheckedChange = { settings.setEnabled(source, it) },
+                    icon = OuterTuneIcons.lyrics,
+                )
+            }
+        }
         SettingSwitch(
             title = "Estimate word timings",
             subtitle = "Sings line-timed lyrics word by word too, paced by syllables and pausing at punctuation.",

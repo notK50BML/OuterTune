@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.material3.HorizontalDivider
+import kotlinx.coroutines.launch
 import androidx.compose.ui.zIndex
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.runtime.withFrameNanos
@@ -1419,6 +1422,16 @@ private fun LyricsHeader(
     var offsetDialog by remember { mutableStateOf(false) }
     var editing by remember { mutableStateOf(false) }
     var searching by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    var noneFrom by remember { mutableStateOf<LyricsSource?>(null) }
+    noneFrom?.let { source ->
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { noneFrom = null },
+            title = { Text("No lyrics from ${source.label}") },
+            text = { Text("${source.label} has nothing for this song. The lyrics showing stay as they are.") },
+            confirmButton = { TextButton(onClick = { noneFrom = null }) { Text("OK") } },
+        )
+    }
     if (editing && actions != null) EditLyricsDialog(actions, onDismiss = { editing = false })
     if (searching && actions != null) SearchLyricsDialog(actions, onDismiss = { searching = false })
     Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
@@ -1433,7 +1446,12 @@ private fun LyricsHeader(
                     Icon(OuterTuneIcons.moreVert, contentDescription = "Lyrics options", tint = tint)
                 }
             }
-            androidx.compose.material3.DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
+            // A rounded panel, like the app's other menus, rather than the default square one.
+            androidx.compose.material3.DropdownMenu(
+                expanded = menu,
+                onDismissRequest = { menu = false },
+                shape = RoundedCornerShape(16.dp),
+            ) {
                 if (onOffsetChange != null) {
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text("Timing offset (${if (offsetMs > 0) "+" else ""}$offsetMs ms)") },
@@ -1459,6 +1477,26 @@ private fun LyricsHeader(
                         leadingIcon = { Icon(OuterTuneIcons.search, null, modifier = Modifier.size(20.dp)) },
                         onClick = { menu = false; searching = true },
                     )
+                    // Another provider's lyrics for this song - the one that answered first can have
+                    // the wrong version or worse timings. Ticked against the one showing now.
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    LyricsSource.entries.forEach { source ->
+                        androidx.compose.material3.DropdownMenuItem(
+                            text = { Text("Get lyrics from ${source.label}") },
+                            leadingIcon = {
+                                if (actions.source == source.id) {
+                                    Icon(OuterTuneIcons.check, null, modifier = Modifier.size(20.dp))
+                                } else {
+                                    Spacer(modifier = Modifier.size(20.dp))
+                                }
+                            },
+                            onClick = {
+                                menu = false
+                                scope.launch { if (!actions.useProvider(source)) noneFrom = source }
+                            },
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
                     androidx.compose.material3.DropdownMenuItem(
                         text = { Text("Remove lyrics") },
                         leadingIcon = { Icon(OuterTuneIcons.delete, null, modifier = Modifier.size(20.dp)) },

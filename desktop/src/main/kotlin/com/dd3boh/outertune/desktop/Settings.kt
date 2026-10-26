@@ -156,6 +156,12 @@ class Settings(private val store: SettingsStore) {
     var lyricsLrclib by bool("lyrics.lrclib", true)
     var lyricsKugou by bool("lyrics.kugou", true)
 
+    /** The order lyrics providers are asked in, as LyricsSource ids. Empty means the default order. */
+    var lyricsProviderOrder by string("lyrics.providerOrder", "")
+
+    /** Automatic asks every provider at once; in my order asks them one at a time - see LyricsFetchMode. */
+    var lyricsFetchMode by enum("lyrics.fetchMode", LyricsFetchMode.Automatic, LyricsFetchMode.entries)
+
     /** Whether the queue handle names the queue beside its arrow, as the phone's does. */
     var showQueueTitle by bool("player.queueTitle", true)
 
