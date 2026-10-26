@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import com.dd3boh.outertune.ui.player.BandStrip
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -301,11 +302,8 @@ fun EqualizerStudioScreen(
                 }
             }
             Spacer(Modifier.height(12.dp))
-            LazyRow(
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                modifier = Modifier.fillMaxWidth().height(220.dp),
-            ) {
-                itemsIndexed(settings.bands) { index, band ->
+            BandStrip(settings.bands.size) { index, modifier ->
+                    val band = settings.bands[index]
                     BandColumn(
                         band = band,
                         enabled = true,
@@ -318,8 +316,8 @@ fun EqualizerStudioScreen(
                             )
                         },
                         onTapLabel = { selectedBand = if (selectedBand == index) null else index },
+                        modifier = modifier,
                     )
-                }
             }
             selectedBand?.let { index ->
                 HorizontalDivider(color = colourVariant.copy(alpha = 0.3f))

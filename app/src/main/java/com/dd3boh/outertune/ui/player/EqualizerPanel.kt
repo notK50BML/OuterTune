@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.ui.player
 
+import androidx.compose.foundation.layout.BoxWithConstraints
 import com.dd3boh.outertune.ui.component.ShuffleButton
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -137,6 +138,27 @@ import kotlin.math.roundToInt
 
 /** Width given to each band's column in the horizontally-scrolling strip, Poweramp-style. */
 private val BandColumnWidth = 56.dp
+
+/**
+ * The equaliser's band sliders, side by side. On a screen wide enough for all of them - a tablet,
+ * landscape - they share the width equally; on a narrower one each keeps its own width and the strip
+ * scrolls sideways, Poweramp-style. [band] draws one, given the width to use.
+ */
+@Composable
+internal fun BandStrip(count: Int, band: @Composable (index: Int, modifier: Modifier) -> Unit) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth().height(220.dp)) {
+        val fits = maxWidth >= BandColumnWidth * count + 4.dp * (count - 1).coerceAtLeast(0)
+        if (fits) {
+            Row(modifier = Modifier.fillMaxSize()) {
+                repeat(count) { index -> band(index, Modifier.weight(1f)) }
+            }
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(4.dp), modifier = Modifier.fillMaxSize()) {
+                items(count) { index -> band(index, Modifier.width(BandColumnWidth)) }
+            }
+        }
+    }
+}
 
 /**
  * The style every panel heading uses.
@@ -666,23 +688,21 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                         // screen has; a LazyRow at a fixed per-band width instead gives each one
                         // real room to drag in and lets the strip run wider than the screen,
                         // Poweramp-style, with the rest reached by scrolling sideways.
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(220.dp)
-                        ) {
-                            itemsIndexed(settings.bands) { index, band ->
+                        // On a screen wide enough for every band - a tablet, landscape - they share
+                        // the width equally instead of sitting at their narrow width from the left
+                        // with the rest of the row empty.
+                        BandStrip(settings.bands.size) { index, modifier ->
+                                val b = settings.bands[index]
                                 BandColumn(
-                                    band = band,
+                                    band = b,
                                     enabled = settings.enabled,
                                     selected = selectedBand == index,
                                     color = eqColor,
                                     useGradient = useValueGradient,
-                                    onGainChange = { updateBand(index, band.copy(gainDb = quantizeTenth(it))) },
+                                    onGainChange = { updateBand(index, b.copy(gainDb = quantizeTenth(it))) },
                                     onTapLabel = { selectedBand = if (selectedBand == index) null else index },
+                                    modifier = modifier,
                                 )
-                            }
                         }
 
                         // Directly under the band it belongs to, so the thing being edited and the
@@ -1292,6 +1312,8 @@ internal fun BandColumn(
     useGradient: Boolean,
     onGainChange: (Float) -> Unit,
     onTapLabel: () -> Unit,
+    /** Its width: the narrow fixed column in a scrolling strip, or a share of a wide one. */
+    modifier: Modifier = Modifier.width(BandColumnWidth),
 ) {
     val gainRange = EqualizerSettings.MIN_GAIN_DB..EqualizerSettings.MAX_GAIN_DB
 
@@ -1303,7 +1325,7 @@ internal fun BandColumn(
 
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.width(BandColumnWidth)
+        modifier = modifier
     ) {
         // Twelve of these side by side, so each one stays a plain slider regardless of the
         // panel-wide dial/slider setting - a strip of tiny 48dp dials read as fiddly rather than
@@ -1468,8 +1490,9 @@ internal fun BandEditor(
         // keeps its own quick, all-bands-at-once overview - one gesture for "tweak this band
         // exactly", another for "eyeball the whole curve". Dials or sliders per the panel-wide
         // setting, same as everywhere else.
+        // Spread evenly across the panel, not bunched at its left edge on a wide screen.
         Row(
-            horizontalArrangement = Arrangement.spacedBy(32.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
             modifier = Modifier.fillMaxWidth()
         ) {
             // A frequency control has to be logarithmic, not linear - a linear 16Hz-20kHz range
