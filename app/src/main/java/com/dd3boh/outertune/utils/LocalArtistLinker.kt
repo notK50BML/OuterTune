@@ -76,6 +76,10 @@ object LocalArtistLinker {
         for (local in database.allLocalArtists()) {
             if (local.isYouTubeArtist || local.name.isBlank()) continue
             val k = key(local.name)
+            // Unlinked by hand: never linked again automatically, not even offline. Checked first
+            // because the name lookup below needs no search - so "Unlink local files" used to last
+            // only until the next scan found the channel row still in the library and relinked it.
+            if (misses.unlinkedByHand(k)) continue
             // Already in the library as a real artist: linked without asking anyone.
             val target = database.remoteArtistByNameIgnoreCase(local.name)
                 ?: run {
@@ -103,21 +107,12 @@ object LocalArtistLinker {
         database.localSongIdsWithFeaturing().forEach { ArtistCreditEnricher.enrich(database, it) }
     }
 
-    /** Moves [local]'s credits onto [target] and drops the placeholder. */
-    private fun merge(database: MusicDatabase, local: ArtistEntity, target: ArtistEntity) {
-        database.runInTransaction {
-            if (local.bookmarkedAt != null) {
-                database.artistById(target.id)?.takeIf { it.bookmarkedAt == null }?.let {
-                    database.update(it.copy(bookmarkedAt = local.bookmarkedAt))
-                }
-            }
-            database.deleteCollidingSongArtistMaps(local.id, target.id)
-            database.updateSongArtistMap(local.id, target.id)
-            database.deleteCollidingAlbumArtistMaps(local.id, target.id)
-            database.updateAlbumArtistMap(local.id, target.id)
-            database.safeDeleteArtist(local.id)
-        }
-    }
+    /**
+     * Moves [local]'s credits onto [target] and drops the placeholder - through the enricher's
+     * merge, so it cannot interleave with an enrich run rewriting the same songs.
+     */
+    private fun merge(database: MusicDatabase, local: ArtistEntity, target: ArtistEntity) =
+        ArtistCreditEnricher.mergeArtistInto(database, local, target.id)
 
     /** Links [local] to [channel] by hand - from the artist menu. */
     suspend fun linkByHand(context: Context, database: MusicDatabase, local: ArtistEntity, channel: ArtistItem) =
@@ -177,6 +172,8 @@ object LocalArtistLinker {
             val at = map[key] ?: return false
             return at == NEVER || System.currentTimeMillis() - at < RECHECK_MS
         }
+
+        fun unlinkedByHand(key: String): Boolean = map[key] == NEVER
 
         fun mark(key: String, at: Long) { map[key] = at }
         fun forget(key: String) { map.remove(key) }
