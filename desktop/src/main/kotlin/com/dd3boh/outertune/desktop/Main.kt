@@ -776,14 +776,15 @@ internal fun App(
     // loaded, so it reports no duration and no position, and the seek bar hid itself until play was
     // pressed. The song's own length and the restored position stand in until then, and a seek in
     // that state moves where it will start rather than asking an empty player to seek.
-    val notStarted = playback is PlaybackState.Idle && queue.current != null
+    //
+    // The same while the next song is being fetched: the player has no length for it yet either,
+    // and the bar used to vanish for those seconds - between every two songs of a station.
     val shownDuration = when {
         duration > 0 -> duration
         // A song from the library carries no length of its own; a file on this computer knows it.
-        notStarted -> queue.current?.let { song ->
+        else -> queue.current?.let { song ->
             song.duration?.times(1000L) ?: LocalMusic.track(song.id)?.durationMs
         } ?: 0L
-        else -> 0L
     }
     val shownPosition: () -> Long = {
         if (player.state.value is PlaybackState.Idle && queue.current != null) restoredPositionMs ?: 0L
@@ -992,7 +993,9 @@ internal fun App(
                 val radio = withContext(Dispatchers.IO) {
                     YouTube.next(WatchEndpoint(videoId = song.id, playlistId = "RDAMVM${song.id}")).getOrNull()?.items
                 }
-                if (!radio.isNullOrEmpty()) playerQueue.play(radio, 0, "Radio: ${song.title}")
+                // The song the radio grew from carries on rather than starting over - it heads
+                // the radio's list, and restarting it was a gap of its own at the very first song.
+                if (!radio.isNullOrEmpty()) playerQueue.play(radio, 0, "Radio: ${song.title}", keepCurrent = true)
             }
         },
         addToPlaylist = { addingToPlaylist = it.toStored() },
@@ -1564,6 +1567,10 @@ internal fun App(
                             openPlaylist = it
                         },
                         onOpenOnlinePlaylist = openOnlinePlaylistPage,
+                        onRefreshLocal = {
+                            val folders = settings.localFolders.lines().filter { it.isNotBlank() }
+                            if (folders.isNotEmpty()) scope.launch { LocalMusic.scan(folders.map { java.io.File(it) }, library) }
+                        },
                     )
                 }
             }

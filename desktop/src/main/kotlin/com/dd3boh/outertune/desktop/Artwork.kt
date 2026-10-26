@@ -55,7 +55,14 @@ import java.util.Collections
  * of a visible image, which is not worth an LRU.
  */
 internal object ArtworkCache {
-    private const val MAX_ENTRIES = 60
+    private const val MAX_ENTRIES = 120
+
+    /**
+     * Decoded pixels kept, in bytes. A count alone let sixty 1080px player covers - near 5MB each
+     * once decoded - hold close to 300MB outside the Java heap, where nothing else limits it.
+     */
+    private const val MAX_PIXEL_BYTES = 64L * 1024 * 1024
+    private val ImageBitmap.pixelBytes: Long get() = width.toLong() * height * 4
     // Access-ordered, so the one dropped at the cap is the least recently drawn, not the oldest
     // loaded - a cover on screen the whole time is never the one thrown away.
     private val images = Collections.synchronizedMap(LinkedHashMap<String, ImageBitmap>(16, 0.75f, true))
@@ -172,7 +179,7 @@ internal object ArtworkCache {
         val prefix = baseUrl.sizeKey()
         val floor = wantedPixels / 2
         synchronized(images) {
-            // Scanned rather than indexed. The map holds sixty entries at most, so this is cheaper
+            // Scanned rather than indexed. The map holds a hundred and twenty entries at most, so this is cheaper
             // than maintaining a second structure - and it runs once per cover, not per frame.
             return images.entries
                 .filter { it.key.sizeKey() == prefix && it.value.width >= floor }
@@ -187,8 +194,12 @@ internal object ArtworkCache {
         synchronized(images) {
             // Oldest out, rather than everything out. Clearing wholesale threw away covers that were
             // on screen, so a long scroll made the list refetch what it was already showing.
-            if (images.size >= MAX_ENTRIES) {
-                images.keys.firstOrNull()?.let { images.remove(it) }
+            images.remove(url)
+            var total = images.values.sumOf { it.pixelBytes } + image.pixelBytes
+            val oldestFirst = images.keys.iterator()
+            while (oldestFirst.hasNext() && (images.size >= MAX_ENTRIES || total > MAX_PIXEL_BYTES)) {
+                total -= images[oldestFirst.next()]?.pixelBytes ?: 0
+                oldestFirst.remove()
             }
             images[url] = image
         }

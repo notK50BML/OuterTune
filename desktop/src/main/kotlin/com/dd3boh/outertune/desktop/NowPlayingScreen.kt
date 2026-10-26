@@ -646,7 +646,9 @@ fun NowPlayingScreen(
                                 "like" -> actionRow(listOf(PlayerButtonKind.LIKE))
                                 "equalizer" -> actionRow(listOf(PlayerButtonKind.EQUALIZER))
                                 "menu" -> actionRow(listOf(PlayerButtonKind.MENU))
-                                "progress" -> if (durationMs > 0) Column(modifier = Modifier.width(w)) {
+                                // Always there, even before a length is known - a bar that came and went
+                                // with each fetch read as the player breaking.
+                                "progress" -> Column(modifier = Modifier.width(w)) {
                                     // Settings > Appearance > Visualiser: the bars above the bar.
                                     spectrum?.let {
                                         SpectrumBars(
@@ -667,7 +669,7 @@ fun NowPlayingScreen(
                                     )
                                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
                                         PositionLabel(positionMs, onBackground)
-                                        Text(formatDuration(durationMs), style = MaterialTheme.typography.bodySmall, color = onBackground)
+                                        Text(if (durationMs > 0) formatDuration(durationMs) else "-:--", style = MaterialTheme.typography.bodySmall, color = onBackground)
                                     }
                                 }
                                 "controls" -> Box(modifier = Modifier.width(w)) { transportRow() }
@@ -822,7 +824,7 @@ fun NowPlayingScreen(
 
                 Spacer(modifier = Modifier.height(20.dp))
 
-                if (durationMs > 0) {
+                run {
                     // The Visualiser setting. Its bars were taken out of this column at one point and
                     // the setting left behind, so turning it on did nothing at all.
                     spectrum?.let {
@@ -854,7 +856,7 @@ fun NowPlayingScreen(
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         PositionLabel(positionMs, onBackground)
-                        Text(formatDuration(durationMs), style = MaterialTheme.typography.bodySmall, color = onBackground)
+                        Text(if (durationMs > 0) formatDuration(durationMs) else "-:--", style = MaterialTheme.typography.bodySmall, color = onBackground)
                     }
                 }
 

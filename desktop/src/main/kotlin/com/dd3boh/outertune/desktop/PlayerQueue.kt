@@ -247,9 +247,18 @@ class PlayerQueue(
      *   Only Listen Together uses a non-zero value, to join a song a host is already partway
      *   through without seeking from zero first.
      */
-    fun play(songs: List<SongItem>, startIndex: Int, title: String = "Queue", startAtMs: Long = 0L) {
+    fun play(
+        songs: List<SongItem>,
+        startIndex: Int,
+        title: String = "Queue",
+        startAtMs: Long = 0L,
+        /** When the chosen song is the one already playing, it carries on rather than restarting. */
+        keepCurrent: Boolean = false,
+    ) {
         if (startIndex !in songs.indices) return
         val previous = state.value
+        val carryOn = keepCurrent && previous.current?.id == songs[startIndex].id &&
+            player.state.value.let { it !is PlaybackState.Idle && it !is PlaybackState.Failed }
         // A different queue: the one it replaces is kept aside rather than lost. The same title
         // again is the same queue being restarted, so it simply takes over.
         if (previous.songs.isNotEmpty() && previous.title != title) stash(previous, player.positionMs.value)
@@ -264,7 +273,7 @@ class PlayerQueue(
             orderPosition = order.indexOf(startIndex),
             title = title,
         )
-        startCurrent(startAtMs)
+        if (carryOn) queuePrefetch() else startCurrent(startAtMs)
     }
 
     /**

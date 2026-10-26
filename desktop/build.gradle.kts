@@ -127,7 +127,7 @@ tasks.register<JavaExec>("run") {
     description = "Runs the OuterTune desktop client."
     mainClass.set("com.dd3boh.outertune.desktop.MainKt")
     classpath = sourceSets["main"].runtimeClasspath
-    jvmArgs("-Xmx320m", "-XX:+UseSerialGC", "-XX:MaxMetaspaceSize=192m")
+    jvmArgs("-Xms48m", "-Xmx320m", "-XX:+UseSerialGC", "-XX:MinHeapFreeRatio=15", "-XX:MaxHeapFreeRatio=40", "-XX:MaxMetaspaceSize=192m")
 }
 
 /** `gradlew :desktop:cdpProbe` - the smallest thing CdpSession must do, step by step. */
@@ -404,7 +404,7 @@ val appImage = tasks.register<Exec>("appImage") {
         // jar and every later start maps them in already parsed and verified, instead of reading
         // and checking thousands of classes out of the jar each time. Where the folder is not
         // writable (an all-users install in Program Files) the JVM skips it and starts as before.
-        "--java-options", "-Xmx320m -XX:+UseSerialGC -XX:MaxMetaspaceSize=192m " +
+        "--java-options", "-Xms48m -Xmx320m -XX:+UseSerialGC -XX:MinHeapFreeRatio=15 -XX:MaxHeapFreeRatio=40 -XX:MaxMetaspaceSize=192m " +
             "-XX:+AutoCreateSharedArchive -XX:SharedArchiveFile=\$APPDIR/app.jsa",
     )
 }
