@@ -370,6 +370,16 @@ fun NowPlayingScreen(
                 }
             },
     ) {
+        // Docked beside the player, the queue's handle runs along the top, its arrow pointing at the
+        // side the queue comes in from. Stacked, it stays at the bottom - see below.
+        if (sideBySide && playerLayout?.block("queue")?.visible != false) QueueBar(
+            queue = queue,
+            onColour = onBackground,
+            open = queueOpen,
+            onToggle = { queueOpen = !queueOpen },
+            sideways = true,
+            showTitle = showQueueTitle,
+        )
         // Pulled down from the top edge rather than sitting among the controls, which is where the
         // Android player keeps it. An equaliser is something adjusted once and then left alone, so a
         // button for it beside play and pause gives it standing it has not earned - and twelve
@@ -878,12 +888,12 @@ fun NowPlayingScreen(
         }
         }
 
-        if (playerLayout?.block("queue")?.visible != false) QueueBar(
+        // The sheet slides up from here, so its handle is at the bottom, pointing up.
+        if (!sideBySide && playerLayout?.block("queue")?.visible != false) QueueBar(
             queue = queue,
             onColour = onBackground,
             open = queueOpen,
             onToggle = { queueOpen = !queueOpen },
-            sideways = sideBySide,
             showTitle = showQueueTitle,
         )
     }
@@ -1359,9 +1369,9 @@ private fun QueueBar(
 /**
  * The queue's handle when the queue docks beside the player.
  *
- * An arrow pointing the way the queue will move - left to bring it in from the right edge, right to
- * send it back - with the queue's name beside it, at the right-hand end of the bar where the queue
- * appears. The name can be turned off in Settings, as on the phone.
+ * Along the top of the player: the queue's name on the left, and at the right-hand end, where the
+ * queue appears, an arrow pointing at it - towards the queue while it is shut, back while it is
+ * open. The name can be turned off in Settings, as on the phone.
  */
 @Composable
 private fun SidewaysQueueHandle(
@@ -1374,9 +1384,9 @@ private fun SidewaysQueueHandle(
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     val scrim by animateFloatAsState(if (hovered) 0.3f else 0.12f)
-    val turn by animateFloatAsState(if (open) 90f else -90f)
+    val turn by animateFloatAsState(if (open) -90f else 90f)
     Row(
-        horizontalArrangement = Arrangement.End,
+        horizontalArrangement = if (showTitle) Arrangement.SpaceBetween else Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
