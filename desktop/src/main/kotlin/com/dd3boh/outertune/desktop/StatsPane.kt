@@ -183,6 +183,10 @@ fun StatsPane(
                                 plays(plays),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                // One line, as the name is: a card that wrapped made the row taller
+                                // while it was in view and moved the songs below.
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
                             )
                         }
                     }

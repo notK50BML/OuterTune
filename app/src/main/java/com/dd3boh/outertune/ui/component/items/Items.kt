@@ -289,6 +289,12 @@ fun GridItem(
     thumbnailContent: @Composable BoxWithConstraintsScope.() -> Unit,
     thumbnailRatio: Float = 1f,
     fillMaxWidth: Boolean = false,
+    /**
+     * Two lines for the title and one for the subtitle, whatever they hold - for a sideways row,
+     * which is as tall as its tallest visible item: cards of different heights made it grow and
+     * shrink while scrolling, and everything below it bounced.
+     */
+    uniformHeight: Boolean = false,
 ) = GridItem(
     modifier = modifier,
     title = {
@@ -296,6 +302,7 @@ fun GridItem(
             text = title,
             style = MaterialTheme.typography.bodyMedium,
             fontWeight = FontWeight.Bold,
+            minLines = if (uniformHeight) 2 else 1,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
             textAlign = TextAlign.Start,
@@ -311,7 +318,7 @@ fun GridItem(
             text = subtitle,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.secondary,
-            maxLines = 2,
+            maxLines = if (uniformHeight) 1 else 2,
             overflow = TextOverflow.Ellipsis,
         )
     },

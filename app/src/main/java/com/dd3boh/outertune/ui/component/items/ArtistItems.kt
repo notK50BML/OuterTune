@@ -111,6 +111,8 @@ fun ArtistGridItem(
     fillMaxWidth: Boolean = false,
     /** In place of the song count - Stats shows the artist's plays or listening time. */
     subtitle: String? = null,
+    /** Every card the same height - see GridItem. */
+    uniformHeight: Boolean = false,
 ) = GridItem(
     title = artist.artist.name,
     subtitle = subtitle ?: getNSongsString(artist.songCount, artist.downloadCount),
@@ -126,6 +128,7 @@ fun ArtistGridItem(
         )
     },
     fillMaxWidth = fillMaxWidth,
+    uniformHeight = uniformHeight,
     modifier = modifier
 )
 

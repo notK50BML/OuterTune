@@ -208,6 +208,9 @@ fun StatsScreen(
                             StatMetric.TIME_LISTENED -> formatListening(stats.totalPlayTime)
                             StatMetric.TIMES_PLAYED -> pluralStringResource(R.plurals.n_play, stats.totalPlays, stats.totalPlays)
                         },
+                        // One height for every card, so the row - and the songs below it - stay
+                        // put while it is scrolled.
+                        uniformHeight = true,
                         modifier = Modifier
                             .fillMaxWidth()
                             .combinedClickable(
