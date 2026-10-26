@@ -186,6 +186,7 @@ object OuterTuneIcons {
     val delete by icon(GeneratedIconPaths.delete)
     val edit by icon(GeneratedIconPaths.edit)
     val check by icon(GeneratedIconPaths.check)
+    val refresh by icon(GeneratedIconPaths.refresh)
 
     /** Android: `Icons.Rounded.History`. */
     val history by icon(GeneratedIconPaths.history)
@@ -324,6 +325,7 @@ object OuterTuneIcons {
             "delete" to delete,
             "edit" to edit,
             "check" to check,
+            "refresh" to refresh,
             "history" to history,
             "restore" to restore,
             "timer" to timer,

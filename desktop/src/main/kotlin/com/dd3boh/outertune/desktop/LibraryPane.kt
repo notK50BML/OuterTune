@@ -99,6 +99,8 @@ fun LibraryPane(
     savedPlaylists: List<com.zionhuang.innertube.models.PlaylistItem> = emptyList(),
     onOpenPlaylist: (StoredPlaylist) -> Unit = {},
     onOpenOnlinePlaylist: (com.zionhuang.innertube.models.PlaylistItem) -> Unit = {},
+    /** Rescans the folders on this computer for songs added, changed or removed since the last look. */
+    onRefreshLocal: (() -> Unit)? = null,
 ) {
     var view by remember(fixedView) { mutableStateOf(fixedView ?: LibraryView.Songs) }
     var source by remember(initialSource) { mutableStateOf(initialSource ?: SongSource.Liked) }
@@ -185,6 +187,18 @@ fun LibraryPane(
                         Spacer(Modifier.width(8.dp))
                         Text("Shuffle")
                     }
+                    if (source == SongSource.Local && onRefreshLocal != null) {
+                        val scanning by LocalMusic.scanning.collectAsState()
+                        OutlinedButton(onClick = onRefreshLocal, enabled = !scanning) {
+                            if (scanning) {
+                                CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                            } else {
+                                Icon(OuterTuneIcons.refresh, null, modifier = Modifier.size(18.dp))
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Text(if (scanning) "Refreshing" else "Refresh")
+                        }
+                    }
                     Text(
                         "${shown.size} ${if (shown.size == 1) "song" else "songs"}",
                         style = MaterialTheme.typography.bodyMedium,
@@ -194,7 +208,7 @@ fun LibraryPane(
                     TextField(
                         value = filter,
                         onValueChange = { filter = it },
-                        placeholder = { Text("Filter") },
+                        placeholder = { Text("Search") },
                         singleLine = true,
                         shape = CircleShape,
                         leadingIcon = { Icon(OuterTuneIcons.search, null, modifier = Modifier.size(18.dp)) },
