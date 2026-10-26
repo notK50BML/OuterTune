@@ -6,6 +6,9 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.material3.HorizontalDivider
 import kotlinx.coroutines.launch
@@ -218,8 +221,8 @@ fun NowPlayingScreen(
     /** The title-row buttons, in order - see PlayerButtonKind. */
     playerButtons: List<PlayerButtonKind> = PlayerButtonKind.decode(""),
     showQueueTitle: Boolean = true,
-    /** With the queue docked beside the player, its handle along the top rather than the bottom. */
-    queueHandleTop: Boolean = true,
+    /** With the queue docked beside the player, its handle in the title bar rather than the bottom. */
+    queueHandleTop: Boolean = false,
     /** Throws away this song's cached lyrics and asks the providers again. */
     onRefetchLyrics: (() -> Unit)? = null,
     /** Edit, search and remove for the current song's lyrics - the phone's lyrics menu. */
@@ -320,6 +323,26 @@ fun NowPlayingScreen(
         onDispose { captionTint.colour = null }
     }
 
+    // The docked queue's handle in the title bar, just left of the window buttons - only with the
+    // native frame, which can be told the handle is the app's; the fallback frame's strip is one
+    // drag area that would swallow the click.
+    val captionInset = LocalCaptionInset.current
+    val queueInTitleBar = sideBySide && queueHandleTop && NativeFrame.active && captionInset > 0.dp &&
+        playerLayout?.block("queue")?.visible != false
+    if (queueInTitleBar) {
+        TitleBarQueueHandle(
+            queue = queue,
+            onColour = onBackground,
+            open = queueOpen,
+            onToggle = { queueOpen = !queueOpen },
+            showTitle = showQueueTitle,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = WindowChrome.buttonsWidth)
+                .height(captionInset),
+        )
+    }
+
     // The background above runs to the top edge; the controls keep clear of the window buttons.
     Row(modifier = Modifier.fillMaxSize().padding(top = LocalCaptionInset.current)) {
     // The player's own area. A Box, so the narrow-window queue can cover just this and nothing else.
@@ -372,9 +395,9 @@ fun NowPlayingScreen(
                 }
             },
     ) {
-        // Docked beside the player, the queue's handle runs along the top - unless set to the bottom -
-        // its arrow pointing at the side the queue comes in from. Stacked, it stays at the bottom.
-        if (sideBySide && queueHandleTop && playerLayout?.block("queue")?.visible != false) QueueBar(
+        // Set to the title bar but with no title bar to put it in (the fallback frame, or the UI
+        // snapshots): along the top of the player instead. Stacked, it stays at the bottom.
+        if (sideBySide && queueHandleTop && !queueInTitleBar && playerLayout?.block("queue")?.visible != false) QueueBar(
             queue = queue,
             onColour = onBackground,
             open = queueOpen,
@@ -1366,6 +1389,58 @@ private fun QueueBar(
             color = onColour.copy(alpha = 0.85f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+        )
+    }
+}
+
+/**
+ * The docked queue's handle in the title bar: its name and an arrow pointing at the queue, sized to
+ * what it holds so the rest of the strip still drags the window. Its bounds are handed to the native
+ * frame, which would otherwise take a click here as the title bar's.
+ */
+@Composable
+private fun TitleBarQueueHandle(
+    queue: QueueState,
+    onColour: Color,
+    open: Boolean,
+    onToggle: () -> Unit,
+    showTitle: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val hovered by interaction.collectIsHoveredAsState()
+    val turn by animateFloatAsState(if (open) -90f else 90f)
+    DisposableEffect(Unit) {
+        onDispose { NativeFrame.clientAreas = NativeFrame.clientAreas - "queue" }
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = modifier
+            .onGloballyPositioned { c ->
+                val b = c.boundsInWindow()
+                NativeFrame.clientAreas = NativeFrame.clientAreas +
+                    ("queue" to java.awt.Rectangle(b.left.toInt(), b.top.toInt(), b.width.toInt(), b.height.toInt()))
+            }
+            .background(if (hovered) onColour.copy(alpha = 0.1f) else Color.Transparent)
+            .hoverable(interaction)
+            .clickable(interactionSource = interaction, indication = null, onClick = onToggle)
+            .padding(horizontal = 14.dp),
+    ) {
+        if (showTitle) {
+            Text(
+                text = queue.title,
+                style = MaterialTheme.typography.bodySmall,
+                color = onColour.copy(alpha = 0.85f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 280.dp).padding(end = 8.dp),
+            )
+        }
+        Icon(
+            OuterTuneIcons.expandLess,
+            contentDescription = if (open) "Hide queue" else "Show queue",
+            tint = onColour.copy(alpha = 0.85f),
+            modifier = Modifier.size(18.dp).rotate(turn),
         )
     }
 }

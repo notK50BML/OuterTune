@@ -267,7 +267,7 @@ class UiSnapshots {
         capture("player_1280", 1280, 800) { Player(1280) }
         capture("player_1000", 1000, 700) { Player(1000) }
         capture("player_light", 1280, 800, dark = false) { Player(1280) }
-        capture("queue_wide", 1400, 860, interact = { it.click(500f, 20f) }) { Player(1400) }
+        capture("queue_wide", 1400, 860, interact = { it.click(500f, 840f) }) { Player(1400) }
         capture("queue_narrow", 900, 700, interact = { it.click(450f, 680f) }) { Player(900) }
         capture("lyrics", 1280, 800, interact = { it.click(300f, 400f) }) { Player(1280) }
         // Words estimated and lit both ways, with the kind tag: the current line is 13.5s into a

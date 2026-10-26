@@ -53,6 +53,12 @@ object NativeFrame {
     @Volatile var maximiseButton: Rectangle? = null
     @Volatile var otherButtons: List<Rectangle> = emptyList()
 
+    /**
+     * The app's own controls in the caption strip, by name - the player's queue handle. Windows
+     * would take a click there as the title bar's, a drag of the window, and never pass it on.
+     */
+    @Volatile var clientAreas: Map<String, Rectangle> = emptyMap()
+
     /** Called when the maximise button is clicked, after Windows has done it. */
     @Volatile var onMaximiseToggled: (() -> Unit)? = null
 
@@ -204,6 +210,7 @@ object NativeFrame {
                 maximiseButton?.contains(p.x, p.y) != true -> HTTOP
             maximiseButton?.contains(p.x, p.y) == true -> HTMAXBUTTON
             otherButtons.any { it.contains(p.x, p.y) } -> HTCLIENT
+            clientAreas.values.any { it.contains(p.x, p.y) } -> HTCLIENT
             p.y < captionHeightPx -> HTCAPTION
             else -> HTCLIENT
         }

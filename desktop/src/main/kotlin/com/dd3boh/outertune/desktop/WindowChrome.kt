@@ -60,6 +60,9 @@ import java.awt.Toolkit
 object WindowChrome {
     /** The height of the strip the buttons sit in, and what content keeps clear of at the top. */
     val height: Dp = 32.dp
+
+    /** Minimise, maximise and close, side by side at the right of the strip. */
+    val buttonsWidth: Dp = 46.dp * 3
 }
 
 /** How far content should keep clear of the top edge. Zero where there is no custom frame (tests). */

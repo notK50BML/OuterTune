@@ -523,8 +523,8 @@ private fun PlayerSettings(settings: Settings) {
             icon = OuterTuneIcons.queueMusic,
         )
         SettingSwitch(
-            title = "Queue handle at the top",
-            subtitle = "In a wide window, where the queue opens beside the player. Off puts it along the bottom.",
+            title = "Queue handle in the title bar",
+            subtitle = "In a wide window, beside the window buttons. Off keeps it along the bottom of the player.",
             checked = settings.queueHandleTop,
             onCheckedChange = { settings.queueHandleTop = it },
             icon = OuterTuneIcons.queueMusic,
