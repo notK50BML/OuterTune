@@ -9,6 +9,8 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import androidx.compose.ui.res.painterResource
+import com.dd3boh.outertune.ui.component.PreferenceEntry
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
@@ -113,6 +115,19 @@ fun AccountSyncSettings(
                 Spacer(modifier = Modifier.height(16.dp))
             }
         }
+
+        // Discord here, with the other accounts the app signs in to, rather than as a section of
+        // its own on the settings page.
+        PreferenceGroupTitle(title = stringResource(R.string.discord_integration))
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.discord_integration)) },
+                description = stringResource(R.string.settings_discord_description),
+                icon = { Icon(painterResource(R.drawable.discord), null) },
+                onClick = { navController.navigate("settings/discord") }
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
     }
 
     TopAppBar(

@@ -71,8 +71,7 @@ import androidx.compose.ui.unit.dp
 enum class SettingsCategory(val label: String, val blurb: String) {
     // The phone's sections, in its order and under its names (SettingsScreen.kt), so a setting is
     // found in the same place on both. Keyboard is the one the phone has no need for.
-    Account("Account and sync", "Sign in to YouTube Music"),
-    Discord("Discord", "Show what you are playing on Discord"),
+    Account("Account and sync", "YouTube Music, sync and Discord"),
     Appearance("Appearance", "Theme, colours, fonts, tabs and the player's look"),
     Player("Player and audio", "Buttons, seek bar, queue, audio and the sleep timer"),
     ListenTogether("Listen Together", "Play in sync with other devices"),
@@ -93,7 +92,6 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
     SettingsCategory.Keyboard -> OuterTuneIcons.keyboard
     SettingsCategory.Content -> OuterTuneIcons.musicNote
     SettingsCategory.Account -> OuterTuneIcons.accountCircle
-    SettingsCategory.Discord -> OuterTuneIcons.devices
     SettingsCategory.ListenTogether -> OuterTuneIcons.cast
     SettingsCategory.Local -> OuterTuneIcons.musicNote
     SettingsCategory.Storage -> OuterTuneIcons.download
@@ -157,7 +155,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("LRCLIB", SettingsCategory.Lyrics, "lyrics provider lrclib"),
     SettingEntry("KuGou", SettingsCategory.Lyrics, "lyrics provider kugou"),
     SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
-    SettingEntry("Discord", SettingsCategory.Discord, "rich presence rpc status token"),
+    SettingEntry("Discord", SettingsCategory.Account, "rich presence rpc status token"),
     SettingEntry("Listen Together", SettingsCategory.ListenTogether, "sync share lan network party"),
     SettingEntry("Music folders", SettingsCategory.Local, "local files folder mp3 flac scan computer"),
     SettingEntry("Rescan", SettingsCategory.Local, "local files refresh scan folders"),
@@ -312,8 +310,9 @@ fun SettingsPane(
                 SettingsCategory.Account -> {
                     Section("YouTube Music") { AccountPane(account = account) }
                     AccountSyncSettings(settings, account, sync)
+                    // With the other accounts, as on the phone.
+                    DiscordSettings(settings)
                 }
-                SettingsCategory.Discord -> DiscordSettings(settings)
                 SettingsCategory.ListenTogether -> ListenTogetherSettings(settings, listenTogether)
                 SettingsCategory.Local -> LocalMusicSettings(settings, library)
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)

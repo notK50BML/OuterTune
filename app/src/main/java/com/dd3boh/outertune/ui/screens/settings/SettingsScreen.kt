@@ -109,12 +109,6 @@ fun SettingsScreen(
                 icon = { AccountAvatar { Icon(Icons.Rounded.AccountCircle, null) } },
                 onClick = { navController.navigate("settings/account_sync") }
             )
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.discord_integration)) },
-                description = stringResource(R.string.settings_discord_description),
-                icon = { Icon(painterResource(R.drawable.discord), null) },
-                onClick = { navController.navigate("settings/discord") }
-            )
         }
         Spacer(modifier = Modifier.height(16.dp))
 
