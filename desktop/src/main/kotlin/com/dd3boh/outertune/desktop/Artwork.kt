@@ -196,9 +196,11 @@ internal object ArtworkCache {
             // on screen, so a long scroll made the list refetch what it was already showing.
             images.remove(url)
             var total = images.values.sumOf { it.pixelBytes } + image.pixelBytes
-            val oldestFirst = images.keys.iterator()
+            // Through the entries, never images[key]: the map is access-ordered, so a get moves the
+            // entry to the end - a change to the map under its own iterator, which threw.
+            val oldestFirst = images.entries.iterator()
             while (oldestFirst.hasNext() && (images.size >= MAX_ENTRIES || total > MAX_PIXEL_BYTES)) {
-                total -= images[oldestFirst.next()]?.pixelBytes ?: 0
+                total -= oldestFirst.next().value.pixelBytes
                 oldestFirst.remove()
             }
             images[url] = image
