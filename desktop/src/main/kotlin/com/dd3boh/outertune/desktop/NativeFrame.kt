@@ -73,6 +73,26 @@ object NativeFrame {
         fun GetDpiForWindow(hwnd: Pointer): Int
         fun GetSystemMetricsForDpi(index: Int, dpi: Int): Int
         fun EnumChildWindows(parent: Pointer, proc: EnumProc, lParam: Pointer?): Boolean
+        fun MonitorFromRect(rect: RECT, flags: Int): Pointer?
+        fun GetMonitorInfoW(monitor: Pointer, info: MONITORINFO): Boolean
+    }
+
+    @Suppress("unused")
+    @Structure.FieldOrder("left", "top", "right", "bottom")
+    class RECT : Structure() {
+        @JvmField var left = 0
+        @JvmField var top = 0
+        @JvmField var right = 0
+        @JvmField var bottom = 0
+    }
+
+    @Suppress("unused")
+    @Structure.FieldOrder("cbSize", "rcMonitor", "rcWork", "dwFlags")
+    class MONITORINFO : Structure() {
+        @JvmField var cbSize = 0
+        @JvmField var rcMonitor = RECT()
+        @JvmField var rcWork = RECT()
+        @JvmField var dwFlags = 0
     }
 
     private interface EnumProc : StdCallLibrary.StdCallCallback {
@@ -103,6 +123,9 @@ object NativeFrame {
     private const val WM_NCMOUSELEAVE = 0x02A2
     private const val WM_PARENTNOTIFY = 0x0210
     private const val WM_SIZE = 0x0005
+    private const val WM_WINDOWPOSCHANGING = 0x0046
+    private const val SWP_NOMOVE = 0x0002
+    private const val MONITOR_DEFAULTTONEAREST = 2
     private const val WM_ACTIVATE = 0x0006
     private const val WM_CREATE = 0x0001
     private const val HTTRANSPARENT = -1L
@@ -235,6 +258,32 @@ object NativeFrame {
                 // the app would be cut off by that much.
                 params.setInt(4, if (u.IsZoomed(hwnd)) top + frameThickness(u, hwnd) else top)
                 return result
+            }
+
+            // Keeps the strip on its screen. A window that is not maximised could be placed with its
+            // top above the screen - all of the strip and most of the window buttons off the edge,
+            // so it looked as if it filled the screen with nothing to click. Windows stops a real
+            // title bar going up there; this strip is ours, so the same rule is applied here: the
+            // top of the window (which is the top of the strip - there is no frame above it) no
+            // higher than the top of the work area it is on.
+            WM_WINDOWPOSCHANGING -> if (lParam != 0L && !u.IsZoomed(hwnd)) runCatching {
+                // WINDOWPOS: hwnd, hwndInsertAfter, then x, y, cx, cy, flags.
+                val pos = Pointer(lParam)
+                val base = Native.POINTER_SIZE * 2
+                if (pos.getInt(base + 16L) and SWP_NOMOVE == 0) {
+                    val x = pos.getInt(base.toLong())
+                    val y = pos.getInt(base + 4L)
+                    val rect = RECT().apply {
+                        left = x; top = y
+                        right = x + pos.getInt(base + 8L); bottom = y + pos.getInt(base + 12L)
+                    }
+                    val monitor = u.MonitorFromRect(rect, MONITOR_DEFAULTTONEAREST)
+                    // Windows checks cbSize against the structure it expects.
+                    val info = MONITORINFO().apply { cbSize = size() }
+                    if (monitor != null && u.GetMonitorInfoW(monitor, info) && y < info.rcWork.top) {
+                        pos.setInt(base + 4L, info.rcWork.top)
+                    }
+                }
             }
 
             WM_NCHITTEST -> {
