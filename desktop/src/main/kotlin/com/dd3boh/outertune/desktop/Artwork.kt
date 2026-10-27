@@ -100,6 +100,11 @@ internal object ArtworkCache {
         if (thumbnail.isNotBlank()) load(thumbnail.atSize(1080))
     }
 
+    /** Forgets every decoded cover - see MemoryTrim. The disk keeps them, so they come back quickly. */
+    fun dropDecoded() {
+        images.clear()
+    }
+
     /** Drops the least recently written covers past [DISK_LIMIT_BYTES]. Called once at start. */
     fun pruneDisk() {
         runCatching {
