@@ -36,6 +36,8 @@ data class QueueState(
      * song, which is already about to be visible anyway.
      */
     val title: String = "Queue",
+    /** Played from a station or radio - see isStationPlaylistId. Its songs do not count in Stats. */
+    val station: Boolean = false,
 ) {
     val current: SongItem? get() = songs.getOrNull(index)
 
@@ -254,6 +256,8 @@ class PlayerQueue(
         startAtMs: Long = 0L,
         /** When the chosen song is the one already playing, it carries on rather than restarting. */
         keepCurrent: Boolean = false,
+        /** A station or radio, whose songs are not counted in Stats. */
+        station: Boolean = false,
     ) {
         if (startIndex !in songs.indices) return
         val previous = state.value
@@ -272,6 +276,7 @@ class PlayerQueue(
             order = order,
             orderPosition = order.indexOf(startIndex),
             title = title,
+            station = station,
         )
         if (carryOn) queuePrefetch() else startCurrent(startAtMs)
     }

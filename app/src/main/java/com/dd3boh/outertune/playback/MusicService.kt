@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.playback
 
+import com.zionhuang.innertube.models.isStationPlaylistId
 import com.dd3boh.outertune.constants.EqCutMakeupKey
 import android.app.PendingIntent
 import android.content.ComponentName
@@ -981,6 +982,7 @@ class MusicService : MediaLibraryService(),
 
         var queueTitle = title
         queuePlaylistId = queue.playlistId
+        val station = isStationPlaylistId(queue.playlistId)
         var q: MultiQueueObject? = null
         val preloadItem = queue.preloadItem
         queueLoadScope.launch {
@@ -994,6 +996,7 @@ class MusicService : MediaLibraryService(),
                         replace = replace,
                         continuationEndpoint = null // fulfilled later on after initial status
                     )
+                    q?.isStation = station
                     queueBoard.value.setCurrQueue(q, true)
                 }
 
@@ -1024,6 +1027,7 @@ class MusicService : MediaLibraryService(),
                         replace = replace || preloadItem != null,
                         continuationEndpoint = if (isRadio) items.takeLast(4).shuffled().first().id else null // yq?.getContinuationEndpoint()
                     )
+                    q?.isStation = station
                     queueBoard.value.setCurrQueue(q, shouldResume)
                 }
 
@@ -1758,7 +1762,9 @@ class MusicService : MediaLibraryService(),
             val playRatio =
                 playbackStats.totalPlayTimeMs.toFloat() / ((mediaItem.metadata?.duration?.times(1000)) ?: -1)
             if (SERVICE_DEBUG) Log.d(TAG, "Playback ratio: $playRatio Min threshold: $minPlaybackDur")
-            if (playRatio >= minPlaybackDur && !dataStore.get(PauseListenHistoryKey, false)) {
+            // A song heard from a station is the station's pick, not the listener's - not counted.
+            val fromStation = queueBoard.value.getCurrentQueue()?.isStation == true
+            if (playRatio >= minPlaybackDur && !fromStation && !dataStore.get(PauseListenHistoryKey, false)) {
                 database.query {
                     incrementPlayCount(mediaItem.mediaId)
                     try {

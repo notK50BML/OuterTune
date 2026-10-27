@@ -24,6 +24,12 @@ data class MultiQueueObject(
      * Song id to start watch endpoint
      */
     var playlistId: String? = null,
+    /**
+     * Played from a station or radio - see isStationPlaylistId. Its songs do not count in Stats.
+     * Not kept with a saved queue: [playlistId] above is reused for the next page of a radio, so
+     * the station's own id is gone by then, and this is decided when the queue is started.
+     */
+    var isStation: Boolean = false,
 ) {
 
     /**

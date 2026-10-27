@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.zionhuang.innertube.models.isStationPlaylistId
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.produceState
@@ -871,7 +872,8 @@ internal fun App(
             .first { (position, duration) ->
                 duration > 0 && position >= duration * settings.minPlayPercent.coerceIn(0, 100) / 100
             }
-        if (queue.current?.id == playedId && settings.keepHistory) {
+        // A song heard from a station is the station's pick, not the listener's - not counted.
+        if (queue.current?.id == playedId && settings.keepHistory && !queue.station) {
             library.recordPlay(song.toStored(), (song.duration ?: 0) * 1000L)
             // And on the account, if that was asked for. The metadata call is its own authenticated
             // request rather than the one the stream came from: streams are deliberately fetched
@@ -1536,7 +1538,9 @@ internal fun App(
                                     if (station != null) {
                                         scope.launch {
                                             val songs = withContext(Dispatchers.IO) { YouTube.next(station).getOrNull()?.items }
-                                            if (!songs.isNullOrEmpty()) playerQueue.play(songs, 0, item.title)
+                                            if (!songs.isNullOrEmpty()) {
+                                                playerQueue.play(songs, 0, item.title, station = isStationPlaylistId(station.playlistId))
+                                            }
                                         }
                                         return@HomePane
                                     }
