@@ -9,6 +9,7 @@
 
 package com.dd3boh.outertune.utils
 
+import coil3.size.Dimension
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -45,6 +46,8 @@ class CoilBitmapLoader @Inject constructor(
     private val context: Context,
     private val scope: CoroutineScope = CoroutineScope(coilCoroutine),
     private val data: LocalArtworkPath = LocalArtworkPath(null),
+    /** The request's own, for the size it will be shown at - see [fetch]. */
+    private val options: Options? = null,
 ) : Fetcher, BitmapLoader {
 
     override fun supportsMimeType(mimeType: String): Boolean {
@@ -99,14 +102,33 @@ class CoilBitmapLoader @Inject constructor(
                 // tags. decodeFile only reads image headers, so trying it first is cheap and
                 // correctly picks the downloaded-thumbnail case without needing a path prefix
                 // check (that thumbnail lives under the app's private files dir, not /storage/).
-                var image: Bitmap? = BitmapFactory.decodeFile(data.path)
+                //
+                // Decoded at about the size it is shown at, not in full and then scaled: a saved cover
+                // is 1080px and a file's own can be 3000, which is 4.6MB and 36MB as bitmaps - for a
+                // row thumbnail 150px across, and they used to sit in the memory cache at that size.
+                val target = targetSize()
+                var sampled = false
+                fun decode(read: (BitmapFactory.Options) -> Bitmap?): Bitmap? {
+                    if (target == null) return read(BitmapFactory.Options())
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    read(bounds)
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+                    var sample = 1
+                    while (bounds.outWidth / (sample * 2) >= target.first && bounds.outHeight / (sample * 2) >= target.second) {
+                        sample *= 2
+                    }
+                    if (sample > 1) sampled = true
+                    return read(BitmapFactory.Options().apply { inSampleSize = sample })
+                }
+                var image: Bitmap? = decode { BitmapFactory.decodeFile(data.path, it) }
 
                 if (image == null) {
                     image = try {
                         val mData = MediaMetadataRetriever()
                         mData.setDataSource(data.path)
                         val art = mData.embeddedPicture
-                        art?.let { BitmapFactory.decodeByteArray(it, 0, it.size) }
+                        mData.release()
+                        art?.let { bytes -> decode { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, it) } }
                     } catch (e: Exception) {
                         null
                     }
@@ -137,7 +159,7 @@ class CoilBitmapLoader @Inject constructor(
 
                 ImageFetchResult(
                     image = image.asImage(),
-                    isSampled = false,
+                    isSampled = sampled,
                     dataSource = DataSource.DISK
                 )
             }
@@ -151,6 +173,18 @@ class CoilBitmapLoader @Inject constructor(
         }
     }
 
+    /**
+     * The pixels this image will be shown at: the size the artwork asked for, or failing that the
+     * request's own (Coil's, from the view). Null when neither says - the whole image, as before.
+     */
+    private fun targetSize(): Pair<Int, Int>? {
+        if (data.x > 0 && data.y > 0) return data.x to data.y
+        val size = options?.size ?: return null
+        val w = (size.width as? Dimension.Pixels)?.px ?: return null
+        val h = (size.height as? Dimension.Pixels)?.px ?: return null
+        return w to h
+    }
+
     companion object {
         // TODO: re eval dimens after a few months
         /**
@@ -162,7 +196,9 @@ class CoilBitmapLoader @Inject constructor(
          * @param size Percentage size of valid draw frame. Must be a value between 0.0 and 1.0. For example, 0.8
          *      means that inner frame should be 80% of the size of the final frame, and centered within that frame.
          */
-        fun drawPlaceholder(context: Context, x: Int = 2000, y: Int = 2000, size: Float = 0.8f): Bitmap {
+        // 512 rather than 2000: an icon on a plain square, and every missing cover drew one - 16MB
+        // each at 2000px, held in the memory cache like any other image.
+        fun drawPlaceholder(context: Context, x: Int = 512, y: Int = 512, size: Float = 0.8f): Bitmap {
             val padding = size.coerceIn(0f, 1f)
             val innerRecWidth = x * padding
             val innerRecHeight = y * padding
@@ -185,7 +221,7 @@ class CoilBitmapLoader @Inject constructor(
         private val context: Context,
     ) : Fetcher.Factory<LocalArtworkPath> {
         override fun create(data: LocalArtworkPath, options: Options, imageLoader: ImageLoader): Fetcher? {
-            return CoilBitmapLoader(context, data = data)
+            return CoilBitmapLoader(context, data = data, options = options)
         }
     }
 }

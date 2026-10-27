@@ -229,7 +229,7 @@ class App : Application(), SingletonImageLoader.Factory {
                 .allowHardware(false)
                 .memoryCache {
                     MemoryCache.Builder()
-                        .maxSizePercent(context, 0.3)
+                        .maxSizePercent(context, 0.2)
                         .build()
                 }
                 .diskCachePolicy(CachePolicy.DISABLED)
@@ -245,8 +245,10 @@ class App : Application(), SingletonImageLoader.Factory {
             .crossfade(true)
             .allowHardware(false)
             .memoryCache {
+                // A fifth of the app's memory rather than 30%: covers are decoded at the size they
+                // are shown now (see CoilBitmapLoader), so the same covers fit in less.
                 MemoryCache.Builder()
-                    .maxSizePercent(context, 0.3)
+                    .maxSizePercent(context, 0.2)
                     .build()
             }
             .diskCache(
