@@ -135,6 +135,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Seek buttons", SettingsCategory.Player, "skip forward rewind five seconds"),
     SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
     SettingEntry("Show queue title", SettingsCategory.Player, "queue name handle"),
+    SettingEntry("Queue handle in the title bar", SettingsCategory.Player, "queue handle top bottom banner window buttons"),
     SettingEntry("Equaliser", SettingsCategory.Player, "eq equalizer bass treble compressor autoeq"),
     SettingEntry("Word-by-word lyrics", SettingsCategory.Lyrics, "betterlyrics karaoke syllable"),
     SettingEntry("Estimate word timings", SettingsCategory.Lyrics, "karaoke interpolation sweep"),
@@ -516,20 +517,6 @@ private fun PlayerSettings(settings: Settings) {
             )
         }
         SettingSwitch(
-            title = "Show queue title",
-            subtitle = "Name the queue beside the queue handle on the player.",
-            checked = settings.showQueueTitle,
-            onCheckedChange = { settings.showQueueTitle = it },
-            icon = OuterTuneIcons.queueMusic,
-        )
-        SettingSwitch(
-            title = "Queue handle in the title bar",
-            subtitle = "In a wide window, beside the window buttons. Off keeps it along the bottom of the player.",
-            checked = settings.queueHandleTop,
-            onCheckedChange = { settings.queueHandleTop = it },
-            icon = OuterTuneIcons.queueMusic,
-        )
-        SettingSwitch(
             title = "Visualiser",
             subtitle = "Spectrum bars above the seek bar.",
             checked = settings.showVisualizer,
@@ -598,6 +585,42 @@ private fun PlayerSettings(settings: Settings) {
             icon = OuterTuneIcons.equalizer,
         )
     }
+    // Everything about the queue in one place: how its handle looks on the player, and what is kept.
+    Section("Queue") {
+        SettingSwitch(
+            title = "Show queue title",
+            subtitle = "Name the queue beside the queue handle on the player.",
+            checked = settings.showQueueTitle,
+            onCheckedChange = { settings.showQueueTitle = it },
+            icon = OuterTuneIcons.queueMusic,
+        )
+        SettingSwitch(
+            title = "Queue handle in the title bar",
+            subtitle = "In a wide window, beside the window buttons. Off keeps it along the bottom of the player.",
+            checked = settings.queueHandleTop,
+            onCheckedChange = { settings.queueHandleTop = it },
+            icon = OuterTuneIcons.queueMusic,
+        )
+        SettingSwitch(
+            title = "Remember the queue",
+            subtitle = "Keeps the queue, and where you were in it, for next time.",
+            checked = settings.persistentQueue,
+            onCheckedChange = { settings.persistentQueue = it },
+            icon = OuterTuneIcons.queueMusic,
+        )
+        SettingSlider(
+            title = "Queues to keep",
+            subtitle = "Playing something new keeps the queue it replaces, to switch back to from the queue's title.",
+            icon = OuterTuneIcons.queueMusic,
+            value = settings.maxQueues,
+            range = 1..50,
+            step = 1,
+            format = { "$it" },
+            default = 19,
+            onChange = { settings.maxQueues = it },
+            divider = false,
+        )
+    }
     Section("Audio") {
         SettingChoice(
             title = "Audio quality",
@@ -635,24 +658,6 @@ private fun PlayerSettings(settings: Settings) {
             checked = settings.skipOnError,
             onCheckedChange = { settings.skipOnError = it },
             icon = OuterTuneIcons.skipNext,
-        )
-        SettingSwitch(
-            title = "Remember the queue",
-            subtitle = "Keeps the queue, and where you were in it, for next time.",
-            checked = settings.persistentQueue,
-            onCheckedChange = { settings.persistentQueue = it },
-            icon = OuterTuneIcons.queueMusic,
-        )
-        SettingSlider(
-            title = "Queues to keep",
-            subtitle = "Playing something new keeps the queue it replaces, to switch back to from the queue's title.",
-            icon = OuterTuneIcons.queueMusic,
-            value = settings.maxQueues,
-            range = 1..50,
-            step = 1,
-            format = { "$it" },
-            default = 19,
-            onChange = { settings.maxQueues = it },
         )
         SettingSlider(
             title = "Count a play after",

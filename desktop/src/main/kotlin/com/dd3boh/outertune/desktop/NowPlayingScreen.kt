@@ -6,6 +6,8 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.boundsInWindow
@@ -329,19 +331,6 @@ fun NowPlayingScreen(
     val captionInset = LocalCaptionInset.current
     val queueInTitleBar = sideBySide && queueHandleTop && NativeFrame.active && captionInset > 0.dp &&
         playerLayout?.block("queue")?.visible != false
-    if (queueInTitleBar) {
-        TitleBarQueueHandle(
-            queue = queue,
-            onColour = onBackground,
-            open = queueOpen,
-            onToggle = { queueOpen = !queueOpen },
-            showTitle = showQueueTitle,
-            modifier = Modifier
-                .align(Alignment.TopEnd)
-                .padding(end = WindowChrome.buttonsWidth)
-                .height(captionInset),
-        )
-    }
 
     // The background above runs to the top edge; the controls keep clear of the window buttons.
     Row(modifier = Modifier.fillMaxSize().padding(top = LocalCaptionInset.current)) {
@@ -963,7 +952,19 @@ fun NowPlayingScreen(
             animationSpec = spring(dampingRatio = 1f, stiffness = Spring.StiffnessMediumLow),
         )
         if (dockWidth > 0.dp) {
-            Box(modifier = Modifier.width(dockWidth).fillMaxHeight().clipToBounds()) {
+            Box(
+                modifier = Modifier
+                    .width(dockWidth)
+                    .fillMaxHeight()
+                    // The queue's own shade carried up through the title bar strip above it, so the
+                    // panel runs to the top of the window rather than stopping a strip short of it.
+                    // Drawn before the clip, which would otherwise cut it off at the panel's top.
+                    .drawBehind {
+                        val inset = captionInset.toPx()
+                        if (inset > 0f) drawRect(DOCKED_QUEUE_SHADE, topLeft = Offset(0f, -inset), size = Size(size.width, inset))
+                    }
+                    .clipToBounds(),
+            ) {
                 QueueOverlay(
                     queue = queue,
                     savedQueues = savedQueues,
@@ -989,6 +990,21 @@ fun NowPlayingScreen(
             }
         }
     }
+    }
+
+    // After the docked queue, whose shade runs up behind it - see TitleBarQueueHandle.
+    if (queueInTitleBar) {
+        TitleBarQueueHandle(
+            queue = queue,
+            onColour = onBackground,
+            open = queueOpen,
+            onToggle = { queueOpen = !queueOpen },
+            showTitle = showQueueTitle,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(end = WindowChrome.buttonsWidth)
+                .height(captionInset),
+        )
     }
 
     // Over the whole window, docked queue included, and for the same reason the queue covers the
@@ -1393,6 +1409,9 @@ private fun QueueBar(
     }
 }
 
+/** The docked queue's shade over the player background - and over the title bar strip above it. */
+private val DOCKED_QUEUE_SHADE = Color.Black.copy(alpha = 0.22f)
+
 /**
  * The docked queue's handle in the title bar: its name and an arrow pointing at the queue, sized to
  * what it holds so the rest of the strip still drags the window. Its bounds are handed to the native
@@ -1465,7 +1484,7 @@ private fun SidewaysQueueHandle(
     val scrim by animateFloatAsState(if (hovered) 0.3f else 0.12f)
     val turn by animateFloatAsState(if (open) -90f else 90f)
     Row(
-        horizontalArrangement = if (showTitle) Arrangement.SpaceBetween else Arrangement.End,
+        horizontalArrangement = Arrangement.End,
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
             .fillMaxWidth()
@@ -1686,7 +1705,7 @@ private fun QueueOverlay(
                 // Opaque as a sheet, unlike the closed bar's scrim: a translucent list over album
                 // art is a list that cannot be read. Docked, it sits over the cover's gradient
                 // rather than the art, so a light scrim keeps it one surface with the player.
-                .background(if (docked) Color.Black.copy(alpha = 0.22f) else background)
+                .background(if (docked) DOCKED_QUEUE_SHADE else background)
                 .draggable(
                     orientation = Orientation.Vertical,
                     state = rememberDraggableState { },
