@@ -113,16 +113,30 @@ class StatsViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     /**
+     * Every song's own plays in the period, for the totals to measure the history against. Not
+     * [localPool]: its size follows the song count chosen for the chart, so a song outside it had
+     * all its history plays counted as extra, and the totals changed between 20, 50, 100 and all.
+     * Read only while the history is on - off, the totals are the database's own.
+     */
+    private val periodPlays: StateFlow<Map<String, Int>> =
+        combine(statPeriod, remoteTally.map { it.isEmpty() }.distinctUntilChanged()) { period, none -> period to none }
+            .flatMapLatest { (period, none) ->
+                if (none) flowOf(emptyMap())
+                else database.mostPlayedSongsWithStats(period.toTimeMillis(), limit = ALL, byPlayTime = false)
+                    .map { songs -> songs.associate { it.song.id to it.totalPlays } }
+            }
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+
+    /**
      * Plays and listening time in the period, for the header beside the title - with what the
      * history adds over this device's own plays, so the totals agree with the chart under them.
      */
     val totals = combine(
         statPeriod.flatMapLatest { period -> database.playTotals(period.toTimeMillis()) },
         remoteTally,
-        localPool,
-    ) { local, tally, pool ->
+        periodPlays,
+    ) { local, tally, localPlays ->
         if (local == null || tally.isEmpty()) return@combine local
-        val localPlays = pool.associate { it.song.id to it.totalPlays }
         var plays = 0
         var time = 0L
         tally.values.forEach { remote ->
