@@ -70,7 +70,8 @@ fun PlaylistsPane(
     onCreate: (String) -> Unit,
     onRename: (StoredPlaylist, String) -> Unit,
     onDelete: (StoredPlaylist) -> Unit,
-    onPlay: (List<StoredSong>, Int) -> Unit,
+    /** The songs, where to start, and the queue's name when it is not the open playlist's own. */
+    onPlay: (List<StoredSong>, Int, String?) -> Unit,
     onRemoveSong: (StoredPlaylist, StoredSong) -> Unit,
     onMoveSong: (StoredPlaylist, Int, Int) -> Unit,
     /** Playlists saved on YouTube. Empty when signed out, which is not an error. */
@@ -116,8 +117,8 @@ fun PlaylistsPane(
                 TextButton(onClick = { auto = null }) { Text("← Playlists") }
                 Text(title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 if (songs.isNotEmpty()) {
-                    TextButton(onClick = { onPlay(songs, 0) }) { Text("Play") }
-                    TextButton(onClick = { onPlay(songs.shuffled(), 0) }) { Text("Shuffle") }
+                    TextButton(onClick = { onPlay(songs, 0, title) }) { Text("Play") }
+                    TextButton(onClick = { onPlay(songs.shuffled(), 0, title) }) { Text("Shuffle") }
                 }
             }
             if (songs.isEmpty()) {
@@ -131,7 +132,7 @@ fun PlaylistsPane(
             } else {
                 LazyColumn {
                     itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
-                        StoredSongRow(song, playing = song.id == currentId) { onPlay(songs, index) }
+                        StoredSongRow(song, playing = song.id == currentId) { onPlay(songs, index, title) }
                     }
                 }
             }
@@ -351,7 +352,7 @@ fun PlaylistsPane(
                 ) {
                     Box(modifier = Modifier.weight(1f)) {
                         StoredSongRow(song, playing = song.id == currentId) {
-                            onPlay(songsInSelected, index)
+                            onPlay(songsInSelected, index, null)
                         }
                     }
                     TextButton(onClick = { onRemoveSong(selected, song) }) { Text("✕") }

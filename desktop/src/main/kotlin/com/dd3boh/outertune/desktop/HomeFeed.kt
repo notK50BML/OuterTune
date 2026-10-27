@@ -206,13 +206,14 @@ val YTItem.playlistIdOrNull: String?
     }
 
 /**
- * A station or mix on the home page. YouTube sends one as a song - its first - with the station's
- * own list as the playlist to play it in; a plain song's playlist, when it has one, is just its own
- * radio (RDAMVM + its id). Played as a song, a station gave one track and then went on to the next
- * station's first, since the rest of its row was queued behind it.
+ * A home card that plays a list of its own: a station, a mix, a song's radio. YouTube sends each
+ * as a song - its first - with the list as the playlist to play it in. Played as a song, a station
+ * gave one track and then went on to the next card's, since the rest of its row was queued behind
+ * it. A song radio's list (RDAMVM + its id) counts too: it was left out at first as "just a song",
+ * and that left the radio stations doing exactly that. The phone plays every such card this way.
  */
 val YTItem.isStation: Boolean
-    get() = this is SongItem && endpoint?.playlistId?.let { !it.startsWith("RDAMVM") } == true
+    get() = this is SongItem && endpoint?.playlistId != null
 
 /** [subtitle], with a song's artists as they are shown everywhere - see SongItem.shown. */
 @androidx.compose.runtime.Composable

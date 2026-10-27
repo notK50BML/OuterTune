@@ -1463,7 +1463,11 @@ internal fun App(
                         onCreate = { library.createPlaylist(it) },
                         onRename = { playlist, name -> library.renamePlaylist(playlist.id, name) },
                         onDelete = { library.deletePlaylist(it.id) },
-                        onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, selectedPlaylist?.name ?: "Playlist") },
+                        // Liked and Downloaded songs are not playlists of their own, so they name their queue;
+                        // before, they fell through to "Playlist".
+                        onPlay = { songs, index, title ->
+                            playerQueue.play(songs.map { it.toItem() }, index, title ?: selectedPlaylist?.name ?: "Playlist")
+                        },
                         onRemoveSong = { playlist, song -> library.removeFromPlaylist(playlist.id, song.id) },
                         saved = savedPlaylists,
                         // Opens the playlist's page, as on the phone, rather than playing it blind.
