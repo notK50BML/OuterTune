@@ -29,4 +29,14 @@ class PlayCountingTest {
         assertFalse(countsAsPlay(playedMs = 1, durationSeconds = 0, minRatio = 0.3f))
         assertFalse(countsAsPlay(playedMs = 0, durationSeconds = 0, minRatio = 0.3f))
     }
+
+    @Test
+    fun `a play goes to the account only when it is the listener's own and signed in`() {
+        assertTrue(sharesPlayWithAccount(fromStation = false, isLocal = false, signedIn = true, remotePaused = false))
+        // A station's pick would come back from the history into Stats, which leaves it out.
+        assertFalse(sharesPlayWithAccount(fromStation = true, isLocal = false, signedIn = true, remotePaused = false))
+        assertFalse(sharesPlayWithAccount(fromStation = false, isLocal = true, signedIn = true, remotePaused = false))
+        assertFalse(sharesPlayWithAccount(fromStation = false, isLocal = false, signedIn = false, remotePaused = false))
+        assertFalse(sharesPlayWithAccount(fromStation = false, isLocal = false, signedIn = true, remotePaused = true))
+    }
 }

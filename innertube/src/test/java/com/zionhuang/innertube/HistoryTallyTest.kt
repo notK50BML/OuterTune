@@ -39,9 +39,32 @@ class HistoryTallyTest {
     }
 
     @Test
+    fun `weekday sections are the last such day before today`() {
+        // Today is a Wednesday: Monday was two days ago, so its plays are at most three days old.
+        assertEquals(3L, HistoryTally.maxAgeDays("Monday", today))
+        assertEquals(5L, HistoryTally.maxAgeDays("Saturday", today))
+        // Today's own name has a section of its own, so a "Wednesday" is last week's.
+        assertEquals(8L, HistoryTally.maxAgeDays("Wednesday", today))
+    }
+
+    @Test
+    fun `a day of the month is a day, not a year`() {
+        assertEquals(19L, HistoryTally.maxAgeDays("October 3", today))
+        assertEquals(19L, HistoryTally.maxAgeDays("Oct 3", today))
+        assertEquals(384L, HistoryTally.maxAgeDays("Oct 3, 2025", today))
+        // Not come yet this year, so last year's.
+        assertEquals(325L, HistoryTally.maxAgeDays("December 1", today))
+        assertEquals(51L, HistoryTally.maxAgeDays("Sep 2026", today))
+    }
+
+    @Test
     fun `a title that cannot be dated is not guessed at`() {
         assertNull(HistoryTally.maxAgeDays("Earlier", today))
         assertNull(HistoryTally.maxAgeDays("", today))
+        // Other languages are not guessed at either - Stats asks for English titles.
+        assertNull(HistoryTally.maxAgeDays("Hoy", today))
+        assertNull(HistoryTally.maxAgeDays("Oktober 2026", today))
+        assertNull(HistoryTally.maxAgeDays("October 3 2025 4", today))
     }
 
     @Test

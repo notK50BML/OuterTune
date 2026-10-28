@@ -1777,7 +1777,7 @@ class MusicService : MediaLibraryService(),
             val played = countsAsPlay(playbackStats.totalPlayTimeMs, mediaItem.metadata?.duration, minPlaybackDur)
             if (SERVICE_DEBUG) Log.d(TAG, "Played ${playbackStats.totalPlayTimeMs} ms, counts: $played, min ratio: $minPlaybackDur")
             // A song heard from a station is the station's pick, not the listener's - not counted
-            // here. It was still heard, so YouTube's watch history below gets it as before.
+            // here, and not sent to the account below either (see sharesPlayWithAccount).
             if (played && !dataStore.get(PauseListenHistoryKey, false)) {
                 if (!fromStation) database.query {
                     incrementPlayCount(mediaItem.mediaId)
@@ -1794,7 +1794,12 @@ class MusicService : MediaLibraryService(),
                 }
 
                 // TODO: support playlist id
-                val ytHist = mediaItem.metadata?.isLocal != true && !dataStore.get(PauseRemoteListenHistoryKey, false)
+                val ytHist = sharesPlayWithAccount(
+                    fromStation = fromStation,
+                    isLocal = mediaItem.metadata?.isLocal == true,
+                    signedIn = YouTube.cookie != null,
+                    remotePaused = dataStore.get(PauseRemoteListenHistoryKey, false),
+                )
                 if (SERVICE_DEBUG) Log.d(TAG, "Trying to register remote history: $ytHist")
                 if (ytHist) {
                     val metaResult = YTPlayerUtils.playerResponseForMetadata(mediaItem.mediaId, null)
@@ -1810,7 +1815,14 @@ class MusicService : MediaLibraryService(),
                     )
                     val playbackUrl = response?.playbackTracking?.videostatsPlaybackUrl?.baseUrl
                     if (SERVICE_DEBUG) Log.d(TAG, "Got playback url: $playbackUrl")
-                    playbackUrl?.let {
+                    // Reported either way: without a tracking URL the play never reaches the
+                    // account, and that used to happen without a trace.
+                    if (playbackUrl == null) {
+                        reportException(
+                            metaResult.exceptionOrNull()
+                                ?: IllegalStateException("No playback tracking URL for ${mediaItem.mediaId}")
+                        )
+                    } else {
                         YouTube.registerPlayback(null, playbackUrl)
                             .onFailure {
                                 reportException(it)

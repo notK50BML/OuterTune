@@ -225,20 +225,18 @@ class StatsViewModel @Inject constructor(
 
 
     /**
-     * Walks YouTube's history and counts how many times each song appears.
+     * Walks YouTube's history, for HistoryTally to count how many times each song appears.
      *
-     * The count is the whole measurement. YouTube writes a history entry only once a song has
-     * finished, so an entry is a completed play and the time it represents is the track's own
-     * length - there is no partial listening to account for, and no timestamp needed to do it.
-     * That is why this can contribute to time-listened at all, which the history's coarse "Today"
-     * / "This week" section labels could never support on their own.
+     * Each entry stands for a play of the whole track - the history has no listening time, only
+     * that the song was played - so that is what it adds to time listened (see historyPlayTime).
+     * In English, whatever the app's content language: the sections are dated by their titles.
      *
      * Bounded by [MAX_HISTORY_PAGES] because history has no end: each page is one round trip, and
      * paging until YouTube runs out would be an unbounded number of them for a diminishing tail.
      */
     private suspend fun fetchRemoteHistory(): List<HistoryPage.HistorySection> {
         val sections = ArrayList<HistoryPage.HistorySection>()
-        var page = YouTube.musicHistory().getOrElse {
+        var page = YouTube.musicHistory(hl = HISTORY_LANGUAGE).getOrElse {
             reportException(it)
             return emptyList()
         }
@@ -247,7 +245,7 @@ class StatsViewModel @Inject constructor(
             sections += page.sections.orEmpty()
             val continuation = page.continuation ?: break
             if (++pagesRead >= MAX_HISTORY_PAGES) break
-            page = YouTube.musicHistoryContinuation(continuation).getOrNull() ?: break
+            page = YouTube.musicHistoryContinuation(continuation, hl = HISTORY_LANGUAGE).getOrNull() ?: break
         }
         return sections
     }
@@ -261,6 +259,9 @@ class StatsViewModel @Inject constructor(
 
         /** ~20 songs a page, so this reaches a few thousand plays back. */
         private const val MAX_HISTORY_PAGES = 40
+
+        /** The language HistoryTally reads section titles in. */
+        private const val HISTORY_LANGUAGE = "en"
     }
 }
 

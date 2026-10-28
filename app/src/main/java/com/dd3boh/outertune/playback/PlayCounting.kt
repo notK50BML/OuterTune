@@ -19,3 +19,14 @@ fun countsAsPlay(playedMs: Long, durationSeconds: Int?, minRatio: Float): Boolea
     if (playedMs <= 0 || durationSeconds == null || durationSeconds <= 0) return false
     return playedMs.toFloat() / (durationSeconds * 1000f) >= minRatio
 }
+
+/**
+ * Whether a play counted here is also put in the account's YouTube Music history.
+ *
+ * Not a station's pick: Stats leaves those out, and reads the account's history back in as plays
+ * made elsewhere - one sent there came straight back, so every station pick reappeared. The
+ * desktop never sent them. Not a file on this phone, which YouTube has never heard of; and only
+ * signed in, since without the account's cookie the ping lands in nobody's history.
+ */
+fun sharesPlayWithAccount(fromStation: Boolean, isLocal: Boolean, signedIn: Boolean, remotePaused: Boolean): Boolean =
+    !fromStation && !isLocal && signedIn && !remotePaused

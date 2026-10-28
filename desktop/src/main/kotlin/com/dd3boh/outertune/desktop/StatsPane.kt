@@ -64,16 +64,20 @@ enum class StatsPeriod(val label: String, val days: Long?) {
 /**
  * The account's YouTube Music history, newest first - as many pages as [MAX_HISTORY_PAGES] allows,
  * since it has no end and each page is a request. Empty when it cannot be read.
+ *
+ * In English whatever the content language, as on the phone: HistoryTally dates the sections by
+ * their titles and reads English ones only, so with any other language the history counted only
+ * towards "All".
  */
 private suspend fun readHistory(): List<HistoryPage.HistorySection> {
     val sections = ArrayList<HistoryPage.HistorySection>()
-    var page = YouTube.musicHistory().getOrNull() ?: return emptyList()
+    var page = YouTube.musicHistory(hl = "en").getOrNull() ?: return emptyList()
     var pages = 0
     while (true) {
         sections += page.sections.orEmpty()
         val next = page.continuation ?: break
         if (++pages >= MAX_HISTORY_PAGES) break
-        page = YouTube.musicHistoryContinuation(next).getOrNull() ?: break
+        page = YouTube.musicHistoryContinuation(next, hl = "en").getOrNull() ?: break
     }
     return sections
 }

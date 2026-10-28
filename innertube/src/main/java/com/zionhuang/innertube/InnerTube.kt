@@ -240,13 +240,19 @@ class InnerTube {
         )
     }
 
+    /**
+     * The "playback" ping. Sent with the account's cookie, it is what puts the song in that
+     * account's YouTube Music history - [setLogin] false sends it as nobody, for telemetry that
+     * must not be mistaken for a play (see YouTube.initPlayback).
+     */
     suspend fun registerPlayback(
         url: String,
         cpn: String,
         playlistId: String?,
         client: YouTubeClient = YouTubeClient.WEB_REMIX,
+        setLogin: Boolean = true,
     ) = httpClient.get(url) {
-        ytClient(client, true)
+        ytClient(client, setLogin)
         parameter("ver", "2")
         parameter("c", client.clientName)
         parameter("cpn", cpn)
@@ -269,8 +275,9 @@ class InnerTube {
         endSeconds: String,
         playlistId: String?,
         client: YouTubeClient = YouTubeClient.WEB_REMIX,
+        setLogin: Boolean = true,
     ) = httpClient.get(url) {
-        ytClient(client, true)
+        ytClient(client, setLogin)
         parameter("ver", "2")
         parameter("c", client.clientName)
         parameter("cpn", cpn)
@@ -290,8 +297,9 @@ class InnerTube {
         cpn: String,
         playlistId: String?,
         client: YouTubeClient = YouTubeClient.WEB_REMIX,
+        setLogin: Boolean = true,
     ) = httpClient.post(url) {
-        ytClient(client, true)
+        ytClient(client, setLogin)
         parameter("cpn", cpn)
 
         if (playlistId != null) {
@@ -308,12 +316,14 @@ class InnerTube {
         setLogin: Boolean = false,
         /** Asks as if from this country instead of the content country - see YouTube.album. */
         gl: String? = null,
+        /** Asks in this language instead of the content language - see YouTube.musicHistory. */
+        hl: String? = null,
     ) = httpClient.post("browse") {
         ytClient(client, setLogin = setLogin || useLoginForBrowse)
         setBody(
             BrowseBody(
                 context = client.toContext(
-                    gl?.let { locale.copy(gl = it) } ?: locale,
+                    locale.let { l -> gl?.let { l.copy(gl = it) } ?: l }.let { l -> hl?.let { l.copy(hl = it) } ?: l },
                     visitorData,
                     if (setLogin || useLoginForBrowse) dataSyncId else null
                 ),

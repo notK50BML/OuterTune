@@ -660,11 +660,18 @@ object YouTube {
         )
     }
 
-    suspend fun musicHistory() = runCatching {
+    /**
+     * The account's history, newest first, in sections titled by date. [hl] asks for the titles in
+     * that language instead of the content language: Stats passes "en", because it dates sections
+     * by their titles and reads only English ones (see HistoryTally.maxAgeDays). A phone in any
+     * other language got titles it could not date, and its history counted only towards "All".
+     */
+    suspend fun musicHistory(hl: String? = null) = runCatching {
         val response = innerTube.browse(
             client = WEB_REMIX,
             browseId = "FEmusic_history",
-            setLogin = true
+            setLogin = true,
+            hl = hl,
         ).body<BrowseResponse>()
 
         val shelves = response.contents?.singleColumnBrowseResultsRenderer?.tabs?.firstOrNull()
@@ -687,11 +694,12 @@ object YouTube {
      * The continuation response is a flat item list, not shelves grouped by date - callers
      * append [HistoryPage.sections] songs onto whichever section they're extending.
      */
-    suspend fun musicHistoryContinuation(continuation: String) = runCatching {
+    suspend fun musicHistoryContinuation(continuation: String, hl: String? = null) = runCatching {
         val response = innerTube.browse(
             client = WEB_REMIX,
             continuation = continuation,
-            setLogin = true
+            setLogin = true,
+            hl = hl,
         ).body<BrowseResponse>()
 
         val shelfContinuation = response.continuationContents?.musicShelfContinuation
@@ -859,6 +867,12 @@ object YouTube {
      * this playback is using, so the ping traffic and the audio fetch correlate the way a real
      * client's do. Best-effort and fire-and-forget: a failure here doesn't affect playback itself,
      * only how much this playback resembles a real client's traffic.
+     *
+     * Sent without the account's cookie. With it, the "playback" hit is the very request that
+     * writes a song into the account's history, so every streamed song went in the moment it
+     * started: songs skipped after two seconds, station picks, live streams, and with history
+     * paused too. Stats then read those back from the history as plays made elsewhere. A play
+     * reaches the account only through [registerPlayback], once the app has decided it counts.
      */
     suspend fun initPlayback(
         playlistId: String?,
@@ -869,20 +883,22 @@ object YouTube {
         val watchtimeUrl = playbackTracking.videostatsWatchtimeUrl?.baseUrl?.toMusicHost()
         val atrUrl = playbackTracking.atrUrl?.baseUrl?.toMusicHost()
 
-        innerTube.registerPlayback(url = playbackUrl, playlistId = playlistId, cpn = cpn)
+        innerTube.registerPlayback(url = playbackUrl, playlistId = playlistId, cpn = cpn, setLogin = false)
         if (watchtimeUrl == null) return@runCatching
 
-        innerTube.registerWatchtime(watchtimeUrl, cpn, startSeconds = "0", endSeconds = "5.54", playlistId = playlistId)
+        innerTube.registerWatchtime(
+            watchtimeUrl, cpn, startSeconds = "0", endSeconds = "5.54", playlistId = playlistId, setLogin = false
+        )
         if (atrUrl == null) return@runCatching
 
         delay(5000)
-        innerTube.registerAtr(atrUrl, cpn, playlistId)
+        innerTube.registerAtr(atrUrl, cpn, playlistId, setLogin = false)
         delay(500)
         val secondCheckpoint = 5.54f + Random.nextInt(0, 100) / 100f
         innerTube.registerWatchtime(
             watchtimeUrl, cpn,
             startSeconds = "0,5.54", endSeconds = "5.54,$secondCheckpoint",
-            playlistId = playlistId
+            playlistId = playlistId, setLogin = false
         )
     }
 

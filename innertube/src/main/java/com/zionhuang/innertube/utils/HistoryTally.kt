@@ -2,6 +2,7 @@ package com.zionhuang.innertube.utils
 
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.pages.HistoryPage
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
 import java.time.format.TextStyle
@@ -25,10 +26,11 @@ object HistoryTally {
     /**
      * The oldest, in days counting today as 1, that a play in the section called [title] can be -
      * or null for a title that cannot be dated, which is then counted only for all time.
-     * English titles: the clients ask YouTube for English.
+     * English titles: Stats asks YouTube for its history in English (see YouTube.musicHistory).
      */
     fun maxAgeDays(title: String, today: LocalDate = LocalDate.now()): Long? {
-        when (title.trim().lowercase()) {
+        val text = title.trim().lowercase(Locale.ENGLISH)
+        when (text) {
             "today" -> return 1
             "yesterday" -> return 2
             "this week" -> return today.dayOfWeek.value.toLong().coerceAtLeast(2)
@@ -36,26 +38,45 @@ object HistoryTally {
             "this month" -> return today.dayOfMonth.toLong().coerceAtLeast(2)
             "last month" -> return ChronoUnit.DAYS.between(today.minusMonths(1).withDayOfMonth(1), today) + 1
         }
-        // "March 2026", or "March" for this year.
-        val parts = title.trim().split(Regex("\\s+"))
-        val month = Month.entries.firstOrNull {
-            it.getDisplayName(TextStyle.FULL, Locale.ENGLISH).equals(parts.firstOrNull(), ignoreCase = true)
+        // "Monday": the last one before today. Today's own name can only mean a week ago, since
+        // today has a section of its own.
+        DayOfWeek.entries.firstOrNull { it.getDisplayName(TextStyle.FULL, Locale.ENGLISH).equals(text, ignoreCase = true) }
+            ?.let { day ->
+                val back = (today.dayOfWeek.value - day.value).mod(7).let { if (it == 0) 7 else it }
+                return back + 1L
+            }
+        // "March 2026", "March" for this year, or one day: "March 3", "March 3, 2025".
+        val parts = text.replace(",", " ").split(Regex("\\s+"))
+        val month = Month.entries.firstOrNull { month ->
+            listOf(TextStyle.FULL, TextStyle.SHORT).any {
+                month.getDisplayName(it, Locale.ENGLISH).equals(parts.firstOrNull(), ignoreCase = true)
+            }
         } ?: return null
+        val numbers = parts.drop(1).map { it.toIntOrNull() ?: return null }
+        // A number that could be a day of the month is one - "March 3" used to be read as the
+        // year 3, which put the section two thousand years back, out of every period but "All".
+        val day = numbers.firstOrNull()?.takeIf { it in 1..31 && numbers.size <= 2 }
         val year = when {
-            parts.size >= 2 -> parts[1].toIntOrNull() ?: return null
-            // A month name alone is this year's - or last year's, if that month has not come yet.
-            month.value > today.monthValue -> today.year - 1
-            else -> today.year
+            day != null && numbers.size == 2 -> numbers[1]
+            day == null && numbers.size == 1 -> numbers[0]
+            numbers.isNotEmpty() && day == null -> return null
+            // No year: this year's - or last year's, if that date has not come yet.
+            else -> today.year.let { year ->
+                val thisYear = runCatching { LocalDate.of(year, month, day ?: 1) }.getOrNull() ?: return null
+                if (thisYear.isAfter(today)) year - 1 else year
+            }
         }
-        val start = LocalDate.of(year, month, 1)
+        val start = runCatching { LocalDate.of(year, month, day ?: 1) }.getOrNull() ?: return null
         if (start.isAfter(today)) return null
         return ChronoUnit.DAYS.between(start, today) + 1
     }
 
     /**
      * Each song's plays in [sections], counting only sections no older than [periodDays] - all of
-     * them when it is null. YouTube writes a history entry once a song has been played through, so
-     * each entry is one completed play.
+     * them when it is null. Each entry is taken as one play. That is a floor, not a count: an entry
+     * is written when a client reports a play (OuterTune does once a play counts), and a song played
+     * again may be moved up rather than listed twice - so a song is never counted more often than
+     * the history shows it, and [extraPlays] never adds more than that.
      */
     fun tally(
         sections: List<HistoryPage.HistorySection>,
