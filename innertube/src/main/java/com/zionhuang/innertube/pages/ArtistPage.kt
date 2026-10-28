@@ -64,12 +64,20 @@ data class ArtistPage(
                 title = renderer.flexColumns.firstOrNull()
                     ?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.firstOrNull()
                     ?.text ?: return null,
-                artists = PageHelper.extractRuns(renderer.flexColumns, "MUSIC_PAGE_TYPE_ARTIST").ifEmpty { renderer.flexColumns.getOrNull(1)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs }?.oddElements()?.map {
+                // oddElements belongs to the fallback only. The raw column alternates names with
+                // their " & " / ", " separators, so every other run is a name; extractRuns has
+                // already dropped the separators, and halving its list as well threw away every
+                // second artist. "A & B" on B's own Songs shelf read as "A" alone - a song on an
+                // artist's page that did not seem to credit them.
+                artists = PageHelper.extractRuns(renderer.flexColumns, "MUSIC_PAGE_TYPE_ARTIST").ifEmpty {
+                    renderer.flexColumns.getOrNull(1)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs?.oddElements()
+                        ?: return null
+                }.map {
                     Artist(
                         name = it.text,
                         id = it.navigationEndpoint?.browseEndpoint?.browseId
                     )
-                } ?: return null,
+                },
                 album = PageHelper.extractRuns(renderer.flexColumns, "MUSIC_PAGE_TYPE_ALBUM").ifEmpty { renderer.flexColumns.getOrNull(3)?.musicResponsiveListItemFlexColumnRenderer?.text?.runs }?.firstOrNull()?.let {
                     Album(
                         name = it.text,
