@@ -69,6 +69,7 @@ object NativeFrame {
         fun SetWindowPos(hwnd: Pointer, after: Pointer?, x: Int, y: Int, cx: Int, cy: Int, flags: Int): Boolean
         fun IsZoomed(hwnd: Pointer): Boolean
         fun IsIconic(hwnd: Pointer): Boolean
+        fun GetClientRect(hwnd: Pointer, rect: RECT): Boolean
         fun ShowWindow(hwnd: Pointer, cmd: Int): Boolean
         fun ScreenToClient(hwnd: Pointer, point: POINT): Boolean
         fun GetDpiForWindow(hwnd: Pointer): Int
@@ -230,8 +231,15 @@ object NativeFrame {
         u.ScreenToClient(hwnd, p)
         val zoomed = u.IsZoomed(hwnd)
         val edge = frameThickness(u, hwnd)
+        val width = RECT().also { u.GetClientRect(hwnd, it) }.right
+        // The outermost few pixels of the top edge resize even over the window buttons, as a real
+        // title bar's do - without them the top-right corner, which the close button covers, could
+        // not be taken hold of at all. Below that band the buttons are buttons.
+        val band = (edge / 2).coerceAtLeast(2)
         return when {
             !zoomed && p.y < edge && p.x < edge * 2 -> HTTOPLEFT
+            !zoomed && p.y < band && width > 0 && p.x >= width - edge * 2 -> HTTOPRIGHT
+            !zoomed && p.y < band -> HTTOP
             !zoomed && p.y < edge && otherButtons.none { it.contains(p.x, p.y) } &&
                 clientAreas.values.none { it.contains(p.x, p.y) } &&
                 maximiseButton?.contains(p.x, p.y) != true -> HTTOP
@@ -318,7 +326,7 @@ object NativeFrame {
                 // caption and the top edge, so the strip said "caption" and dragging it did
                 // nothing. Windows' default starts the move or resize, and maximises on a double
                 // click - exactly what a real title bar does.
-                HTCAPTION, HTTOP, HTTOPLEFT -> return u.DefWindowProcW(hwnd, msg, wParam, lParam)
+                HTCAPTION, HTTOP, HTTOPLEFT, HTTOPRIGHT -> return u.DefWindowProcW(hwnd, msg, wParam, lParam)
             }
             // Right-click on the strip: the window's system menu (move, size, minimise, close).
             WM_NCRBUTTONDOWN, WM_NCRBUTTONUP -> if (wParam == HTCAPTION) return u.DefWindowProcW(hwnd, msg, wParam, lParam)

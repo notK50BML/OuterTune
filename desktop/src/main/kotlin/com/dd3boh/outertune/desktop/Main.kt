@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlinx.coroutines.flow.collectLatest
 import com.zionhuang.innertube.models.isStationPlaylistId
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -135,7 +136,13 @@ import kotlinx.coroutines.withContext
  * costs a second or two on a big track and buys two things: no network remains to fail once audio
  * starts, so a mid-song 403 cannot happen, and seeking is arithmetic rather than a new request.
  */
-fun main() = application {
+fun main() {
+    // Before the window: which way it is drawn cannot change once it is open - see RenderMode.
+    RenderMode.apply()
+    runApplication()
+}
+
+private fun runApplication() = application {
     // Set here because it needs no network call, and search will not work without it - YouTube
     // answers 400 INVALID_ARGUMENT, which reads like a platform problem and is not one.
     // The content language and country come from settings once the library is open - see below.
@@ -172,7 +179,14 @@ fun main() = application {
         Runtime.getRuntime().addShutdownHook(Thread { runCatching { library.close() } })
     }
 
-    val windowState = rememberWindowState(width = 1000.dp, height = 700.dp)
+    // Where it was last time - see WindowMemory. Opened floating at its floating size even when it
+    // was maximised: asked to start maximised the window simply did not, and maximising once it is
+    // up (below) also leaves it the right size to go back to.
+    val startMaximised = remember { settings.windowMaximised }
+    val windowState = rememberWindowState(
+        position = WindowMemory.initialPosition(settings),
+        size = WindowMemory.initialSize(settings),
+    )
     val useNativeFrame = remember { System.getProperty("os.name").orEmpty().startsWith("Windows") }
     Window(
         onCloseRequest = quit,
@@ -192,8 +206,24 @@ fun main() = application {
         onKeyEvent = { KeyRouter.handle(it) },
     ) {
         LaunchedEffect(Unit) {
+            // Below this the layout runs out of room: the player bar's title shrinks to a letter.
+            window.minimumSize = java.awt.Dimension(WindowMemory.MIN_WIDTH, WindowMemory.MIN_HEIGHT)
             if (useNativeFrame) NativeFrame.install(window) else WindowCorners.round(window)
             MemoryTrim.install(window, onMinimised = { player.inBackground = it })
+            // Through the window's own state, and only once it is on screen: set on the frame directly,
+            // while the window was still being shown, it sometimes came up minimised instead.
+            if (startMaximised) {
+                while (!window.isShowing) kotlinx.coroutines.delay(16)
+                windowState.placement = androidx.compose.ui.window.WindowPlacement.Maximized
+            }
+        }
+        LaunchedEffect(windowState) {
+            snapshotFlow { listOf(windowState.placement, windowState.position, windowState.size, windowState.isMinimized) }
+                .collectLatest {
+                    // Settled first: a drag sends a change every frame, and each is a settings write.
+                    kotlinx.coroutines.delay(500)
+                    WindowMemory.remember(settings, windowState)
+                }
         }
         // A real frame that could not be hooked keeps Windows' own title bar, so draws no second one.
         val customChrome = !useNativeFrame || NativeFrame.active

@@ -170,6 +170,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Back up library", SettingsCategory.Backup, "export backup save"),
     SettingEntry("Where the library is stored", SettingsCategory.Backup, "database file path backup sqlite"),
     SettingEntry("Version", SettingsCategory.About, "about github"),
+    SettingEntry("Draw without the graphics card", SettingsCategory.About, "memory ram gpu software rendering performance"),
 )
 
 /** YouTube's content languages and countries the phone offers most, by code and name. */
@@ -1593,6 +1594,18 @@ private fun AboutSettings(settings: Settings) {
     val scope = rememberCoroutineScope()
     val update by DesktopUpdater.state.collectAsState()
     Section("OuterTune for desktop") {
+        var onProcessor by remember { mutableStateOf(RenderMode.chosen()) }
+        SettingSwitch(
+            title = "Draw without the graphics card",
+            subtitle = "Uses about 130MB less memory; scrolling and animated backgrounds cost more processor time." +
+                if (onProcessor != RenderMode.onProcessor) " Takes effect when OuterTune next starts." else "",
+            checked = onProcessor,
+            onCheckedChange = {
+                RenderMode.choose(it)
+                onProcessor = it
+            },
+            icon = OuterTuneIcons.tune,
+        )
         SettingRow(
             title = "Version",
             subtitle = DesktopVersion.NAME,

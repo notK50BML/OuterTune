@@ -737,6 +737,10 @@ class DesktopPlayer {
                 "no direct-URL AAC format; offered ${audio.joinToString { "itag ${it.itag}" }}"
             )
 
+        // Live, as NewPipe's path checks too: read a segment at a time - see LiveSource.
+        if (response.videoDetails?.isLive == true) {
+            return Resolved.Live(format.url!!, StreamDetails(format = "AAC · live · itag ${format.itag}", bitrateKbps = format.bitrate / 1000))
+        }
         return when (val fetched = fetchStream(format.url!!, format.contentLength, client.userAgent)) {
             is Resolved.Audio -> {
                 val gain = format.loudnessDb ?: response.playerConfig?.audioConfig?.loudnessDb

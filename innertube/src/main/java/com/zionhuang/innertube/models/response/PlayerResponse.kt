@@ -58,6 +58,8 @@ data class PlayerResponse(
         val formats: List<Format>?,
         val adaptiveFormats: List<Format>,
         val expiresInSeconds: Int,
+        /** A live stream's HLS playlist - what a player that streams HLS plays it from. */
+        val hlsManifestUrl: String? = null,
     ) {
         @Serializable
         data class Format(
@@ -123,6 +125,10 @@ data class PlayerResponse(
         val musicVideoType: String? = null,
         val viewCount: String? = null,
         val thumbnail: Thumbnails? = null,
+        /** On air now - a 24/7 radio, a concert. Its formats have no end; see the desktop's LiveSource. */
+        val isLive: Boolean? = null,
+        /** Was or is a live stream, ended ones (now ordinary videos) included. */
+        val isLiveContent: Boolean? = null,
     )
 
     @Serializable

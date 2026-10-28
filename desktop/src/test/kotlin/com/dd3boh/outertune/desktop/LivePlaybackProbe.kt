@@ -37,7 +37,7 @@ class LivePlaybackProbe {
             val wallStart = System.nanoTime()
             repeat(15) {
                 Thread.sleep(2_000)
-                println("t=${(it + 1) * 2}s state=${player.state.value::class.simpleName} position=${player.positionMs.value}ms " +
+                println("t=${(it + 1) * 2}s state=${player.state.value} position=${player.positionMs.value}ms " +
                     "duration=${player.durationMs.value} finished=$finished details=${player.stream.value?.format}")
             }
             val cpuMs = (os.processCpuTime - cpuStart) / 1_000_000

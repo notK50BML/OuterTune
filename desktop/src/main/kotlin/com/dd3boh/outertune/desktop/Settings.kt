@@ -159,6 +159,12 @@ class Settings(private val store: SettingsStore) {
     /** The order lyrics providers are asked in, as LyricsSource ids. Empty means the default order. */
     var lyricsProviderOrder by string("lyrics.providerOrder", "")
 
+    /** The floating window's place and size, "x,y,width,height" - see WindowMemory. */
+    var windowBounds by string("window.bounds", "")
+
+    /** Whether the window was maximised when last seen - see WindowMemory. */
+    var windowMaximised by bool("window.maximised", false)
+
     /** Automatic asks every provider at once; in my order asks them one at a time - see LyricsFetchMode. */
     var lyricsFetchMode by enum("lyrics.fetchMode", LyricsFetchMode.Automatic, LyricsFetchMode.entries)
 
