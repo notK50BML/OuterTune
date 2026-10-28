@@ -105,6 +105,14 @@ interface SongsDao {
         byPlayTime: Boolean = true,
     ): Flow<List<SongPlayStats>>
 
+    /**
+     * Each song's number of plays since [fromTimeStamp], straight from the event table - for the
+     * Stats header, which only needs the counts. mostPlayedSongsWithStats would give them too, but
+     * loads every song with its artists and album to do it, and again on every play.
+     */
+    @Query("SELECT songId, COUNT(*) AS plays FROM event WHERE timestamp > :fromTimeStamp GROUP BY songId")
+    fun playCountsSince(fromTimeStamp: Long): Flow<List<SongPlayCount>>
+
     /** All plays since [fromTimeStamp] and their summed play time, for the Stats header. */
     @Query("SELECT COUNT(*) AS plays, COALESCE(SUM(playTime), 0) AS playTime FROM event WHERE timestamp > :fromTimeStamp")
     fun playTotals(fromTimeStamp: Long): Flow<com.dd3boh.outertune.db.entities.PlayTotals>
@@ -534,3 +542,9 @@ interface SongsDao {
     fun nukeLocalSongs()
     // endregion
 }
+
+/** One song's number of plays in a period - see [SongsDao.playCountsSince]. */
+data class SongPlayCount(
+    val songId: String,
+    val plays: Int,
+)

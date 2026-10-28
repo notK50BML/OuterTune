@@ -406,6 +406,14 @@ class MusicService : MediaLibraryService(),
      */
     private var telemetrySentForMediaId: String? = null
 
+    /**
+     * mediaIds of the songs that were started from a station, noted as each one starts playing and
+     * read once its plays are tallied in [onPlaybackStatsReady]. Asking the queue board at tally
+     * time gave the wrong answer when a song ended because another queue was picked - by then the
+     * board already shows the new queue - and read the board off the main thread.
+     */
+    private val stationSongIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
     // track transition. A data class so the StateFlow deduplicates identical updates.
     private data class LyricsFetchTargets(
@@ -1661,6 +1669,11 @@ class MusicService : MediaLibraryService(),
         telemetrySentForMediaId = null
         updateLyricsFetchTargets()
 
+        if (mediaItem != null) {
+            if (queueBoard.value.getCurrentQueue()?.isStation == true) stationSongIds.add(mediaItem.mediaId)
+            else stationSongIds.remove(mediaItem.mediaId)
+        }
+
         if (player.isPlaying && reason == MEDIA_ITEM_TRANSITION_REASON_SEEK) {
             player.prepare()
             player.play()
@@ -1749,8 +1762,10 @@ class MusicService : MediaLibraryService(),
     }
 
     override fun onPlaybackStatsReady(eventTime: AnalyticsListener.EventTime, playbackStats: PlaybackStats) {
+        val mediaItem = eventTime.timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem
+        // Read here, on the player's thread, before a later start of the same song can change it.
+        val fromStation = mediaItem.mediaId in stationSongIds
         offloadScope.launch {
-            val mediaItem = eventTime.timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem
             var minPlaybackDur = (dataStore.get(minPlaybackDurKey, 30).toFloat() / 100)
             // ensure within bounds
             if (minPlaybackDur >= 1f) {
@@ -1762,10 +1777,10 @@ class MusicService : MediaLibraryService(),
             val playRatio =
                 playbackStats.totalPlayTimeMs.toFloat() / ((mediaItem.metadata?.duration?.times(1000)) ?: -1)
             if (SERVICE_DEBUG) Log.d(TAG, "Playback ratio: $playRatio Min threshold: $minPlaybackDur")
-            // A song heard from a station is the station's pick, not the listener's - not counted.
-            val fromStation = queueBoard.value.getCurrentQueue()?.isStation == true
-            if (playRatio >= minPlaybackDur && !fromStation && !dataStore.get(PauseListenHistoryKey, false)) {
-                database.query {
+            // A song heard from a station is the station's pick, not the listener's - not counted
+            // here. It was still heard, so YouTube's watch history below gets it as before.
+            if (playRatio >= minPlaybackDur && !dataStore.get(PauseListenHistoryKey, false)) {
+                if (!fromStation) database.query {
                     incrementPlayCount(mediaItem.mediaId)
                     try {
                         insert(

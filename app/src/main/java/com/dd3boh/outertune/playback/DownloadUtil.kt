@@ -17,6 +17,7 @@ import androidx.media3.datasource.ResolvingDataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.cache.CacheWriter
 import androidx.media3.datasource.cache.ContentMetadata
+import androidx.media3.datasource.cache.ContentMetadataMutations
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.CacheSpan
 import androidx.media3.datasource.cache.SimpleCache
@@ -397,12 +398,15 @@ class DownloadUtil @Inject constructor(
                         part.delete()
                         continue
                     }
-                    withContext(Dispatchers.IO) {
-                        java.nio.file.Files.move(
-                            part.toPath(), file.toPath(),
-                            java.nio.file.StandardCopyOption.REPLACE_EXISTING,
-                            java.nio.file.StandardCopyOption.ATOMIC_MOVE,
-                        )
+                    // File.renameTo rather than java.nio.file.Files.move: nio's file API only exists
+                    // from Android 8, and the app still runs on 7, where the move crashed after every
+                    // download. Both files are in the same directory, and on Android a rename there is
+                    // atomic and replaces the old cover, so nothing ever sees half of one.
+                    val moved = withContext(Dispatchers.IO) { part.renameTo(file) }
+                    if (!moved) {
+                        part.delete()
+                        Log.w(TAG, "Could not move the thumbnail for $songId into place")
+                        continue
                     }
                     database.song(songId).first()?.song?.takeIf { it.thumbnailPath != file.absolutePath }
                         ?.copy(thumbnailPath = file.absolutePath)
@@ -447,9 +451,18 @@ class DownloadUtil @Inject constructor(
     suspend fun repairThumbnails() {
         database.downloadedSongs().first()
             .filter { it.song.thumbnailPath != null && !isCompleteImage(File(it.song.thumbnailPath!!)) }
+            // Not deleted first: a fetch that works replaces the cover in one step, and one that fails
+            // would otherwise leave the song pointing at a file that is gone, so its rows drew no
+            // cover at all rather than the cut-off one or the online one.
             .forEach { song ->
-                File(song.song.thumbnailPath!!).delete()
                 downloadThumbnail(song.id, song.song.thumbnailUrl)
+                // A cover that was already gone and could not be fetched again is forgotten, so the
+                // song's rows fall back to its online cover instead of a path to nothing. "Download
+                // all thumbnails" picks it up again later.
+                if (!File(song.song.thumbnailPath!!).exists()) {
+                    database.song(song.id).first()?.song?.takeIf { it.thumbnailPath == song.song.thumbnailPath }
+                        ?.copy(thumbnailPath = null)?.let { database.update(it) }
+                }
             }
     }
 
@@ -489,6 +502,13 @@ class DownloadUtil @Inject constructor(
                 )
                 .createDataSource()
             CacheWriter(writer, dataSpec, null, null).cache()
+            // A read with a set length never tells the cache how long the song is, and without that
+            // the copy did not count as whole: downloading the song again fetched it anew instead of
+            // moving it back (see cachedLengthOrNull), and playback could run off its end.
+            playerCache.applyContentMetadataMutations(
+                mediaId,
+                ContentMetadataMutations().also { ContentMetadataMutations.setContentLength(it, contentLength) },
+            )
             Log.d(TAG, "Kept $mediaId in the song cache as its download is removed")
         } catch (e: Exception) {
             reportException(e)
@@ -1131,8 +1151,8 @@ fun stateToLocalDateTime(download: Download): LocalDateTime =
 
 /**
  * Removes a download through [DownloadUtil.removeDownload], which keeps the song in the song cache
- * when that setting is on. Callable from anywhere a song's download is removed; falls back to a plain
- * removal before the download utility exists.
+ * when that setting is on. Callable from anywhere a song's download is removed. Does nothing before
+ * the download utility exists - MainActivity has it injected before any screen can offer a removal.
  */
 fun removeDownloadKeepingCache(id: String) {
     DownloadUtil.instance?.removeDownload(id)

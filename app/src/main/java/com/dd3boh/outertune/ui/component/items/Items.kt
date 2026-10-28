@@ -53,6 +53,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -355,7 +356,7 @@ fun MediaMetadataListItem(
             Icon.Library()
         }
         if (showDownloadIcon && !mediaMetadata.isLocal) {
-            val download by LocalDownloadUtil.current.getDownload(mediaMetadata.id).collectAsState(initial = null)
+            val download by rememberDownloadState(mediaMetadata.id)
             Icon.Download(download)
         }
     },
@@ -424,7 +425,7 @@ fun YouTubeListItem(
         }
         if (item is SongItem) {
             // This song's own state, not the whole map - see DownloadUtil.getDownload.
-            val download by LocalDownloadUtil.current.getDownload(item.id).collectAsState(initial = null)
+            val download by rememberDownloadState(item.id)
             Icon.Download(download)
         }
     },
@@ -491,7 +492,7 @@ fun YouTubeGridItem(
         }
         if (item is SongItem) {
             // This song's own state, not the whole map - see DownloadUtil.getDownload.
-            val download by LocalDownloadUtil.current.getDownload(item.id).collectAsState(initial = null)
+            val download by rememberDownloadState(item.id)
             Icon.Download(download)
         }
     },
@@ -916,4 +917,17 @@ object Icon {
                 .padding(end = 2.dp)
         )
     }
+}
+
+/**
+ * [songId]'s download state, for a row's download icon. The flow is kept across recompositions -
+ * built anew on each one, it was dropped and subscribed to again every time the row redrew - and
+ * starts from the state already known, so a row scrolling into view shows its icon at once rather
+ * than none for a frame first.
+ */
+@Composable
+internal fun rememberDownloadState(songId: String): State<LocalDateTime?> {
+    val downloadUtil = LocalDownloadUtil.current
+    val download = remember(downloadUtil, songId) { downloadUtil.getDownload(songId) }
+    return download.collectAsState(initial = downloadUtil.downloads.value[songId])
 }

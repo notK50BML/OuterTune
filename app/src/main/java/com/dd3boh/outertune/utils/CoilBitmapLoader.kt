@@ -124,10 +124,15 @@ class CoilBitmapLoader @Inject constructor(
 
                 if (image == null) {
                     image = try {
+                        // Released however the read ends - a file it cannot open throws, and a
+                        // retriever left behind holds native resources until it is finalized.
                         val mData = MediaMetadataRetriever()
-                        mData.setDataSource(data.path)
-                        val art = mData.embeddedPicture
-                        mData.release()
+                        val art = try {
+                            mData.setDataSource(data.path)
+                            mData.embeddedPicture
+                        } finally {
+                            mData.release()
+                        }
                         art?.let { bytes -> decode { BitmapFactory.decodeByteArray(bytes, 0, bytes.size, it) } }
                     } catch (e: Exception) {
                         null

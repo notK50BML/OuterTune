@@ -11,6 +11,7 @@ import com.dd3boh.outertune.constants.StatMetric
 import com.dd3boh.outertune.constants.StatPeriod
 import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
 import com.dd3boh.outertune.db.MusicDatabase
+import com.dd3boh.outertune.db.daos.SongPlayCount
 import com.dd3boh.outertune.db.entities.SongPlayStats
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
@@ -31,6 +32,7 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Duration
@@ -117,15 +119,19 @@ class StatsViewModel @Inject constructor(
      * [localPool]: its size follows the song count chosen for the chart, so a song outside it had
      * all its history plays counted as extra, and the totals changed between 20, 50, 100 and all.
      * Read only while the history is on - off, the totals are the database's own.
+     *
+     * Null until the period's counts have loaded. An empty map in their place made every history
+     * play look extra, so the header briefly showed far more plays than the chart.
      */
-    private val periodPlays: StateFlow<Map<String, Int>> =
+    private val periodPlays: StateFlow<Map<String, Int>?> =
         combine(statPeriod, remoteTally.map { it.isEmpty() }.distinctUntilChanged()) { period, none -> period to none }
             .flatMapLatest { (period, none) ->
                 if (none) flowOf(emptyMap())
-                else database.mostPlayedSongsWithStats(period.toTimeMillis(), limit = ALL, byPlayTime = false)
-                    .map { songs -> songs.associate { it.song.id to it.totalPlays } }
+                else database.playCountsSince(period.toTimeMillis())
+                    .map<List<SongPlayCount>, Map<String, Int>?> { counts -> counts.associate { it.songId to it.plays } }
+                    .onStart { emit(null) }
             }
-            .stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
+            .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     /**
      * Plays and listening time in the period, for the header beside the title - with what the
@@ -135,17 +141,8 @@ class StatsViewModel @Inject constructor(
         statPeriod.flatMapLatest { period -> database.playTotals(period.toTimeMillis()) },
         remoteTally,
         periodPlays,
-    ) { local, tally, localPlays ->
-        if (local == null || tally.isEmpty()) return@combine local
-        var plays = 0
-        var time = 0L
-        tally.values.forEach { remote ->
-            val extra = HistoryTally.extraPlays(localPlays[remote.song.id] ?: 0, remote.plays)
-            plays += extra
-            time += extra * (remote.song.duration ?: 0) * 1000L
-        }
-        PlayTotals(plays = local.plays + plays, playTime = local.playTime + time)
-    }.stateIn(viewModelScope, SharingStarted.Lazily, null)
+    ) { local, tally, localPlays -> withRemotePlays(local, tally, localPlays) }
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
 
     val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric, limit) ->
         database.mostPlayedArtistStats(
@@ -322,6 +319,27 @@ class StatsViewModel @Inject constructor(
         /** ~20 songs a page, so this reaches a few thousand plays back. */
         private const val MAX_HISTORY_PAGES = 40
     }
+}
+
+/**
+ * [local]'s totals with what the history [tally] adds over this device's own plays, [localPlays].
+ * Internal so StatsTotalsTest runs the real thing.
+ */
+internal fun withRemotePlays(
+    local: PlayTotals?,
+    tally: Map<String, HistoryTally.Plays>,
+    localPlays: Map<String, Int>?,
+): PlayTotals? {
+    // The history's plays wait for this device's own to compare against - see periodPlays.
+    if (local == null || tally.isEmpty() || localPlays == null) return local
+    var plays = 0
+    var time = 0L
+    tally.values.forEach { remote ->
+        val extra = HistoryTally.extraPlays(localPlays[remote.song.id] ?: 0, remote.plays)
+        plays += extra
+        time += extra * (remote.song.duration ?: 0) * 1000L
+    }
+    return PlayTotals(plays = local.plays + plays, playTime = local.playTime + time)
 }
 
 /** The period's length in days, or null for all time - what HistoryTally counts sections against. */

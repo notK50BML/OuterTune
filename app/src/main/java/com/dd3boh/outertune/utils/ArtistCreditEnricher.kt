@@ -21,11 +21,13 @@ import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.ui.utils.resize
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.ArtistItem
+import io.ktor.client.plugins.ResponseException
+import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import timber.log.Timber
-import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.locks.ReentrantLock
 import kotlin.concurrent.withLock
@@ -804,7 +806,16 @@ object ArtistCreditEnricher {
         // channel with no picture to fill it with would otherwise cost a search and a page fetch on
         // every play.
         if (!checkedChannels.add(artist.id)) return null
-        val resolved = (search(artist.name) as? Lookup.Found)?.item ?: return null
+        val resolved = when (val lookup = search(artist.name)) {
+            is Lookup.Found -> lookup.item
+            Lookup.NotFound -> return null
+            Lookup.Unknown -> {
+                // No answer - offline, say - is not a "no". Left unmarked, so a later play asks
+                // again; marked, the channel went unchecked for the rest of the run.
+                checkedChannels.remove(artist.id)
+                return null
+            }
+        }
 
         if (resolved.id.normalizeArtistId() == artist.id) {
             // The credit was right. That is the common case, and it used to return here having
@@ -826,11 +837,19 @@ object ArtistCreditEnricher {
         // channel is a dead end is repointed - its page will not load, or its title names nobody,
         // the " - Topic" case above. Anything else is the channel YouTube credited, and it stays,
         // with its own picture stored so the gate closes.
+        //
+        // Only a page that loaded and names nobody, or YouTube answering that there is no such
+        // page, counts as dead. Any other failure says nothing about the channel - a dropped
+        // connection, a throttled 429 or 403, a 5xx, a page that would not parse - and treating
+        // those as dead moved a lesser-known Nirvana's songs onto the famous one whenever YouTube
+        // was throttling. They leave the credit alone, to be asked about again on a later play.
         val page = YouTube.artist(artist.id)
-        if (page.exceptionOrNull() is IOException) {
-            // A dropped connection is not a dead channel. Asked again on a later play.
-            checkedChannels.remove(artist.id)
-            return null
+        page.exceptionOrNull()?.let { error ->
+            if (error is CancellationException) throw error
+            if (!isMissingPage(error)) {
+                checkedChannels.remove(artist.id)
+                return null
+            }
         }
         val own = page.getOrNull()?.artist
         if (own != null && own.title.namesAnArtist()) {
@@ -850,6 +869,10 @@ object ArtistCreditEnricher {
             thumbnailUrl = resolved.thumbnail,
         )
     }
+
+    /** Whether [error] is YouTube answering that there is no such page - a 404, nothing else. */
+    private fun isMissingPage(error: Throwable): Boolean =
+        (error as? ResponseException)?.response?.status == HttpStatusCode.NotFound
 
     /**
      * Splits a combined credit's name on "&" - null when there's nothing to split (no "&", or
