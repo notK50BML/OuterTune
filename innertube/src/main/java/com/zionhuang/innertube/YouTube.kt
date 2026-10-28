@@ -223,6 +223,11 @@ object YouTube {
     suspend fun album(browseId: String, withSongs: Boolean = true): Result<AlbumPage> {
         val here = albumFrom(browseId, withSongs, gl = null)
         if (here.isSuccess || locale.gl.equals(OPEN_REGION, ignoreCase = true)) return here
+        // Only when YouTube answered with a page that had no album on it - what a withheld album
+        // looks like. Offline, a timeout or being rate-limited is not a region problem, and asking
+        // again from the US would only double the wait before the same failure.
+        val error = here.exceptionOrNull()
+        if (error !is NullPointerException && error !is IllegalStateException) return here
         return albumFrom(browseId, withSongs, OPEN_REGION).takeIf { it.isSuccess } ?: here
     }
 

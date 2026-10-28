@@ -14,6 +14,7 @@ import org.schabi.newpipe.extractor.exceptions.ParsingException
 import org.schabi.newpipe.extractor.exceptions.ReCaptchaException
 import org.schabi.newpipe.extractor.services.youtube.YoutubeJavaScriptPlayerManager
 import org.schabi.newpipe.extractor.stream.StreamInfo
+import org.schabi.newpipe.extractor.stream.StreamType
 import java.io.IOException
 import java.net.Proxy
 
@@ -81,15 +82,33 @@ object NewPipeUtils {
      * itag. Returns empty rather than throwing, since the caller treats "nothing to graft" and
      * "extraction failed" the same way - it falls through to the next client either way.
      */
-    fun newPipePlayer(videoId: String): List<Pair<Int, String>> = try {
+    fun newPipePlayer(videoId: String): List<Pair<Int, String>> = newPipeStream(videoId).streams
+
+    /** What NewPipe found for a video: its streams, as itag to url, and whether it is live. */
+    data class NewPipeStream(
+        val streams: List<Pair<Int, String>>,
+        /** A live stream, which has no end - played a segment at a time, never fetched whole. */
+        val live: Boolean = false,
+        /** The live stream's HLS playlist, when YouTube offers one. */
+        val hlsUrl: String? = null,
+        /** Why extraction failed, when it did - for a failure message worth reading. */
+        val error: String? = null,
+    )
+
+    /** As [newPipePlayer], with whether the video is live. Empty rather than throwing. */
+    fun newPipeStream(videoId: String): NewPipeStream = try {
         val streamInfo = StreamInfo.getInfo(
             NewPipe.getService(0),
             "https://www.youtube.com/watch?v=$videoId",
         )
-        (streamInfo.audioStreams + streamInfo.videoStreams + streamInfo.videoOnlyStreams)
-            .mapNotNull { (it.itagItem?.id ?: return@mapNotNull null) to it.content }
+        NewPipeStream(
+            streams = (streamInfo.audioStreams + streamInfo.videoStreams + streamInfo.videoOnlyStreams)
+                .mapNotNull { (it.itagItem?.id ?: return@mapNotNull null) to it.content },
+            live = streamInfo.streamType == StreamType.LIVE_STREAM || streamInfo.streamType == StreamType.AUDIO_LIVE_STREAM,
+            hlsUrl = streamInfo.hlsUrl?.takeIf { it.isNotBlank() },
+        )
     } catch (e: Exception) {
-        emptyList()
+        NewPipeStream(emptyList(), error = "${e::class.simpleName}: ${e.message}")
     }
 
     /** What the video's page says about it, for a song's details. Any part YouTube does not give is null. */
