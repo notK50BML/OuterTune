@@ -992,8 +992,19 @@ internal fun App(
                 WindowsMediaControls.Button.Previous -> playerQueue.previous()
             }
         }
+        // Windows' own shuffle and repeat buttons, which ask for a state rather than a toggle.
+        WindowsMediaControls.onShuffle = { on -> if (playerQueue.state.value.shuffled != on) playerQueue.toggleShuffle() }
+        WindowsMediaControls.onRepeat = { mode ->
+            playerQueue.setRepeat(
+                when (mode) {
+                    1 -> RepeatMode.ONE
+                    2 -> RepeatMode.ALL
+                    else -> RepeatMode.OFF
+                }
+            )
+        }
     }
-    LaunchedEffect(queue.current?.id, playback) {
+    LaunchedEffect(queue.current?.id, playback, queue.shuffled, queue.repeat) {
         val song = queue.current?.shown(library.credits.value)
         WindowsMediaControls.update(
             title = song?.title,
@@ -1010,6 +1021,12 @@ internal fun App(
                 is PlaybackState.Playing, is PlaybackState.Loading -> true
                 is PlaybackState.Paused -> false
                 else -> if (song != null) false else null
+            },
+            shuffle = queue.shuffled,
+            repeat = when (queue.repeat) {
+                RepeatMode.OFF -> 0
+                RepeatMode.ONE -> 1
+                RepeatMode.ALL -> 2
             },
         )
     }

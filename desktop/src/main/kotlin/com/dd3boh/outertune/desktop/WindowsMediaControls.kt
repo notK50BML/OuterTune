@@ -50,15 +50,27 @@ object WindowsMediaControls {
     @Volatile
     var onButton: ((Button) -> Unit)? = null
 
+    /** Called on the UI thread when Windows' shuffle button asks for shuffle on (true) or off. */
+    @Volatile
+    var onShuffle: ((Boolean) -> Unit)? = null
+
+    /** Called on the UI thread when Windows' repeat button asks for a mode: 0 none, 1 this song, 2 the list. */
+    @Volatile
+    var onRepeat: ((Int) -> Unit)? = null
+
+    /** The last state asked for - shown again once Windows accepts us, since asks before that are dropped. */
+    @Volatile
+    private var last: (() -> Unit)? = null
+
     private val thread = Executors.newSingleThreadExecutor { r -> Thread(r, "media-controls").apply { isDaemon = true } }
     private var smtc: Pointer? = null
+    /** ISystemMediaTransportControls2: shuffle and repeat. */
+    private var smtc2: Pointer? = null
     private var updater: Pointer? = null
     private var music: Pointer? = null
     private var streamStatics: Pointer? = null
     private var uriFactory: Pointer? = null
 
-    // The handler object Windows calls back into, kept reachable for the life of the app.
-    private var handler: Memory? = null
     private val callbacks = mutableListOf<Callback>()
 
     private interface Combase : Library {
@@ -107,29 +119,92 @@ object WindowsMediaControls {
         runCatching { uriFactory = factory("Windows.Foundation.Uri", IID_URI_FACTORY) }
 
         val token = LongByReference()
-        check(call(s, SMTC_ADD_BUTTON_PRESSED, buildHandler(), token) == 0)
+        check(call(s, SMTC_ADD_BUTTON_PRESSED, buildHandler(IID_BUTTON_HANDLER) { args -> buttonPressed(args) }, token) == 0)
+
+        // Shuffle and repeat live on the second interface. Without handlers for their requests
+        // Windows shows them switched off, whatever the app's own state.
+        runCatching {
+            val second = PointerByReference()
+            check(call(s, 0, guid(IID_SMTC2), second) == 0)
+            val s2 = second.value
+            smtc2 = s2
+            check(call(s2, SMTC2_ADD_SHUFFLE_REQUESTED, buildHandler(IID_SHUFFLE_HANDLER) { args ->
+                val wanted = com.sun.jna.ptr.ByteByReference()
+                if (call(args, 6, wanted) == 0) {
+                    val on = wanted.value.toInt() != 0
+                    EventQueue.invokeLater { onShuffle?.invoke(on) }
+                }
+            }, LongByReference()) == 0)
+            check(call(s2, SMTC2_ADD_REPEAT_REQUESTED, buildHandler(IID_REPEAT_HANDLER) { args ->
+                val wanted = IntByReference()
+                if (call(args, 6, wanted) == 0) EventQueue.invokeLater { onRepeat?.invoke(wanted.value) }
+            }, LongByReference()) == 0)
+        }
         active = true
+        last?.let { thread.execute(it) }
+    }
+
+    private fun buttonPressed(args: Pointer) {
+        val button = IntByReference()
+        if (call(args, 6, button) != 0) return
+        val which = when (button.value) {
+            0 -> Button.Play
+            1 -> Button.Pause
+            2 -> Button.Stop
+            6 -> Button.Next
+            7 -> Button.Previous
+            else -> return
+        }
+        EventQueue.invokeLater { onButton?.invoke(which) }
     }
 
     /**
      * What Windows shows. [playing] null means nothing is loaded. [artworkUrl] is shown only for
      * http(s) covers - Windows fetches it itself; a local file's embedded art is not offered.
      */
-    fun update(title: String?, artist: String?, album: String?, artworkUrl: String?, playing: Boolean?) {
-        if (!active) return
-        thread.execute {
+    fun update(
+        title: String?,
+        artist: String?,
+        album: String?,
+        artworkUrl: String?,
+        playing: Boolean?,
+        shuffle: Boolean = false,
+        /** 0 none, 1 this song, 2 the list - Windows' MediaPlaybackAutoRepeatMode. */
+        repeat: Int = 0,
+    ) {
+        val show = {
             runCatching {
                 val s = smtc ?: return@runCatching
                 val u = updater ?: return@runCatching
-                val m = music ?: return@runCatching
                 call(s, SMTC_PUT_PLAYBACK_STATUS, when (playing) { null -> STATUS_STOPPED; true -> STATUS_PLAYING; false -> STATUS_PAUSED })
+                smtc2?.let { s2 ->
+                    call(s2, SMTC2_PUT_SHUFFLE, if (shuffle) 1 else 0)
+                    call(s2, SMTC2_PUT_REPEAT, repeat)
+                }
                 if (title == null) {
                     call(u, UPDATER_CLEAR_ALL)
                     call(u, UPDATER_PUT_TYPE, MEDIA_TYPE_MUSIC)
                 } else {
+                    // Asked for afresh every time. Clearing replaces the music properties, and the
+                    // ones fetched at the start were then a detached copy: everything written to
+                    // them after the first clear - a start with nothing queued - never showed, and
+                    // Windows' panel was left with no title, artist or cover at all.
+                    call(u, UPDATER_PUT_TYPE, MEDIA_TYPE_MUSIC)
+                    val props = PointerByReference()
+                    if (call(u, UPDATER_GET_MUSIC_PROPERTIES, props) != 0) return@runCatching
+                    val m = props.value
+                    music?.let { old -> if (old != m) call(old, 2) }
+                    music = m
                     withHString(title) { call(m, MUSIC_PUT_TITLE, it) }
                     withHString(artist.orEmpty()) { call(m, MUSIC_PUT_ARTIST, it) }
-                    withHString(album.orEmpty()) { call(m, MUSIC_PUT_ALBUM_ARTIST, it) }
+                    // The album artist is the song's artist here; the album's own title has its
+                    // own field, on the second interface - it used to go in this one.
+                    withHString(artist.orEmpty()) { call(m, MUSIC_PUT_ALBUM_ARTIST, it) }
+                    val second = PointerByReference()
+                    if (call(m, 0, guid(IID_MUSIC2), second) == 0) {
+                        withHString(album.orEmpty()) { call(second.value, MUSIC2_PUT_ALBUM_TITLE, it) }
+                        call(second.value, 2)
+                    }
                     val art = thumbnail(artworkUrl)
                     // Cleared when there is none, or the last song's cover stays up beside this
                     // song's title - a local file has no web artwork to offer.
@@ -138,7 +213,10 @@ object WindowsMediaControls {
                 }
                 call(u, UPDATER_UPDATE)
             }
+            Unit
         }
+        last = show
+        if (active) thread.execute(show)
     }
 
     private fun thumbnail(url: String?): Pointer? {
@@ -174,8 +252,8 @@ object WindowsMediaControls {
      * ButtonPressedEventArgs>: QueryInterface, AddRef, Release, Invoke. It lives for the whole run,
      * so reference counting is a formality.
      */
-    private fun buildHandler(): Pointer {
-        val known = listOf(IID_UNKNOWN, IID_AGILE, IID_BUTTON_HANDLER).map { bytesOf(UUID.fromString(it)) }
+    private fun buildHandler(iid: String, onEvent: (Pointer) -> Unit): Pointer {
+        val known = listOf(IID_UNKNOWN, IID_AGILE, iid).map { bytesOf(UUID.fromString(it)) }
         val qi = object : QueryInterface {
             override fun invoke(self: Pointer, iid: Pointer, out: PointerByReference): Int {
                 val asked = iid.getByteArray(0, 16)
@@ -193,18 +271,7 @@ object WindowsMediaControls {
         }
         val fire = object : Invoke {
             override fun invoke(self: Pointer, sender: Pointer?, args: Pointer?): Int {
-                if (args == null) return 0
-                val button = IntByReference()
-                if (call(args, 6, button) != 0) return 0
-                val which = when (button.value) {
-                    0 -> Button.Play
-                    1 -> Button.Pause
-                    2 -> Button.Stop
-                    6 -> Button.Next
-                    7 -> Button.Previous
-                    else -> return 0
-                }
-                EventQueue.invokeLater { onButton?.invoke(which) }
+                if (args != null) runCatching { onEvent(args) }
                 return 0
             }
         }
@@ -216,12 +283,13 @@ object WindowsMediaControls {
             setPointer(3L * Native.POINTER_SIZE, com.sun.jna.CallbackReference.getFunctionPointer(fire))
         }
         val obj = Memory(Native.POINTER_SIZE.toLong()).apply { setPointer(0, vtable) }
-        handler = obj
-        vtableKeepAlive = vtable
+        // Kept for the life of the app: Windows holds these and calls into them.
+        keepAlive += listOf(vtable, obj)
         return obj
     }
 
-    private var vtableKeepAlive: Memory? = null
+    private val keepAlive = mutableListOf<Memory>()
+
 
     // ---- plumbing -----------------------------------------------------------------------------
 
@@ -274,6 +342,12 @@ object WindowsMediaControls {
     private const val IID_INTEROP = "ddb0472d-c911-4a1f-86d9-dc3d71a95f5a"
     private const val IID_SMTC = "99fa3ff4-1742-42a6-902e-087d41f965ec"
     private const val IID_BUTTON_HANDLER = "0557e996-7b23-5bae-aa81-ea0d671143a4"
+    // TypedEventHandler<SystemMediaTransportControls, ShuffleEnabled/AutoRepeatModeChangeRequestedEventArgs>,
+    // derived the same way as the button handler's (the projection gives the same id for that one).
+    private const val IID_SHUFFLE_HANDLER = "17ecea80-27e4-5dae-abb4-c858ad1c5307"
+    private const val IID_REPEAT_HANDLER = "a6214bde-02d5-55b3-ab0d-c6031be70da1"
+    private const val IID_SMTC2 = "ea98d2f6-7f3c-4af2-a586-72889808efb1"
+    private const val IID_MUSIC2 = "00368462-97d3-44b9-b00f-008afcefaf18"
     private const val IID_STREAM_REF_STATICS = "857309dc-3fbf-4e7d-986f-ef3b1a07a964"
     private const val IID_URI_FACTORY = "44a9796f-723e-4fdf-a218-033e75b0c084"
 
@@ -287,6 +361,13 @@ object WindowsMediaControls {
     private const val SMTC_PUT_IS_PREVIOUS_ENABLED = 25
     private const val SMTC_PUT_IS_NEXT_ENABLED = 27
     private const val SMTC_ADD_BUTTON_PRESSED = 32
+
+    private const val SMTC2_PUT_REPEAT = 7
+    private const val SMTC2_PUT_SHUFFLE = 9
+    private const val SMTC2_ADD_SHUFFLE_REQUESTED = 17
+    private const val SMTC2_ADD_REPEAT_REQUESTED = 19
+
+    private const val MUSIC2_PUT_ALBUM_TITLE = 7
 
     private const val UPDATER_PUT_TYPE = 7
     private const val UPDATER_PUT_THUMBNAIL = 11

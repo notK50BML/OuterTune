@@ -469,6 +469,11 @@ class PlayerQueue(
         )
     }
 
+    /** Straight to [mode] - for Windows' repeat button, which asks for a mode rather than the next one. */
+    fun setRepeat(mode: RepeatMode) {
+        state.value = state.value.copy(repeat = mode)
+    }
+
     fun cycleRepeat() {
         state.value = state.value.copy(
             repeat = when (state.value.repeat) {
