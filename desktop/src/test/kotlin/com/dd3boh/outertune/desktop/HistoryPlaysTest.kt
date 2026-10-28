@@ -43,9 +43,39 @@ class HistoryPlaysTest {
             ),
             localPlays = mapOf("a" to 4),
         )
-        // a: 2 more than played here; b: 3, and a song not played here at all.
+        // a: 2 more than played here; b: 3. The song count is the chart's - see songChart.
         assertEquals(15, totals.plays)
-        assertEquals(3, totals.songs)
+        assertEquals(2, totals.songs)
         assertEquals(1_000_000 + 2 * 100_000L + 3 * 60_000L, totals.listenedMs)
+    }
+
+    @Test
+    fun `a song of unknown length played elsewhere adds no time`() {
+        val totals = PlayTotals(plays = 0, songs = 0, listenedMs = 0)
+            .withHistory(mapOf("live" to HistoryTally.Plays(item("live", seconds = -1), 2)), emptyMap())
+        assertEquals(2, totals.plays)
+        assertEquals(0L, totals.listenedMs)
+    }
+
+    @Test
+    fun `artists gain the history plays the chart does`() {
+        val here = StoredArtist("UChere", "Here")
+        val other = StoredArtist("UCother", "Other")
+        fun credited(id: String, artistId: String, name: String) = SongItem(
+            id = id, title = id, artists = listOf(Artist(name = name, id = artistId)), album = null,
+            duration = 200, thumbnail = "", explicit = false, endpoint = null,
+        )
+        val artists = withHistoryArtists(
+            local = listOf(other to 3, here to 1),
+            remote = mapOf(
+                // Played once here, five times in all: four more, to the credits the library has.
+                "a" to HistoryTally.Plays(credited("a", "UCwrong", "Wrong"), 5),
+                // Played only elsewhere: to the artist the history names, in its plain spelling.
+                "x" to HistoryTally.Plays(credited("x", "MPLAUCaway", "Away"), 2),
+            ),
+            localPlays = mapOf("a" to 1),
+            credits = mapOf("a" to listOf(here)),
+        )
+        assertEquals(listOf("UChere" to 5, "UCother" to 3, "UCaway" to 2), artists.map { it.first.id to it.second })
     }
 }

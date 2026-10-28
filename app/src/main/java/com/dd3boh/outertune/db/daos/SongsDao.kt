@@ -106,12 +106,36 @@ interface SongsDao {
     ): Flow<List<SongPlayStats>>
 
     /**
-     * Each song's number of plays since [fromTimeStamp], straight from the event table - for the
-     * Stats header, which only needs the counts. mostPlayedSongsWithStats would give them too, but
-     * loads every song with its artists and album to do it, and again on every play.
+     * Every song played since [fromTimeStamp] with its plays and listening time, and just enough
+     * of the song - title, length, credited names in credit order - to tell when two ids are the
+     * same song. Stats ranks from this whole list and only then cuts it to the length shown, so a
+     * song's numbers and place do not depend on that length. mostPlayedSongsWithStats would give
+     * the same numbers, but loads every song with its artists, album and genres to do it.
      */
-    @Query("SELECT songId, COUNT(*) AS plays FROM event WHERE timestamp > :fromTimeStamp GROUP BY songId")
-    fun playCountsSince(fromTimeStamp: Long): Flow<List<SongPlayCount>>
+    @Query("""
+        SELECT ranked.songId AS songId, song.title AS title, song.duration AS duration,
+               (SELECT group_concat(name, char(31))
+                FROM (SELECT artist.name AS name
+                      FROM song_artist_map JOIN artist ON artist.id = song_artist_map.artistId
+                      WHERE song_artist_map.songId = ranked.songId
+                      ORDER BY song_artist_map.position)) AS artists,
+               (SELECT group_concat(artistId, char(31))
+                FROM (SELECT artistId FROM song_artist_map
+                      WHERE song_artist_map.songId = ranked.songId
+                      ORDER BY position)) AS artistIds,
+               ranked.plays AS plays, ranked.playTime AS playTime
+        FROM (SELECT songId, COUNT(*) AS plays, COALESCE(SUM(playTime), 0) AS playTime
+              FROM event
+              WHERE timestamp > :fromTimeStamp
+              GROUP BY songId) AS ranked
+            JOIN song ON song.id = ranked.songId
+    """)
+    fun songPlaysSince(fromTimeStamp: Long): Flow<List<SongPlays>>
+
+    /** Songs by id, in no particular order - for Stats to show the part of its chart it keeps. */
+    @Transaction
+    @Query("SELECT * FROM song WHERE id IN (:ids)")
+    suspend fun songsByIds(ids: List<String>): List<Song>
 
     /** All plays since [fromTimeStamp] and their summed play time, for the Stats header. */
     @Query("SELECT COUNT(*) AS plays, COALESCE(SUM(playTime), 0) AS playTime FROM event WHERE timestamp > :fromTimeStamp")
@@ -543,8 +567,28 @@ interface SongsDao {
     // endregion
 }
 
-/** One song's number of plays in a period - see [SongsDao.playCountsSince]. */
-data class SongPlayCount(
+/** One song's plays in a period - see [SongsDao.songPlaysSince]. */
+data class SongPlays(
     val songId: String,
+    val title: String,
+    /** Seconds, or -1 when unknown. */
+    val duration: Int,
+    /** The credited artists' names in credit order, separated by U+001F; null with no credits. */
+    val artists: String?,
+    /** Their ids, in the same order and with the same separator. */
+    val artistIds: String?,
     val plays: Int,
-)
+    /** Milliseconds actually listened. */
+    val playTime: Long,
+) {
+    val artistNames: List<String>
+        get() = artists?.split(ARTIST_SEPARATOR).orEmpty()
+
+    val artistIdList: List<String>
+        get() = artistIds?.split(ARTIST_SEPARATOR).orEmpty()
+
+    companion object {
+        /** The unit separator, which the query joins names with: no artist's name contains it. */
+        const val ARTIST_SEPARATOR = '\u001F'
+    }
+}

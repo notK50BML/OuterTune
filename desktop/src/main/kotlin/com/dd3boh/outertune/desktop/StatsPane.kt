@@ -115,10 +115,15 @@ fun StatsPane(
         data = withContext(Dispatchers.IO) {
             val since = period.sinceMs()
             val remote = if (history.isEmpty()) emptyMap() else HistoryTally.tally(history, period.days)
+            val chart = library.songChart(since, remote = remote)
             val totals = library.playTotals(since).let { local ->
                 if (remote.isEmpty()) local else local.withHistory(remote, library.playCounts(since))
             }
-            StatsData(totals, library.topSongs(since, remote = remote), library.topArtists(since))
+                // The songs the chart holds, the same song under several ids once. Counted in SQL,
+                // only ASCII letters were folded to lower case, so a title in any other script
+                // that the chart merged was still two songs here.
+                .copy(songs = chart.songs)
+            StatsData(totals, chart.top, library.topArtists(since, remote = remote))
         }
     }
 

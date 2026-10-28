@@ -1774,12 +1774,11 @@ class MusicService : MediaLibraryService(),
                 minPlaybackDur = 0.01f // Still want "spam skipping" to not count as plays
             }
 
-            val playRatio =
-                playbackStats.totalPlayTimeMs.toFloat() / ((mediaItem.metadata?.duration?.times(1000)) ?: -1)
-            if (SERVICE_DEBUG) Log.d(TAG, "Playback ratio: $playRatio Min threshold: $minPlaybackDur")
+            val played = countsAsPlay(playbackStats.totalPlayTimeMs, mediaItem.metadata?.duration, minPlaybackDur)
+            if (SERVICE_DEBUG) Log.d(TAG, "Played ${playbackStats.totalPlayTimeMs} ms, counts: $played, min ratio: $minPlaybackDur")
             // A song heard from a station is the station's pick, not the listener's - not counted
             // here. It was still heard, so YouTube's watch history below gets it as before.
-            if (playRatio >= minPlaybackDur && !dataStore.get(PauseListenHistoryKey, false)) {
+            if (played && !dataStore.get(PauseListenHistoryKey, false)) {
                 if (!fromStation) database.query {
                     incrementPlayCount(mediaItem.mediaId)
                     try {

@@ -11,7 +11,9 @@ import com.dd3boh.outertune.constants.StatMetric
 import com.dd3boh.outertune.constants.StatPeriod
 import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
 import com.dd3boh.outertune.db.MusicDatabase
-import com.dd3boh.outertune.db.daos.SongPlayCount
+import com.dd3boh.outertune.db.daos.SongPlays
+import com.dd3boh.outertune.db.entities.ArtistPlayStats
+import com.dd3boh.outertune.db.entities.SongEntity
 import com.dd3boh.outertune.db.entities.SongPlayStats
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.Song
@@ -19,9 +21,9 @@ import com.dd3boh.outertune.models.toMediaMetadata
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.reportException
 import com.zionhuang.innertube.YouTube
-import com.zionhuang.innertube.models.SongItem
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +33,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
@@ -60,11 +64,6 @@ class StatsViewModel @Inject constructor(
      */
     val songLimit = MutableStateFlow(SONG_LIMITS.first())
 
-    private val overviewRequest = combine(statPeriod, statMetric, songLimit) { period, metric, limit ->
-        Triple(period, metric, limit)
-    }
-
-
     /**
      * Plays this account made anywhere else - the YouTube Music app, another phone, the web - read
      * from YouTube's own history, tallied by song.
@@ -93,96 +92,97 @@ class StatsViewModel @Inject constructor(
         }.stateIn(viewModelScope, SharingStarted.Lazily, emptyMap())
 
     /**
-     * A wider local set than the chart shows, so the merge below has something to rank against -
-     * taking the local top N and then adding remote plays to them would let a song just outside it
-     * locally but first overall stay invisible. Also what the totals' history plays are measured
-     * against.
+     * Every song played in the period with its plays and listening time - the whole list, not the
+     * top of it. Null until the period's rows have loaded.
      */
-    private val localPool = overviewRequest.flatMapLatest { (period, metric, limit) ->
-        database.mostPlayedSongsWithStats(
-            period.toTimeMillis(),
-            limit = maxOf(limit, MERGE_POOL),
-            byPlayTime = metric == StatMetric.TIME_LISTENED,
-        )
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    private val periodPlays: StateFlow<List<SongPlays>?> =
+        statPeriod.flatMapLatest { period ->
+            database.songPlaysSince(period.toTimeMillis())
+                .map<List<SongPlays>, List<SongPlays>?> { it }
+                .onStart { emit(null) }
+        }.stateIn(viewModelScope, SharingStarted.Lazily, null)
 
-    val mostPlayedSongs = combine(
-        localPool,
-        remoteTally,
+    /**
+     * The whole chart, ranked, with what the history adds - before it is cut to the song count.
+     *
+     * Ranked from every song played rather than from the top 200 or the count chosen: the history
+     * was merged against those, so a song below the cut that also had history plays was taken as
+     * played only elsewhere at 20, 50 or 100 and with its own plays at "All", and its numbers, its
+     * place and which songs made the chart changed with the count. Two ids of one song below the
+     * cut could likewise only add up at "All".
+     */
+    private val chart: StateFlow<StatsChart?> =
+        combine(periodPlays, remoteTally, statMetric) { rows, tally, metric ->
+            rows?.let { buildStatsChart(it, tally, metric) }
+        }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    val mostPlayedSongs: StateFlow<List<SongPlayStats>> =
+        combine(chart, songLimit) { chart, limit -> chart to limit }
+            .mapLatest { (chart, limit) -> chart?.let { showable(it.songs.take(limit), it.localIds) }.orEmpty() }
+            .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+
+    /**
+     * Plays and listening time in the period, for the header beside the title. Summed from the
+     * same rows as the chart, history included, so the header is the whole chart added up.
+     */
+    val totals: StateFlow<PlayTotals?> = chart.map { it?.totals }
+        .stateIn(viewModelScope, SharingStarted.Lazily, null)
+
+    /**
+     * Artists by the same measure as the chart, with the history's plays too - credited the same
+     * way as the songs gain them. Without them a song played mostly elsewhere could top the chart
+     * while its artist was missing from the row above it.
+     */
+    private val artistRows: StateFlow<ArtistRows> = combine(
+        statPeriod.flatMapLatest { period ->
+            // Every artist, not the top of them, for the same reason the chart ranks every song.
+            database.mostPlayedArtistStats(period.toTimeMillis(), limit = ALL, byPlayTime = true)
+        },
+        chart,
         statMetric,
         songLimit,
-    ) { local, tally, metric, limit -> mergeRemotePlays(local, tally, metric, limit = limit) }
+    ) { local, chart, metric, limit ->
+        withHistoryArtists(local, chart?.artistExtras.orEmpty(), metric).let { rows ->
+            rows.copy(
+                artists = rows.artists
+                    .filter { it.artist.isYouTubeArtist }
+                    // As long as the chart, but a row of artist tiles has no use for thousands.
+                    .take(limit.coerceAtMost(MAX_ARTISTS))
+            )
+        }
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Lazily, ArtistRows(emptyList(), emptySet()))
+
+    val mostPlayedArtists: StateFlow<List<ArtistPlayStats>> = artistRows.map { it.artists }
         .stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     /**
-     * Every song's own plays in the period, for the totals to measure the history against. Not
-     * [localPool]: its size follows the song count chosen for the chart, so a song outside it had
-     * all its history plays counted as extra, and the totals changed between 20, 50, 100 and all.
-     * Read only while the history is on - off, the totals are the database's own.
-     *
-     * Null until the period's counts have loaded. An empty map in their place made every history
-     * play look extra, so the header briefly showed far more plays than the chart.
+     * Albums by the same measure as the chart. This device's plays only: a history entry names its
+     * album, but not reliably enough to add its plays to the right one.
      */
-    private val periodPlays: StateFlow<Map<String, Int>?> =
-        combine(statPeriod, remoteTally.map { it.isEmpty() }.distinctUntilChanged()) { period, none -> period to none }
-            .flatMapLatest { (period, none) ->
-                if (none) flowOf(emptyMap())
-                else database.playCountsSince(period.toTimeMillis())
-                    .map<List<SongPlayCount>, Map<String, Int>?> { counts -> counts.associate { it.songId to it.plays } }
-                    .onStart { emit(null) }
-            }
-            .stateIn(viewModelScope, SharingStarted.Lazily, null)
+    val mostPlayedAlbums = combine(statPeriod, statMetric) { period, metric -> period to metric }
+        .flatMapLatest { (period, metric) ->
+            database.mostPlayedAlbums(period.toTimeMillis(), byPlayTime = metric == StatMetric.TIME_LISTENED)
+        }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
 
     /**
-     * Plays and listening time in the period, for the header beside the title - with what the
-     * history adds over this device's own plays, so the totals agree with the chart under them.
+     * [shown] with each song this device knows read back from the library, for its cover, album
+     * and the rest. The chart is ranked from slim rows that carry only what ranking needs.
      */
-    val totals = combine(
-        statPeriod.flatMapLatest { period -> database.playTotals(period.toTimeMillis()) },
-        remoteTally,
-        periodPlays,
-    ) { local, tally, localPlays -> withRemotePlays(local, tally, localPlays) }
-        .stateIn(viewModelScope, SharingStarted.Lazily, null)
-
-    val mostPlayedArtists = overviewRequest.flatMapLatest { (period, metric, limit) ->
-        database.mostPlayedArtistStats(
-            period.toTimeMillis(),
-            // As long as the chart, but a row of artist tiles has no use for thousands.
-            limit = limit.coerceAtMost(MAX_ARTISTS),
-            byPlayTime = metric == StatMetric.TIME_LISTENED,
-        ).map { artists ->
-            artists.filter { it.artist.isYouTubeArtist }
-        }
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
-
-
-    val mostPlayedAlbums = statPeriod.flatMapLatest { period ->
-        database.mostPlayedAlbums(period.toTimeMillis())
-    }.stateIn(viewModelScope, SharingStarted.Lazily, emptyList())
+    private suspend fun showable(shown: List<SongPlayStats>, localIds: Set<String>): List<SongPlayStats> {
+        val ids = shown.map { it.song.id }.filter { it in localIds }
+        // In chunks: "All" can be thousands of songs, past SQLite's limit on query parameters.
+        val songs = ids.chunked(500).flatMap { database.songsByIds(it) }.associateBy { it.id }
+        return shown.map { stats -> songs[stats.song.id]?.let { stats.copy(song = it) } ?: stats }
+    }
 
     init {
         // A long chart reaches artists the old six never showed, which are exactly the ones most
-        // likely to be missing a picture.
+        // likely to be missing a picture. Only artists in the library: one known only from the
+        // history has no row to update, so it would be fetched again on every play. This was
+        // done twice, by two collectors asking for the same artists.
         viewModelScope.launch {
-            mostPlayedArtists.collect { artists ->
-                fetchMissingArtistArt(artists.map { it.artist })
-            }
-        }
-        // fetch missing artist metadata
-        viewModelScope.launch {
-            mostPlayedArtists.collect { artists ->
-                artists
-                    .map { it.artist }
-                    .filter {
-                        it.thumbnailUrl == null || Duration.between(it.lastUpdateTime, LocalDateTime.now()) > Duration.ofDays(10)
-                    }
-                    .forEach { artist ->
-                        YouTube.artist(artist.id).onSuccess { artistPage ->
-                            database.query {
-                                update(artist, artistPage)
-                            }
-                        }
-                    }
+            artistRows.collect { rows ->
+                fetchMissingArtistArt(rows.artists.map { it.artist }.filter { it.id !in rows.historyOnly })
             }
         }
         // fetch missing album metadata
@@ -252,60 +252,6 @@ class StatsViewModel @Inject constructor(
         return sections
     }
 
-    /**
-     * Folds [tally] into [local] and re-ranks.
-     *
-     * A song already played on this device keeps its local row and gains the remote plays on top.
-     * One never played here has no local row at all - so it is built from the history entry's own
-     * metadata, in memory only. Nothing is written to the library: appearing in someone's stats is
-     * not a reason to start claiming they own a song.
-     */
-    private fun mergeRemotePlays(
-        local: List<SongPlayStats>,
-        tally: Map<String, HistoryTally.Plays>,
-        metric: StatMetric,
-        limit: Int,
-    ): List<SongPlayStats> {
-        // The same song under two ids counts once - see mergeSameSongs. After the remote plays are
-        // added, so a song's plays from everywhere end up in the one entry.
-        if (tally.isEmpty()) return rank(mergeSameSongs(local), metric, limit)
-
-        // The larger of the local and history counts, not their sum: plays this device shared with
-        // YouTube Music are in both - see HistoryTally.extraPlays.
-        val merged = local.map { stats ->
-            val remote = tally[stats.song.id] ?: return@map stats
-            val extra = HistoryTally.extraPlays(stats.totalPlays, remote.plays)
-            stats.copy(
-                totalPlays = stats.totalPlays + extra,
-                totalPlayTime = stats.totalPlayTime + extra * stats.song.song.duration.coerceAtLeast(0) * 1000L,
-            )
-        }.toMutableList()
-
-        val known = local.mapTo(HashSet()) { it.song.id }
-        tally.values.filterNot { it.song.id in known }.forEach { remote ->
-            val metadata = remote.song.toMediaMetadata()
-            merged += SongPlayStats(
-                song = Song(
-                    song = metadata.toSongEntity(),
-                    artists = metadata.artists.map { artist ->
-                        ArtistEntity(id = artist.id ?: ArtistEntity.generateArtistId(), name = artist.name)
-                    },
-                ),
-                totalPlays = remote.plays,
-                totalPlayTime = remote.plays * metadata.duration * 1000L,
-            )
-        }
-
-        return rank(mergeSameSongs(merged), metric, limit)
-    }
-
-    private fun rank(songs: List<SongPlayStats>, metric: StatMetric, limit: Int): List<SongPlayStats> =
-        songs
-            .sortedByDescending {
-                if (metric == StatMetric.TIME_LISTENED) it.totalPlayTime else it.totalPlays.toLong()
-            }
-            .take(limit)
-
     companion object {
         /** "All" is this: SQLite takes it as no limit worth the name. */
         const val ALL = Int.MAX_VALUE
@@ -313,33 +259,140 @@ class StatsViewModel @Inject constructor(
 
         private const val MAX_ARTISTS = 100
 
-        /** How many local rows to rank against before trimming to what is shown - see the call site. */
-        private const val MERGE_POOL = 200
-
         /** ~20 songs a page, so this reaches a few thousand plays back. */
         private const val MAX_HISTORY_PAGES = 40
     }
 }
 
 /**
- * [local]'s totals with what the history [tally] adds over this device's own plays, [localPlays].
- * Internal so StatsTotalsTest runs the real thing.
+ * The song chart for a period, whole and ranked, with the header's totals and what the history
+ * added to each artist - all from one pass, so the three agree. See [buildStatsChart].
  */
-internal fun withRemotePlays(
-    local: PlayTotals?,
+internal class StatsChart(
+    val songs: List<SongPlayStats>,
+    /** The songs played on this device, which the library can show in full. */
+    val localIds: Set<String>,
+    val totals: PlayTotals,
+    val artistExtras: Map<String, ArtistExtra>,
+)
+
+/** What the history adds to one artist, with their name for an artist the library does not have. */
+internal data class ArtistExtra(val name: String, val plays: Int, val playTime: Long)
+
+/** The artist row, and which of its artists are known only from the history. */
+internal data class ArtistRows(val artists: List<ArtistPlayStats>, val historyOnly: Set<String>)
+
+/**
+ * Every song in [local] - this device's plays in the period - with what the history [tally] adds,
+ * the same song under several ids made one (see mergeSameSongs), ranked by [metric].
+ *
+ * A song played here gains the history's plays beyond its own - the larger of the two counts, not
+ * their sum (see HistoryTally.extraPlays). One never played here is built from the history entry's
+ * own metadata, in memory only: appearing in someone's stats is not a reason to start claiming they
+ * own a song. Ties are broken by the other measure and then by id, so the same plays always rank
+ * the same way. Internal so StatsChartTest runs the real thing.
+ */
+internal fun buildStatsChart(
+    local: List<SongPlays>,
     tally: Map<String, HistoryTally.Plays>,
-    localPlays: Map<String, Int>?,
-): PlayTotals? {
-    // The history's plays wait for this device's own to compare against - see periodPlays.
-    if (local == null || tally.isEmpty() || localPlays == null) return local
+    metric: StatMetric,
+): StatsChart {
     var plays = 0
-    var time = 0L
-    tally.values.forEach { remote ->
-        val extra = HistoryTally.extraPlays(localPlays[remote.song.id] ?: 0, remote.plays)
-        plays += extra
-        time += extra * (remote.song.duration ?: 0) * 1000L
+    var playTime = 0L
+    val artistExtras = HashMap<String, ArtistExtra>()
+    fun credit(id: String, name: String, extra: Int, extraTime: Long) {
+        val seen = artistExtras[id]
+        artistExtras[id] = ArtistExtra(
+            name = seen?.name ?: name,
+            plays = (seen?.plays ?: 0) + extra,
+            playTime = (seen?.playTime ?: 0L) + extraTime,
+        )
     }
-    return PlayTotals(plays = local.plays + plays, playTime = local.playTime + time)
+
+    // In id order, so which id stands for a merged song does not follow the query's row order.
+    val rows = local.sortedBy { it.songId }.mapTo(ArrayList()) { row ->
+        val remote = tally[row.songId]
+        val extra = remote?.let { HistoryTally.extraPlays(row.plays, it.plays) } ?: 0
+        val extraTime = historyPlayTime(extra, remote?.song?.duration, row.duration)
+        plays += row.plays + extra
+        playTime += row.playTime + extraTime
+        val ids = row.artistIdList
+        val names = row.artistNames
+        if (extra > 0) ids.forEachIndexed { i, id -> credit(id, names.getOrElse(i) { "" }, extra, extraTime) }
+        SongPlayStats(
+            song = Song(
+                song = SongEntity(id = row.songId, title = row.title, duration = row.duration, localPath = null),
+                artists = ids.zip(names) { id, name -> ArtistEntity(id = id, name = name) },
+            ),
+            totalPlayTime = row.playTime + extraTime,
+            totalPlays = row.plays + extra,
+        )
+    }
+    val localIds = local.mapTo(HashSet()) { it.songId }
+
+    // After the local rows, so on a tie in plays the merge keeps the version the library has.
+    tally.values.filterNot { it.song.id in localIds }.sortedBy { it.song.id }.forEach { remote ->
+        val metadata = remote.song.toMediaMetadata()
+        val time = historyPlayTime(remote.plays, remote.song.duration, null)
+        plays += remote.plays
+        playTime += time
+        remote.song.artists.forEach { artist ->
+            artist.id?.let { credit(it, artist.name, remote.plays, time) }
+        }
+        rows += SongPlayStats(
+            song = Song(
+                song = metadata.toSongEntity(),
+                artists = metadata.artists.map { artist ->
+                    ArtistEntity(id = artist.id ?: ArtistEntity.generateArtistId(), name = artist.name)
+                },
+            ),
+            totalPlays = remote.plays,
+            totalPlayTime = time,
+        )
+    }
+
+    val byTime = metric == StatMetric.TIME_LISTENED
+    val ranked = mergeSameSongs(rows).sortedWith(
+        compareByDescending<SongPlayStats> { if (byTime) it.totalPlayTime else it.totalPlays.toLong() }
+            .thenByDescending { if (byTime) it.totalPlays.toLong() else it.totalPlayTime }
+            .thenBy { it.song.id }
+    )
+    return StatsChart(ranked, localIds, PlayTotals(plays = plays, playTime = playTime), artistExtras)
+}
+
+/**
+ * The listening time of [extra] plays made elsewhere: each a whole play of the track, as YouTube
+ * keeps a history entry only once a song has been played through. Its length from the history
+ * entry, else the library's; a track of unknown length (a live stream, or a length never read)
+ * adds plays but no time. The history-only rows used to take an unknown length's -1 as it was,
+ * and so took time away.
+ */
+internal fun historyPlayTime(extra: Int, historySeconds: Int?, localSeconds: Int?): Long {
+    val seconds = historySeconds?.takeIf { it > 0 } ?: localSeconds?.takeIf { it > 0 } ?: 0
+    return extra * seconds * 1000L
+}
+
+/** [local] artists with the history's [extras] added, and those known only from it, ranked by [metric]. */
+internal fun withHistoryArtists(
+    local: List<ArtistPlayStats>,
+    extras: Map<String, ArtistExtra>,
+    metric: StatMetric,
+): ArtistRows {
+    val known = local.mapTo(HashSet()) { it.artist.id }
+    val raised = local.map { stats ->
+        val extra = extras[stats.artist.id] ?: return@map stats
+        stats.copy(totalPlays = stats.totalPlays + extra.plays, totalPlayTime = stats.totalPlayTime + extra.playTime)
+    }
+    val elsewhere = extras.filterKeys { it !in known }.map { (id, extra) ->
+        ArtistPlayStats(ArtistEntity(id = id, name = extra.name), totalPlayTime = extra.playTime, totalPlays = extra.plays)
+    }
+    val byTime = metric == StatMetric.TIME_LISTENED
+    val ranked = (raised + elsewhere).sortedWith(
+        compareByDescending<ArtistPlayStats> { if (byTime) it.totalPlayTime else it.totalPlays.toLong() }
+            .thenByDescending { if (byTime) it.totalPlays.toLong() else it.totalPlayTime }
+            .thenBy { it.artist.id }
+    )
+    return ArtistRows(ranked, elsewhere.mapTo(HashSet()) { it.artist.id })
 }
 
 /** The period's length in days, or null for all time - what HistoryTally counts sections against. */

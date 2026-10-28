@@ -120,18 +120,37 @@ interface AlbumsDao : ArtistsDao {
     @Query("SELECT song.* FROM song JOIN song_album_map ON song.id = song_album_map.songId WHERE song_album_map.albumId = :albumId")
     fun albumSongs(albumId: String): Flow<List<Song>>
 
+    /**
+     * Albums ranked by their songs' plays since [fromTimeStamp] - by time listened, or by number of
+     * plays when [byPlayTime] is false, so Stats can rank them the way it ranks its songs; they
+     * were always ranked by time, whichever the screen asked for.
+     *
+     * The plays are summed in a subquery, apart from the download count. Joined in one query, every
+     * downloaded song was counted once per play of it.
+     */
     @Transaction
     @Query("""
-        SELECT album.*, SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) downloadCount
+        SELECT album.*,
+               (SELECT COUNT(*) FROM song
+                WHERE song.albumId = album.id AND song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0) AS downloadCount
         FROM album
-            JOIN song ON album.id = song.albumId
-            JOIN event ON song.id = event.songId
-        WHERE event.timestamp > :fromTimeStamp
-        GROUP BY album.id
-        ORDER BY SUM(event.playTime) DESC
-        LIMIT :limit OFFSET :offset;
+            JOIN (SELECT song.albumId AS rankedAlbumId,
+                         SUM(event.playTime) AS totalPlayTime,
+                         COUNT(*)            AS totalPlays
+                  FROM event
+                      JOIN song ON song.id = event.songId
+                  WHERE event.timestamp > :fromTimeStamp
+                  GROUP BY song.albumId) AS ranked
+                 ON ranked.rankedAlbumId = album.id
+        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC, album.id
+        LIMIT :limit OFFSET :offset
     """)
-    fun mostPlayedAlbums(fromTimeStamp: Long, limit: Int = 6, offset: Int = 0): Flow<List<Album>>
+    fun mostPlayedAlbums(
+        fromTimeStamp: Long,
+        limit: Int = 6,
+        offset: Int = 0,
+        byPlayTime: Boolean = true,
+    ): Flow<List<Album>>
 
     @Transaction
     @Query("""

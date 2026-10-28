@@ -277,7 +277,7 @@ interface ArtistsDao {
                   WHERE event.timestamp > :fromTimeStamp
                   GROUP BY sam.artistId) AS ranked
                  ON ranked.rankedArtistId = artist.id
-        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC
+        ORDER BY (CASE WHEN :byPlayTime THEN ranked.totalPlayTime ELSE ranked.totalPlays END) DESC, artist.id
         LIMIT :limit
     """)
     fun mostPlayedArtistStats(

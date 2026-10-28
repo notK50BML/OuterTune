@@ -172,7 +172,10 @@ class LibraryStore(
     fun topSongs(sinceMs: Long, limit: Int = 50, remote: Map<String, HistoryTally.Plays> = emptyMap()) =
         db.topSongs(sinceMs, limit, remote)
     fun playCounts(sinceMs: Long) = db.playCounts(sinceMs)
-    fun topArtists(sinceMs: Long, limit: Int = 30) = db.topArtists(sinceMs, limit)
+    fun songChart(sinceMs: Long, limit: Int = 50, remote: Map<String, HistoryTally.Plays> = emptyMap()) =
+        db.songChart(sinceMs, limit, remote)
+    fun topArtists(sinceMs: Long, limit: Int = 30, remote: Map<String, HistoryTally.Plays> = emptyMap()) =
+        db.topArtists(sinceMs, limit, remote)
     fun playTotals(sinceMs: Long) = db.playTotals(sinceMs)
 
     /**
