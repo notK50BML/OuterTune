@@ -115,6 +115,9 @@ class DesktopPlayer {
 
         /** A live segment not out yet: asked for again this many times, this far apart, before the stream ends. */
         const val LIVE_RETRIES = 5
+
+        /** How far the position moves before it is published again behind a minimised window. */
+        const val BACKGROUND_POSITION_STEP_MS = 250L
         const val LIVE_RETRY_MS = 1_000L
         const val AAC_FRAME_SAMPLES = 1024L
 
@@ -248,6 +251,15 @@ class DesktopPlayer {
      */
     @Volatile
     var normalise: Boolean = false
+
+    /**
+     * The window is minimised, so nothing shows what the decode loop works out for the screen: the
+     * spectrum is not analysed (an FFT a block, some forty a second) and the position is published a
+     * few times a second instead of every block, which is what kept the UI redrawing behind a
+     * minimised window. The audio itself is processed exactly as before. See MemoryTrim.
+     */
+    @Volatile
+    var inBackground: Boolean = false
 
     /** Playback volume, 0..1 - the sleep timer's fade-out turns this down. */
     @Volatile
@@ -1050,19 +1062,20 @@ class DesktopPlayer {
 
             // Analysed before the write and queued against the frame at which this block will be
             // heard, so the bars move with the sound rather than a buffer's length ahead of it.
-            val frames = Pcm.toMono(
-                bytes = stretched,
-                offset = 0,
-                length = stretched.size,
-                bitsPerSample = bitsPerSample,
-                channels = channels,
-                bigEndian = bigEndian,
-                out = mono,
-            )
-            if (frames > 0) {
-                spectrum.submit(framesWritten, analyzer.analyze(mono, frames))
-                framesWritten += frames
+            val frames = if (inBackground) {
+                stretched.size / (bitsPerSample / 8 * channels).coerceAtLeast(1)
+            } else {
+                Pcm.toMono(
+                    bytes = stretched,
+                    offset = 0,
+                    length = stretched.size,
+                    bitsPerSample = bitsPerSample,
+                    channels = channels,
+                    bigEndian = bigEndian,
+                    out = mono,
+                ).also { if (it > 0) spectrum.submit(framesWritten, analyzer.analyze(mono, it)) }
             }
+            if (frames > 0) framesWritten += frames
 
             // Normalisation and volume, after the analysis so the visualiser shows the music
             // rather than how loud it has been set.
@@ -1091,8 +1104,11 @@ class DesktopPlayer {
             if (gen != generation) break
             // Not over a seek that is waiting to be applied: seekTo() has already shown its
             // target, and writing the old position here flicked the bar back for a moment.
-            if (pendingSeekMs == null) positionMs.value =
-                trackMsBase + ((open.longFramePosition - lineFrameBase) * 1000.0 * tempo / sampleRate).toLong()
+            if (pendingSeekMs == null) {
+                val now = trackMsBase + ((open.longFramePosition - lineFrameBase) * 1000.0 * tempo / sampleRate).toLong()
+                // Behind a minimised window, a few times a second is plenty - see [inBackground].
+                if (!inBackground || now - positionMs.value !in 0 until BACKGROUND_POSITION_STEP_MS) positionMs.value = now
+            }
         }
         // Let whatever is buffered finish rather than cutting the last fraction of a second off.
         if (currentCoroutineContext().isActive && gen == generation) open.drain()

@@ -28,13 +28,21 @@ class LivePlaybackProbe {
         val player = DesktopPlayer().apply { volume = 0f }
         var finished = false
         player.onFinished = { finished = true }
+        val os = java.lang.management.ManagementFactory.getOperatingSystemMXBean() as com.sun.management.OperatingSystemMXBean
+        if (System.getenv("OT_BACKGROUND") != null) player.inBackground = true
         try {
             player.play(scope, id, "live")
+            Thread.sleep(6_000)
+            val cpuStart = os.processCpuTime
+            val wallStart = System.nanoTime()
             repeat(15) {
                 Thread.sleep(2_000)
                 println("t=${(it + 1) * 2}s state=${player.state.value::class.simpleName} position=${player.positionMs.value}ms " +
                     "duration=${player.durationMs.value} finished=$finished details=${player.stream.value?.format}")
             }
+            val cpuMs = (os.processCpuTime - cpuStart) / 1_000_000
+            val wallMs = (System.nanoTime() - wallStart) / 1_000_000
+            println("CPU while playing: ${cpuMs}ms over ${wallMs}ms = ${"%.1f".format(cpuMs * 100.0 / wallMs)}% of one core")
             val state = player.state.value
             assertTrue("still playing after 30s, was $state", state is PlaybackState.Playing && !finished)
             assertTrue("position kept moving, was ${player.positionMs.value}", player.positionMs.value > 20_000)

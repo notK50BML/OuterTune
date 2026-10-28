@@ -36,9 +36,12 @@ object MemoryTrim {
     /** Long enough that a quick minimise and restore - checking something - does not pay for it. */
     private const val DELAY_MS = 5_000L
 
-    fun install(window: Frame) {
+    /** [onMinimised] hears every change, true going down and false coming back - see DesktopPlayer.inBackground. */
+    fun install(window: Frame, onMinimised: (Boolean) -> Unit = {}) {
         window.addWindowStateListener { event ->
-            if (event.newState and Frame.ICONIFIED == 0) return@addWindowStateListener
+            val minimised = event.newState and Frame.ICONIFIED != 0
+            if (minimised != (event.oldState and Frame.ICONIFIED != 0)) onMinimised(minimised)
+            if (!minimised) return@addWindowStateListener
             Thread {
                 Thread.sleep(DELAY_MS)
                 if (window.extendedState and Frame.ICONIFIED != 0) trim()

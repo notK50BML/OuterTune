@@ -193,7 +193,7 @@ fun main() = application {
     ) {
         LaunchedEffect(Unit) {
             if (useNativeFrame) NativeFrame.install(window) else WindowCorners.round(window)
-            MemoryTrim.install(window)
+            MemoryTrim.install(window, onMinimised = { player.inBackground = it })
         }
         // A real frame that could not be hooked keeps Windows' own title bar, so draws no second one.
         val customChrome = !useNativeFrame || NativeFrame.active
