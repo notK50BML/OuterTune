@@ -375,7 +375,9 @@ class DesktopPlayer {
                     }
                 }
                 if (gen != generation) return@launch
-                state.value = PlaybackState.Playing(title)
+                // Paused if pause was pressed while it was being fetched - the decode loop holds on
+                // [paused] until play is pressed.
+                state.value = if (paused) PlaybackState.Paused(title) else PlaybackState.Playing(title)
                 if (audio != null) {
                     stream(audio, gen)
                 } else {
@@ -411,13 +413,19 @@ class DesktopPlayer {
      * goes quiet immediately instead of playing on for a second.
      */
     fun togglePause() {
-        val current = line ?: return
-        when (val playing = state.value) {
-            is PlaybackState.Playing -> pause()
+        when (val now = state.value) {
+            is PlaybackState.Loading, is PlaybackState.Playing -> pause()
             is PlaybackState.Paused -> {
                 paused = false
-                current.start()
-                state.value = PlaybackState.Playing(playing.title)
+                // Paused before it had loaded: still fetching, so back to loading, and it plays when
+                // it arrives. Loaded: the line carries on.
+                val current = line
+                if (current == null) {
+                    state.value = PlaybackState.Loading(now.title)
+                } else {
+                    current.start()
+                    state.value = PlaybackState.Playing(now.title)
+                }
             }
             else -> Unit
         }
@@ -431,11 +439,22 @@ class DesktopPlayer {
      * is the exact opposite of what it is for.
      */
     fun pause() {
-        val current = line ?: return
-        val playing = state.value as? PlaybackState.Playing ?: return
-        paused = true
-        current.stop()
-        state.value = PlaybackState.Paused(playing.title)
+        when (val now = state.value) {
+            // Still being fetched: held, so it starts paused when it arrives rather than playing as
+            // if pause had never been pressed - which is what happened, since there was no line yet
+            // for pause to stop.
+            is PlaybackState.Loading -> {
+                paused = true
+                state.value = PlaybackState.Paused(now.title)
+            }
+            is PlaybackState.Playing -> {
+                val current = line ?: return
+                paused = true
+                current.stop()
+                state.value = PlaybackState.Paused(now.title)
+            }
+            else -> Unit
+        }
     }
 
     /**
@@ -1154,7 +1173,7 @@ class DesktopPlayer {
                     sizeBytes = file.length(),
                     path = file.absolutePath,
                 )
-                state.value = PlaybackState.Playing(title)
+                state.value = if (paused) PlaybackState.Paused(title) else PlaybackState.Playing(title)
                 play(source, gen)
                 if (currentCoroutineContext().isActive && gen == generation) {
                     state.value = PlaybackState.Idle
