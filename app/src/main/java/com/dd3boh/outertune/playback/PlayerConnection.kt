@@ -33,14 +33,12 @@ import com.dd3boh.outertune.playback.queues.Queue
 import com.dd3boh.outertune.utils.reportException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -70,14 +68,13 @@ class PlayerConnection(
         database.song(it?.id)
     }
     // Fetching is Service-driven (see MusicService); this only watches the DB row so every
-    // collector shares one query and one parse instead of triggering its own fetch.
-    val currentLyrics: Flow<SemanticLyrics?> = mediaMetadata.flatMapLatest { mediaMetadata ->
-        if (mediaMetadata != null) {
+    // collector shares one query and one parse instead of triggering its own fetch. Tagged with the
+    // song they belong to and reset on every song change - see lyricsPerSong for why both matter.
+    val currentLyrics: StateFlow<SongLyrics<SemanticLyrics>?> = mediaMetadata
+        .lyricsPerSong(idOf = { it.id }) { mediaMetadata ->
             database.lyrics(mediaMetadata.id).map { dbLyrics -> resolveLyrics(mediaMetadata, dbLyrics) }
-        } else {
-            flowOf(null)
         }
-    }.stateIn(scope, SharingStarted.Lazily, null)
+        .stateIn(scope, SharingStarted.Lazily, null)
 
     /**
      * Resolve the display lyrics for a song from its DB row and, when applicable, its local

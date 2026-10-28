@@ -47,12 +47,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -152,45 +151,55 @@ fun Lyrics(
 
 
     // NOTE: lyricsModel is the current display lyrics that is updated by playerLyrics AND/OR manually
-    val playerLyrics by playerConnection.currentLyrics.collectAsState(initial = null)
-    var lyricsModel by remember { mutableStateOf(playerLyrics) }
+    val currentSongLyrics by playerConnection.currentLyrics.collectAsState()
+    val currentMediaId = mediaMetadata?.id
+    // Only lyrics resolved for the song this frame is drawn for. The lyrics and the song are two
+    // separate flows, and for a frame or more after a track change they disagree - taking the
+    // lyrics at their word is what showed the previous song's lyrics under the new one.
+    val playerLyrics = currentSongLyrics?.takeIf { it.mediaId == currentMediaId }?.lyrics
+    // Keyed on the song so a track change drops whatever was on screen in the same composition that
+    // notices the change, manual edits and search results included, rather than one effect later.
+    var lyricsModel by remember(currentMediaId) { mutableStateOf(playerLyrics.forDisplay(estimatedWordSync)) }
     // The lyrics as they arrived, before word timings were estimated - what the type tag describes.
-    var arrivedLyrics by remember { mutableStateOf(playerLyrics) }
+    var arrivedLyrics by remember(currentMediaId) { mutableStateOf(playerLyrics) }
     // While the lyrics menu's Refetch is running: the lyrics show the same placeholder as the first
     // load, and the menu button a spinner, instead of nothing at all until the new ones arrive.
-    var refetching by remember { mutableStateOf(false) }
-
-    val lines: SnapshotStateList<LyricLine> = remember { mutableStateListOf<LyricLine>() }
+    // Held as the id of the song being refetched, so a refetch left running on the previous song
+    // neither keeps the placeholder up over this one nor ends one started for this one.
+    var refetchingMediaId by remember { mutableStateOf<String?>(null) }
+    val refetching = refetchingMediaId != null && refetchingMediaId == currentMediaId
 
     val isSynced = remember(lyricsModel) {
         lyricsModel is SemanticLyrics.SyncedLyrics
     }
 
-    LaunchedEffect(playerLyrics, estimatedWordSync) {
+    // Derived in the same composition as lyricsModel rather than filled in by an effect afterwards,
+    // so there is never a frame in which the lines on screen belong to the previous lyrics.
+    val lines: List<LyricLine> = remember(lyricsModel) {
+        when (val model = lyricsModel) {
+            null -> emptyList()
+            is SemanticLyrics.SyncedLyrics -> model.text
+            else -> listOf(
+                LyricLine(
+                    // joinToString's default separator is ", " - combined with the manual
+                    // trailing "\n" per element that made every line show up as
+                    // "line one\n, line two\n, ..." instead of clean line breaks.
+                    model.unsyncedText.joinToString("\n") { it.first }, 0L.toULong(), 0L.toULong(),
+                    null, null, false
+                )
+            )
+        }
+    }
+    // For the scroll effect below, which is keyed on the line index and so would otherwise keep
+    // measuring against whichever lines were current when the index last changed.
+    val currentLines by rememberUpdatedState(lines)
+
+    LaunchedEffect(currentMediaId, playerLyrics, estimatedWordSync) {
         // The sweep renderer works entirely off each line's word list, so making it run on ordinary
         // line-synced lyrics is a matter of supplying that list rather than touching the renderer.
         // Lines that already carry real word timings are left alone by withEstimatedWordSync.
         arrivedLyrics = playerLyrics
         lyricsModel = playerLyrics.forDisplay(estimatedWordSync)
-    }
-
-    LaunchedEffect(lyricsModel) {
-        lines.clear()
-        lyricsModel?.let { model ->
-            if (isSynced) {
-                lines.addAll((model as SemanticLyrics.SyncedLyrics).text)
-            } else {
-                lines.add(
-                    LyricLine(
-                        // joinToString's default separator is ", " - combined with the manual
-                        // trailing "\n" per element that made every line show up as
-                        // "line one\n, line two\n, ..." instead of clean line breaks.
-                        model.unsyncedText.joinToString("\n") { it.first }, 0L.toULong(), 0L.toULong(),
-                        null, null, false
-                    )
-                )
-            }
-        }
     }
 
     // Lyrics are drawn over the player background, so they need the colour that was measured from
@@ -326,7 +335,7 @@ fun Lyrics(
          * change happened to be in range again.
          */
         fun calculateOffset(): Int {
-            val line = lines.getOrNull(currentLineIndex) ?: return 0
+            val line = currentLines.getOrNull(currentLineIndex) ?: return 0
             return with(density) {
                 val perLine = if (landscapeOffset) 16.dp else 20.dp // landscape sits higher by default
                 perLine.toPx().toInt() * countNewLine(line.text)
@@ -586,11 +595,23 @@ fun Lyrics(
                                 // Through the same word-timing estimate as lyrics that arrive with
                                 // the song. Set as they were, refetched, edited or searched lyrics had
                                 // no sweep until the lyrics were closed and opened again.
+                                // A refetch can take long enough for the song to change under it;
+                                // its result is for the song the menu was opened on, and is dropped
+                                // rather than shown under whatever is playing by the time it lands.
+                                // Its row is stored either way, so going back to that song shows it.
                                 onRefreshRequest = {
-                                    arrivedLyrics = it
-                                    lyricsModel = it.forDisplay(estimatedWordSync)
+                                    if (playerConnection.mediaMetadata.value?.id == mediaMetadata.id) {
+                                        arrivedLyrics = it
+                                        lyricsModel = it.forDisplay(estimatedWordSync)
+                                    }
                                 },
-                                onRefetching = { refetching = it },
+                                onRefetching = { started ->
+                                    if (started) {
+                                        refetchingMediaId = mediaMetadata.id
+                                    } else if (refetchingMediaId == mediaMetadata.id) {
+                                        refetchingMediaId = null
+                                    }
+                                },
                                 onDismiss = menuState::dismiss,
                             )
                         }
@@ -619,10 +640,10 @@ fun Lyrics(
  * Get current position in lyric line list
  */
 fun findCurrentLineIndex(lines: List<LyricLine>, position: Long): Int {
-    // lyricsModel (checked by the caller) and this `lines` snapshot are populated by two separate
-    // effects keyed on the same model - a `lines[lines.lastIndex]` below on a momentarily-empty
-    // list threw and killed the caller's refresh loop for good. -1 is the same "nothing current
-    // yet" value the caller already uses before any lyrics have loaded.
+    // Synced lyrics can still have no lines at all, and `lines` was once filled in by an effect
+    // that ran after lyricsModel changed - a `lines[lines.lastIndex]` below on an empty list threw
+    // and killed the caller's refresh loop for good. -1 is the same "nothing current yet" value the
+    // caller already uses before any lyrics have loaded.
     if (lines.isEmpty()) return -1
     // ExoPlayer legitimately reports a transient negative position around seeks and track
     // transitions. position.toUInt() on a negative Long wraps to a huge unsigned value, so every
