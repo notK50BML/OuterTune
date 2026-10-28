@@ -166,6 +166,7 @@ class UiSnapshots {
         shownLyrics: Lyrics = lyrics,
         position: Long = 13_500L,
         seekBar: SeekBarStyle = SeekBarStyle.Squiggly,
+        live: Boolean = false,
     ) {
         NowPlayingScreen(
             playback = PlaybackState.Playing(songs[0].title),
@@ -191,6 +192,7 @@ class UiSnapshots {
             playedFrames = { 1L },
             playerLayout = layout,
             seekBarStyle = seekBar,
+            live = live,
         )
     }
 
@@ -317,6 +319,8 @@ class UiSnapshots {
         capture("player_1000", 1000, 700) { Player(1000) }
         // The wavy seek bar well into a song, so the played part - the part that waves - shows.
         capture("seekbar_wavy", 1280, 800) { Player(1280, position = 110_000L) }
+        // A live stream: the bar full and still, LIVE where the clock was.
+        capture("player_live", 1280, 800) { Player(1280, live = true, seekBar = SeekBarStyle.Waves) }
         capture("player_light", 1280, 800, dark = false) { Player(1280) }
         capture("queue_wide", 1400, 860, interact = { it.click(500f, 840f) }) { Player(1400) }
         // With the window's own title bar strip, which the docked queue's shade runs up through.

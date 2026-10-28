@@ -182,6 +182,8 @@ fun NowPlayingScreen(
     onSleepTimer: (() -> Unit)? = null,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
     seekBarStyle: SeekBarStyle = SeekBarStyle.Squiggly,
+    /** A live stream: the bar full and still, LIVE where the clock would be - as YouTube Music shows it. */
+    live: Boolean = false,
     ferroReactivity: FerroReactivity = FerroReactivity.Normal,
     /** An imported Windows layout (Settings > Player > Player layout), or null for the built-in one. */
     playerLayout: PlayerLayout? = null,
@@ -686,16 +688,21 @@ fun NowPlayingScreen(
                                         )
                                     }
                                     SlimSeekBar(
-                                        positionMs = positionMs,
-                                        durationMs = durationMs,
+                                        positionMs = if (live) ({ 1L }) else positionMs,
+                                        durationMs = if (live) 1L else durationMs,
+                                        seekable = !live,
                                         colour = onBackground,
                                         onSeek = onSeek,
                                         style = seekBarStyle,
                                         playing = playback is PlaybackState.Playing,
                                     )
                                     Row(horizontalArrangement = Arrangement.SpaceBetween, modifier = Modifier.fillMaxWidth()) {
-                                        PositionLabel(positionMs, onBackground)
-                                        Text(if (durationMs > 0) formatDuration(durationMs) else "-:--", style = MaterialTheme.typography.bodySmall, color = onBackground)
+                                        if (live) {
+                                            LiveLabel()
+                                        } else {
+                                            PositionLabel(positionMs, onBackground)
+                                            Text(if (durationMs > 0) formatDuration(durationMs) else "-:--", style = MaterialTheme.typography.bodySmall, color = onBackground)
+                                        }
                                     }
                                 }
                                 "controls" -> Box(modifier = Modifier.width(w)) { transportRow() }
@@ -870,8 +877,9 @@ fun NowPlayingScreen(
                     // and "how far through the song" is not a setting - colouring it implied the
                     // start of a track was a low value of something and the end a high one.
                     SlimSeekBar(
-                        positionMs = positionMs,
-                        durationMs = durationMs,
+                        positionMs = if (live) ({ 1L }) else positionMs,
+                        durationMs = if (live) 1L else durationMs,
+                        seekable = !live,
                         colour = onBackground,
                         onSeek = onSeek,
                         style = seekBarStyle,
@@ -881,8 +889,12 @@ fun NowPlayingScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
-                        PositionLabel(positionMs, onBackground)
-                        Text(if (durationMs > 0) formatDuration(durationMs) else "-:--", style = MaterialTheme.typography.bodySmall, color = onBackground)
+                        if (live) {
+                            LiveLabel()
+                        } else {
+                            PositionLabel(positionMs, onBackground)
+                            Text(if (durationMs > 0) formatDuration(durationMs) else "-:--", style = MaterialTheme.typography.bodySmall, color = onBackground)
+                        }
                     }
                 }
 
@@ -1049,6 +1061,8 @@ private fun SlimSeekBar(
     onSeek: (Long) -> Unit,
     style: SeekBarStyle = SeekBarStyle.Squiggly,
     playing: Boolean = false,
+    /** False for a live stream: nothing to seek to, so no hand, no clicks, no drags. */
+    seekable: Boolean = true,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -1098,14 +1112,19 @@ private fun SlimSeekBar(
             .fillMaxWidth()
             // Room above the line for the waves to rise into.
             .height(if (accentWaves) 40.dp else 24.dp)
-            .hoverable(interaction)
-            .pointerHoverIcon(PointerIcon.Hand)
-            .pointerInput(Unit) {
+            .then(
+                if (!seekable) Modifier else Modifier
+                    .hoverable(interaction)
+                    .pointerHoverIcon(PointerIcon.Hand)
+            )
+            .pointerInput(seekable) {
+                if (!seekable) return@pointerInput
                 detectTapGestures { offset ->
                     onSeek((offset.x / size.width).coerceIn(0f, 1f).times(currentDuration).toLong())
                 }
             }
-            .pointerInput(Unit) {
+            .pointerInput(seekable) {
+                if (!seekable) return@pointerInput
                 detectHorizontalDragGestures(
                     onDragStart = { offset -> dragFraction = (offset.x / size.width).coerceIn(0f, 1f) },
                     onDragEnd = {
@@ -1170,6 +1189,18 @@ private fun SlimSeekBar(
 }
 
 /** The elapsed time under the seek bar, alone in its own scope so a tick redraws only this. */
+/** YouTube Music's live tag: a red dot and LIVE, where the clock would be. */
+@Composable
+internal fun LiveLabel() {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.size(7.dp).background(LIVE_RED, CircleShape))
+        Spacer(modifier = Modifier.width(5.dp))
+        Text("LIVE", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = LIVE_RED)
+    }
+}
+
+internal val LIVE_RED = Color(0xFFFF4E45)
+
 @Composable
 private fun PositionLabel(positionMs: () -> Long, colour: Color) {
     Text(formatDuration(positionMs()), style = MaterialTheme.typography.bodySmall, color = colour)

@@ -323,9 +323,13 @@ internal fun App(
     }
     LaunchedEffect(settings.audioNormalisation) { player.normalise = settings.audioNormalisation }
     LaunchedEffect(settings.eqCutMakeup) { player.equalizer.cutMakeup = settings.eqCutMakeup }
+    // Each start of a song, as its own value: the play counting below is keyed on it rather than
+    // on the song's id, which stays the same when repeat-one loops a song or one is played again -
+    // only the first of those was ever counted.
+    val songStart = remember { mutableStateOf<SongStart?>(null) }
     val playerQueue = remember {
         // Counted below, once enough of the song has been heard - not here, at the start.
-        PlayerQueue(player, scope, onPlayed = {})
+        PlayerQueue(player, scope, onPlayed = { songStart.value = SongStart(it) })
     }
 
     val playback by player.state.collectAsState()
@@ -892,36 +896,30 @@ internal fun App(
         ArtistRenamer.check(library.database.songCredits(song.id).ifEmpty { song.creditedArtists() })
     }
 
-    LaunchedEffect(queue.current?.id) {
-        val song = queue.current ?: return@LaunchedEffect
+    LaunchedEffect(songStart.value) {
+        val song = songStart.value?.song ?: return@LaunchedEffect
         val playedId = song.id
+        // As it was when the song started: a station's picks stay its picks.
+        val fromStation = playerQueue.state.value.station
         // The player's own flows, combined. This was snapshotFlow { positionMs.value ... }, but
         // those are StateFlows, not Compose state, so snapshotFlow saw no reads to track: it
         // emitted once, at the start of the song, and never again - so no play was ever recorded
         // and Stats only ever showed what a phone backup had brought in.
+        val heard = HeardTime()
         combine(player.positionMs, player.durationMs) { position, duration -> position to duration }
             .first { (position, duration) ->
-                duration > 0 && position >= duration * settings.minPlayPercent.coerceIn(0, 100) / 100
+                heard.advance(position)
+                countsAsPlay(heard.heardMs, duration, settings.minPlayPercent)
             }
         // A song heard from a station is the station's pick, not the listener's - not counted.
-        if (queue.current?.id == playedId && settings.keepHistory && !queue.station) {
+        if (playerQueue.state.value.current?.id == playedId && settings.keepHistory && !fromStation) {
             library.recordPlay(song.toStored(), (song.duration ?: 0) * 1000L)
-            // And on the account, if that was asked for. The metadata call is its own authenticated
-            // request rather than the one the stream came from: streams are deliberately fetched
-            // signed-out here, so the response that plays the song carries no tracking URL tied to
-            // anybody. Failures are swallowed - a history ping that does not land is not worth
-            // interrupting playback over, and the local record has already been written.
-            if (settings.shareHistoryWithYtm && account.state.value is AccountState.SignedIn) {
-                runCatching {
-                    // WEB_REMIX authenticated, as the phone's metadata path is: the tracking URL has
-                    // to come back on a request that carries the session, or it belongs to nobody.
-                    val tracking = YouTube.player(
-                        videoId = playedId,
-                        client = YouTubeClient.WEB_REMIX,
-                        authenticated = true,
-                    ).getOrNull()?.playbackTracking?.videostatsPlaybackUrl?.baseUrl
-                    if (tracking != null) YouTube.registerPlayback(playlistId = null, playbackTracking = tracking)
-                }
+            // And on the account, if that was asked for - not for a file on this computer, which
+            // YouTube has never heard of. On the window's scope rather than this effect's: the
+            // effect ends with the song, and a song skipped while the request was out took its
+            // play on the account with it.
+            if (settings.shareHistoryWithYtm && account.state.value is AccountState.SignedIn && !LocalMusic.isLocal(playedId)) {
+                scope.launch(Dispatchers.IO) { registerPlayOnAccount(playedId) }
             }
         }
     }
@@ -1150,6 +1148,7 @@ internal fun App(
             playback = playback,
             queue = queue,
             seekBarStyle = settings.sliderStyle,
+            live = player.live.collectAsState().value,
             command = playerCommand,
             onCommandHandled = { playerCommand = null },
             playerLayout = remember(settings.playerLayout) {
@@ -1687,6 +1686,7 @@ internal fun App(
         }
         PlayerBar(
             playback = playback,
+            live = player.live.collectAsState().value,
             queue = queue,
             positionMs = shownPosition,
             durationMs = shownDuration,
@@ -2070,6 +2070,8 @@ private fun QueuePane(
 @Composable
 private fun PlayerBar(
     playback: PlaybackState,
+    /** A live stream: the progress line full, LIVE in place of the clock. */
+    live: Boolean = false,
     queue: QueueState,
     positionMs: () -> Long,
     durationMs: Long,
@@ -2097,7 +2099,7 @@ private fun PlayerBar(
             .clickable(onClick = onExpand),
     ) {
         LinearProgressIndicator(
-            progress = { if (durationMs > 0) positionMs().toFloat() / durationMs else 0f },
+            progress = { if (live) 1f else if (durationMs > 0) positionMs().toFloat() / durationMs else 0f },
             drawStopIndicator = { },
             modifier = Modifier.fillMaxWidth().height(2.dp).align(Alignment.BottomCenter),
         )
@@ -2167,7 +2169,7 @@ private fun PlayerBar(
                 )
             }
             if (song != null) {
-                ClockText(positionMs, durationMs)
+                if (live) LiveLabel() else ClockText(positionMs, durationMs)
                 // Nothing to like for a file on this computer - see PlayerButtonKind.forLocalFiles.
                 if (!LocalMusic.isLocal(song.id)) {
                     LikeButton(liked = liked, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = onToggleLike)

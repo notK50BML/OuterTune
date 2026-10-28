@@ -153,6 +153,9 @@ class DesktopPlayer {
     /** The current song's stream or file - see [StreamDetails]. */
     val stream = MutableStateFlow<StreamDetails?>(null)
 
+    /** The current track is a live stream - shown as LIVE, with no length and nowhere to seek. */
+    val live = MutableStateFlow(false)
+
     private var job: Job? = null
 
     /**
@@ -357,6 +360,7 @@ class DesktopPlayer {
                 val audio = when (outcome) {
                     is Resolved.Live -> {
                         stream.value = outcome.details
+                        live.value = true
                         trackGain = 1f
                         null
                     }
@@ -556,6 +560,7 @@ class DesktopPlayer {
         // still loading - which a local file started next would have begun at.
         currentAudio = null
         pendingSeekMs = null
+        live.value = false
         job?.cancel()
         job = null
         closeLine()
