@@ -57,6 +57,8 @@ internal object QueueSnapshot {
             "shuffled" to JsonPrimitive(state.shuffled),
             "repeat" to JsonPrimitive(state.repeat.name),
             "title" to JsonPrimitive(state.title),
+            // Kept so a remembered station's songs stay out of Stats after a restart too.
+            "station" to JsonPrimitive(state.station),
             "positionMs" to JsonPrimitive(positionMs),
         )).toString()
     }
@@ -99,6 +101,7 @@ internal object QueueSnapshot {
             shuffled = root["shuffled"]?.jsonPrimitive?.contentOrNull == "true",
             repeat = RepeatMode.entries.firstOrNull { it.name == root["repeat"]?.jsonPrimitive?.contentOrNull } ?: RepeatMode.OFF,
             title = root["title"]?.jsonPrimitive?.contentOrNull ?: "Queue",
+            station = root["station"]?.jsonPrimitive?.contentOrNull == "true",
         )
         state to (root["positionMs"]?.jsonPrimitive?.long ?: 0L)
     }.getOrNull()?.takeIf { (state, _) -> state.current != null && state.order.size == state.songs.size }

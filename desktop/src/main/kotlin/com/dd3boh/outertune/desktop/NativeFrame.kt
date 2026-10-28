@@ -68,6 +68,7 @@ object NativeFrame {
         fun DefWindowProcW(hwnd: Pointer, msg: Int, wParam: Long, lParam: Long): Long
         fun SetWindowPos(hwnd: Pointer, after: Pointer?, x: Int, y: Int, cx: Int, cy: Int, flags: Int): Boolean
         fun IsZoomed(hwnd: Pointer): Boolean
+        fun IsIconic(hwnd: Pointer): Boolean
         fun ShowWindow(hwnd: Pointer, cmd: Int): Boolean
         fun ScreenToClient(hwnd: Pointer, point: POINT): Boolean
         fun GetDpiForWindow(hwnd: Pointer): Int
@@ -125,6 +126,8 @@ object NativeFrame {
     private const val WM_SIZE = 0x0005
     private const val WM_WINDOWPOSCHANGING = 0x0046
     private const val SWP_NOMOVE = 0x0002
+    private const val SWP_NOSIZE = 0x0001
+    private const val MONITOR_DEFAULTTONULL = 0
     private const val MONITOR_DEFAULTTONEAREST = 2
     private const val WM_ACTIVATE = 0x0006
     private const val WM_CREATE = 0x0001
@@ -230,6 +233,7 @@ object NativeFrame {
         return when {
             !zoomed && p.y < edge && p.x < edge * 2 -> HTTOPLEFT
             !zoomed && p.y < edge && otherButtons.none { it.contains(p.x, p.y) } &&
+                clientAreas.values.none { it.contains(p.x, p.y) } &&
                 maximiseButton?.contains(p.x, p.y) != true -> HTTOP
             maximiseButton?.contains(p.x, p.y) == true -> HTMAXBUTTON
             otherButtons.any { it.contains(p.x, p.y) } -> HTCLIENT
@@ -260,28 +264,37 @@ object NativeFrame {
                 return result
             }
 
-            // Keeps the strip on its screen. A window that is not maximised could be placed with its
-            // top above the screen - all of the strip and most of the window buttons off the edge,
-            // so it looked as if it filled the screen with nothing to click. Windows stops a real
-            // title bar going up there; this strip is ours, so the same rule is applied here: the
-            // top of the window (which is the top of the strip - there is no frame above it) no
-            // higher than the top of the work area it is on.
-            WM_WINDOWPOSCHANGING -> if (lParam != 0L && !u.IsZoomed(hwnd)) runCatching {
+            // Keeps the strip on a screen. A window that is not maximised could be placed with its top
+            // off every screen - all of the strip and most of the window buttons gone, so it looked
+            // as if it filled the screen with nothing to click. Windows stops a real title bar going
+            // there; this strip is ours, so the same rule is applied here, and only that rule: while
+            // the top of the window is on some monitor nothing is touched, so dragging between two
+            // monitors stacked one above the other works as it always did. A minimised window is
+            // Windows' to park off-screen.
+            WM_WINDOWPOSCHANGING -> if (lParam != 0L && !u.IsZoomed(hwnd) && !u.IsIconic(hwnd)) runCatching {
                 // WINDOWPOS: hwnd, hwndInsertAfter, then x, y, cx, cy, flags.
                 val pos = Pointer(lParam)
                 val base = Native.POINTER_SIZE * 2
-                if (pos.getInt(base + 16L) and SWP_NOMOVE == 0) {
+                val flags = pos.getInt(base + 16L)
+                if (flags and SWP_NOMOVE == 0) {
                     val x = pos.getInt(base.toLong())
                     val y = pos.getInt(base + 4L)
-                    val rect = RECT().apply {
-                        left = x; top = y
-                        right = x + pos.getInt(base + 8L); bottom = y + pos.getInt(base + 12L)
-                    }
-                    val monitor = u.MonitorFromRect(rect, MONITOR_DEFAULTTONEAREST)
-                    // Windows checks cbSize against the structure it expects.
-                    val info = MONITORINFO().apply { cbSize = size() }
-                    if (monitor != null && u.GetMonitorInfoW(monitor, info) && y < info.rcWork.top) {
-                        pos.setInt(base + 4L, info.rcWork.top)
+                    val cx = pos.getInt(base + 8L)
+                    val cy = pos.getInt(base + 12L)
+                    // The middle of the top edge - the strip - on any monitor at all?
+                    val topMiddle = RECT().apply { left = x + cx / 2; top = y; right = left + 1; bottom = y + 1 }
+                    if (x > -32000 && u.MonitorFromRect(topMiddle, MONITOR_DEFAULTTONULL) == null) {
+                        val whole = RECT().apply { left = x; top = y; right = x + cx; bottom = y + cy }
+                        val monitor = u.MonitorFromRect(whole, MONITOR_DEFAULTTONEAREST)
+                        // Windows checks cbSize against the structure it expects.
+                        val info = MONITORINFO().apply { cbSize = size() }
+                        if (monitor != null && u.GetMonitorInfoW(monitor, info) && y < info.rcWork.top) {
+                            val shift = info.rcWork.top - y
+                            pos.setInt(base + 4L, info.rcWork.top)
+                            // A resize from the top edge: the top stops at the screen and the bottom
+                            // stays where it was, rather than the whole window sliding down.
+                            if (flags and SWP_NOSIZE == 0 && cy - shift > 0) pos.setInt(base + 12L, cy - shift)
+                        }
                     }
                 }
             }

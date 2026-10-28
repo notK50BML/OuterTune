@@ -113,6 +113,11 @@ class DesktopPlayer {
         /** AAC-LC in MP4 at ~130kbps: the format every working client offers with a direct URL. */
         const val ITAG_AAC_MEDIUM = 140
 
+        /** A live segment not out yet: asked for again this many times, this far apart, before the stream ends. */
+        const val LIVE_RETRIES = 5
+        const val LIVE_RETRY_MS = 1_000L
+        const val AAC_FRAME_SAMPLES = 1024L
+
         /** The same codec at ~48kbps, and at ~256kbps (Premium accounts only). */
         const val ITAG_AAC_LOW = 139
         const val ITAG_AAC_HIGH = 141
@@ -336,7 +341,13 @@ class DesktopPlayer {
                 // against whatever the network was doing then, and the right answer to a stale
                 // failure is to ask again now, not to refuse to play the song.
                 val prepared = ready?.let { awaitPrefetch(it) }
-                val audio = when (val outcome = prepared ?: resolveAndFetch(videoId)) {
+                val outcome = prepared ?: resolveAndFetch(videoId)
+                val audio = when (outcome) {
+                    is Resolved.Live -> {
+                        stream.value = outcome.details
+                        trackGain = 1f
+                        null
+                    }
                     is Resolved.Audio -> {
                         stream.value = outcome.details
                         currentAudio = videoId to outcome.bytes
@@ -353,7 +364,12 @@ class DesktopPlayer {
                 }
                 if (gen != generation) return@launch
                 state.value = PlaybackState.Playing(title)
-                stream(audio, gen)
+                if (audio != null) {
+                    stream(audio, gen)
+                } else {
+                    // Opened here, on the decode job's thread: it reads the newest segment first.
+                    play(LiveSource((outcome as Resolved.Live).url), gen)
+                }
                 // Only settle back to Idle if this job is still the current one; a stop() or a new
                 // play() has already set the state it wants. Reaching here with the job still
                 // active is the one case that genuinely means "the song ended".
@@ -504,6 +520,11 @@ class DesktopPlayer {
         generation++
         nowPlayingId = null
         paused = false
+        // Nothing is playing now, so neither outlives it: the last song's bytes (a long mix is tens
+        // of MB of a 320MB heap, held for good otherwise), and a seek asked for while a song was
+        // still loading - which a local file started next would have begun at.
+        currentAudio = null
+        pendingSeekMs = null
         job?.cancel()
         job = null
         closeLine()
@@ -522,6 +543,8 @@ class DesktopPlayer {
     /** Either the song's bytes, or a reason specific enough to act on. */
     private sealed interface Resolved {
         data class Audio(val bytes: ByteArray, val loudnessDb: Double? = null, val details: StreamDetails? = null) : Resolved
+        /** A live stream: no bytes to have, only a URL to keep reading from - see [LiveSource]. */
+        data class Live(val url: String, val details: StreamDetails? = null) : Resolved
         data class Failure(val reason: String) : Resolved
     }
 
@@ -568,6 +591,7 @@ class DesktopPlayer {
             ?.let { (it.bytes.getCompleted() as? Resolved.Audio)?.let { audio -> return@withContext store.save(videoId, audio.bytes) } }
         when (val outcome = resolveAndFetch(videoId)) {
             is Resolved.Audio -> store.save(videoId, outcome.bytes)
+            is Resolved.Live -> Result.failure(IllegalStateException("A live stream has no end to download."))
             is Resolved.Failure -> Result.failure(IllegalStateException(outcome.reason))
         }
     }
@@ -591,12 +615,12 @@ class DesktopPlayer {
         // The clients stay as the fallback in case YouTube turns either way round again.
         val failures = mutableListOf<String>()
         when (val outcome = resolveAndFetchWithNewPipe(videoId)) {
-            is Resolved.Audio -> return outcome
+            is Resolved.Audio, is Resolved.Live -> return outcome
             is Resolved.Failure -> failures += "NewPipe: ${outcome.reason}"
         }
         for (client in CLIENTS) {
             when (val outcome = resolveAndFetchWith(videoId, client)) {
-                is Resolved.Audio -> return outcome
+                is Resolved.Audio, is Resolved.Live -> return outcome
                 is Resolved.Failure -> failures += "${client.clientName}: ${outcome.reason}"
             }
         }
@@ -614,10 +638,11 @@ class DesktopPlayer {
         val loudness = async {
             YouTube.player(videoId, client = YouTubeClient.IOS, authenticated = false).getOrNull()
         }
-        val streams = withContext(Dispatchers.IO) { NewPipeUtils.newPipePlayer(videoId) }.toMap()
+        val found = withContext(Dispatchers.IO) { NewPipeUtils.newPipeStream(videoId) }
+        val streams = found.streams.toMap()
         if (streams.isEmpty()) {
             loudness.cancel()
-            return@coroutineScope Resolved.Failure("extraction failed")
+            return@coroutineScope Resolved.Failure(found.error?.let { "extraction failed - $it" } ?: "extraction failed")
         }
         // The same AAC-in-MP4 family the clients are chosen from - see resolveAndFetchWith.
         val preferred = when (quality) {
@@ -629,6 +654,16 @@ class DesktopPlayer {
         val url = itag?.let { streams[it] } ?: run {
             loudness.cancel()
             return@coroutineScope Resolved.Failure("no AAC stream; offered itags ${streams.keys.sorted()}")
+        }
+        // A live stream - a 24/7 radio - has no end to fetch. Asked for whole it answered with its
+        // newest few seconds, which played and then counted as the song finishing: five seconds
+        // of every station and on to the next. It is read a segment at a time instead.
+        if (found.live) {
+            loudness.cancel()
+            return@coroutineScope Resolved.Live(
+                url,
+                StreamDetails(format = "AAC · live · itag $itag", bitrateKbps = NOMINAL_KBPS[itag]),
+            )
         }
         val length = Regex("""[?&]clen=(\d+)""").find(url)?.groupValues?.get(1)?.toLongOrNull()
         when (val fetched = fetchStream(url, length, YouTubeClient.USER_AGENT_WEB)) {
@@ -648,7 +683,7 @@ class DesktopPlayer {
                     ),
                 )
             }
-            is Resolved.Failure -> fetched.also { loudness.cancel() }
+            is Resolved.Live, is Resolved.Failure -> fetched.also { loudness.cancel() }
         }
     }
 
@@ -704,7 +739,7 @@ class DesktopPlayer {
                     ),
                 )
             }
-            is Resolved.Failure -> fetched
+            is Resolved.Live, is Resolved.Failure -> fetched
         }
     }
 
@@ -723,6 +758,179 @@ class DesktopPlayer {
             }
         } catch (e: Exception) {
             Resolved.Failure("stream fetch failed - ${e::class.simpleName}: ${e.message}")
+        }
+    }
+
+    /**
+     * A live stream, played as it is made: one segment at a time, each a few seconds of fragmented
+     * MP4 that YouTube numbers in order (`&sq=`), decoded by one AAC decoder carried across them.
+     *
+     * It starts at the newest segment - the one a plain request returns, with its number in the
+     * response's headers - and fetches the next while the current one plays. A segment that is not
+     * out yet is waited for (the URL asks googlevideo to hold the request until it is), and a few
+     * failed attempts in a row end the stream as any song ends. There is no length and no seeking:
+     * a seek leaves it where it is.
+     */
+    private inner class LiveSource(private val url: String) : PcmSource {
+        private val fetcher = java.util.concurrent.Executors.newSingleThreadExecutor { task ->
+            Thread(task, "LiveSegments").apply { isDaemon = true }
+        }
+        private var seq: Long
+        private var samples: List<ByteArray>
+        private var index = 0
+        private val decoder: Decoder
+        private val buffer = SampleBuffer()
+        private var pending: ByteArray?
+        private var upcoming: java.util.concurrent.Future<ByteArray?>? = null
+        private var framesDecoded = 0L
+
+        init {
+            val (head, bytes) = fetchSegment(null) ?: error("the live stream did not answer")
+            seq = head
+            val iso = IsoFile(InMemoryChannel(bytes))
+            decoder = Decoder.create(
+                audioSpecificConfigIn(bytes) ?: findAudioSpecificConfig(iso) ?: error("no AudioSpecificConfig in the live segment")
+            )
+            samples = extractSamples(bytes, iso)
+            prefetchNext()
+            var first = ByteArray(0)
+            while (first.isEmpty() && index < samples.size) {
+                decoder.decodeFrame(samples[index++], buffer)
+                framesDecoded++
+                first = buffer.data
+            }
+            pending = first
+        }
+
+        override val sampleRate = buffer.sampleRate
+        override val channels = buffer.channels
+        override val bitsPerSample = buffer.bitsPerSample
+        override val bigEndian = buffer.isBigEndian
+        override val durationMs = 0L
+
+        override fun next(): ByteArray? {
+            pending?.let {
+                pending = null
+                return it
+            }
+            while (index >= samples.size) if (!advance()) return null
+            decoder.decodeFrame(samples[index++], buffer)
+            framesDecoded++
+            return buffer.data
+        }
+
+        /** On to the next segment: the one fetched ahead, or asked for again a few times. */
+        private fun advance(): Boolean {
+            val ahead = runCatching { upcoming?.get() }.getOrNull()
+            if (ahead != null) return use(ahead)
+            repeat(LIVE_RETRIES) {
+                Thread.sleep(LIVE_RETRY_MS)
+                fetchSegment(seq + 1)?.let { (_, bytes) -> return use(bytes) }
+            }
+            return false
+        }
+
+        private fun use(bytes: ByteArray): Boolean {
+            seq++
+            samples = runCatching { extractSamples(bytes, IsoFile(InMemoryChannel(bytes))) }.getOrDefault(emptyList())
+            index = 0
+            prefetchNext()
+            return true
+        }
+
+        private fun prefetchNext() {
+            val wanted = seq + 1
+            upcoming = fetcher.submit<ByteArray?> { fetchSegment(wanted)?.second }
+        }
+
+        /** Segment [sq], or the newest when null, with the number it is. Null when there is none to have. */
+        private fun fetchSegment(sq: Long?): Pair<Long, ByteArray>? = runCatching {
+            val connection = java.net.URI(if (sq == null) url else "$url&sq=$sq").toURL()
+                .openConnection() as java.net.HttpURLConnection
+            connection.connectTimeout = 10_000
+            connection.readTimeout = 30_000
+            connection.setRequestProperty("User-Agent", YouTubeClient.USER_AGENT_WEB)
+            try {
+                if (connection.responseCode != 200) return@runCatching null
+                val number = connection.getHeaderField("X-Sequence-Num")?.toLongOrNull()
+                    ?: sq ?: connection.getHeaderField("X-Head-Seqnum")?.toLongOrNull() ?: return@runCatching null
+                number to withoutEventMessages(connection.inputStream.use { it.readBytes() })
+            } finally {
+                connection.disconnect()
+            }
+        }.getOrNull()
+
+        /**
+         * The decoder's configuration, read straight from the segment's `esds` box: the
+         * DecoderSpecificInfo (tag 5) inside it. A live segment's `esds` carries a few bytes the MP4
+         * parser does not expect, and it fails an assertion over them - harmless where assertions
+         * are off, as they are in the app, but not something to lean on.
+         */
+        private fun audioSpecificConfigIn(bytes: ByteArray): ByteArray? {
+            val marker = "esds".toByteArray(Charsets.ISO_8859_1)
+            val start = (0..bytes.size - 4).firstOrNull { i -> (0 until 4).all { bytes[i + it] == marker[it] } } ?: return null
+            // Past the type and the full box's version and flags, then descriptors: tag, length, body.
+            val boxSize = ((bytes[start - 4].toInt() and 0xFF) shl 24) or ((bytes[start - 3].toInt() and 0xFF) shl 16) or
+                ((bytes[start - 2].toInt() and 0xFF) shl 8) or (bytes[start - 1].toInt() and 0xFF)
+            val end = (start - 4 + boxSize).coerceAtMost(bytes.size)
+            var at = start + 8
+            while (at < end) {
+                val tag = bytes[at++].toInt() and 0xFF
+                // The length is 7 bits a byte, continued while the top bit is set.
+                var length = 0
+                do {
+                    if (at >= end) return null
+                    val b = bytes[at++].toInt() and 0xFF
+                    length = (length shl 7) or (b and 0x7F)
+                } while (b and 0x80 != 0)
+                when (tag) {
+                    // The ES descriptor: ES_ID and flags, then its own descriptors.
+                    0x03 -> {
+                        val flags = bytes.getOrNull(at + 2)?.toInt() ?: return null
+                        at += 3
+                        if (flags and 0x80 != 0) at += 2
+                        if (flags and 0x40 != 0) at += 1 + (bytes.getOrNull(at)?.toInt()?.and(0xFF) ?: return null)
+                        if (flags and 0x20 != 0) at += 2
+                    }
+                    // The decoder config: type, stream type, buffer size and bitrates, then its own.
+                    0x04 -> at += 13
+                    0x05 -> return if (at + length <= end && length > 0) bytes.copyOfRange(at, at + length) else null
+                    else -> at += length
+                }
+            }
+            return null
+        }
+
+        /**
+         * The segment without its `emsg` boxes - the stream's own timing notes, which nothing here
+         * reads and which the MP4 parser trips an assertion on. Top-level boxes only, which is where
+         * YouTube puts them, between the header and the fragment.
+         */
+        private fun withoutEventMessages(bytes: ByteArray): ByteArray {
+            val out = java.io.ByteArrayOutputStream(bytes.size)
+            var at = 0
+            while (at + 8 <= bytes.size) {
+                val size = ((bytes[at].toLong() and 0xFF) shl 24) or ((bytes[at + 1].toLong() and 0xFF) shl 16) or
+                    ((bytes[at + 2].toLong() and 0xFF) shl 8) or (bytes[at + 3].toLong() and 0xFF)
+                // A box that runs to the end (0), or a 64-bit size (1): left whole, as everything after it.
+                if (size < 8 || at + size > bytes.size) {
+                    out.write(bytes, at, bytes.size - at)
+                    return out.toByteArray()
+                }
+                val type = String(bytes, at + 4, 4, Charsets.ISO_8859_1)
+                if (type != "emsg") out.write(bytes, at, size.toInt())
+                at += size.toInt()
+            }
+            if (at < bytes.size) out.write(bytes, at, bytes.size - at)
+            return out.toByteArray()
+        }
+
+        /** Live has nowhere to seek to; the clock carries on from where it is. */
+        override fun seek(ms: Long): Long = framesDecoded * AAC_FRAME_SAMPLES * 1000 / sampleRate.coerceAtLeast(1)
+
+        override fun close() {
+            upcoming?.cancel(true)
+            fetcher.shutdownNow()
         }
     }
 

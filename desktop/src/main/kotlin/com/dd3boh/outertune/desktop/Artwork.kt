@@ -35,6 +35,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import org.jetbrains.skia.Image
+import org.jetbrains.skia.Surface
+import org.jetbrains.skia.Rect
+import org.jetbrains.skia.MipmapMode
+import org.jetbrains.skia.FilterMode
+import org.jetbrains.skia.FilterMipmap
 import java.util.Collections
 
 /**
@@ -79,9 +84,44 @@ internal object ArtworkCache {
         return java.io.File(diskDir, digest.joinToString("") { "%02x".format(it) } + ".img")
     }
 
-    private fun readDisk(url: String): ImageBitmap? = runCatching {
-        diskFile(url).takeIf { it.isFile }?.readBytes()?.let { Image.makeFromEncoded(it).toComposeImageBitmap() }
+    /**
+     * The kept copy, brought down to about [wanted] pixels across when it is far larger. The disk
+     * keeps the largest copy seen - 1080px once a song has played or been downloaded - and a list
+     * row asking for 120 was handed all of it: near 5MB of pixels a row, and the memory budget
+     * holding a dozen covers instead of a screenful.
+     */
+    private fun readDisk(url: String, wanted: Int = 0): ImageBitmap? = runCatching {
+        diskFile(url).takeIf { it.isFile }?.readBytes()?.let { Image.makeFromEncoded(it).shrunkTo(wanted).toComposeImageBitmap() }
     }.getOrNull()
+
+    /**
+     * This image at no more than twice [wanted] across - halved a step at a time with linear
+     * filtering, which stays smooth where one big bilinear step would alias. Unchanged when it is
+     * already that small or nothing was asked for.
+     */
+    private fun Image.shrunkTo(wanted: Int): Image {
+        if (wanted <= 0 || width <= wanted * 2) return this
+        var image = this
+        while (image.width > wanted * 2) {
+            val w = (image.width / 2).coerceAtLeast(1)
+            val h = (image.height / 2).coerceAtLeast(1)
+            val surface = Surface.makeRasterN32Premul(w, h)
+            surface.canvas.drawImageRect(
+                image,
+                Rect.makeWH(image.width.toFloat(), image.height.toFloat()),
+                Rect.makeWH(w.toFloat(), h.toFloat()),
+                FilterMipmap(FilterMode.LINEAR, MipmapMode.NONE),
+                null,
+                true,
+            )
+            val smaller = surface.makeImageSnapshot()
+            surface.close()
+            if (image !== this) image.close()
+            image = smaller
+        }
+        close()
+        return image
+    }
 
     /** Keeps [bytes] for [url]'s picture unless a larger copy is already kept. */
     private fun writeDisk(url: String, bytes: ByteArray, width: Int) {
@@ -146,8 +186,9 @@ internal object ArtworkCache {
         }
         return withContext(Dispatchers.IO) {
             // A kept copy at least as large as asked for is used straight away.
-            val wanted = Regex("""=w(\d+)""").find(url)?.groupValues?.get(1)?.toIntOrNull() ?: 0
-            val kept = readDisk(url)
+            // =w for some covers, =s for the ones atSize makes - both are the width asked for.
+            val wanted = Regex("""=[ws](\d+)""").find(url)?.groupValues?.get(1)?.toIntOrNull() ?: 0
+            val kept = readDisk(url, wanted)
             if (kept != null && kept.width >= wanted) {
                 put(url, kept)
                 return@withContext kept

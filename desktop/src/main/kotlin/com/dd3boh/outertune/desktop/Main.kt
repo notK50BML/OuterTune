@@ -994,11 +994,13 @@ internal fun App(
         startRadio = { song ->
             scope.launch {
                 val radio = withContext(Dispatchers.IO) {
-                    YouTube.next(WatchEndpoint(videoId = song.id, playlistId = "RDAMVM${song.id}")).getOrNull()?.items
+                    YouTube.next(WatchEndpoint(videoId = song.id, playlistId = "RDAMVM${song.id}")).getOrNull()
                 }
                 // The song the radio grew from carries on rather than starting over - it heads
                 // the radio's list, and restarting it was a gap of its own at the very first song.
-                if (!radio.isNullOrEmpty()) playerQueue.play(radio, 0, "Radio: ${song.title}", keepCurrent = true)
+                if (radio != null && radio.items.isNotEmpty()) {
+                    playerQueue.play(radio.items, 0, "Radio: ${song.title}", keepCurrent = true, more = radioFeed(radio))
+                }
             }
         },
         addToPlaylist = { addingToPlaylist = it.toStored() },
@@ -1538,9 +1540,15 @@ internal fun App(
                                     val station = (item as? SongItem)?.endpoint?.takeIf { item.isStation }
                                     if (station != null) {
                                         scope.launch {
-                                            val songs = withContext(Dispatchers.IO) { YouTube.next(station).getOrNull()?.items }
-                                            if (!songs.isNullOrEmpty()) {
-                                                playerQueue.play(songs, 0, item.title, station = isStationPlaylistId(station.playlistId))
+                                            val page = withContext(Dispatchers.IO) { YouTube.next(station).getOrNull() }
+                                            if (page != null && page.items.isNotEmpty()) {
+                                                playerQueue.play(
+                                                    // Where the card's own song sits in the list - the
+                                                    // top for a station, which leads with it.
+                                                    page.items, (page.currentIndex ?: 0).coerceIn(0, page.items.lastIndex), item.title,
+                                                    station = isStationPlaylistId(station.playlistId),
+                                                    more = radioFeed(page),
+                                                )
                                             }
                                         }
                                         return@HomePane

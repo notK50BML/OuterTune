@@ -186,6 +186,9 @@ class PlayerQueue(
         val current = state.value
         saved.value = saved.value.filter { it !== queue }
         stash(current, player.positionMs.value)
+        // The radio's feed belonged to the queue just put aside; left set, it would go on adding
+        // that radio's songs to this one.
+        more = null
         state.value = queue.state
         startCurrent(queue.positionMs)
     }
@@ -258,6 +261,8 @@ class PlayerQueue(
         keepCurrent: Boolean = false,
         /** A station or radio, whose songs are not counted in Stats. */
         station: Boolean = false,
+        /** More songs for a radio or station, asked for as it runs low - see [extendIfLow]. */
+        more: (suspend (List<SongItem>) -> List<SongItem>)? = null,
     ) {
         if (startIndex !in songs.indices) return
         val previous = state.value
@@ -278,7 +283,48 @@ class PlayerQueue(
             title = title,
             station = station,
         )
-        if (carryOn) queuePrefetch() else startCurrent(startAtMs)
+        this.more = more
+        if (carryOn) {
+            queuePrefetch()
+            extendIfLow()
+        } else {
+            startCurrent(startAtMs)
+        }
+    }
+
+    /** Where the current queue gets more songs - a radio's next page. Null for an ordinary queue. */
+    @Volatile
+    private var more: (suspend (List<SongItem>) -> List<SongItem>)? = null
+
+    @Volatile
+    private var extending = false
+
+    /**
+     * Asks a radio for more once [EXTEND_WHEN_LEFT] songs or fewer are left, so it keeps going
+     * rather than stopping at the end of its first page - in good time, since the songs are added
+     * while one is still playing and the next is then fetched ahead as usual.
+     */
+    private fun extendIfLow() {
+        val source = more ?: return
+        val queue = state.value
+        if (queue.order.size - 1 - queue.orderPosition > EXTEND_WHEN_LEFT || extending) return
+        extending = true
+        scope.launch {
+            try {
+                val added = runCatching { source(queue.songs) }.getOrDefault(emptyList())
+                // A different queue by now: these songs were for the one that has gone.
+                if (more !== source) return@launch
+                val now = state.value
+                val fresh = added.filter { song -> now.songs.none { it.id == song.id } }
+                if (fresh.isEmpty()) return@launch
+                val start = now.songs.size
+                state.value = now.copy(songs = now.songs + fresh, order = now.order + (start until start + fresh.size))
+                // The last song had nothing after it to fetch ahead; now it does.
+                if (now.upcoming == null) queuePrefetch()
+            } finally {
+                extending = false
+            }
+        }
     }
 
     /**
@@ -310,6 +356,7 @@ class PlayerQueue(
      */
     fun restore(saved: QueueState) {
         if (saved.songs.isEmpty() || saved.current == null) return
+        more = null
         state.value = saved
     }
 
@@ -450,6 +497,7 @@ class PlayerQueue(
         else listOf(current) + (indices - current).shuffled()
 
     fun clear() {
+        more = null
         prefetchJob?.cancel()
         prefetchJob = null
         // The queue it was predicting is gone, so holding a song's bytes for it is just memory.
@@ -463,6 +511,7 @@ class PlayerQueue(
         onPlayed(song)
         player.play(scope, song.id, song.title, startAtMs)
         queuePrefetch()
+        extendIfLow()
     }
 
     /**
@@ -486,6 +535,9 @@ class PlayerQueue(
         }
     }
 }
+
+/** How few songs left in a radio before more are asked for - see PlayerQueue.extendIfLow. */
+private const val EXTEND_WHEN_LEFT = 3
 
 /** A queue put aside, and how far into its song it was. */
 data class SavedQueue(val state: QueueState, val positionMs: Long)

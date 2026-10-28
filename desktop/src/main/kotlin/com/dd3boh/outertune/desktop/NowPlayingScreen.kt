@@ -329,8 +329,10 @@ fun NowPlayingScreen(
     // native frame, which can be told the handle is the app's; the fallback frame's strip is one
     // drag area that would swallow the click.
     val captionInset = LocalCaptionInset.current
+    // Not under the equaliser, which covers the whole window: the handle would still be there,
+    // unseen, and that piece of the strip would neither drag the window nor do anything visible.
     val queueInTitleBar = sideBySide && queueHandleTop && NativeFrame.active && captionInset > 0.dp &&
-        playerLayout?.block("queue")?.visible != false
+        playerLayout?.block("queue")?.visible != false && !equalizerOpen
 
     // The background above runs to the top edge; the controls keep clear of the window buttons.
     Row(modifier = Modifier.fillMaxSize().padding(top = LocalCaptionInset.current)) {

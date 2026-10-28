@@ -1,0 +1,46 @@
+/*
+ * Copyright (C) 2026 OuterTune Project
+ *
+ * SPDX-License-Identifier: GPL-3.0
+ */
+
+package com.dd3boh.outertune.desktop
+
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import org.junit.Assert.assertTrue
+import org.junit.Assume.assumeTrue
+import org.junit.Test
+
+/**
+ * A live stream played through the real player, silently, for longer than several of its segments:
+ * it has to keep playing rather than finish after the first few seconds. `OT_PROBE=1` only - it goes
+ * to the network and opens an audio line.
+ */
+class LivePlaybackProbe {
+    @Test
+    fun keepsPlaying() {
+        assumeTrue(System.getenv("OT_PROBE") != null)
+        val id = System.getenv("OT_LIVE_ID") ?: "4xDzrJKXOOY"
+        val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+        val player = DesktopPlayer().apply { volume = 0f }
+        var finished = false
+        player.onFinished = { finished = true }
+        try {
+            player.play(scope, id, "live")
+            repeat(15) {
+                Thread.sleep(2_000)
+                println("t=${(it + 1) * 2}s state=${player.state.value::class.simpleName} position=${player.positionMs.value}ms " +
+                    "duration=${player.durationMs.value} finished=$finished details=${player.stream.value?.format}")
+            }
+            val state = player.state.value
+            assertTrue("still playing after 30s, was $state", state is PlaybackState.Playing && !finished)
+            assertTrue("position kept moving, was ${player.positionMs.value}", player.positionMs.value > 20_000)
+        } finally {
+            player.stop()
+            scope.cancel()
+        }
+    }
+}

@@ -504,13 +504,13 @@ class LyricsRepository(private val library: LibraryStore) {
      */
     private suspend fun fetchFrom(source: LyricsSource, title: String, artist: String, durationSeconds: Int): Result<Pair<String, Lyrics>?> =
         when (source) {
-            LyricsSource.BetterLyrics -> BetterLyrics.getLyrics(title, artist, durationSeconds).map { ttml ->
+            LyricsSource.BetterLyrics -> BetterLyrics.getLyrics(title, artist, durationSeconds).mapCatching { ttml ->
                 ttml?.takeIf { it.isNotBlank() }?.let { text -> LrcParser.parseTtml(text, BETTERLYRICS).takeIf { !it.isEmpty }?.let { text to it } }
             }
-            LyricsSource.LrcLib -> LrcLib.getLyrics(title, artist, durationSeconds).map { text ->
+            LyricsSource.LrcLib -> LrcLib.getLyrics(title, artist, durationSeconds).mapCatching { text ->
                 text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, LRCLIB) }
             }
-            LyricsSource.KuGou -> KuGou.getLyrics(title, artist, durationSeconds).map { text ->
+            LyricsSource.KuGou -> KuGou.getLyrics(title, artist, durationSeconds).mapCatching { text ->
                 text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, KUGOU) }
             }
         }

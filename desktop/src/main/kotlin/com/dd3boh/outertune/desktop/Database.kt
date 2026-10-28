@@ -941,12 +941,11 @@ class Database(file: File) {
                 "SELECT id, title, artists, thumbnail FROM song WHERE id IN (${chunk.joinToString(",") { "?" }})"
             ).use { st ->
                 chunk.forEachIndexed { i, id -> st.setString(i + 1, id) }
+                // toSongs reads each chunk's credits with it.
                 st.executeQuery().use { rows -> rows.toSongs().forEach { byId[it.id] = it } }
             }
         }
-        val credits = HashMap<String, List<StoredArtist>>()
-        byId.keys.chunked(500).forEach { credits.putAll(creditsForLocked(it)) }
-        ids.mapNotNull { id -> byId[id]?.let { it.copy(artistList = credits[id].orEmpty()) } }
+        ids.mapNotNull { byId[it] }
     }
 
     fun likedSongs(): List<StoredSong> = synchronized(lock) {
