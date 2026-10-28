@@ -41,7 +41,11 @@ enum class LiquidShapeStyle {
 }
 
 enum class SliderStyle {
-    SQUIGGLY, DEFAULT, SLIM
+    SQUIGGLY, DEFAULT, SLIM,
+    /** Samsung's look: soft overlapping waves above a flat line. */
+    WAVES,
+    /** The same three waves as fine lines a shade apart. */
+    WAVE_LINES,
 }
 
 val DEFAULT_SLIDER_STYLE = SliderStyle.SQUIGGLY

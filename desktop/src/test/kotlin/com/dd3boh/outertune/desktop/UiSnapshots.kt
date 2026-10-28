@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.material3.Text
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.runtime.CompositionLocalProvider
@@ -160,11 +164,13 @@ class UiSnapshots {
         highlight: LyricsHighlight = LyricsHighlight.Fade,
         kind: LyricsKind? = null,
         shownLyrics: Lyrics = lyrics,
+        position: Long = 13_500L,
+        seekBar: SeekBarStyle = SeekBarStyle.Squiggly,
     ) {
         NowPlayingScreen(
             playback = PlaybackState.Playing(songs[0].title),
             queue = queue(),
-            positionMs = { 13_500L },
+            positionMs = { position },
             durationMs = 240_000,
             liked = true,
             onSeek = {}, onTogglePause = {}, onNext = {}, onPrevious = {},
@@ -184,6 +190,7 @@ class UiSnapshots {
             liquidTap = liquidTap,
             playedFrames = { 1L },
             playerLayout = layout,
+            seekBarStyle = seekBar,
         )
     }
 
@@ -261,11 +268,55 @@ class UiSnapshots {
         capture("player_ferro", 1000, 640, settleFrames = 24) { Player(1000, background = BackgroundStyle.Ferrofluid, liquidTap = tap) }
     }
 
+    /** A mock-up of Samsung-style waves over a flat progress line - three moments of the drift. */
+    @Test
+    fun accentWaves() {
+        assumeTrue(outDir != null)
+        capture("accent_waves", 760, 420) {
+            androidx.compose.foundation.layout.Box(
+                modifier = androidx.compose.ui.Modifier
+                    .fillMaxSize()
+                    .background(androidx.compose.ui.graphics.Brush.verticalGradient(listOf(Color(0xFF5B2A86), Color(0xFF2A1640)))),
+            ) {
+                androidx.compose.foundation.layout.Column(
+                    modifier = androidx.compose.ui.Modifier.padding(40.dp),
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(28.dp),
+                ) {
+                    listOf(0f, 0.45f, 0.9f).forEachIndexed { i, t ->
+                        androidx.compose.foundation.layout.Column {
+                            Text("t = ${t}s", color = Color.White.copy(alpha = 0.6f), style = MaterialTheme.typography.labelSmall)
+                            AccentWaves(
+                                progress = 0.46f,
+                                colour = Color(0xFFE7C6FF),
+                                timeSeconds = t,
+                                energy = listOf(0.8f, 0.6f, 0.9f)[i],
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth().height(26.dp),
+                            )
+                            androidx.compose.foundation.layout.Box(
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth().height(2.dp)
+                                    .background(Color.White.copy(alpha = 0.25f)),
+                            )
+                            androidx.compose.foundation.layout.Row(
+                                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.SpaceBetween,
+                                modifier = androidx.compose.ui.Modifier.fillMaxWidth().padding(top = 6.dp),
+                            ) {
+                                Text("1:50", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                                Text("4:00", color = Color.White, style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     @Test
     fun snapshots() {
         assumeTrue(outDir != null)
         capture("player_1280", 1280, 800) { Player(1280) }
         capture("player_1000", 1000, 700) { Player(1000) }
+        // The wavy seek bar well into a song, so the played part - the part that waves - shows.
+        capture("seekbar_wavy", 1280, 800) { Player(1280, position = 110_000L) }
         capture("player_light", 1280, 800, dark = false) { Player(1280) }
         capture("queue_wide", 1400, 860, interact = { it.click(500f, 840f) }) { Player(1400) }
         // With the window's own title bar strip, which the docked queue's shade runs up through.

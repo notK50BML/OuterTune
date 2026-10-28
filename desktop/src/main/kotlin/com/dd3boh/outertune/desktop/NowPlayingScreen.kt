@@ -1059,8 +1059,23 @@ private fun SlimSeekBar(
             SeekBarStyle.Slim -> if (active) 7.dp else 4.dp
             SeekBarStyle.Default -> if (active) 12.dp else 9.dp
             SeekBarStyle.Squiggly -> if (active) 6.dp else 4.dp
+            SeekBarStyle.Waves, SeekBarStyle.WaveLines -> if (active) 5.dp else 3.dp
         }
     )
+    // The Samsung look: waves above a flat line, drifting while the song plays, and settling into
+    // the line when it is paused or being dragged.
+    val accentWaves = style == SeekBarStyle.Waves || style == SeekBarStyle.WaveLines
+    val swell by androidx.compose.animation.core.animateFloatAsState(
+        if (accentWaves && playing && dragFraction == null) 1f else 0f,
+        animationSpec = tween(600),
+    )
+    var waveTime by remember { mutableStateOf(0f) }
+    LaunchedEffect(accentWaves && playing) {
+        if (!(accentWaves && playing)) return@LaunchedEffect
+        val start = waveTime
+        val began = androidx.compose.runtime.withFrameNanos { it }
+        while (true) androidx.compose.runtime.withFrameNanos { waveTime = start + (it - began) / 1e9f }
+    }
     val currentDuration by androidx.compose.runtime.rememberUpdatedState(durationMs)
 
     // The phone's squiggle: the played part waves while the song plays, and flattens out when it
@@ -1081,7 +1096,8 @@ private fun SlimSeekBar(
     Canvas(
         modifier = Modifier
             .fillMaxWidth()
-            .height(24.dp)
+            // Room above the line for the waves to rise into.
+            .height(if (accentWaves) 40.dp else 24.dp)
             .hoverable(interaction)
             .pointerHoverIcon(PointerIcon.Hand)
             .pointerInput(Unit) {
@@ -1107,10 +1123,25 @@ private fun SlimSeekBar(
         val played = dragFraction
             ?: if (currentDuration > 0) (positionMs().toFloat() / currentDuration).coerceIn(0f, 1f) else 0f
         val stroke = thickness.toPx()
-        val y = size.height / 2
+        val y = if (accentWaves) size.height - 12.dp.toPx() else size.height / 2
         val left = stroke / 2
         val right = size.width - stroke / 2
         val end = left + (right - left) * played
+        if (accentWaves) {
+            // Behind the line, so the line stays crisp where they meet it. Breathing a little on
+            // their own, so they never settle into a pattern.
+            val breath = 0.75f + 0.25f * sin(waveTime * 0.7f)
+            drawAccentWaves(
+                end = end,
+                baseline = y,
+                height = y - 2.dp.toPx(),
+                colour = colour,
+                timeSeconds = waveTime,
+                energy = breath * swell,
+                filled = style == SeekBarStyle.Waves,
+                start = left,
+            )
+        }
         val amp = amplitude.toPx()
         if (amp < 0.5f) {
             drawLine(colour.copy(alpha = 0.22f), Offset(end, y), Offset(right, y), stroke, StrokeCap.Round)

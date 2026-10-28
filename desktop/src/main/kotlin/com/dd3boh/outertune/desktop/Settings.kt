@@ -584,6 +584,8 @@ enum class ProxyKind(val label: String) {
 /** The player's seek bar, as on the phone. */
 enum class SeekBarStyle(val label: String, val description: String) {
     Squiggly("Squiggly", "A gentle wave that moves while the song plays"),
+    Waves("Waves", "Soft overlapping waves above a flat line while the song plays"),
+    WaveLines("Wave lines", "Three fine waves a shade apart above a flat line while the song plays"),
     Default("Default", "A thick rounded bar"),
     Slim("Slim", "A thin rounded line"),
 }

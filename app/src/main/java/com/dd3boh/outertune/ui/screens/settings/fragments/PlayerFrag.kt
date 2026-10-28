@@ -212,6 +212,8 @@ fun NowPlayingFrag() {
                 SliderStyle.SQUIGGLY -> stringResource(R.string.slider_style_squiggly)
                 SliderStyle.DEFAULT -> stringResource(R.string.slider_style_default)
                 SliderStyle.SLIM -> stringResource(R.string.slider_style_slim)
+                SliderStyle.WAVES -> stringResource(R.string.slider_style_waves)
+                SliderStyle.WAVE_LINES -> stringResource(R.string.slider_style_wave_lines)
             }
         }
     )

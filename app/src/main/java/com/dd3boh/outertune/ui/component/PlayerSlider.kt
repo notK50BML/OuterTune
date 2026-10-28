@@ -8,6 +8,12 @@
 
 package com.dd3boh.outertune.ui.component
 
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.runtime.withFrameNanos
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -133,6 +139,45 @@ fun PlayerSliderTrack(
             }
         }
 
+        SliderStyle.WAVES, SliderStyle.WAVE_LINES -> {
+            // Samsung's look: waves above a flat line, drifting while the song plays and settling
+            // into the line when it is paused or being dragged.
+            val swell by animateFloatAsState(if (animate) 1f else 0f, tween(600), label = "swell")
+            var time by remember { mutableFloatStateOf(0f) }
+            LaunchedEffect(animate) {
+                if (!animate) return@LaunchedEffect
+                val start = time
+                val began = withFrameNanos { it }
+                while (true) withFrameNanos { time = start + (it - began) / 1e9f }
+            }
+            Canvas(
+                modifier
+                    .fillMaxWidth()
+                    .height(trackHeight)
+            ) {
+                val isRtl = layoutDirection == LayoutDirection.Rtl
+                val stroke = SlimTrackHeight.toPx()
+                val y = center.y
+                val end = size.width * fraction
+                // Drawn above the track's own box, into the space over it - no higher than this,
+                // so they never reach the title above the bar.
+                val breath = 0.75f + 0.25f * sin(time * 0.7f)
+                withTransform({ if (isRtl) scale(-1f, 1f, pivot = center) }) {
+                    drawAccentWaves(
+                        end = end,
+                        baseline = y,
+                        height = AccentWaveHeight.toPx(),
+                        colour = activeTrackColor,
+                        timeSeconds = time,
+                        energy = breath * swell,
+                        filled = style == SliderStyle.WAVES,
+                    )
+                    drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), stroke, StrokeCap.Round)
+                    drawLine(activeTrackColor, Offset(0f, y), Offset(end, y), stroke, StrokeCap.Round)
+                }
+            }
+        }
+
         SliderStyle.DEFAULT, SliderStyle.SLIM -> {
             val resolvedHeight = if (style == SliderStyle.SLIM) SlimTrackHeight else trackHeight
             Canvas(
@@ -154,6 +199,72 @@ fun PlayerSliderTrack(
         }
     }
 }
+
+/** How high the accent waves rise above the line at their fullest. */
+private val AccentWaveHeight = 18.dp
+
+/**
+ * Samsung's media player look: three soft waves above a flat progress line, nearly the same colour,
+ * each drifting at its own pace so they cross and part. Over the played part, fading in and out at
+ * its ends so they rise out of the line. [filled] draws them as solid overlapping shapes; otherwise
+ * as lines a shade apart. The desktop's AccentWaves draws the same.
+ */
+private fun DrawScope.drawAccentWaves(
+    end: Float,
+    baseline: Float,
+    height: Float,
+    colour: Color,
+    timeSeconds: Float,
+    energy: Float,
+    filled: Boolean,
+) {
+    if (end < 4f) return
+    val stroke = 1.6.dp.toPx()
+    val reach = height * (0.25f + 0.75f * energy.coerceIn(0f, 1f))
+    AccentWaveSpecs.forEach { wave ->
+        val path = Path()
+        var x = 0f
+        while (x <= end) {
+            val taper = sin(PI * (x / end)).toFloat().coerceAtLeast(0f)
+            val phase = (x / wave.wavelength.toPx()) * TwoPi + timeSeconds * wave.speed + wave.offset
+            // Above the line only: a wave dipping below it would cross the progress itself.
+            val lift = (0.5f + 0.5f * sin(phase)) * wave.scale * reach * taper
+            if (x == 0f) path.moveTo(x, baseline - lift) else path.lineTo(x, baseline - lift)
+            x += 2f
+        }
+        if (filled) {
+            path.lineTo(end, baseline)
+            path.lineTo(0f, baseline)
+            path.close()
+            drawPath(path, colour.copy(alpha = wave.fillAlpha))
+        } else {
+            drawPath(
+                path,
+                lerp(colour, wave.tint, wave.tintAmount).copy(alpha = wave.alpha),
+                style = Stroke(width = stroke, cap = StrokeCap.Round),
+            )
+        }
+    }
+}
+
+private class AccentWaveSpec(
+    val wavelength: Dp,
+    /** Radians a second: each its own, so they drift apart and back together. */
+    val speed: Float,
+    val offset: Float,
+    val scale: Float,
+    val alpha: Float,
+    val fillAlpha: Float,
+    val tint: Color,
+    val tintAmount: Float,
+)
+
+/** Three, a shade apart: one towards white, one towards the accent's own depth, one in between. */
+private val AccentWaveSpecs = listOf(
+    AccentWaveSpec(120.dp, 1.9f, 0f, 1.00f, 0.55f, 0.20f, Color.White, 0.18f),
+    AccentWaveSpec(86.dp, -1.3f, 2.1f, 0.78f, 0.40f, 0.16f, Color.White, 0.05f),
+    AccentWaveSpec(155.dp, 1.1f, 4.0f, 0.62f, 0.30f, 0.13f, Color.Black, 0.12f),
+)
 
 /** @param trackHeight thickness of the drawn line (stroke width), not a layout height. */
 private fun DrawScope.drawTrack(
