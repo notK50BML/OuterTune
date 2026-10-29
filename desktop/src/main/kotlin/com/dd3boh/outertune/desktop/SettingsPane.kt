@@ -82,6 +82,7 @@ enum class SettingsCategory(val label: String, val blurb: String) {
     Privacy("Privacy", "Listening and search history"),
     Storage("Storage", "Downloaded songs"),
     Backup("Backup and restore", "Backups, the phone's backups, settings profiles"),
+    Updater("Updater", "Check for and install new versions"),
     About("About", "Version and links"),
 }
 
@@ -97,6 +98,7 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
     SettingsCategory.Storage -> OuterTuneIcons.download
     SettingsCategory.Privacy -> OuterTuneIcons.history
     SettingsCategory.Backup -> OuterTuneIcons.restore
+    SettingsCategory.Updater -> OuterTuneIcons.download
     SettingsCategory.About -> OuterTuneIcons.info
 }
 
@@ -136,7 +138,6 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
     SettingEntry("Show queue title", SettingsCategory.Player, "queue name handle"),
     SettingEntry("Queue handle in the title bar", SettingsCategory.Player, "queue handle top bottom banner window buttons"),
-    SettingEntry("Equaliser", SettingsCategory.Player, "eq equalizer bass treble compressor autoeq"),
     SettingEntry("Provider selection", SettingsCategory.Lyrics, "provider automatic order priority lrclib kugou betterlyrics source"),
     SettingEntry("BetterLyrics", SettingsCategory.Lyrics, "word by word karaoke syllable provider"),
     SettingEntry("Estimate word timings", SettingsCategory.Lyrics, "karaoke interpolation sweep"),
@@ -170,7 +171,8 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Back up library", SettingsCategory.Backup, "export backup save"),
     SettingEntry("Where the library is stored", SettingsCategory.Backup, "database file path backup sqlite"),
     SettingEntry("Version", SettingsCategory.About, "about github"),
-    SettingEntry("Draw without the graphics card", SettingsCategory.About, "memory ram gpu software rendering performance"),
+    SettingEntry("Hardware acceleration", SettingsCategory.Appearance, "graphics card gpu memory ram software rendering performance draw"),
+    SettingEntry("Check for updates", SettingsCategory.Updater, "update updater new version download install release"),
 )
 
 /** YouTube's content languages and countries the phone offers most, by code and name. */
@@ -280,6 +282,8 @@ fun SettingsPane(
                         )
                     }
                 } else {
+                    val updateState by DesktopUpdater.state.collectAsState()
+                    val updateWaiting = updateState is DesktopUpdater.State.Available || updateState is DesktopUpdater.State.Ready
                     SettingsCategory.entries.forEach { item ->
                         CategoryItem(
                             title = item.label,
@@ -287,6 +291,7 @@ fun SettingsPane(
                             icon = item.icon(),
                             selected = item == category,
                             onClick = { category = item },
+                            badge = item == SettingsCategory.Updater && updateWaiting,
                         )
                     }
                 }
@@ -322,7 +327,8 @@ fun SettingsPane(
                 SettingsCategory.Privacy -> PrivacySettings(settings, library, account)
                 SettingsCategory.Backup -> BackupSettings(settings, library, libraryPath, onProfileApplied)
                 SettingsCategory.Keyboard -> KeyboardSettings(settings)
-                SettingsCategory.About -> AboutSettings(settings)
+                SettingsCategory.Updater -> UpdaterSettings(settings)
+                SettingsCategory.About -> AboutSettings()
             }
             Spacer(modifier = Modifier.height(40.dp))
         }
@@ -336,6 +342,8 @@ private fun CategoryItem(
     icon: ImageVector,
     selected: Boolean,
     onClick: () -> Unit,
+    /** A dot beside the title - an update waiting, on the Updater entry. */
+    badge: Boolean = false,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -355,7 +363,13 @@ private fun CategoryItem(
         )
         Spacer(modifier = Modifier.width(14.dp))
         Column {
-            Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, style = MaterialTheme.typography.bodyLarge, maxLines = 1)
+                if (badge) {
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Box(modifier = Modifier.size(8.dp).background(MaterialTheme.colorScheme.error, CircleShape))
+                }
+            }
             Text(
                 subtitle,
                 style = MaterialTheme.typography.bodySmall,
@@ -484,6 +498,23 @@ private fun AppearanceSettings(settings: Settings) {
             divider = false,
         )
     }
+    // How the window is drawn: by the graphics card, or by the processor - see RenderMode.
+    Section("Performance") {
+        var onProcessor by remember { mutableStateOf(RenderMode.chosen()) }
+        SettingSwitch(
+            title = "Hardware acceleration",
+            subtitle = "Draws with the graphics card. Off uses about 130MB less memory, but scrolling and animated " +
+                "backgrounds cost more processor time." +
+                if (onProcessor != RenderMode.onProcessor) " Takes effect when OuterTune next starts." else "",
+            checked = !onProcessor,
+            onCheckedChange = {
+                RenderMode.choose(!it)
+                onProcessor = !it
+            },
+            icon = OuterTuneIcons.tune,
+            divider = false,
+        )
+    }
 }
 
 @Composable
@@ -579,12 +610,6 @@ private fun PlayerSettings(settings: Settings) {
             label = { it.label },
             description = { it.description },
             onSelect = { settings.sliderStyle = it },
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
-        SettingRow(
-            title = "Equaliser",
-            subtitle = "Opened from the player: the equaliser button, or scroll up at the top of it.",
-            icon = OuterTuneIcons.equalizer,
         )
     }
     // Everything about the queue in one place: how its handle looks on the player, and what is kept.
@@ -1590,43 +1615,49 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
 }
 
 @Composable
-private fun AboutSettings(settings: Settings) {
-    val scope = rememberCoroutineScope()
-    val update by DesktopUpdater.state.collectAsState()
+private fun AboutSettings() {
     Section("OuterTune for desktop") {
-        var onProcessor by remember { mutableStateOf(RenderMode.chosen()) }
-        SettingSwitch(
-            title = "Draw without the graphics card",
-            subtitle = "Uses about 130MB less memory; scrolling and animated backgrounds cost more processor time." +
-                if (onProcessor != RenderMode.onProcessor) " Takes effect when OuterTune next starts." else "",
-            checked = onProcessor,
-            onCheckedChange = {
-                RenderMode.choose(it)
-                onProcessor = it
-            },
-            icon = OuterTuneIcons.tune,
-        )
         SettingRow(
             title = "Version",
             subtitle = DesktopVersion.NAME,
             icon = OuterTuneIcons.info,
         )
         SettingRow(
+            title = "Source code",
+            subtitle = "github.com/notK50BML/OuterTune",
+            icon = OuterTuneIcons.musicNote,
+            onClick = {
+                runCatching { java.awt.Desktop.getDesktop().browse(java.net.URI("https://github.com/notK50BML/OuterTune")) }
+            },
+        )
+    }
+}
+
+/**
+ * New versions, laid out as the phone's Updater: the one action - check, download, install - with
+ * where it stands, then the options. Its own page, as on the phone, rather than a row under About.
+ */
+@Composable
+private fun UpdaterSettings(settings: Settings) {
+    val scope = rememberCoroutineScope()
+    val update by DesktopUpdater.state.collectAsState()
+    Section("Updates") {
+        SettingRow(
             title = when (val state = update) {
-                is DesktopUpdater.State.Available -> "Download OuterTune ${state.update.name}"
+                is DesktopUpdater.State.Available -> "Download and install OuterTune ${state.update.name}"
                 is DesktopUpdater.State.Ready -> "Install OuterTune ${state.update.name}"
                 else -> "Check for updates"
             },
             subtitle = when (val state = update) {
-                DesktopUpdater.State.Idle -> "From the project's releases on GitHub."
+                DesktopUpdater.State.Idle -> "This is OuterTune ${DesktopVersion.NAME}. New versions come from the project's releases on GitHub."
                 DesktopUpdater.State.Checking -> "Checking…"
-                DesktopUpdater.State.UpToDate -> "This is the latest version."
+                DesktopUpdater.State.UpToDate -> "OuterTune ${DesktopVersion.NAME} is the latest version."
                 is DesktopUpdater.State.Available -> "A new version is available."
                 is DesktopUpdater.State.Downloading -> "Downloading… ${(state.progress * 100).toInt()}%"
                 is DesktopUpdater.State.Ready -> "Downloaded. Installing closes OuterTune and opens it again."
                 is DesktopUpdater.State.Failed -> state.reason
             },
-            icon = OuterTuneIcons.restore,
+            icon = OuterTuneIcons.download,
             onClick = {
                 when (val state = update) {
                     is DesktopUpdater.State.Available -> scope.launch { DesktopUpdater.download(state.update) }
@@ -1639,6 +1670,8 @@ private fun AboutSettings(settings: Settings) {
                 }
             },
         )
+    }
+    Section("Options") {
         SettingSwitch(
             title = "Check for updates automatically",
             subtitle = "When OuterTune starts, at most every few hours.",
@@ -1647,21 +1680,22 @@ private fun AboutSettings(settings: Settings) {
             icon = OuterTuneIcons.restore,
         )
         SettingSwitch(
-            title = "Download updates automatically",
-            subtitle = "Ready to install when found. Installing still waits for you.",
+            title = "Download automatically",
+            subtitle = "Fetches the installer as soon as one is found, so installing is a single click.",
             checked = settings.updateAutoDownload,
             onCheckedChange = { settings.updateAutoDownload = it },
             icon = OuterTuneIcons.download,
-        )
-        SettingRow(
-            title = "Source code",
-            subtitle = "github.com/notK50BML/OuterTune",
-            icon = OuterTuneIcons.musicNote,
-            onClick = {
-                runCatching { java.awt.Desktop.getDesktop().browse(java.net.URI("https://github.com/notK50BML/OuterTune")) }
-            },
+            divider = false,
         )
     }
+    Text(
+        "Only finished releases are offered - not drafts or pre-releases - and an installer is used only " +
+            "if it matches the size and checksum GitHub lists for it. Installing closes OuterTune, updates it " +
+            "in place and opens it again; your library and settings are kept.",
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
+    )
 }
 
 /**
