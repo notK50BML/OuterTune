@@ -145,6 +145,9 @@ import com.dd3boh.outertune.playback.DownloadUtil
 import com.dd3boh.outertune.playback.MediaControllerViewModel
 import com.dd3boh.outertune.playback.MusicService
 import com.dd3boh.outertune.playback.PlayerConnection
+import com.dd3boh.outertune.ui.component.LocalSwipeActionFeedback
+import com.dd3boh.outertune.ui.component.SwipeActionFeedbackHost
+import com.dd3boh.outertune.ui.component.SwipeActionFeedbackState
 import com.dd3boh.outertune.ui.component.rememberBottomSheetState
 import com.dd3boh.outertune.ui.component.shimmer.ShimmerTheme
 import com.dd3boh.outertune.ui.menu.BottomSheetMenu
@@ -1155,6 +1158,9 @@ class MainActivity : ComponentActivity() {
                                 // tabmode only enables >= 600dp (unless it's forced on). For those who wish to try down
                                 // to the widescreen limit, 320dp player is the minimum acceptable size for the player
                                 val playerW = (maxW.value * 0.4).coerceIn(320.0, 500.0)
+                                // Swiping a song to the queue here also says so on the player pane,
+                                // beside the list, where the queue it went into lives.
+                                val swipeFeedback = remember { SwipeActionFeedbackState() }
                                 Row(
                                     modifier = Modifier
                                         .fillMaxSize()
@@ -1173,9 +1179,12 @@ class MainActivity : ComponentActivity() {
                                         modifier = Modifier
                                             .fillMaxSize()
                                     ) {
-                                        navHost()
+                                        // Search results are song rows too, so the search bar is inside.
+                                        CompositionLocalProvider(LocalSwipeActionFeedback provides swipeFeedback) {
+                                            navHost()
 
-                                        SearchBarContainer(navController, scrollBehavior, useNavRail)
+                                            SearchBarContainer(navController, scrollBehavior, useNavRail)
+                                        }
 
                                         if (oobeStatus >= OOBE_VERSION) {
                                             navbar()
@@ -1191,6 +1200,16 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
 
+                                // Drawn over the player pane - after the Row, so on top of it - and
+                                // the same size and place, insets included.
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxHeight()
+                                        .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal))
+                                        .width(playerW.dp)
+                                ) {
+                                    SwipeActionFeedbackHost(swipeFeedback, Modifier.fillMaxSize())
+                                }
                             }
 
                             // Setup wizard
