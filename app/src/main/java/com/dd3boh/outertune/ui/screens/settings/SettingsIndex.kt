@@ -105,6 +105,8 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/player", R.string.ignore_audio_focus, R.string.player_and_audio),
     SettingsIndexEntry("settings/player", R.string.persistent_queue, R.string.player_and_audio),
     SettingsIndexEntry("settings/player", R.string.slider_style_title, R.string.player_and_audio),
+    SettingsIndexEntry("settings/player", R.string.slider_weight_title, R.string.player_and_audio),
+    SettingsIndexEntry("settings/player", R.string.slider_dot_title, R.string.player_and_audio),
     SettingsIndexEntry("settings/player", R.string.swipe_to_skip_title, R.string.player_and_audio),
     SettingsIndexEntry("settings/player", R.string.show_queue_title, R.string.player_and_audio),
     SettingsIndexEntry("settings/player", R.string.tap_artwork_to_show_lyrics_title, R.string.player_and_audio),

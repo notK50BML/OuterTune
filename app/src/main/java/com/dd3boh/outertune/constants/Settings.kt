@@ -50,6 +50,11 @@ enum class SliderStyle {
 
 val DEFAULT_SLIDER_STYLE = SliderStyle.SQUIGGLY
 
+/** How thick the seek bar is drawn, whatever its style. */
+enum class SliderWeight(val scale: Float) {
+    DEFAULT(1f), THINNER(0.6f),
+}
+
 enum class LibraryViewType {
     LIST, GRID;
 

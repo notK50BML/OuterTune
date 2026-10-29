@@ -80,8 +80,11 @@ import com.dd3boh.outertune.constants.SleepTimerDefaults
 import com.dd3boh.outertune.constants.SleepTimerFadeDurationKey
 import com.dd3boh.outertune.constants.SleepTimerFadeKey
 import com.dd3boh.outertune.constants.SleepTimerShowOnPlayerKey
+import com.dd3boh.outertune.constants.SliderDotKey
 import com.dd3boh.outertune.constants.SliderStyle
 import com.dd3boh.outertune.constants.SliderStyleKey
+import com.dd3boh.outertune.constants.SliderWeight
+import com.dd3boh.outertune.constants.SliderWeightKey
 import com.dd3boh.outertune.constants.StopMusicOnTaskClearKey
 import com.dd3boh.outertune.constants.SwipeToSkipKey
 import com.dd3boh.outertune.constants.minPlaybackDurKey
@@ -188,6 +191,8 @@ fun AudioQualityFrag() {
 fun NowPlayingFrag() {
     val (showQueueTitle, onShowQueueTitleChange) = rememberPreference(ShowQueueTitleKey, defaultValue = true)
     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
+    val (sliderWeight, onSliderWeightChange) = rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
+    val (sliderDot, onSliderDotChange) = rememberPreference(SliderDotKey, defaultValue = false)
     val (swipeToSkip, onSwipeToSkipChange) = rememberPreference(SwipeToSkipKey, defaultValue = DEFAULT_SWIPE_TO_SKIP)
     val (showLyricsOnClick, onShowLyricsOnClickChange) = rememberPreference(
         ShowLyricsOnClickKey,
@@ -216,6 +221,25 @@ fun NowPlayingFrag() {
                 SliderStyle.WAVE_LINES -> stringResource(R.string.slider_style_wave_lines)
             }
         }
+    )
+    EnumListPreference(
+        title = { Text(stringResource(R.string.slider_weight_title)) },
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        selectedValue = sliderWeight,
+        onValueSelected = onSliderWeightChange,
+        valueText = {
+            when (it) {
+                SliderWeight.DEFAULT -> stringResource(R.string.slider_style_default)
+                SliderWeight.THINNER -> stringResource(R.string.slider_weight_thinner)
+            }
+        }
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.slider_dot_title)) },
+        description = stringResource(R.string.slider_dot_description),
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        checked = sliderDot,
+        onCheckedChange = onSliderDotChange
     )
     SwitchPreference(
         title = { Text(stringResource(R.string.swipe_to_skip_title)) },

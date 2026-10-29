@@ -83,6 +83,10 @@ fun PlayerSliderTrack(
     trackHeight: Dp = 10.dp,
     style: SliderStyle = SliderStyle.SQUIGGLY,
     animate: Boolean = false,
+    /** Thickness, as a share of each style's own - see SliderWeight. */
+    weight: Float = 1f,
+    /** A dot where the song has got to - see SliderDotKey. Not on the squiggle, which is its own mark. */
+    dot: Boolean = false,
 ) {
     val inactiveTrackColor = colors.inactiveTrackColor
     val activeTrackColor = colors.activeTrackColor
@@ -130,7 +134,7 @@ fun PlayerSliderTrack(
                     activeRangeEnd = fraction,
                     inactiveTrackColor = inactiveTrackColor,
                     activeTrackColor = activeTrackColor,
-                    trackStrokeWidth = SquigglyStrokeWidth.toPx(),
+                    trackStrokeWidth = SquigglyStrokeWidth.toPx() * weight,
                     amplitude = amplitude.toPx(),
                     wavelength = SquigglyWavelength.toPx(),
                     phase = phase.value,
@@ -140,8 +144,8 @@ fun PlayerSliderTrack(
         }
 
         SliderStyle.WAVES, SliderStyle.WAVE_LINES -> {
-            // Samsung's look: waves above a flat line, drifting while the song plays and settling
-            // into the line when it is paused or being dragged.
+            // Samsung's look: a band whose top edge ripples (or lines over a flat one), drifting
+            // while the song plays and settling flat when it is paused or being dragged.
             val swell by animateFloatAsState(if (animate) 1f else 0f, tween(600), label = "swell")
             var time by remember { mutableFloatStateOf(0f) }
             LaunchedEffect(animate) {
@@ -156,30 +160,32 @@ fun PlayerSliderTrack(
                     .height(trackHeight)
             ) {
                 val isRtl = layoutDirection == LayoutDirection.Rtl
-                val stroke = SlimTrackHeight.toPx()
                 val y = center.y
                 val end = size.width * fraction
-                // Drawn above the track's own box, into the space over it - no higher than this,
-                // so they never reach the title above the bar.
+                // Breathing a little on their own, so the waves never settle into a pattern. They
+                // rise above the track's own box, into the space over it - no higher than
+                // AccentWaveHeight, so they never reach the title above the bar.
                 val breath = 0.75f + 0.25f * sin(time * 0.7f)
                 withTransform({ if (isRtl) scale(-1f, 1f, pivot = center) }) {
-                    drawAccentWaves(
-                        end = end,
-                        baseline = y,
-                        height = AccentWaveHeight.toPx(),
-                        colour = activeTrackColor,
-                        timeSeconds = time,
-                        energy = breath * swell,
-                        filled = style == SliderStyle.WAVES,
-                    )
-                    drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), stroke, StrokeCap.Round)
-                    drawLine(activeTrackColor, Offset(0f, y), Offset(end, y), stroke, StrokeCap.Round)
+                    if (style == SliderStyle.WAVES) {
+                        // The bar itself: flat bottom, wavy top - no separate line under it.
+                        val thickness = WavesBandThickness.toPx() * weight
+                        drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), thickness / 2, StrokeCap.Round)
+                        drawWaveBand(end, y, thickness, AccentWaveHeight.toPx(), activeTrackColor, time, breath * swell)
+                        if (dot && end > 0f) drawCircle(activeTrackColor, thickness * 0.9f, Offset(end, y))
+                    } else {
+                        val stroke = WaveLinesTrackHeight.toPx() * weight
+                        drawAccentWaves(end, y, AccentWaveHeight.toPx(), activeTrackColor, time, breath * swell)
+                        drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), stroke, StrokeCap.Round)
+                        drawLine(activeTrackColor, Offset(0f, y), Offset(end, y), stroke, StrokeCap.Round)
+                        if (dot && end > 0f) drawCircle(activeTrackColor, stroke * 1.1f, Offset(end, y))
+                    }
                 }
             }
         }
 
         SliderStyle.DEFAULT, SliderStyle.SLIM -> {
-            val resolvedHeight = if (style == SliderStyle.SLIM) SlimTrackHeight else trackHeight
+            val resolvedHeight = (if (style == SliderStyle.SLIM) SlimTrackHeight else trackHeight) * weight
             Canvas(
                 modifier
                     .fillMaxWidth()
@@ -195,6 +201,10 @@ fun PlayerSliderTrack(
                     activeTickColor,
                     resolvedHeight
                 )
+                if (dot && fraction > 0f) {
+                    val x = size.width * (if (layoutDirection == LayoutDirection.Rtl) 1 - fraction else fraction)
+                    drawCircle(activeTrackColor, resolvedHeight.toPx() * 1.1f, Offset(x, center.y))
+                }
             }
         }
     }
@@ -203,11 +213,67 @@ fun PlayerSliderTrack(
 /** How high the accent waves rise above the line at their fullest. */
 private val AccentWaveHeight = 18.dp
 
+/** The WAVES band's height where its waves are flat. */
+private val WavesBandThickness = 7.dp
+
+/** The flat line under the WAVE_LINES waves. */
+private val WaveLinesTrackHeight = 4.dp
+
 /**
- * Samsung's media player look: three soft waves above a flat progress line, nearly the same colour,
- * each drifting at its own pace so they cross and part. Over the played part, fading in and out at
- * its ends so they rise out of the line. [filled] draws them as solid overlapping shapes; otherwise
- * as lines a shade apart. The desktop's AccentWaves draws the same.
+ * Samsung's bar itself: a thick band with a flat bottom and a wavy top, from the start to [end].
+ * Three layers a shade apart, each its own wave, drawn over one another - the first solid, the
+ * others translucent above it - so the top edge ripples where they cross. Rounded at both ends.
+ * [baseline] is the band's middle; [thickness] its height where the waves are flat; [rise] how far
+ * the waves lift its top. The desktop's AccentWaves.kt draws the same.
+ */
+private fun DrawScope.drawWaveBand(
+    end: Float,
+    baseline: Float,
+    thickness: Float,
+    rise: Float,
+    colour: Color,
+    timeSeconds: Float,
+    energy: Float,
+) {
+    if (end <= 0f) return
+    val radius = thickness / 2
+    // Round at both ends: the band runs between the centres of two half-circle caps.
+    val left = radius
+    val right = (end - radius).coerceAtLeast(left)
+    val bottom = baseline + radius
+    val flatTop = baseline - radius
+    val reach = rise * (0.25f + 0.75f * energy.coerceIn(0f, 1f)) * growIn(end)
+    val length = right - left
+    // The deepest layer first, so the solid band ends up in front and the lighter ones show above it.
+    AccentWaveSpecs.withIndex().reversed().forEach { (index, wave) ->
+        val shade = if (index == 0) colour else lerp(colour, wave.tint, wave.tintAmount).copy(alpha = 0.45f - index * 0.1f)
+        if (length > 1f) {
+            val path = Path()
+            path.moveTo(left, bottom)
+            var x = 0f
+            while (x <= length) {
+                // Flat at both ends, so the band rises out of its rounded caps and back into them.
+                val taper = sin(PI * (x / length)).toFloat().coerceAtLeast(0f)
+                val phase = (x / wave.wavelength.toPx()) * TwoPi + timeSeconds * wave.speed + wave.offset
+                val lift = (0.5f + 0.5f * sin(phase)) * wave.scale * reach * taper
+                path.lineTo(left + x, flatTop - lift)
+                x += 2f
+            }
+            path.lineTo(right, flatTop)
+            path.lineTo(right, bottom)
+            path.close()
+            drawPath(path, shade)
+        }
+        if (index == 0) {
+            drawCircle(shade, radius, Offset(left, baseline))
+            drawCircle(shade, radius, Offset(right, baseline))
+        }
+    }
+}
+
+/**
+ * The same three waves as lines a shade apart, over the played part of a flat line, fading in and
+ * out at its ends so they rise out of it.
  */
 private fun DrawScope.drawAccentWaves(
     end: Float,
@@ -216,11 +282,11 @@ private fun DrawScope.drawAccentWaves(
     colour: Color,
     timeSeconds: Float,
     energy: Float,
-    filled: Boolean,
 ) {
     if (end < 4f) return
-    val stroke = 1.6.dp.toPx()
-    val reach = height * (0.25f + 0.75f * energy.coerceIn(0f, 1f))
+    // Bold enough to read as part of the bar rather than a scribble over it.
+    val stroke = 2.4.dp.toPx()
+    val reach = height * (0.25f + 0.75f * energy.coerceIn(0f, 1f)) * growIn(end)
     AccentWaveSpecs.forEach { wave ->
         val path = Path()
         var x = 0f
@@ -232,19 +298,22 @@ private fun DrawScope.drawAccentWaves(
             if (x == 0f) path.moveTo(x, baseline - lift) else path.lineTo(x, baseline - lift)
             x += 2f
         }
-        if (filled) {
-            path.lineTo(end, baseline)
-            path.lineTo(0f, baseline)
-            path.close()
-            drawPath(path, colour.copy(alpha = wave.fillAlpha))
-        } else {
-            drawPath(
-                path,
-                lerp(colour, wave.tint, wave.tintAmount).copy(alpha = wave.alpha),
-                style = Stroke(width = stroke, cap = StrokeCap.Round),
-            )
-        }
+        drawPath(
+            path,
+            lerp(colour, wave.tint, wave.tintAmount).copy(alpha = wave.alpha),
+            style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
     }
+}
+
+/**
+ * How much of their height the waves have, by how long the played part is: none at the very start,
+ * all of it from about 160dp on, in a smooth S between. A song a couple of seconds in shows a flat
+ * rounded bar, not a tall arc squeezed into a few pixels.
+ */
+private fun DrawScope.growIn(span: Float): Float {
+    val t = (span / 160.dp.toPx()).coerceIn(0f, 1f)
+    return t * t * (3 - 2 * t)
 }
 
 private class AccentWaveSpec(

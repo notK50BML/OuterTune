@@ -85,6 +85,9 @@ val EnabledFiltersKey = stringPreferencesKey("enabledFilters")
 val DefaultOpenTabKey = stringPreferencesKey("defaultOpenTab")
 val SlimNavBarKey = booleanPreferencesKey("slimNavBar")
 val SliderStyleKey = stringPreferencesKey("sliderStyle")
+val SliderWeightKey = stringPreferencesKey("sliderWeight")
+/** A dot where the song has got to, at the end of the played part of the seek bar. */
+val SliderDotKey = booleanPreferencesKey("sliderDot")
 
 /**
  * Content

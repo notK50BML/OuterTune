@@ -161,7 +161,10 @@ import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
 import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
+import com.dd3boh.outertune.constants.SliderDotKey
 import com.dd3boh.outertune.constants.SliderStyleKey
+import com.dd3boh.outertune.constants.SliderWeight
+import com.dd3boh.outertune.constants.SliderWeightKey
 import com.dd3boh.outertune.constants.ShowLyricsKey
 import com.dd3boh.outertune.constants.ShowLyricsOnClickKey
 import com.dd3boh.outertune.constants.SleepTimerShowOnPlayerKey
@@ -836,6 +839,8 @@ fun ControlsContent(
         key = SliderStyleKey,
         defaultValue = DEFAULT_SLIDER_STYLE
     )
+    val sliderWeight by rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
+    val sliderDot by rememberPreference(SliderDotKey, defaultValue = false)
 
     // Parsed once per change rather than per frame. A file that no longer parses - edited by
     // hand, or written by a newer editor after a downgrade - falls back to the built-in layout
@@ -1184,7 +1189,9 @@ fun ControlsContent(
                             sliderState = sliderState,
                             colors = SliderDefaults.colors(),
                             style = sliderStyle,
-                            animate = isPlaying && sliderPosition == null
+                            animate = isPlaying && sliderPosition == null,
+                            weight = sliderWeight.scale,
+                            dot = sliderDot,
                         )
                     },
                     modifier = Modifier.padding(horizontal = hPad)

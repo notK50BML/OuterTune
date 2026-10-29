@@ -209,6 +209,10 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="slider_style_slim">Slim</string>
     <string name="slider_style_waves">Waves</string>
     <string name="slider_style_wave_lines">Wave lines</string>
+    <string name="slider_weight_title">Slider thickness</string>
+    <string name="slider_weight_thinner">Thinner</string>
+    <string name="slider_dot_title">Slider dot</string>
+    <string name="slider_dot_description">A dot where the song has got to, at the end of the played part</string>
     <string name="tab_arrangement">Arrange tabs</string>
     <string name="tab_arrangement_disable_tip">--- Drag below here to disable ---</string>
     <string name="tab_arrangement_home_required">The Home tab is required.</string>
