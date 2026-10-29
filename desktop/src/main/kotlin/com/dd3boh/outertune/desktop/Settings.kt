@@ -162,6 +162,12 @@ class Settings(private val store: SettingsStore) {
     /** The close button hides OuterTune to the system tray and the music plays on - see Main. */
     var closeToTray by bool("window.closeToTray", true)
 
+    /** A dot where the song has got to, at the end of the played part of the seek bar. */
+    var seekBarDot by bool("player.seekBarDot", false)
+
+    /** How thick the seek bar is drawn, whatever its style. */
+    var seekBarWeight by enum("player.seekBarWeight", SeekBarWeight.Default, SeekBarWeight.entries)
+
     /** Battery saver: a still player and no visualisers - see Main. */
     var batterySaver by bool("window.batterySaver", false)
 
@@ -588,6 +594,11 @@ enum class ProxyKind(val label: String) {
 }
 
 /** The player's seek bar, as on the phone. */
+enum class SeekBarWeight(val label: String, val scale: Float) {
+    Default("Default", 1f),
+    Thinner("Thinner", 0.6f),
+}
+
 enum class SeekBarStyle(val label: String, val description: String) {
     Squiggly("Squiggly", "A gentle wave that moves while the song plays"),
     Waves("Waves", "Soft overlapping waves above a flat line while the song plays"),

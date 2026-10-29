@@ -42,8 +42,9 @@ fun DrawScope.drawAccentWaves(
 ) {
     val span = end - start
     if (span < 4f) return
-    val stroke = 1.6.dp.toPx()
-    val reach = height * (0.25f + 0.75f * energy.coerceIn(0f, 1f))
+    // Bold enough to read as part of the bar rather than a scribble over it.
+    val stroke = 2.4.dp.toPx()
+    val reach = height * (0.25f + 0.75f * energy.coerceIn(0f, 1f)) * growIn(span)
     WAVES.forEach { wave ->
         val path = Path()
         var x = 0f
@@ -73,6 +74,69 @@ fun DrawScope.drawAccentWaves(
     }
 }
 
+/**
+ * Samsung's bar itself: a thick band with a flat bottom and a wavy top, from [start] to [end].
+ * Three layers a shade apart, each its own wave, drawn over one another - the first solid, the
+ * others translucent above it - so the top edge ripples where they cross. [baseline] is the band's
+ * middle; [thickness] its height where the waves are flat; [rise] how far the waves lift its top.
+ */
+fun DrawScope.drawWaveBand(
+    start: Float,
+    end: Float,
+    baseline: Float,
+    thickness: Float,
+    rise: Float,
+    colour: Color,
+    timeSeconds: Float,
+    energy: Float,
+) {
+    val span = end - start
+    if (span <= 0f) return
+    val radius = thickness / 2
+    // Round at both ends: the band runs between the centres of two half-circle caps.
+    val left = start + radius
+    val right = (end - radius).coerceAtLeast(left)
+    val bottom = baseline + radius
+    val flatTop = baseline - radius
+    val reach = rise * (0.25f + 0.75f * energy.coerceIn(0f, 1f)) * growIn(span)
+    val length = right - left
+    // The deepest layer first, so the solid band ends up in front and the lighter ones show above it.
+    WAVES.withIndex().reversed().forEach { (index, wave) ->
+        val shade = if (index == 0) colour else lerp(colour, wave.tint, wave.tintAmount).copy(alpha = 0.45f - index * 0.1f)
+        if (length > 1f) {
+            val path = Path()
+            path.moveTo(left, bottom)
+            var x = 0f
+            while (x <= length) {
+                // Flat at both ends, so the band rises out of its rounded caps and back into them.
+                val taper = sin(PI * (x / length)).toFloat().coerceAtLeast(0f)
+                val phase = (x / wave.wavelength.toPx()) * 2 * PI + timeSeconds * wave.speed + wave.offset
+                val lift = (0.5f + 0.5f * sin(phase).toFloat()) * wave.scale * reach * taper
+                path.lineTo(left + x, flatTop - lift)
+                x += 2f
+            }
+            path.lineTo(right, flatTop)
+            path.lineTo(right, bottom)
+            path.close()
+            drawPath(path, shade)
+        }
+        if (index == 0) {
+            drawCircle(shade, radius, Offset(left, baseline))
+            drawCircle(shade, radius, Offset(right, baseline))
+        }
+    }
+}
+
+/**
+ * How much of their height the waves have, by how long the played part is: none at the very start,
+ * all of it from about 160dp on, in a smooth S between. A song a couple of seconds in shows a flat
+ * rounded bar, not a tall arc squeezed into a few pixels.
+ */
+private fun DrawScope.growIn(span: Float): Float {
+    val t = (span / 160.dp.toPx()).coerceIn(0f, 1f)
+    return t * t * (3 - 2 * t)
+}
+
 /** The waves on their own over a flat line - for a snapshot of the look. */
 @Composable
 fun AccentWaves(
@@ -82,13 +146,20 @@ fun AccentWaves(
     energy: Float,
     modifier: Modifier = Modifier,
     filled: Boolean = false,
+    thin: Boolean = false,
 ) {
     Canvas(modifier) {
         val end = size.width * progress.coerceIn(0f, 1f)
-        val stroke = 1.6.dp.toPx()
-        val baseline = size.height - stroke
-        drawAccentWaves(end, baseline, size.height - stroke * 2, colour, timeSeconds, energy, filled)
-        drawLine(colour.copy(alpha = 0.9f), Offset(0f, baseline), Offset(end, baseline), stroke * 1.4f, StrokeCap.Round)
+        if (filled) {
+            val thickness = (if (thin) 3.5.dp else 6.dp).toPx()
+            val baseline = size.height - thickness / 2
+            drawWaveBand(0f, end, baseline, thickness, size.height - thickness, colour, timeSeconds, energy)
+        } else {
+            val stroke = (if (thin) 1.8.dp else 3.dp).toPx()
+            val baseline = size.height - stroke
+            drawAccentWaves(end, baseline, size.height - stroke * 2, colour, timeSeconds, energy, filled = false)
+            drawLine(colour.copy(alpha = 0.9f), Offset(0f, baseline), Offset(end, baseline), stroke, StrokeCap.Round)
+        }
     }
 }
 

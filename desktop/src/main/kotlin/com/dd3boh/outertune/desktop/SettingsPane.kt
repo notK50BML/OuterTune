@@ -628,6 +628,21 @@ private fun PlayerSettings(settings: Settings) {
             label = { it.label },
             description = { it.description },
             onSelect = { settings.sliderStyle = it },
+        )
+        SettingChoice(
+            title = "Seek bar thickness",
+            icon = OuterTuneIcons.palette,
+            options = SeekBarWeight.entries,
+            selected = settings.seekBarWeight,
+            label = { it.label },
+            onSelect = { settings.seekBarWeight = it },
+        )
+        SettingSwitch(
+            title = "Seek bar dot",
+            subtitle = "A dot where the song has got to, at the end of the played part.",
+            checked = settings.seekBarDot,
+            onCheckedChange = { settings.seekBarDot = it },
+            icon = OuterTuneIcons.palette,
             divider = false,
         )
     }

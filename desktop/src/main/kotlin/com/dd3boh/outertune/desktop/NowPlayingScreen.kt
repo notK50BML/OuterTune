@@ -182,6 +182,10 @@ fun NowPlayingScreen(
     onSleepTimer: (() -> Unit)? = null,
     backgroundStyle: BackgroundStyle = BackgroundStyle.Gradient,
     seekBarStyle: SeekBarStyle = SeekBarStyle.Squiggly,
+    /** A dot where the song has got to - see Settings.seekBarDot. */
+    seekBarDot: Boolean = false,
+    /** How thick the seek bar is drawn - see Settings.seekBarWeight. */
+    seekBarWeight: Float = 1f,
     /** A live stream: the bar full and still, LIVE where the clock would be - as YouTube Music shows it. */
     live: Boolean = false,
     ferroReactivity: FerroReactivity = FerroReactivity.Normal,
@@ -691,6 +695,8 @@ fun NowPlayingScreen(
                                         positionMs = if (live) ({ 1L }) else positionMs,
                                         durationMs = if (live) 1L else durationMs,
                                         seekable = !live,
+                                        seekBarDot = seekBarDot,
+                        weight = seekBarWeight,
                                         colour = onBackground,
                                         onSeek = onSeek,
                                         style = seekBarStyle,
@@ -880,6 +886,8 @@ fun NowPlayingScreen(
                         positionMs = if (live) ({ 1L }) else positionMs,
                         durationMs = if (live) 1L else durationMs,
                         seekable = !live,
+                        seekBarDot = seekBarDot,
+                        weight = seekBarWeight,
                         colour = onBackground,
                         onSeek = onSeek,
                         style = seekBarStyle,
@@ -1063,6 +1071,10 @@ private fun SlimSeekBar(
     playing: Boolean = false,
     /** False for a live stream: nothing to seek to, so no hand, no clicks, no drags. */
     seekable: Boolean = true,
+    /** A dot where the song has got to - see Settings.seekBarDot. */
+    seekBarDot: Boolean = false,
+    /** How thick it is drawn - see Settings.seekBarWeight. */
+    weight: Float = 1f,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
@@ -1073,7 +1085,9 @@ private fun SlimSeekBar(
             SeekBarStyle.Slim -> if (active) 7.dp else 4.dp
             SeekBarStyle.Default -> if (active) 12.dp else 9.dp
             SeekBarStyle.Squiggly -> if (active) 6.dp else 4.dp
-            SeekBarStyle.Waves, SeekBarStyle.WaveLines -> if (active) 5.dp else 3.dp
+            // Thicker: Samsung's bar is a band, its waves rising out of it.
+            SeekBarStyle.Waves -> if (active) 8.dp else 6.dp
+            SeekBarStyle.WaveLines -> if (active) 5.dp else 4.dp
         }
     )
     // The Samsung look: waves above a flat line, drifting while the song plays, and settling into
@@ -1141,15 +1155,22 @@ private fun SlimSeekBar(
         // Position read here, in drawing, so a playback tick redraws the bar and recomposes nothing.
         val played = dragFraction
             ?: if (currentDuration > 0) (positionMs().toFloat() / currentDuration).coerceIn(0f, 1f) else 0f
-        val stroke = thickness.toPx()
+        val stroke = thickness.toPx() * weight
         val y = if (accentWaves) size.height - 12.dp.toPx() else size.height / 2
         val left = stroke / 2
         val right = size.width - stroke / 2
         val end = left + (right - left) * played
-        if (accentWaves) {
-            // Behind the line, so the line stays crisp where they meet it. Breathing a little on
-            // their own, so they never settle into a pattern.
-            val breath = 0.75f + 0.25f * sin(waveTime * 0.7f)
+        // Breathing a little on their own, so the waves never settle into a pattern.
+        val breath = 0.75f + 0.25f * sin(waveTime * 0.7f)
+        if (style == SeekBarStyle.Waves) {
+            // The bar itself: flat bottom, wavy top - no separate line under it.
+            drawLine(colour.copy(alpha = 0.22f), Offset(end, y), Offset(right, y), stroke / 2, StrokeCap.Round)
+            drawWaveBand(left, end, y, stroke, y - stroke / 2 - 2.dp.toPx(), colour, waveTime, breath * swell)
+            if (seekBarDot && end > left) drawCircle(colour, stroke * 0.9f, Offset(end, y))
+            return@Canvas
+        }
+        if (style == SeekBarStyle.WaveLines) {
+            // Behind the line, so the line stays crisp where they meet it.
             drawAccentWaves(
                 end = end,
                 baseline = y,
@@ -1157,7 +1178,7 @@ private fun SlimSeekBar(
                 colour = colour,
                 timeSeconds = waveTime,
                 energy = breath * swell,
-                filled = style == SeekBarStyle.Waves,
+                filled = false,
                 start = left,
             )
         }
@@ -1165,6 +1186,7 @@ private fun SlimSeekBar(
         if (amp < 0.5f) {
             drawLine(colour.copy(alpha = 0.22f), Offset(end, y), Offset(right, y), stroke, StrokeCap.Round)
             drawLine(colour, Offset(left, y), Offset(end, y), stroke, StrokeCap.Round)
+            if (seekBarDot && end > left) drawCircle(colour, stroke * 1.1f, Offset(end, y))
             return@Canvas
         }
         // Waving: the rest of the track starts a little past the wave so its round end does not

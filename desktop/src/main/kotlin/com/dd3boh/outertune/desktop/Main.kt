@@ -1191,6 +1191,8 @@ internal fun App(
             queue = queue,
             // And a still seek bar - the squiggle and the waves redraw every frame while playing.
             seekBarStyle = if (settings.batterySaver && settings.sliderStyle in ANIMATED_SEEK_BARS) SeekBarStyle.Slim else settings.sliderStyle,
+            seekBarDot = settings.seekBarDot,
+            seekBarWeight = settings.seekBarWeight.scale,
             live = player.live.collectAsState().value,
             command = playerCommand,
             onCommandHandled = { playerCommand = null },
