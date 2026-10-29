@@ -645,10 +645,20 @@ fun HomeScreen(
                         },
                         onClick = {
                             when (it.title) {
-                                is Song -> navController.navigate("album/${it.title.album!!.id}")
+                                // A song with no album opens nothing rather than crashing.
+                                is Song -> it.title.album?.id?.let { id -> navController.navigate("album/$id") }
                                 is Album -> navController.navigate("album/${it.title.id}")
                                 is Artist -> navController.navigate("artist/${it.title.id}")
-                                is Playlist -> {}
+                                // Opened the way the library opens a playlist: the local copy,
+                                // unless it is a synced one whose songs have not been fetched yet.
+                                is Playlist -> {
+                                    val playlist = it.title.playlist
+                                    if (playlist.isEditable || playlist.isLocal || playlist.browseId == null || it.title.songCount != 0) {
+                                        navController.navigate("local_playlist/${it.title.id}")
+                                    } else {
+                                        navController.navigate("online_playlist/${playlist.browseId}")
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier.animateItem()

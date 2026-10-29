@@ -1,6 +1,5 @@
 package com.dd3boh.outertune.ui.screens.library
 
-import android.content.pm.PackageManager
 import android.util.Log
 import com.dd3boh.outertune.constants.UI_DEBUG
 import androidx.activity.compose.BackHandler
@@ -76,7 +75,6 @@ import com.dd3boh.outertune.LocalMenuState
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.LocalSnackbarHostState
-import com.dd3boh.outertune.MainActivity
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.CONTENT_TYPE_FOLDER
 import com.dd3boh.outertune.constants.CONTENT_TYPE_HEADER
@@ -97,6 +95,7 @@ import com.dd3boh.outertune.models.DirectoryTree
 import com.dd3boh.outertune.models.toMediaMetadata
 import com.dd3boh.outertune.playback.queues.ListQueue
 import com.dd3boh.outertune.ui.component.FloatingFooter
+import com.dd3boh.outertune.ui.component.MediaPermissionBanner
 import com.dd3boh.outertune.ui.component.LazyColumnScrollbar
 import com.dd3boh.outertune.ui.component.ScrollToTopManager
 import com.dd3boh.outertune.ui.component.SelectHeader
@@ -110,7 +109,6 @@ import com.dd3boh.outertune.ui.component.shimmer.ListItemPlaceHolder
 import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
 import com.dd3boh.outertune.ui.menu.FolderMenu
 import com.dd3boh.outertune.ui.screens.Screens
-import com.dd3boh.outertune.ui.utils.MEDIA_PERMISSION_LEVEL
 import com.dd3boh.outertune.ui.utils.STORAGE_ROOT
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.ui.utils.canNavigateUp
@@ -299,27 +297,7 @@ fun FolderScreen(
                 ) {
                     Column {
                         if (libraryFilterContent == null) {
-                            var showStoragePerm by remember {
-                                mutableStateOf(context.checkSelfPermission(MEDIA_PERMISSION_LEVEL) != PackageManager.PERMISSION_GRANTED)
-                            }
-                            if (localLibEnable && showStoragePerm) {
-                                TextButton(
-                                    onClick = {
-                                        // allow user to hide error when clicked. This also makes the code a lot nicer too.
-                                        showStoragePerm = false
-                                        (context as MainActivity).permissionLauncher.launch(MEDIA_PERMISSION_LEVEL)
-                                    },
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .background(MaterialTheme.colorScheme.error)
-                                ) {
-                                    Text(
-                                        text = stringResource(R.string.missing_media_permission_warning),
-                                        color = Color.White,
-                                        style = MaterialTheme.typography.bodyLarge
-                                    )
-                                }
-                            }
+                            MediaPermissionBanner(enabled = localLibEnable)
                         } else {
                             libraryFilterContent()
                         }
@@ -455,7 +433,7 @@ fun FolderScreen(
                     ) {
                         SongFolderItem(
                             folderTitle = "..",
-                            subtitle = "Previous folder",
+                            subtitle = stringResource(R.string.previous_folder),
                             modifier = Modifier
                                 .clickable {
                                     if (currDir.culmSongs.value > 0) {
@@ -602,7 +580,7 @@ fun FolderScreen(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = null
+                        contentDescription = stringResource(R.string.action_back)
                     )
                 }
             }, windowInsets = TopBarInsets)

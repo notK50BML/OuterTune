@@ -316,7 +316,7 @@ fun ArtistScreen(
                                     playerConnection.playQueue(
                                         YouTubeQueue(radioEndpoint),
                                         isRadio = true,
-                                        title = "Radio: ${artistPage.artist.title}"
+                                        title = context.getString(R.string.queue_radio, artistPage.artist.title)
                                     )
                                 },
                                 contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
@@ -363,8 +363,10 @@ fun ArtistScreen(
                 if (showLocal) {
                     if (librarySongs.isNotEmpty()) {
                         item {
+                            // Named as the desktop artist page names it, so the library's songs are
+                            // not confused with YouTube's top songs shelf on the online page.
                             NavigationTitle(
-                                title = stringResource(R.string.songs),
+                                title = stringResource(R.string.artist_in_your_library),
                                 onClick = {
                                     navController.navigate("artist/${viewModel.artistId}/songs")
                                 }
@@ -392,7 +394,7 @@ fun ArtistScreen(
                                 onPlay = {
                                     playerConnection.playQueue(
                                         ListQueue(
-                                            title = "Library: ${libraryArtist?.artist?.name}",
+                                            title = context.getString(R.string.queue_library, libraryArtist?.artist?.name.orEmpty()),
                                             items = librarySongs.map { it.toMediaMetadata() },
                                             startIndex = index
                                         )
@@ -468,7 +470,7 @@ fun ArtistScreen(
 
                         item {
                             NavigationTitle(
-                                title = if (isSongsSection) stringResource(R.string.songs) else section.title,
+                                title = if (isSongsSection) stringResource(R.string.artist_top_songs) else section.title,
                                 onClick = section.moreEndpoint?.let {
                                     {
                                         navController.navigate("artist/${viewModel.artistId}/items?browseId=${it.browseId}?params=${it.params}")
@@ -517,7 +519,7 @@ fun ArtistScreen(
                                                 } else {
                                                     playerConnection.playQueue(
                                                         ListQueue(
-                                                            title = "Artist songs (preview): ${artistPage.artist.title}",
+                                                            title = context.getString(R.string.queue_artist_songs_preview, artistPage.artist.title),
                                                             items = section.items.map { (it as SongItem).toMediaMetadata() },
                                                             startIndex = section.items.indexOf(
                                                                 song
@@ -646,7 +648,7 @@ fun ArtistScreen(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = null
+                        contentDescription = stringResource(R.string.action_back)
                     )
                 }
             },

@@ -518,8 +518,8 @@ fun PlayerBackgroundFrag() {
         rememberPreference(LiquidAudioReactiveKey, defaultValue = true)
     AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
         SwitchPreference(
-            title = { Text("Audio-reactive") },
-            description = "Let the blobs respond to bass, treble and beats instead of drifting on their own",
+            title = { Text(stringResource(R.string.liquid_audio_reactive)) },
+            description = stringResource(R.string.liquid_audio_reactive_desc),
             icon = { Icon(Icons.Rounded.GraphicEq, null) },
             checked = liquidAudioReactive,
             onCheckedChange = onLiquidAudioReactiveChange,
@@ -530,15 +530,15 @@ fun PlayerBackgroundFrag() {
         rememberEnumPreference(LiquidShapeStyleKey, defaultValue = LiquidShapeStyle.PETAL)
     AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
         EnumListPreference(
-            title = { Text("Liquid shape") },
+            title = { Text(stringResource(R.string.liquid_shape)) },
             icon = { Icon(Icons.Rounded.Grain, null) },
             selectedValue = liquidShapeStyle,
             onValueSelected = onLiquidShapeStyleChange,
             valueText = {
                 when (it) {
-                    LiquidShapeStyle.PETAL -> "Petal"
-                    LiquidShapeStyle.SPHERES -> "Spheres"
-                    LiquidShapeStyle.FERROFLUID -> "Ferrofluid"
+                    LiquidShapeStyle.PETAL -> stringResource(R.string.liquid_shape_petal)
+                    LiquidShapeStyle.SPHERES -> stringResource(R.string.liquid_shape_spheres)
+                    LiquidShapeStyle.FERROFLUID -> stringResource(R.string.liquid_shape_ferrofluid)
                 }
             },
             values = LiquidShapeStyle.entries,
@@ -549,15 +549,15 @@ fun PlayerBackgroundFrag() {
         rememberEnumPreference(LiquidColorSchemeKey, defaultValue = LiquidColorScheme.SURFACE)
     AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
         EnumListPreference(
-            title = { Text("Liquid colour scheme") },
+            title = { Text(stringResource(R.string.liquid_colour_scheme)) },
             icon = { Icon(Icons.Rounded.Palette, null) },
             selectedValue = liquidColorScheme,
             onValueSelected = onLiquidColorSchemeChange,
             valueText = {
                 when (it) {
-                    LiquidColorScheme.SURFACE -> "Theme surface"
-                    LiquidColorScheme.BLACK -> "Black"
-                    LiquidColorScheme.WHITE -> "White"
+                    LiquidColorScheme.SURFACE -> stringResource(R.string.liquid_colour_surface)
+                    LiquidColorScheme.BLACK -> stringResource(R.string.liquid_colour_black)
+                    LiquidColorScheme.WHITE -> stringResource(R.string.liquid_colour_white)
                 }
             },
             values = LiquidColorScheme.entries,
@@ -568,8 +568,8 @@ fun PlayerBackgroundFrag() {
         rememberPreference(LiquidTextContrastKey, defaultValue = true)
     AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
         SwitchPreference(
-            title = { Text("Auto text contrast") },
-            description = "Flip player/queue/lyrics text to the opposite of the liquid background's measured brightness",
+            title = { Text(stringResource(R.string.liquid_text_contrast)) },
+            description = stringResource(R.string.liquid_text_contrast_desc),
             icon = { Icon(Icons.Rounded.Contrast, null) },
             checked = liquidTextContrast,
             onCheckedChange = onLiquidTextContrastChange,
@@ -580,8 +580,8 @@ fun PlayerBackgroundFrag() {
         rememberPreference(LiquidChromaticShockKey, defaultValue = true)
     AnimatedVisibility(visible = playerBackground == PlayerBackgroundStyle.LIQUID) {
         SwitchPreference(
-            title = { Text("Chromatic shock") },
-            description = "A GPU shader ripple that launches on a beat and splits colour outward across the liquid. Needs Android 13+; silently does nothing on older devices",
+            title = { Text(stringResource(R.string.liquid_chromatic_shock)) },
+            description = stringResource(R.string.liquid_chromatic_shock_desc),
             icon = { Icon(Icons.Rounded.Bolt, null) },
             checked = liquidChromaticShock,
             onCheckedChange = onLiquidChromaticShockChange,
@@ -595,8 +595,8 @@ fun PlayerBackgroundFrag() {
             liquidShapeStyle == LiquidShapeStyle.FERROFLUID
     ) {
         SwitchPreference(
-            title = { Text("GPU ferrofluid (experimental)") },
-            description = "Replace the lightweight ferrofluid with a real raymarched GPU scene, for comparing battery drain against the version above. Noticeably heavier on the GPU by design; needs Android 13+, falls back automatically otherwise",
+            title = { Text(stringResource(R.string.liquid_ferrofluid_gpu)) },
+            description = stringResource(R.string.liquid_ferrofluid_gpu_desc),
             icon = { Icon(Icons.Rounded.Memory, null) },
             checked = liquidFerrofluidGpu,
             onCheckedChange = onLiquidFerrofluidGpuChange,
@@ -613,16 +613,16 @@ fun PlayerBackgroundFrag() {
             liquidFerrofluidGpu
     ) {
         EnumListPreference(
-            title = { Text("GPU ferrofluid quality") },
+            title = { Text(stringResource(R.string.liquid_ferrofluid_quality)) },
             icon = { Icon(Icons.Rounded.Memory, null) },
             selectedValue = liquidFerrofluidQuality,
             onValueSelected = onLiquidFerrofluidQualityChange,
             valueText = {
                 when (it) {
-                    FerrofluidQuality.LOW -> "Low - fewest droplets, for phones on battery"
-                    FerrofluidQuality.MEDIUM -> "Medium - the default"
-                    FerrofluidQuality.HIGH -> "High - full resolution, more droplets"
-                    FerrofluidQuality.ULTRA -> "Ultra - longest march, for a discrete or flagship GPU"
+                    FerrofluidQuality.LOW -> stringResource(R.string.liquid_ferrofluid_quality_low)
+                    FerrofluidQuality.MEDIUM -> stringResource(R.string.liquid_ferrofluid_quality_medium)
+                    FerrofluidQuality.HIGH -> stringResource(R.string.liquid_ferrofluid_quality_high)
+                    FerrofluidQuality.ULTRA -> stringResource(R.string.liquid_ferrofluid_quality_ultra)
                 }
             },
             values = FerrofluidQuality.entries,
@@ -638,16 +638,16 @@ fun PlayerBackgroundFrag() {
             liquidFerrofluidGpu
     ) {
         EnumListPreference(
-            title = { Text("Ferrofluid reactivity") },
+            title = { Text(stringResource(R.string.liquid_ferrofluid_reactivity)) },
             icon = { Icon(Icons.Rounded.GraphicEq, null) },
             selectedValue = liquidFerrofluidReactivity,
             onValueSelected = onLiquidFerrofluidReactivityChange,
             valueText = {
                 when (it) {
-                    FerrofluidReactivity.SUBTLE -> "Subtle - barely follows the music"
-                    FerrofluidReactivity.NORMAL -> "Normal"
-                    FerrofluidReactivity.HIGH -> "High"
-                    FerrofluidReactivity.EXTREME -> "Extreme - flies apart on every beat"
+                    FerrofluidReactivity.SUBTLE -> stringResource(R.string.liquid_ferrofluid_reactivity_subtle)
+                    FerrofluidReactivity.NORMAL -> stringResource(R.string.liquid_ferrofluid_reactivity_normal)
+                    FerrofluidReactivity.HIGH -> stringResource(R.string.liquid_ferrofluid_reactivity_high)
+                    FerrofluidReactivity.EXTREME -> stringResource(R.string.liquid_ferrofluid_reactivity_extreme)
                 }
             },
             values = FerrofluidReactivity.entries,

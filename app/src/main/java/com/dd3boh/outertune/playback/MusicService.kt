@@ -182,6 +182,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
@@ -190,6 +192,7 @@ import java.net.ConnectException
 import java.net.SocketTimeoutException
 import java.net.UnknownHostException
 import java.time.LocalDateTime
+import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
 import kotlin.math.log10
 import kotlin.math.min
@@ -235,6 +238,29 @@ class MusicService : MediaLibraryService(),
     val qbInit = MutableStateFlow(false)
     var queueBoard = MutableStateFlow(QueueBoard(this, maxQueues = 1))
     var queuePlaylistId: String? = null
+
+    // onCreate and the first playQueue both load the queues. Run side by side, whichever finished
+    // second replaced the board and dropped the queue the first had just added to it.
+    private val queueInitLock = Mutex()
+
+    // Mirrored from DataStore by a collector in onCreate. dataStore.get() is runBlocking underneath,
+    // and these were read on the main thread at every queue edit and every track change.
+    @Volatile
+    var persistentQueueEnabled = true
+        private set
+
+    @Volatile
+    private var autoLoadMoreEnabled = true
+
+    // A radio's next page is being fetched. Skipping through the last few songs fired a fetch per
+    // skip, and each appended its own copy of the next page.
+    private val radioExtending = AtomicBoolean(false)
+
+    // The queue a radio was started from, with its continuation, for the radio queue (by id) it
+    // fills - so its next page is the real next page rather than a fresh radio. Only the latest
+    // radio is kept; an older radio queue picked again falls back to a fresh radio from its songs.
+    @Volatile
+    private var radioFeed: Pair<Long, Queue>? = null
 
     @Inject
     @PlayerCache
@@ -557,10 +583,18 @@ class MusicService : MediaLibraryService(),
 
         // lateinit tasks
         offloadScope.launch {
+            dataStore.data
+                .map { (it[PersistentQueueKey] ?: true) to (it[AutoLoadMoreKey] ?: true) }
+                .distinctUntilChanged()
+                .collect { (persist, autoLoad) ->
+                    persistentQueueEnabled = persist
+                    autoLoadMoreEnabled = autoLoad
+                }
+        }
+
+        offloadScope.launch {
             if (SERVICE_DEBUG) Log.i(TAG, "Launching MusicService offloadScope tasks")
-            if (!qbInit.value) {
-                initQueue()
-            }
+            ensureQueueInit()
 
             combine(
                 playerVolume, normalizeFactor, sleepTimer.fadeFactor, crossfader.fadeFactor
@@ -982,13 +1016,6 @@ class MusicService : MediaLibraryService(),
         isRadio: Boolean = false,
         title: String? = null
     ) {
-        if (!qbInit.value) {
-            runBlocking(Dispatchers.IO) {
-                initQueue()
-            }
-        }
-
-        var queueTitle = title
         queuePlaylistId = queue.playlistId
         val station = isStationPlaylistId(queue.playlistId)
         var q: MultiQueueObject? = null
@@ -996,9 +1023,13 @@ class MusicService : MediaLibraryService(),
         queueLoadScope.launch {
             if (SERVICE_DEBUG) Log.d(TAG, "playQueue: Resolving additional queue data...")
             try {
+                // Loaded here rather than blocking the main thread on it, and through the lock,
+                // since onCreate may be loading the queues at this very moment.
+                ensureQueueInit()
+
                 if (preloadItem != null) {
                     q = queueBoard.value.addQueue(
-                        queueTitle ?: "Radio\u2060temp",
+                        title ?: "Radio\u2060temp",
                         listOf(preloadItem),
                         shuffled = queue.startShuffled,
                         replace = replace,
@@ -1009,14 +1040,12 @@ class MusicService : MediaLibraryService(),
                 }
 
                 val initialStatus = withContext(Dispatchers.IO) { queue.getInitialStatus() }
-                // do not find a title if an override is provided
-                if ((title == null) && initialStatus.title != null) {
-                    queueTitle = initialStatus.title
-
-                    if (preloadItem != null && q != null) {
-                        queueBoard.value.renameQueue(q!!, queueTitle)
-                    }
-                }
+                // An override wins; otherwise the queue's own title, and failing both the generic one.
+                val queueTitle = title ?: initialStatus.title ?: getString(R.string.queue)
+                // The placeholder queue takes the final title whichever way it was reached, so the
+                // queue below finds and replaces it. Renamed only when the source had a title, it
+                // stayed behind as a stray one-song queue whenever it had none.
+                q?.let { queueBoard.value.renameQueue(it, queueTitle) }
 
                 val items = ArrayList<MediaMetadata>()
                 if (SERVICE_DEBUG) Log.d(TAG, "playQueue: Queue initial status item count: ${initialStatus.items.size}")
@@ -1028,7 +1057,7 @@ class MusicService : MediaLibraryService(),
                         items.addAll(initialStatus.items)
                     }
                     val q = queueBoard.value.addQueue(
-                        queueTitle ?: getString(R.string.queue),
+                        queueTitle,
                         items,
                         shuffled = queue.startShuffled,
                         startIndex = if (initialStatus.mediaItemIndex > 0) initialStatus.mediaItemIndex else 0,
@@ -1036,6 +1065,8 @@ class MusicService : MediaLibraryService(),
                         continuationEndpoint = if (isRadio) items.takeLast(4).shuffled().first().id else null // yq?.getContinuationEndpoint()
                     )
                     q?.isStation = station
+                    // The queue that fetched the first page holds the continuation for the next.
+                    if (isRadio && q != null) radioFeed = q.id to queue
                     queueBoard.value.setCurrQueue(q, shouldResume)
                 }
 
@@ -1101,14 +1132,40 @@ class MusicService : MediaLibraryService(),
         updateNotification()
     }
 
+    /**
+     * Load the queues unless they already are. For the first load, which onCreate and the first
+     * playQueue may both start at once.
+     */
+    suspend fun ensureQueueInit() {
+        if (qbInit.value) return
+        queueInitLock.withLock {
+            // checked again: the other caller may have loaded them while this one waited
+            if (!qbInit.value) loadQueues()
+        }
+    }
+
+    /**
+     * (Re)load the queues from the database - after a library scan or a change to the queue limit.
+     */
     suspend fun initQueue() {
+        queueInitLock.withLock { loadQueues() }
+    }
+
+    // Callers hold queueInitLock.
+    private suspend fun loadQueues() = withContext(Dispatchers.IO) {
         if (SERVICE_DEBUG) Log.i(TAG, "+initQueue()")
-        val persistQueue = dataStore.get(PersistentQueueKey, true)
-        val maxQueues = dataStore.get(MaxQueuesKey, 19)
+        val prefs = dataStore.data.first()
+        val persistQueue = prefs[PersistentQueueKey] ?: true
+        val maxQueues = prefs[MaxQueuesKey] ?: 19
+        persistentQueueEnabled = persistQueue
+        // Edits still waiting to be saved would otherwise be lost here, or land on top of the queues
+        // about to be read back.
         if (persistQueue) {
-            queueBoard.value = QueueBoard(this, queueBoard.value.masterQueues, database.readQueue().toMutableList(), maxQueues)
+            queueBoard.value.flushPendingSaves()
+            queueBoard.value = QueueBoard(this@MusicService, queueBoard.value.masterQueues, database.readQueue().toMutableList(), maxQueues)
         } else {
-            queueBoard.value = QueueBoard(this, queueBoard.value.masterQueues, maxQueues = maxQueues)
+            queueBoard.value.shutdown()
+            queueBoard.value = QueueBoard(this@MusicService, queueBoard.value.masterQueues, maxQueues = maxQueues)
         }
         if (SERVICE_DEBUG) Log.d(TAG, "Queue with $maxQueues queue limit. Persist queue = $persistQueue. Queues loaded = ${queueBoard.value.masterQueues.size}")
         qbInit.value = true
@@ -1118,11 +1175,17 @@ class MusicService : MediaLibraryService(),
     fun deInitQueue() {
         if (SERVICE_DEBUG) Log.i(TAG, "+deInitQueue()")
         val pos = player.currentPosition
-        queueBoard.value.shutdown()
-        if (dataStore.get(PersistentQueueKey, true)) {
+        // Only queues that were loaded are written back. Before the first load the board is empty,
+        // and writing that out would delete every saved queue.
+        if (persistentQueueEnabled && qbInit.value) {
+            // Blocks until both are on disk: the service is going away, and a save left running
+            // in the background could be cut off with it.
             runBlocking(Dispatchers.IO) {
+                queueBoard.value.flushPendingSaves()
                 saveQueueToDisk(pos)
             }
+        } else {
+            queueBoard.value.shutdown()
         }
         // do not replace the object. Can lead to entire queue being deleted even though it is supposed to be saved already
         qbInit.value = false
@@ -1131,9 +1194,15 @@ class MusicService : MediaLibraryService(),
 
     suspend fun saveQueueToDisk(currentPosition: Long) {
         val data = queueBoard.value.getAllQueues()
-        // The queue can be empty when the service is torn down before initQueue() finishes loading it.
-        data.lastOrNull()?.let { it.lastSongPos = currentPosition }
-        database.updateAllQueues(data)
+        // The queue can be empty when the service is torn down before initQueue() finishes loading
+        // it, and an empty list would delete every saved queue.
+        if (data.isEmpty()) return
+        (queueBoard.value.getCurrentQueue() ?: data.last()).lastSongPos = currentPosition
+        try {
+            database.updateAllQueues(data)
+        } catch (e: Exception) {
+            reportException(e)
+        }
     }
 
 
@@ -1690,25 +1759,13 @@ class MusicService : MediaLibraryService(),
 
         // Auto load more songs
         val q = queueBoard.value.getCurrentQueue()
-        val songCount = q?.getSize() ?: -1
-        val playlistId = q?.playlistId
-        if (dataStore.get(AutoLoadMoreKey, true) &&
+        if (q != null && autoLoadMoreEnabled &&
             reason != Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT &&
             player.mediaItemCount - player.currentMediaItemIndex <= 5 &&
-            playlistId != null // aka "hasNext"
+            q.playlistId != null && // aka "hasNext"
+            q.getSize() > 1 // initial radio loading is handled by playQueue()
         ) {
-            if (SERVICE_DEBUG) Log.d(TAG, "onMediaItemTransition: Triggering queue auto load more")
-            scope.launch(SilentHandler) {
-                val endpoint = playlistId // playlistId.substringBefore("\n")
-                val continuation = null // playlistId.substringAfter("\n")
-                val yq = YouTubeQueue(WatchEndpoint(endpoint, continuation))
-                val mediaItems = yq.nextPage()
-                q.playlistId = mediaItems.takeLast(4).shuffled().first().id // yq.getContinuationEndpoint()
-                if (SERVICE_DEBUG) Log.d(TAG, "onMediaItemTransition: Got ${mediaItems.size} songs from radio")
-                if (player.playbackState != STATE_IDLE && songCount > 1) { // initial radio loading is handled by playQueue()
-                    queueBoard.value.enqueueEnd(mediaItems.drop(1))
-                }
-            }
+            extendRadio(q)
         }
 
         queueBoard.value.setCurrQueuePosIndex(player.currentMediaItemIndex)
@@ -1728,6 +1785,58 @@ class MusicService : MediaLibraryService(),
         }
 
         updateNotification() // also updates when queue changes
+    }
+
+    /**
+     * Fetch more songs for the radio queue [q] as it runs low, and append them to it - the same as
+     * the desktop's extendIfLow and radioFeed.
+     *
+     * One fetch at a time. The songs go into [q] only if it is still the current queue when they
+     * arrive: they were fetched for that radio, and dropping them into whatever queue is playing
+     * by then mixed one radio into another.
+     */
+    private fun extendRadio(q: MultiQueueObject) {
+        if (!radioExtending.compareAndSet(false, true)) return
+        if (SERVICE_DEBUG) Log.d(TAG, "onMediaItemTransition: Triggering queue auto load more")
+        val feed = radioFeed?.takeIf { it.first == q.id }?.second
+        // Seeds for a fresh radio, taken now on the main thread; the queue is not read from IO.
+        // Local songs have no radio of their own.
+        val recentIds = q.getCurrentQueueShuffled().filterNot { it.isLocal }.takeLast(4).map { it.id }
+        val seed = q.playlistId
+        scope.launch(SilentHandler) {
+            try {
+                val page = withContext(Dispatchers.IO) { fetchRadioPage(q, feed, recentIds, seed) }
+                if (SERVICE_DEBUG) Log.d(TAG, "onMediaItemTransition: Got ${page.size} songs from radio")
+                if (queueBoard.value.getCurrentQueue() !== q || player.playbackState == STATE_IDLE) return@launch
+                // The next fallback radio starts from near the end of this page.
+                page.takeLast(4).randomOrNull()?.let { q.playlistId = it.id }
+                queueBoard.value.appendRadioPage(q, page)
+            } finally {
+                radioExtending.set(false)
+            }
+        }
+    }
+
+    /**
+     * The radio's next page when it has one. When it has none, or asking fails, a fresh radio from
+     * one of its recent songs, which then supplies the pages after it. Never throws; an empty list
+     * means nothing could be fetched this time.
+     */
+    private suspend fun fetchRadioPage(
+        q: MultiQueueObject,
+        feed: Queue?,
+        recentIds: List<String>,
+        seed: String?,
+    ): List<MediaMetadata> {
+        if (feed != null && feed.hasNextPage()) {
+            val next = runCatching { feed.nextPage() }.getOrDefault(emptyList())
+            if (next.isNotEmpty()) return next
+        }
+        val from = recentIds.randomOrNull() ?: seed ?: return emptyList()
+        val fresh = YouTubeQueue(WatchEndpoint(videoId = from, playlistId = "RDAMVM$from"))
+        val items = runCatching { fresh.getInitialStatus().items }.getOrDefault(emptyList())
+        if (items.isNotEmpty()) radioFeed = q.id to fresh
+        return items
     }
 
     override fun onPlaybackStateChanged(@Player.State playbackState: Int) {

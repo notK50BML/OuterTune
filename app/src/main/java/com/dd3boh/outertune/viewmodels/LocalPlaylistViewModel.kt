@@ -57,7 +57,10 @@ class LocalPlaylistViewModel @Inject constructor(
     init {
         // Fix playlist song order
         viewModelScope.launch(Dispatchers.IO) {
-            val sortedSongs = playlistWithSongs.first().second.sortedWith(compareBy({ it.map.position }, { it.map.id }))
+            // From the DAO, not from playlistWithSongs: first() on that StateFlow returns its empty
+            // initial value at once, so this never saw a single song and the order was never fixed.
+            val sortedSongs = database.playlistSongs(playlistId).first()
+                .sortedWith(compareBy({ it.map.position }, { it.map.id }))
             database.transaction {
                 sortedSongs.forEachIndexed { index, song ->
                     if (song.map.position != index) {

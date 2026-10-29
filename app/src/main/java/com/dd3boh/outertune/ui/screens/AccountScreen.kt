@@ -69,7 +69,9 @@ fun AccountScreen(
     val isLoggedIn = remember(innerTubeCookie) {
         "SAPISID" in parseCookieString(innerTubeCookie)
     }
-    val accountName by rememberPreference(AccountNameKey, stringResource(R.string.not_logged_in))
+    // Empty until an account is fetched, as everywhere else reads it; the "not logged in" wording
+    // is only for showing, so it is chosen below rather than stored as though it were a name.
+    val accountName by rememberPreference(AccountNameKey, "")
 
     val playlists by viewModel.playlists.collectAsState()
     val albums by viewModel.albums.collectAsState()
@@ -182,7 +184,7 @@ fun AccountScreen(
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    text = accountName,
+                    text = accountName.ifEmpty { stringResource(R.string.not_logged_in) },
                     overflow = TextOverflow.Ellipsis
                 )
                 if (isLoggedIn) {
@@ -207,7 +209,7 @@ fun AccountScreen(
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = null
+                    contentDescription = stringResource(R.string.action_back)
                 )
             }
         },

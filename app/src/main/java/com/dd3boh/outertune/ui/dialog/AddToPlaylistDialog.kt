@@ -100,7 +100,9 @@ fun AddToPlaylistDialog(
         mutableStateOf(emptyList<String>())
     }
 
-    LaunchedEffect(Unit) {
+    // Keyed on the sort and sync mode so a change from the sort header restarts the query; keyed on
+    // Unit it ran once with whatever order was set when the dialog opened.
+    LaunchedEffect(sortType, sortDescending, syncMode) {
         if (syncMode == SyncMode.RO) {
             database.playlists(PlaylistFilter.LIBRARY, sortType, sortDescending, 1).collect {
                 playlists = it

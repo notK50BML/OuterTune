@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
@@ -199,7 +200,7 @@ fun PlayerMenu(
             enabled = actions.isAvailable(PlayerButton.ARTIST)
         ) { actions.run(PlayerButton.ARTIST) }
         GridMenuItem(
-            icon = R.drawable.album,
+            icon = Icons.Rounded.Album,
             title = R.string.view_album,
             enabled = actions.isAvailable(PlayerButton.ALBUM)
         ) { actions.run(PlayerButton.ALBUM) }

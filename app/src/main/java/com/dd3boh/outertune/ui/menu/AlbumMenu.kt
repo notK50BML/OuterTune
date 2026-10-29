@@ -9,6 +9,9 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Radio
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
@@ -49,6 +52,8 @@ import com.dd3boh.outertune.db.entities.Album
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.extensions.toMediaItem
 import com.dd3boh.outertune.models.toMediaMetadata
+import com.dd3boh.outertune.playback.queues.YouTubeAlbumRadio
+import com.dd3boh.outertune.playback.queues.ListQueue
 import com.dd3boh.outertune.playback.ExoDownloadService
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.items.AlbumListItem
@@ -177,6 +182,49 @@ fun AlbumMenu(
             bottom = 8.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
         )
     ) {
+        // Play, Shuffle and Start radio as the YouTube album menu has them, played the way the
+        // album page's own buttons play the album.
+        GridMenuItem(
+            icon = Icons.Rounded.PlayArrow,
+            title = R.string.play,
+            enabled = songs.isNotEmpty()
+        ) {
+            onDismiss()
+            playerConnection.playQueue(
+                ListQueue(
+                    title = album.album.title,
+                    items = songs.map { it.toMediaMetadata() },
+                    playlistId = album.album.playlistId
+                )
+            )
+        }
+        GridMenuItem(
+            icon = Icons.Rounded.Shuffle,
+            title = R.string.shuffle,
+            enabled = songs.isNotEmpty()
+        ) {
+            onDismiss()
+            playerConnection.playQueue(
+                ListQueue(
+                    title = album.album.title,
+                    items = songs.map { it.toMediaMetadata() },
+                    playlistId = album.album.playlistId,
+                    startShuffled = true,
+                )
+            )
+        }
+        // A radio is built from the album's YouTube playlist, which a local album does not have.
+        val radioPlaylistId = album.album.playlistId?.takeIf { !album.album.isLocal }
+        if (radioPlaylistId != null) {
+            GridMenuItem(
+                icon = Icons.Rounded.Radio,
+                title = R.string.start_radio,
+                enabled = isNetworkConnected
+            ) {
+                onDismiss()
+                playerConnection.playQueue(YouTubeAlbumRadio(radioPlaylistId))
+            }
+        }
         GridMenuItem(
             icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
             title = R.string.play_next

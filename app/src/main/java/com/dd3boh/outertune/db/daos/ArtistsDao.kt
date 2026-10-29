@@ -1,5 +1,6 @@
 package com.dd3boh.outertune.db.daos
 
+import com.dd3boh.outertune.db.entities.SongEntity
 import com.dd3boh.outertune.db.entities.ArtistPlayStats
 import androidx.room.Dao
 import androidx.room.Delete
@@ -312,7 +313,10 @@ interface ArtistsDao {
         byPlayTime: Boolean = true,
     ): Flow<List<Artist>>
 
-    @RawQuery(observedEntities = [ArtistEntity::class])
+    // Every table the query reads, not only artist: the LIBRARY and DOWNLOADED filters and the
+    // counts come from song through song_artist_map, so observing artist alone left these lists stale
+    // when a song was added to the library or downloaded.
+    @RawQuery(observedEntities = [ArtistEntity::class, SongArtistMap::class, SongEntity::class])
     fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>
 
     fun artists(filter: ArtistFilter, sortType: ArtistSortType, descending: Boolean, localOnly: Boolean? = null): Flow<List<Artist>> {

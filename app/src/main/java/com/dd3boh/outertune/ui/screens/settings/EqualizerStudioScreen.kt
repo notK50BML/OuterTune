@@ -421,7 +421,7 @@ fun EqualizerStudioScreen(
         title = { Text(stringResource(R.string.eq_studio_title)) },
         navigationIcon = {
             IconButton(onClick = navController::navigateUp, onLongClick = navController::backToMain) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
             }
         },
         windowInsets = TopBarInsets,

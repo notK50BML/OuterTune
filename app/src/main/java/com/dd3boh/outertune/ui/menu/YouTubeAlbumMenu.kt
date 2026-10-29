@@ -77,7 +77,9 @@ fun YouTubeAlbumMenu(
 
     LaunchedEffect(Unit) {
         database.album(albumItem.id).collect { album ->
-            if (album == null) {
+            // Also a stand-in row left by a song saved from the album (no playlist id): it holds
+            // just that song, so the album is fetched whole as if it were not there.
+            if (album == null || (album.album.playlistId == null && !album.album.isLocal)) {
                 YouTube.album(albumItem.id).onSuccess { albumPage ->
                     database.transaction {
                         insert(albumPage)

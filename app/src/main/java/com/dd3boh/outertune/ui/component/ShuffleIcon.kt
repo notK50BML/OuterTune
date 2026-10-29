@@ -10,7 +10,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.remember
@@ -24,7 +24,12 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.util.lerp
+import com.dd3boh.outertune.R
 import kotlin.math.hypot
 import kotlin.math.sqrt
 
@@ -101,16 +106,22 @@ fun ShuffleButton(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
+    // A switch to TalkBack, so it reads "Shuffle" with its on or off state rather than nothing:
+    // the icon is drawn on a canvas and carries no description of its own.
+    val label = stringResource(R.string.shuffle)
     ShuffleIcon(
         on = on,
         tint = color,
         modifier = Modifier
-            .clickable(
+            .toggleable(
+                value = on,
                 indication = ripple(bounded = false),
                 interactionSource = remember { MutableInteractionSource() },
                 enabled = enabled,
-                onClick = onClick,
+                role = Role.Switch,
+                onValueChange = { onClick() },
             )
+            .semantics { contentDescription = label }
             .alpha(if (enabled) 1f else 0.5f)
             .then(modifier),
     )

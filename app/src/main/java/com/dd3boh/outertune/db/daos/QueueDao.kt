@@ -12,11 +12,8 @@ import com.dd3boh.outertune.db.entities.QueueSong
 import com.dd3boh.outertune.db.entities.QueueSongMap
 import com.dd3boh.outertune.models.MultiQueueObject
 import com.dd3boh.outertune.models.toMediaMetadata
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 
 @Dao
 interface QueueDao {
@@ -108,14 +105,18 @@ interface QueueDao {
         )
     }
 
+    /**
+     * Write the order and state of every queue, and delete the queues that are no longer among
+     * them. Runs on the calling thread, which must not be the main thread: the work used to be
+     * launched off into a coroutine, which left this transaction empty and let callers - the save
+     * on shutdown above all - return before anything was written.
+     */
     @Transaction
     fun updateAllQueues(mqs: List<MultiQueueObject>) {
         val mqs = mqs.toList() // please no more ConcurrentModificationException I beg you
         mqs.forEachIndexed { index, q -> q.index = index }
-        CoroutineScope(Dispatchers.IO).launch {
-            nukeAliens(mqs.map { it.id })
-            mqs.forEach { updateQueue(it) }
-        }
+        nukeAliens(mqs.map { it.id })
+        mqs.forEach { updateQueue(it) }
     }
 
     // endregion

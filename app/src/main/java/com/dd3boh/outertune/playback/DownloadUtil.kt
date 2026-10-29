@@ -749,6 +749,9 @@ class DownloadUtil @Inject constructor(
         isProcessingDownloads.value = true
 
         var runs = 0
+        // Created below and released in finally: a DownloadManager owns a worker thread and a
+        // handle on the download index, and this one is only needed for the migration.
+        var oldDownloadManager: DownloadManager? = null
         try {
             // "skeleton" of old download manager to access old download data
             val dataSourceFactory = ResolvingDataSource.Factory(
@@ -774,16 +777,19 @@ class DownloadUtil @Inject constructor(
             ).apply {
                 maxParallelDownloads = 3
             }
+            oldDownloadManager = downloadManager
 
             // actual migration code
             val downloadedSongs = mutableMapOf<String, Download>()
-            val cursor = downloadManager.downloadIndex.getDownloads()
-            while (cursor.moveToNext()) {
-                downloadedSongs[cursor.download.request.id] = cursor.download
+            downloadManager.downloadIndex.getDownloads().use { cursor ->
+                while (cursor.moveToNext()) {
+                    downloadedSongs[cursor.download.request.id] = cursor.download
+                }
             }
 
             // copy all completed downloads
             val toMigrate = downloadedSongs.filter { it.value.state == Download.STATE_COMPLETED }
+            val copied = ArrayList<String>()
             toMigrate.forEach { s ->
                 if (runs++ % 10 == 0) {
                     if (DOWNLOAD_DEBUG) Log.d(TAG, "Migrating download: $runs/${toMigrate.size}")
@@ -795,17 +801,25 @@ class DownloadUtil @Inject constructor(
                 }
                 val songFromCache = getFromCache(downloadCache, s.key)
                 if (songFromCache != null) {
-                    downloadCache.removeResource(s.key)
                     downloadMgr.enqueue(
                         mediaId = s.key,
                         data = songFromCache,
                         displayName = runBlocking { database.song(s.key).first()?.title ?: "" })
+                    copied += s.key
                 }
             }
+
+            // The cached copy is only dropped once its file is really in the download folder. The
+            // in-memory enqueue reports a failed save as an event nobody listens to, and removing
+            // the cache entry first lost the song whenever that save failed. One rescan of the
+            // folder covers every song, as the folder listing is cached and saving does not add to it.
+            val saved = localMgr.getAvailableFiles(false).keys
+            copied.filter { it in saved }.forEach { downloadCache.removeResource(it) }
             scanDownloads()
         } catch (e: Exception) {
             reportException(e)
         } finally {
+            oldDownloadManager?.release()
             isProcessingDownloads.value = false
         }
     }
@@ -883,9 +897,10 @@ class DownloadUtil @Inject constructor(
             val missingFiles =
                 localMgr.getMissingFiles(dbDownloads.filterNot { it.song.dateDownload == null }).toMutableList()
             if (DOWNLOAD_DEBUG) Log.d(TAG, "Found ${missingFiles.size}/${dbDownloads.size} songs not in custom download directories")
-            val cursor = downloadManager.downloadIndex.getDownloads()
-            while (cursor.moveToNext()) {
-                missingFiles.removeIf { it.id == cursor.download.request.id }
+            downloadManager.downloadIndex.getDownloads().use { cursor ->
+                while (cursor.moveToNext()) {
+                    missingFiles.removeIf { it.id == cursor.download.request.id }
+                }
             }
             if (DOWNLOAD_DEBUG) Log.d(
                 TAG,
@@ -970,18 +985,21 @@ class DownloadUtil @Inject constructor(
                 if (DOWNLOAD_DEBUG) Log.d(TAG, "Registered ${availableFiles.size} files from custom downloads")
 
                 // add internal downloads
-                val cursor = downloadManager.downloadIndex.getDownloads()
                 var count = 0
                 database.transaction {
-                    while (cursor.moveToNext()) {
-                        // The nullable form. Writing stateToLocalDateTime's sentinel here is what poisoned
-                        // the column: epoch zero is not null, so "IS NOT NULL" counted a failed download as
-                        // a download and the song could never be queued again.
-                        updateDownloadStatus(
-                            cursor.download.request.id,
-                            downloadDateFor(cursor.download.state, cursor.download.updateTimeMs),
-                        )
-                        count++
+                    // Opened inside the block because transaction runs it later on Room's executor;
+                    // a cursor closed out here would already be shut by the time the block reads it.
+                    downloadManager.downloadIndex.getDownloads().use { cursor ->
+                        while (cursor.moveToNext()) {
+                            // The nullable form. Writing stateToLocalDateTime's sentinel here is what poisoned
+                            // the column: epoch zero is not null, so "IS NOT NULL" counted a failed download as
+                            // a download and the song could never be queued again.
+                            updateDownloadStatus(
+                                cursor.download.request.id,
+                                downloadDateFor(cursor.download.state, cursor.download.updateTimeMs),
+                            )
+                            count++
+                        }
                     }
                 }
                 if (DOWNLOAD_DEBUG) Log.d(TAG, "Registered $count files from internal downloads")

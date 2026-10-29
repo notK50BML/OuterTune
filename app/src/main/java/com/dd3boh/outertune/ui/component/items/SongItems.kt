@@ -71,7 +71,7 @@ import com.dd3boh.outertune.utils.makeTimeString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -279,14 +279,15 @@ fun SongFolderItem(
 ) {
     val coroutineScope = rememberCoroutineScope()
     val database = LocalDatabase.current
-    var subDirSongCount by remember {
+    // Remembered per folder and counted in the effect's own scope, so a reused list row recounts
+    // for the folder it now shows, and leaving the screen cancels a count still running.
+    var subDirSongCount by remember(folder) {
         mutableIntStateOf(0)
     }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(folder, subtitle) {
         if (subtitle == null) {
-            CoroutineScope(Dispatchers.IO).launch {
+            subDirSongCount = withContext(Dispatchers.IO) {
                 database.localSongCountInPath(folder.getFullSquashedDir()).first()
-                subDirSongCount = database.localSongCountInPath(folder.getFullSquashedDir()).first()
             }
         }
     }

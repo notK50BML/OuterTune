@@ -13,6 +13,7 @@ import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.dd3boh.outertune.constants.AlbumFilter
 import com.dd3boh.outertune.constants.AlbumSortType
+import com.dd3boh.outertune.db.entities.SongEntity
 import com.dd3boh.outertune.db.entities.Album
 import com.dd3boh.outertune.db.entities.AlbumArtistMap
 import com.dd3boh.outertune.db.entities.AlbumEntity
@@ -24,6 +25,8 @@ import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.db.stripTopicSuffix
 import com.dd3boh.outertune.extensions.reversed
 import com.zionhuang.innertube.models.AlbumItem
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -176,7 +179,15 @@ interface AlbumsDao : ArtistsDao {
     fun artistAlbums(artistId: String): Flow<List<Album>>
 
     @Transaction
-    @RawQuery(observedEntities = [AlbumEntity::class])
+    // Every table the query and its relations read, not only album: the LIBRARY and DOWNLOADED
+    // filters and the download count come from song through song_album_map, and the artist sort and
+    // the album's artists from album_artist_map and artist. Observing album alone left these lists
+    // stale when a song was added to the library or downloaded.
+    @RawQuery(
+        observedEntities = [
+            AlbumEntity::class, SongAlbumMap::class, SongEntity::class, AlbumArtistMap::class, ArtistEntity::class,
+        ]
+    )
     fun _getAlbum(query: SupportSQLiteQuery): Flow<List<Album>>
 
     fun albums(filter: AlbumFilter, sortType: AlbumSortType, descending: Boolean, localOnly: Boolean? = null): Flow<List<Album>> {
@@ -248,7 +259,8 @@ interface AlbumsDao : ArtistsDao {
         LIMIT 100
     """
     )
-    fun forgottenFavorites(now: Long = System.currentTimeMillis()): Flow<List<Song>>
+    // now as Converters stores event timestamps: wall-clock time labelled UTC. See quickPicks.
+    fun forgottenFavorites(now: Long = LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli()): Flow<List<Song>>
     @Transaction
     @Query(
         """
@@ -265,7 +277,8 @@ interface AlbumsDao : ArtistsDao {
         """,
     )
     fun recommendedAlbum(
-        now: Long = System.currentTimeMillis(),
+        // As Converters stores event timestamps - see forgottenFavorites.
+        now: Long = LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli(),
         limit: Int = 5,
         offset: Int = 0,
     ): Flow<List<Song>>

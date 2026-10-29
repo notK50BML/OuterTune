@@ -462,13 +462,13 @@ val MIGRATION_16_17 = object : Migration(16, 17) {
             var tempResult = ArrayList<TempQueueSong>()
             // assign indexes
             for (s in songs) {
-                val match = shuffled.find { it.song == s.song }
-
-                match.let {
-                    s.shuffleIndex = it?.index!!
-                    tempResult.add(s)
-                    shuffled.remove(match) // remove from shuffled, so duplicates are handled
-                }
+                // No shuffled counterpart: one of the malformed queues the line below is for. It
+                // keeps its -1 and is dropped there - the !! that used to be here threw instead, and
+                // a migration that throws fails every launch.
+                val match = shuffled.find { it.song == s.song } ?: continue
+                s.shuffleIndex = match.index
+                tempResult.add(s)
+                shuffled.remove(match) // remove from shuffled, so duplicates are handled
             }
             // queues could be malformed, so only take pairs of songs
             tempResult.removeAll { it.shuffleIndex <= -1L }
@@ -819,12 +819,8 @@ private fun mergeTopicSuffixedArtists(db: SupportSQLiteDatabase) {
  * [ArtistEntity.isLocal] flag down to one row - see [MIGRATION_24_25]'s own doc for why this needs
  * to exist as a separate pass from [mergeTopicSuffixedArtists] above (that one only ever merges a
  * "- Topic" row into an already clean-named one; this one merges duplicates however they arose).
- * The survivor is preferred to be a row whose name is already Topic-suffix-free, since that id is
- * the one most likely already linked from other songs/albums synced before this cleanup existed;
- * falls back to the group's first row if every row in the group happens to carry the suffix, in
- * which case the survivor's own name is cleaned up too. A group whose stripped name is empty (a
- * credit that was only ever the literal "- Topic" suffix, no real name in front of it) is left
- * alone rather than merged under a blank name - same guard [mergeTopicSuffixedArtists] uses.
+ * Which rows merge, and into which survivor, is decided by [planArtistMerges]; the survivor's own
+ * name is cleaned of the suffix if it carries one.
  */
 private fun mergeDuplicateArtists(db: SupportSQLiteDatabase) {
     data class ArtistRow(val id: String, val name: String, val isLocal: Boolean)
@@ -872,19 +868,25 @@ private fun mergeDuplicateArtists(db: SupportSQLiteDatabase) {
         }
     }
 
-    val groups = artists.groupBy { it.name.stripTopicSuffix().lowercase() to it.isLocal }
-    for ((key, group) in groups) {
-        val (baseNameLower, _) = key
-        if (group.size < 2 || baseNameLower.isEmpty()) continue
-
-        val original = group.firstOrNull { !TOPIC_SUFFIX.containsMatchIn(it.name) } ?: group.first()
+    for (merge in planArtistMerges(artists.map { ArtistMergeRow(it.id, it.name, it.isLocal) })) {
+        val original = merge.survivor
         val cleanName = original.name.stripTopicSuffix()
         if (original.name != cleanName) {
             db.execSQL("UPDATE artist SET name = ? WHERE id = ?", arrayOf(cleanName, original.id))
         }
 
-        for (duplicate in group) {
-            if (duplicate.id == original.id) continue
+        for (duplicate in merge.duplicates) {
+            // What the survivor lacks and the duplicate has - the user's follow, a picture, the
+            // channel id - is carried over before the duplicate goes. Only the map rows used to move,
+            // so an artist followed through the row that lost was no longer followed.
+            db.execSQL(
+                """UPDATE artist SET
+                    bookmarkedAt = COALESCE(bookmarkedAt, (SELECT bookmarkedAt FROM artist WHERE id = ?)),
+                    thumbnailUrl = COALESCE(thumbnailUrl, (SELECT thumbnailUrl FROM artist WHERE id = ?)),
+                    channelId = COALESCE(channelId, (SELECT channelId FROM artist WHERE id = ?))
+                WHERE id = ?""",
+                arrayOf(duplicate.id, duplicate.id, duplicate.id, original.id)
+            )
             mergeMapTable("song_artist_map", "songId", duplicate.id, original.id)
             mergeMapTable("album_artist_map", "albumId", duplicate.id, original.id)
             db.execSQL(
@@ -896,6 +898,60 @@ private fun mergeDuplicateArtists(db: SupportSQLiteDatabase) {
             )
         }
     }
+}
+
+/** One artist row as [planArtistMerges] sees it. */
+internal data class ArtistMergeRow(val id: String, val name: String, val isLocal: Boolean)
+
+/** A row to keep and the rows to fold into it. */
+internal data class ArtistMerge(val survivor: ArtistMergeRow, val duplicates: List<ArtistMergeRow>)
+
+/**
+ * The merges [mergeDuplicateArtists] makes: rows grouped by Topic-stripped, lowercased name and
+ * isLocal, as before, but a group is only folded together when its rows can be the same artist.
+ *
+ * A row under a real channel - a UC id, or its MPLAUC spelling, with a name free of the "- Topic"
+ * suffix - is that channel's artist. Two such rows on different channels are two artists who share a
+ * name (two bands called "Nirvana"), and merging them handed one the other's songs. So a group with
+ * at most one real channel merges whole, as it always did; a group with more only merges rows that
+ * are the same channel under two spellings, and leaves its Topic and placeholder rows alone, since
+ * nothing says which of the channels they belong to.
+ *
+ * The survivor is the channel under its plain UC id if there is one - the id YouTube links to - then
+ * the channel under any spelling, then a row whose name is already clean (the id most likely linked
+ * from songs synced before this cleanup existed), then the group's first row. A group whose stripped
+ * name is empty is left alone rather than merged under a blank name.
+ */
+internal fun planArtistMerges(artists: List<ArtistMergeRow>): List<ArtistMerge> {
+    fun channelOf(row: ArtistMergeRow): String? {
+        if (row.isLocal || TOPIC_SUFFIX.containsMatchIn(row.name)) return null
+        val id = if (row.id.startsWith("MPLAUC")) row.id.removePrefix("MPLA") else row.id
+        return id.takeIf { it.startsWith("UC") }
+    }
+
+    val merges = ArrayList<ArtistMerge>()
+    val groups = artists.groupBy { it.name.stripTopicSuffix().lowercase() to it.isLocal }
+    for ((key, group) in groups) {
+        val (baseNameLower, _) = key
+        if (group.size < 2 || baseNameLower.isEmpty()) continue
+
+        val channels = group.mapNotNull(::channelOf).toSet()
+        val clusters = if (channels.size <= 1) {
+            listOf(group)
+        } else {
+            group.filter { channelOf(it) != null }.groupBy { channelOf(it) }.values
+        }
+
+        for (cluster in clusters) {
+            if (cluster.size < 2) continue
+            val survivor = cluster.firstOrNull { channelOf(it) == it.id }
+                ?: cluster.firstOrNull { channelOf(it) != null }
+                ?: cluster.firstOrNull { !TOPIC_SUFFIX.containsMatchIn(it.name) }
+                ?: cluster.first()
+            merges += ArtistMerge(survivor, cluster.filter { it.id != survivor.id })
+        }
+    }
+    return merges
 }
 
 val MIGRATION_22_23 = object : Migration(22, 23) {

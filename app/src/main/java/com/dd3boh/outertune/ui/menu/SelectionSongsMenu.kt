@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Delete
@@ -114,13 +117,13 @@ fun SelectionMediaMetadataMenu(
         )
     ) {
         GridMenuItem(
-            icon = R.drawable.play,
+            icon = Icons.Rounded.PlayArrow,
             title = R.string.play
         ) {
             onDismiss()
             playerConnection.playQueue(
                 ListQueue(
-                    title = "Selection",
+                    title = context.getString(R.string.queue_selection),
                     items = selection
                 )
             )
@@ -137,13 +140,13 @@ fun SelectionMediaMetadataMenu(
         }
 
         GridMenuItem(
-            icon = R.drawable.shuffle_on,
+            icon = Icons.Rounded.Shuffle,
             title = R.string.shuffle
         ) {
             onDismiss()
             playerConnection.playQueue(
                 ListQueue(
-                    title = "Selection",
+                    title = context.getString(R.string.queue_selection),
                     items = selection,
                     startShuffled = true,
                 )
@@ -152,7 +155,7 @@ fun SelectionMediaMetadataMenu(
         }
 
         GridMenuItem(
-            icon = R.drawable.queue_music,
+            icon = Icons.AutoMirrored.Rounded.QueueMusic,
             title = R.string.add_to_queue
         ) {
             showChooseQueueDialog = true

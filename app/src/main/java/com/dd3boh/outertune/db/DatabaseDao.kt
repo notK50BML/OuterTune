@@ -44,6 +44,8 @@ import com.zionhuang.innertube.models.PlaylistItem
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.YTItem
 import com.zionhuang.innertube.pages.AlbumPage
+import java.time.LocalDateTime
+import java.time.ZoneOffset
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -77,7 +79,9 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
         ORDER BY referredCount DESC
         LIMIT 100
     """)
-    fun quickPicks(now: Long = System.currentTimeMillis()): Flow<List<Song>>
+    // now is wall-clock time stored as if it were UTC, the way Converters stores event timestamps.
+    // System.currentTimeMillis() is real UTC, which shifted the window by the timezone offset.
+    fun quickPicks(now: Long = LocalDateTime.now().toInstant(ZoneOffset.UTC).toEpochMilli()): Flow<List<Song>>
 
     @Query("SELECT * FROM format WHERE id = :id")
     fun format(id: String?): Flow<FormatEntity?>
@@ -246,23 +250,63 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
         // first insert or a re-view of an already-known song would keep inflating that total.
         if (!isNewSong) return
         mediaMetadata.album?.let {
-            val album = albumsByName(it.title)
-            val albumId = album?.id ?: GenreEntity.generateGenreId()
-            upsert(
-                AlbumEntity(
-                    id = albumId,
-                    title = it.title,
-                    thumbnailUrl = album?.thumbnailUrl?: mediaMetadata.thumbnailUrl,
-                    songCount = (album?.songCount ?: 0).coerceAtLeast(1),
-                    duration = (album?.duration ?: 0) + mediaMetadata.duration,
-                    isLocal = it.isLocal
-                )
-            )
+            val albumId: String
+            val index: Int
+            if (it.isLocal) {
+                // Local files carry no album id of their own worth trusting over the tags, so they
+                // are still grouped by title. The existing row is updated in place, not replaced:
+                // an upsert of a fresh AlbumEntity reset its bookmark, year and playlist.
+                val album = albumsByName(it.title) ?: albumById(it.id)
+                albumId = album?.id ?: it.id.ifBlank { AlbumEntity.generateAlbumId() }
+                index = album?.songCount ?: 0
+                if (album == null) {
+                    insert(
+                        AlbumEntity(
+                            id = albumId,
+                            title = it.title,
+                            thumbnailUrl = mediaMetadata.thumbnailUrl,
+                            songCount = 1,
+                            duration = mediaMetadata.duration,
+                            isLocal = true
+                        )
+                    )
+                } else {
+                    update(
+                        album.copy(
+                            thumbnailUrl = album.thumbnailUrl ?: mediaMetadata.thumbnailUrl,
+                            songCount = album.songCount.coerceAtLeast(1),
+                            duration = album.duration + mediaMetadata.duration,
+                        )
+                    )
+                }
+            } else {
+                // A YouTube song names its album by browse id; use it. Matching by title instead
+                // found the wrong album for every "Greatest Hits" or "Live" and merged them, and the
+                // upsert that followed replaced the matched row whole - a song from a radio or a
+                // search reset that album's bookmark (unliking it), year and playlist id. A row that
+                // already exists is left exactly as it is: whatever wrote it (the album page, the
+                // library sync) knows more than one song does, and its counts are the album's real
+                // ones. A missing album only gets a stub here, which the album page fills in.
+                albumId = it.id
+                val album = albumById(albumId)
+                index = album?.songCount ?: 0
+                if (album == null) {
+                    insert(
+                        AlbumEntity(
+                            id = albumId,
+                            title = it.title,
+                            thumbnailUrl = mediaMetadata.thumbnailUrl,
+                            songCount = 1,
+                            duration = mediaMetadata.duration,
+                        )
+                    )
+                }
+            }
             insert(
                 SongAlbumMap(
                     songId = mediaMetadata.id,
                     albumId = albumId,
-                    index = album?.songCount ?: 0
+                    index = index
                 )
             )
         }
@@ -279,7 +323,13 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                 songCount = albumPage.songs.size,
                 duration = albumPage.songs.sumOf { it.duration ?: 0 }
             )) == -1L
-        ) return
+        ) {
+            // Already there - often only as the stub a single song of it left behind (see
+            // insert(mediaMetadata)), which returning here would have kept a one-song album for
+            // good. Fill it in instead, keeping its bookmark and the rest of what is the user's.
+            albumById(albumPage.album.browseId)?.let { update(it, albumPage) }
+            return
+        }
         albumPage.songs.map(SongItem::toMediaMetadata)
             .onEach(::insert)
             .mapIndexed { index, song ->
@@ -398,21 +448,22 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
         )
 
         deleteAllQueueSongs(mq.id)
-        // insert songs
 
-        // why does kotlin not have for i loop???
-        var i = 0
-        while (i < mq.getSize()) {
-            insert(mq.queue[i]) // make sure song exists
+        // A snapshot: the live list belongs to the player, which can change it while this runs on
+        // the database thread, and indexing into it mid-change wrote the wrong songs or threw.
+        mq.queue.toList().forEachIndexed { i, song ->
+            // The song row only has to exist for the queue map's foreign key. A plain IGNORE insert
+            // does that; the full insert(mediaMetadata) re-ran the artist-credit and genre logic for
+            // every song of the queue on every save.
+            insert(song.toSongEntity())
             insert(
                 QueueSongMap(
                     queueId = mq.id,
-                    songId = mq.queue[i].id,
+                    songId = song.id,
                     index = i.toLong(),
-                    shuffledIndex = mq.queue[i].shuffleIndex.toLong()
+                    shuffledIndex = song.shuffleIndex.toLong()
                 )
             )
-            i ++
         }
     }
 
@@ -528,5 +579,14 @@ AND NOT EXISTS (
 
     fun checkpoint() {
         raw("PRAGMA wal_checkpoint(FULL)".toSQLiteQuery())
+    }
+
+    /**
+     * Like [checkpoint], but also empties the WAL file. A restore replaces the database file under
+     * it, and a WAL still holding frames from the old database would be replayed on top of the new
+     * one.
+     */
+    fun checkpointTruncate() {
+        raw("PRAGMA wal_checkpoint(TRUNCATE)".toSQLiteQuery())
     }
 }

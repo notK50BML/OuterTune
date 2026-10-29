@@ -79,14 +79,7 @@ class HistoryViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             YouTube.musicHistoryContinuation(continuation).onSuccess { page ->
                 val current = historyPage.value
-                val extraSongs = page.sections.orEmpty().flatMap { it.songs }
-                val mergedSections = current?.sections.orEmpty().toMutableList()
-                if (mergedSections.isNotEmpty()) {
-                    val last = mergedSections.removeAt(mergedSections.lastIndex)
-                    mergedSections.add(last.copy(songs = last.songs + extraSongs))
-                } else if (extraSongs.isNotEmpty()) {
-                    mergedSections.add(HistoryPage.HistorySection(title = "", songs = extraSongs))
-                }
+                val mergedSections = appendHistorySections(current?.sections.orEmpty(), page.sections.orEmpty())
                 historyPage.value = HistoryPage(sections = mergedSections, continuation = page.continuation)
             }.onFailure {
                 reportException(it)
@@ -95,6 +88,31 @@ class HistoryViewModel @Inject constructor(
             isLoadingMore.value = false
         }
     }
+}
+
+/**
+ * [current] with a further page of history, [next], added to the end.
+ *
+ * Section by section. The whole page used to be poured into the last date already shown, so when a
+ * page reached back past it, plays from earlier days were listed under that day. A section with no
+ * title, or with the same title as the last one, is the last one continuing across the page break
+ * and is appended to it; any other title starts a section of its own.
+ */
+internal fun appendHistorySections(
+    current: List<HistoryPage.HistorySection>,
+    next: List<HistoryPage.HistorySection>,
+): List<HistoryPage.HistorySection> {
+    val merged = current.toMutableList()
+    for (section in next) {
+        if (section.songs.isEmpty()) continue
+        val last = merged.lastOrNull()
+        if (last != null && (section.title.isBlank() || section.title == last.title)) {
+            merged[merged.lastIndex] = last.copy(songs = last.songs + section.songs)
+        } else {
+            merged += section
+        }
+    }
+    return merged
 }
 
 sealed class DateAgo {

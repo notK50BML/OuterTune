@@ -170,7 +170,7 @@ fun RecognitionScreen(navController: NavController) {
                 onClick = navController::navigateUp,
                 onLongClick = navController::backToMain
             ) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = null)
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.action_back))
             }
         },
         windowInsets = TopBarInsets,

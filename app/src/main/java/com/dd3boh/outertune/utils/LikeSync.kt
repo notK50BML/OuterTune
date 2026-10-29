@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Makes unliking forgiving.
@@ -70,8 +71,18 @@ object LikeSync {
     /** When each song was unliked, for Undo. */
     private val unlikedAt = ConcurrentHashMap<String, Long>()
 
-    /** A change waiting to be sent, and what YouTube Music had before it. */
-    private class Pending(val job: Job, val remoteLiked: Boolean)
+    /**
+     * A change waiting to be sent, and what YouTube Music had before it.
+     *
+     * [sending] is claimed exactly once, by whoever sends the change (the timer or [flushNow]) or by
+     * a newer [push] that supersedes it before it went out. Whoever loses the claim stands down, so a
+     * change is never sent twice and a send already on the wire is never cancelled halfway.
+     */
+    private class Pending(val remoteLiked: Boolean) {
+        @Volatile
+        var job: Job? = null
+        val sending = AtomicBoolean(false)
+    }
 
     private val pending = ConcurrentHashMap<String, Pending>()
 
@@ -119,37 +130,60 @@ object LikeSync {
     /** Sends [liked] for [id] to YouTube Music after [PUSH_DELAY_MS], unless it is changed back first. */
     fun push(id: String, liked: Boolean) {
         val previous = pending.remove(id)
-        previous?.job?.cancel()
-        val remote = previous?.remoteLiked ?: !liked
+        val remote = when {
+            previous == null -> !liked
+            // Stopped before it went out: YouTube still has what it had before that change.
+            previous.sending.compareAndSet(false, true) -> {
+                previous.job?.cancel()
+                previous.remoteLiked
+            }
+            // Already on its way, and it may or may not land, so what YouTube holds is unknown. Send
+            // this one regardless - a like or unlike that matches the account already is harmless.
+            else -> !liked
+        }
         // Back to what YouTube already has: nothing to send.
         if (remote == liked) return
+        val entry = Pending(remote)
         // Started only once it is in [pending], so it cannot finish and remove itself first.
         val job = scope.launch(start = CoroutineStart.LAZY) {
             delay(pushDelayMs)
-            pending.remove(id)
-            sendWithRetry(id, liked)
+            if (entry.sending.compareAndSet(false, true)) sendWithRetry(id, liked, entry)
         }
-        pending[id] = Pending(job, remote)
+        entry.job = job
+        pending[id] = entry
         job.start()
     }
 
-    private suspend fun sendWithRetry(id: String, liked: Boolean) {
-        for (attempt in 0..retryDelaysMs.size) {
-            if (attempt > 0) delay(retryDelaysMs[attempt - 1])
-            // A newer change for the same song has taken over; it sends its own.
-            if (pending.containsKey(id)) return
-            val result = runCatching { send(id, liked) }
-            if (result.isSuccess) return
-            if (attempt == retryDelaysMs.size) result.exceptionOrNull()?.let { reportException(it) }
+    /**
+     * Sends a change the caller has claimed. It stays in [pending] until the send has succeeded or
+     * the last retry has failed: taking it out first left a window - the request itself and the
+     * retries after a failure, up to half a minute - in which [isPending] said nothing was waiting,
+     * so a liked-songs sync landing then read YouTube's not-yet-updated list as the truth and undid
+     * the change.
+     */
+    private suspend fun sendWithRetry(id: String, liked: Boolean, entry: Pending) {
+        try {
+            for (attempt in 0..retryDelaysMs.size) {
+                if (attempt > 0) delay(retryDelaysMs[attempt - 1])
+                // A newer change for the same song has taken over; it sends its own.
+                if (pending[id] !== entry) return
+                val result = runCatching { send(id, liked) }
+                if (result.isSuccess) return
+                if (attempt == retryDelaysMs.size) result.exceptionOrNull()?.let { reportException(it) }
+            }
+        } finally {
+            // Two-argument remove: a newer change for this song keeps its own entry.
+            pending.remove(id, entry)
         }
     }
 
     /** Sends everything still waiting, now - for the app going to the background. */
     fun flushNow() {
         for ((id, waiting) in pending.entries.toList()) {
-            if (!pending.remove(id, waiting)) continue
-            waiting.job.cancel()
-            scope.launch { sendWithRetry(id, !waiting.remoteLiked) }
+            // Already being sent, or superseded: nothing to do.
+            if (!waiting.sending.compareAndSet(false, true)) continue
+            waiting.job?.cancel()
+            waiting.job = scope.launch { sendWithRetry(id, !waiting.remoteLiked, waiting) }
         }
     }
 }

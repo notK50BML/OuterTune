@@ -388,11 +388,15 @@ class LibraryAlbumsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
-            allAlbums.collect { albums ->
-                albums
-                    ?.filter {
-                        !it.album.isLocal && it.album.songCount == 0
-                    }?.forEach { album ->
+            // Once per album per session, and only when the set needing it changes - see
+            // LibraryArtistsViewModel above. Every emission used to re-run the whole pass, its own
+            // updates included, and an album YouTube could not return was asked for each time.
+            val attempted = mutableSetOf<String>()
+            allAlbums
+                .map { albums -> albums?.filter { !it.album.isLocal && it.album.songCount == 0 }.orEmpty() }
+                .distinctUntilChanged { old, new -> old.map { it.id }.toSet() == new.map { it.id }.toSet() }
+                .collect { stale ->
+                    stale.filter { attempted.add(it.id) }.forEach { album ->
                         YouTube.album(album.id).onSuccess { albumPage ->
                             database.query {
                                 update(album.album, albumPage)
@@ -406,7 +410,7 @@ class LibraryAlbumsViewModel @Inject constructor(
                             }
                         }
                     }
-            }
+                }
         }
     }
 }

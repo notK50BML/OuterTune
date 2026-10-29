@@ -307,7 +307,7 @@ fun HistoryScreen(
             }
 
             if (historySource == HistorySource.REMOTE && isLoggedIn) {
-                historyPage?.sections?.forEach { section ->
+                historyPage?.sections?.forEachIndexed { sectionIndex, section ->
                     stickyHeader {
                         NavigationTitle(
                             title = section.title,
@@ -317,10 +317,12 @@ fun HistoryScreen(
                         )
                     }
 
-                    items(
+                    // A song played on two different days sits in two sections of this one list, so
+                    // its id alone is not a unique key - and a repeated key crashes the LazyColumn.
+                    itemsIndexed(
                         items = section.songs,
-                        key = { it.id }
-                    ) { song ->
+                        key = { index, song -> "remote/$sectionIndex/$index/${song.id}" }
+                    ) { _, song ->
                         val content: @Composable () -> Unit = {
                             YouTubeListItem(
                                 item = song,
@@ -518,7 +520,7 @@ fun HistoryScreen(
             ) {
                 Icon(
                     Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = null
+                    contentDescription = stringResource(R.string.action_back)
                 )
             }
         },

@@ -59,6 +59,7 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -262,7 +263,11 @@ fun MiniPlayer(
                 Icon(
                     imageVector = if (playbackState == Player.STATE_ENDED) Icons.Rounded.Replay else if (isPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
                     tint = iconButtonColor,
-                    contentDescription = null
+                    contentDescription = stringResource(
+                        if (playbackState == Player.STATE_ENDED) R.string.player_play_again
+                        else if (isPlaying) R.string.player_pause
+                        else R.string.play
+                    )
                 )
             }
 
@@ -279,7 +284,7 @@ fun MiniPlayer(
                 Icon(
                     painter = painterResource(R.drawable.skip_next),
                     tint = iconButtonColor.copy(alpha = (if (canSkipNext) 1f else 0.5f)),
-                    contentDescription = null
+                    contentDescription = stringResource(R.string.action_next)
                 )
             }
         }

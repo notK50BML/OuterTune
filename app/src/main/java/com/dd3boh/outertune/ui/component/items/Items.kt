@@ -550,9 +550,13 @@ fun YouTubeGridItem(
             visible = item is AlbumItem && !isActive,
             onClick = {
                 coroutineScope?.launch(Dispatchers.IO) {
+                    // Only an album fetched whole counts as known: a song saved from it leaves a
+                    // stand-in row (no playlist id) holding just that song, and playing that would
+                    // play one track of the album.
                     var songs = database
                         .albumWithSongs(item.id)
-                        .first()?.songs?.map { it.toMediaMetadata() }
+                        .first()?.takeIf { it.album.playlistId != null || it.album.isLocal }
+                        ?.songs?.map { it.toMediaMetadata() }
                     if (songs == null) {
                         YouTube.album(item.id).onSuccess { albumPage ->
                             database.transaction {

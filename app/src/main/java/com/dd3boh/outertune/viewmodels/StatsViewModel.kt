@@ -180,47 +180,58 @@ class StatsViewModel @Inject constructor(
         // likely to be missing a picture. Only artists in the library: one known only from the
         // history has no row to update, so it would be fetched again on every play. This was
         // done twice, by two collectors asking for the same artists.
+        //
+        // Each artist is asked for once per session, and only when the set needing it changes -
+        // the same pattern as LibraryArtistsViewModel. Every Room emission used to start the whole
+        // pass again, including the ones this pass caused by writing its own results, and an
+        // artist YouTube could not return stayed selected and was asked for every time.
         viewModelScope.launch {
-            artistRows.collect { rows ->
-                fetchMissingArtistArt(rows.artists.map { it.artist }.filter { it.id !in rows.historyOnly })
-            }
+            val attempted = mutableSetOf<String>()
+            artistRows
+                .map { rows ->
+                    rows.artists.map { it.artist }.filter { it.id !in rows.historyOnly && it.needsArt() }
+                }
+                .distinctUntilChanged { old, new -> old.map { it.id }.toSet() == new.map { it.id }.toSet() }
+                .collect { stale ->
+                    fetchMissingArtistArt(stale.filter { attempted.add(it.id) })
+                }
         }
-        // fetch missing album metadata
+        // fetch missing album metadata - once per album per session, for the same reasons.
         viewModelScope.launch {
-            mostPlayedAlbums.collect { albums ->
-                albums.filter {
-                    it.album.songCount == 0
-                }.forEach { album ->
-                    YouTube.album(album.id).onSuccess { albumPage ->
-                        database.query {
-                            update(album.album, albumPage)
-                        }
-                    }.onFailure {
-                        reportException(it)
-                        if (it.message?.contains("NOT_FOUND") == true) {
+            val attempted = mutableSetOf<String>()
+            mostPlayedAlbums
+                .map { albums -> albums.filter { !it.album.isLocal && it.album.songCount == 0 } }
+                .distinctUntilChanged { old, new -> old.map { it.id }.toSet() == new.map { it.id }.toSet() }
+                .collect { stale ->
+                    stale.filter { attempted.add(it.id) }.forEach { album ->
+                        YouTube.album(album.id).onSuccess { albumPage ->
                             database.query {
-                                delete(album.album)
+                                update(album.album, albumPage)
+                            }
+                        }.onFailure {
+                            reportException(it)
+                            if (it.message?.contains("NOT_FOUND") == true) {
+                                database.query {
+                                    delete(album.album)
+                                }
                             }
                         }
                     }
                 }
-            }
         }
     }
 
-    private suspend fun fetchMissingArtistArt(artists: List<com.dd3boh.outertune.db.entities.ArtistEntity>) {
-        artists
-            .filter {
-                it.thumbnailUrl == null ||
-                        Duration.between(it.lastUpdateTime, LocalDateTime.now()) > Duration.ofDays(10)
-            }
-            .forEach { artist ->
-                YouTube.artist(artist.id).onSuccess { artistPage ->
-                    database.query {
-                        update(artist, artistPage)
-                    }
+    private fun ArtistEntity.needsArt() =
+        thumbnailUrl == null || Duration.between(lastUpdateTime, LocalDateTime.now()) > Duration.ofDays(10)
+
+    private suspend fun fetchMissingArtistArt(artists: List<ArtistEntity>) {
+        artists.forEach { artist ->
+            YouTube.artist(artist.id).onSuccess { artistPage ->
+                database.query {
+                    update(artist, artistPage)
                 }
             }
+        }
     }
 
 

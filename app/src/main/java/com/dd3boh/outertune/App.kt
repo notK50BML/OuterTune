@@ -29,6 +29,7 @@ import com.dd3boh.outertune.constants.AccountEmailKey
 import com.dd3boh.outertune.constants.AccountImageFetchedKey
 import com.dd3boh.outertune.constants.AccountImageUrlKey
 import com.dd3boh.outertune.constants.AccountNameKey
+import com.dd3boh.outertune.constants.ArtistCreditEnrichmentKey
 import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
 import com.dd3boh.outertune.constants.AutoBackupDefaults
 import com.dd3boh.outertune.constants.AutoBackupEnabledKey
@@ -49,6 +50,7 @@ import com.dd3boh.outertune.constants.UseLoginForBrowse
 import com.dd3boh.outertune.constants.VisitorDataKey
 import com.dd3boh.outertune.extensions.toEnum
 import com.dd3boh.outertune.extensions.toInetSocketAddress
+import com.dd3boh.outertune.utils.ArtistCreditEnricher
 import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.LocalArtworkPathKeyer
 import com.dd3boh.outertune.utils.YTPlayerUtils
@@ -68,6 +70,7 @@ import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -96,13 +99,17 @@ class App : Application(), SingletonImageLoader.Factory {
         // here in the first place, and the same is worth having when this one misbehaves.
         Timber.plant(Timber.DebugTree())
 
+        // One read of the settings for everything below. Each dataStore[key] blocks the main thread
+        // on its own read of the store, and startup used to pay for that several times over.
+        val prefs = runBlocking(Dispatchers.IO) { dataStore.data.first() }
+
         val locale = Locale.getDefault()
         val languageTag = locale.toLanguageTag().replace("-Hant", "") // replace zh-Hant-* to zh-*
         YouTube.locale = YouTubeLocale(
-            gl = dataStore[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }
+            gl = prefs[ContentCountryKey]?.takeIf { it != SYSTEM_DEFAULT }
                 ?: locale.country.takeIf { it in CountryCodeToName }
                 ?: "US",
-            hl = dataStore[ContentLanguageKey]?.takeIf { it != SYSTEM_DEFAULT }
+            hl = prefs[ContentLanguageKey]?.takeIf { it != SYSTEM_DEFAULT }
                 ?: locale.language.takeIf { it in LanguageCodeToName }
                 ?: languageTag.takeIf { it in LanguageCodeToName }
                 ?: "en"
@@ -111,15 +118,15 @@ class App : Application(), SingletonImageLoader.Factory {
             KuGou.useTraditionalChinese = true
         }
 
-        if (dataStore[ProxyEnabledKey] == true) {
-            val proxyUrl = dataStore[ProxyUrlKey]
+        if (prefs[ProxyEnabledKey] == true) {
+            val proxyUrl = prefs[ProxyUrlKey]
             // Blank/missing is "the toggle is on but nothing was ever saved" - not an error worth a
             // toast on every single launch. A non-blank string that still fails to parse is a real
             // misconfiguration and should still surface.
             if (!proxyUrl.isNullOrBlank()) {
                 try {
                     YouTube.proxy = Proxy(
-                        dataStore[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
+                        prefs[ProxyTypeKey].toEnum(defaultValue = Proxy.Type.HTTP),
                         proxyUrl.toInetSocketAddress()
                     )
                 } catch (e: Exception) {
@@ -129,7 +136,7 @@ class App : Application(), SingletonImageLoader.Factory {
             }
         }
 
-        if (dataStore[UseLoginForBrowse] != false) {
+        if (prefs[UseLoginForBrowse] != false) {
             YouTube.useLoginForBrowse = true
         }
 
@@ -159,6 +166,15 @@ class App : Application(), SingletonImageLoader.Factory {
                 .collect { dataSyncId ->
                     YouTube.dataSyncId = normalizeDataSyncId(dataSyncId)
                 }
+        }
+        // The artist credit enrichment switch (Settings > Library and content). Followed here, once
+        // per process, rather than from MainActivity, which is recreated on every rotation or theme
+        // change and gained another never-ending collector each time.
+        GlobalScope.launch {
+            dataStore.data
+                .map { it[ArtistCreditEnrichmentKey] ?: true }
+                .distinctUntilChanged()
+                .collect { ArtistCreditEnricher.enabled = it }
         }
         GlobalScope.launch {
             dataStore.data

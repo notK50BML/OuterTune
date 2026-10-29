@@ -12,6 +12,7 @@ import androidx.sqlite.db.SimpleSQLiteQuery
 import androidx.sqlite.db.SupportSQLiteQuery
 import com.dd3boh.outertune.constants.PlaylistFilter
 import com.dd3boh.outertune.constants.PlaylistSortType
+import com.dd3boh.outertune.db.entities.SongEntity
 import com.dd3boh.outertune.db.entities.Playlist
 import com.dd3boh.outertune.db.entities.PlaylistEntity
 import com.dd3boh.outertune.db.entities.PlaylistSong
@@ -68,7 +69,6 @@ interface PlaylistsDao {
             LEFT JOIN playlist_song_map psm ON p.id = psm.playlistId
             LEFT JOIN song s ON psm.songId = s.id
         WHERE name LIKE '%' || :query || '%'
-            AND s.inLibrary IS NOT NULL
         GROUP BY p.id
         LIMIT :previewSize
     """)
@@ -95,7 +95,10 @@ interface PlaylistsDao {
     fun playlistIdBySongs(songs: List<String>): Flow<List<String>>
 
     @Transaction
-    @RawQuery(observedEntities = [PlaylistEntity::class])
+    // Every table the query reads, not only playlist: the song and download counts, and the
+    // DOWNLOADED and local-only filters, come from song through playlist_song_map, so observing
+    // playlist alone left these lists stale when songs were added, removed or downloaded.
+    @RawQuery(observedEntities = [PlaylistEntity::class, PlaylistSongMap::class, SongEntity::class])
     fun _getPlaylists(query: SupportSQLiteQuery): Flow<List<Playlist>>
 
     // TODO: do i even want an enum for this

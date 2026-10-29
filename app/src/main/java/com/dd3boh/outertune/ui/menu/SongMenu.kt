@@ -104,7 +104,9 @@ fun SongMenu(
 
     val syncMode by rememberEnumPreference(key = YtmSyncModeKey, defaultValue = SyncMode.RW)
 
-    val song = originalSong
+    // Watched rather than taken as given, so Like and Add/Remove library flip their icon and label
+    // as soon as they are tapped and can be undone without reopening the menu.
+    val song = database.song(originalSong.id).collectAsState(initial = originalSong).value ?: originalSong
     val download by LocalDownloadUtil.current.getDownload(originalSong.id).collectAsState(initial = null)
     val coroutineScope =
         CoroutineScope(syncCoroutine) // rememberCoroutineScope has exception "rememberCoroutineScope left the composition"
@@ -174,7 +176,7 @@ fun SongMenu(
                 Icon(
                     painter = painterResource(if (song.song.liked) R.drawable.favorite else R.drawable.favorite_border),
                     tint = if (song.song.liked) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                    contentDescription = null
+                    contentDescription = stringResource(if (song.song.liked) R.string.action_remove_like else R.string.action_like)
                 )
             }
         }

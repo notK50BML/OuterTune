@@ -173,8 +173,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="grp_thumbnails">Thumbnails</string>
 
 <!-- Equalizer settings -->
-    <string name="eq_settings_title">Equalizer</string>
-    <string name="eq_settings_enabled_title">Enable equalizer</string>
+    <string name="eq_settings_title">Equaliser</string>
+    <string name="eq_settings_enabled_title">Enable equaliser</string>
     <string name="eq_settings_appearance">Appearance</string>
     <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
     <string name="eq_settings_use_dials_description">Applies to the selected band\'s frequency/gain editor. The band strip and bass/treble controls stay sliders and dials respectively either way.</string>
@@ -555,6 +555,73 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="player_layout_reset_done">Back to the built-in layout.</string>
     <string name="player_layout_unreadable">That file could not be read.</string>
     <string name="player_layout_note">Layouts are made in the standalone editor and apply to the portrait player. Landscape and tablet keep the built-in layout, since they are laid out differently and one set of positions cannot serve all three.</string>
+    <!-- Player controls, as TalkBack reads them -->
+    <string name="player_previous">Previous</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_play_again">Play again</string>
+    <plurals name="player_seek_back_seconds">
+        <item quantity="one">Back %d second</item>
+        <item quantity="other">Back %d seconds</item>
+    </plurals>
+    <plurals name="player_seek_forward_seconds">
+        <item quantity="one">Forward %d second</item>
+        <item quantity="other">Forward %d seconds</item>
+    </plurals>
+    <!-- Queue titles -->
+    <string name="queue_radio">Radio: %s</string>
+    <string name="queue_library">Library: %s</string>
+    <string name="queue_artist_songs">Artist songs: %s</string>
+    <string name="queue_artist_songs_preview">Artist songs (preview): %s</string>
+    <string name="queue_selection">Selection</string>
+    <!-- Artist page sections -->
+    <string name="artist_top_songs">Top songs</string>
+    <string name="artist_in_your_library">In your library</string>
+    <string name="previous_folder">Previous folder</string>
+    <!-- Equaliser panel -->
+    <string name="eq_bass">Bass</string>
+    <string name="eq_treble">Treble</string>
+    <string name="eq_attack">Attack</string>
+    <string name="eq_release">Release</string>
+    <string name="eq_ratio">Ratio</string>
+    <string name="eq_threshold">Threshold</string>
+    <string name="eq_makeup_gain">Makeup gain</string>
+    <string name="eq_frequency">Frequency</string>
+    <string name="eq_gain">Gain</string>
+    <string name="eq_filter_type">Filter type</string>
+    <string name="eq_filter_peak">Peak</string>
+    <string name="eq_filter_low_shelf">Low shelf</string>
+    <string name="eq_filter_high_shelf">High shelf</string>
+    <string name="eq_filter_low_pass">Low pass</string>
+    <string name="eq_filter_high_pass">High pass</string>
+    <string name="eq_import_unreadable">Could not read that file.</string>
+    <string name="eq_import_invalid">That file isn\'t a valid equaliser profile.</string>
+    <!-- Liquid player background -->
+    <string name="liquid_audio_reactive">Audio-reactive</string>
+    <string name="liquid_audio_reactive_desc">Let the blobs respond to bass, treble and beats instead of drifting on their own</string>
+    <string name="liquid_shape">Liquid shape</string>
+    <string name="liquid_shape_petal">Petal</string>
+    <string name="liquid_shape_spheres">Spheres</string>
+    <string name="liquid_shape_ferrofluid">Ferrofluid</string>
+    <string name="liquid_colour_scheme">Liquid colour scheme</string>
+    <string name="liquid_colour_surface">Theme surface</string>
+    <string name="liquid_colour_black">Black</string>
+    <string name="liquid_colour_white">White</string>
+    <string name="liquid_text_contrast">Auto text contrast</string>
+    <string name="liquid_text_contrast_desc">Flip player/queue/lyrics text to the opposite of the liquid background\'s measured brightness</string>
+    <string name="liquid_chromatic_shock">Chromatic shock</string>
+    <string name="liquid_chromatic_shock_desc">A GPU shader ripple that launches on a beat and splits colour outward across the liquid. Needs Android 13+; silently does nothing on older devices</string>
+    <string name="liquid_ferrofluid_gpu">GPU ferrofluid (experimental)</string>
+    <string name="liquid_ferrofluid_gpu_desc">Replace the lightweight ferrofluid with a real raymarched GPU scene, for comparing battery drain against the version above. Noticeably heavier on the GPU by design; needs Android 13+, falls back automatically otherwise</string>
+    <string name="liquid_ferrofluid_quality">GPU ferrofluid quality</string>
+    <string name="liquid_ferrofluid_quality_low">Low - fewest droplets, for phones on battery</string>
+    <string name="liquid_ferrofluid_quality_medium">Medium - the default</string>
+    <string name="liquid_ferrofluid_quality_high">High - full resolution, more droplets</string>
+    <string name="liquid_ferrofluid_quality_ultra">Ultra - longest march, for a discrete or flagship GPU</string>
+    <string name="liquid_ferrofluid_reactivity">Ferrofluid reactivity</string>
+    <string name="liquid_ferrofluid_reactivity_subtle">Subtle - barely follows the music</string>
+    <string name="liquid_ferrofluid_reactivity_normal">Normal</string>
+    <string name="liquid_ferrofluid_reactivity_high">High</string>
+    <string name="liquid_ferrofluid_reactivity_extreme">Extreme - flies apart on every beat</string>
     <!-- App icon -->
     <string name="app_icon">App icon</string>
     <string name="app_icon_default">Default</string>

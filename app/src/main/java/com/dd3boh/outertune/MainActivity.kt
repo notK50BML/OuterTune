@@ -19,7 +19,6 @@ import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SnackbarDuration
 import com.dd3boh.outertune.utils.LikeSync
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import com.dd3boh.outertune.utils.dataStore
 import androidx.datastore.preferences.core.edit
@@ -301,15 +300,10 @@ class MainActivity : ComponentActivity() {
         // destroys it and cancelled the sweep wherever it had got to - which is most of why the
         // repair appeared to work only sometimes. It guards itself against overlapping runs, so
         // being launched again by the next activity is harmless.
-        // The enrichment switch (Settings > Library and content), followed for the life of the
-        // process; the first value arrives before the sweep below is allowed to start.
-        @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-        kotlinx.coroutines.GlobalScope.launch {
-            dataStore.data
-                .map { it[com.dd3boh.outertune.constants.ArtistCreditEnrichmentKey] ?: true }
-                .distinctUntilChanged()
-                .collect { ArtistCreditEnricher.enabled = it }
-        }
+        // The enrichment switch (Settings > Library and content) is followed for the life of the
+        // process from App.onCreate. It used to be collected here, and since every rotation or theme
+        // change re-runs this, each one added another collector that never ended. The sweep below
+        // still reads the switch itself first, so it never starts on a stale value.
         com.dd3boh.outertune.utils.ArtistNameRefresher.start(applicationContext, database)
         @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
         kotlinx.coroutines.GlobalScope.launch {
@@ -390,7 +384,8 @@ class MainActivity : ComponentActivity() {
             var filter by rememberEnumPreference(LibraryFilterKey, Screens.LibraryFilter.ALL)
             val (slimNav) = rememberPreference(SlimNavBarKey, defaultValue = false)
             val (enabledTabs) = rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
-            val navigationItems = remember {
+            // Keyed on the setting, so changing the tabs shows at once rather than after a restart.
+            val navigationItems = remember(enabledTabs) {
                 Screens.getScreens(enabledTabs)
             }
             val (defaultOpenTab, onDefaultOpenTabChange) = rememberPreference(
@@ -415,13 +410,13 @@ class MainActivity : ComponentActivity() {
             LaunchedEffect(useDarkTheme) {
                 setSystemBarAppearance(useDarkTheme)
             }
-            try {
-                connectivityObserver.unregister()
-            } catch (e: UninitializedPropertyAccessException) {
-                // lol
+            // Made once per activity. Re-made on every recomposition of this scope, it re-registered
+            // its callback each time and started over at "connected", whatever the network was.
+            val observer = remember {
+                runCatching { connectivityObserver.unregister() }
+                NetworkConnectivityObserver(this@MainActivity).also { connectivityObserver = it }
             }
-            connectivityObserver = NetworkConnectivityObserver(this@MainActivity)
-            val isNetworkConnected by connectivityObserver.networkStatus.collectAsState(true)
+            val isNetworkConnected by observer.networkStatus.collectAsState(true)
 
 
             OuterTuneTheme(
@@ -452,17 +447,20 @@ class MainActivity : ComponentActivity() {
                         else -> null
                     }
                 }
-                // setup filters for new layout
-                if (tabOpenedFromShortcut != null && navigationItems.contains(Screens.Library)) {
-                    filter = when (intent?.action) {
-                        ACTION_SONGS -> Screens.LibraryFilter.SONGS
-                        ACTION_ALBUMS -> Screens.LibraryFilter.ALBUMS
-                        ACTION_PLAYLISTS -> Screens.LibraryFilter.PLAYLISTS
-                        ACTION_SEARCH -> {
-                            navController.navigate("search")
-                            filter
-                        } // do change filter for search
-                        else -> Screens.LibraryFilter.ALL
+                // A launcher shortcut, acted on once - not written again on every recomposition. The
+                // Search shortcut used to sit inside a branch only the library shortcuts reached, so
+                // it opened the default tab; and navigating mid-composition, before the NavHost
+                // existed, would have crashed. An effect runs once the NavHost below is in place.
+                LaunchedEffect(Unit) {
+                    if (intent?.action == ACTION_SEARCH) {
+                        navController.navigate("search")
+                    } else if (tabOpenedFromShortcut != null && navigationItems.contains(Screens.Library)) {
+                        filter = when (intent?.action) {
+                            ACTION_SONGS -> Screens.LibraryFilter.SONGS
+                            ACTION_ALBUMS -> Screens.LibraryFilter.ALBUMS
+                            ACTION_PLAYLISTS -> Screens.LibraryFilter.PLAYLISTS
+                            else -> Screens.LibraryFilter.ALL
+                        }
                     }
                 }
 

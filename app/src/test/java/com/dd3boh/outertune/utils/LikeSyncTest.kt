@@ -17,6 +17,8 @@ import org.junit.Test
 import java.time.LocalDateTime
 import java.util.Collections
 import java.util.UUID
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 /**
  * The unlike safety net: Undo puts a song back where it was, YouTube Music hears about a change only
@@ -189,6 +191,60 @@ class LikeSyncTest {
         // SyncUtils skips pending songs in both directions - see its liked-songs sync.
         assertTrue(LikeSync.isPending(s.id))
         settle()
+        assertFalse(LikeSync.isPending(s.id))
+    }
+
+    @Test
+    fun `a song stays pending while its change is on the wire`() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        LikeSync.send = { id, liked ->
+            entered.countDown()
+            release.await(5, TimeUnit.SECONDS)
+            sent += id to liked
+        }
+        val s = song(liked = true, likedDate = LocalDateTime.now())
+        s.toggleLike()
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        assertTrue("a sync now would otherwise undo the unlike", LikeSync.isPending(s.id))
+        release.countDown()
+        Thread.sleep(100)
+        assertEquals(listOf(s.id to false), sent.filter { it.first == s.id })
+        assertFalse(LikeSync.isPending(s.id))
+    }
+
+    @Test
+    fun `a song stays pending between a failed send and its retry`() {
+        LikeSync.retryDelaysMs = listOf(400L)
+        failuresLeft = 1
+        val s = song(liked = true, likedDate = LocalDateTime.now())
+        s.toggleLike()
+        Thread.sleep(DELAY_MS + 150)
+        assertTrue(sent.none { it.first == s.id })
+        assertTrue(LikeSync.isPending(s.id))
+        Thread.sleep(500)
+        assertEquals(listOf(s.id to false), sent.filter { it.first == s.id })
+        assertFalse(LikeSync.isPending(s.id))
+    }
+
+    @Test
+    fun `changing your mind while a send is on the wire sends the new state too`() {
+        val entered = CountDownLatch(1)
+        val release = CountDownLatch(1)
+        LikeSync.send = { id, liked ->
+            if (!liked) {
+                entered.countDown()
+                release.await(5, TimeUnit.SECONDS)
+            }
+            sent += id to liked
+        }
+        val s = song(liked = true, likedDate = LocalDateTime.now())
+        val unliked = s.toggleLike()
+        assertTrue(entered.await(5, TimeUnit.SECONDS))
+        unliked.toggleLike()
+        release.countDown()
+        settle()
+        assertEquals(listOf(s.id to false, s.id to true), sent.filter { it.first == s.id })
         assertFalse(LikeSync.isPending(s.id))
     }
 

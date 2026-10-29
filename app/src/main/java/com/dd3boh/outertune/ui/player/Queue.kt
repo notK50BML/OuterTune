@@ -411,7 +411,9 @@ fun BoxScope.QueueContent(
                 )
                 if (result == SnackbarResult.ActionPerformed) {
                     // addSongsToQueue clamps the position itself and re-syncs the player through
-                    // setCurrQueue, so this is the whole undo - no separate player insert.
+                    // setCurrQueue when sourceQueue is still the one playing, so this is the whole
+                    // undo - no separate player insert. Switched away by now, it only goes back
+                    // into sourceQueue and the queue now playing is left alone.
                     qb.addSongsToQueue(sourceQueue, index, listOf(removed))
                 }
             }
@@ -587,7 +589,8 @@ fun BoxScope.QueueContent(
 
 
     LaunchedEffect(Unit) {
-        combine(snapshotFlow { qb.masterQueues.toList() }, playerConnection.service.qbInit) { updatedList, init ->
+        // The rename count too: a rename leaves the list itself unchanged - see QueueBoard.renames.
+        combine(snapshotFlow { qb.masterQueues.toList() to qb.renames.intValue }, playerConnection.service.qbInit) { (updatedList, _), init ->
             updatedList to init
         }.collect { (updatedList, init) ->
             if (PLAYER_DEBUG) Log.d("Queue.kt", "Trigger loading queue. init = $init")
@@ -1093,7 +1096,9 @@ fun BoxScope.QueueContent(
                     ) {
                         fun getQueueLength(): Int {
                             return if (!detachedHead) {
-                                queueWindows.sumOf { it.mediaItem.metadata!!.duration }
+                                // An item without our metadata (e.g. one added by a media controller)
+                                // counts as no length rather than crashing the queue screen.
+                                queueWindows.sumOf { it.mediaItem.metadata?.duration ?: 0 }
                             } else detachedQueue?.queue?.sumOf { it.duration } ?: 0
                         }
 

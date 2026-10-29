@@ -194,7 +194,9 @@ fun YouTubePlaylistMenu(
             ) {
                 playerConnection.playQueue(
                     ListQueue(
-                        playlistId = playlist.playEndpoint!!.playlistId,
+                        // Only the shuffle endpoint is known to exist here; a playlist can carry one
+                        // without a play endpoint.
+                        playlistId = playlist.playEndpoint?.playlistId ?: shuffleEndpoint.playlistId,
                         title = playlist.title,
                         items = songs.map { it.toMediaMetadata() },
                         startShuffled = true,

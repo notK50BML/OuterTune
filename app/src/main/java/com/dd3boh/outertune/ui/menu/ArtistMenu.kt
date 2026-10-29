@@ -62,7 +62,6 @@ import com.dd3boh.outertune.models.toMediaMetadata
 import com.dd3boh.outertune.playback.queues.ListQueue
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.items.ArtistListItem
-import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -127,6 +126,9 @@ fun ArtistMenu(
             bottom = 8.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
         )
     ) {
+        // Play and Shuffle start on the library's songs straight away, with no lookup first. Fetching
+        // the artist from YouTube just to learn a playlist id would hold playback up for a round
+        // trip, stall it offline, and be wasted on local artists.
         if (artist.songCount > 0) {
             GridMenuItem(
                 icon = Icons.Rounded.PlayArrow,
@@ -138,15 +140,10 @@ fun ArtistMenu(
                             .map { it.toMediaMetadata() }
                     }
 
-                    val playlistId = withContext(Dispatchers.IO) {
-                        YouTube.artist(artist.id).getOrNull()?.artist?.shuffleEndpoint?.playlistId
-                    }
-
                     playerConnection.playQueue(
                         ListQueue(
                             title = artist.artist.name,
                             items = songs,
-                            playlistId = playlistId
                         )
                     )
                 }
@@ -163,15 +160,10 @@ fun ArtistMenu(
                             .shuffled()
                     }
 
-                    val playlistId = withContext(Dispatchers.IO) {
-                        YouTube.artist(artist.id).getOrNull()?.artist?.shuffleEndpoint?.playlistId
-                    }
-
                     playerConnection.playQueue(
                         ListQueue(
                             title = artist.artist.name,
                             items = songs,
-                            playlistId = playlistId
                         )
                     )
                 }

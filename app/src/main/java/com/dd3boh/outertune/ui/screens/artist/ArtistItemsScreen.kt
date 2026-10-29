@@ -1,6 +1,7 @@
 package com.dd3boh.outertune.ui.screens.artist
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
@@ -42,11 +43,13 @@ import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.dd3boh.outertune.LocalMenuState
+import com.dd3boh.outertune.R
 import com.dd3boh.outertune.LocalPlayerAwareWindowInsets
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.LocalSnackbarHostState
@@ -88,6 +91,7 @@ fun ArtistItemsScreen(
     viewModel: ArtistItemsViewModel = hiltViewModel(),
 ) {
     val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
     val menuState = LocalMenuState.current
     val playerConnection = LocalPlayerConnection.current ?: return
 
@@ -215,7 +219,7 @@ fun ArtistItemsScreen(
                                     } else {
                                         playerConnection.playQueue(
                                             ListQueue(
-                                                title = "Artist songs: ${song.artists.firstOrNull()?.name}",
+                                                title = context.getString(R.string.queue_artist_songs, song.artists.firstOrNull()?.name.orEmpty()),
                                                 items = itemsPage?.items.orEmpty()
                                                     .map { (it as SongItem).toMediaMetadata() },
                                                 startIndex = index
@@ -282,7 +286,7 @@ fun ArtistItemsScreen(
                                 when (item) {
                                     is SongItem -> playerConnection.playQueue(
                                         ListQueue(
-                                            title = "Artist songs: ${item.artists.firstOrNull()?.name}",
+                                            title = context.getString(R.string.queue_artist_songs, item.artists.firstOrNull()?.name.orEmpty()),
                                             items = itemsPage?.items.orEmpty().map { (it as SongItem).toMediaMetadata() },
                                             startIndex = index
                                         )
@@ -347,7 +351,7 @@ fun ArtistItemsScreen(
             ) {
                 Icon(
                     Icons.AutoMirrored.Rounded.ArrowBack,
-                    contentDescription = null
+                    contentDescription = stringResource(R.string.action_back)
                 )
             }
         },

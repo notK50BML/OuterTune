@@ -10,11 +10,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.LibraryAddCheck
+import androidx.compose.material.icons.rounded.LibraryAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.rounded.Album
-import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Radio
 import androidx.compose.material.icons.rounded.Share
@@ -33,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.navigation.NavController
@@ -128,7 +130,9 @@ fun YouTubeSongMenu(
                 Icon(
                     painter = painterResource(if (librarySong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border),
                     tint = if (librarySong?.song?.liked == true) MaterialTheme.colorScheme.error else LocalContentColor.current,
-                    contentDescription = null
+                    contentDescription = stringResource(
+                        if (librarySong?.song?.liked == true) R.string.action_remove_like else R.string.action_like
+                    )
                 )
             }
         }
@@ -196,7 +200,7 @@ fun YouTubeSongMenu(
         )
         if (artists.any { it.id != null }) {
             GridMenuItem(
-                icon = Icons.Rounded.Person,
+                icon = R.drawable.artist,
                 title = R.string.view_artist
             ) {
                 val singleArtistId = artists.singleOrNull()?.id
@@ -228,6 +232,22 @@ fun YouTubeSongMenu(
             }
             context.startActivity(Intent.createChooser(intent, null))
             onDismiss()
+        }
+        // The same toggle the library song menu has. A song never played or liked has no row yet,
+        // so it is inserted already in the library, as the like button above inserts it liked.
+        val inLibrary = librarySong?.song?.inLibrary != null
+        GridMenuItem(
+            icon = if (inLibrary) Icons.Rounded.LibraryAddCheck else Icons.Rounded.LibraryAdd,
+            title = if (inLibrary) R.string.remove_from_library else R.string.add_to_library
+        ) {
+            database.transaction {
+                val existing = librarySong
+                if (existing == null) {
+                    insert(song.toMediaMetadata(), SongEntity::toggleLibrary)
+                } else {
+                    update(existing.song.toggleLibrary())
+                }
+            }
         }
     }
 

@@ -324,12 +324,12 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="stop_music_on_task_clear">Stop music on task clear</string>
     <string name="ignore_audio_focus">Keep audio focus</string>
     <string name="ignore_audio_focus_desc">Keep playing when another app takes audio focus. Music will not pause for other audio sources, including phone calls.</string>
-    <string name="equalizer">Equalizer</string>
+    <string name="equalizer">Equaliser</string>
     <string name="equalizer_balance">Balance</string>
-    <string name="show_equalizer_button_title">Show equalizer button</string>
-    <string name="show_equalizer_button_description">Show a shortcut to the equalizer beside the like button</string>
-    <string name="show_equalizer_handle_title">Show equalizer handle</string>
-    <string name="show_equalizer_handle_description">Show a pull-down handle above the cover art that opens the equalizer</string>
+    <string name="show_equalizer_button_title">Show equaliser button</string>
+    <string name="show_equalizer_button_description">Show a shortcut to the equaliser beside the like button</string>
+    <string name="show_equalizer_handle_title">Show equaliser handle</string>
+    <string name="show_equalizer_handle_description">Show a pull-down handle above the cover art that opens the equaliser</string>
 
     <string name="storage">Storage</string>
     <string name="cache">Cache</string>
@@ -384,7 +384,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="new_version_available">New version available</string>
     <string name="translation_models">Translation Models</string>
     <string name="clear_translation_models">Clear translation models</string>
-    <string name="lt_title">Listen together</string>
+    <string name="lt_title">Listen Together</string>
     <string name="lt_summary">Play in sync with nearby devices</string>
     <string name="lt_share">Share</string>
     <string name="lt_start_sharing">Start sharing</string>
@@ -393,7 +393,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_sharing_as">Others will see this name</string>
     <string name="lt_stop_sharing">Stop sharing</string>
     <string name="lt_listeners">Listeners (%1$d)</string>
-    <string name="lt_waiting_for_listeners">Nobody has joined yet. On the other device, open Listen together and pick this one from the list.</string>
+    <string name="lt_waiting_for_listeners">Nobody has joined yet. On the other device, open Listen Together and pick this one from the list.</string>
     <string name="lt_nearby">Nearby</string>
     <string name="lt_looking">Looking for devices</string>
     <string name="lt_looking_summary">Only devices that are sharing appear here. Both need to be on the same Wi-Fi.</string>

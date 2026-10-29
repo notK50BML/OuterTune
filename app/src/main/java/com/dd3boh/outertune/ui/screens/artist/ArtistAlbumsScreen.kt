@@ -1,6 +1,7 @@
 package com.dd3boh.outertune.ui.screens.artist
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -141,7 +142,7 @@ fun ArtistAlbumsScreen(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = null
+                        contentDescription = stringResource(R.string.action_back)
                     )
                 }
             },

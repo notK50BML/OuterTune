@@ -530,12 +530,15 @@ fun OnlinePlaylistScreen(
                                         }
                                     }
 
-                                    playlist.shuffleEndpoint?.let {
+                                    playlist.shuffleEndpoint?.let { shuffleEndpoint ->
                                         OutlinedButton(
                                             onClick = {
                                                 playerConnection.playQueue(
                                                     ListQueue(
-                                                        playlistId = playlist.playEndpoint!!.playlistId,
+                                                        // Only the shuffle endpoint is known to exist
+                                                        // here; the play endpoint may be missing.
+                                                        playlistId = playlist.playEndpoint?.playlistId
+                                                            ?: shuffleEndpoint.playlistId,
                                                         title = playlist.title,
                                                         items = songs.map { it.toMediaMetadata() },
                                                         startShuffled = true,
@@ -741,7 +744,7 @@ fun OnlinePlaylistScreen(
                 ) {
                     Icon(
                         Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = null
+                        contentDescription = stringResource(R.string.action_back)
                     )
                 }
             },

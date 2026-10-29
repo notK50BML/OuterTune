@@ -34,7 +34,13 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 
+/**
+ * An icon drawn at whatever size the modifier gives it, clickable without IconButton's fixed 48dp
+ * frame. Being a bare Image, it says nothing to TalkBack unless [contentDescription] names it, so
+ * pass one for any control that is not labelled by text beside it.
+ */
 @Composable
 fun ResizableIconButton(
     @DrawableRes icon: Int,
@@ -42,17 +48,19 @@ fun ResizableIconButton(
     color: Color = MaterialTheme.colorScheme.onSurface,
     enabled: Boolean = true,
     indication: Indication? = null,
+    contentDescription: String? = null,
     onClick: () -> Unit = {},
 ) {
     Image(
         painter = painterResource(icon),
-        contentDescription = null,
+        contentDescription = contentDescription,
         colorFilter = ColorFilter.tint(color),
         modifier = Modifier
             .clickable(
                 indication = indication ?: ripple(bounded = false),
                 interactionSource = remember { MutableInteractionSource() },
                 enabled = enabled,
+                role = Role.Button,
                 onClick = onClick
             )
             .alpha(if (enabled) 1f else 0.5f)
@@ -67,17 +75,19 @@ fun ResizableIconButton(
     color: Color = MaterialTheme.colorScheme.onSurface,
     enabled: Boolean = true,
     indication: Indication? = null,
+    contentDescription: String? = null,
     onClick: () -> Unit = {},
 ) {
     Image(
         imageVector = icon,
-        contentDescription = null,
+        contentDescription = contentDescription,
         colorFilter = ColorFilter.tint(color),
         modifier = Modifier
             .clickable(
                 indication = indication ?: ripple(bounded = false),
                 interactionSource = remember { MutableInteractionSource() },
                 enabled = enabled,
+                role = Role.Button,
                 onClick = onClick
             )
             .alpha(if (enabled) 1f else 0.5f)

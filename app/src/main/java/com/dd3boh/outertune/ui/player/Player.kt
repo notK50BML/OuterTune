@@ -110,6 +110,11 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -962,6 +967,7 @@ fun ControlsContent(
                                 icon = Icons.Rounded.Bedtime,
                                 color = MaterialTheme.colorScheme.onPrimary,
                                 modifier = Modifier.align(Alignment.Center).size(24.dp),
+                                contentDescription = stringResource(R.string.sleep_timer),
                                 onClick = { showSleepTimerDialog = true }
                             )
                         }
@@ -979,6 +985,10 @@ fun ControlsContent(
                         icon = if (currentSong?.song?.liked == true) R.drawable.favorite else R.drawable.favorite_border,
                         color = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.align(Alignment.Center).size(24.dp),
+                        // Named for what a tap does, as the notification's like button is.
+                        contentDescription = stringResource(
+                            if (currentSong?.song?.liked == true) R.string.action_remove_like else R.string.action_like
+                        ),
                         onClick = playerConnection::toggleLike
                     )
                 }
@@ -997,6 +1007,7 @@ fun ControlsContent(
                             icon = Icons.Rounded.Equalizer,
                             color = MaterialTheme.colorScheme.onPrimary,
                             modifier = Modifier.align(Alignment.Center).size(24.dp),
+                            contentDescription = stringResource(R.string.equalizer),
                             onClick = { equalizerPanelState.visible = true }
                         )
                     }
@@ -1013,6 +1024,7 @@ fun ControlsContent(
                         icon = Icons.Rounded.MoreVert,
                         color = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(24.dp).align(Alignment.Center),
+                        contentDescription = stringResource(R.string.options),
                         onClick = {
                             menuState.show {
                                 PlayerMenu(
@@ -1227,6 +1239,7 @@ fun ControlsContent(
                     enabled = canSkipPrevious,
                     modifier = Modifier.size(32.dp),
                     color = onBackgroundColor,
+                    contentDescription = stringResource(R.string.player_previous),
                     onClick = {
                         if (playerConnection.player.currentMediaItem == null) {
                             queueBoard.setCurrQueue()
@@ -1254,12 +1267,22 @@ fun ControlsContent(
                     modifier = Modifier.size(32.dp),
                     color = onBackgroundColor,
                     enabled = playerConnection.player.currentMediaItem != null,
+                    contentDescription = pluralStringResource(R.plurals.player_seek_back_seconds, incrementMs / 1000, incrementMs / 1000),
                     onClick = {
-                        playerConnection.player.seekTo(playerConnection.player.currentPosition - incrementMs)
+                        // Held at the start: a jump back from the first few seconds would otherwise
+                        // ask the player for a negative position.
+                        playerConnection.player.seekTo(
+                            (playerConnection.player.currentPosition - incrementMs).coerceAtLeast(0L)
+                        )
                     }
                 )
             }
             val playPauseButtonBlock: @Composable () -> Unit = {
+                val playPauseLabel = stringResource(
+                    if (playbackState == STATE_ENDED) R.string.player_play_again
+                    else if (isPlaying) R.string.player_pause
+                    else R.string.play
+                )
                 Box(
                     modifier = Modifier
                         // Same size whether or not lyrics are showing: the controls should not
@@ -1268,7 +1291,10 @@ fun ControlsContent(
                         .animateContentSize()
                         .clip(RoundedCornerShape(playPauseRoundness))
                         .background(MaterialTheme.colorScheme.primary)
-                        .clickable {
+                        // The icon inside is decorative; the box is the control, so it carries the
+                        // label TalkBack reads, naming what a tap will do.
+                        .semantics { contentDescription = playPauseLabel }
+                        .clickable(role = Role.Button) {
                             if (playerConnection.player.currentMediaItem == null) {
                                 queueBoard.setCurrQueue()
                                 playerConnection.player.togglePlayPause()
@@ -1299,10 +1325,18 @@ fun ControlsContent(
                     modifier = Modifier.size(32.dp),
                     color = onBackgroundColor,
                     enabled = playerConnection.player.currentMediaItem != null,
+                    contentDescription = pluralStringResource(R.plurals.player_seek_forward_seconds, incrementMs / 1000, incrementMs / 1000),
                     onClick = {
                         //ExoPlayer seek increment can only be set in builder
                         //playerConnection.player.seekForward()
-                        playerConnection.player.seekTo(playerConnection.player.currentPosition + incrementMs)
+                        // Held short of the end when the length is known, so a jump near the end
+                        // lands on the last moment rather than past it. A live stream or a song
+                        // still loading has no length yet, and is left to the player.
+                        val target = playerConnection.player.currentPosition + incrementMs
+                        val length = playerConnection.player.duration
+                        playerConnection.player.seekTo(
+                            if (length != C.TIME_UNSET && length > 0) target.coerceAtMost(length) else target
+                        )
                     }
                 )
             }
@@ -1312,6 +1346,7 @@ fun ControlsContent(
                     enabled = canSkipNext,
                     modifier = Modifier.size(32.dp),
                     color = onBackgroundColor,
+                    contentDescription = stringResource(R.string.action_next),
                     onClick = {
                         playerConnection.player.seekToNext()
                         haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
@@ -1329,6 +1364,14 @@ fun ControlsContent(
                     modifier = Modifier.size(32.dp).padding(4.dp),
                     color = onBackgroundColor,
                     enabled = playerConnection.player.currentMediaItem != null,
+                    // The current mode, worded as the notification's repeat button words it.
+                    contentDescription = stringResource(
+                        when (repeatMode) {
+                            REPEAT_MODE_ALL -> R.string.repeat_mode_all
+                            REPEAT_MODE_ONE -> R.string.repeat_mode_one
+                            else -> R.string.repeat_mode_off
+                        }
+                    ),
                     onClick = {
                         playerConnection.player.toggleRepeatMode()
                         haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)

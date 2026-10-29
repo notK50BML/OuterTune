@@ -534,10 +534,11 @@ class SyncUtils @Inject constructor(
      * a synthetic [SongEntity.likedDate] from each song's position in the remote list, so
      * sorting the local Liked playlist by liked date reproduces YouTube's order exactly.
      *
-     * Songs that are already liked locally get re-stamped as well. Skipping them (as the
-     * previous implementation did) meant a song's local liked date stayed frozen at
-     * whenever it happened to be first seen, so the local order drifted permanently out
-     * of step with YouTube.
+     * Songs that are already liked locally get re-stamped as well when YouTube's order has
+     * changed. Never re-stamping them (as an older implementation did) meant a song's local
+     * liked date stayed frozen at whenever it happened to be first seen, so the local order
+     * drifted permanently out of step with YouTube; re-stamping them on every run rewrote every
+     * liked row each time. See [planLikedDates].
      */
     private suspend fun executeSyncRemoteLikedSongs(bypass: Boolean = false) = withContext(Dispatchers.IO) {
         val refusal = syncRefusalReason(SyncContent.LIKED_SONGS, LastLikeSongSyncKey, bypass)
@@ -565,47 +566,64 @@ class SyncUtils @Inject constructor(
             if (!context.isInternetConnected()) return@withContext
 
             // Remote order, NOT reversed: index 0 is the most recently liked song.
-            val remoteSongs = page.songs
+            val remoteSongs = page.songs.distinctBy { it.id }
             val remoteIds = remoteSongs.mapTo(HashSet()) { it.id }
+            val localLiked = database.likedSongsByNameAsc().first()
 
-            // Unlike anything that is no longer liked remotely. Local files are never
-            // represented upstream, so they are left alone.
-            // Nor a song liked here in the last minute, whose like has not reached YouTube yet -
-            // see LikeSync.isPending.
-            database.likedSongsByNameAsc().first()
-                .filterNot { it.song.isLocal }
-                .filterNot { it.id in remoteIds }
-                .filterNot { LikeSync.isPending(it.id) }
-                .forEach { song ->
-                    try {
-                        database.update(song.song.localToggleLike())
-                        delay(DB_OPERATION_DELAY_MS)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to unlike song ${song.id}", e)
+            // Unlike anything that is no longer liked remotely - but only when the user chose
+            // "overwrite with remote", exactly as albums, artists, library songs and playlists do.
+            // It used to run for everyone, and the default is ADD_ONLY: a user who never asked for
+            // YouTube to win lost local likes to it. Mirroring would be right only if YouTube's list
+            // were always the whole truth, and it is not: a like whose send failed, or one older
+            // than the few thousand YouTube still lists, is missing from it with nothing having been
+            // unliked anywhere. Beyond the setting, the list must have been fetched whole (completed()
+            // throws on a failed continuation, which lands in the failure branch above) and must not
+            // be empty - an empty list against local likes is a response gone wrong, not a user who
+            // unliked everything.
+            // Local files are never represented upstream, so they are left alone. Nor a song liked
+            // here in the last minute, whose like has not reached YouTube yet - see LikeSync.isPending.
+            if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
+                val toUnlike = itemsMissingRemotely(
+                    local = localLiked.filterNot { it.song.isLocal || LikeSync.isPending(it.id) },
+                    remoteIds = remoteIds,
+                ) { it.id }
+                if (toUnlike.isNotEmpty()) {
+                    // One transaction, so the library's flows see one change rather than one per song.
+                    database.runInTransaction {
+                        toUnlike.forEach { database.update(it.song.localToggleLike()) }
                     }
                 }
+            }
 
-            // Insert or re-stamp, deriving likedDate from the remote position.
-            val now = LocalDateTime.now()
-            remoteSongs.forEachIndexed { index, remoteSong ->
-                // Unliked here in the last minute, and YouTube does not know yet: liking it again
-                // from YouTube's list would undo what the user just did.
-                if (LikeSync.isPending(remoteSong.id)) return@forEachIndexed
-                try {
-                    val likedDate = now.minusSeconds(index.toLong())
-                    val localSong = database.song(remoteSong.id).firstOrNull()?.song
-                    database.transaction {
+            // Insert or re-stamp, deriving likedDate from the remote position - but only the songs
+            // whose date actually has to change. Re-stamping every song on every run wrote all N
+            // rows one transaction each with a pause between (about 40 s for 2k likes), and each
+            // write re-ran every song query in the app. See planLikedDates.
+            // Unliked here in the last minute, and YouTube does not know yet: liking it again from
+            // YouTube's list would undo what the user just did.
+            val wanted = remoteSongs.filterNot { LikeSync.isPending(it.id) }
+            val localLikedDates = localLiked.associate { it.id to it.song.likedDate }
+            val plan = planLikedDates(wanted.map { it.id }, localLikedDates, LocalDateTime.now())
+            if (plan.isNotEmpty()) {
+                // Rows for songs not yet liked here, which may or may not exist at all. Chunked to
+                // stay under SQLite's bound-parameter limit.
+                val stored = plan.keys.filterNot { it in localLikedDates }
+                    .chunked(900)
+                    .flatMap { database.songsByIds(it) }
+                    .associateBy({ it.id }, { it.song })
+                val likedEntities = localLiked.associateBy({ it.id }, { it.song })
+                database.runInTransaction {
+                    wanted.forEach { remoteSong ->
+                        val likedDate = plan[remoteSong.id] ?: return@forEach
+                        val localSong = likedEntities[remoteSong.id] ?: stored[remoteSong.id]
                         if (localSong == null) {
-                            insert(remoteSong.toMediaMetadata()) {
+                            database.insert(remoteSong.toMediaMetadata()) {
                                 it.copy(liked = true, likedDate = likedDate)
                             }
-                        } else if (!localSong.liked || localSong.likedDate != likedDate) {
-                            update(localSong.copy(liked = true, likedDate = likedDate))
+                        } else {
+                            database.update(localSong.copy(liked = true, likedDate = likedDate))
                         }
                     }
-                    delay(DB_OPERATION_DELAY_MS)
-                } catch (e: Exception) {
-                    Log.e(TAG, "Failed to process liked song ${remoteSong.id}", e)
                 }
             }
 
@@ -641,13 +659,16 @@ class SyncUtils @Inject constructor(
 
             val remoteSongs =
                 getRemoteData<SongItem>("FEmusic_liked_videos", "FEmusic_library_privately_owned_tracks")
+                    .onFailure {
+                        Log.e(TAG, "Failed to fetch library songs", it)
+                        updateState { copy(librarySongs = SyncStatus.Error(it.message ?: "Fetch failed")) }
+                    }
+                    .getOrNull() ?: return@withContext
             if (!context.isInternetConnected()) return@withContext
             val remoteIds = remoteSongs.mapTo(HashSet()) { it.id }
 
             if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
-                database.songsByNameAsc().first()
-                    .filterNot { it.song.isLocal }
-                    .filterNot { it.id in remoteIds }
+                itemsMissingRemotely(database.songsByNameAsc().first().filterNot { it.song.isLocal }, remoteIds) { it.id }
                     .forEach { song ->
                         try {
                             database.update(song.song.toggleLibrary())
@@ -703,13 +724,16 @@ class SyncUtils @Inject constructor(
 
             val remoteAlbums =
                 getRemoteData<AlbumItem>("FEmusic_liked_albums", "FEmusic_library_privately_owned_releases")
+                    .onFailure {
+                        Log.e(TAG, "Failed to fetch albums", it)
+                        updateState { copy(albums = SyncStatus.Error(it.message ?: "Fetch failed")) }
+                    }
+                    .getOrNull() ?: return@withContext
             if (!context.isInternetConnected()) return@withContext
             val remoteIds = remoteAlbums.mapTo(HashSet()) { it.id }
 
             if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
-                database.albumsLikedAsc().first()
-                    .filterNot { it.album.isLocal }
-                    .filterNot { it.id in remoteIds }
+                itemsMissingRemotely(database.albumsLikedAsc().first().filterNot { it.album.isLocal }, remoteIds) { it.id }
                     .forEach { album ->
                         try {
                             database.update(album.album.localToggleLike())
@@ -756,23 +780,31 @@ class SyncUtils @Inject constructor(
         try {
             if (SYNC_DEBUG) Log.i(TAG, "Artist subscriptions synchronization started")
 
-            val likedArtists = getRemoteData<ArtistItem>(
+            val fetched = getRemoteData<ArtistItem>(
                 "FEmusic_library_corpus_artists",
                 "FEmusic_library_privately_owned_artists"
-            )
-            val trackArtists = getRemoteData<ArtistItem>(
-                "FEmusic_library_corpus_track_artists",
-                "FEmusic_library_privately_owned_artists"
-            )
+            ).mapCatching { liked ->
+                liked to getRemoteData<ArtistItem>(
+                    "FEmusic_library_corpus_track_artists",
+                    "FEmusic_library_privately_owned_artists"
+                ).getOrThrow()
+            }
+            val (likedArtists, trackArtists) = fetched
+                .onFailure {
+                    Log.e(TAG, "Failed to fetch artists", it)
+                    updateState { copy(artists = SyncStatus.Error(it.message ?: "Fetch failed")) }
+                }
+                .getOrNull() ?: return@withContext
             if (!context.isInternetConnected()) return@withContext
 
             val likedArtistIds = likedArtists.mapTo(HashSet()) { it.id }
             val remoteArtists = likedArtists + trackArtists.filterNot { it.id in likedArtistIds }
 
             if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
-                database.artistsBookmarkedAsc().first()
-                    .filterNot { it.artist.isLocal }
-                    .filterNot { it.id in likedArtistIds }
+                itemsMissingRemotely(
+                    database.artistsBookmarkedAsc().first().filterNot { it.artist.isLocal },
+                    likedArtistIds,
+                ) { it.id }
                     .forEach { artist ->
                         try {
                             database.update(artist.artist.localToggleLike())
@@ -875,7 +907,9 @@ class SyncUtils @Inject constructor(
 
             val localPlaylists = database.playlistInLibraryAsc().first()
 
-            if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE)) {
+            // Same guard as the other categories: an empty list against bookmarked playlists is a
+            // response gone wrong, not a user who removed every one of them.
+            if (checkOverwrite(SyncConflictResolution.OVERWRITE_WITH_REMOTE) && remoteIds.isNotEmpty()) {
                 localPlaylists.filterNot { it.playlist.isLocal }.forEach { playlist ->
                     val browseId = playlist.playlist.browseId ?: return@forEach
                     if (browseId in remoteIds) return@forEach
@@ -1016,16 +1050,65 @@ class SyncUtils @Inject constructor(
 
     // endregion
 
-    private suspend inline fun <reified T> getRemoteData(libraryId: String, uploadsId: String): List<T> =
-        coroutineScope {
-            listOf(libraryId to 0, uploadsId to 1)
-                .map { (browseId, tab) ->
-                    async {
-                        YouTube.library(browseId, tab).completed().getOrNull()
-                            ?.items?.filterIsInstance<T>()?.reversed().orEmpty()
+    /**
+     * Both tabs of a library category (the library proper and the uploads), every page of each.
+     *
+     * A failure on either tab, or on any continuation page of one, fails the whole fetch. It used to
+     * turn into an empty list, which the overwrite-with-remote passes then read as "the user removed
+     * everything": one dropped request and every song, album or artist not in the partial list was
+     * taken out of the library.
+     */
+    private suspend inline fun <reified T> getRemoteData(libraryId: String, uploadsId: String): Result<List<T>> =
+        withRetry {
+            coroutineScope {
+                listOf(libraryId to 0, uploadsId to 1)
+                    .map { (browseId, tab) ->
+                        async {
+                            YouTube.library(browseId, tab).completed().getOrThrow()
+                                .items.filterIsInstance<T>().reversed()
+                        }
                     }
-                }
-                .awaitAll()
-                .flatten()
+                    .awaitAll()
+                    .flatten()
+            }
         }
+}
+
+/**
+ * The local items an overwrite-with-remote pass should remove: those missing from [remoteIds].
+ *
+ * Nothing at all when [remoteIds] is empty. An account that really has emptied a category is rare;
+ * a response that came back empty - a changed page layout, a parse that found no shelf, a signed-out
+ * cookie - is not, and treating it as the truth wiped the whole local category in one sync.
+ */
+internal fun <T> itemsMissingRemotely(local: List<T>, remoteIds: Set<String>, id: (T) -> String): List<T> =
+    if (remoteIds.isEmpty()) emptyList() else local.filterNot { id(it) in remoteIds }
+
+/**
+ * Which songs the liked-songs sync has to (re)date, and with what.
+ *
+ * YouTube exposes no like timestamps, only the order of its list, so liked dates are synthesised from
+ * position: the song at index i is dated [now] minus i seconds. Writing that for every song on every
+ * sync kept the order right but rewrote every liked row each time. Instead, songs already liked here
+ * keep their date, songs not yet liked get the positional one, and only if that combination is not
+ * strictly newest-first in [remoteIds] order - YouTube's order really changed, not just grew at the
+ * top - is everything re-dated.
+ *
+ * @param remoteIds YouTube's liked list, most recent first, without duplicates.
+ * @param localLikedDates every song liked here, with its current liked date (null if it has none).
+ * @return the date to write for each song that needs one; songs absent from it are left alone.
+ */
+internal fun planLikedDates(
+    remoteIds: List<String>,
+    localLikedDates: Map<String, LocalDateTime?>,
+    now: LocalDateTime,
+): Map<String, LocalDateTime> {
+    val positional = remoteIds.mapIndexed { index, id -> id to now.minusSeconds(index.toLong()) }
+    val effective = positional.map { (id, date) -> localLikedDates[id] ?: date }
+    val inOrder = effective.zipWithNext().all { (newer, older) -> newer.isAfter(older) }
+    return if (inOrder) {
+        positional.filter { (id, _) -> localLikedDates[id] == null }.toMap()
+    } else {
+        positional.toMap()
+    }
 }

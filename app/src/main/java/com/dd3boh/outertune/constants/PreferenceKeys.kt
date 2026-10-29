@@ -330,7 +330,6 @@ val LastAutoBackupKey = longPreferencesKey("lastAutoBackup")
  * Discord Integration
  */
 val DiscordTokenKey = stringPreferencesKey("discordToken")
-val DiscordInfoDismissedKey = booleanPreferencesKey("discordInfoDismissed_v2")
 val DiscordUsernameKey = stringPreferencesKey("discordUsername")
 val DiscordNameKey = stringPreferencesKey("discordName")
 val EnableDiscordRPCKey = booleanPreferencesKey("discordRPCEnable")
@@ -438,7 +437,6 @@ val AccountImageFetchedKey = booleanPreferencesKey("accountImageFetched")
 /**
  * Misc
  */
-val LastUpdateCheckKey = longPreferencesKey("lastUpdateCheck")
 val LastVersionKey = stringPreferencesKey("lastVersion")
 val UpdateAvailableKey = booleanPreferencesKey("updateAvailable")
 

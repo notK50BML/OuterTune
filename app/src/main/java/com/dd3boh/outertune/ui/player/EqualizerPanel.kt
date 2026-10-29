@@ -550,7 +550,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
             context.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
         }.getOrNull()
         if (text.isNullOrBlank()) {
-            importExportError = "Could not read that file."
+            importExportError = context.getString(R.string.eq_import_unreadable)
             return@rememberLauncherForActivityResult
         }
         EqualizerSettings.parse(text)
@@ -558,7 +558,7 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
                 update(it)
                 importExportError = null
             }
-            .onFailure { importExportError = it.message ?: "That file isn't a valid equalizer profile." }
+            .onFailure { importExportError = it.message ?: context.getString(R.string.eq_import_invalid) }
     }
 
     Box(
@@ -1084,7 +1084,7 @@ internal fun ToneControlsRow(
             color = bassColor,
             textColor = color,
             centeredAt = 0f,
-            label = "Bass",
+            label = stringResource(R.string.eq_bass),
             valueLabel = "${formatDb(bassGainDb)} dB",
         )
         RotaryDial(
@@ -1096,7 +1096,7 @@ internal fun ToneControlsRow(
             color = balanceColor,
             textColor = color,
             centeredAt = 0f,
-            label = "Balance",
+            label = stringResource(R.string.equalizer_balance),
             valueLabel = balanceReadout(balance),
         )
         RotaryDial(
@@ -1108,7 +1108,7 @@ internal fun ToneControlsRow(
             color = trebleColor,
             textColor = color,
             centeredAt = 0f,
-            label = "Treble",
+            label = stringResource(R.string.eq_treble),
             valueLabel = "${formatDb(trebleGainDb)} dB",
         )
     }
@@ -1166,7 +1166,7 @@ internal fun CompressorSection(
                         valueRange = attackRange,
                         color = attackColor,
                         textColor = color,
-                        label = "Attack",
+                        label = stringResource(R.string.eq_attack),
                         valueLabel = "${compressor.attackMs.roundToInt()} ms",
                     )
                     RotaryDial(
@@ -1175,7 +1175,7 @@ internal fun CompressorSection(
                         valueRange = releaseRange,
                         color = releaseColor,
                         textColor = color,
-                        label = "Release",
+                        label = stringResource(R.string.eq_release),
                         valueLabel = "${compressor.releaseMs.roundToInt()} ms",
                     )
                     RotaryDial(
@@ -1184,7 +1184,7 @@ internal fun CompressorSection(
                         valueRange = ratioRange,
                         color = ratioColor,
                         textColor = color,
-                        label = "Ratio",
+                        label = stringResource(R.string.eq_ratio),
                         valueLabel = "${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
                     )
                 }
@@ -1196,7 +1196,7 @@ internal fun CompressorSection(
                         valueRange = thresholdRange,
                         color = thresholdColor,
                         textColor = color,
-                        label = "Threshold",
+                        label = stringResource(R.string.eq_threshold),
                         valueLabel = "${formatDb(compressor.thresholdDb)} dB",
                     )
                     RotaryDial(
@@ -1205,41 +1205,41 @@ internal fun CompressorSection(
                         valueRange = makeupRange,
                         color = makeupColor,
                         textColor = color,
-                        label = "Makeup gain",
+                        label = stringResource(R.string.eq_makeup_gain),
                         valueLabel = "${formatDb(compressor.makeupGainDb)} dB",
                     )
                 }
             } else {
                 LabeledSlider(
-                    label = "Threshold: ${formatDb(compressor.thresholdDb)} dB",
+                    label = "${stringResource(R.string.eq_threshold)}: ${formatDb(compressor.thresholdDb)} dB",
                     value = compressor.thresholdDb,
                     onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
                     valueRange = thresholdRange,
                     textColor = color,
                 )
                 LabeledSlider(
-                    label = "Ratio: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
+                    label = "${stringResource(R.string.eq_ratio)}: ${String.format(java.util.Locale.US, "%.1f", compressor.ratio)}:1",
                     value = compressor.ratio,
                     onValueChange = { onChange(compressor.copy(ratio = it)) },
                     valueRange = ratioRange,
                     textColor = color,
                 )
                 LabeledSlider(
-                    label = "Attack: ${compressor.attackMs.roundToInt()} ms",
+                    label = "${stringResource(R.string.eq_attack)}: ${compressor.attackMs.roundToInt()} ms",
                     value = compressor.attackMs,
                     onValueChange = { onChange(compressor.copy(attackMs = it)) },
                     valueRange = attackRange,
                     textColor = color,
                 )
                 LabeledSlider(
-                    label = "Release: ${compressor.releaseMs.roundToInt()} ms",
+                    label = "${stringResource(R.string.eq_release)}: ${compressor.releaseMs.roundToInt()} ms",
                     value = compressor.releaseMs,
                     onValueChange = { onChange(compressor.copy(releaseMs = it)) },
                     valueRange = releaseRange,
                     textColor = color,
                 )
                 LabeledSlider(
-                    label = "Makeup gain: ${formatDb(compressor.makeupGainDb)} dB",
+                    label = "${stringResource(R.string.eq_makeup_gain)}: ${formatDb(compressor.makeupGainDb)} dB",
                     value = compressor.makeupGainDb,
                     onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
                     valueRange = makeupRange,
@@ -1506,7 +1506,7 @@ internal fun BandEditor(
                     enabled = band.enabled,
                     color = freqColor,
                     textColor = color,
-                    label = "Frequency",
+                    label = stringResource(R.string.eq_frequency),
                     valueLabel = formatFrequency(band.freqHz),
                 )
                 RotaryDial(
@@ -1517,7 +1517,7 @@ internal fun BandEditor(
                     color = gainColor,
                     textColor = color,
                     centeredAt = 0f,
-                    label = "Gain",
+                    label = stringResource(R.string.eq_gain),
                     valueLabel = "${formatDb(band.gainDb)} dB",
                 )
             } else {
@@ -1527,7 +1527,7 @@ internal fun BandEditor(
                     valueRange = freqRange,
                     enabled = band.enabled,
                     textColor = color,
-                    label = "Frequency",
+                    label = stringResource(R.string.eq_frequency),
                     valueLabel = formatFrequency(band.freqHz),
                 )
                 PowerampSlider(
@@ -1536,7 +1536,7 @@ internal fun BandEditor(
                     valueRange = gainRange,
                     enabled = band.enabled,
                     textColor = color,
-                    label = "Gain",
+                    label = stringResource(R.string.eq_gain),
                     valueLabel = "${formatDb(band.gainDb)} dB",
                 )
             }
@@ -1554,7 +1554,7 @@ internal fun BandEditor(
 
         Spacer(Modifier.height(8.dp))
         Text(
-            text = "Filter type",
+            text = stringResource(R.string.eq_filter_type),
             style = MaterialTheme.typography.labelMedium,
             color = colorVariant,
         )
@@ -1579,7 +1579,7 @@ internal fun BandEditor(
                     ),
                 ) {
                     Text(
-                        text = filterTypeLabel(type),
+                        text = stringResource(filterTypeLabel(type)),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = MaterialTheme.typography.labelSmall,
@@ -1618,11 +1618,11 @@ private fun LabeledSlider(
 }
 
 private fun filterTypeLabel(type: EqualizerSettings.FilterType) = when (type) {
-    EqualizerSettings.FilterType.PEAKING -> "Peak"
-    EqualizerSettings.FilterType.LOW_SHELF -> "Low shelf"
-    EqualizerSettings.FilterType.HIGH_SHELF -> "High shelf"
-    EqualizerSettings.FilterType.LOW_PASS -> "Low pass"
-    EqualizerSettings.FilterType.HIGH_PASS -> "High pass"
+    EqualizerSettings.FilterType.PEAKING -> R.string.eq_filter_peak
+    EqualizerSettings.FilterType.LOW_SHELF -> R.string.eq_filter_low_shelf
+    EqualizerSettings.FilterType.HIGH_SHELF -> R.string.eq_filter_high_shelf
+    EqualizerSettings.FilterType.LOW_PASS -> R.string.eq_filter_low_pass
+    EqualizerSettings.FilterType.HIGH_PASS -> R.string.eq_filter_high_pass
 }
 
 private fun formatFrequency(freqHz: Float): String {

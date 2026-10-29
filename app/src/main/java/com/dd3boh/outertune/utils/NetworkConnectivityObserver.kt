@@ -23,13 +23,22 @@ class NetworkConnectivityObserver(context: Context) {
     private val _networkStatus = Channel<Boolean>(Channel.CONFLATED)
     val networkStatus = _networkStatus.receiveAsFlow()
 
+    /**
+     * Every network with internet that is up right now. "Offline" is none of them - not the loss of
+     * any one: switching from Wi-Fi to mobile data loses the Wi-Fi after the mobile network is
+     * already up, and reporting that loss as offline left the app saying so while it was online.
+     */
+    private val available = java.util.Collections.synchronizedSet(HashSet<Network>())
+
     private val networkCallback = object : ConnectivityManager.NetworkCallback() {
         override fun onAvailable(network: Network) {
+            available.add(network)
             _networkStatus.trySend(true)
         }
 
         override fun onLost(network: Network) {
-            _networkStatus.trySend(false)
+            available.remove(network)
+            _networkStatus.trySend(available.isNotEmpty())
         }
     }
 
