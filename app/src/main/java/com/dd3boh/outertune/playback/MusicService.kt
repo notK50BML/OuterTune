@@ -1162,6 +1162,17 @@ class MusicService : MediaLibraryService(),
         )
     }
 
+    private val streamHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .proxy(YouTube.proxy)
+            // No callTimeout, deliberately - same reason as DownloadUtil's. It was here to abort
+            // and reconnect before a googlevideo connection cutoff "confirmed at roughly a minute",
+            // but that cutoff was a misreading: what failed at about a minute was the number of
+            // small bounded range requests, not the age of the connection. A hard cap on call
+            // duration only guarantees a mid-transfer abort on anything slow.
+            .build()
+    }
+
     private fun createCacheDataSource(): CacheDataSource.Factory {
         return CacheDataSource.Factory()
             .setCache(downloadCache)
@@ -1171,25 +1182,19 @@ class MusicService : MediaLibraryService(),
                     .setUpstreamDataSourceFactory(
                         DefaultDataSource.Factory(
                             this,
-                            OkHttpDataSource.Factory(
-                                OkHttpClient.Builder()
-                                    .proxy(YouTube.proxy)
-                                    // No callTimeout, deliberately - same reason as DownloadUtil's.
-                                    // It was here to abort and reconnect before a googlevideo
-                                    // connection cutoff "confirmed at roughly a minute", but that
-                                    // cutoff was a misreading: what failed at about a minute was
-                                    // the number of small bounded range requests, not the age of
-                                    // the connection. A hard cap on call duration only guarantees a
-                                    // mid-transfer abort on anything slow.
-                                    .build()
-                            )
+                            // A live stream - a marked URL - is read a segment at a time; anything
+                            // else passes straight through. See LiveStreamDataSource.
+                            LiveStreamDataSource.Factory(OkHttpDataSource.Factory(streamHttpClient), streamHttpClient)
                         )
                     )
                     .setCacheWriteDataSinkFactory(
                         HybridCacheDataSinkFactory(playerCache) { dataSpec ->
                             val isLocal = queueBoard.value.getCurrentQueue()?.findSong(dataSpec.key ?: "")?.isLocal == true
-                            if (SERVICE_DEBUG) Log.d(TAG, "SONG CACHE: ${!isLocal}")
-                            !isLocal
+                            // Nor a live stream, which has no end: it would fill the cache for as
+                            // long as it plays, with nothing worth replaying.
+                            val isLive = LiveStreamDataSource.isMarked(dataSpec.uri)
+                            if (SERVICE_DEBUG) Log.d(TAG, "SONG CACHE: ${!isLocal && !isLive}")
+                            !isLocal && !isLive
                         }
                     )
                     .setFlags(FLAG_IGNORE_CACHE_ON_ERROR)
@@ -1355,7 +1360,11 @@ class MusicService : MediaLibraryService(),
             }
             offloadScope.launch { recoverSong(mediaId, playbackData) }
 
-            val streamUrl = playbackData.streamUrl
+            // A live stream is read a segment at a time - see LiveStreamDataSource. Only AAC in
+            // fragmented MP4, which is what YouTube serves live audio as; anything else is left to
+            // play as before rather than risk the songs that work.
+            val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
+            val streamUrl = if (isLive) LiveStreamDataSource.mark(playbackData.streamUrl) else playbackData.streamUrl
 
             val cachedStreamUrl = CachedStreamUrl(
                 url = streamUrl,
