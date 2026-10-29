@@ -628,6 +628,7 @@ private fun PlayerSettings(settings: Settings) {
             label = { it.label },
             description = { it.description },
             onSelect = { settings.sliderStyle = it },
+            divider = false,
         )
     }
     // Everything about the queue in one place: how its handle looks on the player, and what is kept.

@@ -65,6 +65,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -156,7 +157,12 @@ fun SearchBarContainer(
             if (searchSource == SearchSource.LOCAL) {
                 focusManager.clearFocus(true)
             } else {
-                onSearchActiveChange(false)
+                // Closed by hand rather than through onSearchActiveChange: still on the tab here, so
+                // that would wipe the box, and the results page would open over an empty one. What
+                // was searched for stays in it, cursor at the end, so tapping it again edits it.
+                searchActive = false
+                focusManager.clearFocus()
+                onQueryChange(TextFieldValue(it, TextRange(it.length)))
                 if (youtubeNavigator(
                         context,
                         navController,
@@ -219,6 +225,9 @@ fun SearchBarContainer(
     LaunchedEffect(navBackStackEntry) {
         if (searchActive) {
             onSearchActiveChange(false)
+        } else if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
+            // Back out of a search to a tab: the next search starts from an empty box.
+            onQueryChange(TextFieldValue())
         }
     }
 
