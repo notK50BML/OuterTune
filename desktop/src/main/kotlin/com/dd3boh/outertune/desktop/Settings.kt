@@ -159,6 +159,12 @@ class Settings(private val store: SettingsStore) {
     /** The order lyrics providers are asked in, as LyricsSource ids. Empty means the default order. */
     var lyricsProviderOrder by string("lyrics.providerOrder", "")
 
+    /** The close button hides OuterTune to the system tray and the music plays on - see Main. */
+    var closeToTray by bool("window.closeToTray", true)
+
+    /** Battery saver: a still player and no visualisers - see Main. */
+    var batterySaver by bool("window.batterySaver", false)
+
     /** The floating window's place and size, "x,y,width,height" - see WindowMemory. */
     var windowBounds by string("window.bounds", "")
 

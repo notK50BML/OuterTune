@@ -105,6 +105,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -188,19 +189,54 @@ private fun runApplication() = application {
         size = WindowMemory.initialSize(settings),
     )
     val useNativeFrame = remember { System.getProperty("os.name").orEmpty().startsWith("Windows") }
+    // The phone's launcher icon, for the title bar, the taskbar and the tray.
+    val appIcon = remember {
+        androidx.compose.ui.graphics.painter.BitmapPainter(
+            androidx.compose.ui.res.useResource("icon.png") { androidx.compose.ui.res.loadImageBitmap(it) }
+        )
+    }
+    // Closed to the tray: the window hidden, the music playing on. A hidden window draws nothing at
+    // all, and gives its memory back as a minimised one does.
+    var windowVisible by remember { mutableStateOf(true) }
+    var minimised by remember { mutableStateOf(false) }
+    val closeWindow: () -> Unit = {
+        if (settings.closeToTray) {
+            windowVisible = false
+            MemoryTrim.trimSoon { !windowVisible }
+        } else {
+            quit()
+        }
+    }
+    // Nothing on screen to work things out for: minimised, hidden in the tray, or saving battery.
+    LaunchedEffect(minimised, windowVisible, settings.batterySaver) {
+        player.inBackground = minimised || !windowVisible || settings.batterySaver
+    }
+    if (settings.closeToTray) {
+        val trayPlayback by player.state.collectAsState()
+        Tray(
+            icon = appIcon,
+            tooltip = (trayPlayback as? PlaybackState.Playing)?.title?.let { "OuterTune - $it" } ?: "OuterTune",
+            onAction = { windowVisible = true },
+            menu = {
+                val active = trayPlayback is PlaybackState.Playing || trayPlayback is PlaybackState.Loading
+                Item(if (active) "Pause" else "Play", onClick = { TrayControls.togglePlay() })
+                Item("Next", onClick = { TrayControls.next() })
+                Item("Previous", onClick = { TrayControls.previous() })
+                Separator()
+                Item("Show OuterTune", onClick = { windowVisible = true })
+                Item("Quit", onClick = quit)
+            },
+        )
+    }
     Window(
-        onCloseRequest = quit,
+        onCloseRequest = closeWindow,
+        visible = windowVisible,
         title = "OuterTune",
         // No Windows title bar: the app runs to the top edge and draws its own buttons. On Windows
         // the window keeps its real frame - shadow, snap, resize, animations - with only the caption
         // taken off (NativeFrame); elsewhere, or if that cannot be done, it is borderless instead.
         undecorated = !useNativeFrame,
-        // The phone's launcher icon, for the title bar and the taskbar.
-        icon = remember {
-            androidx.compose.ui.graphics.painter.BitmapPainter(
-                androidx.compose.ui.res.useResource("icon.png") { androidx.compose.ui.res.loadImageBitmap(it) }
-            )
-        },
+        icon = appIcon,
         state = windowState,
         // Every key nothing focused has used - see KeyRouter and KeyBindings.
         onKeyEvent = { KeyRouter.handle(it) },
@@ -209,7 +245,7 @@ private fun runApplication() = application {
             // Below this the layout runs out of room: the player bar's title shrinks to a letter.
             window.minimumSize = java.awt.Dimension(WindowMemory.MIN_WIDTH, WindowMemory.MIN_HEIGHT)
             if (useNativeFrame) NativeFrame.install(window) else WindowCorners.round(window)
-            MemoryTrim.install(window, onMinimised = { player.inBackground = it })
+            MemoryTrim.install(window, onMinimised = { minimised = it })
             // Through the window's own state, and only once it is on screen: set on the frame directly,
             // while the window was still being shown, it sometimes came up minimised instead.
             if (startMaximised) {
@@ -289,7 +325,7 @@ private fun runApplication() = application {
                     if (customChrome) CaptionBar(
                         state = windowState,
                         defaultTint = MaterialTheme.colorScheme.onSurface,
-                        onClose = quit,
+                        onClose = closeWindow,
                     )
                 }
             }
@@ -840,6 +876,12 @@ internal fun App(
             player.togglePause()
         }
     }
+    // The tray icon's menu, which sits outside this and reaches the queue through these.
+    SideEffect {
+        TrayControls.togglePlay = togglePlay
+        TrayControls.next = playerQueue::next
+        TrayControls.previous = playerQueue::previous
+    }
 
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
     /** The current song is a file on this computer - no like, download or link for it. */
@@ -1147,7 +1189,8 @@ internal fun App(
         NowPlayingScreen(
             playback = playback,
             queue = queue,
-            seekBarStyle = settings.sliderStyle,
+            // And a still seek bar - the squiggle and the waves redraw every frame while playing.
+            seekBarStyle = if (settings.batterySaver && settings.sliderStyle in ANIMATED_SEEK_BARS) SeekBarStyle.Slim else settings.sliderStyle,
             live = player.live.collectAsState().value,
             command = playerCommand,
             onCommandHandled = { playerCommand = null },
@@ -1171,8 +1214,8 @@ internal fun App(
             onClose = { showFullPlayer = false },
             // Passed only when it is switched on - the pane shows nothing when the tap is null,
             // so the setting is enforced by simply not handing it over.
-            spectrum = player.spectrum.takeIf { settings.showVisualizer },
-            liquidTap = player.spectrum.takeIf { settings.background == BackgroundStyle.Ferrofluid },
+            spectrum = player.spectrum.takeIf { settings.showVisualizer && !settings.batterySaver },
+            liquidTap = player.spectrum.takeIf { settings.background == BackgroundStyle.Ferrofluid && !settings.batterySaver },
             playedFrames = player::playedFrames,
             equalizer = player.equalizer,
             eqStore = eqStore,
@@ -1226,9 +1269,10 @@ internal fun App(
             onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
             playerScroll = settings.playerScroll,
             seekStepMs = settings.seekIncrementSeconds * 1000L,
-            eqSpectrum = player.spectrum.takeIf { settings.eqSpectrum },
+            eqSpectrum = player.spectrum.takeIf { settings.eqSpectrum && !settings.batterySaver },
             lyricsOnCoverClick = settings.lyricsOnCoverClick,
-            backgroundStyle = settings.background,
+            // Saving battery: a still background in place of the ones that move or blur every frame.
+            backgroundStyle = if (settings.batterySaver && settings.background != BackgroundStyle.Solid) BackgroundStyle.Gradient else settings.background,
             colourByValue = settings.colourByValue,
             actions = PlayerActions(
                 onAddToQueue = queue.current?.let { song -> { playerQueue.playNext(song) } },
@@ -2577,3 +2621,6 @@ private fun UpdateBar() {
         TextButton(onClick = { dismissed = true }) { Text("Later") }
     }
 }
+
+/** Seek bar styles that redraw every frame while a song plays - set aside by the battery saver. */
+private val ANIMATED_SEEK_BARS = setOf(SeekBarStyle.Squiggly, SeekBarStyle.Waves, SeekBarStyle.WaveLines)

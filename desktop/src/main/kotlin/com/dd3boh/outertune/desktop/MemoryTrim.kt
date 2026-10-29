@@ -49,6 +49,14 @@ object MemoryTrim {
         }
     }
 
+    /** For a window hidden to the tray: the same trim, once it has stayed hidden a moment. */
+    fun trimSoon(stillHidden: () -> Boolean) {
+        Thread {
+            Thread.sleep(DELAY_MS)
+            if (stillHidden()) trim()
+        }.apply { isDaemon = true; name = "MemoryTrim" }.start()
+    }
+
     private fun trim() {
         ArtworkCache.dropDecoded()
         // A full collection, which is what lets the heap shrink (MaxHeapFreeRatio in the launcher's

@@ -171,6 +171,8 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Back up library", SettingsCategory.Backup, "export backup save"),
     SettingEntry("Where the library is stored", SettingsCategory.Backup, "database file path backup sqlite"),
     SettingEntry("Version", SettingsCategory.About, "about github"),
+    SettingEntry("Battery saver", SettingsCategory.Appearance, "battery laptop power performance animations visualiser energy"),
+    SettingEntry("Close to the system tray", SettingsCategory.Appearance, "tray minimise minimize background close keep playing notification area"),
     SettingEntry("Hardware acceleration", SettingsCategory.Appearance, "graphics card gpu memory ram software rendering performance draw"),
     SettingEntry("Check for updates", SettingsCategory.Updater, "update updater new version download install release"),
 )
@@ -500,6 +502,22 @@ private fun AppearanceSettings(settings: Settings) {
     }
     // How the window is drawn: by the graphics card, or by the processor - see RenderMode.
     Section("Performance") {
+        SettingSwitch(
+            title = "Battery saver",
+            subtitle = "A still player background and seek bar, no visualisers, and less drawing while music " +
+                "plays. The sound is untouched. Worth it on a laptop on battery.",
+            checked = settings.batterySaver,
+            onCheckedChange = { settings.batterySaver = it },
+            icon = OuterTuneIcons.tune,
+        )
+        SettingSwitch(
+            title = "Close to the system tray",
+            subtitle = "The close button hides OuterTune and the music plays on; the tray icon brings it back, " +
+                "plays, pauses, skips and quits. Hidden, the window draws nothing and gives its memory back.",
+            checked = settings.closeToTray,
+            onCheckedChange = { settings.closeToTray = it },
+            icon = OuterTuneIcons.tune,
+        )
         var onProcessor by remember { mutableStateOf(RenderMode.chosen()) }
         SettingSwitch(
             title = "Hardware acceleration",
