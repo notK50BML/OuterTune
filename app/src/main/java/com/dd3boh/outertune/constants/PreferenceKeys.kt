@@ -635,8 +635,6 @@ val CountryCodeToName = mapOf(
 // Updater
 val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
 val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
-/** Which build flavour to pull, since only a matching one can replace this install. */
-val UpdateFlavorKey = stringPreferencesKey("updateFlavor")
 
 /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
 val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")

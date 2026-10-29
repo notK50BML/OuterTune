@@ -177,7 +177,6 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/discord", R.string.discord_integration, R.string.discord_integration),
     SettingsIndexEntry("settings/updater", R.string.update_auto_check, R.string.updater),
     SettingsIndexEntry("settings/updater", R.string.update_auto_download, R.string.updater),
-    SettingsIndexEntry("settings/updater", R.string.update_prefer_full, R.string.updater),
     SettingsIndexEntry("settings/updater", R.string.updater, R.string.updater),
     SettingsIndexEntry("settings/about", R.string.check_for_updates, R.string.about),
     SettingsIndexEntry("settings/about", R.string.attribution_title, R.string.about),

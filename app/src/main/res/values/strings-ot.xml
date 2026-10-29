@@ -32,6 +32,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="queue_searched_songs_ot">Search: </string>
     <string name="song_added_to_queue">\"%s\" inserted into queue</string>
     <string name="song_added_to_queue_end">\"%s\" added to the end of queue</string>
+    <string name="swipe_add_to_queue_end">Add to end of queue</string>
     <string name="queues_empty">No queues</string>
 
 <!-- Playlist -->
@@ -143,8 +144,6 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="update_auto_check_desc">Looks for a new release when the Updater is opened</string>
     <string name="update_auto_download">Download automatically</string>
     <string name="update_auto_download_desc">Fetches the APK as soon as one is found, so installing is a single tap</string>
-    <string name="update_prefer_full">Use the full build</string>
-    <string name="update_prefer_full_desc">Larger APK with the extra playback decoders. Leave off for the core build.</string>
     <string name="update_install_tooltip">Android does the installing, not OuterTune. You will be asked to allow installing unknown apps once, and to confirm every update after that.</string>
 
 <!-- Appearance settings -->

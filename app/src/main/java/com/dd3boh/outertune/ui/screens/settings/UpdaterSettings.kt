@@ -41,7 +41,6 @@ import com.dd3boh.outertune.constants.AutoCheckUpdatesKey
 import com.dd3boh.outertune.constants.AutoDownloadUpdatesKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.constants.UpdateAvailableKey
-import com.dd3boh.outertune.constants.UpdateFlavorKey
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
@@ -73,7 +72,6 @@ fun UpdaterSettings(
 
     var autoCheck by rememberPreference(AutoCheckUpdatesKey, defaultValue = true)
     var autoDownload by rememberPreference(AutoDownloadUpdatesKey, defaultValue = false)
-    var updateFlavor by rememberPreference(UpdateFlavorKey, defaultValue = BuildConfig.FLAVOR)
 
     // Already read by the search bar and the settings list, but until now nothing ever wrote it,
     // so those indicators could not light up. This is the only place that knows the answer.
@@ -86,7 +84,7 @@ fun UpdaterSettings(
     suspend fun check(thenDownload: Boolean) {
         checking = true
         status = context.getString(R.string.update_checking)
-        val found = AppUpdater.checkForUpdate(updateFlavor)
+        val found = AppUpdater.checkForUpdate()
         available = found
         updateAvailable = found != null
         status = if (found == null) {
@@ -168,12 +166,6 @@ fun UpdaterSettings(
             isEnabled = autoCheck,
             checked = autoDownload,
             onCheckedChange = { autoDownload = it }
-        )
-        SwitchPreference(
-            title = { Text(stringResource(R.string.update_prefer_full)) },
-            description = stringResource(R.string.update_prefer_full_desc),
-            checked = updateFlavor == "full",
-            onCheckedChange = { updateFlavor = if (it) "full" else "core" }
         )
 
         Spacer(modifier = Modifier.height(16.dp))
