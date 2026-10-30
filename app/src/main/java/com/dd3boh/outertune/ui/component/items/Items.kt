@@ -73,6 +73,7 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.offline.Download.STATE_COMPLETED
@@ -713,6 +714,11 @@ fun ItemThumbnail(
             model = artworkModel,
 //            placeholder = rememberVectorPainter(placeholderIcon),
             contentDescription = null,
+            // Cropped to fill the frame, as YouTube Music does. A song YouTube only has as a
+            // music video - many new singles, and the top search result for one - comes with
+            // the video's 16:9 thumbnail, and fitted into a square that drew as a thin strip with
+            // empty space above and below rather than as a cover.
+            contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
                 .clip(shape)

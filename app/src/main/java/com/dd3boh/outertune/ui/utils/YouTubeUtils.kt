@@ -41,7 +41,13 @@ fun String.resize(
         } else if (w > 320) {
             this.replace("mqdefault.jpg", "hqdefault.jpg")
         } else {
-            this
+            // A video song's stored URL is usually already maxresdefault (SongItem.toMediaMetadata
+            // asks for 1080), and that image only exists for videos uploaded at 720p or more - an
+            // older or low-quality upload answers 404. Small sizes come down to mqdefault, which
+            // every video has and which, like maxresdefault, is 16:9 with no black bars baked in.
+            // This is also what lets ArtworkFallbackInterceptor recover a failed maxresdefault: it
+            // retries at this size, and before this the URL came back unchanged, so it gave up.
+            this.replace("maxresdefault.jpg", "mqdefault.jpg")
         }
     }
     return this

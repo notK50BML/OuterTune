@@ -44,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -637,6 +638,7 @@ fun HomeScreen(
                                 AsyncImage(
                                     model = thumbnailUrl,
                                     contentDescription = null,
+                                    contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .size(ListThumbnailSize)
                                         .clip(shape)
@@ -693,6 +695,7 @@ fun HomeScreen(
                                 AsyncImage(
                                     model = thumbnailUrl,
                                     contentDescription = null,
+                                    contentScale = ContentScale.Crop,
                                     modifier = Modifier
                                         .size(ListThumbnailSize)
                                         .clip(shape)

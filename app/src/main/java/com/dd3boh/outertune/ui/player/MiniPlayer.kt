@@ -62,6 +62,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -317,6 +318,8 @@ fun MiniMediaInfo(
             AsyncImage(
                 model = mediaMetadata.getThumbnailModel(px, px),
                 contentDescription = null,
+                // Cropped so a music video's 16:9 thumbnail fills the square - see ItemThumbnail.
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .aspectRatio(1f)
                     .clip(RoundedCornerShape(ThumbnailCornerRadius))

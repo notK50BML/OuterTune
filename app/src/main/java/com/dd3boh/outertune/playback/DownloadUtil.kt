@@ -381,9 +381,11 @@ class DownloadUtil @Inject constructor(
             // Written straight into place, a cover was readable while half-written - the player drew
             // its top half and then kept that - and a dropped connection left a cut-off file behind
             // for good. The full-resolution copy first, then the size the song came with, since
-            // YouTube has no full-resolution image for some videos.
+            // YouTube has no full-resolution image for some videos - and then a small one, because
+            // a video song's stored URL is often already the full-resolution maxresdefault, so for
+            // a low-resolution upload the first two were the same missing image.
             val part = File(thumbnailDir, "$songId.jpg.part")
-            for (url in listOf(original.resize(1080, 1080), original).distinct()) {
+            for (url in listOf(original.resize(1080, 1080), original, original.resize(320, 320)).distinct()) {
                 try {
                     val ok = withContext(Dispatchers.IO) {
                         thumbnailHttpClient.newCall(okhttp3.Request.Builder().url(url).build()).execute().use { response ->

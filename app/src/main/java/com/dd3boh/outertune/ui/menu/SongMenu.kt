@@ -35,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboard
@@ -158,6 +159,7 @@ fun SongMenu(
             AsyncImage(
                 model = song.song.getThumbnailModel(px, px),
                 contentDescription = null,
+                contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(ListThumbnailSize)
                     .clip(RoundedCornerShape(ThumbnailCornerRadius))

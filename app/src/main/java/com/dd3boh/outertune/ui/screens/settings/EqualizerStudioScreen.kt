@@ -57,6 +57,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -211,6 +212,7 @@ fun EqualizerStudioScreen(
                     AsyncImage(
                         model = current.song.thumbnailUrl,
                         contentDescription = null,
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier.size(56.dp).clip(RoundedCornerShape(8.dp)),
                     )
                     Spacer(Modifier.width(12.dp))
@@ -465,6 +467,7 @@ private fun SongPicker(
                             AsyncImage(
                                 model = song.song.thumbnailUrl,
                                 contentDescription = null,
+                                contentScale = ContentScale.Crop,
                                 modifier = Modifier.size(40.dp).clip(RoundedCornerShape(6.dp)),
                             )
                             Spacer(Modifier.width(10.dp))

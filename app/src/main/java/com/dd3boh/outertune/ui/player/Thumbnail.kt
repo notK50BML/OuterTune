@@ -10,6 +10,7 @@
 package com.dd3boh.outertune.ui.player
 
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
@@ -110,6 +111,10 @@ fun Thumbnail(
                     AsyncImage(
                         model = mediaMetadata?.getThumbnailModel(coverPx, coverPx),
                         contentDescription = null,
+                        // Cropped, not fitted: a song that is only a music video has a 16:9
+                        // thumbnail, which fitted into this square left a band of nothing above
+                        // and below it - see ItemThumbnail.
+                        contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .aspectRatio(1f)
                             // Scaled as a transform about its centre - the layout editor's "size" -
