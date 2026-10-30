@@ -456,10 +456,15 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
         // A snapshot: the live list belongs to the player, which can change it while this runs on
         // the database thread, and indexing into it mid-change wrote the wrong songs or threw.
         mq.queue.toList().forEachIndexed { i, song ->
-            // The song row only has to exist for the queue map's foreign key. A plain IGNORE insert
-            // does that; the full insert(mediaMetadata) re-ran the artist-credit and genre logic for
-            // every song of the queue on every save.
-            insert(song.toSongEntity())
+            // The song row has to exist for the queue map's foreign key, and a plain IGNORE insert is
+            // enough for a song already stored with its credits: the full insert(mediaMetadata) re-ran
+            // the artist-credit and genre logic for every song of the queue on every save. But a song
+            // this is the first to store needs its artists too - a bare row here was the song's only
+            // row, playback's insert then found it already there and added nothing, and the song
+            // played with no artists at all. Those, and any left that way before, get the full one.
+            if (insert(song.toSongEntity()) != -1L || songArtistIdsOnce(song.id).isEmpty()) {
+                insert(song)
+            }
             insert(
                 QueueSongMap(
                     queueId = mq.id,
