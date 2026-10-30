@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.heightIn
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -637,10 +638,13 @@ fun ArtistNames(
         return
     }
 
-    Row(modifier = modifier) {
+    // One line that scrolls as a whole when it is too long, as the phone's player does. Laid out at
+    // the width left over, the later names were squeezed down to nothing, so a song with many
+    // artists simply lost the last few.
+    Row(modifier = modifier.basicMarquee(iterations = 1, initialDelayMillis = 5000)) {
         credits.forEachIndexed { index, credit ->
             if (index > 0) {
-                Text(text = ", ", style = style, color = colour, maxLines = 1)
+                Text(text = ", ", style = style, color = colour, maxLines = 1, softWrap = false)
             }
             // Underlined under the pointer only, as a link on a web page is. Permanently underlined,
             // every credit on the player read as a hyperlink in a document rather than a title - the
@@ -654,7 +658,7 @@ fun ArtistNames(
                 ),
                 color = colour,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
+                softWrap = false,
                 modifier = Modifier
                     .hoverable(interaction)
                     .pointerHoverIcon(PointerIcon.Hand)
