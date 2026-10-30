@@ -51,14 +51,16 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao {
 
+    // Filtered by what was played before counting, not after. Grouping first kept one arbitrary
+    // songId per related song and then threw away every group whose pick of songId was not a recent
+    // play - so a song recommended by ten recent plays survived only by luck, and Quick picks came
+    // down to the two or three that did.
     @Transaction
     @Query("""
         SELECT song.*
-        FROM (SELECT *, COUNT(1) AS referredCount
+        FROM (SELECT relatedSongId, COUNT(1) AS referredCount
               FROM related_song_map
-              GROUP BY relatedSongId) map
-                 JOIN song ON song.id = map.relatedSongId
-        WHERE songId IN (SELECT songId
+              WHERE songId IN (SELECT songId
                          FROM (SELECT songId
                                FROM event
                                ORDER BY ROWID DESC
@@ -76,6 +78,8 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
                          FROM (SELECT id
                                FROM song
                                LIMIT 10))
+              GROUP BY relatedSongId) map
+                 JOIN song ON song.id = map.relatedSongId
         ORDER BY referredCount DESC
         LIMIT 100
     """)
