@@ -194,8 +194,9 @@ private fun PreviewDisc(button: PlayerButtonKind, dimmed: Boolean = false) {
     }
 }
 
+/** A line of guidance under a button editor's preview - shared with MiniPlayerButtonsDialog. */
 @Composable
-private fun Hint(text: String, error: Boolean = false) {
+internal fun Hint(text: String, error: Boolean = false) {
     Text(
         text,
         style = MaterialTheme.typography.bodySmall,

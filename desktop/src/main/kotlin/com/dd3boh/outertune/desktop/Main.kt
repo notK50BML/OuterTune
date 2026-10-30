@@ -20,6 +20,9 @@ import androidx.compose.foundation.TooltipArea
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.runtime.SideEffect
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
@@ -29,6 +32,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.AnimatedVisibility
 import kotlinx.coroutines.flow.first
 import androidx.compose.runtime.snapshotFlow
@@ -40,7 +45,6 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextField
 import androidx.compose.material3.surfaceColorAtElevation
@@ -69,7 +73,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -335,6 +338,7 @@ private fun runApplication() = application {
     }
 }
 
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
 @Composable
 internal fun App(
     player: DesktopPlayer,
@@ -876,6 +880,27 @@ internal fun App(
             player.togglePause()
         }
     }
+    // The mini player put away by scrolling down over it - the phone's swipe down, which stops the
+    // music and drops the bar while keeping the queue. Here the queue stays exactly as it was, the
+    // current song and where it had got to included, in the same state as a queue restored at
+    // launch: play from anywhere (the space bar, the media keys, the tray, Windows' media flyout)
+    // carries on from that point, and anything that starts playing brings the bar back.
+    var miniPlayerDismissed by remember { mutableStateOf(false) }
+    LaunchedEffect(playback) {
+        if (playback !is PlaybackState.Idle) miniPlayerDismissed = false
+    }
+    val dismissMiniPlayer: () -> Unit = {
+        // A restored queue that never started already knows where it will start; anything else is
+        // remembered from where it stopped. Not a live stream, which has no place to go back to.
+        if (player.state.value !is PlaybackState.Idle) {
+            restoredPositionMs = if (player.live.value) 0L else positionState.value
+        }
+        player.stop()
+        miniPlayerDismissed = true
+    }
+    // Every scroll in the window, for the mini player's gestures - see ScrollStreaks.
+    val scrollStreaks = remember { ScrollStreaks() }
+
     // The tray icon's menu, which sits outside this and reaches the queue through these.
     SideEffect {
         TrayControls.togglePlay = togglePlay
@@ -1009,14 +1034,16 @@ internal fun App(
             restoredPositionMs = position
         }
     }
-    // Saved as it changes, and the position every ten seconds while something plays.
+    // Saved as it changes, and the position every ten seconds while something plays. The shown
+    // position rather than the player's: with nothing loaded - a queue restored at launch, or one the
+    // mini player was put away on - the player's is not where the queue will carry on from.
     LaunchedEffect(queue, settings.persistentQueue) {
         if (!settings.persistentQueue) {
             settings.savedQueue = ""
             return@LaunchedEffect
         }
         while (true) {
-            settings.savedQueue = if (queue.songs.isEmpty()) "" else QueueSnapshot.encode(queue, player.positionMs.value)
+            settings.savedQueue = if (queue.songs.isEmpty()) "" else QueueSnapshot.encode(queue, shownPosition())
             delay(10_000)
         }
     }
@@ -1317,7 +1344,18 @@ internal fun App(
     // The full player is laid over the main view rather than replacing it, so everything underneath
     // keeps its place while it is open - the settings tab being read, scroll positions, the library
     // view - instead of starting over when it closes.
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            // Every scroll in the window is noted on its way in, before anything inside sees it, so
+            // the mini player can tell a scroll that began over it from one that began on the list
+            // above - and once it has acted on one, the rest of that scroll is swallowed here rather
+            // than landing on whatever it just opened or uncovered. See ScrollStreaks.
+            .onPointerEvent(PointerEventType.Scroll, PointerEventPass.Initial) { event ->
+                scrollStreaks.note(event.changes.first().uptimeMillis)
+                if (scrollStreaks.spent) event.changes.forEach { it.consume() }
+            },
+    ) {
     CompositionLocalProvider(
         LocalRowButtons provides RowButtons(RowButton.decode(settings.rowButtons), settings.rowMenu),
         // The library's credits and artists' current names, which every song shown goes through -
@@ -1333,7 +1371,7 @@ internal fun App(
             .focusable()
     ) {
         // Content and queue share the space above the player bar; the bar owns the bottom edge and
-        // is always there. The rail down the left is the phone's landscape layout - the same
+        // is there until put away by scrolling down over it. The rail down the left is the phone's landscape layout - the same
         // sections, in the same order, as a NavigationRail rather than a row of text buttons.
         // Choosing a section is leaving wherever you were: an open artist or album, a search, a
         // playlist. Otherwise the rail would light up a tab whose page was still hidden behind the
@@ -1730,21 +1768,45 @@ internal fun App(
                 onDismiss = { batch = null },
             )
         }
-        PlayerBar(
-            playback = playback,
-            live = player.live.collectAsState().value,
-            queue = queue,
-            positionMs = shownPosition,
-            durationMs = shownDuration,
-            liked = isLiked,
-            onTogglePause = togglePlay,
-            onNext = playerQueue::next,
-            onPrevious = playerQueue::previous,
-            onToggleLike = toggleLike,
-            onExpand = { showFullPlayer = true },
-            queueOpen = settings.sideQueueOpen,
-            onToggleQueue = { settings.sideQueueOpen = !settings.sideQueueOpen },
-        )
+        // Folds down out of the way when put away rather than vanishing, so the content above
+        // grows into the space instead of jumping into it.
+        AnimatedVisibility(
+            visible = !miniPlayerDismissed,
+            enter = expandVertically(expandFrom = Alignment.Top) + fadeIn(),
+            exit = shrinkVertically(shrinkTowards = Alignment.Top) + fadeOut(),
+        ) {
+            PlayerBar(
+                playback = playback,
+                live = player.live.collectAsState().value,
+                queue = queue,
+                positionMs = shownPosition,
+                durationMs = shownDuration,
+                liked = isLiked,
+                onTogglePause = togglePlay,
+                onNext = playerQueue::next,
+                onPrevious = playerQueue::previous,
+                onToggleLike = toggleLike,
+                onExpand = { showFullPlayer = true },
+                queueOpen = settings.sideQueueOpen,
+                onToggleQueue = { settings.sideQueueOpen = !settings.sideQueueOpen },
+                buttons = MiniPlayerButtonKind.decode(settings.miniPlayerButtons),
+                onToggleShuffle = playerQueue::toggleShuffle,
+                onCycleRepeat = playerQueue::cycleRepeat,
+                volume = player.volumeLevel.collectAsState().value,
+                onVolumeChange = {
+                    player.volume = it
+                    volumeBeforeMute = null
+                },
+                onLyrics = {
+                    showFullPlayer = true
+                    playerCommand = PlayerCommand.ShowLyrics
+                },
+                sleepRemainingMs = sleepRemaining,
+                onSleepTimer = { showSleepDialog = true },
+                onDismiss = dismissMiniPlayer,
+                scrollStreaks = scrollStreaks,
+            )
+        }
     }
     }
     if (showFullPlayer) {
@@ -2107,152 +2169,6 @@ private fun QueuePane(
     }
 }
 
-/**
- * The bar along the bottom. Always present, whether or not anything is playing.
- *
- * Clicking it opens the full player, so there is always a way through to it - which there was not
- * when this only appeared once a song had started.
- */
-@Composable
-private fun PlayerBar(
-    playback: PlaybackState,
-    /** A live stream: the progress line full, LIVE in place of the clock. */
-    live: Boolean = false,
-    queue: QueueState,
-    positionMs: () -> Long,
-    durationMs: Long,
-    liked: Boolean,
-    onTogglePause: () -> Unit,
-    onNext: () -> Unit,
-    onPrevious: () -> Unit,
-    onToggleLike: () -> Unit,
-    onExpand: () -> Unit,
-    queueOpen: Boolean = true,
-    onToggleQueue: () -> Unit = {},
-) {
-    val song = queue.current?.shown()
-    // A Box rather than a Column, so the progress line can sit on the bottom edge as the phone's
-    // does - underlining the bar against whatever it covers instead of drawing a rule between it
-    // and the content above, which is what stacking them in a Column amounted to.
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(MINI_PLAYER_HEIGHT)
-            // The rail's colour, so the two frame the content as one surface. The phone leaves this
-            // off because its mini player sits on the navigation bar and is already separated from
-            // the list; here it floats over scrolling content and would read as part of it.
-            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
-            .clickable(onClick = onExpand),
-    ) {
-        LinearProgressIndicator(
-            progress = { if (live) 1f else if (durationMs > 0) positionMs().toFloat() / durationMs else 0f },
-            drawStopIndicator = { },
-            modifier = Modifier.fillMaxWidth().height(2.dp).align(Alignment.BottomCenter),
-        )
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxSize().padding(horizontal = 6.dp),
-        ) {
-            // The phone's treatment: the artwork carries the state. A song that will not load says
-            // so on the thing that is not loading, rather than in the artist line - which is where
-            // it used to go, and which meant a failure read as the song simply being by somebody
-            // called "no internet connection".
-            Box(modifier = Modifier.padding(6.dp).size(ARTWORK_SIZE)) {
-                Artwork(song?.thumbnail, size = ARTWORK_SIZE, cornerRadius = THUMBNAIL_CORNER)
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = playback is PlaybackState.Loading || playback is PlaybackState.Failed,
-                    enter = fadeIn(),
-                    exit = fadeOut(),
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(ARTWORK_SIZE)
-                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(THUMBNAIL_CORNER)),
-                    ) {
-                        if (playback is PlaybackState.Loading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.align(Alignment.Center).size(24.dp),
-                                strokeWidth = 2.dp,
-                                color = Color.White,
-                            )
-                        } else {
-                            Icon(
-                                OuterTuneIcons.info,
-                                contentDescription = (playback as? PlaybackState.Failed)?.reason,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.align(Alignment.Center),
-                            )
-                        }
-                    }
-                }
-            }
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 6.dp)) {
-                Text(
-                    text = song?.title ?: "Nothing playing",
-                    color = if (song == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    // The reason still belongs in words somewhere, since the icon only says that
-                    // something went wrong and not what - but it no longer displaces the artist on
-                    // the ordinary loading case, which is most of what this line ever shows.
-                    text = when (playback) {
-                        is PlaybackState.Failed -> playback.reason
-                        else -> song?.artists?.joinToString { it.name }?.ifBlank { "Unknown artist" }
-                            ?: "Search for something to play"
-                    },
-                    color = if (playback is PlaybackState.Failed) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.secondary
-                    },
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            if (song != null) {
-                if (live) LiveLabel() else ClockText(positionMs, durationMs)
-                // Nothing to like for a file on this computer - see PlayerButtonKind.forLocalFiles.
-                if (!LocalMusic.isLocal(song.id)) {
-                    LikeButton(liked = liked, tint = MaterialTheme.colorScheme.onSurfaceVariant, onClick = onToggleLike)
-                }
-            }
-            IconButton(onClick = onPrevious, enabled = queue.hasPrevious) {
-                Icon(OuterTuneIcons.skipPrevious, "Previous")
-            }
-            // Filled, as the full player's is: it is the button being reached for.
-            // Pause only while something is actually playing or about to; idle or failed, the button
-            // offers what pressing it would do, which is play.
-            val active = playback is PlaybackState.Playing || playback is PlaybackState.Loading
-            FilledIconButton(onClick = onTogglePause, enabled = song != null) {
-                Icon(
-                    if (active) OuterTuneIcons.pause else OuterTuneIcons.play,
-                    contentDescription = if (active) "Pause" else "Play",
-                )
-            }
-            IconButton(onClick = onNext, enabled = queue.hasNext) {
-                Icon(OuterTuneIcons.skipNext, "Next")
-            }
-            IconButton(onClick = onToggleQueue, enabled = queue.songs.isNotEmpty()) {
-                Icon(
-                    OuterTuneIcons.queueMusic,
-                    contentDescription = if (queueOpen) "Hide queue" else "Show queue",
-                    tint = if (queueOpen) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-        }
-    }
-}
-
-/** The bar's height, and the artwork and rounding inside it - the phone's Dimensions.kt numbers. */
-private val MINI_PLAYER_HEIGHT = 64.dp
-private val ARTWORK_SIZE = 48.dp
-private val THUMBNAIL_CORNER = 6.dp
-
 @Composable
 internal fun SongRow(song: SongItem, playing: Boolean = false, actions: Boolean = true, onPlay: () -> Unit) = SongMenuArea(song) {
     @Suppress("NAME_SHADOWING") val song = song.shown()
@@ -2321,17 +2237,8 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, actions: 
     }
 }
 
-/** The bar's clock, on its own so a tick redraws these few characters and nothing else. */
-@Composable
-private fun ClockText(positionMs: () -> Long, durationMs: Long) {
-    Text(
-        "${formatClock(positionMs())} / ${formatClock(durationMs)}",
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-    )
-}
-
-private fun formatClock(ms: Long): String {
+/** A length or a position as minutes and seconds - the mini player's clock, and the details dialog. */
+internal fun formatClock(ms: Long): String {
     val seconds = ms / 1000
     return "%d:%02d".format(seconds / 60, seconds % 60)
 }

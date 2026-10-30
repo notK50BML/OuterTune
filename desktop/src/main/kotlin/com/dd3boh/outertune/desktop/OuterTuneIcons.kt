@@ -137,6 +137,25 @@ object OuterTuneIcons {
     /** A crescent: the sleep timer, which is what it means on every phone ever made. */
     val bedtime by icon(GeneratedIconPaths.bedtime)
 
+    /**
+     * Android: `Icons.AutoMirrored.Rounded.VolumeUp`, beside the phone player menu's volume slider.
+     * The quieter two are its siblings from the same set, so the mini player's volume button can say
+     * roughly how loud it is without opening anything.
+     */
+    val volumeUp by icon(GeneratedIconPaths.volumeUp)
+    val volumeDown by icon(GeneratedIconPaths.volumeDown)
+    val volumeOff by icon(GeneratedIconPaths.volumeOff)
+
+    /**
+     * Android's mini player: `Icons.Rounded.PlayArrow` and `Icons.Rounded.Pause`, softer-cornered
+     * than the full player's [play] and [pause] drawables. The mini player here uses the same pair.
+     */
+    val playRounded by icon(GeneratedIconPaths.playRounded)
+    val pauseRounded by icon(GeneratedIconPaths.pauseRounded)
+
+    /** Android's player queue button: `Icons.AutoMirrored.Rounded.QueueMusic`, round-ended lines. */
+    val queueMusicRounded by icon(GeneratedIconPaths.queueMusicRounded)
+
     // ---- Settings rows -----------------------------------------------------------------------
     //
     // Pulled from Google's published Material Symbols Outlined set (matching the family every icon
@@ -302,6 +321,12 @@ object OuterTuneIcons {
             "viewList" to viewList,
             "dragHandle" to dragHandle,
             "bedtime" to bedtime,
+            "volumeUp" to volumeUp,
+            "volumeDown" to volumeDown,
+            "volumeOff" to volumeOff,
+            "playRounded" to playRounded,
+            "pauseRounded" to pauseRounded,
+            "queueMusicRounded" to queueMusicRounded,
             "fastForward" to fastForward,
             "fastRewind" to fastRewind,
             "equalizer" to equalizer,

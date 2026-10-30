@@ -134,6 +134,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Text size", SettingsCategory.Appearance, "scale zoom font size bigger smaller"),
     SettingEntry("Open on", SettingsCategory.Appearance, "start startup default tab section home"),
     SettingEntry("Player buttons", SettingsCategory.Player, "like download sleep menu order arrange actions"),
+    SettingEntry("Mini player buttons", SettingsCategory.Player, "bar bottom clock like queue shuffle repeat volume lyrics sleep timer order arrange"),
     SettingEntry("Seek buttons", SettingsCategory.Player, "skip forward rewind five seconds"),
     SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
     SettingEntry("Show queue title", SettingsCategory.Player, "queue name handle"),
@@ -619,6 +620,25 @@ private fun PlayerSettings(settings: Settings) {
                     onDismiss = { arrangingLocal = false },
                 )
             }
+        }
+        var arrangingMini by remember { mutableStateOf(false) }
+        SettingRow(
+            title = "Mini player buttons",
+            subtitle = MiniPlayerButtonKind.decode(settings.miniPlayerButtons)
+                .joinToString(", ") { it.label }
+                .ifEmpty { "Only previous, play and next" },
+            icon = OuterTuneIcons.queueMusic,
+            onClick = { arrangingMini = true },
+        )
+        if (arrangingMini) {
+            MiniPlayerButtonsDialog(
+                current = MiniPlayerButtonKind.decode(settings.miniPlayerButtons),
+                onSave = {
+                    settings.miniPlayerButtons = MiniPlayerButtonKind.encode(it)
+                    arrangingMini = false
+                },
+                onDismiss = { arrangingMini = false },
+            )
         }
         SettingChoice(
             title = "Seek bar",

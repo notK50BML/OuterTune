@@ -79,6 +79,12 @@ class Settings(private val store: SettingsStore) {
     /** The local-file buttons, as [PlayerButtonKind] codes. Empty means PlayerButtonKind.LOCAL_DEFAULT. */
     var localPlayerButtons by string("player.localButtons", "")
 
+    /**
+     * What the mini player shows beside its playback controls, in order, as [MiniPlayerButtonKind]
+     * codes. Empty means MiniPlayerButtonKind.DEFAULT - the queue button alone.
+     */
+    var miniPlayerButtons by string("miniPlayer.buttons", "")
+
     /** Playlists shown as a grid of tiles rather than a list - the phone's view switch. */
     var playlistsGrid by bool("ui.playlistsGrid", false)
 

@@ -21,6 +21,10 @@ import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Bedtime
 import androidx.compose.material.icons.rounded.BlurOn
@@ -47,6 +51,8 @@ import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.NetworkCheck
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Search
@@ -109,6 +115,10 @@ class IconGenerator {
         "offlinePin" to Icons.Rounded.OfflinePin,
         "cloudDownload" to Icons.Rounded.CloudDownload, "gridView" to Icons.Rounded.GridView,
         "viewList" to Icons.AutoMirrored.Rounded.List,
+        "volumeUp" to Icons.AutoMirrored.Rounded.VolumeUp, "volumeDown" to Icons.AutoMirrored.Rounded.VolumeDown,
+        "volumeOff" to Icons.AutoMirrored.Rounded.VolumeOff,
+        "playRounded" to Icons.Rounded.PlayArrow, "pauseRounded" to Icons.Rounded.Pause,
+        "queueMusicRounded" to Icons.AutoMirrored.Rounded.QueueMusic,
     )
 
     @Test

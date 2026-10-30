@@ -264,9 +264,19 @@ class DesktopPlayer {
     @Volatile
     var inBackground: Boolean = false
 
-    /** Playback volume, 0..1 - the sleep timer's fade-out turns this down. */
-    @Volatile
-    var volume: Float = 1f
+    /**
+     * Playback volume, 0..1, as a flow as well as a plain value, so the mini player's volume button
+     * shows a change made anywhere - the keyboard's volume keys, or the sleep timer's fade-out turning
+     * it down - rather than only the ones made through it.
+     */
+    val volumeLevel = MutableStateFlow(1f)
+
+    /** Playback volume, 0..1 - the sleep timer's fade-out turns this down. See [volumeLevel]. */
+    var volume: Float
+        get() = volumeLevel.value
+        set(value) {
+            volumeLevel.value = value
+        }
 
     /** The current track's normalisation gain, linear. 1 when off or unknown. */
     @Volatile

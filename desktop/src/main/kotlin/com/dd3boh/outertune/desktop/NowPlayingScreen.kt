@@ -279,6 +279,7 @@ fun NowPlayingScreen(
         when (command ?: return@LaunchedEffect) {
             PlayerCommand.ToggleEqualiser -> equalizerOpen = !equalizerOpen
             PlayerCommand.ToggleLyrics -> showLyrics = !showLyrics
+            PlayerCommand.ShowLyrics -> showLyrics = true
             PlayerCommand.ToggleQueue -> queueOpen = !queueOpen
             // The innermost thing open closes first, and the player itself last.
             PlayerCommand.Back -> when {
