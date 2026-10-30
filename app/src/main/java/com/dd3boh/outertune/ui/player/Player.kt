@@ -1114,18 +1114,25 @@ fun ControlsContent(
                             val artists = mediaMetadata?.let { metadata ->
                                 shownArtists(metadata.id, metadata.artists.map { it.id to it.name })
                             }
-                            Row {
+                            // One line that scrolls as a whole when it is too long, rather than a
+                            // marquee per name: squeezed into what the names before them left, the
+                            // later names and the ", " between them wrapped a letter to a line, so
+                            // a song with many artists (K/DA's have seven) grew a tall column of
+                            // fragments that pushed the title up away from the seek bar.
+                            Row(
+                                modifier = Modifier.basicMarquee(
+                                    iterations = 1,
+                                    initialDelayMillis = 5000
+                                )
+                            ) {
                                 artists?.fastForEachIndexed { index, artist ->
                                     Text(
                                         text = artist.name,
                                         style = MaterialTheme.typography.titleMedium,
                                         color = onBackgroundColor,
                                         maxLines = 1,
+                                        softWrap = false,
                                         modifier = Modifier
-                                            .basicMarquee(
-                                                iterations = 1,
-                                                initialDelayMillis = 5000
-                                            )
                                             .clickable(enabled = artist.hasArtistPage) {
                                                 navController.navigate("artist/${artist.id}")
                                                 playerSheetState.collapseSoft()
@@ -1136,7 +1143,9 @@ fun ControlsContent(
                                         Text(
                                             text = ", ",
                                             style = MaterialTheme.typography.titleMedium,
-                                            color = onBackgroundColor
+                                            color = onBackgroundColor,
+                                            maxLines = 1,
+                                            softWrap = false,
                                         )
                                     }
                                 } ?: Text(
