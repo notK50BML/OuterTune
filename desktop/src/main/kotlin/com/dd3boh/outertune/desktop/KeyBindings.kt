@@ -241,11 +241,5 @@ fun Modifier.typingField(): Modifier = composed {
     onFocusChanged { KeyRouter.typing(field, it.isFocused) }
 }
 
-/**
- * Asks the full player to do something it owns - see NowPlayingScreen.
- *
- * ShowLyrics is the mini player's lyrics button, which opens the player on the lyrics. It is not
- * ToggleLyrics because a toggle depends on what was showing before, and "lyrics" should never mean
- * "the cover" however the player happened to be left.
- */
-enum class PlayerCommand { ToggleEqualiser, ToggleLyrics, ShowLyrics, ToggleQueue, Back }
+/** Asks the full player to do something it owns - see NowPlayingScreen. */
+enum class PlayerCommand { ToggleEqualiser, ToggleLyrics, ToggleQueue, Back }

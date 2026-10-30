@@ -1797,10 +1797,10 @@ internal fun App(
                     player.volume = it
                     volumeBeforeMute = null
                 },
-                onLyrics = {
-                    showFullPlayer = true
-                    playerCommand = PlayerCommand.ShowLyrics
-                },
+                onLyrics = { settings.miniPlayerLyrics = !settings.miniPlayerLyrics },
+                lyricsShown = settings.miniPlayerLyrics,
+                lyrics = lyrics,
+                lyricsLoading = lyricsLoading,
                 sleepRemainingMs = sleepRemaining,
                 onSleepTimer = { showSleepDialog = true },
                 onDismiss = dismissMiniPlayer,

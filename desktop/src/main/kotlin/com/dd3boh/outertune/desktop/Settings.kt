@@ -85,6 +85,9 @@ class Settings(private val store: SettingsStore) {
      */
     var miniPlayerButtons by string("miniPlayer.buttons", "")
 
+    /** The song's lyrics in the middle of the mini player - its Lyrics button turns them on and off. */
+    var miniPlayerLyrics by bool("miniPlayer.lyrics", false)
+
     /** Playlists shown as a grid of tiles rather than a list - the phone's view switch. */
     var playlistsGrid by bool("ui.playlistsGrid", false)
 

@@ -6,12 +6,17 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.ImageComposeScene
@@ -137,6 +142,62 @@ class MiniPlayerPreview {
                             sleepRemainingMs = case.sleepRemainingMs,
                         )
                     }
+                }
+            }
+        } finally {
+            ArtworkCache.substitute = null
+        }
+    }
+
+    /** The lyrics in the middle of the bar: at rest, partway through moving on a line, and untimed. */
+    @Test
+    fun lyrics() {
+        val out = System.getenv("OT_SNAPSHOTS")?.let(::File)
+        assumeTrue(out != null)
+        val covers = songs.indices.associate { "cover$it" to cover(it).toComposeImageBitmap() }
+        ArtworkCache.substitute = { url -> covers.entries.firstOrNull { url.contains(it.key) }?.value }
+        // Made-up words, timed a few seconds apart; 110s in is the fourth line.
+        val words = listOf(
+            "Streetlights hum a quiet tune",
+            "Underneath a paper moon",
+            "",
+            "Every window holds a light",
+            "Carry me into the night",
+            "Hold on, hold on, the morning's near",
+        )
+        val synced = Lyrics(words.mapIndexed { i, text -> LyricLine(98_000L + i * 4_000L, text) }, synced = true, source = "preview")
+        val untimed = Lyrics(words.filter { it.isNotBlank() }.map { LyricLine(null, it) }, synced = false, source = "preview")
+        val buttons = MiniPlayerButtonKind.decode("YQ")
+        try {
+            capture(out!!, "mini_player_lyrics", 1350, 640) {
+                Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    @Composable
+                    fun label(text: String) = Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    label("(g) Lyrics on - the line being sung in the middle, the ones either side smaller and dimmed")
+                    PlayerBar(
+                        playback = PlaybackState.Playing(songs[0].title), queue = queueAt(0), positionMs = { 111_000L },
+                        durationMs = 240_000L, liked = false, onTogglePause = {}, onNext = {}, onPrevious = {},
+                        onToggleLike = {}, onExpand = {}, buttons = buttons, lyricsShown = true, lyrics = synced,
+                    )
+                    label("(h) Moving on a line - three moments of the spring, the next line growing into the middle")
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        listOf(3.25f, 3.6f, 4.05f).forEach { focus ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(64.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)),
+                            ) {
+                                MiniLyricsLines(synced.lines, current = 4, focus = { focus }, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+                    label("(i) Lyrics that have no timings")
+                    PlayerBar(
+                        playback = PlaybackState.Playing(songs[1].title), queue = queueAt(1), positionMs = { 111_000L },
+                        durationMs = 240_000L, liked = false, onTogglePause = {}, onNext = {}, onPrevious = {},
+                        onToggleLike = {}, onExpand = {}, buttons = buttons, lyricsShown = true, lyrics = untimed,
+                    )
                 }
             }
         } finally {

@@ -115,13 +115,16 @@ class UpcomingTrackTest {
     }
 
     @Test
-    fun `repeat one leaves the buttons moving through the queue, as on the phone`() {
+    fun `repeat one leaves the buttons moving through the queue, wrapping at the ends`() {
         // Only a song ending on its own loops; next and previous still go somewhere.
         assertEquals(true, queue(playing = 2, repeat = RepeatMode.ONE).hasNext)
         assertEquals(true, queue(playing = 2, repeat = RepeatMode.ONE).hasPrevious)
-        // ...but nowhere past either end, which only repeat-all wraps.
-        assertEquals(false, queue(playing = 4, repeat = RepeatMode.ONE).hasNext)
-        assertEquals(false, queue(playing = 0, repeat = RepeatMode.ONE).hasPrevious)
+        // ...and past either end they wrap, as with repeat-all, so neither button disappears while
+        // looping. Only with repeat off is there nowhere to go.
+        assertEquals(true, queue(playing = 4, repeat = RepeatMode.ONE).hasNext)
+        assertEquals(true, queue(playing = 0, repeat = RepeatMode.ONE).hasPrevious)
         assertEquals(true, queue(playing = 4, repeat = RepeatMode.ALL).hasNext)
+        assertEquals(false, queue(playing = 4, repeat = RepeatMode.OFF).hasNext)
+        assertEquals(false, queue(playing = 0, repeat = RepeatMode.OFF).hasPrevious)
     }
 }

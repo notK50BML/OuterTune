@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -96,8 +97,12 @@ internal fun PlayerBar(
     onCycleRepeat: () -> Unit = {},
     volume: Float = 1f,
     onVolumeChange: (Float) -> Unit = {},
-    /** Opens the full player on the lyrics. */
+    /** Shows or hides the lyrics in the middle of the bar - see [MiniLyrics]. */
     onLyrics: () -> Unit = {},
+    /** Whether the bar is showing the song's lyrics in its middle. */
+    lyricsShown: Boolean = false,
+    lyrics: Lyrics? = null,
+    lyricsLoading: Boolean = false,
     /** Time left on the sleep timer, 0 for "end of this song", or null when none is set. */
     sleepRemainingMs: Long? = null,
     onSleepTimer: () -> Unit = {},
@@ -214,6 +219,28 @@ internal fun PlayerBar(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
+            // In the bar's spare middle, beside the song rather than over it, so the title is still
+            // there to read. Lyrics with no timings cannot follow along, so they say so instead.
+            if (lyricsShown && song != null) {
+                val middle = Modifier.weight(1.4f).fillMaxHeight().padding(horizontal = 6.dp)
+                if (lyrics != null && lyrics.synced && !lyrics.isEmpty) {
+                    MiniLyrics(lyrics, positionMs, middle)
+                } else {
+                    Box(middle, contentAlignment = Alignment.Center) {
+                        Text(
+                            text = when {
+                                lyricsLoading -> "Finding lyrics…"
+                                lyrics == null || lyrics.isEmpty -> "No lyrics for this song"
+                                else -> "These lyrics aren't timed"
+                            },
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
 
             // Whatever was chosen in Settings > Player > Mini player buttons, in that order.
             buttons.forEach { button ->
@@ -248,7 +275,11 @@ internal fun PlayerBar(
                     }
                     MiniPlayerButtonKind.VOLUME -> VolumeButton(volume = volume, onChange = onVolumeChange, tint = tint)
                     MiniPlayerButtonKind.LYRICS -> IconButton(onClick = onLyrics, enabled = song != null) {
-                        Icon(OuterTuneIcons.lyrics, contentDescription = "Lyrics", tint = tint)
+                        Icon(
+                            OuterTuneIcons.lyrics,
+                            contentDescription = if (lyricsShown) "Hide lyrics" else "Show lyrics",
+                            tint = if (lyricsShown) MaterialTheme.colorScheme.primary else tint,
+                        )
                     }
                     // A running timer shows the time left rather than the moon, as the full player's
                     // button does: "how long until the music stops" should not need a click.
