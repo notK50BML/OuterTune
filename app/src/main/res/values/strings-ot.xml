@@ -25,6 +25,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="library_filter">Library filter</string>
     <string name="library_empty">Your library contents will show up here</string>
     <string name="missing_media_permission_warning">Storage permissions is required for local media. Click to grant permission.</string>
+    <string name="similar_albums">Similar albums</string>
 
 <!-- Queue -->
     <string name="queues_title">Queues</string>
@@ -317,6 +318,13 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="show_home_chips_description">The Relax, Workout, Energise… filters above the Home feed. Chips with nothing to show are hidden either way</string>
     <string name="artist_credit_enrichment_title">Artist credit enrichment</string>
     <string name="artist_credit_enrichment_description">Splits combined credits, finds featured artists, keeps names current when a channel is renamed, and merges duplicates. Off leaves credits exactly as YouTube or the file gave them</string>
+    <string name="song_details">Song details</string>
+    <string name="song_details_title_only">Only the title</string>
+    <string name="song_details_order_hint">Top of the list comes first. Drag to reorder, tap to turn on or off.</string>
+    <string name="song_details_album_hint">Album shows only for songs that have one, and never on an album\'s own page.</string>
+    <string name="song_detail_artists">Artists</string>
+    <string name="song_detail_album">Album</string>
+    <string name="song_detail_length">Length</string>
     <string name="show_artist_videos_as_songs_description">When an artist page has no songs of its own, lay out its videos like a song list instead of a grid</string>
     <string name="lyrics_offset_title">Lyrics timing offset</string>
     <string name="lyrics_offset_song_title">Timing offset for this song</string>
@@ -533,6 +541,10 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_highlight_sweep">Sweep</string>
     <string name="lyrics_highlight_fade">Fade in</string>
     <string name="lyrics_show_type_title">Show lyrics type</string>
+    <string name="lyrics_singer_names_title">Singer names in lyrics</string>
+    <string name="lyrics_singer_names_colour">Colour code</string>
+    <string name="lyrics_singer_names_hide">Hide</string>
+    <string name="lyrics_singer_names_text">Show as text</string>
     <string name="lyrics_show_type_description">A small tag by the lyrics controls: word-synced, line-synced, estimated or unsynced</string>
     <string name="lyrics_type_word">Word-synced</string>
     <string name="lyrics_type_line">Line-synced</string>

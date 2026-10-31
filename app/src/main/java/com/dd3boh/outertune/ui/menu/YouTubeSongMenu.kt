@@ -2,6 +2,7 @@ package com.dd3boh.outertune.ui.menu
 
 import com.dd3boh.outertune.playback.removeDownloadKeepingCache
 import com.dd3boh.outertune.ui.component.items.shownArtistsText
+import com.dd3boh.outertune.ui.component.items.songSubtitle
 import android.content.Intent
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,6 +25,9 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import com.dd3boh.outertune.ui.dialog.DetailsDialog
+import androidx.compose.ui.platform.LocalClipboard
+import androidx.compose.material.icons.rounded.Info
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,8 +63,6 @@ import com.dd3boh.outertune.ui.component.items.ListItem
 import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.ArtistDialog
-import com.dd3boh.outertune.utils.joinByBullet
-import com.dd3boh.outertune.utils.makeTimeString
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.SongItem
 
@@ -96,13 +98,20 @@ fun YouTubeSongMenu(
     var showSelectArtistDialog by rememberSaveable {
         mutableStateOf(false)
     }
+    var showDetailsDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+    // Known once the song has been played; until then the details simply leave the audio rows out.
+    val currentFormat by database.format(song.id).collectAsState(initial = null)
+    val clipboardManager = LocalClipboard.current
 
 
     ListItem(
         title = song.title,
-        subtitle = joinByBullet(
-            shownArtistsText(song.id, song.artists.map { it.id to it.name }),
-            song.duration?.let { makeTimeString(it * 1000L) }
+        subtitle = songSubtitle(
+            artists = shownArtistsText(song.id, song.artists.map { it.id to it.name }),
+            album = song.album?.name,
+            durationSeconds = song.duration,
         ),
         thumbnailContent = {
             AsyncImage(
@@ -235,6 +244,14 @@ fun YouTubeSongMenu(
             context.startActivity(Intent.createChooser(intent, null))
             onDismiss()
         }
+        // As the library song menu has: a song from search, an album or a home shelf has views,
+        // likes and its upload date to show whether or not it has ever been played.
+        GridMenuItem(
+            icon = Icons.Rounded.Info,
+            title = R.string.details
+        ) {
+            showDetailsDialog = true
+        }
         // The same toggle the library song menu has. A song never played or liked has no row yet,
         // so it is inserted already in the library, as the like button above inserts it liked.
         val inLibrary = librarySong?.song?.inLibrary != null
@@ -296,6 +313,16 @@ fun YouTubeSongMenu(
             navController = navController,
             artists = artists,
             onDismiss = { showSelectArtistDialog = false }
+        )
+    }
+
+    if (showDetailsDialog) {
+        DetailsDialog(
+            mediaMetadata = song.toMediaMetadata(),
+            currentFormat = currentFormat,
+            currentPlayCount = librarySong?.playCount?.sumOf { it.count } ?: 0,
+            clipboardManager = clipboardManager,
+            setVisibility = { showDetailsDialog = it }
         )
     }
 }

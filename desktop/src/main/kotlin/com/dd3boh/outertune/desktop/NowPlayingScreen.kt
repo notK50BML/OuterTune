@@ -1952,7 +1952,7 @@ private fun QueueOverlay(
                                 overflow = TextOverflow.Ellipsis,
                             )
                             Text(
-                                text = song.artists.joinToString { it.name },
+                                text = song.detailsLine(),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = onColour.copy(alpha = 0.55f),
                                 maxLines = 1,

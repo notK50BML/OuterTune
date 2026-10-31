@@ -37,6 +37,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import com.dd3boh.betterlyrics.Singer
+import com.dd3boh.betterlyrics.SingerColours
+import com.dd3boh.betterlyrics.Singers
+import com.dd3boh.betterlyrics.Voice
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -61,6 +71,12 @@ import androidx.compose.ui.unit.sp
  *
  * Unsynced lyrics are shown as plain scrollable text with nothing highlighted. Inventing a highlight
  * for a file with no timings would be making up the one piece of information it does not have.
+ *
+ * A duet whose lines say who sings them is drawn a colour per singer - Settings > Lyrics > Singer
+ * names in lyrics, which [withSingerNames] has already applied by the time the lyrics get here: a
+ * line with a [LyricLine.voice] is coloured, one without is not. Brightness still marks the line
+ * being sung, in the singer's own colour, so the two never compete. The singers' names, when the
+ * lyrics give them, are a small key above the lines.
  */
 @Composable
 fun LyricsPane(
@@ -75,43 +91,101 @@ fun LyricsPane(
     highlight: LyricsHighlight = LyricsHighlight.Fade,
 ) {
     val textAlign = if (alignment == LyricsAlignment.Left) TextAlign.Start else TextAlign.Center
-    Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        when {
-            loading -> CircularProgressIndicator(color = onColour.copy(alpha = 0.6f))
-
-            lyrics == null || lyrics.isEmpty -> Text(
-                text = "No lyrics found",
-                style = MaterialTheme.typography.bodyLarge,
-                color = onColour.copy(alpha = 0.5f),
+    val colourOf = rememberVoiceColours(onColour)
+    Column(modifier = modifier.fillMaxSize()) {
+        // Above the lines rather than over them, so it is never drawn across a lyric.
+        if (!loading && lyrics != null) {
+            SingerLegend(
+                singers = lyrics.singers,
+                colourOf = colourOf,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 24.dp, end = 24.dp),
             )
+        }
+        Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+            when {
+                loading -> CircularProgressIndicator(color = onColour.copy(alpha = 0.6f))
 
-            !lyrics.synced -> Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
-            ) {
-                lyrics.lines.forEach { line ->
-                    Text(
-                        text = line.text,
-                        style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
-                        color = onColour.copy(alpha = 0.8f),
-                        textAlign = textAlign,
-                        modifier = Modifier.padding(vertical = 6.dp),
-                    )
+                lyrics == null || lyrics.isEmpty -> Text(
+                    text = "No lyrics found",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = onColour.copy(alpha = 0.5f),
+                )
+
+                !lyrics.synced -> Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
+                ) {
+                    lyrics.lines.forEach { line ->
+                        Text(
+                            text = line.text,
+                            style = MaterialTheme.typography.bodyLarge.copy(fontSize = fontSize, lineHeight = fontSize * 1.3f),
+                            color = colourOf(line.voice).copy(alpha = 0.8f),
+                            textAlign = textAlign,
+                            modifier = Modifier.padding(vertical = 6.dp),
+                        )
+                    }
                 }
-            }
 
-            else -> SyncedLyrics(
-                lyrics = lyrics,
-                // A read, not a value: passed as a number it recomposed every visible line every
-                // frame. Only what reads it now updates - the current-line lookup, and the one line
-                // being sung.
-                positionMs = rememberSmoothedPosition(positionMs).let { state -> { state.value } },
-                onSeek = onSeek,
-                onColour = onColour,
-                fontSize = fontSize,
-                textAlign = textAlign,
-                highlight = highlight,
-            )
+                else -> SyncedLyrics(
+                    lyrics = lyrics,
+                    // A read, not a value: passed as a number it recomposed every visible line every
+                    // frame. Only what reads it now updates - the current-line lookup, and the one line
+                    // being sung.
+                    positionMs = rememberSmoothedPosition(positionMs).let { state -> { state.value } },
+                    onSeek = onSeek,
+                    onColour = onColour,
+                    fontSize = fontSize,
+                    textAlign = textAlign,
+                    highlight = highlight,
+                    colourOf = colourOf,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * The colour each voice's lines are drawn in over [onColour], the colour ordinary lyrics use there -
+ * worked out by `:betterlyrics`' [SingerColours] from the theme's primary and tertiary, the same way
+ * the phone does. No voice is [onColour] itself.
+ */
+@Composable
+internal fun rememberVoiceColours(onColour: Color): (Voice?) -> Color {
+    val scheme = MaterialTheme.colorScheme
+    return remember(onColour, scheme.primary, scheme.tertiary) {
+        val colours = Voice.entries.associateWith { voice ->
+            Color(SingerColours.forVoice(voice, scheme.primary.toArgb(), scheme.tertiary.toArgb(), onColour.toArgb()))
+        }
+        val colourOf: (Voice?) -> Color = { voice -> voice?.let(colours::getValue) ?: onColour }
+        colourOf
+    }
+}
+
+/**
+ * Who is who in a coloured duet: a dot of each voice's colour and the name of whoever sings in it,
+ * "Jung Kook · Latto", once at the top. Nothing at all when the lyrics name nobody.
+ */
+@Composable
+private fun SingerLegend(singers: List<Singer>, colourOf: (Voice?) -> Color, modifier: Modifier = Modifier) {
+    val entries = remember(singers) { Singers.legend(singers) }
+    if (entries.isEmpty()) return
+    Row(
+        modifier = modifier,
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        entries.forEachIndexed { index, (voice, name) ->
+            if (index > 0) {
+                Text(
+                    text = "·",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = colourOf(null).copy(alpha = 0.5f),
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+            }
+            Box(Modifier.size(8.dp).background(colourOf(voice), CircleShape))
+            Spacer(Modifier.width(6.dp))
+            Text(text = name, style = MaterialTheme.typography.labelMedium, color = colourOf(voice), maxLines = 1)
         }
     }
 }
@@ -125,6 +199,7 @@ private fun SyncedLyrics(
     fontSize: TextUnit,
     textAlign: TextAlign,
     highlight: LyricsHighlight,
+    colourOf: (Voice?) -> Color,
 ) {
     val listState = rememberLazyListState()
     // Changes only when the line does, so the list recomposes once a line, not once a frame.
@@ -186,18 +261,21 @@ private fun SyncedLyrics(
                     .clickable { line.timeMs?.let(onSeek) }
                     .padding(horizontal = 24.dp, vertical = 6.dp)
 
+                // The singer's colour when the lines are coloured by singer; the usual one otherwise.
+                // Everything below dims and lights this the same way it did the usual colour.
+                val lineColour = colourOf(line.voice)
                 androidx.compose.foundation.layout.Column(modifier = modifier) {
                     if (active && line.words.isNotEmpty() && highlight == LyricsHighlight.Sweep) {
                         SweepLyricLine(
                             line = line,
                             style = lineStyle.copy(fontWeight = FontWeight.Bold, textAlign = textAlign),
-                            sungColor = onColour,
-                            unsungColor = onColour.copy(alpha = UNSUNG_ALPHA),
+                            sungColor = lineColour,
+                            unsungColor = lineColour.copy(alpha = UNSUNG_ALPHA),
                             positionMs = positionMs,
                         )
                     } else if (active && line.words.isNotEmpty()) {
                         Text(
-                            text = sungText(line, positionMs(), onColour),
+                            text = sungText(line, positionMs(), lineColour),
                             style = lineStyle,
                             fontWeight = FontWeight.Bold,
                             textAlign = textAlign,
@@ -208,17 +286,18 @@ private fun SyncedLyrics(
                             text = line.text,
                             style = lineStyle,
                             fontWeight = if (active) FontWeight.Bold else FontWeight.Normal,
-                            color = onColour.copy(alpha = alpha),
+                            color = lineColour.copy(alpha = alpha),
                             textAlign = textAlign,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
-                    // The same moment's translation, smaller and quieter, lit with its line.
+                    // The same moment's translation, smaller and quieter, lit with its line - and its
+                    // background vocals, in the colour of the singer they belong to.
                     line.translation?.let {
                         Text(
                             text = it,
                             style = translationStyle,
-                            color = onColour.copy(alpha = alpha * 0.8f),
+                            color = lineColour.copy(alpha = alpha * 0.8f),
                             textAlign = textAlign,
                             modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
                         )

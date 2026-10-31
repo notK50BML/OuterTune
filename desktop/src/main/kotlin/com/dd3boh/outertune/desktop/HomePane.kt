@@ -324,7 +324,7 @@ private fun SongGrid(
                             overflow = TextOverflow.Ellipsis,
                         )
                         Text(
-                            song.shownArtists(LocalCredits.current),
+                            song.detailsLine(),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -391,7 +391,7 @@ private fun StoredCard(song: StoredSong, playing: Boolean, onClick: () -> Unit) 
             overflow = TextOverflow.Ellipsis,
         )
         Text(
-            text = song.shownArtists(LocalCredits.current),
+            text = song.detailsLine(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1,

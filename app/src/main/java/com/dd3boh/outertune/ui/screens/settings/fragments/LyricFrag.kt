@@ -14,6 +14,9 @@ import androidx.compose.material.icons.rounded.Info
 import com.dd3boh.outertune.constants.LyricShowTypeKey
 import com.dd3boh.outertune.constants.LyricHighlightStyle
 import com.dd3boh.outertune.constants.LyricHighlightStyleKey
+import com.dd3boh.outertune.constants.LyricSingerNamesKey
+import com.dd3boh.betterlyrics.SingerNames
+import androidx.compose.material.icons.rounded.RecordVoiceOver
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -102,6 +105,7 @@ fun ColumnScope.LyricFormatFrag() {
         defaultValue = LyricsPosition.CENTER
     )
     val (lyricFontSize, onLyricFontSizeChange) = rememberPreference(LyricFontSizeKey, defaultValue = 20)
+    val (singerNames, onSingerNamesChange) = rememberEnumPreference(LyricSingerNamesKey, SingerNames.COLOUR)
 
     var showFontSizeDialog by remember {
         mutableStateOf(false)
@@ -125,6 +129,20 @@ fun ColumnScope.LyricFormatFrag() {
         description = "$lyricFontSize sp",
         icon = { Icon(Icons.Rounded.TextFields, null) },
         onClick = { showFontSizeDialog = true }
+    )
+    // Who sings each line of a duet, when the lyrics say: in colour, not at all, or as "Name: ".
+    EnumListPreference(
+        title = { Text(stringResource(R.string.lyrics_singer_names_title)) },
+        icon = { Icon(Icons.Rounded.RecordVoiceOver, null) },
+        selectedValue = singerNames,
+        onValueSelected = onSingerNamesChange,
+        valueText = {
+            when (it) {
+                SingerNames.COLOUR -> stringResource(R.string.lyrics_singer_names_colour)
+                SingerNames.HIDE -> stringResource(R.string.lyrics_singer_names_hide)
+                SingerNames.TEXT -> stringResource(R.string.lyrics_singer_names_text)
+            }
+        }
     )
 
 

@@ -658,7 +658,9 @@ internal fun App(
             var done = 0
             var failed = 0
             for (song in todo) {
-                withContext(Dispatchers.IO) { library.database.upsertSong(song.toStored(), (song.duration ?: 0) * 1000L) }
+                withContext(Dispatchers.IO) {
+                    library.database.upsertSong(song.toStored(), (song.duration ?: 0) * 1000L, song.album?.name.orEmpty())
+                }
                 val result = player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
                 if (result.isSuccess) done++ else failed++
                 batch = BatchDownload(title, todo.size, done + failed, failed)
@@ -766,8 +768,11 @@ internal fun App(
         lyricsOffset = id to withContext(Dispatchers.IO) { lyricsRepository.offset(id) }
     }
     val lyricsOffsetMs = lyricsOffset?.takeIf { it.first == nowPlaying?.id }?.second ?: 0
-    val lyrics = remember(fetchedLyrics, lyricsOffsetMs, settings.estimateWordTimings) {
+    val lyrics = remember(fetchedLyrics, lyricsOffsetMs, settings.estimateWordTimings, settings.singerNames) {
         fetchedLyrics?.shiftedBy(lyricsOffsetMs.toLong())
+            // Before the estimate, so a singer's name taken off the front of a line is not given
+            // words of its own.
+            ?.withSingerNames(settings.singerNames)
             ?.let { if (settings.estimateWordTimings) it.withEstimatedWords() else it }
     }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
@@ -1038,7 +1043,7 @@ internal fun App(
             }
         // A song heard from a station is the station's pick, not the listener's - not counted.
         if (playerQueue.state.value.current?.id == playedId && settings.keepHistory && !fromStation) {
-            library.recordPlay(song.toStored(), (song.duration ?: 0) * 1000L)
+            library.recordPlay(song.toStored(), (song.duration ?: 0) * 1000L, song.album?.name.orEmpty())
             // And on the account, if that was asked for - not for a file on this computer, which
             // YouTube has never heard of. On the window's scope rather than this effect's: the
             // effect ends with the song, and a song skipped while the request was out took its
@@ -1425,6 +1430,9 @@ internal fun App(
         // The library's credits and artists' current names, which every song shown goes through -
         // see SongItem.shown.
         LocalCredits provides library.credits.collectAsState().value,
+        // What goes under every song's title, and the library's albums and lengths to fill it with.
+        LocalSongDetails provides SongDetail.decode(settings.songDetails),
+        LocalSongFacts provides library.songFacts.collectAsState().value,
         LocalSongActions provides songActions,
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
     ) {
@@ -1559,6 +1567,7 @@ internal fun App(
                         },
                         onOpenArtist = openArtistPage,
                         onAddToPlaylist = { addingToPlaylist = it },
+                        onOpenAlbum = openAlbumPage,
                     )
                 } else if (artist != null) {
                     ArtistPane(
@@ -2235,7 +2244,14 @@ private fun QueuePane(
 }
 
 @Composable
-internal fun SongRow(song: SongItem, playing: Boolean = false, actions: Boolean = true, onPlay: () -> Unit) = SongMenuArea(song) {
+internal fun SongRow(
+    song: SongItem,
+    playing: Boolean = false,
+    actions: Boolean = true,
+    /** False on the album's own page, where the album under every title would only repeat it. */
+    showAlbum: Boolean = true,
+    onPlay: () -> Unit,
+) = SongMenuArea(song) {
     @Suppress("NAME_SHADOWING") val song = song.shown()
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -2256,13 +2272,8 @@ internal fun SongRow(song: SongItem, playing: Boolean = false, actions: Boolean 
                 overflow = TextOverflow.Ellipsis,
                 color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = song.artists.joinToString { it.name }.ifBlank { "Unknown artist" },
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            // Artists, album and length as Song details has them - see songDetailsLine.
+            SongDetailsText(song.detailsLine(showAlbum))
         }
         if (actions) RowActions(song)
     }
@@ -2290,16 +2301,23 @@ internal fun StoredSongRow(song: StoredSong, playing: Boolean = false, actions: 
                 overflow = TextOverflow.Ellipsis,
                 color = if (playing) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
             )
-            Text(
-                text = song.shownArtists(LocalCredits.current).ifBlank { "Unknown artist" },
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            SongDetailsText(song.detailsLine())
         }
         if (actions) RowActions(song.toItem())
     }
+}
+
+/** The line under a song row's title - none at all when Song details has everything off. */
+@Composable
+private fun SongDetailsText(line: String) {
+    if (line.isEmpty()) return
+    Text(
+        text = line,
+        style = MaterialTheme.typography.bodySmall,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
 }
 
 /** A length or a position as minutes and seconds - the mini player's clock, and the details dialog. */

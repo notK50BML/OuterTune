@@ -367,7 +367,7 @@ fun SongMenuPanel(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(song.title, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        song.shown().artists.joinToString { it.name }.ifBlank { "Unknown artist" },
+                        song.shown().detailsLine(),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,

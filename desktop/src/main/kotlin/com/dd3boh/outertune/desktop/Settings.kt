@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.desktop
 
 import androidx.compose.runtime.MutableState
+import com.dd3boh.betterlyrics.SingerNames
 import androidx.compose.runtime.mutableStateOf
 import kotlin.properties.ReadWriteProperty
 import kotlin.reflect.KProperty
@@ -121,6 +122,12 @@ class Settings(private val store: SettingsStore) {
     /** Quick buttons beside the ⋮ on song rows, and whether the ⋮ shows - see RowButtons. */
     var rowButtons by string("ui.rowButtons", "")
     var rowMenu by bool("ui.rowMenu", true)
+
+    /**
+     * What shows under a song's title on its row, in order, as [SongDetail] codes - the phone's
+     * Song details. Empty means SongDetail.DEFAULT: artists, album and length.
+     */
+    var songDetails by string("ui.songDetails", "")
 
     /** An imported Windows player layout (see PlayerLayout), as its file's text. Empty: built-in. */
     var playerLayout by string("player.layout", "")
@@ -353,6 +360,12 @@ class Settings(private val store: SettingsStore) {
 
     /** The small tag beside the lyrics controls saying what timing the lyrics carry. */
     var lyricsShowKind by bool("lyrics.showKind", true)
+
+    /**
+     * How lyrics show who sings each line, when they say: each singer in a colour of their own (the
+     * default), no names at all, or the "Name: lyrics" the provider wrote. See [withSingerNames].
+     */
+    var singerNames by enum("lyrics.singerNames", SingerNames.COLOUR, SingerNames.entries)
 
     // ---- Equaliser -------------------------------------------------------------------------
 

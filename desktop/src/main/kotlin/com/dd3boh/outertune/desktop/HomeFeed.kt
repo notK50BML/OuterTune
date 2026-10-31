@@ -215,9 +215,17 @@ val YTItem.playlistIdOrNull: String?
 val YTItem.isStation: Boolean
     get() = this is SongItem && endpoint?.playlistId != null
 
-/** [subtitle], with a song's artists as they are shown everywhere - see SongItem.shown. */
+/**
+ * [subtitle], with a song's artists as they are shown everywhere - see SongItem.shown - and a song's
+ * line as Song details has it. Not a station's: its card starts a radio, not that one song, and its
+ * length or album would describe something the card does not play.
+ */
 @androidx.compose.runtime.Composable
-fun YTItem.shownSubtitle(): String = if (this is SongItem) shown().subtitle else subtitle
+fun YTItem.shownSubtitle(): String = when {
+    this !is SongItem -> subtitle
+    isStation -> shown().subtitle
+    else -> shown().detailsLine()
+}
 
 /** A line under the title: who it is by, or what it is. */
 val YTItem.subtitle: String

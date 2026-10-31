@@ -174,8 +174,8 @@ class LibraryStore(
         refreshAll()
     }
 
-    fun recordPlay(song: StoredSong, durationMs: Long = 0) {
-        db.recordPlay(song, System.currentTimeMillis(), durationMs)
+    fun recordPlay(song: StoredSong, durationMs: Long = 0, album: String = "") {
+        db.recordPlay(song, System.currentTimeMillis(), durationMs, album)
         recentlyPlayed.value = db.recentlyPlayed(MAX_RECENT)
     }
 
@@ -296,6 +296,12 @@ class LibraryStore(
      * every screen without each one asking.
      */
     val credits = MutableStateFlow(CreditIndex.EMPTY)
+
+    /**
+     * Every song's album and length, for the line under its title - see Database.songFacts. Rebuilt
+     * with [credits]: whatever records a song writes its credits too, so the one signal covers both.
+     */
+    val songFacts = MutableStateFlow<Map<String, SongFacts>>(emptyMap())
     private val creditScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val creditsDirty = MutableSharedFlow<Unit>(extraBufferCapacity = 1, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
@@ -303,8 +309,12 @@ class LibraryStore(
         db.onCreditsChanged = { creditsDirty.tryEmit(Unit) }
         creditScope.launch {
             credits.value = db.creditIndex()
+            songFacts.value = db.songFacts()
             @OptIn(FlowPreview::class)
-            creditsDirty.debounce(400).collect { credits.value = db.creditIndex() }
+            creditsDirty.debounce(400).collect {
+                credits.value = db.creditIndex()
+                songFacts.value = db.songFacts()
+            }
         }
     }
 

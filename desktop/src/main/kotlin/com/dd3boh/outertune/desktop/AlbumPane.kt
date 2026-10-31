@@ -8,6 +8,7 @@ package com.dd3boh.outertune.desktop
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,6 +18,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -33,6 +37,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.models.AlbumItem
 import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.pages.AlbumPage
 import kotlinx.coroutines.Dispatchers
@@ -70,7 +75,10 @@ suspend fun loadAlbum(browseId: String): AlbumState = withContext(Dispatchers.IO
  *
  * Track numbers rather than thumbnails in the list. Every song on an album shares the album's cover,
  * so a column of forty identical thumbnails carries no information and takes the width that the
- * titles want.
+ * titles want. Nor the album under each title, whatever Song details says: it is the page's own.
+ *
+ * Below the tracks, as on the phone: the album's other versions, then albums like it - each a row of
+ * cards, and each only when YouTube has any (see YouTube.albumShelves).
  */
 @Composable
 fun AlbumPane(
@@ -84,6 +92,7 @@ fun AlbumPane(
     downloadingTitle: String? = null,
     onOpenArtist: (StoredArtist) -> Unit,
     onAddToPlaylist: (StoredSong) -> Unit,
+    onOpenAlbum: (String) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
@@ -140,14 +149,32 @@ fun AlbumPane(
                                 modifier = Modifier.width(44.dp),
                             )
                             Box(modifier = Modifier.weight(1f)) {
-                                SongRow(song, playing = song.id == currentId) {
+                                SongRow(song, playing = song.id == currentId, showAlbum = false) {
                                     onPlay(page.songs, index)
                                 }
                             }
                         }
                     }
+                    albumShelf("Other versions", page.otherVersions, onOpenAlbum)
+                    albumShelf("Similar albums", page.similarAlbums, onOpenAlbum)
                     item { Spacer(modifier = Modifier.height(24.dp)) }
                 }
+            }
+        }
+    }
+}
+
+/** A titled row of album cards under the tracks - nothing at all when there are none. */
+private fun LazyListScope.albumShelf(title: String, albums: List<AlbumItem>, onOpen: (String) -> Unit) {
+    if (albums.isEmpty()) return
+    item(key = "head-$title") { SectionHeader(title = title, onMore = null) }
+    item(key = "row-$title") {
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+            contentPadding = PaddingValues(horizontal = 28.dp),
+        ) {
+            items(albums, key = { it.browseId }) { album ->
+                Card(item = album, playing = false) { onOpen(album.browseId) }
             }
         }
     }

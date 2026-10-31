@@ -142,6 +142,7 @@ fun AlbumScreen(
 
     val albumWithSongs by viewModel.albumWithSongs.collectAsState()
     val otherVersions by viewModel.otherVersions.collectAsState()
+    val similarAlbums by viewModel.similarAlbums.collectAsState()
     val state = rememberLazyListState()
     val isLoading by viewModel.isLoading.collectAsState()
 
@@ -421,6 +422,7 @@ fun AlbumScreen(
                 SongListItem(
                     song = song,
                     albumIndex = index + 1,
+                    showAlbum = false,
 
                     navController = navController,
                     snackbarHostState = snackbarHostState,
@@ -456,16 +458,21 @@ fun AlbumScreen(
                 )
             }
 
-            if (otherVersions.isNotEmpty()) {
+            // The album's other versions, then albums like it - each only when YouTube has any.
+            listOf(
+                R.string.other_versions to otherVersions,
+                R.string.similar_albums to similarAlbums,
+            ).forEach { (shelfTitle, albums) ->
+                if (albums.isEmpty()) return@forEach
                 item {
                     NavigationTitle(
-                        title = stringResource(R.string.other_versions),
+                        title = stringResource(shelfTitle),
                     )
                 }
                 item {
                     LazyRow {
                         items(
-                            items = otherVersions,
+                            items = albums,
                             key = { it.id },
                         ) { item ->
                             YouTubeGridItem(

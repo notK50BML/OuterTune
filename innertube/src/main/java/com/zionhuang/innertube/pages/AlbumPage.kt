@@ -16,6 +16,8 @@ data class AlbumPage(
     val album: AlbumItem,
     val songs: List<SongItem>,
     val otherVersions: List<AlbumItem>,
+    /** Albums YouTube Music recommends alongside this one - see YouTube.albumShelves. */
+    val similarAlbums: List<AlbumItem> = emptyList(),
 ) {
     companion object {
         fun getPlaylistId(response: BrowseResponse): String? {

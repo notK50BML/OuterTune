@@ -130,8 +130,15 @@ object BackupImport {
                 generateSequence { if (rs.next()) rs.getString("name") else null }.any { it == "duration" }
             }
         }
+        // And the album's name, which the phone keeps on the song as well as in its own table.
+        val hasAlbum = connection.createStatement().use { st ->
+            st.executeQuery("PRAGMA table_info(song)").use { rs ->
+                generateSequence { if (rs.next()) rs.getString("name") else null }.any { it == "albumName" }
+            }
+        }
         connection.prepareStatement(
-            "SELECT id, title, thumbnailUrl, liked, isLocal${if (hasDuration) ", duration" else ""} FROM song"
+            "SELECT id, title, thumbnailUrl, liked, isLocal${if (hasDuration) ", duration" else ""}" +
+                "${if (hasAlbum) ", albumName" else ""} FROM song"
         ).use { statement ->
             statement.executeQuery().use { rows ->
                 while (rows.next()) {
@@ -153,6 +160,7 @@ object BackupImport {
                     library.database.upsertSong(
                         song,
                         durationMs = if (hasDuration) rows.getLong("duration").coerceAtLeast(0) * 1000L else 0L,
+                        album = if (hasAlbum) rows.getString("albumName").orEmpty() else "",
                     )
                     imported[id] = song
                     songs++

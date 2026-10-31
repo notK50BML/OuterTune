@@ -76,8 +76,7 @@ import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.ArtistDialog
 import com.dd3boh.outertune.ui.dialog.DetailsDialog
 import com.dd3boh.outertune.ui.dialog.TextFieldDialog
-import com.dd3boh.outertune.utils.joinByBullet
-import com.dd3boh.outertune.utils.makeTimeString
+import com.dd3boh.outertune.ui.component.items.songSubtitle
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.syncCoroutine
 import com.zionhuang.innertube.YouTube
@@ -150,9 +149,10 @@ fun SongMenu(
 
     ListItem(
         title = song.song.title,
-        subtitle = joinByBullet(
-            song.artists.joinToString { it.name },
-            makeTimeString(song.song.duration * 1000L)
+        subtitle = songSubtitle(
+            artists = song.artists.joinToString { it.name },
+            album = song.album?.title ?: song.song.albumName,
+            durationSeconds = song.song.duration,
         ),
         thumbnailContent = {
             val px = (ListThumbnailSize.value * density.density).roundToInt()

@@ -19,18 +19,39 @@ object QrcConverter {
     // "Composed by：…" - timed as if they were sung. Shown, they read as the song's first lines.
     private val CREDIT = Regex("""(?i)^\s*(lyrics|composed|composer|produced|producer|written|writer|arranged|arranger|mixed|mastered|music|words|vocals?)\b.*[:：]""")
 
-    /** The TTML for [qrc], or null when it holds no timed lines. */
+    /** One timed line of QRC: its start and length, and its words with theirs. */
+    private class QrcLine(val start: Long, val length: Long, val words: List<Triple<String, Long, Long>>) {
+        val text = words.joinToString("") { it.first }.trim()
+    }
+
+    /**
+     * The TTML for [qrc], or null when it holds no timed lines.
+     *
+     * The text is passed through as QQ wrote it, singers' names included ("男：...", "Latto: ...") -
+     * the shared TTML reader works out who sings what from those (see `Singers.agentsFromNames`),
+     * and each app decides whether to show them.
+     */
     fun toTtml(qrc: String, title: String? = null): String? {
         val content = CONTENT.find(qrc)?.groupValues?.get(1)?.let(::unescape) ?: qrc
+        val timed = content.lines().mapNotNull { raw ->
+            val match = LINE.find(raw.trim()) ?: return@mapNotNull null
+            QrcLine(
+                start = match.groupValues[1].toLong(),
+                length = match.groupValues[2].toLong(),
+                words = WORD.findAll(match.groupValues[3]).map { Triple(it.groupValues[1], it.groupValues[2].toLong(), it.groupValues[3].toLong()) }.toList(),
+            )
+        }
+        // The song's singers, if its lines are labelled with them - read before the credits are
+        // taken out, so that a name with a full-width colon after it is not mistaken for one.
+        val singers = Singers.namePrefixes(timed.map { it.text })
         val paragraphs = StringBuilder()
         var lines = 0
-        for (raw in content.lines()) {
-            val match = LINE.find(raw.trim()) ?: continue
-            val start = match.groupValues[1].toLong()
-            val length = match.groupValues[2].toLong()
-            val words = WORD.findAll(match.groupValues[3]).map { Triple(it.groupValues[1], it.groupValues[2].toLong(), it.groupValues[3].toLong()) }.toList()
-            val text = words.joinToString("") { it.first }.trim()
-            if (text.isEmpty() || isCredit(text, title)) continue
+        for (line in timed) {
+            val start = line.start
+            val length = line.length
+            val words = line.words
+            val text = line.text
+            if (text.isEmpty() || (Singers.leadingName(text) !in singers && isCredit(text, title))) continue
             paragraphs.append("<p begin=\"").append(seconds(start)).append("\" end=\"").append(seconds(start + length)).append("\">")
             for ((word, wordStart, wordLength) in words) {
                 if (word.isBlank()) {

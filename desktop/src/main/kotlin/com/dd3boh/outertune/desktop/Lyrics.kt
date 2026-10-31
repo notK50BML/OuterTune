@@ -9,7 +9,11 @@ package com.dd3boh.outertune.desktop
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.ensureActive
 import com.dd3boh.betterlyrics.BetterLyrics
+import com.dd3boh.betterlyrics.Singer
+import com.dd3boh.betterlyrics.SingerNames
+import com.dd3boh.betterlyrics.Singers
 import com.dd3boh.betterlyrics.TTMLParser
+import com.dd3boh.betterlyrics.Voice
 import com.dd3boh.lrclib.LrcLib
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.WatchEndpoint
@@ -58,6 +62,12 @@ data class LyricLine(
      * SubRip cue's second line - see LrcParser.
      */
     val translation: String? = null,
+    /**
+     * Who sings the line, for drawing it in that singer's colour: from a TTML document's agents, or
+     * an LRC line's `v1:`/`v2:`/`v3:` mark. Null when nothing says - which is every line from most
+     * providers - and cleared by [withSingerNames] unless the lines are to be coloured.
+     */
+    val voice: Voice? = null,
 )
 
 /**
@@ -67,7 +77,13 @@ data class LyricLine(
  * ones are a block of text. Conflating them would mean either a static view for lyrics that could
  * have followed the music, or a highlight jumping arbitrarily through lyrics that have no timings.
  */
-data class Lyrics(val lines: List<LyricLine>, val synced: Boolean, val source: String) {
+data class Lyrics(
+    val lines: List<LyricLine>,
+    val synced: Boolean,
+    val source: String,
+    /** The singers the lyrics name, for the legend over coloured lines - see [withSingerNames]. */
+    val singers: List<Singer> = emptyList(),
+) {
     val isEmpty: Boolean get() = lines.isEmpty()
 
     /**
@@ -125,12 +141,14 @@ object LrcParser {
      * Who is singing, written straight after a line's timestamp: `v1:`, `v2:` and `v3:` from Apple's
      * duet extension, `F:`, `M:` and `D:` from Walaoke's.
      *
-     * The phone's parser reads these as the singer and takes them out of the text. There is no
-     * per-singer layout here, so they are only taken out - left in, every line of a duet began with
-     * "v1:". Recognised in the same place the phone recognises them and nowhere else: directly after
-     * the timestamp, with one space before at most.
+     * The phone's parser reads these as the singer and takes them out of the text, and so does this:
+     * left in, every line of a duet began with "v1:". Apple's three become the line's [Voice] - `v3:`
+     * is the group, as on the phone - so a duet can be drawn a colour per singer; Walaoke's gender
+     * marks are only taken out, since the phone colours nothing by them either. Recognised in the
+     * same place the phone recognises them and nowhere else: directly after the timestamp, with one
+     * space before at most.
      */
-    private val SINGER = Regex("""^ ?(?:v[123]|[FMD]):""")
+    private val SINGER = Regex("""^ ?(v[123]|[FMD]):""")
 
     /**
      * Background vocals in Apple's LRC extension, `[bg: ...]`, on the line after the one they go
@@ -205,7 +223,14 @@ object LrcParser {
                 return@forEach
             }
 
-            val body = afterStamps.replaceFirst(SINGER, "")
+            val singer = SINGER.find(afterStamps)
+            val voice = when (singer?.groupValues?.get(1)) {
+                "v1" -> Voice.ONE
+                "v2" -> Voice.TWO
+                "v3" -> Voice.GROUP
+                else -> null
+            }
+            val body = if (singer != null) afterStamps.substring(singer.range.last + 1) else afterStamps
             val text = WORD_TIMING.replace(body, "").trim()
             if (text.isNotEmpty()) asText += text
             // Enhanced LRC marks each word with its own time. Read rather than discarded, so a
@@ -262,6 +287,7 @@ object LrcParser {
                                 endMs = (it.endMs + shift).coerceAtLeast(0L),
                             )
                         },
+                        voice = voice,
                     )
                 }
             )
@@ -418,9 +444,14 @@ object LrcParser {
      * TTML reader makes each a smaller line of its own - and this dropped them. Beneath rather than
      * as lines of their own, still: a second stream of words overlapping the main one, interleaved
      * into one column, reads as neither voice.
+     *
+     * Each line keeps who sings it, and the lyrics the singers' names, for the colours and legend
+     * of [withSingerNames]. They come from re-reading the stored TTML, so lyrics cached before any of
+     * this existed are coloured too.
      */
     fun parseTtml(ttml: String, source: String): Lyrics {
-        val parsed = runCatching { TTMLParser.parseTTML(ttml) }.getOrNull().orEmpty()
+        val document = runCatching { TTMLParser.parse(ttml) }.getOrNull()
+        val parsed = document?.lines.orEmpty()
         val translations = TTMLParser.parseTranslations(ttml)
         val lines = parsed
             .filterNot { it.isBackground }
@@ -439,11 +470,12 @@ object LrcParser {
                         )
                     },
                     translation = beneath.joinToString("\n").ifEmpty { null },
+                    voice = line.voice,
                 )
             }
             .filter { it.text.isNotBlank() }
         if (lines.isEmpty()) return Lyrics(emptyList(), synced = false, source = source)
-        return Lyrics(lines.sortedBy { it.timeMs }, synced = true, source = source)
+        return Lyrics(lines.sortedBy { it.timeMs }, synced = true, source = source, singers = document?.singers.orEmpty())
     }
 
     private val SRT_TIMING = Regex("""(\d+):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->""")
@@ -525,6 +557,70 @@ object LrcParser {
         }
         return found
     }
+}
+
+/**
+ * These lyrics as Settings > Lyrics > Singer names in lyrics asks for them to be shown.
+ *
+ * - [SingerNames.COLOUR]: each line keeps its [LyricLine.voice] so it can be drawn in its singer's
+ *   colour, and [Lyrics.singers] stays for the legend - but only when more than one voice sings,
+ *   since one colour for the whole song says nothing. Names written into the text go.
+ * - [SingerNames.HIDE]: names written into the text go, and so do the voices: plain lyrics.
+ * - [SingerNames.TEXT]: the text exactly as it came, "Name: " and all, with no colours.
+ *
+ * A name written into the text is a short leading name and its colon on lines of a song that is
+ * labelled that way throughout - see [Singers.namePrefixes] for how cautious that is. A line that
+ * was nothing but a name ("Latto:", heading her verse) goes with it.
+ *
+ * Applied on the way to the screen, like the timing offset, so the cache keeps what the provider
+ * sent and changing the setting needs no fetch.
+ */
+fun Lyrics.withSingerNames(mode: SingerNames): Lyrics {
+    if (mode == SingerNames.TEXT) {
+        if (singers.isEmpty() && lines.none { it.voice != null }) return this
+        return copy(lines = lines.map { it.copy(voice = null) }, singers = emptyList())
+    }
+    val coloured = mode == SingerNames.COLOUR && Singers.isMultiVoice(lines.map { it.voice })
+    val names = Singers.namePrefixes(lines.map { it.text })
+    val shown = lines.mapNotNull { line ->
+        val cut = Singers.namePrefixLength(line.text, names)
+        val stripped = if (cut == 0) line else line.copy(
+            text = line.text.substring(cut),
+            words = line.words.withoutLeading(line.text.substring(0, cut)),
+        )
+        if (cut > 0 && stripped.text.isBlank() && stripped.translation == null) return@mapNotNull null
+        if (coloured) stripped else stripped.copy(voice = null)
+    }
+    return copy(lines = shown, singers = if (coloured) singers else emptyList())
+}
+
+/**
+ * These words without the ones that spell [prefix] - a singer's name and colon taken off the front
+ * of their line. Matched by the characters that are not spaces, since the words carry their spacing
+ * apart from their text; a word only partly inside the prefix ("Latto:Uh" sung as one) keeps its
+ * remainder.
+ */
+private fun List<LyricWord>.withoutLeading(prefix: String): List<LyricWord> {
+    var left = prefix.count { !it.isWhitespace() }
+    val out = mutableListOf<LyricWord>()
+    for (word in this) {
+        if (left <= 0) {
+            out += word
+            continue
+        }
+        val ink = word.text.count { !it.isWhitespace() }
+        if (ink <= left) {
+            left -= ink
+            continue
+        }
+        var at = 0
+        while (at < word.text.length && left > 0) {
+            if (!word.text[at].isWhitespace()) left--
+            at++
+        }
+        out += word.copy(text = word.text.substring(at).trimStart())
+    }
+    return out
 }
 
 /**

@@ -20,6 +20,8 @@ import androidx.media3.common.Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
 import androidx.media3.common.Player.REPEAT_MODE_OFF
 import androidx.media3.common.Player.STATE_ENDED
 import androidx.media3.common.Timeline
+import com.dd3boh.betterlyrics.Singer
+import com.dd3boh.betterlyrics.TTMLParser
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.entities.LyricsEntity
 import com.dd3boh.outertune.db.entities.LyricsEntity.Companion.LYRICS_NOT_FOUND
@@ -40,6 +42,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -70,11 +73,30 @@ class PlayerConnection(
     // Fetching is Service-driven (see MusicService); this only watches the DB row so every
     // collector shares one query and one parse instead of triggering its own fetch. Tagged with the
     // song they belong to and reset on every song change - see lyricsPerSong for why both matter.
-    val currentLyrics: StateFlow<SongLyrics<SemanticLyrics>?> = mediaMetadata
+    private val resolvedLyrics = mediaMetadata
         .lyricsPerSong(idOf = { it.id }) { mediaMetadata ->
             database.lyrics(mediaMetadata.id).map { dbLyrics -> resolveLyrics(mediaMetadata, dbLyrics) }
         }
+        // One read and one parse for both flows below.
+        .shareIn(scope, SharingStarted.Lazily, replay = 1)
+
+    val currentLyrics: StateFlow<SongLyrics<SemanticLyrics>?> = resolvedLyrics
+        .map { resolved -> resolved?.let { SongLyrics(it.mediaId, it.lyrics?.lyrics) } }
         .stateIn(scope, SharingStarted.Lazily, null)
+
+    /**
+     * The singers [currentLyrics] names, for the key above lyrics coloured by singer (Settings >
+     * Lyrics > Singer names in lyrics) - empty when they name nobody. Read from the same row the
+     * lyrics were, so the names always belong to the lyrics on screen: the phone's own TTML reader
+     * keeps which voice sings each line but drops the names, so they are read again by the shared
+     * reader in `:betterlyrics`.
+     */
+    val currentSingers: StateFlow<SongLyrics<List<Singer>>?> = resolvedLyrics
+        .map { resolved -> resolved?.let { SongLyrics(it.mediaId, it.lyrics?.singers) } }
+        .stateIn(scope, SharingStarted.Lazily, null)
+
+    /** Lyrics as resolved for display, and the singers they name - see [currentSingers]. */
+    private data class ResolvedLyrics(val lyrics: SemanticLyrics, val singers: List<Singer> = emptyList())
 
     /**
      * Resolve the display lyrics for a song from its DB row and, when applicable, its local
@@ -85,7 +107,7 @@ class PlayerConnection(
     private suspend fun resolveLyrics(
         mediaMetadata: MediaMetadata,
         dbLyrics: LyricsEntity?
-    ): SemanticLyrics? = withContext(Dispatchers.Default) {
+    ): ResolvedLyrics? = withContext(Dispatchers.Default) {
         val lyricsHelper = service.lyricsHelper
         val parserOptions = lyricsHelper.getParserOptions()
         val prefLocal = lyricsHelper.isLocalPreferred()
@@ -94,10 +116,13 @@ class PlayerConnection(
         } else null
 
         when {
-            prefLocal && localLyrics != null -> localLyrics
+            prefLocal && localLyrics != null -> ResolvedLyrics(localLyrics)
             dbLyrics == null -> null
-            dbLyrics.lyrics == LYRICS_NOT_FOUND -> localLyrics ?: uninitializedLyric
-            else -> lyricsHelper.resolveForDisplay(mediaMetadata, dbLyrics.lyrics)
+            dbLyrics.lyrics == LYRICS_NOT_FOUND -> ResolvedLyrics(localLyrics ?: uninitializedLyric)
+            else -> lyricsHelper.resolveForDisplay(mediaMetadata, dbLyrics.lyrics)?.let { lyrics ->
+                val raw = dbLyrics.lyrics
+                ResolvedLyrics(lyrics, if (TTMLParser.looksLikeTtml(raw)) TTMLParser.singers(raw) else emptyList())
+            }
         }
     }
 

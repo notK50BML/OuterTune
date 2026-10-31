@@ -24,6 +24,7 @@ class AlbumViewModel @Inject constructor(
     val albumWithSongs = database.albumWithSongs(albumId)
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val otherVersions = MutableStateFlow<List<AlbumItem>>(emptyList())
+    val similarAlbums = MutableStateFlow<List<AlbumItem>>(emptyList())
 
     val isLoading = MutableStateFlow(true)
 
@@ -40,6 +41,7 @@ class AlbumViewModel @Inject constructor(
                     }
                 }
                 otherVersions.value = it.otherVersions
+                similarAlbums.value = it.similarAlbums
             }.onFailure {
                 isLoading.value = false
                 reportException(it)

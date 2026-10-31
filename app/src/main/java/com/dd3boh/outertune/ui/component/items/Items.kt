@@ -343,9 +343,10 @@ fun MediaMetadataListItem(
     trailingContent: @Composable RowScope.() -> Unit = {},
 ) = ListItem(
     title = mediaMetadata.title,
-    subtitle = joinByBullet(
-        shownArtistsText(mediaMetadata.id, mediaMetadata.artists.map { it.id to it.name }),
-        makeTimeString(mediaMetadata.duration * 1000L)
+    subtitle = songSubtitle(
+        artists = shownArtistsText(mediaMetadata.id, mediaMetadata.artists.map { it.id to it.name }),
+        album = mediaMetadata.album?.title,
+        durationSeconds = mediaMetadata.duration,
     ),
     badges = {
         if (showLikedIcon && mediaMetadata.liked) {
@@ -437,9 +438,12 @@ fun YouTubeListItem(
     ListItem(
         title = item.title,
         subtitle = when (item) {
-            is SongItem -> joinByBullet(
-                shownArtistsText(item.id, item.artists.map { it.id to it.name }),
-                makeTimeString(item.duration?.times(1000L))
+            is SongItem -> songSubtitle(
+                artists = shownArtistsText(item.id, item.artists.map { it.id to it.name }),
+                album = item.album?.name,
+                durationSeconds = item.duration,
+                // A numbered row is a track on an album's own list.
+                showAlbum = albumIndex == null,
             )
 
             is AlbumItem -> joinByBullet(
@@ -515,9 +519,10 @@ fun YouTubeGridItem(
     },
     subtitle = {
         val subtitle = when (item) {
-            is SongItem -> joinByBullet(
-                shownArtistsText(item.id, item.artists.map { it.id to it.name }),
-                makeTimeString(item.duration?.times(1000L))
+            is SongItem -> songSubtitle(
+                artists = shownArtistsText(item.id, item.artists.map { it.id to it.name }),
+                album = item.album?.name,
+                durationSeconds = item.duration,
             )
 
             is AlbumItem -> joinByBullet(item.artists?.joinToString { it.name }, item.year?.toString())

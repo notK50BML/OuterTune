@@ -67,8 +67,6 @@ import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.menu.FolderMenu
 import com.dd3boh.outertune.ui.menu.MenuState
 import com.dd3boh.outertune.ui.menu.SongMenu
-import com.dd3boh.outertune.utils.joinByBullet
-import com.dd3boh.outertune.utils.makeTimeString
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -96,6 +94,8 @@ fun SongListItem(
     showLikedIcon: Boolean = true,
     showInLibraryIcon: Boolean = true,
     showDownloadIcon: Boolean = true,
+    /** False on the album's own page, where the album under every title would only repeat it. */
+    showAlbum: Boolean = true,
     /** e.g. a listen-time/play-count value on the stats screen. Sits left of the 3-dot menu. */
     extraInfo: String? = null,
 
@@ -114,11 +114,14 @@ fun SongListItem(
     val listItem: @Composable () -> Unit = {
         ListItem(
             title = song.song.title,
-            subtitle = joinByBullet(
-                // The raw video id used to be prepended here on debug builds, which pushed the
-                // artist name off the end of the row.
-                song.artists.joinToString { it.name },
-                makeTimeString(song.song.duration * 1000L)
+            // The raw video id used to be prepended here on debug builds, which pushed the artist
+            // name off the end of the row. The library's own credits, the ones shownArtists gives a
+            // library song.
+            subtitle = songSubtitle(
+                artists = song.artists.joinToString { it.name },
+                album = song.album?.title ?: song.song.albumName,
+                durationSeconds = song.song.duration,
+                showAlbum = showAlbum,
             ),
             badges = {
                 if (showLikedIcon && song.song.liked) {
@@ -365,9 +368,10 @@ fun SongGridItem(
     fillMaxWidth: Boolean = false,
 ) = GridItem(
     title = song.song.title,
-    subtitle = joinByBullet(
-        song.artists.joinToString { it.name },
-        makeTimeString(song.song.duration * 1000L)
+    subtitle = songSubtitle(
+        artists = song.artists.joinToString { it.name },
+        album = song.album?.title ?: song.song.albumName,
+        durationSeconds = song.song.duration,
     ),
     badges = badges,
     thumbnailContent = {

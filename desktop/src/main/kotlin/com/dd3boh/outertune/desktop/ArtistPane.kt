@@ -421,7 +421,7 @@ private fun ArtistHeader(
 
 /** A section title, with an arrow through to everything in it when there is more. */
 @Composable
-private fun SectionHeader(title: String, onMore: (() -> Unit)?) {
+internal fun SectionHeader(title: String, onMore: (() -> Unit)?) {
     val interaction = remember { MutableInteractionSource() }
     val hovered by interaction.collectIsHoveredAsState()
     // The highlight is a rounded box with room above and below the title, rather than a hard strip
@@ -481,7 +481,7 @@ private fun SongListRow(song: SongItem, rank: Int, playing: Boolean, onClick: ()
                 overflow = TextOverflow.Ellipsis,
             )
             Text(
-                listOfNotNull(song.shown().artists.joinToString { it.name }, song.album?.name).joinToString(" · "),
+                song.shown().detailsLine(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

@@ -11,6 +11,9 @@ package com.dd3boh.outertune
 
 import com.dd3boh.outertune.db.normalizeArtistId
 import com.dd3boh.outertune.ui.component.items.LocalArtistNames
+import com.dd3boh.outertune.ui.component.items.LocalSongDetails
+import com.dd3boh.outertune.ui.component.items.SongDetail
+import com.dd3boh.outertune.constants.SongDetailsKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
@@ -561,9 +564,14 @@ class MainActivity : ComponentActivity() {
                             artists.associate { it.id.normalizeArtistId() to it.name }
                         }
                     }.collectAsState(initial = emptyMap())
+                    // What every song row shows under its title - read once here rather than by
+                    // each row, of which a list can have hundreds.
+                    val songDetailsStored by rememberPreference(SongDetailsKey, defaultValue = "")
+                    val songDetails = remember(songDetailsStored) { SongDetail.decode(songDetailsStored) }
                     CompositionLocalProvider(
                         LocalDatabase provides database,
                         LocalArtistNames provides artistNames,
+                        LocalSongDetails provides songDetails,
                         LocalContentColor provides contentColorFor(MaterialTheme.colorScheme.surface),
                         LocalMenuState provides MenuState(rememberModalBottomSheetState()),
                         LocalPlayerConnection provides playerConnection,

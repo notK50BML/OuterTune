@@ -699,17 +699,20 @@ internal class TrayPopupPlacement(
         private val margin get() = TRAY_POPUP_MARGIN.value.toInt()
 
         /**
-         * Against the taskbar of whichever screen the pointer is on, beside the pointer.
+         * Against the taskbar of whichever screen the pointer is on, beside the pointer - or above
+         * the overflow flyout, when the icon was clicked in that.
          *
          * The pointer rather than the click event's own position: on a high-DPI screen, or a second
          * screen scaled differently, AWT has reported tray clicks in the wrong units, and the
-         * pointer is where the click was in any case.
+         * pointer is where the click was in any case. Called as the click arrives, so the flyout is
+         * still open to be found; it closes itself once the popup takes the focus.
          */
         fun atPointer(): TrayPopupPlacement {
             val pointer = runCatching { MouseInfo.getPointerInfo() }.getOrNull()
             val configuration = pointer?.device?.defaultConfiguration ?: defaultConfiguration()
+            val flyout = pointer?.location?.let { at -> configuration?.let { OverflowFlyout.find(at, it) } }
             // A dp is one of AWT's units on Windows - both are already scaled for the screen.
-            val card = trayPopupCardBounds(pointer?.location, cardSize, screenOf(configuration), insetsOf(configuration))
+            val card = trayPopupCardBounds(pointer?.location, cardSize, screenOf(configuration), insetsOf(configuration), flyout)
             return TrayPopupPlacement(card.withMargin(), configuration)
         }
 
@@ -805,6 +808,11 @@ private fun usableArea(screen: Rectangle, insets: Insets) = Rectangle(
  * where Windows keeps the notification area. Then it is held inside the free area, which keeps it
  * on screen at a corner.
  *
+ * Unless the icon was clicked in that flyout and it is known where the flyout is: then the card goes
+ * a [gap] beyond the flyout, on the side away from the taskbar, centred on it - so the icons in it
+ * are not hidden behind the popup while they are still showing, and the popup reads as coming from
+ * the box it was opened from. Still held inside the free area.
+ *
  * A taskbar set to hide itself leaves no insets; it is then taken to be along the bottom, as it is
  * by default, and [hiddenTaskbar] tall, since it slides up over the screen while it is being used.
  */
@@ -813,6 +821,8 @@ internal fun trayPopupCardBounds(
     size: Dimension,
     screen: Rectangle,
     insets: Insets,
+    /** The overflow flyout the icon was clicked in, in AWT's units - see [OverflowFlyout]. */
+    flyout: Rectangle? = null,
     gap: Int = 8,
     hiddenTaskbar: Int = 48,
 ): Rectangle {
@@ -839,7 +849,14 @@ internal fun trayPopupCardBounds(
     }
     // Within the overflow flyout's height of the taskbar - a few rows of icons at most.
     val along = if (reach != null && reach <= NEAR_TASKBAR) cursor else null
-    val (x, y) = when (edge) {
+    val (x, y) = if (flyout != null) {
+        when (edge) {
+            TaskbarEdge.Bottom -> flyout.centerX.toInt() - size.width / 2 to flyout.y - gap - size.height
+            TaskbarEdge.Top -> flyout.centerX.toInt() - size.width / 2 to flyout.y + flyout.height + gap
+            TaskbarEdge.Left -> flyout.x + flyout.width + gap to flyout.centerY.toInt() - size.height / 2
+            TaskbarEdge.Right -> flyout.x - gap - size.width to flyout.centerY.toInt() - size.height / 2
+        }
+    } else when (edge) {
         TaskbarEdge.Bottom, TaskbarEdge.Top -> {
             val y = if (edge == TaskbarEdge.Bottom) bottom - gap - size.height else top + gap
             (along?.x ?: right) - size.width / 2 to y

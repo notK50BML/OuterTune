@@ -103,6 +103,49 @@ class TrayPopupPlacementTest {
     }
 
     @Test
+    fun `above the overflow flyout when the icon was clicked in it`() {
+        // Windows 11's flyout: a box of icons just above the taskbar, near the clock.
+        val flyout = Rectangle(1560, 880, 160, 144)
+        val bounds = trayPopupCardBounds(Point(1640, 950), card, screen, bottomBar, flyout)
+        assertEquals(880 - 8 - card.height, bounds.y)
+        assertEquals(1640 - card.width / 2, bounds.x)
+        assertTrue("covers the flyout: $bounds", !bounds.intersects(flyout))
+    }
+
+    @Test
+    fun `above the flyout and on screen when the flyout is at the corner`() {
+        val flyout = Rectangle(1780, 900, 132, 124)
+        val bounds = trayPopupCardBounds(Point(1850, 960), card, screen, bottomBar, flyout)
+        assertEquals(900 - 8 - card.height, bounds.y)
+        assertEquals(1920 - 8 - card.width, bounds.x)
+    }
+
+    @Test
+    fun `beyond the flyout, away from a taskbar on the top, left or right`() {
+        val top = trayPopupCardBounds(Point(1640, 120), card, screen, Insets(48, 0, 0, 0), Rectangle(1560, 56, 160, 144))
+        assertEquals(56 + 144 + 8, top.y)
+        val right = trayPopupCardBounds(Point(1780, 900), card, screen, Insets(0, 0, 0, 80), Rectangle(1700, 820, 132, 160))
+        assertEquals(1700 - 8 - card.width, right.x)
+        assertEquals(900 - card.height / 2, right.y)
+        val left = trayPopupCardBounds(Point(140, 900), card, screen, Insets(0, 80, 0, 0), Rectangle(88, 820, 132, 160))
+        assertEquals(88 + 132 + 8, left.x)
+    }
+
+    @Test
+    fun `the flyout's real pixels in AWT's units, on a scaled second monitor`() {
+        // A 150% monitor to the right of a 100% one: AWT puts it at x=1920 and 2560 wide; Windows
+        // reports it from x=1920 and 3840 pixels wide.
+        val bounds = physicalToAwt(
+            rect = Rectangle(1920 + 3300, 1800, 240, 180),
+            monitor = Rectangle(1920, 0, 3840, 2160),
+            screen = Rectangle(1920, 0, 2560, 1440),
+            scaleX = 1.5,
+            scaleY = 1.5,
+        )
+        assertEquals(Rectangle(1920 + 2200, 1200, 160, 120), bounds)
+    }
+
+    @Test
     fun `a pinned widget's places are kept per screen, the latest first`() {
         var saved = PinnedSpots.with("", "\\Display0", Point(100, 200))
         saved = PinnedSpots.with(saved, "\\Display1", Point(-900, 50))

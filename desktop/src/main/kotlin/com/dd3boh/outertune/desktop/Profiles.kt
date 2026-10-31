@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import com.dd3boh.betterlyrics.SingerNames
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -179,6 +180,7 @@ object Profiles {
                 put("estimateWordTimings", s.estimateWordTimings)
                 put("highlightStyle", if (s.lyricsHighlight == LyricsHighlight.Sweep) "sweep" else "fade")
                 put("showLyricsType", s.lyricsShowKind)
+                put("singerNames", s.singerNames.name.lowercase())
                 // No "offsetMs" any more: the lyrics timing offset is each song's own now, kept with
                 // the library rather than the settings, so a profile has none to carry.
                 put("openOnCoverClick", s.lyricsOnCoverClick)
@@ -254,6 +256,7 @@ object Profiles {
                 bool("estimateWordTimings") { s.estimateWordTimings = it }
                 str("highlightStyle") { s.lyricsHighlight = if (it == "sweep") LyricsHighlight.Sweep else LyricsHighlight.Fade }
                 bool("showLyricsType") { s.lyricsShowKind = it }
+                str("singerNames") { name -> SingerNames.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { s.singerNames = it } }
                 // "offsetMs" in an older profile, from either app, is passed over: there is no
                 // single offset left to apply it to.
                 bool("openOnCoverClick") { s.lyricsOnCoverClick = it }

@@ -129,7 +129,9 @@ internal fun MiniLyricsLines(
     style: TextStyle = miniLyricStyle(),
     sung: () -> Float = { 0f },
 ) {
-    val colour = MaterialTheme.colorScheme.onSurface
+    val onSurface = MaterialTheme.colorScheme.onSurface
+    // Each line in its singer's colour when the lyrics are coloured by singer - see withSingerNames.
+    val colourOf = rememberVoiceColours(onSurface)
     Box(
         modifier = modifier
             .clipToBounds()
@@ -171,6 +173,7 @@ internal fun MiniLyricsLines(
                     }
                 // An empty timed line is an instrumental break - a note rather than nothing.
                 val text = line.text.ifBlank { "♪" }
+                val colour = colourOf(line.voice)
                 if (index == current) {
                     SlidingLine(text, style, colour, sung, byWord = line.words.isNotEmpty(), modifier = placement)
                 } else {

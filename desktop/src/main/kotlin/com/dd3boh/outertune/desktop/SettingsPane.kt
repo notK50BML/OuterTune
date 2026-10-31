@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.desktop
 
 import com.zionhuang.innertube.YouTube
+import com.dd3boh.betterlyrics.SingerNames
 import kotlin.math.roundToInt
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.lazy.items
@@ -144,8 +145,10 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Click the cover for lyrics", SettingsCategory.Lyrics, "artwork tap"),
     SettingEntry("Lyrics text size", SettingsCategory.Lyrics, "font scale"),
     SettingEntry("Lyrics alignment", SettingsCategory.Lyrics, "centre center left"),
+    SettingEntry("Singer names in lyrics", SettingsCategory.Lyrics, "duet artist singer name colour color code voice who sings hide betterlyrics"),
     SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
     SettingEntry("Hide explicit content", SettingsCategory.Content, "explicit filter clean"),
+    SettingEntry("Song details", SettingsCategory.Content, "subtitle under title song rows artists album length duration time order"),
     SettingEntry("Content language", SettingsCategory.Content, "language region locale youtube"),
     SettingEntry("Content country", SettingsCategory.Content, "country region locale youtube"),
     SettingEntry("Audio normalisation", SettingsCategory.Player, "loudness volume normalize normalization"),
@@ -878,6 +881,15 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             description = { it.description },
             onSelect = { settings.lyricsHighlight = it },
         )
+        SettingChoice(
+            title = "Singer names in lyrics",
+            icon = OuterTuneIcons.person,
+            options = SingerNames.entries,
+            selected = settings.singerNames,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.singerNames = it },
+        )
         SettingSwitch(
             title = "Show lyrics type",
             subtitle = "A small tag by the lyrics controls: word-synced, line-synced, estimated or unsynced.",
@@ -920,6 +932,27 @@ private fun ContentSettings(settings: Settings) {
             icon = OuterTuneIcons.info,
             divider = false,
         )
+    }
+    Section("Display") {
+        var arrangingDetails by remember { mutableStateOf(false) }
+        SettingRow(
+            title = "Song details",
+            subtitle = SongDetail.decode(settings.songDetails)
+                .joinToString(", ") { it.label }
+                .ifEmpty { "Only the title" },
+            icon = OuterTuneIcons.musicNote,
+            onClick = { arrangingDetails = true },
+        )
+        if (arrangingDetails) {
+            SongDetailsDialog(
+                current = SongDetail.decode(settings.songDetails),
+                onSave = {
+                    settings.songDetails = SongDetail.encode(it)
+                    arrangingDetails = false
+                },
+                onDismiss = { arrangingDetails = false },
+            )
+        }
     }
 }
 
@@ -2198,3 +2231,18 @@ private fun AccountSyncSettings(settings: Settings, account: Account, sync: YouT
         )
     }
 }
+
+/** The "Singer names in lyrics" choices as Settings > Lyrics lists them - the phone's wording. */
+private val SingerNames.label: String
+    get() = when (this) {
+        SingerNames.COLOUR -> "Colour code"
+        SingerNames.HIDE -> "Hide"
+        SingerNames.TEXT -> "Show as text"
+    }
+
+private val SingerNames.description: String
+    get() = when (this) {
+        SingerNames.COLOUR -> "Each singer's lines in a colour of their own, with a key to who is who."
+        SingerNames.HIDE -> "Plain lyrics, without the singers' names."
+        SingerNames.TEXT -> "Lines as the provider wrote them: \"Name: lyrics\"."
+    }

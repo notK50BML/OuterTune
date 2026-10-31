@@ -252,29 +252,54 @@ object YouTube {
                 thumbnail = response.contents.twoColumnBrowseResultsRenderer.tabs.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()?.musicResponsiveHeaderRenderer?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.lastOrNull()?.url!!,
             ),
             songs = if (withSongs) albumSongs(playlistId, gl).getOrThrow() else emptyList(),
-            otherVersions = otherVersionsOf(response, browseId),
-        )
+            otherVersions = emptyList(),
+        ).let { page ->
+            val (versions, similar) = albumShelves(page.album.title, browseId, albumShelvesOf(response))
+            page.copy(otherVersions = versions, similarAlbums = similar)
+        }
     }
 
+    /** The albums on each of the page's carousel shelves, shelf by shelf, in the page's order. */
+    private fun albumShelvesOf(response: BrowseResponse): List<List<AlbumItem>> =
+        response.contents?.twoColumnBrowseResultsRenderer?.secondaryContents?.sectionListRenderer?.contents.orEmpty()
+            .mapNotNull { it.musicCarouselShelfRenderer?.contents }
+            .map { shelf ->
+                shelf.mapNotNull { it.musicTwoRowItemRenderer }
+                    .mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
+            }
+            .filter { it.isNotEmpty() }
+
     /**
-     * The album's other versions - deluxe, remastered, live, Taylor's Version - from the page's
-     * shelves. Not simply the second shelf, which is what this used to take: an album without other
-     * versions has a recommendations shelf there instead, and similar albums by other artists were
-     * shown under "Other versions". Kept to albums whose title, edition labels aside, is this one's,
-     * from any shelf - which does not depend on the language the shelf headers come back in.
+     * Splits an album page's shelves into the album's other versions and similar albums.
+     *
+     * Other versions - deluxe, remastered, live, Taylor's Version - are albums whose title, edition
+     * labels aside, is this one's, from any shelf. Not simply the second shelf, which is what this
+     * used to take: an album without other versions has a recommendations shelf there instead, and
+     * similar albums by other artists were shown under "Other versions".
+     *
+     * Similar albums are the rest of the page's recommendations ("Releases for you", "You might
+     * also like"): every album on a shelf that is not the versions shelf, less this album and its
+     * versions. The versions shelf is told apart by what is on it - mostly versions of this album -
+     * not by its header, which comes back in the user's language; so an edition with a renamed
+     * title that YouTube put on that shelf is not taken for a recommendation.
      */
-    private fun otherVersionsOf(response: BrowseResponse, browseId: String): List<AlbumItem> {
-        val tabs = response.contents?.twoColumnBrowseResultsRenderer
-        val title = tabs?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()
-            ?.musicResponsiveHeaderRenderer?.title?.runs?.firstOrNull()?.text ?: return emptyList()
+    internal fun albumShelves(
+        title: String,
+        browseId: String,
+        shelves: List<List<AlbumItem>>,
+    ): Pair<List<AlbumItem>, List<AlbumItem>> {
         val base = baseAlbumTitle(title)
-        if (base.isEmpty()) return emptyList()
-        return tabs.secondaryContents?.sectionListRenderer?.contents.orEmpty()
-            .flatMap { it.musicCarouselShelfRenderer?.contents.orEmpty() }
-            .mapNotNull { it.musicTwoRowItemRenderer }
-            .mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
-            .filter { it.browseId != browseId && baseAlbumTitle(it.title) == base }
+        if (base.isEmpty()) return emptyList<AlbumItem>() to emptyList()
+        fun isVersion(album: AlbumItem) = baseAlbumTitle(album.title) == base
+        val versions = shelves.flatten()
+            .filter { it.browseId != browseId && isVersion(it) }
             .distinctBy { it.browseId }
+        val similar = shelves
+            .filterNot { shelf -> shelf.count(::isVersion) * 2 > shelf.size }
+            .flatten()
+            .filter { it.browseId != browseId && !isVersion(it) }
+            .distinctBy { it.browseId }
+        return versions to similar
     }
 
     /** "1989 (Taylor's Version)", "1989 [Deluxe]" and "1989 - Live" are all "1989". */

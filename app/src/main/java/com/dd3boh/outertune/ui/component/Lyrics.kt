@@ -14,6 +14,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import com.dd3boh.outertune.constants.LyricShowTypeKey
 import com.dd3boh.outertune.constants.LyricHighlightStyle
 import com.dd3boh.outertune.constants.LyricHighlightStyleKey
+import com.dd3boh.outertune.constants.LyricSingerNamesKey
+import com.dd3boh.betterlyrics.SingerNames
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
 import android.annotation.SuppressLint
@@ -133,6 +136,8 @@ fun Lyrics(
     val highlightStyle by rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
     val showLyricsType by rememberPreference(LyricShowTypeKey, true)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+    // Settings > Lyrics > Singer names in lyrics: colours by singer, no names, or names as text.
+    val singerNames by rememberEnumPreference(LyricSingerNamesKey, SingerNames.COLOUR)
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     // This song's own timing offset (see LyricsOffsetEntity), taken off the playback position
@@ -163,7 +168,7 @@ fun Lyrics(
     val playerLyrics = currentSongLyrics?.takeIf { it.mediaId == currentMediaId }?.lyrics
     // Keyed on the song so a track change drops whatever was on screen in the same composition that
     // notices the change, manual edits and search results included, rather than one effect later.
-    var lyricsModel by remember(currentMediaId) { mutableStateOf(playerLyrics.forDisplay(estimatedWordSync)) }
+    var lyricsModel by remember(currentMediaId) { mutableStateOf(playerLyrics.withSingerNames(singerNames).forDisplay(estimatedWordSync)) }
     // The lyrics as they arrived, before word timings were estimated - what the type tag describes.
     var arrivedLyrics by remember(currentMediaId) { mutableStateOf(playerLyrics) }
     // While the lyrics menu's Refetch is running: the lyrics show the same placeholder as the first
@@ -198,12 +203,14 @@ fun Lyrics(
     // measuring against whichever lines were current when the index last changed.
     val currentLines by rememberUpdatedState(lines)
 
-    LaunchedEffect(currentMediaId, playerLyrics, estimatedWordSync) {
+    LaunchedEffect(currentMediaId, playerLyrics, estimatedWordSync, singerNames) {
         // The sweep renderer works entirely off each line's word list, so making it run on ordinary
         // line-synced lyrics is a matter of supplying that list rather than touching the renderer.
         // Lines that already carry real word timings are left alone by withEstimatedWordSync.
+        // Singers' names come off first, so a name taken off the front of a line is not given an
+        // estimated word of its own.
         arrivedLyrics = playerLyrics
-        lyricsModel = playerLyrics.forDisplay(estimatedWordSync)
+        lyricsModel = playerLyrics.withSingerNames(singerNames).forDisplay(estimatedWordSync)
     }
 
     // Lyrics are drawn over the player background, so they need the colour that was measured from
@@ -213,9 +220,19 @@ fun Lyrics(
     // player.
     val playerBackgroundStyle by rememberEnumPreference(key = PlayerBackgroundStyleKey, defaultValue = DEFAULT_PLAYER_BACKGROUND)
     val textColor = rememberPlayerOnBackgroundColor(mediaMetadata, playerBackgroundStyle)
-    // Lines already sung keep their own shade of the same colour rather than the theme's primary,
-    // which has the same problem: readable against the theme, arbitrary against an album cover.
-    val prevTextColor = textColor.copy(alpha = CONSUMED_ALPHA)
+    // Lines already sung keep their own shade of the same colour (CONSUMED_ALPHA, below) rather than
+    // the theme's primary, which has the same problem: readable against the theme, arbitrary against
+    // an album cover.
+
+    // A duet whose lines say who sings them is drawn a colour per singer, when Singer names in
+    // lyrics is on Colour code. One voice for the whole song says nothing, so it stays one colour.
+    // The colours are worked out against textColor, so they are as readable over the player's
+    // background as it is.
+    val colourOf = rememberVoiceColours(textColor)
+    val multiVoice = remember(lines) { lines.isMultiVoice() }
+    val colourBySinger = singerNames == SingerNames.COLOUR && multiVoice
+    val currentSingers by playerConnection.currentSingers.collectAsState()
+    val singers = currentSingers?.takeIf { it.mediaId == currentMediaId }?.lyrics.orEmpty()
 
     var currentLineIndex by remember {
         mutableIntStateOf(-1)
@@ -467,6 +484,9 @@ fun Lyrics(
                         val isConsumed = displayedCurrentLineIndex >= 0 && index < displayedCurrentLineIndex
 
                         val words = item.words
+                        // The singer's colour when the lines are coloured by singer; the usual one
+                        // otherwise. Everything below dims and lights it the same way.
+                        val lineColor = if (colourBySinger) colourOf(item.speaker.voice) else textColor
                         // The line being sung and the one after it, and nothing else. Taking the
                         // next line too means a line is already being drawn this way before it
                         // starts, so there is no swap at the moment it does - and an unswept line
@@ -485,8 +505,8 @@ fun Lyrics(
                                     fontWeight = FontWeight.Bold,
                                     textAlign = textAlign,
                                 ),
-                                sungColor = textColor,
-                                unsungColor = textColor.copy(alpha = UNSUNG_ALPHA),
+                                sungColor = lineColor,
+                                unsungColor = lineColor.copy(alpha = UNSUNG_ALPHA),
                                 positionProvider = { karaokePosition.longValue },
                             )
                         } else if (karaoke) {
@@ -498,19 +518,19 @@ fun Lyrics(
                                     fontWeight = FontWeight.Bold,
                                     textAlign = textAlign,
                                 ),
-                                sungColor = textColor,
-                                unsungColor = textColor.copy(alpha = UNSUNG_ALPHA),
+                                sungColor = lineColor,
+                                unsungColor = lineColor.copy(alpha = UNSUNG_ALPHA),
                                 positionProvider = { karaokePosition.longValue },
                             )
                         } else {
                             Text(
                                 text = item.text,
                                 fontSize = lyricFontSizeAdjusted.sp,
-                                color = if (isConsumed && !isHighlighted) prevTextColor else textColor,
+                                color = if (isConsumed && !isHighlighted) lineColor.copy(alpha = CONSUMED_ALPHA) else lineColor,
                                 textAlign = textAlign,
                                 fontWeight = FontWeight.Bold,
-                                // prevTextColor already carries its own alpha, so a consumed line
-                                // must not be faded a second time on top of it.
+                                // The consumed colour already carries its own alpha, so a consumed
+                                // line must not be faded a second time on top of it.
                                 modifier = Modifier.alpha(
                                     if (!isSynced || isHighlighted || isConsumed) 1f else UNSUNG_ALPHA
                                 )
@@ -519,6 +539,19 @@ fun Lyrics(
                     }
                 }
             }
+        }
+
+        // Who is who, once, at the top - over the faded top edge of the list, where the lines
+        // passing underneath have already faded out.
+        if (colourBySinger && lyricsModel != null && !refetching) {
+            SingerLegend(
+                singers = singers,
+                colourOf = colourOf,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .windowInsetsPadding(WindowInsets.systemBars.only(WindowInsetsSides.Top))
+                    .padding(top = 8.dp, start = 24.dp, end = 24.dp),
+            )
         }
 
         if (lyricsModel == uninitializedLyric && !refetching) {
@@ -606,7 +639,7 @@ fun Lyrics(
                                 onRefreshRequest = {
                                     if (playerConnection.mediaMetadata.value?.id == mediaMetadata.id) {
                                         arrivedLyrics = it
-                                        lyricsModel = it.forDisplay(estimatedWordSync)
+                                        lyricsModel = it.withSingerNames(singerNames).forDisplay(estimatedWordSync)
                                     }
                                 },
                                 onRefetching = { started ->

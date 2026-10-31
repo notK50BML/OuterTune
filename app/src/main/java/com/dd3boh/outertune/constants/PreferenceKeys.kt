@@ -195,6 +195,11 @@ val ShowArtistVideosAsSongsKey = booleanPreferencesKey("showArtistVideosAsSongs"
 val ArtistCreditEnrichmentKey = booleanPreferencesKey("artistCreditEnrichment")
 /** Settings > Library and content: the mood chips (Relax, Workout...) at the top of Home. On by default. */
 val ShowHomeChipsKey = booleanPreferencesKey("showHomeChips")
+/**
+ * Settings > Library and content: what shows under a song's title on its row, in order - see
+ * [com.dd3boh.outertune.ui.component.items.SongDetail]. Empty until first set, which is its DEFAULT.
+ */
+val SongDetailsKey = stringPreferencesKey("songDetails")
 
 
 /**
@@ -228,6 +233,13 @@ enum class LyricHighlightStyle { SWEEP, FADE }
 
 /** The small tag by the lyrics controls saying what timing the lyrics carry. On by default. */
 val LyricShowTypeKey = booleanPreferencesKey("lyricShowType")
+
+/**
+ * How lyrics show who sings each line, when they say - a [com.dd3boh.betterlyrics.SingerNames]:
+ * each singer in a colour of their own (the default), no names at all, or the "Name: lyrics" the
+ * provider wrote. The same setting, and the same three choices, as the desktop's.
+ */
+val LyricSingerNamesKey = stringPreferencesKey("lyricSingerNames")
 
 /**
  * The old app-wide lyrics timing offset. No longer read or written: the offset is each song's own

@@ -44,6 +44,12 @@ object TTMLParser {
     private const val TTML_PARAMETER_NS = "http://www.w3.org/ns/ttml#parameter"
     private const val TTML_METADATA_NS = "http://www.w3.org/ns/ttml#metadata"
 
+    /** Where `xml:id` lives - the id each `<ttm:agent>` is declared under. */
+    private const val XML_NS = "http://www.w3.org/XML/1998/namespace"
+
+    /** Apple numbers its group agents from 1000 (`v1000`), its singers from 1. */
+    private val APPLE_GROUP_AGENT = Regex("""v\d{4,}""")
+
     /** Apple's internal namespace, which names each line (`itunes:key`) for its translations to point at. */
     private const val ITUNES_INTERNAL_NS = "http://music.apple.com/lyric-ttml-internal"
 
@@ -59,6 +65,20 @@ object TTMLParser {
         val backgroundLines: List<ParsedLine> = emptyList(),
         /** The line's `itunes:key`, which [parseTranslations] keys its translations by. */
         val key: String? = null,
+        /**
+         * Which singer's colour the line is drawn in, from [agent] - see [Singers.voices]. Background
+         * lines have the voice of the line they belong to. Null when nothing says who sings it.
+         */
+        val voice: Voice? = null,
+    )
+
+    /**
+     * A whole document: its [lines], and the [singers] it names - for the legend that says which
+     * colour is whom. Empty when the document names nobody.
+     */
+    data class ParsedLyrics(
+        val lines: List<ParsedLine>,
+        val singers: List<Singer>,
     )
 
     data class ParsedWord(
@@ -84,11 +104,31 @@ object TTMLParser {
         return head.contains("<tt") && head.contains("http://www.w3.org/ns/ttml")
     }
 
-    fun parseTTML(ttml: String): List<ParsedLine> {
+    fun parseTTML(ttml: String): List<ParsedLine> = parse(ttml).lines
+
+    /** [ttml]'s singers alone, for the legend - see [ParsedLyrics.singers]. */
+    fun singers(ttml: String): List<Singer> = parse(ttml).singers
+
+    /**
+     * [ttml]'s lines, each with the voice of whoever sings it, and the singers it names.
+     *
+     * Who sings what comes from the document's agents: `ttm:agent` on a line or its `<div>`, and the
+     * `<ttm:agent>` declarations in the head that say whether each is a person or a group and may
+     * name them. An agent a line points at but the head never declares still gets a voice, after the
+     * declared ones - Apple's group agents are `v1000` and up, so those are taken as the group.
+     *
+     * A document with no agents at all may still name its singers in the text, "Latto: Uh, yeah" -
+     * QQ Music's lyrics, through BetterLyrics' QQ relay, write duets that way. Those names become
+     * the agents instead (see [Singers.agentsFromNames]). The text itself is left exactly as it is:
+     * whether the names are shown is the display's choice, and is made there.
+     */
+    fun parse(ttml: String): ParsedLyrics {
         val lines = mutableListOf<ParsedLine>()
+        var declared = emptyList<Singers.Agent>()
         try {
             val doc = parseDocument(ttml)
-            val root = doc.documentElement ?: return emptyList()
+            val root = doc.documentElement ?: return ParsedLyrics(emptyList(), emptyList())
+            declared = readAgents(root)
 
             // Apple exports can carry a global offset on head/metadata/audio@lyricOffset.
             val globalOffset = findChild(root, "head")
@@ -101,9 +141,56 @@ object TTMLParser {
             // Walk from <body> when present, otherwise from the root: some documents skip <body>.
             walk(findChild(root, "body") ?: root, lines, globalOffset, null)
         } catch (e: Exception) {
-            return emptyList()
+            return ParsedLyrics(emptyList(), emptyList())
         }
-        return lines
+        return withVoices(lines, declared)
+    }
+
+    /** Every `<ttm:agent>` declared in the document, in order. */
+    private fun readAgents(root: Element): List<Singers.Agent> {
+        val out = mutableListOf<Singers.Agent>()
+        val elements = root.getElementsByTagNameNS(TTML_METADATA_NS, "agent")
+        for (i in 0 until elements.length) {
+            val agent = elements.item(i) as? Element ?: continue
+            val id = agent.getAttributeNS(XML_NS, "id").ifEmpty { agent.getAttribute("xml:id") }
+                .ifEmpty { agent.getAttribute("id") }
+            if (id.isEmpty()) continue
+            val name = findChild(agent, "name")?.textContent?.trim()?.takeIf { it.isNotEmpty() }
+            out += Singers.Agent(id, agent.getAttribute("type").ifEmpty { "person" }, name)
+        }
+        return out
+    }
+
+    /** [lines] with their voices filled in from [declared] - see [parse]. */
+    private fun withVoices(lines: List<ParsedLine>, declared: List<Singers.Agent>): ParsedLyrics {
+        val agents: List<Singers.Agent>
+        var tagged = lines
+        val used = lines.mapNotNull { it.agent }.distinct()
+        if (used.isEmpty()) {
+            // Named only in the text, if at all.
+            val (perLine, fromNames) = Singers.agentsFromNames(lines.map { it.text })
+                ?: return ParsedLyrics(lines, emptyList())
+            agents = fromNames
+            tagged = lines.mapIndexed { i, line ->
+                val id = perLine[i] ?: return@mapIndexed line
+                line.copy(agent = id, backgroundLines = line.backgroundLines.map { it.copy(agent = id) })
+            }
+        } else {
+            val known = declared.map { it.id }.toSet()
+            agents = declared + used.filter { it !in known }.map { id ->
+                Singers.Agent(id, if (APPLE_GROUP_AGENT.matches(id)) "group" else "person", null)
+            }
+        }
+        val voices = Singers.voices(agents)
+        fun ParsedLine.voiced(): ParsedLine = copy(
+            voice = agent?.let { voices[it] },
+            backgroundLines = backgroundLines.map { it.voiced() },
+        )
+        val singers = agents.mapNotNull { agent ->
+            val voice = voices[agent.id] ?: return@mapNotNull null
+            agent.name?.let { Singer(voice, it) }
+        }
+        return ParsedLyrics(tagged.map { it.voiced() }, singers)
     }
 
     /**
@@ -174,15 +261,27 @@ object TTMLParser {
      * [enhanced] unset the output is plain, line-level LRC.
      *
      * Background vocals become their own lines rather than being dropped, so a duet or an
-     * ad-libbed line still shows up. Speaker/agent information is discarded because standard LRC
-     * has no way to express it and OuterTune's renderer does not read it.
+     * ad-libbed line still shows up.
+     *
+     * Who sings each line is kept when more than one voice does, as the singer marks Apple's LRC
+     * extension puts straight after the timestamp - `v1:`, `v2:`, and `v3:` for the group, which is
+     * how the phone's LRC reader takes them. That is what lets a duet the phone can only read through
+     * here still be coloured by singer. A document with one voice, or none, gets no marks, and comes
+     * out exactly as it always did.
      */
     fun toLrc(lines: List<ParsedLine>, enhanced: Boolean = false): String {
+        val marked = Singers.isMultiVoice(lines.flatMap { line -> listOf(line.voice) + line.backgroundLines.map { it.voice } })
+        fun mark(line: ParsedLine) = if (!marked) "" else when (line.voice) {
+            Voice.ONE -> "v1:"
+            Voice.TWO -> "v2:"
+            Voice.GROUP -> "v3:"
+            null -> ""
+        }
         val flat = mutableListOf<Pair<Double, String>>()
         for (line in lines) {
-            if (line.text.isNotBlank()) flat += line.startTime to renderLine(line, enhanced)
+            if (line.text.isNotBlank()) flat += line.startTime to mark(line) + renderLine(line, enhanced)
             for (bg in line.backgroundLines) {
-                if (bg.text.isNotBlank()) flat += bg.startTime to renderLine(bg, enhanced)
+                if (bg.text.isNotBlank()) flat += bg.startTime to mark(bg) + renderLine(bg, enhanced)
             }
         }
         if (flat.isEmpty()) return ""
@@ -195,7 +294,7 @@ object TTMLParser {
 
     /** Convenience: TTML straight to LRC, or null when nothing usable came out. */
     fun ttmlToLrc(ttml: String, enhanced: Boolean = true): String? =
-        toLrc(parseTTML(ttml), enhanced).takeIf { it.isNotBlank() }
+        toLrc(parse(ttml).lines, enhanced).takeIf { it.isNotBlank() }
 
     /**
      * The body of one LRC entry — everything after the `[mm:ss.cc]`.
@@ -348,6 +447,7 @@ object TTMLParser {
                         text = backgroundLines.joinToString(" ") { it.text },
                         startTime = backgroundLines.minOf { it.startTime },
                         words = backgroundLines.flatMap { it.words },
+                        agent = agent,
                         isBackground = true,
                     )
                 )
@@ -360,6 +460,7 @@ object TTMLParser {
                 text = backgroundLines.joinToString(" ") { it.text },
                 startTime = backgroundLines.minOf { it.startTime },
                 words = backgroundLines.flatMap { it.words },
+                agent = agent,
                 isBackground = true,
             )
         }

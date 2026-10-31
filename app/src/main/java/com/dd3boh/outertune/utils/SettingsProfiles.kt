@@ -9,6 +9,8 @@ package com.dd3boh.outertune.utils
 import com.dd3boh.outertune.constants.LyricShowTypeKey
 import com.dd3boh.outertune.constants.LyricHighlightStyle
 import com.dd3boh.outertune.constants.LyricHighlightStyleKey
+import com.dd3boh.outertune.constants.LyricSingerNamesKey
+import com.dd3boh.betterlyrics.SingerNames
 import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
 import com.dd3boh.outertune.constants.EnabledTabsKey
 import com.dd3boh.outertune.constants.SliderStyleKey
@@ -107,7 +109,7 @@ object SettingsProfiles {
                 "preferLocalLyrics", "lyricFontSize", "lyricClickable", "lyricKaraokeEnable",
                 "lyricEstimatedWordSync", "lyricUpdateSpeed", "enableLyricsPrefetch",
                 "lyricsPrefetchCount", "lyricsFetchMode", "lyricsProviderOrder", "enableKugou", "enableLrcLib",
-                "enableBetterLyrics", "enableSimpMusic", "lyricsRefreshInterval",
+                "enableBetterLyrics", "enableSimpMusic", "lyricsRefreshInterval", "lyricSingerNames",
             ),
         ),
         PLAYBACK(
@@ -252,6 +254,7 @@ object SettingsProfiles {
                 put("estimateWordTimings", p[LyricEstimatedWordSync] ?: false)
                 put("highlightStyle", if (p[LyricHighlightStyleKey] == LyricHighlightStyle.FADE.name) "fade" else "sweep")
                 put("showLyricsType", p[LyricShowTypeKey] ?: true)
+                put("singerNames", (p[LyricSingerNamesKey] ?: SingerNames.COLOUR.name).lowercase())
                 // No "offsetMs": the lyrics timing offset is each song's own now, kept in the
                 // library database rather than the settings, so a profile has none to carry.
                 put("openOnCoverClick", p[ShowLyricsOnClickKey] ?: true)
@@ -348,6 +351,9 @@ object SettingsProfiles {
                 bool("estimateWordTimings", LyricEstimatedWordSync)
                 str("highlightStyle") { p[LyricHighlightStyleKey] = if (it == "fade") LyricHighlightStyle.FADE.name else LyricHighlightStyle.SWEEP.name }
                 bool("showLyricsType", LyricShowTypeKey)
+                str("singerNames") { name ->
+                    SingerNames.entries.firstOrNull { it.name.equals(name, ignoreCase = true) }?.let { p[LyricSingerNamesKey] = it.name }
+                }
                 // "offsetMs" (and "lyricOffset" in an older android block) is passed over: there is
                 // no single offset left to apply it to.
                 bool("openOnCoverClick", ShowLyricsOnClickKey)

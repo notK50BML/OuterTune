@@ -335,6 +335,16 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 13) {
+                connection.createStatement().use { st ->
+                    // The song's album by name, for the line under its title - see SongDetail and
+                    // songFacts. A file on this computer has its album in local_file already.
+                    val has = st.executeQuery("PRAGMA table_info(song)").use { rs ->
+                        generateSequence { if (rs.next()) rs.getString("name") else null }.any { it == "album" }
+                    }
+                    if (!has) st.executeUpdate("ALTER TABLE song ADD COLUMN album TEXT NOT NULL DEFAULT ''")
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -508,11 +518,11 @@ class Database(file: File) {
     }
 
     /** Records a song, or updates what is known about one already recorded. */
-    fun upsertSong(song: StoredSong, durationMs: Long = 0) = synchronized(lock) {
+    fun upsertSong(song: StoredSong, durationMs: Long = 0, album: String = "") = synchronized(lock) {
         connection.prepareStatement(
             """
-            INSERT INTO song (id, title, artists, thumbnail, durationMs)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO song (id, title, artists, thumbnail, durationMs, album)
+            VALUES (?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 artists = excluded.artists,
@@ -520,7 +530,8 @@ class Database(file: File) {
                 -- from a sparse source - a queue entry, a search result - would otherwise erase a
                 -- cover that a richer source had already supplied.
                 thumbnail = CASE WHEN excluded.thumbnail <> '' THEN excluded.thumbnail ELSE song.thumbnail END,
-                durationMs = CASE WHEN excluded.durationMs > 0 THEN excluded.durationMs ELSE song.durationMs END
+                durationMs = CASE WHEN excluded.durationMs > 0 THEN excluded.durationMs ELSE song.durationMs END,
+                album = CASE WHEN excluded.album <> '' THEN excluded.album ELSE song.album END
             """.trimIndent()
         ).use { st ->
             st.setString(1, song.id)
@@ -528,15 +539,17 @@ class Database(file: File) {
             st.setString(3, song.artists)
             st.setString(4, song.thumbnail)
             st.setLong(5, durationMs)
+            st.setString(6, album)
             st.executeUpdate()
         }
         writeCreditsLocked(song)
         relinkLocked(song.id)
     }
 
-    fun recordPlay(song: StoredSong, atMs: Long, durationMs: Long = 0) = synchronized(lock) {
-        // Through upsertSong when the length is known, so Stats can total listening time.
-        if (durationMs > 0) upsertSong(song, durationMs) else upsertSongLocked(song)
+    fun recordPlay(song: StoredSong, atMs: Long, durationMs: Long = 0, album: String = "") = synchronized(lock) {
+        // Through upsertSong when the length is known, so Stats can total listening time - or the
+        // album, so the song's row can name it.
+        if (durationMs > 0 || album.isNotEmpty()) upsertSong(song, durationMs, album) else upsertSongLocked(song)
         connection.prepareStatement(
             "INSERT INTO play_history (songId, playedAt) VALUES (?, ?) " +
                 "ON CONFLICT(songId) DO UPDATE SET playedAt = excluded.playedAt"
@@ -1369,6 +1382,32 @@ class Database(file: File) {
         CreditIndex(songs, names)
     }
 
+    /**
+     * Every song's album and length, where known, for the line under its title (see SongDetail).
+     * Kept apart from [StoredSong] rather than added to it: songs are compared whole all over, and
+     * one read back with a length it was not written with would no longer equal itself.
+     */
+    fun songFacts(): Map<String, SongFacts> = synchronized(lock) {
+        val out = HashMap<String, SongFacts>()
+        connection.createStatement().use { st ->
+            st.executeQuery(
+                """
+                SELECT s.id, s.album, s.durationMs, f.album, f.durationMs
+                FROM song s LEFT JOIN local_file f ON f.songId = s.id
+                """.trimIndent()
+            ).use { rs ->
+                while (rs.next()) {
+                    // A file's own tags first: they are what the file says, where the song row only
+                    // has what it was last played or downloaded as.
+                    val album = rs.getString(4)?.takeIf { it.isNotBlank() } ?: rs.getString(2).orEmpty()
+                    val durationMs = rs.getLong(5).takeIf { it > 0 } ?: rs.getLong(3)
+                    if (album.isNotEmpty() || durationMs > 0) out[rs.getString(1)] = SongFacts(album, durationMs)
+                }
+            }
+        }
+        out
+    }
+
     /** A just-written song's credits, put through what is already known about its artists. */
     private fun relinkLocked(songId: String) {
         if (allLinksLocked().isNotEmpty()) applyArtistLinks(listOf(songId))
@@ -1488,7 +1527,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 12
+        const val SCHEMA_VERSION = 13
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

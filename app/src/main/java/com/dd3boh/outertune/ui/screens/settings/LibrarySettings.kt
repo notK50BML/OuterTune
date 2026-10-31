@@ -57,6 +57,7 @@ import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.screens.settings.fragments.LocalizationFrag
+import com.dd3boh.outertune.ui.screens.settings.fragments.SongDetailsArrangement
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
 import kotlinx.coroutines.launch
@@ -142,6 +143,7 @@ fun LibrarySettings(
                 checked = artistEnrichment,
                 onCheckedChange = onArtistEnrichmentChange
             )
+            SongDetailsArrangement()
         }
         Spacer(modifier = Modifier.height(16.dp))
 
