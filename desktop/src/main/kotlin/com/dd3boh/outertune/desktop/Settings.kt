@@ -129,6 +129,9 @@ class Settings(private val store: SettingsStore) {
      */
     var songDetails by string("ui.songDetails", "")
 
+    /** The mood chips (Relax, Workout...) at the top of Home - the phone's Library and content switch. */
+    var showHomeChips by bool("home.showChips", true)
+
     /** An imported Windows player layout (see PlayerLayout), as its file's text. Empty: built-in. */
     var playerLayout by string("player.layout", "")
 

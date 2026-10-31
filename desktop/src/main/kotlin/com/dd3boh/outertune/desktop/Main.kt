@@ -467,9 +467,21 @@ internal fun App(
     var homeLoadingMore by remember { mutableStateOf(false) }
     var homeChips by remember { mutableStateOf<List<HomePage.Chip>>(emptyList()) }
     LaunchedEffect(accountState, homeAttempt, homeChip) {
-        home = HomeState.Loading
-        home = homeFeed.load(signedIn = accountState is AccountState.SignedIn, chip = homeChip)
+        val chip = homeChip
+        // A chip's page fetched ahead shows at once and is refreshed behind; a refresh that fails
+        // leaves it showing rather than swapping a working page for an error.
+        val ahead = chip?.let(homeFeed::cached)
+        home = ahead ?: HomeState.Loading
+        val fresh = homeFeed.load(signedIn = accountState is AccountState.SignedIn, chip = chip)
+        if (ahead == null || fresh is HomeState.Ready) home = fresh
         (home as? HomeState.Ready)?.chips?.takeIf { it.isNotEmpty() }?.let { homeChips = it }
+    }
+    // Every chip's page, fetched together once the chips are known, and the ones with nothing this
+    // app can play left out of the row - see HomeFeed.prefetchChips.
+    var emptyHomeChips by remember { mutableStateOf<Set<String>>(emptySet()) }
+    LaunchedEffect(homeChips, accountState) {
+        if (homeChips.isEmpty()) return@LaunchedEffect
+        emptyHomeChips = homeFeed.prefetchChips(accountState is AccountState.SignedIn, homeChips)
     }
 
     // The two local rows the phone builds from play counts. Recomputed when history or likes change,
@@ -1733,7 +1745,7 @@ internal fun App(
                                 recentActivity = recentActivity,
                                 similar = homeSimilar.filterExplicitIf(settings.hideExplicit),
                                 newReleases = homeNewReleases.filterNot { settings.hideExplicit && it.explicit },
-                                chips = homeChips,
+                                chips = if (settings.showHomeChips) homeChips.filter { it.title !in emptyHomeChips } else emptyList(),
                                 selectedChip = homeChip,
                                 onChip = { homeChip = it },
                                 loadingMore = homeLoadingMore,

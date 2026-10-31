@@ -148,6 +148,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Singer names in lyrics", SettingsCategory.Lyrics, "duet artist singer name colour color code voice who sings hide betterlyrics"),
     SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
     SettingEntry("Hide explicit content", SettingsCategory.Content, "explicit filter clean"),
+    SettingEntry("Mood chips on Home", SettingsCategory.Content, "chips filters relax workout energize podcasts home moods"),
     SettingEntry("Song details", SettingsCategory.Content, "subtitle under title song rows artists album length duration time order"),
     SettingEntry("Content language", SettingsCategory.Content, "language region locale youtube"),
     SettingEntry("Content country", SettingsCategory.Content, "country region locale youtube"),
@@ -931,6 +932,13 @@ private fun ContentSettings(settings: Settings) {
         )
     }
     Section("Display") {
+        SettingSwitch(
+            title = "Mood chips on Home",
+            subtitle = "Relax, Workout and the rest, above Home.",
+            checked = settings.showHomeChips,
+            onCheckedChange = { settings.showHomeChips = it },
+            icon = OuterTuneIcons.home,
+        )
         var arrangingDetails by remember { mutableStateOf(false) }
         SettingRow(
             title = "Song details",

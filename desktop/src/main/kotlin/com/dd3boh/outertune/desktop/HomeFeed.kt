@@ -44,7 +44,12 @@ sealed interface HomeState {
      * [signedOut] separates "YouTube has no recommendations for you" from "you have not signed in",
      * which need completely different things from the reader: one is a shrug, the other is a button.
      */
-    data class Empty(val message: String, val signedOut: Boolean) : HomeState
+    data class Empty(
+        val message: String,
+        val signedOut: Boolean,
+        /** A mood chip's page that loaded but holds nothing this app can play - see HomeFeed.prefetchChips. */
+        val nothingPlayable: Boolean = false,
+    ) : HomeState
 }
 
 /**
@@ -60,6 +65,30 @@ sealed interface HomeState {
  * into one shape here would only mean reconstructing the distinction on the other side.
  */
 class HomeFeed {
+
+    /**
+     * Each mood chip's page, fetched in the background once the feed is up - see [prefetchChips] -
+     * so a click shows it at once and refreshes behind it, rather than a round trip with nothing on
+     * screen. The phone's Home does the same.
+     */
+    private val chipPages = java.util.concurrent.ConcurrentHashMap<String, HomeState.Ready>()
+
+    /** [chip]'s page fetched ahead, if there is one. */
+    fun cached(chip: HomePage.Chip): HomeState.Ready? = chipPages[chip.title]
+
+    /**
+     * Every chip's page at once, kept for [cached]. Returns the titles of the chips whose page loaded
+     * but holds nothing this app can play - Podcasts, today, whose shelves it cannot draw - so they
+     * can be left out rather than answer every click with "nothing here". A chip whose page only
+     * failed to load is not among them: that may well work next time.
+     */
+    suspend fun prefetchChips(signedIn: Boolean, chips: List<HomePage.Chip>): Set<String> = coroutineScope {
+        chips.map { chip -> async { chip to load(signedIn, chip) } }.awaitAll()
+            .onEach { (chip, state) -> if (state is HomeState.Ready) chipPages[chip.title] = state }
+            .filter { (_, state) -> state is HomeState.Empty && state.nothingPlayable }
+            .map { (chip, _) -> chip.title }
+            .toSet()
+    }
 
     /**
      * The next stretch of the feed, appended to [current] - the phone's Home, which keeps loading
@@ -100,6 +129,7 @@ class HomeFeed {
                     "Sign in to see recommendations made for you."
                 },
                 signedOut = !signedIn,
+                nothingPlayable = chip != null,
             )
         }
         HomeState.Ready(usable, page.chips.orEmpty(), page.continuation)
