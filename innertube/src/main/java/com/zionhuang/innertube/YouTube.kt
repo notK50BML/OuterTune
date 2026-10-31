@@ -252,12 +252,38 @@ object YouTube {
                 thumbnail = response.contents.twoColumnBrowseResultsRenderer.tabs.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()?.musicResponsiveHeaderRenderer?.thumbnail?.musicThumbnailRenderer?.thumbnail?.thumbnails?.lastOrNull()?.url!!,
             ),
             songs = if (withSongs) albumSongs(playlistId, gl).getOrThrow() else emptyList(),
-            otherVersions = response.contents.twoColumnBrowseResultsRenderer.secondaryContents?.sectionListRenderer?.contents?.getOrNull(1)?.musicCarouselShelfRenderer?.contents
-                ?.mapNotNull { it.musicTwoRowItemRenderer }
-                ?.mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
-                .orEmpty()
+            otherVersions = otherVersionsOf(response, browseId),
         )
     }
+
+    /**
+     * The album's other versions - deluxe, remastered, live, Taylor's Version - from the page's
+     * shelves. Not simply the second shelf, which is what this used to take: an album without other
+     * versions has a recommendations shelf there instead, and similar albums by other artists were
+     * shown under "Other versions". Kept to albums whose title, edition labels aside, is this one's,
+     * from any shelf - which does not depend on the language the shelf headers come back in.
+     */
+    private fun otherVersionsOf(response: BrowseResponse, browseId: String): List<AlbumItem> {
+        val tabs = response.contents?.twoColumnBrowseResultsRenderer
+        val title = tabs?.tabs?.firstOrNull()?.tabRenderer?.content?.sectionListRenderer?.contents?.firstOrNull()
+            ?.musicResponsiveHeaderRenderer?.title?.runs?.firstOrNull()?.text ?: return emptyList()
+        val base = baseAlbumTitle(title)
+        if (base.isEmpty()) return emptyList()
+        return tabs.secondaryContents?.sectionListRenderer?.contents.orEmpty()
+            .flatMap { it.musicCarouselShelfRenderer?.contents.orEmpty() }
+            .mapNotNull { it.musicTwoRowItemRenderer }
+            .mapNotNull(NewReleaseAlbumPage::fromMusicTwoRowItemRenderer)
+            .filter { it.browseId != browseId && baseAlbumTitle(it.title) == base }
+            .distinctBy { it.browseId }
+    }
+
+    /** "1989 (Taylor's Version)", "1989 [Deluxe]" and "1989 - Live" are all "1989". */
+    internal fun baseAlbumTitle(title: String): String = title
+        .replace(Regex("""\s*[(\[{][^)\]}]*[)\]}]"""), " ")
+        .replace(Regex("""\s+[-–—]\s+.*$"""), "")
+        .lowercase()
+        .replace(Regex("""[^\p{L}\p{N}]+"""), " ")
+        .trim()
 
     suspend fun albumSongs(playlistId: String, gl: String? = null): Result<List<SongItem>> = runCatching {
         var response = innerTube.browse(WEB_REMIX, "VL$playlistId", gl = gl).body<BrowseResponse>()
