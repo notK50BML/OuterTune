@@ -198,7 +198,7 @@ fun SongDetailsArrangement() {
 
 // The preview's song. A real one, so the line reads as a real row would - not translated, as a
 // song's own title and credits never are.
-private const val SAMPLE_TITLE = "Instant Crush"
-private const val SAMPLE_ARTISTS = "Daft Punk, Julian Casablancas"
-private const val SAMPLE_ALBUM = "Random Access Memories"
+private const val SAMPLE_TITLE = "Song title"
+private const val SAMPLE_ARTISTS = "Artist"
+private const val SAMPLE_ALBUM = "Album"
 private const val SAMPLE_LENGTH = "5:37"

@@ -253,7 +253,10 @@ val YTItem.isStation: Boolean
 @androidx.compose.runtime.Composable
 fun YTItem.shownSubtitle(): String = when {
     this !is SongItem -> subtitle
-    isStation -> shown().subtitle
+    // A song's own radio (RDAMVM + its id) is still that song on the card, so it reads as one -
+    // only a station or mix of other songs keeps the plain artists. Most song cards on Home and in
+    // search come with their radio attached, and they all ignored Song details.
+    isStation && endpoint?.playlistId?.startsWith("RDAMVM") != true -> shown().subtitle
     else -> shown().detailsLine()
 }
 

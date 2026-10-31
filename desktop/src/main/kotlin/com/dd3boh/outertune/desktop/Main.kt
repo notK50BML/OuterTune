@@ -1439,6 +1439,20 @@ internal fun App(
     // The full player is laid over the main view rather than replacing it, so everything underneath
     // keeps its place while it is open - the settings tab being read, scroll positions, the library
     // view - instead of starting over when it closes.
+    // What every song row in the window reads, handed to the page area and to the full player alike:
+    // the full player is drawn outside the page area's block, and its queue fell back to the
+    // defaults - Song details ignored, most visibly.
+    val sharedLocals = arrayOf(
+        LocalRowButtons provides RowButtons(RowButton.decode(settings.rowButtons), settings.rowMenu),
+        // The library's credits and artists' current names, which every song shown goes through -
+        // see SongItem.shown.
+        LocalCredits provides library.credits.collectAsState().value,
+        // What goes under every song's title, and the library's albums and lengths to fill it with.
+        LocalSongDetails provides SongDetail.decode(settings.songDetails),
+        LocalSongFacts provides library.songFacts.collectAsState().value,
+        LocalSongActions provides songActions,
+        LocalPlaybackActive provides (playback is PlaybackState.Playing),
+    )
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1451,17 +1465,7 @@ internal fun App(
                 if (scrollStreaks.spent) event.changes.forEach { it.consume() }
             },
     ) {
-    CompositionLocalProvider(
-        LocalRowButtons provides RowButtons(RowButton.decode(settings.rowButtons), settings.rowMenu),
-        // The library's credits and artists' current names, which every song shown goes through -
-        // see SongItem.shown.
-        LocalCredits provides library.credits.collectAsState().value,
-        // What goes under every song's title, and the library's albums and lengths to fill it with.
-        LocalSongDetails provides SongDetail.decode(settings.songDetails),
-        LocalSongFacts provides library.songFacts.collectAsState().value,
-        LocalSongActions provides songActions,
-        LocalPlaybackActive provides (playback is PlaybackState.Playing),
-    ) {
+    CompositionLocalProvider(*sharedLocals) {
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -1923,7 +1927,7 @@ internal fun App(
                 .pointerInput(Unit) {
                     awaitPointerEventScope { while (true) awaitPointerEvent() }
                 },
-        ) { fullPlayer() }
+        ) { CompositionLocalProvider(*sharedLocals) { fullPlayer() } }
         // The full player covers the window, the bar above the player bar included - and its heart
         // is where an unlike is likeliest to be a slip. So Undo is offered over it, as a snackbar.
         if (unlikedRecently.isNotEmpty()) {
