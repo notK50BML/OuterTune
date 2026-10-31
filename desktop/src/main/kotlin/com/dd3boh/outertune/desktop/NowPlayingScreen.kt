@@ -254,7 +254,9 @@ fun NowPlayingScreen(
     // until the first layout, which is also the only time there is no half for a pointer to be in.
     var playerHeightPx by remember { mutableStateOf(0) }
     // When the last downward scroll arrived, so a trackpad's momentum tail cannot act twice.
-    var lastScrollDown by remember { mutableStateOf(0L) }
+    // Two notches in quick succession, as the mini player wants - see MiniPlayerScrollGesture. One
+    // stray tick, or the tail of a scroll through something else, opens and closes nothing.
+    val scrollGesture = remember { MiniPlayerScrollGesture(ScrollStreaks()) }
 
     val song = queue.current?.shown()
     val (primary, secondary) = rememberArtworkColours(song?.thumbnail)
@@ -367,28 +369,23 @@ fun NowPlayingScreen(
                 val atTop = known && change.position.y <= playerHeightPx / 2f
                 val free = playerScroll == PlayerScroll.Anywhere
                 val delta = change.scrollDelta.y
+                // Counted whatever the half, so a streak is one streak; acted on below only once it
+                // has gone far enough, and only in the direction it went.
+                val gesture = scrollGesture.feed(change.uptimeMillis, delta) ?: return@onPointerEvent
                 when {
                     // Opening only. Closing by scrolling cannot work and used to be written here as
                     // though it did: once open, the panel covers the window as its own overlay, so
                     // this handler - which lives on the player underneath - never sees another
                     // scroll. It closes by its handle or by a flick upward, the direction it came from.
-                    delta < 0f && equalizer != null && !equalizerOpen && (free || atTop) -> {
+                    gesture == MiniPlayerScrollAction.Expand && equalizer != null && !equalizerOpen && (free || atTop) -> {
                         equalizerOpen = true
                     }
                     // Down puts the player away. Not while the equaliser is open: the panel is an
                     // overlay over this, so a scroll arriving here means it is already closed, but
                     // the check keeps that true if the panel ever stops covering the whole window.
-                    delta > 0f && !equalizerOpen && (free || (known && !atTop)) -> {
-                        // One flick is dozens of events on a trackpad, and all but the first arrive
-                        // after the player has already gone. Opening the equaliser shrugs that off
-                        // because it is idempotent; closing is not - the tail would land on whatever
-                        // the mini player sits over. So the gesture has to spend itself: the clock
-                        // is pushed forward by every event, and nothing fires until the wheel stops.
-                        val now = System.nanoTime()
-                        val quiet = now - lastScrollDown > SCROLL_DISMISS_GAP_NS
-                        lastScrollDown = now
-                        if (quiet) onClose()
-                    }
+                    // The gesture fires once per streak, so a trackpad flick's tail - dozens of events
+                    // after the player has gone - cannot land on whatever the mini player sits over.
+                    gesture == MiniPlayerScrollAction.Dismiss && !equalizerOpen && (free || (known && !atTop)) -> onClose()
                 }
             },
     ) {
@@ -628,7 +625,7 @@ fun NowPlayingScreen(
                                                 fontSize = 20.sp * scale * (lyricsTextScale / 100f),
                                                 alignment = lyricsAlignment,
                                                 highlight = lyricsHighlight,
-                                                modifier = Modifier.fillMaxSize().padding(bottom = 76.dp),
+                                                modifier = Modifier.fillMaxSize().padding(bottom = 76.dp).keepScrolls(),
                                             )
                                             LyricsHeader(
                                                 modifier = Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 20.dp),
@@ -782,7 +779,7 @@ fun NowPlayingScreen(
                         alignment = lyricsAlignment,
                         highlight = lyricsHighlight,
                         // Ends above the lyric controls, so no line is ever read through them.
-                        modifier = Modifier.fillMaxHeight().padding(bottom = 76.dp),
+                        modifier = Modifier.fillMaxHeight().padding(bottom = 76.dp).keepScrolls(),
                     )
                     LyricsHeader(
                         modifier = Modifier.align(Alignment.BottomEnd).padding(end = 4.dp, bottom = 28.dp),
@@ -2029,7 +2026,6 @@ private const val SEEK_STEP_DEFAULT_MS = 5_000L
  * Long enough to outlast a trackpad's momentum, which keeps delivering events well after the
  * fingers have lifted, and short enough that deliberately doing it twice still works.
  */
-private const val SCROLL_DISMISS_GAP_NS = 600_000_000L
 
 /**
  * The song's own controls: like, download, equaliser, and the overflow menu.
@@ -2328,4 +2324,13 @@ private fun titleRoom(info: PlayerLayout.Block, blocks: List<PlayerLayout.Block>
     }
     val room = if (info.centred) 2f * minOf(infoCx - leftLimit, rightLimit - infoCx) else rightLimit - (infoCx - infoW / 2f)
     return maxOf(room - 12f, infoW).dp
+}
+
+/**
+ * Takes every scroll over it, used or not. On the lyrics: a scroll there is reading, and one that ran
+ * past the first or last line used to fall through to the player and open the equaliser or close it.
+ */
+@OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+private fun Modifier.keepScrolls(): Modifier = onPointerEvent(PointerEventType.Scroll) { event ->
+    event.changes.forEach { it.consume() }
 }
