@@ -231,7 +231,10 @@ fun YTItem.shownSubtitle(): String = when {
 val YTItem.subtitle: String
     get() = when (this) {
         is SongItem -> artists.joinToString { it.name }
-        is AlbumItem -> artists?.joinToString { it.name }.orEmpty()
+        // Artists and year, as the phone's cards have them. On an artist's own page YouTube often
+        // leaves the album's artists out, and the card had nothing under its title at all.
+        is AlbumItem -> listOfNotNull(artists?.joinToString { it.name }?.takeIf { it.isNotBlank() }, year?.toString())
+            .joinToString(" • ")
         is PlaylistItem -> author?.name ?: songCountText.orEmpty()
         is ArtistItem -> "Artist"
     }
