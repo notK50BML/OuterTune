@@ -87,6 +87,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -108,7 +109,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Tray
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -141,6 +141,9 @@ import kotlinx.coroutines.withContext
  * starts, so a mid-song 403 cannot happen, and seeking is arithmetic rather than a new request.
  */
 fun main() {
+    // Before anything else: started again while already running - in the tray, most often - this
+    // shows the running copy and goes no further. See SingleInstance.
+    if (!SingleInstance.claim(defaultDataDirectory())) return
     // Before the window: which way it is drawn cannot change once it is open - see RenderMode.
     RenderMode.apply()
     runApplication()
@@ -202,6 +205,19 @@ private fun runApplication() = application {
     // all, and gives its memory back as a minimised one does.
     var windowVisible by remember { mutableStateOf(true) }
     var minimised by remember { mutableStateOf(false) }
+    // Bumped each time the window is asked to come back; the window brings itself to the front on
+    // each, once it is on screen again - see below.
+    var showRequests by remember { mutableStateOf(0) }
+    // Back from the tray, out of the taskbar, and in front: the tray icon's click and its popup's
+    // Show OuterTune both come here.
+    val showWindow: () -> Unit = {
+        windowVisible = true
+        windowState.isMinimized = false
+        showRequests++
+    }
+    // And a second start of the app, handed over to this one. It arrives on the listening thread,
+    // so the window's state changes are made on the UI thread as the tray's clicks are.
+    SideEffect { SingleInstance.onActivate = { javax.swing.SwingUtilities.invokeLater { showWindow() } } }
     val closeWindow: () -> Unit = {
         if (settings.closeToTray) {
             windowVisible = false
@@ -216,19 +232,14 @@ private fun runApplication() = application {
     }
     if (settings.closeToTray) {
         val trayPlayback by player.state.collectAsState()
-        Tray(
+        // Its own popup on a right-click rather than a native menu - see OuterTuneTray.
+        OuterTuneTray(
             icon = appIcon,
             tooltip = (trayPlayback as? PlaybackState.Playing)?.title?.let { "OuterTune - $it" } ?: "OuterTune",
-            onAction = { windowVisible = true },
-            menu = {
-                val active = trayPlayback is PlaybackState.Playing || trayPlayback is PlaybackState.Loading
-                Item(if (active) "Pause" else "Play", onClick = { TrayControls.togglePlay() })
-                Item("Next", onClick = { TrayControls.next() })
-                Item("Previous", onClick = { TrayControls.previous() })
-                Separator()
-                Item("Show OuterTune", onClick = { windowVisible = true })
-                Item("Quit", onClick = quit)
-            },
+            player = player,
+            library = library,
+            onShow = showWindow,
+            onQuit = quit,
         )
     }
     Window(
@@ -255,6 +266,14 @@ private fun runApplication() = application {
                 while (!window.isShowing) kotlinx.coroutines.delay(16)
                 windowState.placement = androidx.compose.ui.window.WindowPlacement.Maximized
             }
+        }
+        // Brought forward once it is showing again: asked while it was still hidden, toFront does
+        // nothing, and a window restored behind whatever was in use is not much of a restore.
+        LaunchedEffect(showRequests) {
+            if (showRequests == 0) return@LaunchedEffect
+            while (!window.isShowing) kotlinx.coroutines.delay(16)
+            window.toFront()
+            window.requestFocus()
         }
         LaunchedEffect(windowState) {
             snapshotFlow { listOf(windowState.placement, windowState.position, windowState.size, windowState.isMinimized) }
@@ -301,6 +320,11 @@ private fun runApplication() = application {
         }
         val typography = remember(settings.fontFamily) {
             SystemFonts.typography(SystemFonts.family(settings.fontFamily))
+        }
+        // For the tray icon's popup, which is a window of its own and would otherwise not know.
+        SideEffect {
+            TrayControls.colors = finalScheme
+            TrayControls.typography = typography
         }
         val density = LocalDensity.current
         val scaledDensity = remember(density, settings.textScale) {
@@ -507,14 +531,30 @@ internal fun App(
         album = loadAlbum(id)
     }
 
+    // Where Back goes from an artist or album page: the artist or album it was opened from, in
+    // turn, and only then out to wherever the first of them was opened. Without it, an album opened
+    // from an artist's page replaced the artist outright, and Back from the album went all the way
+    // home. Anywhere that leaves these pages for somewhere else - a tab, a search, a playlist -
+    // starts it again.
+    val pageHistory = remember { mutableStateListOf<Pair<StoredArtist?, String?>>() }
+    fun rememberPage() {
+        if (openArtist != null || openAlbumId != null) pageHistory.add(openArtist to openAlbumId) else pageHistory.clear()
+    }
+    val pageBack = {
+        val previous = pageHistory.removeLastOrNull()
+        openArtist = previous?.first
+        openAlbumId = previous?.second
+    }
     // Opening an artist closes the player, because the artist page is where the user is going and
     // the full-window player would otherwise cover it entirely.
     val openArtistPage = { artist: StoredArtist ->
+        rememberPage()
         openArtist = artist
         openAlbumId = null
         showFullPlayer = false
     }
     val openAlbumPage = { browseId: String ->
+        rememberPage()
         openAlbumId = browseId
         openArtist = null
         showFullPlayer = false
@@ -526,6 +566,7 @@ internal fun App(
         openOnlinePlaylist = item
         openArtist = null
         openAlbumId = null
+        pageHistory.clear()
     }
     // Handed over once. The player resolves audio, so it is the thing that knows how to fill the
     // cache, and it consults it before reaching for the network.
@@ -697,9 +738,7 @@ internal fun App(
         if (duration <= 0) return@LaunchedEffect
         lyricsLoading = true
         try {
-            lyricsRepository.useWordByWord = settings.wordByWordLyrics
-            lyricsRepository.useLrclib = settings.lyricsLrclib
-            lyricsRepository.useKugou = settings.lyricsKugou
+            lyricsRepository.enabled = LyricsSource.entries.filter { settings.isEnabled(it) }.toSet()
             lyricsRepository.order = LyricsSource.ordered(settings.lyricsProviderOrder)
             lyricsRepository.inOrder = settings.lyricsFetchMode == LyricsFetchMode.InMyOrder
             val fetched = lyricsRepository.lyricsFor(
@@ -716,8 +755,18 @@ internal fun App(
             lyricsLoading = false
         }
     }
-    val lyrics = remember(fetchedLyrics, settings.lyricsOffsetMs, settings.estimateWordTimings) {
-        fetchedLyrics?.shiftedBy(settings.lyricsOffsetMs.toLong())
+    // The playing song's own timing offset, read from the library as it starts. Per song because an
+    // offset fixes one file timed against a different master; one value for everything put every
+    // other song out. Null until read, so an adjustment cannot land on the song before.
+    var lyricsOffset by remember { mutableStateOf<Pair<String, Int>?>(null) }
+    LaunchedEffect(nowPlaying?.id) {
+        lyricsOffset = null
+        val id = nowPlaying?.id ?: return@LaunchedEffect
+        lyricsOffset = id to withContext(Dispatchers.IO) { lyricsRepository.offset(id) }
+    }
+    val lyricsOffsetMs = lyricsOffset?.takeIf { it.first == nowPlaying?.id }?.second ?: 0
+    val lyrics = remember(fetchedLyrics, lyricsOffsetMs, settings.estimateWordTimings) {
+        fetchedLyrics?.shiftedBy(lyricsOffsetMs.toLong())
             ?.let { if (settings.estimateWordTimings) it.withEstimatedWords() else it }
     }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
@@ -839,6 +888,7 @@ internal fun App(
         // A search is a place of its own: anything opened over the last one is left.
         openArtist = null
         openAlbumId = null
+        pageHistory.clear()
         openOnlinePlaylist = null
         if (settings.keepSearchHistory) {
             settings.searchHistory = (listOf(text) + settings.searchHistory.lines().filter { it.isNotBlank() && it != text })
@@ -906,6 +956,7 @@ internal fun App(
         TrayControls.togglePlay = togglePlay
         TrayControls.next = playerQueue::next
         TrayControls.previous = playerQueue::previous
+        TrayControls.queue = playerQueue.state
     }
 
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true
@@ -1294,8 +1345,14 @@ internal fun App(
                     },
                 )
             },
-            lyricsOffsetMs = settings.lyricsOffsetMs,
-            onLyricsOffsetChange = { settings.lyricsOffsetMs = it },
+            lyricsOffsetMs = lyricsOffsetMs,
+            // Live, on every step of the control, so the lyrics can be tuned by ear while they play.
+            onLyricsOffsetChange = { ms ->
+                lyricsOffset?.first?.takeIf { it == queue.current?.id }?.let { id ->
+                    lyricsOffset = id to ms
+                    lyricsRepository.setOffset(id, ms)
+                }
+            },
             playerScroll = settings.playerScroll,
             seekStepMs = settings.seekIncrementSeconds * 1000L,
             eqSpectrum = player.spectrum.takeIf { settings.eqSpectrum && !settings.batterySaver },
@@ -1380,6 +1437,7 @@ internal fun App(
             tab = next
             openArtist = null
             openAlbumId = null
+            pageHistory.clear()
             openPlaylist = null
             openOnlinePlaylist = null
             query = ""
@@ -1483,7 +1541,7 @@ internal fun App(
                         downloadingTitle = downloadingTitle,
                         state = album,
                         currentId = queue.current?.id,
-                        onBack = { openAlbumId = null },
+                        onBack = pageBack,
                         onPlay = { songs, index -> playerQueue.play(songs, index, albumTitle(album)) },
                         onShuffle = { songs ->
                             // Shuffled by handing the queue a shuffled list rather than by turning
@@ -1500,7 +1558,7 @@ internal fun App(
                         requested = artist,
                         library = library,
                         currentId = queue.current?.id,
-                        onBack = { openArtist = null },
+                        onBack = pageBack,
                         onPlay = { songs, index -> playerQueue.play(songs, index, artist.name) },
                         onAddToPlaylist = { addingToPlaylist = it },
                         onOpenAlbum = openAlbumPage,
@@ -1564,6 +1622,7 @@ internal fun App(
                 } else if (tab == NavTab.Stats) {
                     StatsPane(
                         library = library,
+                        settings = settings,
                         currentId = queue.current?.id,
                         onPlay = { songs, index -> playerQueue.play(songs.map { it.toItem() }, index, "Stats") },
                         onOpenArtist = openArtistPage,
@@ -1800,7 +1859,6 @@ internal fun App(
                 onLyrics = { settings.miniPlayerLyrics = !settings.miniPlayerLyrics },
                 lyricsShown = settings.miniPlayerLyrics,
                 lyrics = lyrics,
-                lyricsLoading = lyricsLoading,
                 sleepRemainingMs = sleepRemaining,
                 onSleepTimer = { showSleepDialog = true },
                 onDismiss = dismissMiniPlayer,

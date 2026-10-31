@@ -50,4 +50,31 @@ class PlayCountingTest {
         assertTrue(countsAsPlay(heardMs = 2_000, durationMs = 200_000, minPercent = 0))
         assertTrue(countsAsPlay(heardMs = 198_000, durationMs = 200_000, minPercent = 100))
     }
+
+    private fun queue(fromStation: Boolean = false, following: Boolean = false) = QueueState(
+        songs = listOf(com.zionhuang.innertube.models.SongItem(id = "s", title = "S", artists = emptyList(), thumbnail = "", duration = 200)),
+        index = 0, order = listOf(0), orderPosition = 0, fromStation = fromStation, following = following,
+    )
+
+    @Test
+    fun `the listener's own queue counts`() {
+        assertFalse(queue().station)
+    }
+
+    @Test
+    fun `a station's songs and a Listen Together host's do not count`() {
+        assertTrue(queue(fromStation = true).station)
+        // Following someone else's session: every song the host plays reaches this computer too,
+        // and used to be counted here as well as on the host.
+        assertTrue(queue(following = true).station)
+    }
+
+    @Test
+    fun `a remembered queue keeps its station but not the session it was followed in`() {
+        val (station, _) = QueueSnapshot.decode(QueueSnapshot.encode(queue(fromStation = true), 0))!!
+        assertTrue(station.station)
+        // Played again after a restart, the session is long over: the listener's own choice now.
+        val (followed, _) = QueueSnapshot.decode(QueueSnapshot.encode(queue(following = true), 0))!!
+        assertFalse(followed.station)
+    }
 }

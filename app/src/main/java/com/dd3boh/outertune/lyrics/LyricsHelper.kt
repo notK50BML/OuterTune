@@ -20,6 +20,7 @@ import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.utils.dataStore
 import com.dd3boh.outertune.utils.get
 import com.dd3boh.outertune.utils.reportException
+import com.zionhuang.innertube.utils.cleanLyrics
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers

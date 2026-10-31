@@ -25,6 +25,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.FolderCopy
 import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material.icons.rounded.SmartDisplay
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ElevatedCard
@@ -179,6 +180,25 @@ fun LibrarySettings(
                         downloadUtil.downloadAllThumbnails()
                     }
                 }
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Local media used to be a section of the main settings list; it lives here now, as it does
+        // on the desktop. An entry rather than the settings themselves, because the scanner's folder
+        // list and dialogs are a screen's worth on their own - and "settings/local" stays where the
+        // folder browser's scanner button takes you.
+        PreferenceGroupTitle(
+            title = stringResource(R.string.local_player_settings_title)
+        )
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.local_player_settings_entry_title)) },
+                description = stringResource(R.string.local_player_settings_entry_description),
+                icon = { Icon(Icons.Rounded.SdCard, null) },
+                onClick = { navController.navigate("settings/local") }
             )
         }
         Spacer(Modifier.height(96.dp))

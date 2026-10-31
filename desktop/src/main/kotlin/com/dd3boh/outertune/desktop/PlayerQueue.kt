@@ -36,10 +36,28 @@ data class QueueState(
      * song, which is already about to be visible anyway.
      */
     val title: String = "Queue",
-    /** Played from a station or radio - see isStationPlaylistId. Its songs do not count in Stats. */
-    val station: Boolean = false,
+    /** Played from a station or radio - see isStationPlaylistId. */
+    val fromStation: Boolean = false,
+    /**
+     * Played by Listen Together while following someone else's session - see
+     * DesktopPlaybackBridge.playTrack. Not kept when the queue is saved for the next start: by then
+     * the session is long over, and playing the queue again is the listener's own choice.
+     */
+    val following: Boolean = false,
 ) {
     val current: SongItem? get() = songs.getOrNull(index)
+
+    /**
+     * Whether this queue's songs are someone else's picks rather than the listener's: a station's,
+     * which chooses its songs itself, or a Listen Together host's. Neither counts in Stats or the
+     * play counts, nor goes to the account. Read as each song starts (see the play counting in
+     * Main), so a song started while following stays uncounted after leaving the session part way
+     * through it.
+     *
+     * Following used to count in full: a follower's songs went through the same queue as any other,
+     * so every song a host played was recorded on each device listening along too.
+     */
+    val station: Boolean get() = fromStation || following
 
     /**
      * What [PlayerQueue.next] would land on, without moving there.
@@ -262,6 +280,8 @@ class PlayerQueue(
         keepCurrent: Boolean = false,
         /** A station or radio, whose songs are not counted in Stats. */
         station: Boolean = false,
+        /** A Listen Together host's song, played while following them - not counted either. */
+        following: Boolean = false,
         /** More songs for a radio or station, asked for as it runs low - see [extendIfLow]. */
         more: (suspend (List<SongItem>) -> List<SongItem>)? = null,
     ) {
@@ -282,7 +302,8 @@ class PlayerQueue(
             order = order,
             orderPosition = order.indexOf(startIndex),
             title = title,
-            station = station,
+            fromStation = station,
+            following = following,
         )
         this.more = more
         if (carryOn) {

@@ -4,7 +4,12 @@
  * SPDX-License-Identifier: GPL-3.0
  */
 
-package com.dd3boh.outertune.lyrics
+package com.zionhuang.innertube.utils
+
+/*
+ * Here rather than in either app because both use it: the phone's YouTube Subtitle provider and the
+ * desktop's. Plain Kotlin with nothing platform-specific in it, beside the transcript() it cleans up.
+ */
 
 /**
  * The universal "instrumental / non-vocal passage" marker. Every lyrics source that bothers to

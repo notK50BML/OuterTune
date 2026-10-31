@@ -230,15 +230,19 @@ enum class LyricHighlightStyle { SWEEP, FADE }
 val LyricShowTypeKey = booleanPreferencesKey("lyricShowType")
 
 /**
- * Milliseconds added to the playback position before deciding which lyric line is current.
- *
- * Positive shows lines earlier, negative later - which is the way round it needs to be, because the
- * complaint is always "the words are late" or "the words are early" about the *lyrics*, not about
- * the song. Corrects a badly timed lyric file rather than the playback, so it is stored per app
- * rather than per song: the same source tends to be off by a similar amount across a library, and a
- * per-song value would mean setting it again for every track.
+ * The old app-wide lyrics timing offset. No longer read or written: the offset is each song's own
+ * now (LyricsOffsetEntity), because one value for every song fixed the file it was set for and put
+ * every other one out. Kept so the stored key is recognisable rather than a mystery; a value left
+ * in it does nothing.
  */
+@Suppress("unused")
 val LyricOffsetKey = intPreferencesKey("lyricOffset")
+
+/**
+ * Whether the per-song lyrics offset is turned with a dial rather than stepped with buttons - the
+ * switch at the top of that dialog. Buttons by default: they land on exact values one-handed.
+ */
+val LyricsOffsetDialKey = booleanPreferencesKey("lyricsOffsetDial")
 
 /**
  * Milliseconds a follower aims ahead of the host in a listen-together session.
@@ -641,3 +645,13 @@ val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
 
 /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
 val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")
+
+/**
+ * The Stats screen's chips, so it opens as it was left rather than on a week of time listened every
+ * time: the period, what the chart ranks by (StatMetric), and how many songs it shows
+ * (StatsViewModel.SONG_LIMITS). The desktop remembers the same three. Not in a settings profile -
+ * they are how one person reads their own listening - but kept in a backup with everything else.
+ */
+val StatPeriodKey = stringPreferencesKey("statPeriod")
+val StatMetricKey = stringPreferencesKey("statMetric")
+val StatSongLimitKey = intPreferencesKey("statSongLimit")

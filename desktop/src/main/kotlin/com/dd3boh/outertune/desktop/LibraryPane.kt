@@ -228,7 +228,7 @@ fun LibraryPane(
                             source == SongSource.Liked && signedIn -> "No liked songs yet. Sync with YouTube to bring yours in."
                             source == SongSource.Liked -> "No liked songs yet. Like a song from the player, or sign in to bring yours from YouTube."
                             source == SongSource.Downloaded -> "Nothing downloaded yet."
-                            source == SongSource.Local -> "No music from this computer yet. Add folders under Settings → Local music."
+                            source == SongSource.Local -> "No music from this computer yet. Add folders under Settings → Library and content."
                             else -> "Nothing played yet."
                         }
                     )

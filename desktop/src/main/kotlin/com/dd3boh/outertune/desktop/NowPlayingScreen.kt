@@ -1650,7 +1650,7 @@ private fun LyricsHeader(
             ) {
                 if (onOffsetChange != null) {
                     androidx.compose.material3.DropdownMenuItem(
-                        text = { Text("Timing offset (${if (offsetMs > 0) "+" else ""}$offsetMs ms)") },
+                        text = { Text("Timing offset (${formatLyricsOffset(offsetMs)})") },
                         leadingIcon = { Icon(OuterTuneIcons.timer, null, modifier = Modifier.size(20.dp)) },
                         onClick = { menu = false; offsetDialog = true },
                     )
@@ -1705,34 +1705,9 @@ private fun LyricsHeader(
             Icon(OuterTuneIcons.close, contentDescription = "Close lyrics", tint = tint)
         }
     }
+    // This song's own offset, applied as it changes - see LyricsOffsetDialog.
     if (offsetDialog && onOffsetChange != null) {
-        var value by remember { mutableStateOf(offsetMs) }
-        androidx.compose.material3.AlertDialog(
-            onDismissRequest = { offsetDialog = false },
-            title = { Text("Lyrics timing offset") },
-            text = {
-                Column {
-                    Text(
-                        "${if (value > 0) "+" else ""}$value ms - positive shows each line later.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
-                    androidx.compose.material3.Slider(
-                        value = value.toFloat(),
-                        onValueChange = { value = ((it / 10f).toInt() * 10).coerceIn(-3000, 3000) },
-                        valueRange = -3000f..3000f,
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { onOffsetChange(value); offsetDialog = false }) { Text("OK") }
-            },
-            dismissButton = {
-                Row {
-                    TextButton(onClick = { value = 0 }) { Text("Reset") }
-                    TextButton(onClick = { offsetDialog = false }) { Text("Cancel") }
-                }
-            },
-        )
+        LyricsOffsetDialog(offsetMs, onOffsetChange, onDismiss = { offsetDialog = false })
     }
 }
 

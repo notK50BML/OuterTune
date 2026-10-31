@@ -148,6 +148,21 @@ class LibraryStore(
 
     fun clearLyrics(songId: String) = db.deleteLyrics(songId)
 
+    /**
+     * Each song's own lyrics timing offset, in milliseconds - 0 when never set. Kept apart from the
+     * cached lyrics, so clearing those to fetch again leaves the offset as it was tuned.
+     */
+    fun lyricsOffset(songId: String): Int = db.lyricsOffset(songId)
+
+    /**
+     * Saved on the settings writer, in order and off the UI thread, for the same reasons settings
+     * are: it is set from a control that changes on every wheel notch, and the last value set must
+     * be the one that lands.
+     */
+    fun setLyricsOffset(songId: String, offsetMs: Int) {
+        settingsWriter.execute { runCatching { db.putLyricsOffset(songId, offsetMs) } }
+    }
+
 
     val recentlyPlayed = MutableStateFlow<List<StoredSong>>(emptyList())
     val liked = MutableStateFlow<List<StoredSong>>(emptyList())
@@ -172,10 +187,10 @@ class LibraryStore(
     fun topSongs(sinceMs: Long, limit: Int = 50, remote: Map<String, HistoryTally.Plays> = emptyMap()) =
         db.topSongs(sinceMs, limit, remote)
     fun playCounts(sinceMs: Long) = db.playCounts(sinceMs)
-    fun songChart(sinceMs: Long, limit: Int = 50, remote: Map<String, HistoryTally.Plays> = emptyMap()) =
-        db.songChart(sinceMs, limit, remote)
-    fun topArtists(sinceMs: Long, limit: Int = 30, remote: Map<String, HistoryTally.Plays> = emptyMap()) =
-        db.topArtists(sinceMs, limit, remote)
+    fun songChart(sinceMs: Long, limit: Int = 50, remote: Map<String, HistoryTally.Plays> = emptyMap(), byTime: Boolean = false) =
+        db.songChart(sinceMs, limit, remote, byTime)
+    fun topArtists(sinceMs: Long, limit: Int = 30, remote: Map<String, HistoryTally.Plays> = emptyMap(), byTime: Boolean = false) =
+        db.topArtists(sinceMs, limit, remote, byTime)
     fun playTotals(sinceMs: Long) = db.playTotals(sinceMs)
 
     /**

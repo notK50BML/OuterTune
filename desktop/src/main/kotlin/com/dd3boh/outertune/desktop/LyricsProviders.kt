@@ -28,16 +28,42 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 
-/** A lyrics provider the desktop can ask, as its id in [Settings.lyricsProviderOrder] and in the cache. */
-enum class LyricsSource(val id: String, val label: String, val blurb: String) {
+/**
+ * A lyrics provider the desktop can ask, as its id in [Settings.lyricsProviderOrder] and in the cache.
+ *
+ * [byVideoId] marks the ones that look a song up by its YouTube id rather than by title and artist.
+ * They have nothing to say about a file on this computer, which has no such id, so they are not
+ * asked about one.
+ *
+ * [transcript] marks a source whose timings come from a caption track rather than a lyric sheet -
+ * see LyricsRepository for why that keeps it from winning the race just by answering first.
+ */
+enum class LyricsSource(
+    val id: String,
+    val label: String,
+    val blurb: String,
+    val byVideoId: Boolean = false,
+    val transcript: Boolean = false,
+) {
     BetterLyrics(LyricsRepository.BETTERLYRICS, "BetterLyrics", "Times each word; often refuses songs it has not cached"),
     LrcLib(LyricsRepository.LRCLIB, "LRCLIB", "Line-timed lyrics, from a large open library"),
     KuGou(LyricsRepository.KUGOU, "KuGou", "Strongest for Chinese-language songs"),
+    YouTubeMusic(LyricsRepository.YOUTUBE, "YouTube Music", "YouTube Music's own lyrics; not timed", byVideoId = true),
+    YouTubeSubtitle(
+        LyricsRepository.YOUTUBE_SUBTITLE,
+        "YouTube Subtitle",
+        "The video's captions, timed but often auto-generated; used when nothing better is found",
+        byVideoId = true,
+        transcript = true,
+    ),
     ;
 
     companion object {
-        /** BetterLyrics first - word timings are strictly more than line timings - then LRCLIB, then KuGou. */
-        val DEFAULT = listOf(BetterLyrics, LrcLib, KuGou)
+        /**
+         * BetterLyrics first - word timings are strictly more than line timings - then LRCLIB, then
+         * KuGou, then YouTube Music's own lyrics and last its captions, as the phone has them.
+         */
+        val DEFAULT = listOf(BetterLyrics, LrcLib, KuGou, YouTubeMusic, YouTubeSubtitle)
 
         /** The stored order, with any provider it does not mention appended in the default order. */
         fun ordered(stored: String): List<LyricsSource> {
@@ -53,17 +79,21 @@ enum class LyricsFetchMode(val label: String, val description: String) {
     InMyOrder("In my order", "Asks one at a time from the top of your list; slower, but you decide who answers."),
 }
 
-/** Whether [source] is switched on, from the settings the three switches always used. */
+/** Whether [source] is switched on, from the settings the first three switches always used. */
 fun Settings.isEnabled(source: LyricsSource): Boolean = when (source) {
     LyricsSource.BetterLyrics -> wordByWordLyrics
     LyricsSource.LrcLib -> lyricsLrclib
     LyricsSource.KuGou -> lyricsKugou
+    LyricsSource.YouTubeMusic -> lyricsYouTube
+    LyricsSource.YouTubeSubtitle -> lyricsYouTubeSubtitle
 }
 
 fun Settings.setEnabled(source: LyricsSource, on: Boolean) = when (source) {
     LyricsSource.BetterLyrics -> wordByWordLyrics = on
     LyricsSource.LrcLib -> lyricsLrclib = on
     LyricsSource.KuGou -> lyricsKugou = on
+    LyricsSource.YouTubeMusic -> lyricsYouTube = on
+    LyricsSource.YouTubeSubtitle -> lyricsYouTubeSubtitle = on
 }
 
 /**

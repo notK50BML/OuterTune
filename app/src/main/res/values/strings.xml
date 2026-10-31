@@ -125,7 +125,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="profile_cat_equaliser">Equaliser</string>
     <string name="profile_cat_equaliser_desc">Curve, compressor, balance and saved EQ profiles</string>
     <string name="profile_cat_lyrics">Lyrics</string>
-    <string name="profile_cat_lyrics_desc">Text size, alignment, word sync, sources, offset</string>
+    <string name="profile_cat_lyrics_desc">Text size, alignment, word sync, sources</string>
     <string name="profile_cat_playback">Playback</string>
     <string name="profile_cat_playback_desc">Audio quality, normalisation, queue, crossfade, content language</string>
     <string name="unlink_local_files">Unlink local files</string>

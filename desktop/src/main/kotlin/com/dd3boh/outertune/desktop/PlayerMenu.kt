@@ -92,7 +92,7 @@ fun PlayerOverflowMenu(
                     if (action != null) add(MenuTile(label, icon, onClick = action))
                 }
                 tile("Start radio", OuterTuneIcons.radio, actions.onStartRadio)
-                tile("Add to queue", OuterTuneIcons.queueMusic, actions.onAddToQueue)
+                tile("Add to queue", OuterTuneIcons.queueMusicRounded, actions.onAddToQueue)
                 tile("Add to playlist", OuterTuneIcons.playlistAdd, actions.onAddToPlaylist)
                 tile(
                     if (actions.downloaded) "Remove download" else "Download",
@@ -105,11 +105,11 @@ fun PlayerOverflowMenu(
                     actions.onToggleLibrary,
                 )
                 if (chooseArtist) {
-                    add(MenuTile("View artist", OuterTuneIcons.person, keepOpen = true) { pickingArtist = true })
+                    add(MenuTile("View artist", OuterTuneIcons.artist, keepOpen = true) { pickingArtist = true })
                 } else {
-                    tile("View artist", OuterTuneIcons.person, actions.onViewArtist)
+                    tile("View artist", OuterTuneIcons.artist, actions.onViewArtist)
                 }
-                tile("View album", OuterTuneIcons.album, actions.onViewAlbum)
+                tile("View album", OuterTuneIcons.albumRounded, actions.onViewAlbum)
                 tile("Share", OuterTuneIcons.share, actions.onShare)
                 tile("Lyrics", OuterTuneIcons.lyrics, actions.onToggleLyrics)
                 tile("Details", OuterTuneIcons.info, actions.onDetails)

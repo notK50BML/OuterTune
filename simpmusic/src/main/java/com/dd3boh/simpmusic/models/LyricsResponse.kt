@@ -22,3 +22,16 @@ data class LyricsData(
     val plainLyrics: String? = null,
     val richSyncLyrics: String? = null,
 )
+
+/** The body of an error answer: `{"success": false, "error": {"code": 403, "reason": "..."}}`. */
+@Serializable
+data class ErrorResponse(
+    val success: Boolean? = null,
+    val error: ErrorDetail? = null,
+)
+
+@Serializable
+data class ErrorDetail(
+    val code: Int? = null,
+    val reason: String? = null,
+)

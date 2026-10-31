@@ -2,6 +2,7 @@ package com.dd3boh.outertune.lyrics
 
 import android.content.Context
 import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.utils.cleanCaptionLyrics
 import kotlinx.coroutines.CancellationException
 
 object YouTubeSubtitleLyricsProvider : LyricsProvider {

@@ -30,6 +30,13 @@ data class MultiQueueObject(
      * the station's own id is gone by then, and this is decided when the queue is started.
      */
     var isStation: Boolean = false,
+    /**
+     * Played by Listen Together while following someone else's session - the host's pick, not the
+     * listener's, so its songs do not count in Stats either; the host counts them on their own
+     * device. Not kept with a saved queue, as [isStation] is not: once the app has restarted the
+     * session is over, and playing the queue again is the listener's own choice.
+     */
+    var isFollowing: Boolean = false,
 ) {
 
     /**

@@ -7,6 +7,7 @@
 package com.dd3boh.outertune.desktop
 
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material.icons.rounded.OfflinePin
 import androidx.compose.material.icons.rounded.CloudDownload
@@ -23,6 +24,7 @@ import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.AccountCircle
@@ -62,6 +64,7 @@ import androidx.compose.material.icons.rounded.Stop
 import androidx.compose.material.icons.rounded.TextRotationAngledown
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Wifi
+import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.graphics.vector.VectorGroup
@@ -88,6 +91,7 @@ class IconGenerator {
         "shuffle" to "shuffle_on", "repeat" to "repeat_on", "repeatOne" to "repeat_one",
         "favorite" to "favorite", "favoriteBorder" to "favorite_border", "close" to "close",
         "queueMusic" to "queue_music", "download" to "download", "musicNote" to "music_note", "album" to "album",
+        "artist" to "artist",
     )
 
     private val material: Map<String, ImageVector> = mapOf(
@@ -119,6 +123,8 @@ class IconGenerator {
         "volumeOff" to Icons.AutoMirrored.Rounded.VolumeOff,
         "playRounded" to Icons.Rounded.PlayArrow, "pauseRounded" to Icons.Rounded.Pause,
         "queueMusicRounded" to Icons.AutoMirrored.Rounded.QueueMusic,
+        "playlistPlay" to Icons.AutoMirrored.Rounded.PlaylistPlay, "albumRounded" to Icons.Rounded.Album,
+        "powerSettingsNew" to Icons.Rounded.PowerSettingsNew,
     )
 
     @Test
@@ -135,7 +141,14 @@ class IconGenerator {
         drawables.forEach { (name, file) ->
             val xml = File(res, "$file.xml").readText()
             val paths = Regex("android:pathData=\"([^\"]+)\"").findAll(xml).map { it.groupValues[1] }.toList()
-            out.appendLine("    const val $name = \"${paths.joinToString("")}\"")
+            // Most of the phone's drawables are drawn on the 960 grid already and are copied as
+            // they are. One on another grid - the artist icon is on 24 - is scaled onto it, or it
+            // would come out a fortieth of the size.
+            val viewport = Regex("android:viewportWidth=\"([0-9.]+)\"").find(xml)?.groupValues?.get(1)?.toFloat() ?: 960f
+            val data = if (viewport == 960f) paths.joinToString("") else paths.joinToString("") { d ->
+                androidx.compose.ui.graphics.vector.PathParser().parsePathString(d).toNodes().joinToString("") { it.svg(960f / viewport) }
+            }
+            out.appendLine("    const val $name = \"$data\"")
         }
         material.forEach { (name, vector) ->
             val scale = 960f / vector.viewportWidth

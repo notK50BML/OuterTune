@@ -54,6 +54,9 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/library", R.string.download_all_thumbnails_title, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/library", R.string.content_language, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/library", R.string.content_country, R.string.grp_library_and_content),
+    // Local media's entry on this screen. The settings behind it stay indexed under "settings/local",
+    // the screen they are drawn on, which is now reached from here rather than the main list.
+    SettingsIndexEntry("settings/library", R.string.local_player_settings_entry_title, R.string.grp_library_and_content),
     SettingsIndexEntry("settings/lyrics", R.string.lyrics_settings_title, R.string.lyrics_settings_title),
     SettingsIndexEntry("settings/lyrics", R.string.lyrics_synced_clickable, R.string.lyrics_settings_title),
     SettingsIndexEntry("settings/lyrics", R.string.lyrics_karaoke_title, R.string.lyrics_settings_title),

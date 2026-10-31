@@ -53,7 +53,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.R
-import com.dd3boh.outertune.constants.LyricOffsetKey
 import com.dd3boh.outertune.constants.LyricTrimKey
 import com.dd3boh.outertune.constants.MultilineLrcKey
 import com.dd3boh.outertune.db.entities.LyricsEntity
@@ -62,7 +61,7 @@ import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SettingsClickToReveal
 import com.dd3boh.outertune.ui.component.button.IconButton
-import com.dd3boh.outertune.ui.dialog.CounterDialog
+import com.dd3boh.outertune.ui.dialog.LyricsOffsetDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.dialog.ListDialog
 import com.dd3boh.outertune.ui.dialog.TextFieldDialog
@@ -71,6 +70,7 @@ import com.dd3boh.outertune.ui.screens.settings.fragments.LyricParserFrag
 import com.dd3boh.outertune.ui.screens.settings.fragments.LyricSourceFrag
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.LyricsMenuViewModel
+import kotlinx.coroutines.flow.map
 import org.akanework.gramophone.logic.utils.LrcUtils
 import org.akanework.gramophone.logic.utils.SemanticLyrics
 
@@ -92,27 +92,22 @@ fun LyricsMenu(
     val lyricTrim by rememberPreference(LyricTrimKey, defaultValue = false)
     val parserOptions = LrcUtils.LrcParserOptions(lyricTrim, multilineLrc, "Unable to parse lyrics")
 
-    val (lyricOffset, onLyricOffsetChange) = rememberPreference(LyricOffsetKey, 0)
+    // This song's own offset - see LyricsOffsetEntity. Null until the database has answered, so
+    // the dialog never opens on a 0 that is only "not read yet".
+    val songId = mediaMetadataProvider().id
+    val lyricOffset by remember(songId) { database.lyricsOffset(songId).map { it ?: 0 } }.collectAsState(initial = null)
     var showOffsetDialog by rememberSaveable {
         mutableStateOf(false)
     }
 
-    if (showOffsetDialog) {
-        CounterDialog(
-            title = stringResource(R.string.lyrics_offset_title),
-            initialValue = lyricOffset,
-            // Five seconds either way. Wider than that is not a sync correction, it is the wrong
-            // lyrics file.
-            upperBound = 5000,
-            lowerBound = -5000,
-            unitDisplay = " ms",
+    lyricOffset?.takeIf { showOffsetDialog }?.let { offset ->
+        LyricsOffsetDialog(
+            initialValue = offset,
+            // Written as it changes, so the lyrics behind the dialog move with each step. A
+            // transaction because those writes run one after another in order, where query's run
+            // on a pool - and the last value set has to be the one that lands.
+            onChange = { ms -> database.transaction { setLyricsOffset(songId, ms) } },
             onDismiss = { showOffsetDialog = false },
-            onConfirm = { onLyricOffsetChange(it); showOffsetDialog = false },
-            onReset = { onLyricOffsetChange(0) },
-            resetValue = 0,
-            // 10ms on the slider, 50ms a press: finer than that is below what anyone can hear.
-            step = 10,
-            onCancel = { showOffsetDialog = false },
         )
     }
 

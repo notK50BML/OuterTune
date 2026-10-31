@@ -8,8 +8,12 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.dd3boh.outertune.constants.StatMetric
+import com.dd3boh.outertune.constants.StatMetricKey
 import com.dd3boh.outertune.constants.StatPeriod
+import com.dd3boh.outertune.constants.StatPeriodKey
+import com.dd3boh.outertune.constants.StatSongLimitKey
 import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
+import com.dd3boh.outertune.extensions.toEnum
 import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.db.daos.SongPlays
 import com.dd3boh.outertune.db.entities.ArtistPlayStats
@@ -25,7 +29,6 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flow
@@ -50,19 +53,31 @@ class StatsViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     val database: MusicDatabase,
 ) : ViewModel() {
-    val statPeriod = MutableStateFlow(StatPeriod.`1_WEEK`)
+    /**
+     * The three chips are preferences rather than state of their own, so Stats opens as it was left
+     * (see StatPeriodKey): the screen writes them, and these follow. Each was a MutableStateFlow
+     * here, and every visit started again from a week of time listened and 20 songs.
+     */
+    private val statPeriod = context.dataStore.data
+        .map { it[StatPeriodKey].toEnum(DEFAULT_PERIOD) }
+        .distinctUntilChanged()
 
     /**
      * Time listened or number of plays. They rank differently and both are reasonable: a long
      * track you play twice beats a short one you play ten times by time, and loses by count.
      */
-    val statMetric = MutableStateFlow(StatMetric.TIME_LISTENED)
+    private val statMetric = context.dataStore.data
+        .map { it[StatMetricKey].toEnum(DEFAULT_METRIC) }
+        .distinctUntilChanged()
 
     /**
      * How many songs the chart shows - 20, 50, 100 or every one. One chart now: the overview and
-     * the "Extended charts" below it showed the same ranking twice, at two lengths.
+     * the "Extended charts" below it showed the same ranking twice, at two lengths. A stored value
+     * that is not one of the chips is the default.
      */
-    val songLimit = MutableStateFlow(SONG_LIMITS.first())
+    private val songLimit = context.dataStore.data
+        .map { prefs -> prefs[StatSongLimitKey]?.takeIf { it in SONG_LIMITS } ?: DEFAULT_SONG_LIMIT }
+        .distinctUntilChanged()
 
     /**
      * Plays this account made anywhere else - the YouTube Music app, another phone, the web - read
@@ -265,6 +280,11 @@ class StatsViewModel @Inject constructor(
         /** "All" is this: SQLite takes it as no limit worth the name. */
         const val ALL = Int.MAX_VALUE
         val SONG_LIMITS = listOf(20, 50, 100, ALL)
+
+        /** What Stats first opens on, before a chip has been picked. */
+        val DEFAULT_PERIOD = StatPeriod.`1_WEEK`
+        val DEFAULT_METRIC = StatMetric.TIME_LISTENED
+        val DEFAULT_SONG_LIMIT = SONG_LIMITS.first()
 
         private const val MAX_ARTISTS = 100
 

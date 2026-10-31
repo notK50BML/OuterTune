@@ -12,6 +12,8 @@ import com.zionhuang.innertube.pages.HistoryPage
 import com.zionhuang.innertube.utils.HistoryTally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +64,22 @@ enum class StatsPeriod(val label: String, val days: Long?) {
 }
 
 /**
+ * What the chart is ranked by, and the number beside each song and artist - the phone's StatMetric,
+ * under its labels and in its order. They rank differently and both are reasonable: a long track
+ * played twice beats a short one played ten times by time, and loses by plays.
+ */
+enum class StatsMetric(val label: String) {
+    TimeListened("Time listened"),
+    TimesPlayed("Times played"),
+}
+
+/** How many songs the chart shows - the phone's choices, the last of them every song. */
+internal val STATS_SONG_LIMITS = listOf(20, 50, 100, Int.MAX_VALUE)
+
+/** Fifty, as the chart always showed before it could be changed. */
+internal const val STATS_DEFAULT_SONG_LIMIT = 50
+
+/**
  * The account's YouTube Music history, newest first - as many pages as [MAX_HISTORY_PAGES] allows,
  * since it has no end and each page is a request. Empty when it cannot be read.
  *
@@ -87,8 +105,8 @@ private const val MAX_HISTORY_PAGES = 40
 
 private data class StatsData(
     val totals: PlayTotals,
-    val songs: List<Pair<StoredSong, Int>>,
-    val artists: List<Pair<StoredArtist, Int>>,
+    val songs: List<ChartSong>,
+    val artists: List<ArtistPlays>,
 )
 
 /**
@@ -106,8 +124,15 @@ fun StatsPane(
     modifier: Modifier = Modifier,
     /** Count plays from the account's YouTube Music history too - Settings, signed in only. */
     includeRemote: Boolean = false,
+    /** Where the chips are remembered - the window's own settings, found by their store if not given. */
+    settings: Settings = remember(library) { Settings.of(library.settings) },
 ) {
-    var period by remember { mutableStateOf(StatsPeriod.Month) }
+    // Each chip is a setting, so Stats opens as it was left: it was remember { Month } here, and
+    // every visit started again from a month. A song count stored that is not a chip is the default.
+    val period = settings.statsPeriod
+    val metric = settings.statsMetric
+    val limit = settings.statsSongLimit.takeIf { it in STATS_SONG_LIMITS } ?: STATS_DEFAULT_SONG_LIMIT
+    val byTime = metric == StatsMetric.TimeListened
     var data by remember { mutableStateOf<StatsData?>(null) }
     // The history, read once each time Stats is opened with the setting on, then counted per period.
     val history by produceState(emptyList<HistoryPage.HistorySection>(), includeRemote) {
@@ -115,11 +140,11 @@ fun StatsPane(
     }
     // Re-read when the recent list changes too, so a song finishing while this is open is counted.
     val recent by library.recentlyPlayed.collectAsState()
-    LaunchedEffect(period, recent, history) {
+    LaunchedEffect(period, metric, limit, recent, history) {
         data = withContext(Dispatchers.IO) {
             val since = period.sinceMs()
             val remote = if (history.isEmpty()) emptyMap() else HistoryTally.tally(history, period.days)
-            val chart = library.songChart(since, remote = remote)
+            val chart = library.songChart(since, limit, remote = remote, byTime = byTime)
             val totals = library.playTotals(since).let { local ->
                 if (remote.isEmpty()) local else local.withHistory(remote, library.playCounts(since))
             }
@@ -127,7 +152,7 @@ fun StatsPane(
                 // only ASCII letters were folded to lower case, so a title in any other script
                 // that the chart merged was still two songs here.
                 .copy(songs = chart.songs)
-            StatsData(totals, chart.top, library.topArtists(since, remote = remote))
+            StatsData(totals, chart.top, library.topArtists(since, remote = remote, byTime = byTime))
         }
     }
 
@@ -141,7 +166,26 @@ fun StatsPane(
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 StatsPeriod.entries.forEach {
-                    FilterChip(selected = period == it, onClick = { period = it }, label = { Text(it.label) })
+                    FilterChip(selected = period == it, onClick = { settings.statsPeriod = it }, label = { Text(it.label) })
+                }
+            }
+            // How to rank, then how far: time listened or times played | 20, 50, 100 or all - one
+            // row, as on the phone, since both are one question about the chart below.
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+            ) {
+                StatsMetric.entries.forEach {
+                    FilterChip(selected = metric == it, onClick = { settings.statsMetric = it }, label = { Text(it.label) })
+                }
+                Text("|", color = MaterialTheme.colorScheme.outline, style = MaterialTheme.typography.titleMedium)
+                STATS_SONG_LIMITS.forEach {
+                    FilterChip(
+                        selected = limit == it,
+                        onClick = { settings.statsSongLimit = it },
+                        label = { Text(if (it == Int.MAX_VALUE) "All" else it.toString()) },
+                    )
                 }
             }
         }
@@ -166,9 +210,11 @@ fun StatsPane(
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth().padding(vertical = 16.dp),
             ) {
-                StatTile("Plays", stats.totals.plays.toString(), Modifier.weight(1f))
+                // The one the chart is ranked by is lit, as on the phone, so the tiles and the choice
+                // above them read as one thing.
+                StatTile("Plays", stats.totals.plays.toString(), Modifier.weight(1f), highlighted = !byTime)
                 StatTile("Songs", stats.totals.songs.toString(), Modifier.weight(1f))
-                StatTile("Listening time", formatListening(stats.totals.listenedMs), Modifier.weight(1f))
+                StatTile("Listening time", formatListening(stats.totals.listenedMs), Modifier.weight(1f), highlighted = byTime)
             }
         }
 
@@ -176,7 +222,7 @@ fun StatsPane(
             item { Heading("Top artists") }
             item {
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    items(stats.artists, key = { it.first.id }) { (artist, plays) ->
+                    items(stats.artists, key = { it.artist.id }) { (artist, plays, listenedMs) ->
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier
@@ -189,7 +235,7 @@ fun StatsPane(
                             Spacer(modifier = Modifier.height(8.dp))
                             Text(artist.name, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
                             Text(
-                                plays(plays),
+                                if (byTime) formatListening(listenedMs) else plays(plays),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 // One line, as the name is: a card that wrapped made the row taller
@@ -204,8 +250,8 @@ fun StatsPane(
         }
 
         item { Heading("Top songs") }
-        val songs = stats.songs.map { it.first }
-        itemsIndexed(stats.songs, key = { _, it -> it.first.id }) { index, (song, count) ->
+        val songs = stats.songs.map { it.song }
+        itemsIndexed(stats.songs, key = { _, it -> it.song.id }) { index, (song, count, listenedMs) ->
             SongMenuArea(song.toItem()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -241,7 +287,12 @@ fun StatsPane(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                Text(plays(count), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                // Whichever the chart is ranked by: "12 plays", or "3 h 20 min".
+                Text(
+                    if (byTime) formatListening(listenedMs) else plays(count),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
             }
             }
         }
@@ -259,22 +310,39 @@ private fun Heading(text: String) {
 }
 
 @Composable
-private fun StatTile(label: String, value: String, modifier: Modifier = Modifier) {
+private fun StatTile(label: String, value: String, modifier: Modifier = Modifier, highlighted: Boolean = false) {
+    val colours = MaterialTheme.colorScheme
     Column(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceContainer)
+            .background(if (highlighted) colours.primaryContainer else colours.surfaceContainer)
             .padding(16.dp),
     ) {
-        Text(value, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(
+            value,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = if (highlighted) colours.onPrimaryContainer else colours.onSurface,
+        )
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            color = if (highlighted) colours.onPrimaryContainer else colours.onSurfaceVariant,
+        )
     }
 }
 
 private fun plays(n: Int) = if (n == 1) "1 play" else "$n plays"
 
-/** Hours and minutes, or minutes alone under an hour. */
+/**
+ * Hours and minutes, minutes alone under an hour, and seconds under a minute - a short song heard
+ * once read as "0 min" beside the chart's other songs.
+ */
 internal fun formatListening(ms: Long): String {
     val minutes = ms / 60_000
-    return if (minutes >= 60) "${minutes / 60} h ${minutes % 60} min" else "$minutes min"
+    return when {
+        minutes >= 60 -> "${minutes / 60} h ${minutes % 60} min"
+        minutes > 0 -> "$minutes min"
+        else -> "${ms / 1000} s"
+    }
 }

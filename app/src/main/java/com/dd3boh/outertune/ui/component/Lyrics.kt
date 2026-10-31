@@ -79,7 +79,6 @@ import com.dd3boh.outertune.constants.LyricClickable
 import com.dd3boh.outertune.constants.LyricFontSizeKey
 import com.dd3boh.outertune.constants.LyricEstimatedWordSync
 import com.dd3boh.outertune.constants.LyricKaraokeEnable
-import com.dd3boh.outertune.constants.LyricOffsetKey
 import com.dd3boh.outertune.constants.LyricUpdateSpeed
 import com.dd3boh.outertune.constants.LyricsPosition
 import com.dd3boh.outertune.constants.LyricsTextPositionKey
@@ -102,6 +101,7 @@ import com.dd3boh.outertune.utils.rememberPreference
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.runBlocking
 import org.akanework.gramophone.logic.utils.LrcUtils
@@ -132,13 +132,17 @@ fun Lyrics(
     val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, false)
     val highlightStyle by rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
     val showLyricsType by rememberPreference(LyricShowTypeKey, true)
-    // Added to the playback position everywhere it is compared against a lyric time, so a file that
-    // is uniformly early or late can be pulled into place. Applied here rather than by rewriting the
-    // timestamps: the lyrics themselves are not wrong to store, only wrong to trust at face value.
-    val lyricOffset by rememberPreference(LyricOffsetKey, 0)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+    // This song's own timing offset (see LyricsOffsetEntity), taken off the playback position
+    // everywhere it is compared against a lyric time, so a file that is uniformly early or late can
+    // be pulled into place: positive shows each line later. Applied here rather than by rewriting the
+    // timestamps - the lyrics are not wrong to store, only wrong to trust at face value. Read live
+    // from the database, so the lyrics menu's control moves them while it is being tuned.
+    val songId = mediaMetadata?.id
+    val lyricOffset by remember(songId) { playerConnection.service.database.lyricsOffset(songId).map { it ?: 0 } }
+        .collectAsState(initial = 0)
     // Word-by-word sync used to also require !context.isPowerSaver(); that override is gone, so
     // the Karaoke lyrics setting alone decides now, battery saver or not.
     val karaokeEnabled = lyricsFancy
@@ -257,7 +261,7 @@ fun Lyrics(
                 if (!playerConnection.isPlaying.value && !isSeeking) return@runCatching
                 currentLineIndex = findCurrentLineIndex(
                     lines,
-                    (sliderPosition ?: playerConnection.player.currentPosition) + lyricOffset,
+                    (sliderPosition ?: playerConnection.player.currentPosition) - lyricOffset,
                 )
             }
         }
@@ -277,13 +281,13 @@ fun Lyrics(
         // Seed it before waiting for anything. Left at its initial zero the first frame draws an
         // entirely unswept line, which is indistinguishable from the sweep not working at all.
         karaokePosition.longValue =
-            (sliderPositionProvider() ?: playerConnection.player.currentPosition) + lyricOffset
+            (sliderPositionProvider() ?: playerConnection.player.currentPosition) - lyricOffset
         var latchedPosition = Long.MIN_VALUE
         var latchedAt = 0L
         while (isActive) {
             val scrubbed = sliderPositionProvider()
             if (scrubbed != null) {
-                karaokePosition.longValue = scrubbed + lyricOffset
+                karaokePosition.longValue = scrubbed - lyricOffset
                 latchedPosition = Long.MIN_VALUE // re-latch against the player once the scrub ends
             } else {
                 val now = System.currentTimeMillis()
@@ -292,7 +296,7 @@ fun Lyrics(
                     latchedPosition = reported
                     latchedAt = now
                 }
-                val next = latchedPosition + lyricOffset +
+                val next = latchedPosition - lyricOffset +
                     if (playerConnection.player.isPlaying) now - latchedAt else 0L
                 // The player reports its position in steps, and a fresh report can land a few
                 // milliseconds behind where the extrapolation had got to - which drew as the sweep
@@ -440,9 +444,9 @@ fun Lyrics(
                             )
                             // we allow clicking on blank lyrics, ignore item.isClickable
                             .clickable(enabled = isSynced && lyricsClickable) {
-                                // The line's time less the offset, since highlighting runs at position + offset: seeking
+                                // The line's time plus the offset, since highlighting runs at position - offset: seeking
                                 // to the raw time landed early, and lit the previous line.
-                                playerConnection.player.seekTo((item.start.toLong() - lyricOffset).coerceAtLeast(0L))
+                                playerConnection.player.seekTo((item.start.toLong() + lyricOffset).coerceAtLeast(0L))
                                 currentLineIndex = index
                                 karaokePosition.longValue = item.start.toLong()
                                 lastPreviewTime = 0L

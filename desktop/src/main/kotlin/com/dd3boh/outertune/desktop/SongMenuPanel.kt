@@ -123,8 +123,8 @@ fun RowActions(song: SongItem) {
 private fun rowButtonLook(button: RowButton, song: SongItem, actions: SongActions): Pair<ImageVector, String> = when (button) {
     RowButton.LIKE -> if (actions.isLiked(song.id)) OuterTuneIcons.favorite to "Unlike" else OuterTuneIcons.favoriteBorder to "Like"
     RowButton.DOWNLOAD -> if (actions.isDownloaded(song.id)) OuterTuneIcons.offlinePin to "Remove download" else OuterTuneIcons.download to "Download"
-    RowButton.PLAY_NEXT -> OuterTuneIcons.queueMusic to "Play next"
-    RowButton.ADD_TO_QUEUE -> OuterTuneIcons.queueMusic to "Add to queue"
+    RowButton.PLAY_NEXT -> OuterTuneIcons.playlistPlay to "Play next"
+    RowButton.ADD_TO_QUEUE -> OuterTuneIcons.queueMusicRounded to "Add to queue"
     RowButton.PLAYLIST -> OuterTuneIcons.playlistAdd to "Add to playlist"
     RowButton.RADIO -> OuterTuneIcons.radio to "Start radio"
     RowButton.SHARE -> OuterTuneIcons.share to "Copy link"
@@ -332,17 +332,17 @@ fun SongMenuPanel(
             // A file on this computer: no radio, download, link or YouTube album - and it can be
             // taken out of the library, which a YouTube song leaves through its like or playlists.
             listOf(
-                MenuTile("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) },
-                MenuTile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) },
+                MenuTile("Play next", OuterTuneIcons.playlistPlay) { actions.playNext(song) },
+                MenuTile("Add to queue", OuterTuneIcons.queueMusicRounded) { actions.addToQueue(song) },
                 MenuTile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) },
-                MenuTile("Go to artist", OuterTuneIcons.person, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
+                MenuTile("Go to artist", OuterTuneIcons.artist, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
                     if (artists.size > 1) pickingArtist = true else artists.firstOrNull()?.let(actions.openArtist)
                 },
-                MenuTile("Remove from library", OuterTuneIcons.delete) { actions.removeFromLibrary(song) },
+                MenuTile("Remove from library", OuterTuneIcons.libraryAddCheck) { actions.removeFromLibrary(song) },
             )
         } else listOf(
-            MenuTile("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) },
-            MenuTile("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) },
+            MenuTile("Play next", OuterTuneIcons.playlistPlay) { actions.playNext(song) },
+            MenuTile("Add to queue", OuterTuneIcons.queueMusicRounded) { actions.addToQueue(song) },
             MenuTile("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) },
             MenuTile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) },
             MenuTile(
@@ -352,10 +352,10 @@ fun SongMenuPanel(
                 actions.toggleDownload(song)
             },
             MenuTile("Copy link", OuterTuneIcons.share) { actions.copyLink(song) },
-            MenuTile("Go to artist", OuterTuneIcons.person, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
+            MenuTile("Go to artist", OuterTuneIcons.artist, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
                 if (artists.size > 1) pickingArtist = true else artists.firstOrNull()?.let(actions.openArtist)
             },
-            MenuTile("Go to album", OuterTuneIcons.album, enabled = song.album?.id != null) {
+            MenuTile("Go to album", OuterTuneIcons.albumRounded, enabled = song.album?.id != null) {
                 song.album?.id?.let(actions.openAlbum)
             },
         ),

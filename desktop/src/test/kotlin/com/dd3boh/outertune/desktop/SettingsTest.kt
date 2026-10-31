@@ -35,7 +35,7 @@ class SettingsTest {
         val settings = Settings(FakeStore())
         assertFalse("seek buttons should default off, as on Android", settings.showSeekButtons)
         assertTrue("value colouring should default on", settings.colourByValue)
-        assertEquals(0, settings.lyricsOffsetMs)
+        assertEquals(30, settings.sleepDefaultMinutes)
         assertEquals(BackgroundStyle.Gradient, settings.background)
     }
 
@@ -52,13 +52,13 @@ class SettingsTest {
         val store = FakeStore()
         Settings(store).apply {
             showSeekButtons = true
-            lyricsOffsetMs = -250
+            sleepDefaultMinutes = 45
             background = BackgroundStyle.Frosted
         }
         // A second instance over the same store is what starting the app again looks like.
         val reloaded = Settings(store)
         assertTrue(reloaded.showSeekButtons)
-        assertEquals(-250, reloaded.lyricsOffsetMs)
+        assertEquals(45, reloaded.sleepDefaultMinutes)
         assertEquals(BackgroundStyle.Frosted, reloaded.background)
     }
 
@@ -68,10 +68,10 @@ class SettingsTest {
         // one would be a database round trip per pixel.
         val store = FakeStore()
         val settings = Settings(store)
-        settings.lyricsOffsetMs = 100
+        settings.sleepDefaultMinutes = 100
         val after = store.writes
-        settings.lyricsOffsetMs = 100
-        settings.lyricsOffsetMs = 100
+        settings.sleepDefaultMinutes = 100
+        settings.sleepDefaultMinutes = 100
         assertEquals("an unchanged value should not be written", after, store.writes)
     }
 
@@ -80,13 +80,13 @@ class SettingsTest {
         val store = FakeStore(
             mapOf(
                 "player.seekButtons" to "yes please",
-                "lyrics.offsetMs" to "quite a lot",
+                "sleep.defaultMinutes" to "quite a lot",
                 "ui.background" to "Holographic",
             )
         )
         val settings = Settings(store)
         assertFalse(settings.showSeekButtons)
-        assertEquals(0, settings.lyricsOffsetMs)
+        assertEquals(30, settings.sleepDefaultMinutes)
         assertEquals(BackgroundStyle.Gradient, settings.background)
     }
 

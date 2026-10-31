@@ -119,7 +119,7 @@ suspend fun loadSimilar(library: LibraryStore): List<HomePage.Section> = withCon
         val now = System.currentTimeMillis()
         val byArtist = async {
             runCatching {
-                library.topArtists(0L, 10).map { it.first }
+                library.topArtists(0L, 10).map { it.artist }
                     .filter { it.id.startsWith("UC") }
                     .shuffled().take(3)
                     .map { artist ->

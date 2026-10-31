@@ -30,7 +30,6 @@ import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PrivacyTip
 import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.WarningAmber
 import androidx.compose.material3.ElevatedCard
@@ -146,11 +145,6 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.history)) },
                 icon = { Icon(Icons.Rounded.History, null) },
                 onClick = { navController.navigate("history") }
-            )
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.local_player_settings_title)) },
-                icon = { Icon(Icons.Rounded.SdCard, null) },
-                onClick = { navController.navigate("settings/local") }
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.lyrics_settings_title)) },

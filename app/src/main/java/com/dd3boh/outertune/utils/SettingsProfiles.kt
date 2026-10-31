@@ -38,7 +38,6 @@ import com.dd3boh.outertune.constants.ListenTogetherOffsetKey
 import com.dd3boh.outertune.constants.LyricEstimatedWordSync
 import com.dd3boh.outertune.constants.LyricFontSizeKey
 import com.dd3boh.outertune.constants.LyricKaraokeEnable
-import com.dd3boh.outertune.constants.LyricOffsetKey
 import com.dd3boh.outertune.constants.LyricsTextPositionKey
 import com.dd3boh.outertune.constants.PersistentQueueKey
 import com.dd3boh.outertune.constants.PlayerButtonsKey
@@ -106,7 +105,7 @@ object SettingsProfiles {
             setOf(
                 "showLyrics", "showLyricsOnClick", "lyricsTextPosition", "multilineLrc", "lyricTrim",
                 "preferLocalLyrics", "lyricFontSize", "lyricClickable", "lyricKaraokeEnable",
-                "lyricEstimatedWordSync", "lyricOffset", "lyricUpdateSpeed", "enableLyricsPrefetch",
+                "lyricEstimatedWordSync", "lyricUpdateSpeed", "enableLyricsPrefetch",
                 "lyricsPrefetchCount", "lyricsFetchMode", "lyricsProviderOrder", "enableKugou", "enableLrcLib",
                 "enableBetterLyrics", "enableSimpMusic", "lyricsRefreshInterval",
             ),
@@ -253,7 +252,8 @@ object SettingsProfiles {
                 put("estimateWordTimings", p[LyricEstimatedWordSync] ?: false)
                 put("highlightStyle", if (p[LyricHighlightStyleKey] == LyricHighlightStyle.FADE.name) "fade" else "sweep")
                 put("showLyricsType", p[LyricShowTypeKey] ?: true)
-                put("offsetMs", p[LyricOffsetKey] ?: 0)
+                // No "offsetMs": the lyrics timing offset is each song's own now, kept in the
+                // library database rather than the settings, so a profile has none to carry.
                 put("openOnCoverClick", p[ShowLyricsOnClickKey] ?: true)
                 put("lrclib", p[EnableLrcLibKey] ?: true)
                 put("kugou", p[EnableKugouKey] ?: true)
@@ -348,7 +348,8 @@ object SettingsProfiles {
                 bool("estimateWordTimings", LyricEstimatedWordSync)
                 str("highlightStyle") { p[LyricHighlightStyleKey] = if (it == "fade") LyricHighlightStyle.FADE.name else LyricHighlightStyle.SWEEP.name }
                 bool("showLyricsType", LyricShowTypeKey)
-                int("offsetMs", LyricOffsetKey)
+                // "offsetMs" (and "lyricOffset" in an older android block) is passed over: there is
+                // no single offset left to apply it to.
                 bool("openOnCoverClick", ShowLyricsOnClickKey)
                 bool("lrclib", EnableLrcLibKey)
                 bool("kugou", EnableKugouKey)

@@ -11,6 +11,9 @@ import kotlinx.coroutines.ensureActive
 import com.dd3boh.betterlyrics.BetterLyrics
 import com.dd3boh.betterlyrics.TTMLParser
 import com.dd3boh.lrclib.LrcLib
+import com.zionhuang.innertube.YouTube
+import com.zionhuang.innertube.models.WatchEndpoint
+import com.zionhuang.innertube.utils.cleanCaptionLyrics
 import com.zionhuang.kugou.KuGou
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -358,7 +361,9 @@ object LrcParser {
  * releases - it is a different corpus rather than a second opinion on the same one.
  *
  * Both are `kotlin("jvm")` modules already in this repository, built with ktor, so the desktop
- * depends on them directly. Nothing here is a port.
+ * depends on them directly. Nothing here is a port. BetterLyrics joined them since, and then YouTube
+ * Music's own lyrics and the video's captions, both through `:innertube` as on the phone - see
+ * [LyricsSource] for the whole list and its default order.
  *
  * Results are cached in the library database, keyed by song. A song is played more than once and the
  * lyrics do not change; re-fetching them on every play would be two network round trips for a result
@@ -367,18 +372,11 @@ object LrcParser {
 class LyricsRepository(private val library: LibraryStore) {
 
     /**
-     * Whether to ask BetterLyrics at all.
-     *
-     * A setting because it is the one provider that regularly refuses: its API answers 401 for songs
-     * it has not already cached, so on an unlucky run it costs a request per song and returns
-     * nothing. Worth having first when it works, and worth being able to switch off when it does
-     * not.
+     * The providers switched on - the phone's per-provider switches. One set rather than a flag per
+     * provider, so a provider added later is wired by adding it to [LyricsSource] alone.
      */
-    var useWordByWord: Boolean = true
-
-    /** The phone's per-provider switches: either fallback can be turned off. */
-    var useLrclib: Boolean = true
-    var useKugou: Boolean = true
+    @Volatile
+    var enabled: Set<LyricsSource> = LyricsSource.entries.toSet()
 
     suspend fun lyricsFor(
         songId: String,
@@ -409,18 +407,12 @@ class LyricsRepository(private val library: LibraryStore) {
         val durationSeconds = (durationMs / 1000).toInt()
 
         // In the order set in Settings > Lyrics > Lyrics providers - by default BetterLyrics first,
-        // because word timings are strictly more than line timings, then LRCLIB, then KuGou - and
-        // only the ones switched on.
-        val enabled = order.filter { source ->
-            when (source) {
-                LyricsSource.BetterLyrics -> useWordByWord
-                LyricsSource.LrcLib -> useLrclib
-                LyricsSource.KuGou -> useKugou
-            }
-        }
+        // because word timings are strictly more than line timings, then LRCLIB, then KuGou, then
+        // YouTube's two - and only the ones switched on.
+        val enabled = askable(order, this@LyricsRepository.enabled, songId)
         if (inOrder) {
             for (source in enabled) {
-                val result = fetchFrom(source, title, artist, durationSeconds)
+                val result = fetchFrom(source, songId, title, artist, durationSeconds)
                 if (result.isFailure) failed = true
                 result.getOrNull()?.let { (text, parsed) ->
                     ensureActive()
@@ -431,22 +423,31 @@ class LyricsRepository(private val library: LibraryStore) {
         } else if (enabled.isNotEmpty()) {
             // Automatic: every provider at once, and the first synced lyrics back win. Plain lyrics
             // are only taken once nobody has synced ones - then the highest in the order.
+            //
+            // Captions are timed, but they are a transcript - often the speech recogniser's - rather
+            // than a lyric sheet, and they tend to come back quickly. Allowed to win the race like
+            // the rest, they would beat a real line-timed file from a slower provider most of the
+            // time. So they are held instead: used ahead of plain lyrics, as the phone does, but
+            // only once no provider has a real synced file.
             val answers = kotlinx.coroutines.channels.Channel<Pair<LyricsSource, Result<Pair<String, Lyrics>?>>>(enabled.size)
-            val jobs = enabled.map { source -> launch { answers.send(source to fetchFrom(source, title, artist, durationSeconds)) } }
+            val jobs = enabled.map { source -> launch { answers.send(source to fetchFrom(source, songId, title, artist, durationSeconds)) } }
             val plain = HashMap<LyricsSource, Pair<String, Lyrics>>()
+            val heldBack = HashMap<LyricsSource, Pair<String, Lyrics>>()
             repeat(enabled.size) {
                 val (source, result) = answers.receive()
                 if (result.isFailure) failed = true
                 val found = result.getOrNull() ?: return@repeat
-                if (found.second.synced) {
+                if (found.second.synced && !source.transcript) {
                     jobs.forEach { it.cancel() }
                     ensureActive()
                     library.cacheLyrics(songId, found.first, source.id)
                     return@withContext found.second
                 }
-                plain[source] = found
+                (if (found.second.synced) heldBack else plain)[source] = found
             }
-            enabled.firstNotNullOfOrNull { source -> plain[source]?.let { source to it } }?.let { (source, found) ->
+            val fallback = enabled.firstNotNullOfOrNull { source -> heldBack[source]?.let { source to it } }
+                ?: enabled.firstNotNullOfOrNull { source -> plain[source]?.let { source to it } }
+            fallback?.let { (source, found) ->
                 ensureActive()
                 library.cacheLyrics(songId, found.first, source.id)
                 return@withContext found.second
@@ -502,8 +503,15 @@ class LyricsRepository(private val library: LibraryStore) {
      * none, a failure when it could not be asked. A word-timed file that parses to nothing counts as
      * none: caching it would poison the song until cleared.
      */
-    private suspend fun fetchFrom(source: LyricsSource, title: String, artist: String, durationSeconds: Int): Result<Pair<String, Lyrics>?> =
-        when (source) {
+    private suspend fun fetchFrom(
+        source: LyricsSource,
+        songId: String,
+        title: String,
+        artist: String,
+        durationSeconds: Int,
+    ): Result<Pair<String, Lyrics>?> =
+        // A local file has no YouTube id to look up - "none", rather than a request that can only fail.
+        if (source.byVideoId && LocalMusic.isLocal(songId)) Result.success(null) else when (source) {
             LyricsSource.BetterLyrics -> BetterLyrics.getLyrics(title, artist, durationSeconds).mapCatching { ttml ->
                 ttml?.takeIf { it.isNotBlank() }?.let { text -> LrcParser.parseTtml(text, BETTERLYRICS).takeIf { !it.isEmpty }?.let { text to it } }
             }
@@ -513,7 +521,39 @@ class LyricsRepository(private val library: LibraryStore) {
             LyricsSource.KuGou -> KuGou.getLyrics(title, artist, durationSeconds).mapCatching { text ->
                 text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, KUGOU) }
             }
+            LyricsSource.YouTubeMusic -> youTubeLyrics(songId).mapCatching { text ->
+                // Never timed: YouTube Music only carries the words, so this parses as plain.
+                text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, YOUTUBE) }
+            }
+            LyricsSource.YouTubeSubtitle -> youTubeCaptions(songId).mapCatching { lrc ->
+                lrc?.takeIf { it.isNotBlank() }
+                    ?.let { it to LrcParser.parse(it, YOUTUBE_SUBTITLE) }
+                    // A track of nothing but cleaned-away annotations is no lyrics at all.
+                    ?.takeIf { (_, parsed) -> parsed.lines.any { it.text.isNotBlank() } }
+            }
         }
+
+    /**
+     * YouTube Music's own lyrics for [videoId], as the phone's YouTubeLyricsProvider gets them: the
+     * watch page names a lyrics endpoint, and that endpoint carries the text. No endpoint is
+     * YouTube's answer that the song has none.
+     */
+    private suspend fun youTubeLyrics(videoId: String): Result<String?> {
+        val next = YouTube.next(WatchEndpoint(videoId = videoId)).getOrElse { return Result.failure(it) }
+        val endpoint = next.lyricsEndpoint ?: return Result.success(null)
+        return YouTube.lyrics(endpoint)
+    }
+
+    /**
+     * The video's captions as LRC, tidied the way the phone's YouTubeSubtitleLyricsProvider tidies
+     * them - see cleanCaptionLyrics. `transcript()` signals a video with no caption track through
+     * check(), so an IllegalStateException is "none" rather than a failure.
+     */
+    private suspend fun youTubeCaptions(videoId: String): Result<String?> =
+        YouTube.transcript(videoId).fold(
+            onSuccess = { Result.success(cleanCaptionLyrics(it)) },
+            onFailure = { if (it is IllegalStateException) Result.success(null) else Result.failure(it) },
+        )
 
     /**
      * [songId]'s lyrics from [source] alone - the lyrics menu's "Get lyrics from", for when the
@@ -522,7 +562,7 @@ class LyricsRepository(private val library: LibraryStore) {
      */
     suspend fun lyricsFrom(source: LyricsSource, songId: String, title: String, artist: String, durationMs: Long): Lyrics? =
         withContext(Dispatchers.IO) {
-            fetchFrom(source, title, artist, (durationMs / 1000).toInt()).getOrNull()?.let { (text, parsed) ->
+            fetchFrom(source, songId, title, artist, (durationMs / 1000).toInt()).getOrNull()?.let { (text, parsed) ->
                 library.cacheLyrics(songId, text, source.id)
                 parsed
             }
@@ -534,10 +574,21 @@ class LyricsRepository(private val library: LibraryStore) {
     /** Forgets what is stored for a song, so the next request goes back to the providers. */
     fun forget(songId: String) = library.clearLyrics(songId)
 
+    /**
+     * [songId]'s own timing offset in milliseconds, 0 if never set - positive shows each line later.
+     * Applied when the lyrics are handed to the player ([Lyrics.shiftedBy]), never to what is cached,
+     * and kept through [forget]: fetching again is not a reason to lose an offset tuned by ear.
+     */
+    fun offset(songId: String): Int = library.lyricsOffset(songId)
+
+    fun setOffset(songId: String, offsetMs: Int) = library.setLyricsOffset(songId, offsetMs)
+
     companion object {
         const val BETTERLYRICS = "BetterLyrics"
         const val LRCLIB = "LRCLIB"
         const val KUGOU = "KuGou"
+        const val YOUTUBE = "YouTube Music"
+        const val YOUTUBE_SUBTITLE = "YouTube Subtitle"
         const val NONE = "none"
 
         /** Lyrics removed by hand - see [remove]. */
@@ -545,5 +596,14 @@ class LyricsRepository(private val library: LibraryStore) {
 
         /** How long a recorded "no lyrics" stands before the providers are asked again. */
         const val MISS_TTL_MS = 7L * 24 * 60 * 60 * 1000
+
+        /**
+         * The providers to ask about [songId]: [order] kept, less the ones not [enabled], and less
+         * the ones that look a song up by YouTube id when [songId] is a file on this computer.
+         * Without the last, a local song with no lyrics would see those two fail every time, and a
+         * failure keeps the miss from ever being remembered.
+         */
+        fun askable(order: List<LyricsSource>, enabled: Set<LyricsSource>, songId: String): List<LyricsSource> =
+            order.filter { it in enabled && !(it.byVideoId && LocalMusic.isLocal(songId)) }
     }
 }

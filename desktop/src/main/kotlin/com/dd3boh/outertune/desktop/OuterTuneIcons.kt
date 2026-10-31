@@ -156,6 +156,22 @@ object OuterTuneIcons {
     /** Android's player queue button: `Icons.AutoMirrored.Rounded.QueueMusic`, round-ended lines. */
     val queueMusicRounded by icon(GeneratedIconPaths.queueMusicRounded)
 
+    /**
+     * Android's song menu: Play next is `Icons.AutoMirrored.Rounded.PlaylistPlay`, Go to album is
+     * `Icons.Rounded.Album` and Go to artist is its own `artist` drawable - so the right-click menu
+     * here reads as the phone's long-press one does.
+     */
+    val playlistPlay by icon(GeneratedIconPaths.playlistPlay)
+    val albumRounded by icon(GeneratedIconPaths.albumRounded)
+    val artist by icon(GeneratedIconPaths.artist)
+
+    /**
+     * `Icons.Rounded.PowerSettingsNew`, beside Quit in the tray icon's popup - the one place the
+     * app offers to close itself outright rather than to the tray. The phone has no such action, so
+     * no counterpart there.
+     */
+    val powerSettingsNew by icon(GeneratedIconPaths.powerSettingsNew)
+
     // ---- Settings rows -----------------------------------------------------------------------
     //
     // Pulled from Google's published Material Symbols Outlined set (matching the family every icon
@@ -327,6 +343,10 @@ object OuterTuneIcons {
             "playRounded" to playRounded,
             "pauseRounded" to pauseRounded,
             "queueMusicRounded" to queueMusicRounded,
+            "playlistPlay" to playlistPlay,
+            "albumRounded" to albumRounded,
+            "artist" to artist,
+            "powerSettingsNew" to powerSettingsNew,
             "fastForward" to fastForward,
             "fastRewind" to fastRewind,
             "equalizer" to equalizer,

@@ -39,6 +39,24 @@ class Settings(private val store: SettingsStore) {
     /** Every setting's key, and how to re-read it from the store - for profiles (see Profiles). */
     private val reloaders = LinkedHashMap<String, () -> Unit>()
 
+    init {
+        instances[store] = java.lang.ref.WeakReference(this)
+    }
+
+    companion object {
+        private val instances =
+            java.util.Collections.synchronizedMap(java.util.WeakHashMap<SettingsStore, java.lang.ref.WeakReference<Settings>>())
+
+        /**
+         * The settings over [store] - the window's own once it has made them, else new ones.
+         *
+         * For a screen the window does not hand them to (Stats, for its chips). A second set over the
+         * same store would hold its own copy of every value, read again from the database on the UI
+         * thread, and the two copies would drift apart as either was changed.
+         */
+        fun of(store: SettingsStore): Settings = instances[store]?.get() ?: Settings(store)
+    }
+
     /** The keys of every setting, in declaration order. */
     val keys: Set<String> get() = reloaders.keys
 
@@ -165,6 +183,13 @@ class Settings(private val store: SettingsStore) {
     var lyricsLrclib by bool("lyrics.lrclib", true)
     var lyricsKugou by bool("lyrics.kugou", true)
 
+    /**
+     * YouTube Music's own lyrics, and the video's captions. On, as on the phone - where neither can
+     * be switched off - since both are asked last and only matter when the others have nothing.
+     */
+    var lyricsYouTube by bool("lyrics.youtube", true)
+    var lyricsYouTubeSubtitle by bool("lyrics.youtubeSubtitle", true)
+
     /** The order lyrics providers are asked in, as LyricsSource ids. Empty means the default order. */
     var lyricsProviderOrder by string("lyrics.providerOrder", "")
 
@@ -214,13 +239,10 @@ class Settings(private val store: SettingsStore) {
     /** Whether clicking the cover swaps it for the lyrics. */
     var lyricsOnCoverClick by bool("lyrics.coverClick", true)
 
-    /**
-     * Shifts every lyric line, in milliseconds.
-     *
-     * Positive makes them appear later. Files timed against a different master of the same song are
-     * common, and this is the one control that fixes them.
-     */
-    var lyricsOffsetMs by int("lyrics.offsetMs", 0)
+    // The lyrics timing offset was a setting here, "lyrics.offsetMs", one value for every song. It is
+    // now each song's own (LibraryStore.lyricsOffset): an offset fixes one file timed against a
+    // different master, and applied to everything it put every other song out. A stored value is
+    // left where it is and no longer read.
 
     // ---- Appearance ------------------------------------------------------------------------
 
@@ -287,7 +309,7 @@ class Settings(private val store: SettingsStore) {
 
     /**
      * Files taken out of the library with "Remove from library", one path a line. The files stay on
-     * disk; a scan passes over them until they are restored in Settings > Local media.
+     * disk; a scan passes over them until they are restored in Settings > Library and content.
      */
     var localRemoved by string("local.removed", "")
 
@@ -438,6 +460,16 @@ class Settings(private val store: SettingsStore) {
      * opens, and what it adds is counted the phone's way (see HistoryTally).
      */
     var statsIncludeRemote by bool("stats.includeRemote", false)
+
+    /**
+     * The Stats page's chips, so it opens as it was left rather than on a month by plays every
+     * time: the period, what the chart is ranked by, and how many songs it shows (see StatsPane).
+     * The phone remembers the same three. How one person reads their own listening, so not in a
+     * profile (see Profiles.categoryOf), but kept in a backup with every other setting.
+     */
+    var statsPeriod by enum("stats.period", StatsPeriod.Month, StatsPeriod.entries)
+    var statsMetric by enum("stats.metric", StatsMetric.TimeListened, StatsMetric.entries)
+    var statsSongLimit by int("stats.songLimit", STATS_DEFAULT_SONG_LIMIT)
 
     // ---- Network ------------------------------------------------------------------------------
 

@@ -102,7 +102,12 @@ class DesktopPlaybackBridge(
         // The position is read here rather than taken as an argument, after the lookup above: the
         // host kept playing throughout it, and a value decided beforehand would land this device
         // exactly that far behind. See PlaybackBridge.playTrack.
-        playerQueue.play(listOf(item), 0, title = "Listening along", startAtMs = positionMs())
+        //
+        // Marked as following, so the song stays out of Stats, the play counts and the account's
+        // history: it is the host's pick, and the host counts it on their own device. Every song a
+        // follower hears comes through here - joining, the host moving on, and the same song again
+        // after a reconnect - so this one mark covers them all.
+        playerQueue.play(listOf(item), 0, title = "Listening along", startAtMs = positionMs(), following = true)
         return true
     }
 }

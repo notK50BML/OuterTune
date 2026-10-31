@@ -1,5 +1,6 @@
 package com.dd3boh.simpmusic
 
+import com.dd3boh.simpmusic.models.ErrorResponse
 import com.dd3boh.simpmusic.models.LyricsData
 import com.dd3boh.simpmusic.models.LyricsResponse
 import io.ktor.client.HttpClient
@@ -7,6 +8,7 @@ import io.ktor.client.call.body
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.plugins.defaultRequest
 import io.ktor.client.request.get
+import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import kotlinx.serialization.json.Json
@@ -18,17 +20,23 @@ import kotlin.math.abs
  * so localized titles never break matching. The response carries a standard LRC line-synced string
  * (`syncedLyrics`), a plain string (`plainLyric`) and a word-synced string (`richSyncLyrics`); the
  * synced string is preferred and returned raw for parsing in the shared lyrics parse entry point.
+ *
+ * The API now turns away every other client with 403 "This API is only available to SimpMusic
+ * clients". That is its operator's decision rather than a fault - the same request goes through
+ * when it claims to come from the SimpMusic app, which this client does not do. The refusal is
+ * reported as [SimpMusicRefusedException] so callers can tell a standing "no" from a transient
+ * failure.
  */
 object SimpMusicLyrics {
+    private val parser = Json {
+        isLenient = true
+        ignoreUnknownKeys = true
+    }
+
     private val client by lazy {
         HttpClient {
             install(ContentNegotiation) {
-                json(
-                    Json {
-                        isLenient = true
-                        ignoreUnknownKeys = true
-                    },
-                )
+                json(parser)
             }
 
             defaultRequest {
@@ -47,6 +55,8 @@ object SimpMusicLyrics {
             return emptyList()
         }
         if (response.status != HttpStatusCode.OK) {
+            refusalReason(response.status.value, runCatching { response.bodyAsText() }.getOrDefault(""))
+                ?.let { throw SimpMusicRefusedException(it) }
             throw IOException("SimpMusic lyrics request failed: HTTP ${response.status.value}")
         }
         val body = response.body<LyricsResponse>()
@@ -87,6 +97,17 @@ object SimpMusicLyrics {
     }
 
     /**
+     * The API's own reason for refusing this client, or null when [status] and [body] are anything
+     * else. Only a 403 that the API itself wrote counts: Cloudflare in front of it answers 403 too,
+     * with an HTML challenge page, and that one can clear on a later request.
+     */
+    internal fun refusalReason(status: Int, body: String): String? {
+        if (status != HttpStatusCode.Forbidden.value) return null
+        val parsed = runCatching { parser.decodeFromString<ErrorResponse>(body) }.getOrNull() ?: return null
+        return parsed.error?.reason?.takeIf { it.isNotBlank() }
+    }
+
+    /**
      * Pick the best track for [duration] and return its raw lyrics, preferring synced (line-timed LRC)
      * over plain text. Returns null when no track carries either.
      */
@@ -101,3 +122,10 @@ object SimpMusicLyrics {
         return minByOrNull { abs((it.duration ?: 0) - duration) }
     }
 }
+
+/**
+ * SimpMusic's lyrics API refused this client outright - see [SimpMusicLyrics]. Not transient: asking
+ * again gets the same answer, so a caller should not treat it as a reason to retry.
+ */
+class SimpMusicRefusedException(reason: String) :
+    IOException("SimpMusic lyrics refused this app: HTTP 403 \"$reason\"")

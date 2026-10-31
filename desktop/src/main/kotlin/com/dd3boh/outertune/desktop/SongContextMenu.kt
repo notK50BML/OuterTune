@@ -105,9 +105,9 @@ private fun SongMenuItems(song: SongItem, actions: SongActions, close: () -> Uni
         )
     }
 
-    entry("Play next", OuterTuneIcons.queueMusic) { actions.playNext(song) }
-    entry("Add to queue", OuterTuneIcons.queueMusic) { actions.addToQueue(song) }
-    entry("Start radio", OuterTuneIcons.cast) { actions.startRadio(song) }
+    entry("Play next", OuterTuneIcons.playlistPlay) { actions.playNext(song) }
+    entry("Add to queue", OuterTuneIcons.queueMusicRounded) { actions.addToQueue(song) }
+    entry("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) }
     HorizontalDivider()
     entry(if (actions.isLiked(song.id)) "Unlike" else "Like", if (actions.isLiked(song.id)) OuterTuneIcons.favorite else OuterTuneIcons.favoriteBorder) {
         actions.toggleLike(song)
@@ -121,10 +121,10 @@ private fun SongMenuItems(song: SongItem, actions: SongActions, close: () -> Uni
     }
     HorizontalDivider()
     val artist = song.artists.firstOrNull()
-    entry("Go to artist", OuterTuneIcons.person, enabled = artist != null) {
+    entry("Go to artist", OuterTuneIcons.artist, enabled = artist != null) {
         artist?.let { actions.openArtist(it.id?.let { id -> StoredArtist(id, it.name) } ?: StoredArtist.unlinked(it.name)) }
     }
-    entry("Go to album", OuterTuneIcons.album, enabled = song.album?.id != null) {
+    entry("Go to album", OuterTuneIcons.albumRounded, enabled = song.album?.id != null) {
         song.album?.id?.let(actions.openAlbum)
     }
     entry("Copy link", OuterTuneIcons.share) { actions.copyLink(song) }

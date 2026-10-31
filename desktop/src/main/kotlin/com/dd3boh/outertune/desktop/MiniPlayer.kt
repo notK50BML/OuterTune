@@ -12,6 +12,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -102,7 +103,6 @@ internal fun PlayerBar(
     /** Whether the bar is showing the song's lyrics in its middle. */
     lyricsShown: Boolean = false,
     lyrics: Lyrics? = null,
-    lyricsLoading: Boolean = false,
     /** Time left on the sleep timer, 0 for "end of this song", or null when none is set. */
     sleepRemainingMs: Long? = null,
     onSleepTimer: () -> Unit = {},
@@ -199,6 +199,10 @@ internal fun PlayerBar(
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                    // With the lyrics beside it the title has half the room, and most titles no
+                    // longer fit: it scrolls through once, as the phone's player title does, rather
+                    // than ending in "..." for as long as the song plays.
+                    modifier = if (lyricsShown && lyrics?.synced == true && !lyrics.isEmpty) Modifier.basicMarquee(iterations = 1, initialDelayMillis = 2_000) else Modifier,
                 )
                 Text(
                     // The reason still belongs in words somewhere, since the icon only says that
@@ -220,26 +224,11 @@ internal fun PlayerBar(
                 )
             }
             // In the bar's spare middle, beside the song rather than over it, so the title is still
-            // there to read. Lyrics with no timings cannot follow along, so they say so instead.
-            if (lyricsShown && song != null) {
-                val middle = Modifier.weight(1.4f).fillMaxHeight().padding(horizontal = 6.dp)
-                if (lyrics != null && lyrics.synced && !lyrics.isEmpty) {
-                    MiniLyrics(lyrics, positionMs, middle)
-                } else {
-                    Box(middle, contentAlignment = Alignment.Center) {
-                        Text(
-                            text = when {
-                                lyricsLoading -> "Finding lyrics…"
-                                lyrics == null || lyrics.isEmpty -> "No lyrics for this song"
-                                else -> "These lyrics aren't timed"
-                            },
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodySmall,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                    }
-                }
+            // there to read. Only timed lyrics: untimed ones cannot follow along, and a song with
+            // none - or still finding them - shows nothing rather than a notice saying so, which
+            // sat in the bar for the whole song. The title then has the width to itself.
+            if (lyricsShown && song != null && lyrics != null && lyrics.synced && !lyrics.isEmpty) {
+                MiniLyrics(lyrics, positionMs, Modifier.weight(1.4f).fillMaxHeight().padding(horizontal = 6.dp))
             }
 
             // Whatever was chosen in Settings > Player > Mini player buttons, in that order.

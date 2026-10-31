@@ -1,5 +1,6 @@
-package com.dd3boh.outertune.lyrics
+package com.zionhuang.innertube
 
+import com.zionhuang.innertube.utils.cleanLyrics
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test

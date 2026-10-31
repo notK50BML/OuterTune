@@ -56,7 +56,7 @@ object Profiles {
         Appearance("appearance", "Appearance", "Theme, colours, fonts, player background"),
         Player("player", "Player", "Player buttons and layout, sleep timer"),
         Equaliser("equaliser", "Equaliser", "Curve, compressor, balance and saved EQ profiles"),
-        Lyrics("lyrics", "Lyrics", "Text size, alignment, word sync, sources, offset"),
+        Lyrics("lyrics", "Lyrics", "Text size, alignment, word sync, sources"),
         Playback("playback", "Playback", "Normalisation, queue, content language, Listen Together offset"),
     }
 
@@ -179,9 +179,8 @@ object Profiles {
                 put("estimateWordTimings", s.estimateWordTimings)
                 put("highlightStyle", if (s.lyricsHighlight == LyricsHighlight.Sweep) "sweep" else "fade")
                 put("showLyricsType", s.lyricsShowKind)
-                // Negated both ways: in the shared profile format a positive offset shows lines earlier,
-                // as the phone has it; the desktop setting means the opposite (later).
-                put("offsetMs", -s.lyricsOffsetMs)
+                // No "offsetMs" any more: the lyrics timing offset is each song's own now, kept with
+                // the library rather than the settings, so a profile has none to carry.
                 put("openOnCoverClick", s.lyricsOnCoverClick)
                 put("lrclib", s.lyricsLrclib)
                 put("kugou", s.lyricsKugou)
@@ -255,7 +254,8 @@ object Profiles {
                 bool("estimateWordTimings") { s.estimateWordTimings = it }
                 str("highlightStyle") { s.lyricsHighlight = if (it == "sweep") LyricsHighlight.Sweep else LyricsHighlight.Fade }
                 bool("showLyricsType") { s.lyricsShowKind = it }
-                int("offsetMs") { s.lyricsOffsetMs = -it }
+                // "offsetMs" in an older profile, from either app, is passed over: there is no
+                // single offset left to apply it to.
                 bool("openOnCoverClick") { s.lyricsOnCoverClick = it }
                 bool("lrclib") { s.lyricsLrclib = it }
                 bool("kugou") { s.lyricsKugou = it }

@@ -433,12 +433,13 @@ class MusicService : MediaLibraryService(),
     private var telemetrySentForMediaId: String? = null
 
     /**
-     * mediaIds of the songs that were started from a station, noted as each one starts playing and
+     * mediaIds of the songs that were started from a station, or while following someone else's
+     * Listen Together session - neither the listener's own pick - noted as each one starts playing and
      * read once its plays are tallied in [onPlaybackStatsReady]. Asking the queue board at tally
      * time gave the wrong answer when a song ended because another queue was picked - by then the
      * board already shows the new queue - and read the board off the main thread.
      */
-    private val stationSongIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+    private val notOwnPickIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     // Current song plus upcoming songs to fetch lyrics for, read synchronously from the player on each
     // track transition. A data class so the StateFlow deduplicates identical updates.
@@ -486,7 +487,8 @@ class MusicService : MediaLibraryService(),
         // service, which is why it holds a nullable bridge rather than a player it might otherwise
         // still be using after the service is gone.
         listenTogether.attachPlayer(
-            MediaPlaybackBridge(player, database) { queue -> playQueue(queue, replace = true) }
+            // Marked as following: the host's songs are theirs to count, not this device's.
+            MediaPlaybackBridge(player, database) { queue -> playQueue(queue, replace = true, following = true) }
         )
 
         // Applied before anything can play, so the first track is not briefly equalised by
@@ -1007,6 +1009,8 @@ class MusicService : MediaLibraryService(),
      * @param replace Replace media items instead of the underlying logic
      * @param title Title override for the queue. If this value us unspecified, this method takes the value from queue.
      * If both are unspecified, the title will default to "Queue".
+     * @param following Played by Listen Together while following someone else's session, so its
+     * songs do not count in Stats - see MultiQueueObject.isFollowing.
      */
     fun playQueue(
         queue: Queue,
@@ -1014,7 +1018,8 @@ class MusicService : MediaLibraryService(),
         shouldResume: Boolean = false,
         replace: Boolean = false,
         isRadio: Boolean = false,
-        title: String? = null
+        title: String? = null,
+        following: Boolean = false,
     ) {
         queuePlaylistId = queue.playlistId
         val station = isStationPlaylistId(queue.playlistId)
@@ -1036,6 +1041,7 @@ class MusicService : MediaLibraryService(),
                         continuationEndpoint = null // fulfilled later on after initial status
                     )
                     q?.isStation = station
+                    q?.isFollowing = following
                     queueBoard.value.setCurrQueue(q, true)
                 }
 
@@ -1065,6 +1071,7 @@ class MusicService : MediaLibraryService(),
                         continuationEndpoint = if (isRadio) items.takeLast(4).shuffled().first().id else null // yq?.getContinuationEndpoint()
                     )
                     q?.isStation = station
+                    q?.isFollowing = following
                     // The queue that fetched the first page holds the continuation for the next.
                     if (isRadio && q != null) radioFeed = q.id to queue
                     queueBoard.value.setCurrQueue(q, shouldResume)
@@ -1748,8 +1755,10 @@ class MusicService : MediaLibraryService(),
         updateLyricsFetchTargets()
 
         if (mediaItem != null) {
-            if (queueBoard.value.getCurrentQueue()?.isStation == true) stationSongIds.add(mediaItem.mediaId)
-            else stationSongIds.remove(mediaItem.mediaId)
+            // A follower's songs used to be counted in full: they came through an ordinary queue, so
+            // every song a host played was recorded on each phone listening along as well.
+            if (isOwnPick(queueBoard.value.getCurrentQueue())) notOwnPickIds.remove(mediaItem.mediaId)
+            else notOwnPickIds.add(mediaItem.mediaId)
         }
 
         if (player.isPlaying && reason == MEDIA_ITEM_TRANSITION_REASON_SEEK) {
@@ -1882,7 +1891,7 @@ class MusicService : MediaLibraryService(),
     override fun onPlaybackStatsReady(eventTime: AnalyticsListener.EventTime, playbackStats: PlaybackStats) {
         val mediaItem = eventTime.timeline.getWindow(eventTime.windowIndex, Timeline.Window()).mediaItem
         // Read here, on the player's thread, before a later start of the same song can change it.
-        val fromStation = mediaItem.mediaId in stationSongIds
+        val ownPick = mediaItem.mediaId !in notOwnPickIds
         offloadScope.launch {
             var minPlaybackDur = (dataStore.get(minPlaybackDurKey, 30).toFloat() / 100)
             // ensure within bounds
@@ -1894,10 +1903,11 @@ class MusicService : MediaLibraryService(),
 
             val played = countsAsPlay(playbackStats.totalPlayTimeMs, mediaItem.metadata?.duration, minPlaybackDur)
             if (SERVICE_DEBUG) Log.d(TAG, "Played ${playbackStats.totalPlayTimeMs} ms, counts: $played, min ratio: $minPlaybackDur")
-            // A song heard from a station is the station's pick, not the listener's - not counted
+            // A song heard from a station is the station's pick, and one heard while following a
+            // Listen Together session the host's - not the listener's either way, so not counted
             // here, and not sent to the account below either (see sharesPlayWithAccount).
             if (played && !dataStore.get(PauseListenHistoryKey, false)) {
-                if (!fromStation) database.query {
+                if (ownPick) database.query {
                     incrementPlayCount(mediaItem.mediaId)
                     try {
                         insert(
@@ -1913,7 +1923,7 @@ class MusicService : MediaLibraryService(),
 
                 // TODO: support playlist id
                 val ytHist = sharesPlayWithAccount(
-                    fromStation = fromStation,
+                    ownPick = ownPick,
                     isLocal = mediaItem.metadata?.isLocal == true,
                     signedIn = YouTube.cookie != null,
                     remotePaused = dataStore.get(PauseRemoteListenHistoryKey, false),

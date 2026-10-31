@@ -38,6 +38,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,7 +54,10 @@ import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.ListThumbnailSize
 import com.dd3boh.outertune.constants.StatMetric
+import com.dd3boh.outertune.constants.StatMetricKey
 import com.dd3boh.outertune.constants.StatPeriod
+import com.dd3boh.outertune.constants.StatPeriodKey
+import com.dd3boh.outertune.constants.StatSongLimitKey
 import com.dd3boh.outertune.constants.SwipeToQueueKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.db.entities.SongPlayStats
@@ -70,6 +74,7 @@ import com.dd3boh.outertune.ui.menu.AlbumMenu
 import com.dd3boh.outertune.ui.menu.ArtistMenu
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.makeTimeString
+import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.StatsViewModel
 import kotlin.math.roundToInt
@@ -89,13 +94,15 @@ fun StatsScreen(
     val isPlaying by playerConnection.isPlaying.collectAsState()
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
 
-    val statPeriod by viewModel.statPeriod.collectAsState()
+    // Remembered, so Stats opens as it was left - see StatPeriodKey. The view model reads the same
+    // preferences.
+    var statPeriod by rememberEnumPreference(StatPeriodKey, StatsViewModel.DEFAULT_PERIOD)
+    var statMetric by rememberEnumPreference(StatMetricKey, StatsViewModel.DEFAULT_METRIC)
+    var songLimit by rememberPreference(StatSongLimitKey, StatsViewModel.DEFAULT_SONG_LIMIT)
     val mostPlayedSongs by viewModel.mostPlayedSongs.collectAsState()
     val mostPlayedArtists by viewModel.mostPlayedArtists.collectAsState()
     val mostPlayedAlbums by viewModel.mostPlayedAlbums.collectAsState()
-    val songLimit by viewModel.songLimit.collectAsState()
     val totals by viewModel.totals.collectAsState()
-    val statMetric by viewModel.statMetric.collectAsState()
 
     val coroutineScope = rememberCoroutineScope()
     val lazyListState = rememberLazyListState()
@@ -119,7 +126,7 @@ fun StatsScreen(
                     StatPeriod.ALL to stringResource(R.string.filter_all)
                 ),
                 currentValue = statPeriod,
-                onValueUpdate = { viewModel.statPeriod.value = it }
+                onValueUpdate = { statPeriod = it }
             )
         }
 
@@ -141,7 +148,7 @@ fun StatsScreen(
                 ).forEach { (metric, label) ->
                     FilterChip(
                         selected = statMetric == metric,
-                        onClick = { viewModel.statMetric.value = metric },
+                        onClick = { statMetric = metric },
                         label = { Text(label) },
                     )
                 }
@@ -149,7 +156,7 @@ fun StatsScreen(
                 StatsViewModel.SONG_LIMITS.forEach { limit ->
                     FilterChip(
                         selected = songLimit == limit,
-                        onClick = { viewModel.songLimit.value = limit },
+                        onClick = { songLimit = limit },
                         label = {
                             Text(if (limit == StatsViewModel.ALL) stringResource(R.string.stats_limit_all) else limit.toString())
                         },

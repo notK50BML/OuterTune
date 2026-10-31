@@ -169,7 +169,7 @@ class MiniPlayerPreview {
         val untimed = Lyrics(words.filter { it.isNotBlank() }.map { LyricLine(null, it) }, synced = false, source = "preview")
         val buttons = MiniPlayerButtonKind.decode("YQ")
         try {
-            capture(out!!, "mini_player_lyrics", 1350, 640) {
+            capture(out!!, "mini_player_lyrics", 1350, 760) {
                 Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     @Composable
                     fun label(text: String) = Text(text, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -189,6 +189,24 @@ class MiniPlayerPreview {
                                     .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)),
                             ) {
                                 MiniLyricsLines(synced.lines, current = 4, focus = { focus }, modifier = Modifier.fillMaxSize())
+                            }
+                        }
+                    }
+                    label("(j) A line too long for the space - sliding as it is sung: start, halfway, end")
+                    val long = listOf(
+                        LyricLine(0L, "Every window holds a light"),
+                        LyricLine(4_000L, "And I keep on running down the empty boulevard until the morning finds me here"),
+                        LyricLine(9_000L, "Carry me into the night"),
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        listOf(0f, 0.5f, 1f).forEach { sung ->
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(64.dp)
+                                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp)),
+                            ) {
+                                MiniLyricsLines(long, current = 1, focus = { 1f }, sung = { sung }, modifier = Modifier.fillMaxSize())
                             }
                         }
                     }

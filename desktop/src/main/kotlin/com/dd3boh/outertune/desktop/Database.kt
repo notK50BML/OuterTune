@@ -318,6 +318,23 @@ class Database(file: File) {
                     if (!has) st.executeUpdate("ALTER TABLE artist ADD COLUMN nameConfirmed INTEGER NOT NULL DEFAULT 0")
                 }
             }
+            if (current < 12) {
+                connection.createStatement().use { st ->
+                    // Each song's own lyrics timing offset - see lyricsOffset. A table of its own
+                    // rather than a column on lyrics, for two reasons. "Fetch lyrics again" deletes
+                    // the lyrics row, and the offset someone tuned by ear should outlive that. And
+                    // lyrics are only kept for songs the library has a row for, while an offset can
+                    // be set on anything playing - a search result included - so no foreign key.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS lyrics_offset (
+                            songId   TEXT PRIMARY KEY NOT NULL,
+                            offsetMs INTEGER NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -448,6 +465,38 @@ class Database(file: File) {
             // time; once played, liked or saved they are cached like any other.
             st.setString(5, songId)
             st.executeUpdate()
+        }
+    }
+
+    /**
+     * How far [songId]'s lyrics are moved, in milliseconds - positive shows each line later. 0 for a
+     * song never adjusted.
+     */
+    fun lyricsOffset(songId: String): Int = synchronized(lock) {
+        connection.prepareStatement("SELECT offsetMs FROM lyrics_offset WHERE songId = ?").use { st ->
+            st.setString(1, songId)
+            st.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 }
+        }
+    }
+
+    /** Remembers [songId]'s offset. Setting it back to 0 removes the row rather than storing a 0. */
+    fun putLyricsOffset(songId: String, offsetMs: Int) = synchronized(lock) {
+        if (offsetMs == 0) {
+            connection.prepareStatement("DELETE FROM lyrics_offset WHERE songId = ?").use { st ->
+                st.setString(1, songId)
+                st.executeUpdate()
+            }
+        } else {
+            connection.prepareStatement(
+                """
+                INSERT INTO lyrics_offset (songId, offsetMs) VALUES (?, ?)
+                ON CONFLICT(songId) DO UPDATE SET offsetMs = excluded.offsetMs
+                """.trimIndent()
+            ).use { st ->
+                st.setString(1, songId)
+                st.setInt(2, offsetMs)
+                st.executeUpdate()
+            }
         }
     }
 
@@ -808,22 +857,26 @@ class Database(file: File) {
         limit: Int,
         /** Plays from the account's history for the same period - see HistoryTally. */
         remote: Map<String, HistoryTally.Plays> = emptyMap(),
-    ): List<Pair<StoredSong, Int>> = songChart(sinceMs, limit, remote).top
+    ): List<Pair<StoredSong, Int>> = songChart(sinceMs, limit, remote).top.map { it.song to it.plays }
 
     /**
-     * The Stats song chart: its first [limit] songs with their plays, and how many songs it holds
-     * in all - which is what the Songs tile shows, so the tile counts the songs the chart does.
+     * The Stats song chart: its first [limit] songs with their plays and listening time, and how
+     * many songs it holds in all - which is what the Songs tile shows, so the tile counts the songs
+     * the chart does. Ranked by plays, or by time listened when [byTime] - the phone's two choices.
      */
     fun songChart(
         sinceMs: Long,
         limit: Int,
         remote: Map<String, HistoryTally.Plays> = emptyMap(),
+        byTime: Boolean = false,
     ): SongChart = synchronized(lock) {
         // Every song played, not the first [limit]: two ids of one song can each sit below the cut
-        // and only make it once added together.
+        // and only make it once added together. Time listened is each play at the song's full
+        // length, as the Listening time tile counts it (see playTotals).
         val rows = connection.prepareStatement(
             """
-            SELECT s.id, s.title, s.artists, s.thumbnail, COUNT(*) AS plays, MAX(e.playedAt)
+            SELECT s.id, s.title, s.artists, s.thumbnail, COUNT(*) AS plays, MAX(e.playedAt),
+                COUNT(*) * COALESCE(s.durationMs, 0)
             FROM play_event e JOIN song s ON s.id = e.songId
             WHERE e.playedAt >= ?
             GROUP BY s.id
@@ -838,45 +891,54 @@ class Database(file: File) {
                                 StoredSong(rs.getString(1), rs.getString(2), rs.getString(3), rs.getString(4)),
                                 plays = rs.getInt(5),
                                 lastPlayedAt = rs.getLong(6),
+                                listenedMs = rs.getLong(7),
                             )
                         )
                     }
                 }
             }
         }
-        val merged = mergeSameSongs(withHistoryPlays(rows, remote))
+        val merged = mergeSameSongs(withHistoryPlays(rows, remote)).let { if (byTime) rankedByTime(it) else it }
         val top = merged.take(limit)
         val credits = creditsForLocked(top.map { it.song.id })
-        SongChart(top.map { it.song.copy(artistList = credits[it.song.id].orEmpty()) to it.plays }, songs = merged.size)
+        SongChart(
+            top.map { ChartSong(it.song.copy(artistList = credits[it.song.id].orEmpty()), it.plays, it.listenedMs) },
+            songs = merged.size,
+        )
     }
 
     /**
      * Most played artists since [sinceMs], by plays of songs they are credited on - with the plays
      * the account's history adds, credited the way the song chart gains them. Without them a song
      * played mostly elsewhere could top the chart while its artist was missing from the row above.
+     * Ranked by time listened instead when [byTime], as the song chart is.
      */
     fun topArtists(
         sinceMs: Long,
         limit: Int,
         remote: Map<String, HistoryTally.Plays> = emptyMap(),
-    ): List<Pair<StoredArtist, Int>> = synchronized(lock) {
+        byTime: Boolean = false,
+    ): List<ArtistPlays> = synchronized(lock) {
         // Every artist, not the first [limit]: the history can lift one from below the cut.
         val local = connection.prepareStatement(
             """
-            SELECT a.id, a.name, COUNT(*) AS plays
+            SELECT a.id, a.name, COUNT(*) AS plays, COALESCE(SUM(s.durationMs), 0)
             FROM play_event e JOIN song_artist sa ON sa.songId = e.songId JOIN artist a ON a.id = sa.artistId
+                JOIN song s ON s.id = e.songId
             WHERE e.playedAt >= ?
             GROUP BY a.id
             """.trimIndent()
         ).use { st ->
             st.setLong(1, sinceMs)
             st.executeQuery().use { rs ->
-                buildList { while (rs.next()) add(StoredArtist(rs.getString(1), rs.getString(2)) to rs.getInt(3)) }
+                buildList {
+                    while (rs.next()) add(ArtistPlays(StoredArtist(rs.getString(1), rs.getString(2)), rs.getInt(3), rs.getLong(4)))
+                }
             }
         }
         val localPlays = if (remote.isEmpty()) emptyMap() else playCounts(sinceMs)
         val credits = creditsForLocked(remote.keys.filter { it in localPlays })
-        withHistoryArtists(local, remote, localPlays, credits).take(limit)
+        withHistoryArtists(local, remote, localPlays, credits, byTime).take(limit)
     }
 
     /** Plays, distinct songs, and listening time (from the songs' lengths) since [sinceMs]. */
@@ -1426,7 +1488,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 11
+        const val SCHEMA_VERSION = 12
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }
@@ -1443,10 +1505,31 @@ data class StoredPlaylist(
 data class PlayTotals(val plays: Int, val songs: Int, val listenedMs: Long)
 
 /** What [Database.songChart] reports: the top of the chart, and how many songs the whole of it has. */
-data class SongChart(val top: List<Pair<StoredSong, Int>>, val songs: Int)
+data class SongChart(val top: List<ChartSong>, val songs: Int)
 
-/** One song's plays in a period, before songs that are the same are merged. */
-internal data class PlayedSong(val song: StoredSong, val plays: Int, val lastPlayedAt: Long)
+/** One song on the Stats chart: its plays in the period, and how long they lasted. */
+data class ChartSong(val song: StoredSong, val plays: Int, val listenedMs: Long)
+
+/** One artist in the Stats row: plays of the songs they are credited on, and how long they lasted. */
+data class ArtistPlays(val artist: StoredArtist, val plays: Int, val listenedMs: Long)
+
+/**
+ * One song's plays in a period, before songs that are the same are merged - and their listening
+ * time, each play at the song's full length.
+ */
+internal data class PlayedSong(val song: StoredSong, val plays: Int, val lastPlayedAt: Long, val listenedMs: Long = 0L)
+
+/**
+ * [rows] by time listened, then by plays and the most recent play - the chart's order when Stats is
+ * set to time listened. A long song heard twice can outrank a short one heard five times.
+ */
+internal fun rankedByTime(rows: List<PlayedSong>): List<PlayedSong> = rows.sortedWith(
+    compareByDescending<PlayedSong> { it.listenedMs }.thenByDescending { it.plays }.thenByDescending { it.lastPlayedAt }
+)
+
+/** The listening time of [extra] plays from the history: each a whole play, of a length it may not know. */
+private fun historyMs(extra: Int, history: HistoryTally.Plays): Long =
+    extra * (history.song.duration ?: 0).coerceAtLeast(0) * 1000L
 
 /**
  * The same song under different ids, counted as one: the same title by the same artists - a single
@@ -1461,23 +1544,31 @@ internal fun mergeSameSongs(rows: List<PlayedSong>): List<PlayedSong> =
         .values
         .map { same ->
             val main = same.maxWith(compareBy<PlayedSong> { it.plays }.thenBy { it.lastPlayedAt })
-            PlayedSong(main.song, plays = same.sumOf { it.plays }, lastPlayedAt = same.maxOf { it.lastPlayedAt })
+            PlayedSong(
+                main.song,
+                plays = same.sumOf { it.plays },
+                lastPlayedAt = same.maxOf { it.lastPlayedAt },
+                listenedMs = same.sumOf { it.listenedMs },
+            )
         }
         .sortedWith(compareByDescending<PlayedSong> { it.plays }.thenByDescending { it.lastPlayedAt })
 
 /**
  * [rows] with what the account's history adds: a song played here gains the history's plays beyond
  * its own (the larger of the two, never the sum - see HistoryTally.extraPlays), and one played only
- * elsewhere joins the chart from the history's own metadata, in memory only.
+ * elsewhere joins the chart from the history's own metadata, in memory only. The plays added bring
+ * their listening time, counted as the totals count it (see [PlayTotals.withHistory]).
  */
 internal fun withHistoryPlays(rows: List<PlayedSong>, remote: Map<String, HistoryTally.Plays>): List<PlayedSong> {
     if (remote.isEmpty()) return rows
     val known = rows.mapTo(HashSet()) { it.song.id }
     val raised = rows.map { row ->
         val history = remote[row.song.id] ?: return@map row
-        row.copy(plays = row.plays + HistoryTally.extraPlays(row.plays, history.plays))
+        val extra = HistoryTally.extraPlays(row.plays, history.plays)
+        row.copy(plays = row.plays + extra, listenedMs = row.listenedMs + historyMs(extra, history))
     }
-    val elsewhere = remote.values.filter { it.song.id !in known }.map { PlayedSong(it.song.toStored(), it.plays, 0L) }
+    val elsewhere = remote.values.filter { it.song.id !in known }
+        .map { PlayedSong(it.song.toStored(), it.plays, 0L, listenedMs = historyMs(it.plays, it)) }
     return raised + elsewhere
 }
 
@@ -1495,42 +1586,42 @@ internal fun PlayTotals.withHistory(remote: Map<String, HistoryTally.Plays>, loc
         val extra = HistoryTally.extraPlays(localPlays[history.song.id] ?: 0, history.plays)
         plays += extra
         // A length the history does not know adds the play but no time, and never takes time away.
-        ms += extra * (history.song.duration ?: 0).coerceAtLeast(0) * 1000L
+        ms += historyMs(extra, history)
     }
     return copy(plays = this.plays + plays, listenedMs = listenedMs + ms)
 }
 
 /**
  * [local] artists' plays with what the history [remote] adds over this computer's [localPlays],
- * ranked. A song played here credits its extra plays to its own [credits]; one played only
- * elsewhere, to the artists its history entry names. Ties go by name, so the row keeps its order.
+ * ranked by plays, or by time listened when [byTime]. A song played here credits its extra plays
+ * to its own [credits]; one played only elsewhere, to the artists its history entry names. Ties go
+ * by the other measure and then by name, so the row keeps its order.
  */
 internal fun withHistoryArtists(
-    local: List<Pair<StoredArtist, Int>>,
+    local: List<ArtistPlays>,
     remote: Map<String, HistoryTally.Plays>,
     localPlays: Map<String, Int>,
     credits: Map<String, List<StoredArtist>>,
-): List<Pair<StoredArtist, Int>> {
-    val plays = LinkedHashMap<String, Int>()
-    val artists = HashMap<String, StoredArtist>()
-    local.forEach { (artist, count) ->
-        plays[artist.id] = count
-        artists[artist.id] = artist
-    }
+    byTime: Boolean = false,
+): List<ArtistPlays> {
+    val rows = LinkedHashMap<String, ArtistPlays>()
+    local.forEach { rows[it.artist.id] = it }
     remote.values.forEach { history ->
         val here = localPlays[history.song.id] ?: 0
         val extra = HistoryTally.extraPlays(here, history.plays)
         if (extra == 0) return@forEach
+        val ms = historyMs(extra, history)
         val credited = if (here > 0) credits[history.song.id].orEmpty()
         else history.song.artists.mapNotNull { a -> a.id?.let { StoredArtist(it.normalizeArtistId(), a.name) } }
         credited.forEach { artist ->
-            plays[artist.id] = (plays[artist.id] ?: 0) + extra
-            artists.putIfAbsent(artist.id, artist)
+            val seen = rows[artist.id]
+            rows[artist.id] = seen?.copy(plays = seen.plays + extra, listenedMs = seen.listenedMs + ms)
+                ?: ArtistPlays(artist, extra, ms)
         }
     }
-    return plays.entries
-        .sortedWith(compareByDescending<Map.Entry<String, Int>> { it.value }.thenBy { artists.getValue(it.key).name.lowercase() })
-        .map { artists.getValue(it.key) to it.value }
+    val byPlays = compareByDescending<ArtistPlays> { it.plays }.thenByDescending { it.listenedMs }
+    val byListened = compareByDescending<ArtistPlays> { it.listenedMs }.thenByDescending { it.plays }
+    return rows.values.sortedWith((if (byTime) byListened else byPlays).thenBy { it.artist.name.lowercase() })
 }
 
 /**

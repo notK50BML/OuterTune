@@ -75,8 +75,8 @@ enum class SettingsCategory(val label: String, val blurb: String) {
     Appearance("Appearance", "Theme, colours, fonts, tabs and the player's look"),
     Player("Player and audio", "Buttons, seek bar, queue, audio and the sleep timer"),
     ListenTogether("Listen Together", "Play in sync with other devices"),
-    Content("Library and content", "Language, region and what shows up"),
-    Local("Local media", "Folders on this computer"),
+    // Local media lives in here, as it does on the phone, rather than in a section of its own.
+    Content("Library and content", "Region and local music folders"),
     Lyrics("Lyrics", "Providers, timing and how lyrics look"),
     Keyboard("Keyboard", "Shortcuts for the player, each remappable"),
     Privacy("Privacy", "Listening and search history"),
@@ -94,7 +94,6 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
     SettingsCategory.Content -> OuterTuneIcons.musicNote
     SettingsCategory.Account -> OuterTuneIcons.accountCircle
     SettingsCategory.ListenTogether -> OuterTuneIcons.cast
-    SettingsCategory.Local -> OuterTuneIcons.musicNote
     SettingsCategory.Storage -> OuterTuneIcons.download
     SettingsCategory.Privacy -> OuterTuneIcons.history
     SettingsCategory.Backup -> OuterTuneIcons.restore
@@ -139,13 +138,12 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
     SettingEntry("Show queue title", SettingsCategory.Player, "queue name handle"),
     SettingEntry("Queue handle in the title bar", SettingsCategory.Player, "queue handle top bottom banner window buttons"),
-    SettingEntry("Provider selection", SettingsCategory.Lyrics, "provider automatic order priority lrclib kugou betterlyrics source"),
+    SettingEntry("Provider selection", SettingsCategory.Lyrics, "provider automatic order priority lrclib kugou betterlyrics youtube music subtitle captions source"),
     SettingEntry("BetterLyrics", SettingsCategory.Lyrics, "word by word karaoke syllable provider"),
     SettingEntry("Estimate word timings", SettingsCategory.Lyrics, "karaoke interpolation sweep"),
     SettingEntry("Click the cover for lyrics", SettingsCategory.Lyrics, "artwork tap"),
     SettingEntry("Lyrics text size", SettingsCategory.Lyrics, "font scale"),
     SettingEntry("Lyrics alignment", SettingsCategory.Lyrics, "centre center left"),
-    SettingEntry("Lyrics timing offset", SettingsCategory.Lyrics, "delay sync early late"),
     SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
     SettingEntry("Hide explicit content", SettingsCategory.Content, "explicit filter clean"),
     SettingEntry("Content language", SettingsCategory.Content, "language region locale youtube"),
@@ -161,8 +159,10 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
     SettingEntry("Discord", SettingsCategory.Account, "rich presence rpc status token"),
     SettingEntry("Listen Together", SettingsCategory.ListenTogether, "sync share lan network party"),
-    SettingEntry("Music folders", SettingsCategory.Local, "local files folder mp3 flac scan computer"),
-    SettingEntry("Rescan", SettingsCategory.Local, "local files refresh scan folders"),
+    // Local media's own name went with its category, so its words are in the keywords now.
+    SettingEntry("Use local media", SettingsCategory.Content, "local media files folders on this computer enable"),
+    SettingEntry("Music folders", SettingsCategory.Content, "local media files folder mp3 flac scan computer"),
+    SettingEntry("Rescan", SettingsCategory.Content, "local media files refresh scan folders start"),
     SettingEntry("Downloads", SettingsCategory.Storage, "offline delete space disk"),
     SettingEntry("Keep listening history", SettingsCategory.Privacy, "history recent stats record"),
     SettingEntry("Clear listening history", SettingsCategory.Privacy, "history delete stats reset"),
@@ -317,7 +317,11 @@ fun SettingsPane(
                 SettingsCategory.Appearance -> AppearanceSettings(settings)
                 SettingsCategory.Player -> PlayerSettings(settings)
                 SettingsCategory.Lyrics -> LyricsSettings(settings, onClearLyricsCache)
-                SettingsCategory.Content -> ContentSettings(settings)
+                SettingsCategory.Content -> {
+                    ContentSettings(settings)
+                    // The folders on this computer, below what shows up from YouTube Music.
+                    LocalMusicSettings(settings, library)
+                }
                 SettingsCategory.Account -> {
                     Section("YouTube Music") { AccountPane(account = account) }
                     AccountSyncSettings(settings, account, sync)
@@ -325,7 +329,6 @@ fun SettingsPane(
                     DiscordSettings(settings)
                 }
                 SettingsCategory.ListenTogether -> ListenTogetherSettings(settings, listenTogether)
-                SettingsCategory.Local -> LocalMusicSettings(settings, library)
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
                 SettingsCategory.Privacy -> PrivacySettings(settings, library, account)
                 SettingsCategory.Backup -> BackupSettings(settings, library, libraryPath, onProfileApplied)
@@ -881,17 +884,7 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             checked = settings.lyricsShowKind,
             onCheckedChange = { settings.lyricsShowKind = it },
             icon = OuterTuneIcons.info,
-        )
-        SettingSlider(
-            title = "Lyrics timing offset",
-            subtitle = "Shifts every line. Positive is later.",
-            icon = OuterTuneIcons.timer,
-            value = settings.lyricsOffsetMs,
-            range = -3000..3000,
-            step = 50,
-            format = { "${if (it > 0) "+" else ""}$it ms" },
-            default = 0,
-            onChange = { settings.lyricsOffsetMs = it },
+            // The timing offset that followed this is set per song now, from the lyrics menu.
             divider = false,
         )
     }
@@ -1246,7 +1239,8 @@ private fun ListenTogetherSettings(settings: Settings, listenTogether: ListenTog
 
 /**
  * The folders whose music is in the library. Added with the system's folder picker - several at
- * once - removed one by one, and rescanned on demand; a scan also runs at every start.
+ * once - removed one by one, and rescanned on demand; a scan also runs at every start. Drawn at the
+ * foot of Library and content, where the phone keeps its local media too.
  */
 @Composable
 private fun LocalMusicSettings(settings: Settings, library: LibraryStore) {

@@ -22,6 +22,7 @@ import com.dd3boh.outertune.db.entities.EventWithSong
 import com.dd3boh.outertune.db.entities.FormatEntity
 import com.dd3boh.outertune.db.entities.GenreEntity
 import com.dd3boh.outertune.db.entities.LyricsEntity
+import com.dd3boh.outertune.db.entities.LyricsOffsetEntity
 import com.dd3boh.outertune.db.entities.QueueEntity
 import com.dd3boh.outertune.db.entities.QueueSongMap
 import com.dd3boh.outertune.db.entities.RecentActivityEntity
@@ -92,6 +93,21 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
 
     @Query("SELECT * FROM lyrics WHERE id = :id")
     fun lyrics(id: String?): Flow<LyricsEntity?>
+
+    /** [id]'s own lyrics timing offset in milliseconds, or null when it has never been set. */
+    @Query("SELECT offsetMs FROM lyrics_offset WHERE id = :id")
+    fun lyricsOffset(id: String?): Flow<Int?>
+
+    @Upsert
+    fun upsert(offset: LyricsOffsetEntity)
+
+    @Query("DELETE FROM lyrics_offset WHERE id = :id")
+    fun deleteLyricsOffset(id: String)
+
+    /** Keeps [offsetMs] as [id]'s lyrics offset; back to 0 removes the row rather than storing a 0. */
+    fun setLyricsOffset(id: String, offsetMs: Int) {
+        if (offsetMs == 0) deleteLyricsOffset(id) else upsert(LyricsOffsetEntity(id, offsetMs))
+    }
 
     @Transaction
     @Query("SELECT * FROM event ORDER BY rowId DESC")

@@ -23,6 +23,7 @@ import com.dd3boh.outertune.db.entities.Event
 import com.dd3boh.outertune.db.entities.FormatEntity
 import com.dd3boh.outertune.db.entities.GenreEntity
 import com.dd3boh.outertune.db.entities.LyricsEntity
+import com.dd3boh.outertune.db.entities.LyricsOffsetEntity
 import com.dd3boh.outertune.db.entities.PlayCountEntity
 import com.dd3boh.outertune.db.entities.PlaylistEntity
 import com.dd3boh.outertune.db.entities.PlaylistEntity.Companion.generatePlaylistId
@@ -79,7 +80,7 @@ class MusicDatabase(
     fun close() = delegate.close()
 
     companion object {
-        const val MUSIC_DATABASE_VERSION = 25
+        const val MUSIC_DATABASE_VERSION = 26
     }
 }
 
@@ -100,6 +101,7 @@ class MusicDatabase(
         SearchHistory::class,
         FormatEntity::class,
         LyricsEntity::class,
+        LyricsOffsetEntity::class,
         PlayCountEntity::class,
         Event::class,
         RelatedSongMap::class,
@@ -130,6 +132,7 @@ class MusicDatabase(
         AutoMigration(from = 19, to = 20, spec = Migration19To20::class), // Db optimization, remove totalplaytime, local media fields
         AutoMigration(from = 20, to = 21), // Lyrics provider column
         // 21->22 (thumbnailPath) is MIGRATION_21_22 below, not an AutoMigration - see its own doc.
+        AutoMigration(from = 25, to = 26), // Per-song lyrics timing offset (lyrics_offset table)
     ]
 )
 @TypeConverters(Converters::class)

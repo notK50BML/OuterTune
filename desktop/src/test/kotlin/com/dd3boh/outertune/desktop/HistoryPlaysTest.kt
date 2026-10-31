@@ -66,7 +66,7 @@ class HistoryPlaysTest {
             duration = 200, thumbnail = "", explicit = false, endpoint = null,
         )
         val artists = withHistoryArtists(
-            local = listOf(other to 3, here to 1),
+            local = listOf(ArtistPlays(other, 3, 600_000), ArtistPlays(here, 1, 200_000)),
             remote = mapOf(
                 // Played once here, five times in all: four more, to the credits the library has.
                 "a" to HistoryTally.Plays(credited("a", "UCwrong", "Wrong"), 5),
@@ -76,6 +76,45 @@ class HistoryPlaysTest {
             localPlays = mapOf("a" to 1),
             credits = mapOf("a" to listOf(here)),
         )
-        assertEquals(listOf("UChere" to 5, "UCother" to 3, "UCaway" to 2), artists.map { it.first.id to it.second })
+        assertEquals(listOf("UChere" to 5, "UCother" to 3, "UCaway" to 2), artists.map { it.artist.id to it.plays })
+    }
+
+    @Test
+    fun `the history's plays bring their time, to songs and to artists`() {
+        val rows = withHistoryPlays(
+            listOf(PlayedSong(StoredSong("here", "here", "artist"), plays = 1, lastPlayedAt = 1L, listenedMs = 200_000)),
+            mapOf(
+                "here" to HistoryTally.Plays(item("here", seconds = 200), 3),
+                "phone" to HistoryTally.Plays(item("phone", seconds = 100), 2),
+            ),
+        )
+        // here: two more plays of 200 s; phone: two of 100 s.
+        assertEquals(mapOf("here" to 600_000L, "phone" to 200_000L), rows.associate { it.song.id to it.listenedMs })
+
+        val away = StoredArtist("UCaway", "Away")
+        val artists = withHistoryArtists(
+            local = emptyList(),
+            remote = mapOf("x" to HistoryTally.Plays(
+                SongItem(
+                    id = "x", title = "x", artists = listOf(Artist(name = "Away", id = away.id)), album = null,
+                    duration = 150, thumbnail = "", explicit = false, endpoint = null,
+                ),
+                2,
+            )),
+            localPlays = emptyMap(),
+            credits = emptyMap(),
+        )
+        assertEquals(listOf(ArtistPlays(away, 2, 300_000)), artists)
+    }
+
+    @Test
+    fun `artists rank by time listened when asked`() {
+        val long = StoredArtist("UClong", "Long songs")
+        val short = StoredArtist("UCshort", "Short songs")
+        val local = listOf(ArtistPlays(short, 10, 1_200_000), ArtistPlays(long, 3, 1_800_000))
+        fun ranked(byTime: Boolean) =
+            withHistoryArtists(local, emptyMap(), emptyMap(), emptyMap(), byTime).map { it.artist.id }
+        assertEquals(listOf("UCshort", "UClong"), ranked(byTime = false))
+        assertEquals(listOf("UClong", "UCshort"), ranked(byTime = true))
     }
 }
