@@ -186,6 +186,7 @@ object Profiles {
                 put("openOnCoverClick", s.lyricsOnCoverClick)
                 put("lrclib", s.lyricsLrclib)
                 put("kugou", s.lyricsKugou)
+                put("qqmusic", s.lyricsQqMusic)
             }
             Category.Playback -> {
                 put("normalise", s.audioNormalisation)
@@ -262,6 +263,7 @@ object Profiles {
                 bool("openOnCoverClick") { s.lyricsOnCoverClick = it }
                 bool("lrclib") { s.lyricsLrclib = it }
                 bool("kugou") { s.lyricsKugou = it }
+                bool("qqmusic") { s.lyricsQqMusic = it }
             }
             Category.Playback -> {
                 bool("normalise") { s.audioNormalisation = it }

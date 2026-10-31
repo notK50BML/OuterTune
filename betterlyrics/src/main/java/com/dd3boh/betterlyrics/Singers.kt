@@ -222,6 +222,21 @@ object Singers {
         return perLine to agents.values.toList()
     }
 
+    /**
+     * [agentsFromNames] as each line's [Voice] and the named [Singer]s for the legend - for lyrics
+     * that have nowhere to keep agents, such as LRC from KuGou, LRCLIB or QQ Music's line-timed
+     * lyrics, which write a duet as "Name: " at the start of lines just as QQ's word-timed ones do.
+     * TTML gets the same from [TTMLParser.parse]; this is the same reading for every other format.
+     *
+     * Null when the lines are not labelled.
+     */
+    fun voicesFromNames(texts: List<String>): Pair<List<Voice?>, List<Singer>>? {
+        val (perLine, agents) = agentsFromNames(texts) ?: return null
+        val voices = voices(agents)
+        return perLine.map { id -> id?.let(voices::get) } to
+            agents.mapNotNull { agent -> agent.name?.let { Singer(voices.getValue(agent.id), it) } }
+    }
+
     // endregion
 }
 

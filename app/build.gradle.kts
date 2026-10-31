@@ -324,6 +324,7 @@ dependencies {
     implementation(project(":kugou"))
     implementation(project(":lrclib"))
     implementation(project(":betterlyrics"))
+    implementation(project(":qqmusic"))
     implementation(project(":simpmusic"))
     implementation(project(":kizzy"))
     implementation(project(":shazamkit"))

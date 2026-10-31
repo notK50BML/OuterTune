@@ -20,6 +20,7 @@ import com.zionhuang.innertube.models.WatchEndpoint
 import com.zionhuang.innertube.utils.cleanCaptionLyrics
 import com.zionhuang.innertube.utils.cleanLyrics
 import com.zionhuang.kugou.KuGou
+import com.dd3boh.qqmusic.QQMusic
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -64,7 +65,8 @@ data class LyricLine(
     val translation: String? = null,
     /**
      * Who sings the line, for drawing it in that singer's colour: from a TTML document's agents, or
-     * an LRC line's `v1:`/`v2:`/`v3:` mark. Null when nothing says - which is every line from most
+     * an LRC line's `v1:`/`v2:`/`v3:` mark - or, when neither says, from singers' names written into
+     * the lines, which [withSingerNames] reads. Null when nothing says - which is every line from most
      * providers - and cleared by [withSingerNames] unless the lines are to be coloured.
      */
     val voice: Voice? = null,
@@ -580,9 +582,20 @@ fun Lyrics.withSingerNames(mode: SingerNames): Lyrics {
         if (singers.isEmpty() && lines.none { it.voice != null }) return this
         return copy(lines = lines.map { it.copy(voice = null) }, singers = emptyList())
     }
-    val coloured = mode == SingerNames.COLOUR && Singers.isMultiVoice(lines.map { it.voice })
+    // Lyrics that name their singers only in the text and say nothing else about who sings - LRC
+    // from KuGou, LRCLIB or QQ Music, which has nowhere else to say it - are voiced from those names,
+    // as TTML is when it is read. Without this the names were taken out and nothing put in their
+    // place: one colour, and no key.
+    val fromNames = if (mode == SingerNames.COLOUR && !Singers.isMultiVoice(lines.map { it.voice })) {
+        Singers.voicesFromNames(lines.map { it.text })
+    } else {
+        null
+    }
+    val voicedLines = fromNames?.let { (voices, _) -> lines.mapIndexed { i, line -> line.copy(voice = voices[i]) } } ?: lines
+    val namedSingers = fromNames?.second ?: singers
+    val coloured = mode == SingerNames.COLOUR && Singers.isMultiVoice(voicedLines.map { it.voice })
     val names = Singers.namePrefixes(lines.map { it.text })
-    val shown = lines.mapNotNull { line ->
+    val shown = voicedLines.mapNotNull { line ->
         val cut = Singers.namePrefixLength(line.text, names)
         val stripped = if (cut == 0) line else line.copy(
             text = line.text.substring(cut),
@@ -591,7 +604,7 @@ fun Lyrics.withSingerNames(mode: SingerNames): Lyrics {
         if (cut > 0 && stripped.text.isBlank() && stripped.translation == null) return@mapNotNull null
         if (coloured) stripped else stripped.copy(voice = null)
     }
-    return copy(lines = shown, singers = if (coloured) singers else emptyList())
+    return copy(lines = shown, singers = if (coloured) namedSingers else emptyList())
 }
 
 /**
@@ -763,7 +776,7 @@ class LyricsRepository(private val library: LibraryStore) {
 
     /**
      * Every candidate the providers have for [title] by [artist], each passed to [onFound] as it
-     * arrives - LRCLIB's matches, then KuGou's, then BetterLyrics' one. Providers that are switched
+     * arrives - LRCLIB's matches, then KuGou's, then QQ Music's, then BetterLyrics' one. Providers that are switched
      * off are asked anyway: this is a search the user asked for by hand.
      */
     suspend fun candidates(title: String, artist: String, durationMs: Long, onFound: (LyricsCandidate) -> Unit) =
@@ -772,6 +785,8 @@ class LyricsRepository(private val library: LibraryStore) {
             runCatching { LrcLib.getAllLyrics(title, artist, seconds) { onFound(LyricsCandidate(LRCLIB, it)) } }
             ensureActive()
             runCatching { KuGou.getAllPossibleLyricsOptions(title, artist, seconds) { onFound(LyricsCandidate(KUGOU, it)) } }
+            ensureActive()
+            runCatching { QQMusic.getAllLyrics(title, artist, seconds) { onFound(LyricsCandidate(QQMUSIC, it)) } }
             ensureActive()
             BetterLyrics.getLyrics(title, artist, seconds.coerceAtLeast(0)).getOrNull()?.takeIf { it.isNotBlank() }
                 ?.let { onFound(LyricsCandidate(BETTERLYRICS, it)) }
@@ -807,6 +822,13 @@ class LyricsRepository(private val library: LibraryStore) {
             // Every other provider's text gets the cleanup every source gets on the phone, before it
             // is judged as well as before it is kept: a "lyric sheet" that is nothing but [Music]
             // over and over is not evidence of lyrics.
+            // TTML when QQ had word timings for the song (its QRC, converted), LRC otherwise - only
+            // the LRC is tidied, for the same reason as above.
+            LyricsSource.QQMusic -> QQMusic.getLyrics(title, artist, durationSeconds).mapCatching { text ->
+                text?.takeIf { it.isNotBlank() }?.let {
+                    readable(if (TTMLParser.looksLikeTtml(it)) it else cleanLyrics(it), QQMUSIC)
+                }
+            }
             LyricsSource.LrcLib -> LrcLib.getLyrics(title, artist, durationSeconds).mapCatching { text ->
                 text?.takeIf { it.isNotBlank() }?.let { readable(cleanLyrics(it), LRCLIB) }
             }
@@ -892,6 +914,7 @@ class LyricsRepository(private val library: LibraryStore) {
 
     companion object {
         const val BETTERLYRICS = "BetterLyrics"
+        const val QQMUSIC = "QQ Music"
         const val LRCLIB = "LRCLIB"
         const val KUGOU = "KuGou"
         const val YOUTUBE = "YouTube Music"

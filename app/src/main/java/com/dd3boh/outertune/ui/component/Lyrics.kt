@@ -232,7 +232,10 @@ fun Lyrics(
     val multiVoice = remember(lines) { lines.isMultiVoice() }
     val colourBySinger = singerNames == SingerNames.COLOUR && multiVoice
     val currentSingers by playerConnection.currentSingers.collectAsState()
-    val singers = currentSingers?.takeIf { it.mediaId == currentMediaId }?.lyrics.orEmpty()
+    // The key: the names in a TTML head when it has them, otherwise the names written into the
+    // lines, which is where LRC keeps them.
+    val headSingers = currentSingers?.takeIf { it.mediaId == currentMediaId }?.lyrics.orEmpty()
+    val singers = remember(headSingers, arrivedLyrics) { headSingers.ifEmpty { arrivedLyrics.singersFromNames() } }
 
     var currentLineIndex by remember {
         mutableIntStateOf(-1)

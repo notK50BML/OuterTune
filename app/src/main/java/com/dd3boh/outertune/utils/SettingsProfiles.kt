@@ -35,6 +35,7 @@ import com.dd3boh.outertune.constants.DarkModeKey
 import com.dd3boh.outertune.constants.DynamicThemeKey
 import com.dd3boh.outertune.constants.EnableKugouKey
 import com.dd3boh.outertune.constants.EnableLrcLibKey
+import com.dd3boh.outertune.constants.EnableQqMusicKey
 import com.dd3boh.outertune.constants.EqualizerSettingsKey
 import com.dd3boh.outertune.constants.ListenTogetherOffsetKey
 import com.dd3boh.outertune.constants.LyricEstimatedWordSync
@@ -109,7 +110,7 @@ object SettingsProfiles {
                 "preferLocalLyrics", "lyricFontSize", "lyricClickable", "lyricKaraokeEnable",
                 "lyricEstimatedWordSync", "lyricUpdateSpeed", "enableLyricsPrefetch",
                 "lyricsPrefetchCount", "lyricsFetchMode", "lyricsProviderOrder", "enableKugou", "enableLrcLib",
-                "enableBetterLyrics", "enableSimpMusic", "lyricsRefreshInterval", "lyricSingerNames",
+                "enableBetterLyrics", "enableQqMusic", "enableSimpMusic", "lyricsRefreshInterval", "lyricSingerNames",
             ),
         ),
         PLAYBACK(
@@ -260,6 +261,7 @@ object SettingsProfiles {
                 put("openOnCoverClick", p[ShowLyricsOnClickKey] ?: true)
                 put("lrclib", p[EnableLrcLibKey] ?: true)
                 put("kugou", p[EnableKugouKey] ?: true)
+                put("qqmusic", p[EnableQqMusicKey] ?: true)
             }
             Category.PLAYBACK -> {
                 put("normalise", p[AudioNormalizationKey] ?: true)
@@ -359,6 +361,7 @@ object SettingsProfiles {
                 bool("openOnCoverClick", ShowLyricsOnClickKey)
                 bool("lrclib", EnableLrcLibKey)
                 bool("kugou", EnableKugouKey)
+                bool("qqmusic", EnableQqMusicKey)
             }
             Category.PLAYBACK -> {
                 bool("normalise", AudioNormalizationKey)

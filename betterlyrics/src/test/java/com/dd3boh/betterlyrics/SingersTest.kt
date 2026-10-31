@@ -92,6 +92,17 @@ class SingersTest {
     }
 
     @Test
+    fun `names in plain lines give the same voices and singers as in TTML`() {
+        // LRC has nowhere to keep agents, so KuGou's, LRCLIB's and QQ's line-timed lyrics get theirs
+        // from the names alone - and must come out exactly as the TTML reader reads the same lines.
+        val texts = listOf("Jung Kook: Night and day", "Seven days a week", "Latto: Uh, yeah", "Latto:", "All: Seven")
+        val (voices, singers) = Singers.voicesFromNames(texts)!!
+        assertEquals(listOf(Voice.ONE, Voice.ONE, Voice.TWO, Voice.TWO, Voice.GROUP), voices)
+        assertEquals(listOf(Singer(Voice.ONE, "Jung Kook"), Singer(Voice.TWO, "Latto"), Singer(Voice.GROUP, "All")), singers)
+        assertNull(Singers.voicesFromNames(listOf("Night and day", "Remember: you're mine")))
+    }
+
+    @Test
     fun `a name prefix is cut exactly, full-width colon included`() {
         val names = Singers.namePrefixes(listOf("男：我爱你", "女：我也是", "男：真的吗"))
         assertEquals(setOf("男", "女"), names)

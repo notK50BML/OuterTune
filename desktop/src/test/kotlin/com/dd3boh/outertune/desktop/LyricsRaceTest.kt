@@ -65,7 +65,8 @@ class LyricsRaceTest {
     fun `word timings end it only once everyone above has answered`() {
         val race = LyricsRace(order)
         assertFalse(race.offer(LyricsSource.LrcLib, words()))
-        assertTrue(race.offer(LyricsSource.BetterLyrics, null))
+        assertFalse(race.offer(LyricsSource.BetterLyrics, null))
+        assertTrue(race.offer(LyricsSource.QQMusic, null))
     }
 
     @Test

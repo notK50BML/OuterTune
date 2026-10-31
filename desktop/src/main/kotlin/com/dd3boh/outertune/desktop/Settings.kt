@@ -193,6 +193,9 @@ class Settings(private val store: SettingsStore) {
     var lyricsLrclib by bool("lyrics.lrclib", true)
     var lyricsKugou by bool("lyrics.kugou", true)
 
+    /** QQ Music, asked directly for its word-timed lyrics - on, as on the phone. */
+    var lyricsQqMusic by bool("lyrics.qqmusic", true)
+
     /**
      * YouTube Music's own lyrics, and the video's captions. On, as on the phone - where neither can
      * be switched off - since both are asked last and only matter when the others have nothing.

@@ -46,6 +46,7 @@ enum class LyricsSource(
     val transcript: Boolean = false,
 ) {
     BetterLyrics(LyricsRepository.BETTERLYRICS, "BetterLyrics", "Times each word; often refuses songs it has not cached"),
+    QQMusic(LyricsRepository.QQMUSIC, "QQ Music", "Times each word; strong for Chinese and K-pop, many English songs too"),
     LrcLib(LyricsRepository.LRCLIB, "LRCLIB", "Line-timed lyrics, from a large open library"),
     KuGou(LyricsRepository.KUGOU, "KuGou", "Strongest for Chinese-language songs"),
     YouTubeMusic(LyricsRepository.YOUTUBE, "YouTube Music", "YouTube Music's own lyrics; not timed", byVideoId = true),
@@ -60,10 +61,11 @@ enum class LyricsSource(
 
     companion object {
         /**
-         * BetterLyrics first - word timings are strictly more than line timings - then LRCLIB, then
-         * KuGou, then YouTube Music's own lyrics and last its captions, as the phone has them.
+         * The two that time each word first - word timings are strictly more than line timings -
+         * BetterLyrics and then QQ Music; then LRCLIB, then KuGou, then YouTube Music's own lyrics and
+         * last its captions, as the phone has them.
          */
-        val DEFAULT = listOf(BetterLyrics, LrcLib, KuGou, YouTubeMusic, YouTubeSubtitle)
+        val DEFAULT = listOf(BetterLyrics, QQMusic, LrcLib, KuGou, YouTubeMusic, YouTubeSubtitle)
 
         /** The stored order, with any provider it does not mention appended in the default order. */
         fun ordered(stored: String): List<LyricsSource> {
@@ -85,6 +87,7 @@ enum class LyricsFetchMode(val label: String, val description: String) {
 /** Whether [source] is switched on, from the settings the first three switches always used. */
 fun Settings.isEnabled(source: LyricsSource): Boolean = when (source) {
     LyricsSource.BetterLyrics -> wordByWordLyrics
+    LyricsSource.QQMusic -> lyricsQqMusic
     LyricsSource.LrcLib -> lyricsLrclib
     LyricsSource.KuGou -> lyricsKugou
     LyricsSource.YouTubeMusic -> lyricsYouTube
@@ -93,6 +96,7 @@ fun Settings.isEnabled(source: LyricsSource): Boolean = when (source) {
 
 fun Settings.setEnabled(source: LyricsSource, on: Boolean) = when (source) {
     LyricsSource.BetterLyrics -> wordByWordLyrics = on
+    LyricsSource.QQMusic -> lyricsQqMusic = on
     LyricsSource.LrcLib -> lyricsLrclib = on
     LyricsSource.KuGou -> lyricsKugou = on
     LyricsSource.YouTubeMusic -> lyricsYouTube = on

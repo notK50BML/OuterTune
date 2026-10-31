@@ -74,4 +74,37 @@ class SingerNamesTest {
         val lyrics = LrcParser.parse("[00:01.00]Remember: you're mine\n[00:02.00]Remember: you're mine\n[00:03.00]Time: it flies", "LRCLIB")
         assertEquals(lyrics.lines.map { it.text }, lyrics.withSingerNames(SingerNames.HIDE).lines.map { it.text })
     }
+
+    @Test
+    fun `LRC that names its singers in the text is coloured by them, with a key`() {
+        // KuGou, LRCLIB and QQ's line-timed lyrics write a duet this way and have no v1:/v2: marks.
+        // The names used to be taken out and nothing put in their place: one colour, no key.
+        val lrc = LrcParser.parse(
+            """
+                [00:01.00]Mira: Streetlights hum
+                [00:02.00]Paper moon
+                [00:03.00]Jonah: Every window
+                [00:04.00]Both: Hold on
+                [00:05.00]Mira: Paper moon again
+            """.trimIndent(),
+            "KuGou",
+        )
+        val shown = lrc.withSingerNames(SingerNames.COLOUR)
+        assertEquals(listOf("Streetlights hum", "Paper moon", "Every window", "Hold on", "Paper moon again"), shown.lines.map { it.text })
+        assertEquals(listOf(Voice.ONE, Voice.ONE, Voice.TWO, Voice.GROUP, Voice.ONE), shown.lines.map { it.voice })
+        assertEquals(listOf(Singer(Voice.ONE, "Mira"), Singer(Voice.TWO, "Jonah"), Singer(Voice.GROUP, "Both")), shown.singers)
+        // And the colours survive the estimated word timings that make it sing word by word.
+        val estimated = shown.withEstimatedWords()
+        assertEquals(shown.lines.map { it.voice }, estimated.lines.map { it.voice })
+        assertEquals(true, estimated.lines.all { it.words.isNotEmpty() })
+        // Hide still means plain.
+        assertEquals(true, lrc.withSingerNames(SingerNames.HIDE).lines.all { it.voice == null })
+    }
+
+    @Test
+    fun `word-timed lyrics keep their voices through the sweep's words and the estimate`() {
+        val shown = parsed.withSingerNames(SingerNames.COLOUR).withEstimatedWords()
+        assertEquals(listOf(Voice.ONE, Voice.ONE, Voice.TWO, Voice.TWO), shown.lines.map { it.voice })
+        assertEquals(true, shown.lines.all { it.words.isNotEmpty() })
+    }
 }

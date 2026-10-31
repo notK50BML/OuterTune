@@ -77,8 +77,9 @@ fun SemanticLyrics?.withSingerNames(mode: SingerNames): SemanticLyrics? {
             // Translations are a line's meaning in another language, not a line of their own.
             val names = Singers.namePrefixes(text.filterNot { it.isTranslated }.map { it.text })
             if (names.isEmpty()) return this
+            val voiced = if (mode == SingerNames.COLOUR) voicedFromNames(text) else text
             SemanticLyrics.SyncedLyrics(
-                text.mapNotNull { line ->
+                voiced.mapNotNull { line ->
                     val cut = if (line.isTranslated) 0 else Singers.namePrefixLength(line.text, names)
                     if (cut == 0) return@mapNotNull line
                     val rest = line.text.substring(cut)
@@ -111,6 +112,47 @@ fun SemanticLyrics?.withSingerNames(mode: SingerNames): SemanticLyrics? {
             )
         }
     }
+}
+
+/**
+ * [lines] with each line's speaker taken from the singers' names written into the text, when
+ * nothing else says who sings - which is LRC from KuGou, LRCLIB or QQ Music's line-timed lyrics:
+ * the LRC format has only `v1:`/`v2:` marks for singers, and those providers write names instead.
+ * Without this the names were taken out and nothing put in their place, so a duet labelled that
+ * way came out one colour and with no key. Lines that already carry more than one voice (TTML
+ * agents, `v1:`/`v2:` marks) are left as they are.
+ *
+ * Fresh lines rather than the old ones changed: the parsed lyrics are shared, and their speakers
+ * are mutable. A translation takes the speaker of the line it translates.
+ */
+internal fun voicedFromNames(lines: List<SemanticLyrics.LyricLine>): List<SemanticLyrics.LyricLine> {
+    if (lines.isMultiVoice()) return lines
+    val main = lines.filterNot { it.isTranslated }
+    val (voices, _) = Singers.voicesFromNames(main.map { it.text }) ?: return lines
+    var next = 0
+    var last: Voice? = null
+    return lines.map { line ->
+        val voice = if (line.isTranslated) last else voices[next++].also { last = it }
+        val background = line.speaker?.isBackground == true
+        line.copy(
+            speaker = when (voice) {
+                Voice.ONE -> if (background) SpeakerEntity.Background else SpeakerEntity.Voice1
+                Voice.TWO -> if (background) SpeakerEntity.Voice2Background else SpeakerEntity.Voice2
+                Voice.GROUP -> if (background) SpeakerEntity.GroupBackground else SpeakerEntity.Group
+                null -> line.speaker
+            }
+        )
+    }
+}
+
+/**
+ * The singers named in these lyrics' text ("Latto: Uh, yeah"), for the key above them - empty when
+ * the lines are not labelled. TTML's own names come from its head instead (PlayerConnection), so
+ * this is the key for every other format.
+ */
+fun SemanticLyrics?.singersFromNames(): List<Singer> = when (this) {
+    is SemanticLyrics.SyncedLyrics -> Singers.voicesFromNames(text.filterNot { it.isTranslated }.map { it.text })?.second.orEmpty()
+    else -> emptyList()
 }
 
 /**

@@ -28,6 +28,8 @@ dependencies {
     // Word-by-word timings, and its own TTML parser. Same story as the other two: a plain JVM
     // module, so it is used rather than ported.
     implementation(project(":betterlyrics"))
+    // QQ Music's word-timed lyrics, asked directly - a plain JVM module like the rest.
+    implementation(project(":qqmusic"))
     // Discord rich presence. Same story again: kotlin("jvm") on ktor, with no Android dependency
     // anywhere in it - the gateway connection it opens is a plain websocket, so the phone and the
     // desktop can use the exact same client.

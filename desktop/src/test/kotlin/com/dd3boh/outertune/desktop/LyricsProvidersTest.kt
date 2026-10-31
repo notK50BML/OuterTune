@@ -26,6 +26,7 @@ class LyricsProvidersTest {
         assertEquals(
             listOf(
                 LyricsSource.BetterLyrics,
+                LyricsSource.QQMusic,
                 LyricsSource.LrcLib,
                 LyricsSource.KuGou,
                 LyricsSource.YouTubeMusic,
@@ -43,6 +44,7 @@ class LyricsProvidersTest {
                 LyricsSource.KuGou,
                 LyricsSource.LrcLib,
                 LyricsSource.BetterLyrics,
+                LyricsSource.QQMusic,
                 LyricsSource.YouTubeMusic,
                 LyricsSource.YouTubeSubtitle,
             ),
@@ -62,7 +64,7 @@ class LyricsProvidersTest {
         val order = LyricsSource.ordered("YouTube Subtitle,KuGou")
         val enabled = all - LyricsSource.LrcLib
         assertEquals(
-            listOf(LyricsSource.YouTubeSubtitle, LyricsSource.KuGou, LyricsSource.BetterLyrics, LyricsSource.YouTubeMusic),
+            listOf(LyricsSource.YouTubeSubtitle, LyricsSource.KuGou, LyricsSource.BetterLyrics, LyricsSource.QQMusic, LyricsSource.YouTubeMusic),
             LyricsRepository.askable(order, enabled, "dQw4w9WgXcQ"),
         )
     }
@@ -70,7 +72,7 @@ class LyricsProvidersTest {
     @Test
     fun `a file on this computer is not asked of the providers that need a YouTube id`() {
         assertEquals(
-            listOf(LyricsSource.BetterLyrics, LyricsSource.LrcLib, LyricsSource.KuGou),
+            listOf(LyricsSource.BetterLyrics, LyricsSource.QQMusic, LyricsSource.LrcLib, LyricsSource.KuGou),
             LyricsRepository.askable(LyricsSource.DEFAULT, all, "local:0123456789abcdef0123"),
         )
     }

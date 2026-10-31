@@ -61,6 +61,7 @@ import androidx.compose.ui.unit.dp
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.EnableBetterLyricsKey
 import com.dd3boh.outertune.constants.EnableKugouKey
+import com.dd3boh.outertune.constants.EnableQqMusicKey
 import com.dd3boh.outertune.constants.EnableLrcLibKey
 import com.dd3boh.outertune.constants.EnableLyricsPrefetchKey
 import com.dd3boh.outertune.constants.EnableSimpMusicKey
@@ -201,6 +202,7 @@ fun ColumnScope.LyricSourceFrag() {
     val (enableKugou, onEnableKugouChange) = rememberPreference(key = EnableKugouKey, defaultValue = true)
     val (enableLrcLib, onEnableLrcLibChange) = rememberPreference(key = EnableLrcLibKey, defaultValue = true)
     val (enableBetterLyrics, onEnableBetterLyricsChange) = rememberPreference(key = EnableBetterLyricsKey, defaultValue = true)
+    val (enableQqMusic, onEnableQqMusicChange) = rememberPreference(key = EnableQqMusicKey, defaultValue = true)
     val (enableSimpMusic, onEnableSimpMusicChange) = rememberPreference(key = EnableSimpMusicKey, defaultValue = false)
     val (preferLocalLyric, onPreferLocalLyric) = rememberPreference(LyricSourcePrefKey, defaultValue = true)
     val (enablePrefetch, onEnablePrefetchChange) = rememberPreference(EnableLyricsPrefetchKey, defaultValue = true)
@@ -233,6 +235,7 @@ fun ColumnScope.LyricSourceFrag() {
     val enabledFor = mapOf(
         "simpmusic" to (enableSimpMusic to onEnableSimpMusicChange),
         "betterlyrics" to (enableBetterLyrics to onEnableBetterLyricsChange),
+        "qqmusic" to (enableQqMusic to onEnableQqMusicChange),
         "lrclib" to (enableLrcLib to onEnableLrcLibChange),
         "kugou" to (enableKugou to onEnableKugouChange),
     )

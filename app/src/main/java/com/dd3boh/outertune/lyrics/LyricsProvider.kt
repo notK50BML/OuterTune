@@ -51,6 +51,7 @@ interface LyricsProvider {
 val REMOTE_LYRICS_PROVIDERS: List<LyricsProvider> = listOf(
     SimpMusicLyricsProvider,
     BetterLyricsProvider,
+    QQMusicLyricsProvider,
     LrcLibLyricsProvider,
     KuGouLyricsProvider,
     YouTubeLyricsProvider,
