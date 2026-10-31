@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.heightIn
 import kotlinx.coroutines.launch
@@ -270,9 +271,12 @@ fun ArtistPane(
                 }
             } else {
                 item(key = "row-${section.title}") {
+                    val sideState0 = rememberLazyListState()
                     LazyRow(
+                        state = sideState0,
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(horizontal = 28.dp),
+                        modifier = Modifier.sideScroll(sideState0),
                     ) {
                         val itemsUniqueKeys = uniqueKeys(section.items) { it.id }
                         itemsIndexed(section.items, key = { i, _ -> itemsUniqueKeys[i] }) { _, item ->

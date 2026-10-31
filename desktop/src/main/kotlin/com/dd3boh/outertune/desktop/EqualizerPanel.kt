@@ -247,7 +247,7 @@ fun EqualizerPanel(
                 // onto three lines would push the sliders off the bottom of the drawer.
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    modifier = Modifier.fillMaxWidth().sideScrollable(),
                 ) {
                     names.forEach { name ->
                         FilterChip(
@@ -606,7 +606,7 @@ private fun AutoEqSearch(
             Spacer(modifier = Modifier.height(8.dp))
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth().sideScrollable(),
             ) {
                 // Capped, and the cap is stated rather than silently truncating: a search for "HD"
                 // matches most of Sennheiser's catalogue, and a row of two hundred chips is not a

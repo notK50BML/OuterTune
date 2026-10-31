@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -130,7 +131,8 @@ fun SearchPane(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp)) {
+        val sideState0 = rememberLazyListState()
+        LazyRow(state = sideState0, horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 8.dp).sideScroll(sideState0)) {
             items(SearchKind.entries) {
                 FilterChip(selected = kind == it, onClick = { kind = it }, label = { Text(it.label) })
             }
@@ -170,7 +172,8 @@ fun SearchPane(
                             }
                             if (cards.isNotEmpty()) {
                                 item(key = "c-$title") {
-                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                                    val sideState1 = rememberLazyListState()
+                                    LazyRow(state = sideState1, modifier = Modifier.sideScroll(sideState1), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                                         val cardsUniqueKeys = uniqueKeys(cards) { it.id }
                                         itemsIndexed(cards, key = { i, _ -> cardsUniqueKeys[i] }) { _, item ->
                                             Card(item = item, playing = false) { open(item, cards) }

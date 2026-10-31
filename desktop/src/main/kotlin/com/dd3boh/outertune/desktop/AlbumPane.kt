@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -169,9 +170,12 @@ private fun LazyListScope.albumShelf(title: String, albums: List<AlbumItem>, onO
     if (albums.isEmpty()) return
     item(key = "head-$title") { SectionHeader(title = title, onMore = null) }
     item(key = "row-$title") {
+        val sideState0 = rememberLazyListState()
         LazyRow(
+            state = sideState0,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(horizontal = 28.dp),
+            modifier = Modifier.sideScroll(sideState0),
         ) {
             val albumsUniqueKeys = uniqueKeys(albums) { it.browseId }
             itemsIndexed(albums, key = { i, _ -> albumsUniqueKeys[i] }) { _, album ->

@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.produceState
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.pages.HistoryPage
@@ -174,7 +175,7 @@ fun StatsPane(
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                modifier = Modifier.sideScrollable(),
             ) {
                 StatsMetric.entries.forEach {
                     FilterChip(selected = metric == it, onClick = { settings.statsMetric = it }, label = { Text(it.label) })
@@ -221,7 +222,8 @@ fun StatsPane(
         if (stats.artists.isNotEmpty()) {
             item { Heading("Top artists") }
             item {
-                LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                val sideState0 = rememberLazyListState()
+                LazyRow(state = sideState0, modifier = Modifier.sideScroll(sideState0), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(stats.artists, key = { it.artist.id }) { (artist, plays, listenedMs) ->
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,

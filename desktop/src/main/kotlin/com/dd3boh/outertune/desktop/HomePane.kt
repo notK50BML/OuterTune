@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import com.zionhuang.innertube.models.PlaylistItem
 import androidx.compose.foundation.background
 import androidx.compose.ui.graphics.Color
@@ -125,10 +126,12 @@ fun HomePane(
         // what you were listening to, then what you have not heard in a while, then YouTube's feed.
         if (chips.isNotEmpty()) {
             item {
+                val sideState0 = rememberLazyListState()
                 LazyRow(
+                    state = sideState0,
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(horizontal = 28.dp),
-                    modifier = Modifier.padding(bottom = 20.dp),
+                    modifier = Modifier.padding(bottom = 20.dp).sideScroll(sideState0),
                 ) {
                     items(chips, key = { it.title }) { chip ->
                         FilterChip(
@@ -295,10 +298,12 @@ private fun SongGrid(
             modifier = Modifier.padding(start = 28.dp, bottom = 10.dp),
         )
         val rows = minOf(4, songs.size)
+        val sideState1 = rememberLazyGridState()
         LazyHorizontalGrid(
+            state = sideState1,
             rows = GridCells.Fixed(rows),
             contentPadding = PaddingValues(horizontal = 20.dp),
-            modifier = Modifier.height(GRID_ROW_HEIGHT * rows),
+            modifier = Modifier.height(GRID_ROW_HEIGHT * rows).sideScroll(sideState1),
         ) {
             val songKeys = uniqueKeys(songs) { it.id }
             gridItemsIndexed(songs, key = { i, _ -> songKeys[i] }) { index, song ->
@@ -362,9 +367,12 @@ private fun StoredRow(
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(start = 28.dp, bottom = 10.dp),
         )
+        val sideState2 = rememberLazyListState()
         LazyRow(
+            state = sideState2,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(horizontal = 28.dp),
+            modifier = Modifier.sideScroll(sideState2),
         ) {
             itemsIndexed(songs) { index, song ->
                 StoredCard(song = song, playing = song.id == currentId) { onPlay(index) }
@@ -433,9 +441,12 @@ private fun Section(
             modifier = Modifier.padding(start = 28.dp, bottom = 10.dp),
         )
 
+        val sideState3 = rememberLazyListState()
         LazyRow(
+            state = sideState3,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(horizontal = 28.dp),
+            modifier = Modifier.sideScroll(sideState3),
         ) {
             items(items) { item ->
                 Card(
