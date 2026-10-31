@@ -2249,7 +2249,9 @@ private fun QueuePane(
         LazyColumn(state = listState) {
             // Shown in play order rather than the order added, so with shuffle on the list reads as
             // what is coming next - which is the only thing a queue is for.
-            itemsIndexed(queue.order) { position, index ->
+            // Keyed per copy, so a song queued twice is two rows - see uniqueKeys.
+            val keys = uniqueKeys(queue.order) { index -> queue.songs.getOrNull(index)?.id ?: index }
+            itemsIndexed(queue.order, key = { position, _ -> keys[position] }) { position, index ->
                 val song = queue.songs.getOrNull(index) ?: return@itemsIndexed
                 SongRow(song, playing = position == queue.orderPosition, actions = false) { onJump(index) }
             }

@@ -34,6 +34,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
@@ -273,7 +274,8 @@ fun ArtistPane(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
                         contentPadding = PaddingValues(horizontal = 28.dp),
                     ) {
-                        items(section.items, key = { it.id }) { item ->
+                        val itemsUniqueKeys = uniqueKeys(section.items) { it.id }
+                        itemsIndexed(section.items, key = { i, _ -> itemsUniqueKeys[i] }) { _, item ->
                             Card(item = item, playing = item.id == currentId) { open(item, section.items) }
                         }
                     }
@@ -546,7 +548,8 @@ private fun MoreItems(
                 val items = visible(current.items)
                 if (items.all { it is SongItem }) {
                     LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                        itemsIndexed(items, key = { _, it -> it.id }) { index, item ->
+                        val itemKeys = uniqueKeys(items) { it.id }
+                        itemsIndexed(items, key = { i, _ -> itemKeys[i] }) { index, item ->
                             SongListRow(item as SongItem, index + 1, playing = item.id == currentId) { onOpen(item, items) }
                         }
                     }
@@ -557,7 +560,8 @@ private fun MoreItems(
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         contentPadding = PaddingValues(horizontal = 28.dp, vertical = 8.dp),
                     ) {
-                        items(items, key = { it.id }) { item ->
+                        val itemsUniqueKeys = uniqueKeys(items) { it.id }
+                        gridItemsIndexed(items, key = { i, _ -> itemsUniqueKeys[i] }) { _, item ->
                             Card(item = item, playing = item.id == currentId) { onOpen(item, items) }
                         }
                     }

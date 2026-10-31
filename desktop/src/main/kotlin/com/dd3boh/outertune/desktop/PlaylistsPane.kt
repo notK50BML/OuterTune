@@ -131,7 +131,9 @@ fun PlaylistsPane(
                 }
             } else {
                 LazyColumn {
-                    itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+                    // A playlist can hold a song twice - see uniqueKeys.
+                    val songsKeys = uniqueKeys(songs) { it.id }
+                    itemsIndexed(songs, key = { i, _ -> songsKeys[i] }) { index, song ->
                         StoredSongRow(song, playing = song.id == currentId) { onPlay(songs, index, title) }
                     }
                 }
@@ -323,7 +325,9 @@ fun PlaylistsPane(
             // Keyed by song id so a composable follows its song across a reorder. Keyed by index
             // instead, every row would be told it now holds different content the moment anything
             // moved, and the drag in progress would be cancelled by its own first step.
-            itemsIndexed(songsInSelected, key = { _, song -> song.id }) { index, song ->
+            // A playlist can hold a song twice - see uniqueKeys.
+            val songsInSelectedKeys = uniqueKeys(songsInSelected) { it.id }
+            itemsIndexed(songsInSelected, key = { i, _ -> songsInSelectedKeys[i] }) { index, song ->
                 // Read when a drag starts: the handle's gesture is keyed by the song and outlives
                 // reorders, so the index it was created with goes stale - see the queue's handle.
                 val currentIndex by rememberUpdatedState(index)

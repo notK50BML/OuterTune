@@ -1886,7 +1886,9 @@ private fun QueueOverlay(
                 // position instead, every row would be told it now holds different content the
                 // instant anything moved, and the drag in progress would be cancelled by its own
                 // first step.
-                itemsIndexed(queue.order, key = { _, index -> queue.songs.getOrNull(index)?.id ?: index }) { position, index ->
+                // A song queued twice gets a key of its own for each copy - see uniqueKeys.
+                val keys = uniqueKeys(queue.order) { index -> queue.songs.getOrNull(index)?.id ?: index }
+                itemsIndexed(queue.order, key = { position, _ -> keys[position] }) { position, index ->
                     val song = queue.songs.getOrNull(index)?.shown() ?: return@itemsIndexed
                     val current = position == queue.orderPosition
                     val held = position == dragging

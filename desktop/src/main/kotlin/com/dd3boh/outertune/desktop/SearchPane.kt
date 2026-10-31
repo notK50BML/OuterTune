@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -170,7 +171,8 @@ fun SearchPane(
                             if (cards.isNotEmpty()) {
                                 item(key = "c-$title") {
                                     LazyRow(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                                        items(cards, key = { it.id }) { item ->
+                                        val cardsUniqueKeys = uniqueKeys(cards) { it.id }
+                                        itemsIndexed(cards, key = { i, _ -> cardsUniqueKeys[i] }) { _, item ->
                                             Card(item = item, playing = false) { open(item, cards) }
                                         }
                                     }
@@ -198,7 +200,8 @@ fun SearchPane(
                 when {
                     items.isEmpty() -> NothingFound(query)
                     items.all { it is SongItem } -> LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                        itemsIndexed(items, key = { _, it -> it.id }) { _, item ->
+                        val itemKeys = uniqueKeys(items) { it.id }
+                        itemsIndexed(items, key = { i, _ -> itemKeys[i] }) { _, item ->
                             SongRow(item as SongItem, playing = item.id == currentId) { open(item, items) }
                         }
                         if (current.continuation != null) item { MoreButton(loadingMore, ::loadMore) }
@@ -209,7 +212,8 @@ fun SearchPane(
                         verticalArrangement = Arrangement.spacedBy(20.dp),
                         contentPadding = PaddingValues(vertical = 8.dp),
                     ) {
-                        items(items, key = { it.id }) { item ->
+                        val itemsUniqueKeys = uniqueKeys(items) { it.id }
+                        gridItemsIndexed(items, key = { i, _ -> itemsUniqueKeys[i] }) { _, item ->
                             Card(item = item, playing = item.id == currentId) { open(item, items) }
                         }
                         if (current.continuation != null) {

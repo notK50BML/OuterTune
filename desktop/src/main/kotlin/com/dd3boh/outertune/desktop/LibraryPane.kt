@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed as gridItemsIndexed
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -289,7 +290,8 @@ fun LibraryPane(
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                     contentPadding = PaddingValues(vertical = 8.dp),
                 ) {
-                    items(remoteAlbums, key = { it.id }) { album ->
+                    val remoteAlbumsUniqueKeys = uniqueKeys(remoteAlbums) { it.id }
+                    gridItemsIndexed(remoteAlbums, key = { i, _ -> remoteAlbumsUniqueKeys[i] }) { _, album ->
                         Card(item = album, playing = false) { onOpenAlbum(album.browseId) }
                     }
                 }

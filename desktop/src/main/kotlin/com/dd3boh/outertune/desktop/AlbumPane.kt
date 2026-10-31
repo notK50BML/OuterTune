@@ -173,7 +173,8 @@ private fun LazyListScope.albumShelf(title: String, albums: List<AlbumItem>, onO
             horizontalArrangement = Arrangement.spacedBy(16.dp),
             contentPadding = PaddingValues(horizontal = 28.dp),
         ) {
-            items(albums, key = { it.browseId }) { album ->
+            val albumsUniqueKeys = uniqueKeys(albums) { it.browseId }
+            itemsIndexed(albums, key = { i, _ -> albumsUniqueKeys[i] }) { _, album ->
                 Card(item = album, playing = false) { onOpen(album.browseId) }
             }
         }

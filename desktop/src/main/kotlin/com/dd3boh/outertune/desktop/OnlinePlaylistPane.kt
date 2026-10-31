@@ -161,7 +161,9 @@ fun OnlinePlaylistPane(
                         }
                     }
                 }
-                itemsIndexed(state.songs, key = { _, song -> song.id }) { index, song ->
+                // A playlist can hold a song twice - see uniqueKeys.
+                val keys = uniqueKeys(state.songs) { it.id }
+                itemsIndexed(state.songs, key = { i, _ -> keys[i] }) { index, song ->
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 16.dp)) {
                         Box(modifier = Modifier.weight(1f)) {
                             SongRow(song, playing = song.id == currentId) { onPlay(state.songs, index) }

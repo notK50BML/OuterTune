@@ -300,7 +300,8 @@ private fun SongGrid(
             contentPadding = PaddingValues(horizontal = 20.dp),
             modifier = Modifier.height(GRID_ROW_HEIGHT * rows),
         ) {
-            gridItemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+            val songKeys = uniqueKeys(songs) { it.id }
+            gridItemsIndexed(songs, key = { i, _ -> songKeys[i] }) { index, song ->
                 SongMenuArea(song.toItem()) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
