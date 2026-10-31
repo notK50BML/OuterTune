@@ -52,7 +52,7 @@ enum class LyricsSource(
     YouTubeSubtitle(
         LyricsRepository.YOUTUBE_SUBTITLE,
         "YouTube Subtitle",
-        "The video's captions, timed but often auto-generated; used when nothing better is found",
+        "The video's captions, often auto-generated",
         byVideoId = true,
         transcript = true,
     ),
@@ -78,8 +78,8 @@ enum class LyricsSource(
  * both, as on the phone: the best-timed, with the order breaking ties (see LyricsRace).
  */
 enum class LyricsFetchMode(val label: String, val description: String) {
-    Automatic("Automatic (fastest)", "Asks every provider at once. Word-timed lyrics beat line-timed ones; your order breaks ties."),
-    InMyOrder("In my order", "Asks one at a time from the top of your list until one has word-timed lyrics; slower."),
+    Automatic("Automatic (fastest)", "Asks all providers at once; the best-timed lyrics win."),
+    InMyOrder("In my order", "Asks providers one at a time in your order; slower."),
 }
 
 /** Whether [source] is switched on, from the settings the first three switches always used. */
@@ -132,7 +132,7 @@ fun LyricsProvidersDialog(settings: Settings, onDismiss: () -> Unit) {
         text = {
             Column(modifier = Modifier.width(420.dp)) {
                 Text(
-                    "The best-timed lyrics win, and the higher provider when two are as good. Untick one to never ask it.",
+                    "The best-timed lyrics win; higher breaks ties. Untick to skip one.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

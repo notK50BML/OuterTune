@@ -58,8 +58,8 @@ fun ProfilesSection(settings: Settings, onApplied: () -> Unit) {
         Text("Settings profiles", style = MaterialTheme.typography.bodyLarge)
     }
     Text(
-        text = "Share a theme, an equaliser or a whole setup. Pick what goes in; stats, history, " +
-            "likes, playlists and accounts never do. Profiles open on the Android app too.",
+        text = "Share a theme, an equaliser or a whole setup. Never includes stats, history, " +
+            "likes, playlists or accounts.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )

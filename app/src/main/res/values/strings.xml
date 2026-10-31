@@ -105,7 +105,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="share">Share</string>
     <string name="link_artist_ytm">Link to YouTube Music</string>
     <string name="profiles_title">Settings profiles</string>
-    <string name="profiles_description">Share a theme, an equaliser or a whole setup. Pick what goes in; stats, history, likes, playlists and accounts never do. Profiles open on the desktop app too.</string>
+    <string name="profiles_description">Share a theme, an equaliser or a whole setup. Never includes stats, history, likes, playlists or accounts.</string>
     <string name="profile_export">Export settings profile</string>
     <string name="profile_import">Import settings profile</string>
     <string name="profile_export_confirm">Export</string>
@@ -132,7 +132,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="link_artist_dialog_title">Link \"%1$s\" to YouTube Music</string>
     <string name="link_artist_none_found">No artists found</string>
     <string name="link_local_artists_title">Match local artists on YouTube Music</string>
-    <string name="link_local_artists_description">After a scan, link your files\' artists to their YouTube Music page when the name matches exactly. Searches YouTube Music by artist name.</string>
+    <string name="link_local_artists_description">Link your files\' artists to YouTube Music by exact name</string>
     <string name="delete">Delete</string>
     <string name="remove_from_history">Remove from history</string>
     <string name="remove_from_playlist">Remove from playlist</string>
@@ -268,7 +268,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="theme">Theme</string>
     <string name="enable_dynamic_theme">Enable dynamic theme</string>
     <string name="custom_accent_color">Custom accent colour</string>
-    <string name="custom_accent_color_description">Use a fixed colour of your choice as the accent throughout the app</string>
+    <string name="custom_accent_color_description">Use a fixed accent colour of your choice</string>
     <string name="accent_color">Accent colour</string>
     <string name="dark_theme">Dark theme</string>
     <string name="dark_theme_on">On</string>
@@ -316,20 +316,20 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="persistent_queue">Persistent queue</string>
     <string name="persistent_queue_desc">Restore your last queue when the app starts</string>
     <string name="auto_load_more">Auto load more songs</string>
-    <string name="auto_load_more_desc">Automatically add more songs when the end of the queue is reached, if possible</string>
+    <string name="auto_load_more_desc">Add more songs when the queue runs out</string>
     <string name="skip_silence">Skip silence</string>
     <string name="audio_normalization">Audio normalization</string>
     <string name="auto_skip_next_on_error">Auto skip to next song when error occurs</string>
-    <string name="auto_skip_next_on_error_desc">Ensure your continuous playback experience</string>
+    <string name="auto_skip_next_on_error_desc">Move on to the next song instead of stopping</string>
     <string name="stop_music_on_task_clear">Stop music on task clear</string>
     <string name="ignore_audio_focus">Keep audio focus</string>
-    <string name="ignore_audio_focus_desc">Keep playing when another app takes audio focus. Music will not pause for other audio sources, including phone calls.</string>
+    <string name="ignore_audio_focus_desc">Keep playing over other audio, including phone calls</string>
     <string name="equalizer">Equaliser</string>
     <string name="equalizer_balance">Balance</string>
     <string name="show_equalizer_button_title">Show equaliser button</string>
     <string name="show_equalizer_button_description">Show a shortcut to the equaliser beside the like button</string>
     <string name="show_equalizer_handle_title">Show equaliser handle</string>
-    <string name="show_equalizer_handle_description">Show a pull-down handle above the cover art that opens the equaliser</string>
+    <string name="show_equalizer_handle_description">A pull-down handle above the cover opens the equaliser</string>
 
     <string name="storage">Storage</string>
     <string name="cache">Cache</string>
@@ -354,7 +354,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="clear_search_history">Clear search history</string>
     <string name="clear_search_history_confirm">Are you sure you want to clear all search history?</string>
     <string name="use_login_for_browse">Use login for browsing content</string>
-    <string name="use_login_for_browse_desc">This can influence what content you see and for example shows premium-only albums if you are logged in with a Premium account</string>
+    <string name="use_login_for_browse_desc">Personal recommendations and Premium-only albums</string>
     <string name="disable_screenshot">Disable screenshot</string>
     <string name="disable_screenshot_desc">When this option is on, screenshots and the app\'s view in Recents are disabled.</string>
     <string name="enable_lrclib">Enable LrcLib lyrics provider</string>
@@ -372,7 +372,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="restore_failed">Failed to restore backup</string>
 
     <string name="discord_integration">Discord Integration</string>
-    <string name="discord_information">OuterTune uses the KizzyRPC library to set your Discord account\'s status. This involves using the Discord Gateway connection, which may be considered a violation of Discord\'s TOS. However, there are no known cases of user accounts being suspended for this reason. Use at your own risk.\n\nOuterTune will only extract your token, and everything else is stored locally.</string>
+    <string name="discord_information">OuterTune sets your Discord status through the Discord Gateway (KizzyRPC), which may breach Discord\'s terms. Use at your own risk.\n\nOnly your token is read, and everything stays on this device.</string>
     <string name="dismiss">Dismiss</string>
     <string name="options">Options</string>
     <string name="preview">Preview</string>
@@ -396,7 +396,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_waiting_for_listeners">Nobody has joined yet. On the other device, open Listen Together and pick this one from the list.</string>
     <string name="lt_nearby">Nearby</string>
     <string name="lt_looking">Looking for devices</string>
-    <string name="lt_looking_summary">Only devices that are sharing appear here. Both need to be on the same Wi-Fi.</string>
+    <string name="lt_looking_summary">Only sharing devices on the same Wi-Fi appear here.</string>
     <string name="lt_following">Following</string>
     <string name="lt_connecting">Connecting…</string>
     <string name="lt_leave">Leave session</string>
@@ -407,7 +407,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_host_local_file">The host is playing a file from their own device, so it cannot be played here.</string>
     <string name="lt_track_unavailable">That song could not be found on this device.</string>
     <string name="lt_how_it_works">How it works</string>
-    <string name="lt_how_it_works_summary">Everything stays on your local network — nothing is sent over the internet. Audio is not streamed between devices; each one plays the song itself and keeps time with the host.</string>
+    <string name="lt_how_it_works_summary">Local network only. Each device plays the song itself, in time with the host.</string>
     <string name="lt_needs_playback">Start playing something first</string>
     <string name="lt_unreachable">Could not reach %1$s</string>
     <string name="lt_reconnect_failed">Lost the session with %1$s</string>
@@ -418,7 +418,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_ended_version">That device is running a different version of OuterTune</string>
     <string name="lt_ended_rejected">The host declined the connection</string>
     <string name="lt_offset_title">Timing offset</string>
-    <string name="lt_offset_description">This device plays %1$d ms ahead of the host. Increase it if you hear this device lagging — Bluetooth headphones usually need 150–250 ms.</string>
+    <string name="lt_offset_description">Plays %1$d ms ahead of the host. Bluetooth usually needs 150–250 ms.</string>
     <string name="eq_song_profile">Apply only to current song</string>
     <string name="eq_song_profile_on">Saved for \"%1$s\" and used instead of the global curve while it plays</string>
     <string name="eq_song_profile_off">Changes apply to every song</string>
@@ -433,7 +433,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lyrics_refresh_weekly">Every week</string>
     <string name="lyrics_refresh_fortnightly">Every two weeks</string>
     <string name="lyrics_refresh_monthly">Every month</string>
-    <string name="lyrics_refresh_info">Looks again for lyrics a song already has, in case a provider has since added a better version. Only for the song being played, never a sweep over the library \u2014 and a re-check that finds less than is already stored keeps what is there.</string>
+    <string name="lyrics_refresh_info">Checks again for better lyrics for the playing song. What is stored is kept if nothing better turns up.</string>
     <string name="eq_settings_autoeq_rate_limited">GitHub is rate limiting this device. The headphone list will work again within the hour.</string>
     <string name="eq_settings_autoeq_unreachable">Could not reach AutoEQ. Check the connection and try again.</string>
     <string name="eq_current_song_profile">Current song</string>
@@ -442,9 +442,9 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="eq_use_dials">Use dials instead of sliders</string>
     <string name="eq_colour_by_value">Colour controls by their value</string>
     <string name="eq_show_panel_settings">Show these in the player panel</string>
-    <string name="eq_show_panel_settings_description">Adds the two settings above to the Additional settings panel, so they can be changed without leaving the player.</string>
+    <string name="eq_show_panel_settings_description">Show the two settings above in the player\'s Additional settings</string>
     <string name="eq_autosave">Save profile edits automatically</string>
-    <string name="eq_autosave_description">Writes changes straight into the selected profile instead of waiting for Save. A per-song curve always saves itself regardless.</string>
+    <string name="eq_autosave_description">Save changes straight into the selected profile</string>
     <string name="eq_save">Save</string>
     <string name="eq_revert_to_saved">Revert to saved</string>
     <string name="eq_revert_to_default">Revert to default</string>
@@ -453,7 +453,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="eq_export">Export</string>
     <string name="eq_import">Import</string>
     <string name="eq_headroom">Boost headroom</string>
-    <string name="eq_headroom_description">Boosting a band cannot push past full scale, so the equaliser turns everything else down to make room. Automatic never distorts, but a boost is then heard as the rest of the track getting quieter. Half, or none, makes a boost sound like a boost.</string>
+    <string name="eq_headroom_description">How far to lower everything to make room for boosts. Automatic never distorts.</string>
     <string name="eq_headroom_auto">Automatic</string>
     <string name="eq_headroom_half">Half</string>
     <string name="eq_headroom_off">None</string>
@@ -469,7 +469,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="player_buttons_no_menu">Without More options, anything not shown as a button cannot be reached from the player.</string>
     <string name="player_buttons_preview">Preview</string>
     <string name="eq_studio_title">Equaliser Studio</string>
-    <string name="eq_studio_desc">Tune against one song on a loop, without touching your queue, history or stats</string>
+    <string name="eq_studio_desc">Tune the EQ on one looping song; your queue and stats are untouched</string>
     <string name="eq_studio_no_song">Choose a song to tune against</string>
     <string name="eq_studio_choose_song">Choose song</string>
     <string name="eq_studio_mark_a">Mark A</string>
@@ -486,6 +486,6 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="settings_search_none">Nothing matches \"%1$s\"</string>
     <string name="grp_settings_display">Settings</string>
     <string name="hide_settings_descriptions">Hide setting descriptions</string>
-    <string name="hide_settings_descriptions_desc">Removes the explanations under settings everywhere. Titles, current values and errors still show.</string>
+    <string name="hide_settings_descriptions_desc">Hide the text under settings. Values and errors still show.</string>
     <string name="eq_headroom_smart">Smart - only as much as each song needs</string>
 </resources>

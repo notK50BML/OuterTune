@@ -44,7 +44,7 @@ import kotlin.math.max
  */
 enum class LyricsHighlight(val label: String, val description: String) {
     Fade("Fade in", "Each word brightens over the time it is sung."),
-    Sweep("Sweep", "A soft edge of light moves across the words, as on the phone."),
+    Sweep("Sweep", "A soft edge of light sweeps across the words."),
 }
 
 /** What kind of timing the lyrics on screen carry - the small tag beside the lyrics controls. */

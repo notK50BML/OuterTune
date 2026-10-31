@@ -69,6 +69,26 @@ class LocalMusicTest {
     }
 
     @Test
+    fun `a file's details come from its header, as the player gives them`() {
+        val rate = 44_100f
+        val pcm = ByteArray(rate.toInt() * 4)
+        val file = Files.createTempFile("details", ".wav").toFile()
+        AudioSystem.write(AudioInputStream(ByteArrayInputStream(pcm), AudioFormat(rate, 16, 2, true, false), pcm.size / 4L), AudioFileFormat.Type.WAVE, file)
+
+        val details = fileStreamDetails(file)
+        assertEquals("WAV", details.format)
+        assertEquals(44_100, details.sampleRate)
+        assertEquals(16, details.bitsPerSample)
+        assertEquals(file.length(), details.sizeBytes)
+        assertEquals(file.absolutePath, details.path)
+        // 44.1 kHz, 16-bit stereo: about 1411 kbps, plus the header.
+        assertTrue("bitrate ${details.bitrateKbps}", details.bitrateKbps!! in 1400..1420)
+        // A download keeps the player's own label.
+        assertEquals("AAC (downloaded)", fileStreamDetails(file, format = "AAC (downloaded)").format)
+        file.delete()
+    }
+
+    @Test
     fun `the compressed formats have decoders registered`() {
         // Java Sound finds decoders through service files; this is what the fat jar's merge keeps.
         val readers = java.util.ServiceLoader.load(javax.sound.sampled.spi.AudioFileReader::class.java).map { it::class.java.name }

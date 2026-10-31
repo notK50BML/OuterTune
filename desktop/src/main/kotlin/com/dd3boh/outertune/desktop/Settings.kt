@@ -661,8 +661,8 @@ enum class SeekBarWeight(val label: String, val scale: Float) {
 
 enum class SeekBarStyle(val label: String, val description: String) {
     Squiggly("Squiggly", "A gentle wave that moves while the song plays"),
-    Waves("Waves", "Soft overlapping waves above a flat line while the song plays"),
-    WaveLines("Wave lines", "Three fine waves a shade apart above a flat line while the song plays"),
+    Waves("Waves", "Soft overlapping waves above a flat line"),
+    WaveLines("Wave lines", "Three fine waves above a flat line"),
     Default("Default", "A thick rounded bar"),
     Slim("Slim", "A thin rounded line"),
 }

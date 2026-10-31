@@ -63,6 +63,38 @@ data class StreamDetails(
     val path: String? = null,
 )
 
+/**
+ * The details of a song that is not playing, from its file on disk: a file on this computer, or a
+ * download. Null for a song with neither - its stream is only known once it plays.
+ *
+ * Only the file's header is read, never the audio, so it is quick enough for a menu's Details. Blocking:
+ * call it off the main thread.
+ */
+fun storedStreamDetails(id: String, downloads: Downloads?): StreamDetails? {
+    if (LocalMusic.isLocal(id)) {
+        return LocalMusic.track(id)?.file?.takeIf { it.isFile }?.let { fileStreamDetails(it) }
+    }
+    val file = downloads?.takeIf { it.has(id) }?.fileFor(id) ?: return null
+    // Labelled as the player labels a download it plays.
+    return fileStreamDetails(file, format = "AAC (downloaded)")
+}
+
+/** [file] described as [DesktopPlayer.playLocal] describes it - from the tags' audio header. */
+internal fun fileStreamDetails(file: java.io.File, format: String? = null): StreamDetails {
+    val extension = file.extension.lowercase()
+    val header = runCatching { org.jaudiotagger.audio.AudioFileIO.read(file).audioHeader }.getOrNull()
+    val lengthMs = header?.let { (it.preciseTrackLength * 1000).toLong() } ?: 0L
+    return StreamDetails(
+        format = format ?: extension.uppercase().ifEmpty { "File" },
+        bitrateKbps = lengthMs.takeIf { it > 0 }?.let { (file.length() * 8 / it).toInt() }
+            ?: header?.bitRateAsNumber?.toInt()?.takeIf { it > 0 },
+        sampleRate = header?.sampleRateAsNumber?.takeIf { it > 0 },
+        bitsPerSample = header?.bitsPerSample?.takeIf { it > 0 && extension in LOSSLESS },
+        sizeBytes = file.length(),
+        path = file.absolutePath,
+    )
+}
+
 sealed interface PlaybackState {
     data object Idle : PlaybackState
     data class Loading(val title: String) : PlaybackState

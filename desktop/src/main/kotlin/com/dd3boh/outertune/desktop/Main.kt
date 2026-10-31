@@ -716,7 +716,8 @@ internal fun App(
         }
     }
 
-    var showDetails by remember { mutableStateOf(false) }
+    // Whose details are open: the playing song's from the player, or any song's from its menu.
+    var detailsFor by remember { mutableStateOf<SongItem?>(null) }
 
     // Fetched for whatever is playing, whether or not the pane is open. Waiting until it is opened
     // would mean a spinner every single time, and the lookup is two requests that are then cached
@@ -991,17 +992,29 @@ internal fun App(
         )
     }
 
-    if (showDetails) {
-        queue.current?.let { song ->
-            SongDetailsDialog(
-                song = song,
-                durationMs = duration,
-                stream = player.stream.collectAsState().value,
-                plays = remember(song.id) { library.playCounts(0)[song.id] ?: 0 },
-                onDismiss = { showDetails = false },
-                onCopyLink = { copyToClipboard(watchUrl(song.id)) },
-            )
+    detailsFor?.let { song ->
+        val playing = song.id == queue.current?.id
+        val playingStream by player.stream.collectAsState()
+        // A library song is stored without its album and length - see songDetailsLine.
+        val facts = library.songFacts.collectAsState().value[song.id]
+        // Otherwise what its file on disk says, when it has one - a file on this computer or a
+        // download. Also for the current song before it has loaded, as after a restored queue.
+        // A song with neither has no stream to describe until it plays.
+        val stored by produceState<StreamDetails?>(null, song.id) {
+            value = withContext(Dispatchers.IO) { storedStreamDetails(song.id, library.downloads) }
         }
+        SongDetailsDialog(
+            song = song,
+            album = song.album?.name?.takeIf { it.isNotBlank() } ?: facts?.album,
+            durationMs = duration.takeIf { playing && it > 0 }
+                ?: song.duration?.let { it * 1000L }
+                ?: facts?.durationMs
+                ?: 0L,
+            stream = playingStream?.takeIf { playing } ?: stored,
+            plays = remember(song.id) { library.playCounts(0)[song.id] ?: 0 },
+            onDismiss = { detailsFor = null },
+            onCopyLink = { copyToClipboard(watchUrl(song.id)) },
+        )
     }
 
     addingToPlaylist?.let { song ->
@@ -1205,6 +1218,7 @@ internal fun App(
                 settings.localRemoved = (settings.localRemoved.lines().filter { it.isNotBlank() } + path).distinct().joinToString("\n")
             }
         },
+        showDetails = { detailsFor = it },
     )
     }
 
@@ -1403,7 +1417,7 @@ internal fun App(
                 // worse than one that is not there.
                 onViewAlbum = queue.current?.album?.id?.let { id -> { openAlbumPage(id) } },
                 onShare = queue.current?.takeUnless { currentIsLocal }?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
-                onDetails = queue.current?.let { { showDetails = true } },
+                onDetails = queue.current?.let { song -> { detailsFor = song } },
             ),
             onJumpToQueueIndex = { playerQueue.jumpTo(it) },
             onOpenArtist = openArtistPage,
@@ -2327,7 +2341,8 @@ internal fun formatClock(ms: Long): String {
 }
 
 /**
- * What is actually playing, in plain terms.
+ * What is actually playing, in plain terms - or, opened from a song's menu, what any song is. The
+ * audio rows show only when the stream is known: the song is playing, or has a file on disk.
  *
  * Mostly here to answer "why does this one sound different" and "is this the version I think it is".
  * The video id is included and copyable because it is the only thing that identifies a track
@@ -2336,6 +2351,8 @@ internal fun formatClock(ms: Long): String {
 @Composable
 private fun SongDetailsDialog(
     song: SongItem,
+    /** The song's own, or the library's for a library song, which is stored without one. */
+    album: String?,
     durationMs: Long,
     stream: StreamDetails?,
     plays: Int,
@@ -2355,7 +2372,7 @@ private fun SongDetailsDialog(
             Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                 DetailRow("Title", song.title)
                 DetailRow("Artists", song.shown().artists.joinToString { it.name }.ifBlank { "Unknown" })
-                song.album?.name?.takeIf { it.isNotBlank() }?.let { DetailRow("Album", it) }
+                album?.takeIf { it.isNotBlank() }?.let { DetailRow("Album", it) }
                 if (!local) DetailRow("Video ID", song.id)
                 if (durationMs > 0) DetailRow("Duration", formatClock(durationMs))
                 DetailRow("Plays", numbers.format(plays))

@@ -320,6 +320,8 @@ fun SongMenuPanel(
     // With more than one credit, "Go to artist" turns the panel into a list of them instead of
     // guessing the first - see ArtistPickerList.
     var pickingArtist by remember { mutableStateOf(false) }
+    // As the phone's song menus have it, for any song rather than only the one playing.
+    val details = actions.showDetails?.let { show -> MenuTile("Details", OuterTuneIcons.info) { show(song) } }
     MenuPanel(
         onDismiss = onDismiss,
         atPointer = if (anchorEnd) null else offset,
@@ -331,16 +333,17 @@ fun SongMenuPanel(
         tiles = if (local) {
             // A file on this computer: no radio, download, link or YouTube album - and it can be
             // taken out of the library, which a YouTube song leaves through its like or playlists.
-            listOf(
+            listOfNotNull(
                 MenuTile("Play next", OuterTuneIcons.playlistPlay) { actions.playNext(song) },
                 MenuTile("Add to queue", OuterTuneIcons.queueMusicRounded) { actions.addToQueue(song) },
                 MenuTile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) },
                 MenuTile("Go to artist", OuterTuneIcons.artist, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
                     if (artists.size > 1) pickingArtist = true else artists.firstOrNull()?.let(actions.openArtist)
                 },
+                details,
                 MenuTile("Remove from library", OuterTuneIcons.libraryAddCheck) { actions.removeFromLibrary(song) },
             )
-        } else listOf(
+        } else listOfNotNull(
             MenuTile("Play next", OuterTuneIcons.playlistPlay) { actions.playNext(song) },
             MenuTile("Add to queue", OuterTuneIcons.queueMusicRounded) { actions.addToQueue(song) },
             MenuTile("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) },
@@ -358,6 +361,7 @@ fun SongMenuPanel(
             MenuTile("Go to album", OuterTuneIcons.albumRounded, enabled = song.album?.id != null) {
                 song.album?.id?.let(actions.openAlbum)
             },
+            details,
         ),
         header = {
             // The song, as the phone's menu heads itself.

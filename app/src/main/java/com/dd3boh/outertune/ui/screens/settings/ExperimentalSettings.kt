@@ -244,7 +244,7 @@ fun ExperimentalSettings(
 
             SwitchPreference(
                 title = { Text("Precache next song") },
-                description = "Resolves the next song's stream shortly before the current one ends, timed automatically to stay inside the ~40s window before it goes stale, instead of resolving right at the track change. Spreads requests out over time rather than clustering them.",
+                description = "Fetches the next song's stream shortly before this one ends",
                 icon = { Icon(Icons.Rounded.Queue, null) },
                 checked = enableStreamPrecache,
                 onCheckedChange = onEnableStreamPrecacheChange

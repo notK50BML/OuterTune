@@ -53,6 +53,8 @@ class SongActions(
     val copyLink: (SongItem) -> Unit,
     /** For a file on this computer: out of the library, the file left where it is. */
     val removeFromLibrary: (SongItem) -> Unit = {},
+    /** The song's details - the player's Details, for any song. Left out of the menu when null. */
+    val showDetails: ((SongItem) -> Unit)? = null,
 )
 
 val LocalSongActions = compositionLocalOf<SongActions?> { null }
@@ -128,4 +130,5 @@ private fun SongMenuItems(song: SongItem, actions: SongActions, close: () -> Uni
         song.album?.id?.let(actions.openAlbum)
     }
     entry("Copy link", OuterTuneIcons.share) { actions.copyLink(song) }
+    actions.showDetails?.let { show -> entry("Details", OuterTuneIcons.info) { show(song) } }
 }

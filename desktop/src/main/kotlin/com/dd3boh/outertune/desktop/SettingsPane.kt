@@ -410,14 +410,14 @@ private fun AppearanceSettings(settings: Settings) {
         )
         SettingSwitch(
             title = "Colour the app from the artwork",
-            subtitle = "The window takes its palette from the cover of what is playing.",
+            subtitle = "Colours the app from the playing song's cover.",
             checked = settings.dynamicTheme,
             onCheckedChange = { settings.dynamicTheme = it },
             icon = OuterTuneIcons.palette,
         )
         SettingSwitch(
             title = "Colour controls by value",
-            subtitle = "Yellow low, green middle, blue high, on dials and equaliser bands.",
+            subtitle = "Dials and EQ bands coloured by value: yellow low, blue high.",
             checked = settings.colourByValue,
             onCheckedChange = { settings.colourByValue = it },
             icon = OuterTuneIcons.colorLens,
@@ -511,16 +511,14 @@ private fun AppearanceSettings(settings: Settings) {
     Section("Performance") {
         SettingSwitch(
             title = "Battery saver",
-            subtitle = "A still player background and seek bar, no visualisers, and less drawing while music " +
-                "plays. The sound is untouched. Worth it on a laptop on battery.",
+            subtitle = "Less animation and drawing. The sound is unchanged.",
             checked = settings.batterySaver,
             onCheckedChange = { settings.batterySaver = it },
             icon = OuterTuneIcons.tune,
         )
         SettingSwitch(
             title = "Close to the system tray",
-            subtitle = "The close button hides OuterTune and the music plays on; the tray icon brings it back, " +
-                "plays, pauses, skips and quits. Hidden, the window draws nothing and gives its memory back.",
+            subtitle = "Closing hides OuterTune to the tray; the music plays on.",
             checked = settings.closeToTray,
             onCheckedChange = { settings.closeToTray = it },
             icon = OuterTuneIcons.tune,
@@ -528,8 +526,7 @@ private fun AppearanceSettings(settings: Settings) {
         var onProcessor by remember { mutableStateOf(RenderMode.chosen()) }
         SettingSwitch(
             title = "Hardware acceleration",
-            subtitle = "Draws with the graphics card. Off uses about 130MB less memory, but scrolling and animated " +
-                "backgrounds cost more processor time." +
+            subtitle = "Draws with the graphics card. Off saves about 130MB of memory." +
                 if (onProcessor != RenderMode.onProcessor) " Takes effect when OuterTune next starts." else "",
             checked = !onProcessor,
             onCheckedChange = {
@@ -600,7 +597,7 @@ private fun PlayerSettings(settings: Settings) {
         }
         SettingSwitch(
             title = "Separate buttons for local files",
-            subtitle = "Files on this computer get their own player buttons. Like, download and other YouTube-only buttons never show for them.",
+            subtitle = "Own player buttons for files on this computer.",
             checked = settings.localPlayerButtonsOwn,
             onCheckedChange = { settings.localPlayerButtonsOwn = it },
             icon = OuterTuneIcons.sdCard,
@@ -665,7 +662,7 @@ private fun PlayerSettings(settings: Settings) {
         )
         SettingSwitch(
             title = "Seek bar dot",
-            subtitle = "A dot where the song has got to, at the end of the played part.",
+            subtitle = "A dot at the current position.",
             checked = settings.seekBarDot,
             onCheckedChange = { settings.seekBarDot = it },
             icon = OuterTuneIcons.palette,
@@ -676,28 +673,28 @@ private fun PlayerSettings(settings: Settings) {
     Section("Queue") {
         SettingSwitch(
             title = "Show queue title",
-            subtitle = "Name the queue beside the queue handle on the player.",
+            subtitle = "Shows the queue's name by its handle.",
             checked = settings.showQueueTitle,
             onCheckedChange = { settings.showQueueTitle = it },
             icon = OuterTuneIcons.queueMusic,
         )
         SettingSwitch(
             title = "Queue handle in the title bar",
-            subtitle = "In a wide window, beside the window buttons. Off keeps it along the bottom of the player.",
+            subtitle = "Beside the window buttons in a wide window.",
             checked = settings.queueHandleTop,
             onCheckedChange = { settings.queueHandleTop = it },
             icon = OuterTuneIcons.queueMusic,
         )
         SettingSwitch(
             title = "Remember the queue",
-            subtitle = "Keeps the queue, and where you were in it, for next time.",
+            subtitle = "Restores the queue and position on next start.",
             checked = settings.persistentQueue,
             onCheckedChange = { settings.persistentQueue = it },
             icon = OuterTuneIcons.queueMusic,
         )
         SettingSlider(
             title = "Queues to keep",
-            subtitle = "Playing something new keeps the queue it replaces, to switch back to from the queue's title.",
+            subtitle = "Earlier queues to switch back to from the queue title.",
             icon = OuterTuneIcons.queueMusic,
             value = settings.maxQueues,
             range = 1..50,
@@ -720,21 +717,21 @@ private fun PlayerSettings(settings: Settings) {
         )
         SettingSwitch(
             title = "Spectrum behind the equaliser",
-            subtitle = "Draws what is actually playing behind the response curve, so a cut lands where the energy is.",
+            subtitle = "Shows the live spectrum behind the EQ curve.",
             checked = settings.eqSpectrum,
             onCheckedChange = { settings.eqSpectrum = it },
             icon = OuterTuneIcons.graphicEq,
         )
         SettingSwitch(
             title = "Audio normalisation",
-            subtitle = "Evens out volume between songs using YouTube's loudness figure. Only ever turns down.",
+            subtitle = "Evens out volume between songs, only ever turning down.",
             checked = settings.audioNormalisation,
             onCheckedChange = { settings.audioNormalisation = it },
             icon = OuterTuneIcons.graphicEq,
         )
         SettingSwitch(
             title = "Turn up for EQ cuts",
-            subtitle = "When equaliser bands are turned down, raise the volume by the loudness the cuts take away, so the song stays about as loud as it was.",
+            subtitle = "Raises the volume to make up for EQ cuts.",
             checked = settings.eqCutMakeup,
             onCheckedChange = { settings.eqCutMakeup = it },
             icon = OuterTuneIcons.equalizer,
@@ -748,7 +745,7 @@ private fun PlayerSettings(settings: Settings) {
         )
         SettingSlider(
             title = "Count a play after",
-            subtitle = "How much of a song must be heard before it goes into history and Stats.",
+            subtitle = "How much of a song must play to count.",
             icon = OuterTuneIcons.history,
             value = settings.minPlayPercent,
             range = 0..100,
@@ -762,7 +759,7 @@ private fun PlayerSettings(settings: Settings) {
     Section("Sleep timer") {
         SettingSwitch(
             title = "Fade out",
-            subtitle = "The end of the timer fades to silence instead of stopping mid-phrase.",
+            subtitle = "Fades the music out as the timer ends.",
             checked = settings.sleepFade,
             onCheckedChange = { settings.sleepFade = it },
             icon = OuterTuneIcons.bedtime,
@@ -770,7 +767,7 @@ private fun PlayerSettings(settings: Settings) {
         if (settings.sleepFade) {
             SettingSlider(
                 title = "Fade length",
-                subtitle = "How long the music takes to reach silence.",
+                subtitle = "How long the fade takes.",
                 icon = OuterTuneIcons.bedtime,
                 value = settings.sleepFadeSeconds,
                 range = 5..120,
@@ -834,7 +831,7 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
         }
         SettingSwitch(
             title = "Estimate word timings",
-            subtitle = "Sings line-timed lyrics word by word too, paced by syllables and pausing at punctuation.",
+            subtitle = "Highlights line-synced lyrics word by word, estimated.",
             checked = settings.estimateWordTimings,
             onCheckedChange = { settings.estimateWordTimings = it },
             icon = OuterTuneIcons.textRotationAngledown,
@@ -849,7 +846,7 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
     Section("Display") {
         SettingSwitch(
             title = "Click the cover for lyrics",
-            subtitle = "Swaps the album art for the words, and back.",
+            subtitle = "Swaps the cover for the lyrics, and back.",
             checked = settings.lyricsOnCoverClick,
             onCheckedChange = { settings.lyricsOnCoverClick = it },
             icon = OuterTuneIcons.lyrics,
@@ -892,7 +889,7 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
         )
         SettingSwitch(
             title = "Show lyrics type",
-            subtitle = "A small tag by the lyrics controls: word-synced, line-synced, estimated or unsynced.",
+            subtitle = "Tags lyrics as word-synced, line-synced, estimated or unsynced.",
             checked = settings.lyricsShowKind,
             onCheckedChange = { settings.lyricsShowKind = it },
             icon = OuterTuneIcons.info,
@@ -926,7 +923,7 @@ private fun ContentSettings(settings: Settings) {
     Section("Filters") {
         SettingSwitch(
             title = "Hide explicit content",
-            subtitle = "Leaves explicit songs out of search, Home and artist pages.",
+            subtitle = "Hides explicit songs from search, Home and artists.",
             checked = settings.hideExplicit,
             onCheckedChange = { settings.hideExplicit = it },
             icon = OuterTuneIcons.info,
@@ -990,7 +987,7 @@ private fun DiscordSettings(settings: Settings) {
             Spacer(modifier = Modifier.height(6.dp))
             SettingSwitch(
                 title = "Show what's playing on Discord",
-                subtitle = "Shows the song you are playing as a card on your Discord profile.",
+                subtitle = "Shows what's playing on your Discord profile.",
                 checked = settings.enableDiscordRpc,
                 onCheckedChange = { settings.enableDiscordRpc = it },
                 icon = OuterTuneIcons.discord,
@@ -1023,11 +1020,8 @@ private fun DiscordSettings(settings: Settings) {
             )
         } else {
             Text(
-                text = "Signs a real Discord account in over the same connection the Discord " +
-                    "client itself uses - there is no bot or OAuth path to a \"currently " +
-                    "listening to\" card on your own profile. Discord's terms discourage " +
-                    "driving an account this way; that risk is yours to weigh, on the account " +
-                    "you paste a token from.",
+                text = "Signs in as your Discord account, as the Discord client does. " +
+                    "Discord's terms discourage this; use at your own risk.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -1177,7 +1171,7 @@ private fun ListenTogetherSettings(settings: Settings, listenTogether: ListenTog
                 SettingRow(
                     title = "Start sharing",
                     subtitle = if (listenTogether.canStart) {
-                        "Others on this network can hear what plays here, kept in sync."
+                        "Lets others on this network play along in sync."
                     } else {
                         "Start playing something first."
                     },
@@ -1228,9 +1222,7 @@ private fun ListenTogetherSettings(settings: Settings, listenTogether: ListenTog
         // both more private and less obvious.
         SettingRow(
             title = "How it works",
-            subtitle = "Everything stays on your local network — nothing is sent over the " +
-                "internet. Audio is not streamed between devices; each one plays the song " +
-                "itself and keeps time with the host.",
+            subtitle = "Local network only. Each device plays the song itself, in time with the host.",
             icon = OuterTuneIcons.wifi,
         )
 
@@ -1244,8 +1236,7 @@ private fun ListenTogetherSettings(settings: Settings, listenTogether: ListenTog
             Column(modifier = Modifier.weight(1f)) {
                 Text("Timing offset", style = MaterialTheme.typography.bodyLarge)
                 Text(
-                    "How far ahead of the host to aim. Set by ear - it corrects for this " +
-                        "device's own output latency, which nothing here can measure.",
+                    "How far ahead of the host to play. Set it by ear.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -1289,14 +1280,14 @@ private fun LocalMusicSettings(settings: Settings, library: LibraryStore) {
     Section("Local media") {
         SettingSwitch(
             title = "Use local media",
-            subtitle = "Reads the folders below. Off leaves them alone entirely.",
+            subtitle = "Plays music from the folders below.",
             checked = settings.localEnabled,
             onCheckedChange = { settings.localEnabled = it },
             icon = OuterTuneIcons.musicNote,
         )
         SettingSwitch(
             title = "Rescan at every start",
-            subtitle = "Picks up songs added or changed since last time. Off still loads what is already known.",
+            subtitle = "Picks up new and changed songs at start.",
             checked = settings.localScanOnStart,
             onCheckedChange = { settings.localScanOnStart = it },
             icon = OuterTuneIcons.restore,
@@ -1418,8 +1409,7 @@ private fun DownloadSettings(downloads: Downloads, onDownloadsChanged: () -> Uni
             style = MaterialTheme.typography.bodyMedium,
         )
         Text(
-            text = "Downloaded songs play without the network, and without asking YouTube " +
-                "whether they are still available.",
+            text = "Downloaded songs play offline.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1453,7 +1443,7 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
         }
         SettingSwitch(
             title = "Back up automatically",
-            subtitle = "Keeps copies of the library beside it, so a bad import or a lost file is not the end of it.",
+            subtitle = "Keeps regular copies of the library.",
             checked = settings.autoBackup,
             onCheckedChange = { settings.autoBackup = it },
             icon = OuterTuneIcons.restore,
@@ -1472,7 +1462,7 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
             )
             SettingSlider(
                 title = "How many to keep",
-                subtitle = "The oldest is deleted once there are more than this.",
+                subtitle = "Older backups are deleted.",
                 icon = OuterTuneIcons.delete,
                 value = settings.autoBackupKeep,
                 range = 1..20,
@@ -1507,9 +1497,7 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
             Text("Back up and restore", style = MaterialTheme.typography.bodyLarge)
         }
         Text(
-            text = "Reads the zip the Android app writes. Songs, liked songs and playlists are " +
-                "added to what is already here; nothing is replaced, and importing the same " +
-                "file twice changes nothing the second time.",
+            text = "Imports the Android app's backup zip. Adds to what is here; nothing is replaced.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1580,8 +1568,7 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
-            text = "One SQLite file. Copying it somewhere safe is a complete backup - songs, " +
-                "playlists, history, cached lyrics and these settings.",
+            text = "Copying this file is a complete backup.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -1599,7 +1586,7 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
     Section("Listening history") {
         SettingSwitch(
             title = "Keep listening history",
-            subtitle = "Records what has been played, which is what the recent list and Stats are made of.",
+            subtitle = "Records plays for Recently played and Stats.",
             checked = settings.keepHistory,
             onCheckedChange = { settings.keepHistory = it },
             icon = OuterTuneIcons.history,
@@ -1610,14 +1597,14 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
         if (signedIn) {
             SettingSwitch(
                 title = "Share listening history with YouTube Music",
-                subtitle = "Plays here also count on your account, so they reach your recommendations and other devices.",
+                subtitle = "Counts plays here on your YouTube Music account.",
                 checked = settings.shareHistoryWithYtm && settings.keepHistory,
                 onCheckedChange = { settings.shareHistoryWithYtm = it },
                 icon = OuterTuneIcons.cast,
             )
             SettingSwitch(
                 title = "Count plays from other devices",
-                subtitle = "Stats adds plays from your YouTube Music history - other devices, the app, the web - without counting this computer's twice.",
+                subtitle = "Adds plays from your YouTube Music history to Stats.",
                 checked = settings.statsIncludeRemote,
                 onCheckedChange = { settings.statsIncludeRemote = it },
                 icon = OuterTuneIcons.history,
@@ -1626,7 +1613,7 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
         var clearingPlays by remember { mutableStateOf(false) }
         SettingRow(
             title = if (clearingPlays) "Click again to clear listening history" else "Clear listening history",
-            subtitle = "Recently played and every count Stats is made of. Songs and playlists stay.",
+            subtitle = "Clears plays and Stats. Songs and playlists stay.",
             icon = OuterTuneIcons.delete,
             tint = MaterialTheme.colorScheme.error,
             onClick = {
@@ -1643,7 +1630,7 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
     Section("Search history") {
         SettingSwitch(
             title = "Keep search history",
-            subtitle = "Recent searches appear under the search box while it is empty.",
+            subtitle = "Shows recent searches under the search box.",
             checked = settings.keepSearchHistory,
             onCheckedChange = { settings.keepSearchHistory = it },
             icon = OuterTuneIcons.search,
@@ -1667,7 +1654,7 @@ private fun PrivacySettings(settings: Settings, library: LibraryStore, account: 
     Section("Proxy") {
         SettingSwitch(
             title = "Use a proxy",
-            subtitle = "Sends YouTube Music requests through a proxy. Takes effect straight away.",
+            subtitle = "Sends YouTube Music requests through a proxy.",
             checked = settings.proxyEnabled,
             onCheckedChange = { settings.proxyEnabled = it },
             icon = OuterTuneIcons.devices,
@@ -1730,12 +1717,12 @@ private fun UpdaterSettings(settings: Settings) {
                 else -> "Check for updates"
             },
             subtitle = when (val state = update) {
-                DesktopUpdater.State.Idle -> "This is OuterTune ${DesktopVersion.NAME}. New versions come from the project's releases on GitHub."
+                DesktopUpdater.State.Idle -> "OuterTune ${DesktopVersion.NAME}, updated from GitHub releases."
                 DesktopUpdater.State.Checking -> "Checking…"
                 DesktopUpdater.State.UpToDate -> "OuterTune ${DesktopVersion.NAME} is the latest version."
                 is DesktopUpdater.State.Available -> "A new version is available."
                 is DesktopUpdater.State.Downloading -> "Downloading… ${(state.progress * 100).toInt()}%"
-                is DesktopUpdater.State.Ready -> "Downloaded. Installing closes OuterTune and opens it again."
+                is DesktopUpdater.State.Ready -> "Downloaded. Installing restarts OuterTune."
                 is DesktopUpdater.State.Failed -> state.reason
             },
             icon = OuterTuneIcons.download,
@@ -1755,14 +1742,14 @@ private fun UpdaterSettings(settings: Settings) {
     Section("Options") {
         SettingSwitch(
             title = "Check for updates automatically",
-            subtitle = "When OuterTune starts, at most every few hours.",
+            subtitle = "At start, at most every few hours.",
             checked = settings.updateAutoCheck,
             onCheckedChange = { settings.updateAutoCheck = it },
             icon = OuterTuneIcons.restore,
         )
         SettingSwitch(
             title = "Download automatically",
-            subtitle = "Fetches the installer as soon as one is found, so installing is a single click.",
+            subtitle = "Downloads updates as soon as they're found.",
             checked = settings.updateAutoDownload,
             onCheckedChange = { settings.updateAutoDownload = it },
             icon = OuterTuneIcons.download,
@@ -1770,9 +1757,7 @@ private fun UpdaterSettings(settings: Settings) {
         )
     }
     Text(
-        "Only finished releases are offered - not drafts or pre-releases - and an installer is used only " +
-            "if it matches the size and checksum GitHub lists for it. Installing closes OuterTune, updates it " +
-            "in place and opens it again; your library and settings are kept.",
+        "Only finished, checksum-verified releases are installed. Your library and settings are kept.",
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp),
@@ -2151,7 +2136,7 @@ private fun AccountSyncSettings(settings: Settings, account: Account, sync: YouT
     Section("Account") {
         SettingSwitch(
             title = "Use login for browsing content",
-            subtitle = "Recommendations made for you, and premium-only albums on a Premium account. Off browses as a guest.",
+            subtitle = "Personal recommendations and Premium-only albums.",
             checked = settings.useLoginForBrowse,
             onCheckedChange = { settings.useLoginForBrowse = it },
             icon = OuterTuneIcons.accountCircle,
@@ -2162,7 +2147,7 @@ private fun AccountSyncSettings(settings: Settings, account: Account, sync: YouT
             subtitle = if (tokenShown) {
                 YouTube.cookie?.let { if (it.length > 160) it.take(160) + "…" else it } ?: "None stored"
             } else {
-                "For signing in on another computer: Account > paste it under \"Sign in\". Keep it private - it is your session."
+                "To sign in on another computer. Keep it private."
             },
             icon = OuterTuneIcons.key,
             onClick = { tokenShown = !tokenShown },
@@ -2180,7 +2165,7 @@ private fun AccountSyncSettings(settings: Settings, account: Account, sync: YouT
     Section("Sync") {
         SettingSwitch(
             title = "Sync automatically",
-            subtitle = "Syncs with your YouTube Music account when you sign in and each time the app starts.",
+            subtitle = "Syncs with YouTube Music at sign-in and each start.",
             checked = settings.syncAuto,
             onCheckedChange = { settings.syncAuto = it },
             icon = OuterTuneIcons.restore,
@@ -2242,7 +2227,7 @@ private val SingerNames.label: String
 
 private val SingerNames.description: String
     get() = when (this) {
-        SingerNames.COLOUR -> "Each singer's lines in a colour of their own, with a key to who is who."
+        SingerNames.COLOUR -> "Each singer in their own colour, with a key."
         SingerNames.HIDE -> "Plain lyrics, without the singers' names."
         SingerNames.TEXT -> "Lines as the provider wrote them: \"Name: lyrics\"."
     }

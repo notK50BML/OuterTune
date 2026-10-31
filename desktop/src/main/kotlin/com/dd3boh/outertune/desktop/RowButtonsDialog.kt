@@ -58,7 +58,7 @@ fun RowButtonsDialog(
         text = {
             Column(modifier = Modifier.width(360.dp)) {
                 Text(
-                    "Buttons beside the ⋮ on every song row, left to right in the order ticked. All of them are in the ⋮ menu anyway.",
+                    "Buttons beside the ⋮ on song rows, in the order ticked.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

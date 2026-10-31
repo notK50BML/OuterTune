@@ -128,7 +128,7 @@ while also allowing users to translate our app as well. New, specific strings to
 
     <!-- In-app updater -->
     <string name="stats_include_remote_title">Count plays from other devices</string>
-    <string name="stats_include_remote_description">Adds listening from the YouTube Music app and your other devices to Stats. YouTube records a play once the song finishes, so each one counts as the song\'s full length.</string>
+    <string name="stats_include_remote_description">Adds plays from your YouTube Music history to Stats</string>
 
     <string name="updater">Updater</string>
     <string name="check_for_updates">Check for updates</string>
@@ -144,7 +144,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="update_auto_check">Check on opening this screen</string>
     <string name="update_auto_check_desc">Looks for a new release when the Updater is opened</string>
     <string name="update_auto_download">Download automatically</string>
-    <string name="update_auto_download_desc">Fetches the APK as soon as one is found, so installing is a single tap</string>
+    <string name="update_auto_download_desc">Downloads updates as soon as they\'re found</string>
     <string name="update_install_tooltip">Android does the installing, not OuterTune. You will be asked to allow installing unknown apps once, and to confirm every update after that.</string>
 
 <!-- Appearance settings -->
@@ -156,19 +156,19 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="player_background_style">Player background style</string>
     <string name="player_background_frosted">Frosted glass</string>
     <string name="player_auto_text_contrast_title">Match text to the artwork</string>
-    <string name="player_auto_text_contrast_description">Use dark text over pale covers and light text over dark ones</string>
+    <string name="player_auto_text_contrast_description">Dark text over pale covers, light over dark</string>
     <string name="show_queue_title">Show queue name on player</string>
     <string name="show_liked_and_downloaded_playlist">Show playlists for liked and downloaded songs in library</string>
     <string name="slim_navbar_title">Slim navbar</string>
     <string name="slim_navbar_description">Remove text labels to reduce navbar height</string>
     <string name="artwork_fallback_low_res_title">Fall back to lower resolution artwork</string>
-    <string name="artwork_fallback_low_res_description">If a high resolution image fails to load, retry at a smaller size instead of showing nothing.</string>
+    <string name="artwork_fallback_low_res_description">Retry failed images at a smaller size</string>
     <string name="download_thumbnails_title">Download full resolution thumbnails</string>
     <string name="download_thumbnails_description">Save a song\'s full resolution thumbnail alongside its download. Kept separately from the song itself - download or remove it independently from a song\'s menu.</string>
     <string name="download_thumbnail">Download thumbnail</string>
     <string name="remove_thumbnail">Remove thumbnail</string>
     <string name="download_all_thumbnails_title">Download thumbnails for all downloaded songs</string>
-    <string name="download_all_thumbnails_description">Fetches a full resolution thumbnail for every downloaded song that doesn\'t already have one.</string>
+    <string name="download_all_thumbnails_description">Fetch full-size covers for downloaded songs that lack one</string>
     <string name="download_all_thumbnails_started">Downloading thumbnails for all downloaded songs</string>
     <string name="grp_thumbnails">Thumbnails</string>
 
@@ -177,21 +177,21 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="eq_settings_enabled_title">Enable equaliser</string>
     <string name="eq_settings_appearance">Appearance</string>
     <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
-    <string name="eq_settings_use_dials_description">Applies to the selected band\'s frequency/gain editor. The band strip and bass/treble controls stay sliders and dials respectively either way.</string>
+    <string name="eq_settings_use_dials_description">Use dials in the selected band\'s frequency and gain editor</string>
     <string name="eq_settings_value_gradient_title">Colour by value</string>
-    <string name="eq_settings_value_gradient_description">Colour dials and slider tracks blue-green-yellow by how low, mid, or high their value is.</string>
+    <string name="eq_settings_value_gradient_description">Colour dials and sliders blue to yellow by value</string>
     <string name="eq_settings_profiles">Profiles</string>
     <string name="eq_settings_save_as_profile">Save current as new profile</string>
     <string name="eq_settings_profile_name">Profile name</string>
     <string name="eq_settings_autoeq_title">Search AutoEQ profiles</string>
-    <string name="eq_settings_autoeq_description">Apply a measured correction curve for your headphones, from AutoEQ\'s oratory1990 measurements.</string>
+    <string name="eq_settings_autoeq_description">Apply AutoEQ\'s correction curve for your headphones</string>
     <string name="eq_settings_autoeq_search_hint">Headphone model</string>
     <string name="eq_settings_autoeq_searching">Searching…</string>
     <string name="eq_settings_autoeq_no_results">No matching headphones found.</string>
     <string name="eq_settings_autoeq_error">Couldn\'t fetch that curve: %1$s</string>
 
 <!-- Discord integration -->
-    <string name="settings_discord_description">Show your listening activity as your Discord status</string>
+    <string name="settings_discord_description">Show what\'s playing on your Discord profile</string>
     <string name="rpc_listen_ytm">Listen on YouTube Music</string>
     <string name="rpc_visit">Visit %s</string>
     <string name="rpc_preview_title">Listening to %s</string>
@@ -213,18 +213,18 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="slider_weight_title">Slider thickness</string>
     <string name="slider_weight_thinner">Thinner</string>
     <string name="slider_dot_title">Slider dot</string>
-    <string name="slider_dot_description">A dot where the song has got to, at the end of the played part</string>
+    <string name="slider_dot_description">A dot at the current position</string>
     <string name="tab_arrangement">Arrange tabs</string>
     <string name="tab_arrangement_disable_tip">--- Drag below here to disable ---</string>
     <string name="tab_arrangement_home_required">The Home tab is required.</string>
     <string name="tablet_ui_title">Force tablet UI</string>
-    <string name="tablet_ui_title_description">Force a split interface optimized for large screens. This setting has no effect if minimum width requirements are not met</string>
+    <string name="tablet_ui_title_description">Split layout for large screens, when wide enough</string>
     <string name="filter_arrangement">Arrange filters</string>
 
 <!-- Content settings -->
     <string name="like_autodownload">Automatically download your liked songs</string>
     <string name="action_logout_tooltip">To fully log out, please sign out of your YouTube account in the web portal before using this logout button</string>
-    <string name="token_adv_login_description">This is an ADVANCED login method. As an alternative to the web portal, you may directly enter or update your login token here. For example, this can speed up logging in on multiple devices. Please note that any invalid token formats the app fails to parse will not be accepted</string>
+    <string name="token_adv_login_description">Advanced: enter or update your login token directly</string>
     <string name="token_hidden">Tap to show token</string>
     <string name="token_shown">Tap again to copy or edit</string>
     <string name="sync_conflict_add_only">Keep all local content, add new remote content</string>
@@ -242,28 +242,28 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="audio_decoder_system_only">System decoders only</string>
     <string name="audio_decoder_system_with_ffmpeg">Prioritise system decoders</string>
     <string name="audio_gapless_offload" translatable="false">Gapless offload</string>
-    <string name="audio_gapless_offload_description" translatable="false">Allow gapless offload if supported by the device and audio format. Some devices advertise support (Ex. Google Pixel 9 series), but the feature is good as useless in ExoPlayer because playback breaks after playing one song. When troubleshooting issues with offload, we suggest turning gapless offload off</string>
+    <string name="audio_gapless_offload_description" translatable="false">Gapless offload where supported. Turn off if playback stops after one song</string>
     <string name="audio_offload">Enable offload</string>
-    <string name="audio_offload_description">Use the offload audio path for audio playback. Enabling this may reduce power usage but can lead experience issues with audio playback or post processing. This preference has no effect for unsupported codecs or devices</string>
+    <string name="audio_offload_description">May save power, but can break playback or effects</string>
     <string name="keep_alive_title">Prevent system killing app</string>
-    <string name="keep_alive_description">Use a persistent foreground service to prevent OuterTune from being closed in the background</string>
+    <string name="keep_alive_description">Stop OuterTune being closed in the background</string>
     <string name="persistent_queue_desc_ot">Restore previous open queue(s) when the app starts</string>
     <string name="min_playback_duration">Minimum playback duration</string>
-    <string name="min_playback_duration_description">The minimum amount of a song that must be played before it is considered \"played\"</string>
+    <string name="min_playback_duration_description">How much of a song must play to count</string>
     <string name="crossfade">Crossfade</string>
-    <string name="crossfade_desc">Fade the volume out at the end of a track and back in at the start of the next one</string>
+    <string name="crossfade_desc">Fade from the end of one track into the next</string>
     <string name="crossfade_duration">Crossfade duration</string>
-    <string name="crossfade_duration_desc">How long before a track ends its volume starts fading out</string>
+    <string name="crossfade_duration_desc">How long before the end the fade starts</string>
     <string name="auto_backup_title">Automatic backup</string>
-    <string name="auto_backup_description">Back up settings and your library into Downloads/OuterTune Backup on their own, on the schedule below</string>
+    <string name="auto_backup_description">Back up settings and library to Downloads/OuterTune Backup</string>
     <string name="auto_backup_unavailable">Needs Android 10 or newer</string>
     <string name="auto_backup_frequency">Backup frequency</string>
     <string name="auto_backup_frequency_unit">Frequency unit</string>
-    <string name="auto_backup_frequency_description">How often to write a new automatic backup</string>
+    <string name="auto_backup_frequency_description">How often to back up</string>
     <string name="auto_backup_frequency_summary">Every %1$s</string>
     <string name="auto_backup_keep_count">Backups to keep</string>
     <string name="auto_backup_keep_count_summary">Keep the newest %1$d, delete older ones</string>
-    <string name="auto_backup_keep_count_description">How many automatic backups to keep before deleting the oldest</string>
+    <string name="auto_backup_keep_count_description">How many backups to keep</string>
     <string name="auto_backup_last_run">Last automatic backup: %1$s</string>
     <string name="auto_backup_location">Saved to Downloads/OuterTune Backup</string>
     <string name="sleep_timer_fade">Fade out</string>
@@ -276,16 +276,16 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="sleep_timer_show_on_player">Player screen button</string>
     <string name="sleep_timer_show_on_player_desc">Show a sleep timer button on the player screen</string>
     <string name="swipe2Queue">Swipe to queue</string>
-    <string name="swipe2Queue_description">Swipe on a song to add it to "enqueue next" directly after currently playing song</string>
+    <string name="swipe2Queue_description">Swipe a song to play it next</string>
     <string name="seek_increment">Seek increment</string>
 
 <!--Lyrics settings -->
     <string name="lyrics_font_Size">Font size</string>
     <string name="lyrics_karaoke_title">Karaoke style lyrics.</string>
-    <string name="lyrics_karaoke_description">Enables word by word lyric syncing. Requires lyrics format support.</string>
+    <string name="lyrics_karaoke_description">Word-by-word sync, where the lyrics support it</string>
     <string name="lyrics_karaoke_hz_title">Adjust karaoke lyrics update speed</string>
     <string name="lyrics_multiline_title">Read multiline lyrics</string>
-    <string name="lyrics_multiline_description">Treat all the lines between sync points as one lyric text</string>
+    <string name="lyrics_multiline_description">Treat lines between sync points as one</string>
     <string name="recognition_placement_title">Identify a song button</string>
     <string name="recognition_placement_top_bar">Top of the home screen</string>
     <string name="recognition_placement_search_field">In the search field</string>
@@ -294,12 +294,12 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_fetch_mode_auto">Automatic (fastest)</string>
     <string name="lyrics_fetch_mode_manual">In my order</string>
     <string name="lyrics_provider_order_title">Provider priority</string>
-    <string name="lyrics_provider_order_description">Providers are tried one at a time from the top, and the first synced lyrics win. This is slower than asking all of them at once.</string>
-    <string name="lyrics_provider_order_auto_note">Provider selection is set to automatic, so this order only decides how alternate lyrics are listed. Set provider selection to use your order to have it decide which provider is used.</string>
+    <string name="lyrics_provider_order_description">Tried one at a time from the top; slower than all at once</string>
+    <string name="lyrics_provider_order_auto_note">Provider selection is automatic, so this order only sorts alternate lyrics.</string>
     <string name="lyrics_prefer_local">Prefer local lyric files</string>
-    <string name="lyrics_prefer_local_description">Prioritise resolving local lyric files before using all cloud providers. Turn this off to prioritise cloud providers</string>
+    <string name="lyrics_prefer_local_description">Use local lyric files before online providers</string>
     <string name="lyrics_prefetch_title">Pre-fetch upcoming lyrics</string>
-    <string name="lyrics_prefetch_description">Fetch lyrics for the next songs in the queue in advance</string>
+    <string name="lyrics_prefetch_description">Fetch lyrics for upcoming songs in advance</string>
     <string name="lyrics_prefetch_count_title">Number of songs to pre-fetch</string>
     <string name="lyrics_settings_title">Lyrics</string>
     <string name="lyrics_synced_clickable">Clickable lyrics</string>
@@ -310,14 +310,14 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="local_library_enable_description">Disabling will hide local library from the app</string>
     <string name="local_player_settings_title">Local media</string>
     <string name="local_player_settings_entry_title">Folders and scanner</string>
-    <string name="local_player_settings_entry_description">Turn local media on or off, choose the folders to scan and how files are matched</string>
+    <string name="local_player_settings_entry_description">Local media, scan folders and file matching</string>
     <string name="flat_subfolders_title">Flatten subfolders</string>
     <string name="flat_subfolders_description">Disable to preserve the file structure as on disk</string>
     <string name="show_artist_videos_as_songs_title">Show artist videos as songs</string>
     <string name="show_home_chips_title">Mood chips on Home</string>
-    <string name="show_home_chips_description">The Relax, Workout, Energise… filters above the Home feed. Chips with nothing to show are hidden either way</string>
+    <string name="show_home_chips_description">The Relax, Workout, Energise… filters above Home</string>
     <string name="artist_credit_enrichment_title">Artist credit enrichment</string>
-    <string name="artist_credit_enrichment_description">Splits combined credits, finds featured artists, keeps names current when a channel is renamed, and merges duplicates. Off leaves credits exactly as YouTube or the file gave them</string>
+    <string name="artist_credit_enrichment_description">Split, link and tidy artist credits. Off keeps them as given</string>
     <string name="song_details">Song details</string>
     <string name="song_details_title_only">Only the title</string>
     <string name="song_details_order_hint">Top of the list comes first. Drag to reorder, tap to turn on or off.</string>
@@ -325,7 +325,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="song_detail_artists">Artists</string>
     <string name="song_detail_album">Album</string>
     <string name="song_detail_length">Length</string>
-    <string name="show_artist_videos_as_songs_description">When an artist page has no songs of its own, lay out its videos like a song list instead of a grid</string>
+    <string name="show_artist_videos_as_songs_description">List an artist\'s videos as songs when they have none</string>
     <string name="lyrics_offset_title">Lyrics timing offset</string>
     <string name="lyrics_offset_song_title">Timing offset for this song</string>
     <string name="lyrics_offset_later">Each line shows later</string>
@@ -340,16 +340,16 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_offset_dial_hint">Turn clockwise for later, anticlockwise for earlier. A full turn is half a second. Kept for this song only.</string>
     <string name="lyrics_offset_dial_description">Timing offset dial, %1$s</string>
     <string name="lyrics_estimated_word_sync_title">Estimated word-by-word (beta)</string>
-    <string name="lyrics_estimated_word_sync_description">Spread the karaoke highlight across each line by word length, so it works on ordinary line-synced lyrics. Less accurate than real word timings, but available for almost every song</string>
+    <string name="lyrics_estimated_word_sync_description">Highlight line-synced lyrics word by word, estimated</string>
     <string name="disable_lm_confirm">Are you sure you want to disable local media features? Your library contents will not be affected.</string>
 
 <!-- Scanner settings -->
     <string name="auto_scanner_title">Scan automatically</string>
-    <string name="auto_scanner_description">Periodically refresh local media songs and custom downloads folders when opening the app</string>
+    <string name="auto_scanner_description">Rescan local media and download folders at app start</string>
     <string name="auto_scanner_tooltip">For local media, automatic scanning does not reload the metadata of existing songs. Use the manual scanner with the rescan checkbox selected if you also wish to refresh metadata.</string>
 
     <string name="scan_paths_title">Configure scan locations…</string>
-    <string name="scan_paths_description">Select folders on your local storage to scan for songs</string>
+    <string name="scan_paths_description">Folders to scan for songs</string>
     <string name="scan_paths_tooltip">All subdirectories will also be affected</string>
     <string name="scan_paths_add_folder">Add new folder</string>
     <string name="scan_paths_incl">Scan paths</string>
@@ -388,9 +388,9 @@ while also allowing users to translate our app as well. New, specific strings to
 
 <!-- Scanner parameter settings-->
     <string name="scanner_strict_file_name_title">Strict file names</string>
-    <string name="scanner_strict_file_name_description">When enabled, file names will NOT be ignored. Ex. "Song.ogg" will be a different song from "Song.flac". Scanner sensitivity preference will still apply</string>
+    <string name="scanner_strict_file_name_description">Treat the same name with another extension as a different song</string>
     <string name="scanner_strict_file_paths_title">Match file paths instead of metadata</string>
-    <string name="scanner_strict_file_paths_description">Disables all smart matching of metadata. This can cause issues if files are moved in your local storage, but allows for the same song in different folders</string>
+    <string name="scanner_strict_file_paths_description">Turn off smart matching. Moving files may cause issues</string>
     <string name="scanner_sensitivity_title">Configure scanner sensitivity</string>
     <string name="scanner_sensitivity_L0">Take first result provided by YouTube when searching on YouTube is enabled, otherwise match title</string>
     <string name="scanner_sensitivity_L1">Match title</string>
@@ -407,28 +407,28 @@ while also allowing users to translate our app as well. New, specific strings to
 
 <!-- Storage setting -->
     <string name="download_on_wifi_only_title">Download only on Wi-Fi</string>
-    <string name="download_on_wifi_only_description">Don\'t download over mobile data. Songs queued while on mobile data start downloading automatically once Wi-Fi is available</string>
+    <string name="download_on_wifi_only_description">Wait for Wi-Fi before downloading</string>
     <string name="download_waiting_for_wifi">Will download once connected to Wi-Fi</string>
     <string name="clear_downloads_confirm">Are you sure you want to remove all downloads? Only downloads in the main download folder will be removed.</string>
     <string name="clear_image_cache_confirm">Are you sure you want to clear image cache? All existing album thumbnails will be removed.</string>
     <string name="clear_song_cache_confirm">Are you sure you want to clear song cache?</string>
     <string name="dl_calculate_size">Tap to calculate download size</string>
     <string name="dl_extra_path_title">Configure extra import locations…</string>
-    <string name="dl_extra_path_description">Songs from these folders will only appear in the app if you\'ve played them before or added them to a playlist</string>
+    <string name="dl_extra_path_description">Songs here show only once played or added to a playlist</string>
     <string name="dl_migrate_title">Migrate downloads to external storage…</string>
-    <string name="dl_migrate_description">Move downloads from the app\'s internal storage to the device\'s external storage</string>
+    <string name="dl_migrate_description">Move downloads from internal to external storage</string>
     <string name="dl_migrate_confirm">This will migrate ALL internal downloads to \"%s\", and this action cannot be undone. Continue?</string>
     <string name="dl_main_path_title">Set external download folder…</string>
     <string name="dl_main_path_description">Select downloads storage location</string>
     <string name="dl_move_title">Move downloads to a new folder…</string>
-    <string name="dl_move_description">Copy every downloaded file from the current external folder into a different one, then switch to it - unlike just picking a new folder above, which leaves existing files where they are</string>
+    <string name="dl_move_description">Move existing downloads to a new external folder</string>
     <string name="dl_move_confirm">Move every download from \"%1$s\" to \"%2$s\"? Files are copied first and only removed from the old folder once the copy succeeds.</string>
     <string name="dl_move_progress">Moving downloads… %1$d/%2$d</string>
     <string name="dl_move_success">Moved %1$d download(s) to the new folder</string>
     <string name="dl_move_failed">Failed to move downloads: %1$s</string>
     <string name="dl_oobe_tooltip">Songs are download to the app\'s private internal storage. To download songs to the external storage, you need to choose a folder first. You can add, change or remove folders, or migrate Internal Downloads to External Downloads later in Settings.</string>
     <string name="dl_rescan_title">Rescan download folders…</string>
-    <string name="dl_rescan_description">Update the database and refresh the download registry if any files or folders have changed</string>
+    <string name="dl_rescan_description">Refresh downloads after files change on disk</string>
 	<string name="dl_rescan_confirm">Rescan all download folders now? This can take a few minutes depending on the size of your library.</string>
     <string name="dl_size_used_cache">Internal: %s used</string>
     <string name="dl_size_used_main">External: %s used</string>
@@ -452,17 +452,17 @@ while also allowing users to translate our app as well. New, specific strings to
 <!-- Experimental settings -->
     <string name="experimental_settings_title">Experimental</string>
     <string name="dev_settings_title">Enable developer settings</string>
-    <string name="dev_settings_description">Reveals additional advanced settings intended for development use</string>
+    <string name="dev_settings_description">Show advanced settings for development</string>
 
     <string name="swipe_to_skip_title">Swipe horizontally to change song</string>
-    <string name="swipe_to_skip_description">Enable swiping horizontally in the player to switch songs</string>
+    <string name="swipe_to_skip_description">Swipe sideways in the player to change songs</string>
 
     <string name="tap_artwork_to_show_lyrics_title">Tap artwork to show lyrics</string>
     <string name="tap_artwork_to_show_lyrics_description">Show lyrics when tapping the artwork in the player</string>
 
     <string name="max_queues_title">Maximum number of queues</string>
     <string name="show_queues_beside_current_title">Show previous queues beside current</string>
-    <string name="show_queues_beside_current_description">Use the older side-by-side queue layout in portrait instead of the stacked one</string>
+    <string name="show_queues_beside_current_description">Older side-by-side queue layout in portrait</string>
 
 <!-- Setup wizard -->
     <string name="oobe_welcome_message">Welcome to OuterTune</string>
@@ -533,9 +533,9 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="song_likes">Likes</string>
     <string name="stats_tile_plays">Plays</string>
     <string name="removed_downloads_to_cache_title">Keep removed downloads in the song cache</string>
-    <string name="removed_downloads_to_cache_desc">A removed download stays playable offline until the cache needs the space. Off deletes it completely. Needs a song cache size other than 0</string>
+    <string name="removed_downloads_to_cache_desc">Removed downloads stay cached for offline play. Needs a song cache above 0</string>
     <string name="eq_cut_makeup_title">Turn up for cuts</string>
-    <string name="eq_cut_makeup_desc">When bands are turned down, raise the volume by the loudness the cuts take away, so the song stays about as loud as it was</string>
+    <string name="eq_cut_makeup_desc">Raise the volume to make up for EQ cuts</string>
     <string name="stats_tile_time">Listening time</string>
     <string name="song_uploaded">Uploaded</string>
     <string name="lyrics_highlight_sweep">Sweep</string>
@@ -545,7 +545,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_singer_names_colour">Colour code</string>
     <string name="lyrics_singer_names_hide">Hide</string>
     <string name="lyrics_singer_names_text">Show as text</string>
-    <string name="lyrics_show_type_description">A small tag by the lyrics controls: word-synced, line-synced, estimated or unsynced</string>
+    <string name="lyrics_show_type_description">Tag lyrics as word-synced, line-synced, estimated or unsynced</string>
     <string name="lyrics_type_word">Word-synced</string>
     <string name="lyrics_type_line">Line-synced</string>
     <string name="lyrics_type_estimated">Estimated</string>
@@ -560,7 +560,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="stats_extended_artists">Top artists</string>
     <string name="show_top_bar_logo_title">Show logo in the top bar</string>
     <string name="show_top_bar_logo_description">Turn off to give the search field the full width</string>
-    <string name="min_playback_duration_summary">A song counts as played once %1$d%% of it has been heard. Below that it is not added to your history and does not count towards your stats.</string>
+    <string name="min_playback_duration_summary">Counts as played after %1$d%% is heard</string>
     <!-- Music recognition -->
     <string name="recognition">Identify a song</string>
     <string name="recognition_ready">Ready to listen</string>
@@ -582,7 +582,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="player_layout_applied">Layout applied</string>
     <string name="player_layout_reset_done">Back to the built-in layout.</string>
     <string name="player_layout_unreadable">That file could not be read.</string>
-    <string name="player_layout_note">Layouts are made in the standalone editor and apply to the portrait player. Landscape and tablet keep the built-in layout, since they are laid out differently and one set of positions cannot serve all three.</string>
+    <string name="player_layout_note">Layouts from the editor apply to the portrait player only.</string>
     <!-- Player controls, as TalkBack reads them -->
     <string name="player_previous">Previous</string>
     <string name="player_pause">Pause</string>
@@ -625,7 +625,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="eq_import_invalid">That file isn\'t a valid equaliser profile.</string>
     <!-- Liquid player background -->
     <string name="liquid_audio_reactive">Audio-reactive</string>
-    <string name="liquid_audio_reactive_desc">Let the blobs respond to bass, treble and beats instead of drifting on their own</string>
+    <string name="liquid_audio_reactive_desc">Blobs react to bass, treble and beats</string>
     <string name="liquid_shape">Liquid shape</string>
     <string name="liquid_shape_petal">Petal</string>
     <string name="liquid_shape_spheres">Spheres</string>
@@ -635,11 +635,11 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="liquid_colour_black">Black</string>
     <string name="liquid_colour_white">White</string>
     <string name="liquid_text_contrast">Auto text contrast</string>
-    <string name="liquid_text_contrast_desc">Flip player/queue/lyrics text to the opposite of the liquid background\'s measured brightness</string>
+    <string name="liquid_text_contrast_desc">Flip text colour against the background\'s brightness</string>
     <string name="liquid_chromatic_shock">Chromatic shock</string>
-    <string name="liquid_chromatic_shock_desc">A GPU shader ripple that launches on a beat and splits colour outward across the liquid. Needs Android 13+; silently does nothing on older devices</string>
+    <string name="liquid_chromatic_shock_desc">A colour ripple on each beat. Needs Android 13+</string>
     <string name="liquid_ferrofluid_gpu">GPU ferrofluid (experimental)</string>
-    <string name="liquid_ferrofluid_gpu_desc">Replace the lightweight ferrofluid with a real raymarched GPU scene, for comparing battery drain against the version above. Noticeably heavier on the GPU by design; needs Android 13+, falls back automatically otherwise</string>
+    <string name="liquid_ferrofluid_gpu_desc">Raymarched GPU ferrofluid, heavier on battery. Needs Android 13+</string>
     <string name="liquid_ferrofluid_quality">GPU ferrofluid quality</string>
     <string name="liquid_ferrofluid_quality_low">Low - fewest droplets, for phones on battery</string>
     <string name="liquid_ferrofluid_quality_medium">Medium - the default</string>
@@ -659,13 +659,13 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="app_icon_crimson">Crimson</string>
     <string name="app_icon_ocean">Ocean</string>
     <string name="app_icon_changed">Icon changed. Your launcher may take a moment to catch up.</string>
-    <string name="app_icon_note">Switching the icon briefly replaces the app\'s launcher entry. Home screen shortcuts pointing at the old one may need to be added again, and some launchers only refresh after a restart.</string>
+    <string name="app_icon_note">Switching icons may break home screen shortcuts, and some launchers need a restart.</string>
     <string name="app_icon_custom">Your own image</string>
     <string name="app_icon_custom_title">Create a shortcut with my own image</string>
     <string name="app_icon_custom_description">Pick any picture and add it to your home screen</string>
     <string name="app_icon_custom_name">Name for the shortcut</string>
     <string name="app_icon_custom_done">Shortcut sent to your launcher.</string>
-    <string name="app_icon_custom_note">Android only lets an app use icons compiled into it, so a picture from your gallery cannot replace the launcher icon itself. A pinned shortcut is the way round it: it opens the app exactly as the normal icon does, but the original stays in your app drawer alongside it.</string>
+    <string name="app_icon_custom_note">Android cannot use a gallery picture as the app icon, so this adds a home screen shortcut instead.</string>
     <plurals name="days">
         <item quantity="one">1 day</item>
         <item quantity="other">%d days</item>
