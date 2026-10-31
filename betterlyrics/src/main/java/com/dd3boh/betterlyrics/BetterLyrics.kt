@@ -1,5 +1,6 @@
 package com.dd3boh.betterlyrics
 
+import com.dd3boh.betterlyrics.models.QqResponse
 import com.dd3boh.betterlyrics.models.TTMLResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
@@ -71,9 +72,31 @@ object BetterLyrics {
             if (duration > 0) parameter("d", duration)
             if (!album.isNullOrBlank()) parameter("al", album)
         }
-        if (response.status != HttpStatusCode.OK) {
-            throw IOException("BetterLyrics request failed: HTTP ${response.status.value}")
+        val ttml = if (response.status == HttpStatusCode.OK) {
+            response.body<TTMLResponse>().ttml?.trim()?.takeIf { it.isNotEmpty() }
+        } else {
+            null
         }
-        response.body<TTMLResponse>().ttml?.trim()?.takeIf { it.isNotEmpty() }
+        // Its own lookup now needs an API key for any song it has not cached, and none are being
+        // issued, so uncached songs come back 401. Its QQ Music relay needs no key and is word-timed
+        // too - asked whenever the main lookup has nothing, before giving up.
+        ttml ?: qqLyrics(title, artist, duration, album)
+            ?: if (response.status != HttpStatusCode.OK) {
+                throw IOException("BetterLyrics request failed: HTTP ${response.status.value}")
+            } else {
+                null
+            }
     }
+
+    /** QQ Music's word-timed lyrics through BetterLyrics, as TTML, or null - see [QrcConverter]. */
+    private suspend fun qqLyrics(title: String, artist: String, duration: Int, album: String?): String? = runCatching {
+        val response = client.get("/qq/getLyrics") {
+            parameter("s", title)
+            parameter("a", artist)
+            if (duration > 0) parameter("d", duration)
+            if (!album.isNullOrBlank()) parameter("al", album)
+        }
+        if (response.status != HttpStatusCode.OK) return@runCatching null
+        response.body<QqResponse>().lyrics?.let { QrcConverter.toTtml(it, title) }
+    }.getOrNull()
 }
