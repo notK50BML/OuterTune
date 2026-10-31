@@ -179,7 +179,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="eq_settings_use_dials_title">Use dials instead of sliders</string>
     <string name="eq_settings_use_dials_description">Use dials in the selected band\'s frequency and gain editor</string>
     <string name="eq_settings_value_gradient_title">Colour by value</string>
-    <string name="eq_settings_value_gradient_description">Colour dials and sliders blue to yellow by value</string>
+    <string name="eq_settings_value_gradient_description">Dials and EQ bands coloured by value: yellow low, blue high</string>
     <string name="eq_settings_profiles">Profiles</string>
     <string name="eq_settings_save_as_profile">Save current as new profile</string>
     <string name="eq_settings_profile_name">Profile name</string>

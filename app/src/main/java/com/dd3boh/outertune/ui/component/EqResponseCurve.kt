@@ -66,11 +66,10 @@ fun EqResponseCurve(
      * carries its own reading of itself and a glance says which way a region has been moved
      * without following the line back to an axis.
      *
-     * Note this runs the opposite way round to [valueGradientColor], which the faders and dials
-     * use: that one is blue at the bottom of a range and yellow at the top. The two are not
-     * measuring the same thing - a fader's colour tracks a position along its own travel, while
-     * this tracks decibels against unity - but the inconsistency is real and worth knowing about
-     * rather than discovering. The desktop runs this direction throughout.
+     * The same direction as [valueGradientColor], which the faders and dials use - yellow at the
+     * bottom of a range, blue at the top - and as the desktop. They do not measure quite the same
+     * thing (a fader's colour tracks its position along its own travel, this tracks decibels
+     * against unity), but low is yellow and high is blue throughout.
      */
     colorByHeight: Boolean = true,
 ) {
