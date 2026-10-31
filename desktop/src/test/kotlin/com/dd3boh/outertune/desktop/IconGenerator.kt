@@ -65,6 +65,8 @@ import androidx.compose.material.icons.rounded.TextRotationAngledown
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.PushPin
+import androidx.compose.material.icons.outlined.PushPin as OutlinedPushPin
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathNode
 import androidx.compose.ui.graphics.vector.VectorGroup
@@ -125,6 +127,7 @@ class IconGenerator {
         "queueMusicRounded" to Icons.AutoMirrored.Rounded.QueueMusic,
         "playlistPlay" to Icons.AutoMirrored.Rounded.PlaylistPlay, "albumRounded" to Icons.Rounded.Album,
         "powerSettingsNew" to Icons.Rounded.PowerSettingsNew,
+        "pushPin" to Icons.Rounded.PushPin, "pushPinOutlined" to Icons.Outlined.OutlinedPushPin,
     )
 
     @Test

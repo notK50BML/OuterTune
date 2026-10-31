@@ -22,12 +22,24 @@ object TrayControls {
     @Volatile var togglePlay: () -> Unit = {}
     @Volatile var next: () -> Unit = {}
     @Volatile var previous: () -> Unit = {}
+    @Volatile var toggleShuffle: () -> Unit = {}
+    @Volatile var cycleRepeat: () -> Unit = {}
+    /** Through the app rather than to the player, so a restored queue that has not started moves where it will start. */
+    @Volatile var seekTo: (Long) -> Unit = {}
 
     /**
      * The queue, as a flow rather than a value: the popup collects it only while it is open, so the
      * app does not write anything here on every change for a popup that is usually closed.
      */
     @Volatile var queue: StateFlow<QueueState> = MutableStateFlow(QueueState())
+
+    /**
+     * Where the song is and how long it is, as the player bar has them - the song's own length and a
+     * restored queue's starting point stand in before anything has played. The position is read
+     * only where it is drawn, as everywhere else.
+     */
+    @Volatile var positionMs: () -> Long = { 0L }
+    var durationMs by mutableStateOf(0L)
 
     /**
      * The main window's theme as it is drawn - cover colours, pure black, the chosen font - so the

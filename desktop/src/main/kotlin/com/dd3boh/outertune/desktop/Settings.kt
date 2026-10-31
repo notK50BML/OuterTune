@@ -211,6 +211,12 @@ class Settings(private val store: SettingsStore) {
     /** Whether the window was maximised when last seen - see WindowMemory. */
     var windowMaximised by bool("window.maximised", false)
 
+    /** The tray popup pinned open as a widget, and so opened again at start - see OuterTuneTray. */
+    var trayPinned by bool("tray.pinned", false)
+
+    /** Where the pinned tray popup was left on each screen - see PinnedSpots. */
+    var trayPinnedAt by string("tray.pinnedAt", "")
+
     /** Automatic asks every provider at once; in my order asks them one at a time - see LyricsFetchMode. */
     var lyricsFetchMode by enum("lyrics.fetchMode", LyricsFetchMode.Automatic, LyricsFetchMode.entries)
 

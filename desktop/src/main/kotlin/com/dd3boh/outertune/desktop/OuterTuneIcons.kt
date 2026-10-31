@@ -172,6 +172,14 @@ object OuterTuneIcons {
      */
     val powerSettingsNew by icon(GeneratedIconPaths.powerSettingsNew)
 
+    /**
+     * `Icons.Rounded.PushPin` and `Icons.Outlined.PushPin`, the tray popup's pin: the outline while
+     * it is a popup, filled once it is pinned open as a widget. Material's own pair for exactly
+     * that, so the state reads from the shape and not from the colour alone.
+     */
+    val pushPin by icon(GeneratedIconPaths.pushPin)
+    val pushPinOutlined by icon(GeneratedIconPaths.pushPinOutlined)
+
     // ---- Settings rows -----------------------------------------------------------------------
     //
     // Pulled from Google's published Material Symbols Outlined set (matching the family every icon
@@ -347,6 +355,8 @@ object OuterTuneIcons {
             "albumRounded" to albumRounded,
             "artist" to artist,
             "powerSettingsNew" to powerSettingsNew,
+            "pushPin" to pushPin,
+            "pushPinOutlined" to pushPinOutlined,
             "fastForward" to fastForward,
             "fastRewind" to fastRewind,
             "equalizer" to equalizer,

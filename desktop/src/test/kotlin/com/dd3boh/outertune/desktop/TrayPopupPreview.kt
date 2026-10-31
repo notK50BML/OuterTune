@@ -75,9 +75,11 @@ class TrayPopupPreview {
         )
     }
 
-    private fun queueAt(index: Int) = QueueState(
+    private fun queueAt(index: Int, shuffled: Boolean = false, repeat: RepeatMode = RepeatMode.OFF) = QueueState(
         songs = songs,
         index = index,
+        shuffled = shuffled,
+        repeat = repeat,
         order = songs.indices.toList(),
         orderPosition = index,
         title = "Liked songs",
@@ -90,6 +92,8 @@ class TrayPopupPreview {
         val seed: Color = Color(0xFF7B3FC4),
         val dark: Boolean = true,
         val positionMs: Long = 110_000L,
+        val live: Boolean = false,
+        val pinned: Boolean = false,
     )
 
     @Test
@@ -106,18 +110,25 @@ class TrayPopupPreview {
             queueAt(0).let { Case("(c) First song - no previous", it, PlaybackState.Playing(it.current!!.title), positionMs = 200_000L) },
             Case("(d) Nothing playing", QueueState(), PlaybackState.Idle),
             queueAt(1).let { Case("(e) Light theme", it, PlaybackState.Playing(it.current!!.title), dark = false) },
-            queueAt(3).let {
-                Case("(f) Another cover's colours - last song, no next", it, PlaybackState.Playing(it.current!!.title), seed = Color(0xFF2C8C7A))
+            queueAt(3, shuffled = true, repeat = RepeatMode.ONE).let {
+                Case(
+                    "(f) Another cover's colours - shuffle, repeat one",
+                    it, PlaybackState.Playing(it.current!!.title), seed = Color(0xFF2C8C7A),
+                )
             },
+            queueAt(2, repeat = RepeatMode.ALL).let {
+                Case("(g) Pinned as a widget - repeat all", it, PlaybackState.Playing(it.current!!.title), positionMs = 75_000L, pinned = true)
+            },
+            queueAt(1).let { Case("(h) A live stream - nothing to seek", it, PlaybackState.Playing(it.current!!.title), live = true) },
         )
 
         try {
-            capture(out!!, "tray_popup", 1720, 1040) {
+            capture(out!!, "tray_popup", 2250, 1090) {
                 Column(
                     modifier = Modifier.padding(20.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
-                    cases.chunked(3).forEach { row ->
+                    cases.chunked(4).forEach { row ->
                         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                             row.forEach { case ->
                                 MaterialTheme(colorScheme = DynamicTheme.schemeFor(case.seed, case.dark)) {
@@ -132,13 +143,18 @@ class TrayPopupPreview {
                                             TrayPopupCard(
                                                 playback = case.playback,
                                                 queue = case.queue,
-                                                live = false,
+                                                live = case.live,
                                                 positionMs = { case.positionMs },
                                                 durationMs = 240_000L,
                                                 appIcon = appIcon,
                                                 onTogglePause = {},
                                                 onNext = {},
                                                 onPrevious = {},
+                                                onSeek = {},
+                                                onToggleShuffle = {},
+                                                onCycleRepeat = {},
+                                                pinned = case.pinned,
+                                                onTogglePin = {},
                                                 onShow = {},
                                                 onQuit = {},
                                             )

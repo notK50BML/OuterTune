@@ -39,11 +39,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -57,6 +61,7 @@ import androidx.compose.ui.unit.IntRect
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
@@ -116,6 +121,8 @@ internal fun PlayerBar(
     val dismissable by rememberUpdatedState(song != null)
     val expand by rememberUpdatedState(onExpand)
     val dismiss by rememberUpdatedState(onDismiss)
+    // The middle of the bar, in the window's coordinates - see SongAndLyrics.
+    var barCentre by remember { mutableFloatStateOf(Float.NaN) }
     // A Box rather than a Column, so the progress line can sit on the bottom edge as the phone's
     // does - underlining the bar against whatever it covers instead of drawing a rule between it
     // and the content above, which is what stacking them in a Column amounted to.
@@ -127,6 +134,7 @@ internal fun PlayerBar(
             // off because its mini player sits on the navigation bar and is already separated from
             // the list; here it floats over scrolling content and would read as part of it.
             .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
+            .onGloballyPositioned { barCentre = it.boundsInRoot().center.x }
             // The phone's vertical swipes, as the wheel: up for the full player, down to put the
             // music away. Main pass, so the volume button's own wheel handling has already taken
             // its scrolls by the time they bubble up here.
@@ -191,45 +199,49 @@ internal fun PlayerBar(
                     }
                 }
             }
-            Column(modifier = Modifier.weight(1f).padding(horizontal = 6.dp)) {
-                Text(
-                    text = song?.title ?: "Nothing playing",
-                    color = if (song == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    // With the lyrics beside it the title has half the room, and most titles no
-                    // longer fit: it scrolls through once, as the phone's player title does, rather
-                    // than ending in "..." for as long as the song plays.
-                    modifier = if (lyricsShown && lyrics?.synced == true && !lyrics.isEmpty) Modifier.basicMarquee(iterations = 1, initialDelayMillis = 2_000) else Modifier,
-                )
-                Text(
-                    // The reason still belongs in words somewhere, since the icon only says that
-                    // something went wrong and not what - but it no longer displaces the artist on
-                    // the ordinary loading case, which is most of what this line ever shows.
-                    text = when (playback) {
-                        is PlaybackState.Failed -> playback.reason
-                        else -> song?.artists?.joinToString { it.name }?.ifBlank { "Unknown artist" }
-                            ?: "Search for something to play"
-                    },
-                    color = if (playback is PlaybackState.Failed) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.secondary
-                    },
-                    fontSize = 12.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-            // In the bar's spare middle, beside the song rather than over it, so the title is still
-            // there to read. Only timed lyrics: untimed ones cannot follow along, and a song with
-            // none - or still finding them - shows nothing rather than a notice saying so, which
-            // sat in the bar for the whole song. The title then has the width to itself.
-            if (lyricsShown && song != null && lyrics != null && lyrics.synced && !lyrics.isEmpty) {
-                MiniLyrics(lyrics, positionMs, Modifier.weight(1.4f).fillMaxHeight().padding(horizontal = 6.dp))
-            }
+            // Timed lyrics only: untimed ones cannot follow along, and a song with none - or still
+            // finding them - shows nothing rather than a notice saying so, which sat in the bar for
+            // the whole song. The title then has the width to itself.
+            val showLyrics = lyricsShown && song != null && lyrics != null && lyrics.synced && !lyrics.isEmpty
+            SongAndLyrics(
+                barCentre = barCentre,
+                song = {
+                    Column(modifier = Modifier.padding(horizontal = 6.dp)) {
+                        Text(
+                            text = song?.title ?: "Nothing playing",
+                            color = if (song == null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onSurface,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            // With the lyrics beside it the title has half the room, and most titles no
+                            // longer fit: it scrolls through once, as the phone's player title does, rather
+                            // than ending in "..." for as long as the song plays.
+                            modifier = if (showLyrics) Modifier.basicMarquee(iterations = 1, initialDelayMillis = 2_000) else Modifier,
+                        )
+                        Text(
+                            // The reason still belongs in words somewhere, since the icon only says that
+                            // something went wrong and not what - but it no longer displaces the artist on
+                            // the ordinary loading case, which is most of what this line ever shows.
+                            text = when (playback) {
+                                is PlaybackState.Failed -> playback.reason
+                                else -> song?.artists?.joinToString { it.name }?.ifBlank { "Unknown artist" }
+                                    ?: "Search for something to play"
+                            },
+                            color = if (playback is PlaybackState.Failed) {
+                                MaterialTheme.colorScheme.error
+                            } else {
+                                MaterialTheme.colorScheme.secondary
+                            },
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                },
+                lyrics = if (showLyrics) ({ MiniLyrics(lyrics!!, positionMs, Modifier.fillMaxSize()) }) else null,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            )
 
             // Whatever was chosen in Settings > Player > Mini player buttons, in that order.
             buttons.forEach { button ->
@@ -547,6 +559,64 @@ internal const val SCROLL_STREAK_QUIET_MS = 600L
 
 /** How much one wheel notch over the volume button moves it. */
 private const val VOLUME_STEP = 0.05f
+
+/**
+ * The song and, beside it, its lyrics - centred on the whole bar rather than in whatever gap the
+ * song leaves, which put them well right of the middle, since the buttons take less room than the
+ * cover and title do.
+ *
+ * The lyrics take the widest span centred on [barCentre] that leaves the song at least a short
+ * title's room and stops short of the buttons, and the song has what is left of its side. A bar too
+ * narrow for that splits the space as it used to. [barCentre] is in the window's coordinates, so the
+ * layout finds its own place in the window to know where the middle falls within it.
+ */
+@Composable
+private fun SongAndLyrics(
+    barCentre: Float,
+    song: @Composable () -> Unit,
+    lyrics: (@Composable () -> Unit)?,
+    modifier: Modifier = Modifier,
+) {
+    var left by remember { mutableFloatStateOf(Float.NaN) }
+    Layout(
+        contents = listOfNotNull(song, lyrics),
+        modifier = modifier.onGloballyPositioned { left = it.boundsInRoot().left },
+    ) { measurables, constraints ->
+        val width = constraints.maxWidth
+        val height = constraints.maxHeight
+        val songPart = measurables[0].first()
+        val lyricsPart = measurables.getOrNull(1)?.firstOrNull()
+        if (lyricsPart == null) {
+            val placed = songPart.measure(constraints.copy(minWidth = width, minHeight = 0))
+            return@Layout layout(width, height) { placed.place(0, (height - placed.height) / 2) }
+        }
+        val gap = 8.dp.roundToPx()
+        val centre = if (left.isNaN() || barCentre.isNaN()) width * 0.6f else barCentre - left
+        val half = minOf(centre - MIN_TITLE_WIDTH.toPx() - gap, width - centre)
+        val songWidth: Int
+        val lyricsLeft: Int
+        val lyricsWidth: Int
+        if (half * 2 >= MIN_LYRICS_WIDTH.toPx()) {
+            lyricsLeft = (centre - half).toInt()
+            lyricsWidth = (half * 2).toInt()
+            songWidth = lyricsLeft - gap
+        } else {
+            songWidth = (width / 2.4f).toInt()
+            lyricsLeft = songWidth + gap
+            lyricsWidth = width - lyricsLeft
+        }
+        val placedSong = songPart.measure(Constraints(maxWidth = songWidth.coerceAtLeast(0), maxHeight = height))
+        val placedLyrics = lyricsPart.measure(Constraints.fixed(lyricsWidth.coerceAtLeast(0), height))
+        layout(width, height) {
+            placedSong.place(0, (height - placedSong.height) / 2)
+            placedLyrics.place(lyricsLeft, 0)
+        }
+    }
+}
+
+/** The least a title keeps beside the lyrics, and the least room worth showing lyrics in. */
+private val MIN_TITLE_WIDTH = 110.dp
+private val MIN_LYRICS_WIDTH = 140.dp
 
 /** The bar's height, and the artwork and rounding inside it - the phone's Dimensions.kt numbers. */
 private val MINI_PLAYER_HEIGHT = 64.dp

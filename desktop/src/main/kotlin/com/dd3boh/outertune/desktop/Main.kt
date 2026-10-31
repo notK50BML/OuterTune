@@ -238,6 +238,7 @@ private fun runApplication() = application {
             tooltip = (trayPlayback as? PlaybackState.Playing)?.title?.let { "OuterTune - $it" } ?: "OuterTune",
             player = player,
             library = library,
+            settings = settings,
             onShow = showWindow,
             onQuit = quit,
         )
@@ -956,7 +957,13 @@ internal fun App(
         TrayControls.togglePlay = togglePlay
         TrayControls.next = playerQueue::next
         TrayControls.previous = playerQueue::previous
+        TrayControls.toggleShuffle = playerQueue::toggleShuffle
+        TrayControls.cycleRepeat = playerQueue::cycleRepeat
+        TrayControls.seekTo = seekTo
         TrayControls.queue = playerQueue.state
+        // What the player bar shows, a restored queue's song and starting point included.
+        TrayControls.positionMs = shownPosition
+        TrayControls.durationMs = shownDuration
     }
 
     val isLiked = queue.current?.let { current -> liked.any { it.id == current.id } } == true

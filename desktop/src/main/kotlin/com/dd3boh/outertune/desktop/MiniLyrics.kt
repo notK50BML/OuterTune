@@ -25,6 +25,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
@@ -76,13 +79,17 @@ internal fun MiniLyrics(lyrics: Lyrics, positionMs: () -> Long, modifier: Modifi
         val long = remember(line, room, style) {
             line != null && measurer.measure(line.text, style, maxLines = 1, softWrap = false).size.width > room
         }
-        // The song's time, every frame, but only while the line being sung is too long to show
-        // whole: the position the bar is handed moves in steps, and a line sliding in steps
-        // judders. Between steps it is carried forward on the frame clock, never more than a
-        // second past the last one - so a pause stops it within that, rather than it running on.
+        // Lit word by word when the line has word timings - its own, or estimated ones when
+        // "Estimate word timings" is on - as the full player's lyrics are.
+        val byWord = line != null && line.words.isNotEmpty()
+        // The song's time, every frame, but only while the line being sung needs it: too long to
+        // show whole, or lit word by word. The position the bar is handed moves in steps, and a
+        // line sliding or lighting in steps judders. Between steps it is carried forward on the
+        // frame clock, never more than a second past the last one - so a pause stops it within
+        // that, rather than it running on.
         var songTime by remember { mutableLongStateOf(positionMs()) }
-        LaunchedEffect(current, long) {
-            if (!long) return@LaunchedEffect
+        LaunchedEffect(current, long, byWord) {
+            if (!long && !byWord) return@LaunchedEffect
             var anchor = positionMs()
             var anchoredAt = -1L
             while (true) withFrameNanos { now ->
@@ -165,7 +172,7 @@ internal fun MiniLyricsLines(
                 // An empty timed line is an instrumental break - a note rather than nothing.
                 val text = line.text.ifBlank { "♪" }
                 if (index == current) {
-                    SlidingLine(text, style, colour, sung, placement)
+                    SlidingLine(text, style, colour, sung, byWord = line.words.isNotEmpty(), modifier = placement)
                 } else {
                     Text(
                         text = text,
@@ -188,20 +195,57 @@ internal fun MiniLyricsLines(
  * the right edge and it stops there.
  */
 @Composable
-private fun SlidingLine(text: String, style: TextStyle, colour: Color, sung: () -> Float, modifier: Modifier) {
+private fun SlidingLine(text: String, style: TextStyle, colour: Color, sung: () -> Float, byWord: Boolean, modifier: Modifier) {
+    var textLayout by remember(text) { mutableStateOf<TextLayoutResult?>(null) }
+    // How far across the line the singing has got, in the text's own pixels - from the text's
+    // layout, so the edge of the lit part falls where the letters are rather than at a share of
+    // the width.
+    fun reached(): Float {
+        val layout = textLayout ?: return 0f
+        val chars = sung() * text.length
+        val whole = chars.toInt().coerceIn(0, text.length)
+        if (whole >= text.length) return layout.size.width.toFloat()
+        val from = layout.getHorizontalPosition(whole, usePrimaryDirection = true)
+        val to = layout.getHorizontalPosition(whole + 1, usePrimaryDirection = true)
+        return from + (to - from) * (chars - whole)
+    }
     Layout(
-        content = { Text(text = text, color = colour, style = style, maxLines = 1, softWrap = false) },
+        content = {
+            Text(
+                text = text,
+                color = if (byWord) colour.copy(alpha = UNSUNG_ALPHA) else colour,
+                style = style,
+                maxLines = 1,
+                softWrap = false,
+                onTextLayout = { textLayout = it },
+            )
+            // [byWord]: the same line again, fully lit and cut off at the point reached, over the
+            // dimmed one - so the words light as they are sung.
+            if (byWord) {
+                Text(
+                    text = text,
+                    color = colour,
+                    style = style,
+                    maxLines = 1,
+                    softWrap = false,
+                    modifier = Modifier.drawWithContent { clipRect(right = reached()) { this@drawWithContent.drawContent() } },
+                )
+            }
+        },
         modifier = modifier,
     ) { measurables, constraints ->
-        val placeable = measurables.first().measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity))
+        val placeables = measurables.map { it.measure(constraints.copy(minWidth = 0, maxWidth = Constraints.Infinity)) }
+        val first = placeables.first()
         val width = constraints.maxWidth
-        val overflow = (placeable.width - width).coerceAtLeast(0)
-        layout(width, placeable.height) {
-            if (overflow == 0) {
-                placeable.placeRelative((width - placeable.width) / 2, 0)
-            } else {
-                placeable.placeRelativeWithLayer(0, 0) {
-                    translationX = -(sung() * placeable.width - width * SUNG_POINT).coerceIn(0f, overflow.toFloat())
+        val overflow = (first.width - width).coerceAtLeast(0)
+        layout(width, first.height) {
+            placeables.forEach { placeable ->
+                if (overflow == 0) {
+                    placeable.placeRelative((width - placeable.width) / 2, 0)
+                } else {
+                    placeable.placeRelativeWithLayer(0, 0) {
+                        translationX = -(reached() - width * SUNG_POINT).coerceIn(0f, overflow.toFloat())
+                    }
                 }
             }
         }
@@ -240,14 +284,14 @@ internal fun sungFraction(line: LyricLine, nextStartMs: Long?, timeMs: Long): Fl
 
 @Composable
 private fun miniLyricStyle(): TextStyle = LocalTextStyle.current.merge(
-    TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
+    TextStyle(fontSize = 17.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center)
 )
 
 /** How far apart the lines sit: the middle line and its neighbours fill the bar's height. */
-private val LINE_SPACING = 18.dp
+private val LINE_SPACING = 20.dp
 
 /** The lines either side, against the middle one. */
-private const val NEIGHBOUR_SCALE = 0.74f
+private const val NEIGHBOUR_SCALE = 0.7f
 private const val NEIGHBOUR_ALPHA = 0.42f
 
 /** The width over which a line fades at either side of the space. */
@@ -255,6 +299,9 @@ private val EDGE_FADE = 14.dp
 
 /** Where across the space the point being sung sits while a long line slides. */
 private const val SUNG_POINT = 0.6f
+
+/** Words of the current line still to be sung, against the ones that have been. */
+private const val UNSUNG_ALPHA = 0.45f
 
 /** The last line has no next to end at: this long, then. */
 private const val LAST_LINE_MS = 5_000L
