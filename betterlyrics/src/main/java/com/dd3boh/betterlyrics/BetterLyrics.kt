@@ -41,7 +41,7 @@ object BetterLyrics {
             }
 
             defaultRequest {
-                url("https://lyrics-api.boidu.dev")
+                url("https://api.betterlyrics.org") // its current home; lyrics-api.boidu.dev was the old one
                 // The API rejects requests without a browser-shaped User-Agent.
                 headers {
                     append("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36")
