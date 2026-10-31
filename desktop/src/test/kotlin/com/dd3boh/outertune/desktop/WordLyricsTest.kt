@@ -166,4 +166,45 @@ class WordLyricsTest {
         val plain = LrcParser.parse("no timings", "test")
         assertEquals(plain, plain.shiftedBy(1_000))
     }
+
+    // ---- what goes beneath a TTML line -----------------------------------------------------
+
+    @Test
+    fun `background vocals and head translations are drawn beneath their line`() {
+        // The phone shows both; this dropped them. Apple writes background vocals in parentheses,
+        // which the phone takes off, being set apart already.
+        val doc = """
+            <tt xmlns="http://www.w3.org/ns/ttml" xmlns:ttm="http://www.w3.org/ns/ttml#metadata"
+                xmlns:itunes="http://music.apple.com/lyric-ttml-internal">
+              <head><metadata><iTunesMetadata xmlns="http://music.apple.com/lyric-ttml-internal">
+                <translations><translation type="subtitle" xml:lang="en">
+                  <text for="L1">Echo foxtrot</text>
+                </translation></translations>
+              </iTunesMetadata></metadata></head>
+              <body><div>
+                <p begin="00:10.000" end="00:12.000" itunes:key="L1">
+                  <span begin="00:10.000" end="00:11.000">Alpha </span><span begin="00:11.000" end="00:12.000">Bravo</span>
+                  <span ttm:role="x-bg" begin="00:11.500" end="00:12.000"><span begin="00:11.500" end="00:12.000">(Golf)</span></span>
+                </p>
+                <p begin="00:13.000" end="00:14.000" itunes:key="L2"><span begin="00:13.000" end="00:14.000">Hotel</span></p>
+              </div></body>
+            </tt>
+        """.trimIndent()
+        val lines = LrcParser.parseTtml(doc, "test").lines
+        assertEquals(listOf("Alpha Bravo", "Hotel"), lines.map { it.text })
+        assertEquals("Golf\nEcho foxtrot", lines[0].translation)
+        assertEquals(null, lines[1].translation)
+    }
+
+    // ---- SubRip ----------------------------------------------------------------------------
+
+    @Test
+    fun `subrip is read, a cue's second line beneath its first`() {
+        val srt = "1\n00:00:01,000 --> 00:00:03,000\n<i>Alpha</i>\nBravo\n\n" +
+            "2\n00:00:04,500 --> 00:00:06,000\nCharlie\n"
+        val lyrics = LrcParser.parseAny(srt, "test")
+        assertTrue(lyrics.synced)
+        assertEquals(listOf(1_000L to "Alpha", 4_500L to "Charlie"), lyrics.lines.map { it.timeMs to it.text })
+        assertEquals("Bravo", lyrics.lines[0].translation)
+    }
 }

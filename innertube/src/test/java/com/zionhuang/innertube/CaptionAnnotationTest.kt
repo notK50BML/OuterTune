@@ -1,5 +1,6 @@
 package com.zionhuang.innertube
 
+import com.zionhuang.innertube.utils.cleanCaptionLyrics
 import com.zionhuang.innertube.utils.cleanLyrics
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -158,5 +159,42 @@ class CaptionAnnotationTest {
     fun `timestamps are never altered`() {
         val stamped = "[00:12.34]>> [Music] Never gonna give"
         assertTrue(cleanLyrics(stamped).startsWith("[00:12.34]"))
+    }
+
+    // ---- the whole caption path ---------------------------------------------------------------------
+
+    @Test
+    fun `a caption track becomes the lyric sheet both apps store`() {
+        // The phone's YouTubeSubtitleLyricsProvider runs cleanCaptionLyrics, then every result gets
+        // cleanLyrics before it is judged and stored; the desktop's LyricsRepository.captionLyrics
+        // runs the same two. Its CaptionLyricsTest feeds this same track through that and expects
+        // this same text, so the two apps cannot drift without one of the pair failing.
+        val stored = cleanLyrics(cleanCaptionLyrics(SAMPLE_TRANSCRIPT))
+        assertEquals(SAMPLE_STORED, stored)
+        // And it is cleaned again on its way to the screen, which must change nothing.
+        assertEquals(stored, cleanLyrics(stored))
+    }
+
+    companion object {
+        /** A caption track as `YouTube.transcript()` builds it. Invented words. */
+        const val SAMPLE_TRANSCRIPT = "[00:01.000]>> [Music]\n" +
+            "[00:05.000]♪ Lanterns over the harbour ♪\n" +
+            "[00:08.000]> We waited by the water. Nobody came home\n" +
+            "[00:14.000][Singing] and the tide rolled in\n" +
+            "[00:18.000][inaudible]\n" +
+            "[00:20.000][Applause]"
+
+        /**
+         * What it becomes. The second sentence of the 00:08 line gets a time of its own, measured by
+         * its share of the line's length - 23 characters of 39 across the six seconds to the next
+         * line.
+         */
+        const val SAMPLE_STORED = "[00:01.000]♪\n" +
+            "[00:05.000]Lanterns over the harbour\n" +
+            "[00:08.000]We waited by the water.\n" +
+            "[00:11.53]Nobody came home\n" +
+            "[00:14.000]and the tide rolled in\n" +
+            "[00:18.000]\n" +
+            "[00:20.000][Applause]"
     }
 }

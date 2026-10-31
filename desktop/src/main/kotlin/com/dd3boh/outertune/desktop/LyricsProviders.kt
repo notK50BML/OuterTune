@@ -73,10 +73,13 @@ enum class LyricsSource(
     }
 }
 
-/** How the providers are asked - the phone's "Provider selection". */
+/**
+ * How the providers are asked - the phone's "Provider selection". Which answer is kept is the same in
+ * both, as on the phone: the best-timed, with the order breaking ties (see LyricsRace).
+ */
 enum class LyricsFetchMode(val label: String, val description: String) {
-    Automatic("Automatic (fastest)", "Asks every provider at once and uses the first synced lyrics back."),
-    InMyOrder("In my order", "Asks one at a time from the top of your list; slower, but you decide who answers."),
+    Automatic("Automatic (fastest)", "Asks every provider at once. Word-timed lyrics beat line-timed ones; your order breaks ties."),
+    InMyOrder("In my order", "Asks one at a time from the top of your list until one has word-timed lyrics; slower."),
 }
 
 /** Whether [source] is switched on, from the settings the first three switches always used. */
@@ -129,7 +132,7 @@ fun LyricsProvidersDialog(settings: Settings, onDismiss: () -> Unit) {
         text = {
             Column(modifier = Modifier.width(420.dp)) {
                 Text(
-                    "Asked from the top until one has lyrics for the song. Untick one to never ask it.",
+                    "The best-timed lyrics win, and the higher provider when two are as good. Untick one to never ask it.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

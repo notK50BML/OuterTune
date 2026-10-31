@@ -14,9 +14,11 @@ import com.dd3boh.lrclib.LrcLib
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.WatchEndpoint
 import com.zionhuang.innertube.utils.cleanCaptionLyrics
+import com.zionhuang.innertube.utils.cleanLyrics
 import com.zionhuang.kugou.KuGou
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * One word, and the window it is sung across.
@@ -50,6 +52,10 @@ data class LyricLine(
      * A second line at the same time - in an LRC file, a translation or romanisation. Drawn under
      * the line and lit with it; as two lines of their own the later one won every lookup, so the
      * original was never highlighted at all.
+     *
+     * Whatever else belongs under a line goes here too, one per line of this text: background
+     * vocals, an untimed continuation in an LRC file, a translation from an Apple TTML head, and a
+     * SubRip cue's second line - see LrcParser.
      */
     val translation: String? = null,
 )
@@ -111,20 +117,73 @@ data class Lyrics(val lines: List<LyricLine>, val synced: Boolean, val source: S
  */
 object LrcParser {
 
-    private val TIMESTAMP = Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d{1,3}))?]""")
-    private val METADATA = Regex("""^\[([a-zA-Z_]+):(.*)]$""")
-    private val WORD_TIMING = Regex("""<\d{1,3}:\d{2}(?:[.:]\d{1,3})?>""")
+    private val TIMESTAMP = Regex("""\[(\d{1,3}):(\d{2})(?:[.:](\d+))?]""")
+    private val METADATA = Regex("""^\[([a-zA-Z_#]+):(.*)]$""")
+    private val WORD_TIMING = Regex("""<\d{1,3}:\d{2}(?:[.:]\d+)?>""")
 
+    /**
+     * Who is singing, written straight after a line's timestamp: `v1:`, `v2:` and `v3:` from Apple's
+     * duet extension, `F:`, `M:` and `D:` from Walaoke's.
+     *
+     * The phone's parser reads these as the singer and takes them out of the text. There is no
+     * per-singer layout here, so they are only taken out - left in, every line of a duet began with
+     * "v1:". Recognised in the same place the phone recognises them and nowhere else: directly after
+     * the timestamp, with one space before at most.
+     */
+    private val SINGER = Regex("""^ ?(?:v[123]|[FMD]):""")
+
+    /**
+     * Background vocals in Apple's LRC extension, `[bg: ...]`, on the line after the one they go
+     * with. Checked before [METADATA], which would otherwise read it as a header tag and drop it.
+     */
+    private val BACKGROUND = Regex("""^\[bg:(.*)]$""")
+
+    /** One timestamped line as written, before its copies are spread across the song. */
+    private class Row(val lines: List<LyricLine>) {
+        /** Untimed lines that follow it in the file, which belong to it - see [parse]. */
+        val under = mutableListOf<String>()
+    }
+
+    /**
+     * Parses LRC, with the same readings of the format's variants that the phone's parser makes.
+     *
+     * Beyond the three details in the class comment, each of these is something the phone already
+     * did and this did not, so the same file read differently on the two:
+     *
+     *  - **Untimed lines after a timed one belong to it.** The phone's "multi-line" reading, on by
+     *    default there: a second line of a lyric, or a translation written beneath without a time of
+     *    its own. Shown under the line rather than thrown away.
+     *  - **A timestamp after words starts a new line**, so `[00:01]one[00:02]two` is two lines rather
+     *    than "two" sung twice.
+     *  - **Word marks alone time a line.** `<00:11.22>hello <00:12.85>there` with no `[..]` in front
+     *    is enhanced LRC all the same, and was shown with its marks as text.
+     *  - **Singer marks and background vocals** - see [SINGER] and [BACKGROUND].
+     *  - **A file whose every timestamp is zero is not synced.** It is plain lyrics something has
+     *    stamped `[00:00.00]` onto, and read as synced it highlighted its last line throughout.
+     *  - **An empty line at the same time as a real one is dropped** - see [mergeSameTime].
+     *  - **An `[offset:]` cannot move a line before the start.**
+     */
     fun parse(raw: String, source: String): Lyrics {
         if (raw.isBlank()) return Lyrics(emptyList(), synced = false, source = source)
 
         var offsetMs = 0L
-        val timed = mutableListOf<LyricLine>()
+        val rows = mutableListOf<Row>()
         val plain = mutableListOf<String>()
+        // Every line's words in file order, for a file whose timestamps turn out to mean nothing.
+        val asText = mutableListOf<String>()
+        var anyRealTime = false
 
-        raw.lineSequence().forEach { rawLine ->
-            val line = rawLine.trim()
+        raw.lineSequence().flatMap { splitAtInlineStamps(it.trim()) }.forEach { line ->
             if (line.isEmpty()) return@forEach
+
+            BACKGROUND.matchEntire(line)?.let { bg ->
+                val text = WORD_TIMING.replace(bg.groupValues[1], "").trim().unwrapParentheses()
+                if (text.isNotEmpty()) {
+                    rows.lastOrNull()?.under?.add(text) ?: plain.add(text)
+                    asText += text
+                }
+                return@forEach
+            }
 
             METADATA.matchEntire(line)?.let { meta ->
                 if (meta.groupValues[1].lowercase() == "offset") {
@@ -135,14 +194,20 @@ object LrcParser {
                 return@forEach
             }
 
+            // Every timestamp here leads the line - splitAtInlineStamps saw to that.
             val stamps = TIMESTAMP.findAll(line).toList()
-            if (stamps.isEmpty()) {
-                plain += line
+            val afterStamps = if (stamps.isEmpty()) line else line.substring(stamps.last().range.last + 1)
+            val firstWordMark = WORD_TIMING.find(afterStamps)
+            if (stamps.isEmpty() && firstWordMark == null) {
+                // Before any timed line this is a header or plain lyrics; after one, it is more of it.
+                rows.lastOrNull()?.under?.add(line) ?: plain.add(line)
+                asText += line
                 return@forEach
             }
 
-            val body = line.substring(stamps.last().range.last + 1)
+            val body = afterStamps.replaceFirst(SINGER, "")
             val text = WORD_TIMING.replace(body, "").trim()
+            if (text.isNotEmpty()) asText += text
             // Enhanced LRC marks each word with its own time. Read rather than discarded, so a
             // provider that happens to send enhanced lines gets word-by-word highlighting for free -
             // the format is far more common than the number of players that use it.
@@ -160,8 +225,15 @@ object LrcParser {
                 }
                 return (minutes * 60 + seconds) * 1000 + millis
             }
-            val firstStampMs = stampMs(stamps.first())
+            val times = if (stamps.isNotEmpty()) {
+                stamps.map(::stampMs)
+            } else {
+                // No line timestamp, only word marks: the line starts with its first word.
+                listOf(timestampToMs(firstWordMark!!.value.trim('<', '>')) ?: return@forEach)
+            }
+            val firstStampMs = times.first()
             val parsedWords = parseWordTimings(body)
+            if (times.any { it > 0 } || parsedWords.any { it.startMs > 0 }) anyRealTime = true
             // Words before the first word mark - "[00:10]Hello <00:10.40>world" - were dropped, so
             // "Hello" vanished while the line was sung. They start with the line.
             val lead = WORD_TIMING.find(body)?.let { body.substring(0, it.range.first) }.orEmpty()
@@ -170,48 +242,98 @@ object LrcParser {
             } else {
                 parsedWords
             }
-            stamps.forEach { stamp ->
-                val at = stampMs(stamp) + offsetMs
-                // A repeated line's word times belong to its first occurrence, so they are moved to
-                // wherever this copy sits. Left alone, every repeat would highlight against the
-                // times of the first one and light up all at once. Measured from the first stamp,
-                // not the first word, which left the first copy's opening word pulled back to the
-                // line's own time.
-                val shift = at - (firstStampMs + offsetMs)
-                timed += LyricLine(
-                    timeMs = at,
-                    text = text,
-                    words = words.map {
-                        it.copy(
-                            startMs = it.startMs + offsetMs + shift,
-                            endMs = it.endMs + offsetMs + shift,
-                        )
-                    },
-                )
-            }
+            rows += Row(
+                times.map { stamp ->
+                    // Never before the start: a large offset on an early line would otherwise give
+                    // it a time no position reaches. The phone clamps the same way.
+                    val at = (stamp + offsetMs).coerceAtLeast(0L)
+                    // A repeated line's word times belong to its first occurrence, so they are moved
+                    // to wherever this copy sits. Left alone, every repeat would highlight against
+                    // the times of the first one and light up all at once. Measured from the first
+                    // stamp, not the first word, which left the first copy's opening word pulled back
+                    // to the line's own time.
+                    val shift = at - firstStampMs
+                    LyricLine(
+                        timeMs = at,
+                        text = text,
+                        words = words.map {
+                            it.copy(
+                                startMs = (it.startMs + shift).coerceAtLeast(0L),
+                                endMs = (it.endMs + shift).coerceAtLeast(0L),
+                            )
+                        },
+                    )
+                }
+            )
         }
 
-        if (timed.isNotEmpty()) {
-            // Sorted because multi-timestamp lines are written where they first occur, so a repeated
-            // chorus arrives out of order.
-            val sorted = timed.sortedBy { it.timeMs }
-            // Lines sharing a time are one line and its translation: folded together, the first
-            // keeping its words, the rest drawn beneath it.
-            val merged = mutableListOf<LyricLine>()
-            for (line in sorted) {
-                val previous = merged.lastOrNull()
-                if (previous != null && previous.timeMs == line.timeMs && previous.text.isNotBlank() && line.text.isNotBlank()) {
-                    merged[merged.lastIndex] = previous.copy(
-                        translation = listOfNotNull(previous.translation, line.text).joinToString("\n"),
-                    )
-                } else {
-                    merged += line
-                }
+        // Timestamps, but none of them past zero: plain lyrics wearing a timestamp, read as the
+        // plain lyrics they are.
+        if (rows.isNotEmpty() && !anyRealTime) {
+            return Lyrics(asText.filter { it.isNotBlank() }.map { LyricLine(null, it) }, synced = false, source = source)
+        }
+
+        if (rows.isNotEmpty()) {
+            val timed = rows.flatMap { row ->
+                if (row.under.isEmpty()) row.lines
+                else row.lines.map { it.copy(translation = row.under.joinToString("\n")) }
             }
-            return Lyrics(closeFinalWords(merged), synced = true, source = source)
+            return Lyrics(closeFinalWords(mergeSameTime(timed)), synced = true, source = source)
         }
         return Lyrics(plain.map { LyricLine(null, it) }, synced = false, source = source)
     }
+
+    /**
+     * [timed] in time order, with the lines sharing a time folded into one.
+     *
+     * Sorted because multi-timestamp lines are written where they first occur, so a repeated chorus
+     * arrives out of order. Lines sharing a time are one line and its translation: folded together,
+     * the first keeping its words, the rest drawn beneath it.
+     *
+     * An empty line at a real line's time is an empty translation, and goes - kept, it was the line
+     * found at that time, and the one with the words in it was never lit. Empty lines before the
+     * first words go too, as on the phone: they hold nothing, and only put off the first highlight.
+     */
+    private fun mergeSameTime(timed: List<LyricLine>): List<LyricLine> {
+        val merged = mutableListOf<LyricLine>()
+        for (line in timed.sortedBy { it.timeMs }) {
+            val previous = merged.lastOrNull()
+            if (previous != null && previous.timeMs == line.timeMs && previous.text.isNotBlank()) {
+                val beneath = listOfNotNull(previous.translation, line.text.takeIf { it.isNotBlank() }, line.translation)
+                merged[merged.lastIndex] = previous.copy(translation = beneath.joinToString("\n").ifEmpty { null })
+            } else {
+                merged += line
+            }
+        }
+        return merged.dropWhile { it.text.isBlank() && it.translation == null }
+    }
+
+    /**
+     * [line] cut wherever a timestamp follows words, so each piece has its timestamps at the front.
+     *
+     * `[00:01]one[00:02]two` is two lines, which is how the phone reads it. Treating every timestamp
+     * on the line as the line's own put "two" at both times and lost "one". Words before the first
+     * timestamp become a piece of their own, without a time.
+     */
+    private fun splitAtInlineStamps(line: String): List<String> {
+        val stamps = TIMESTAMP.findAll(line).toList()
+        if (stamps.isEmpty()) return listOf(line)
+        val cuts = mutableListOf<Int>()
+        var from = 0
+        for (stamp in stamps) {
+            if (line.substring(from, stamp.range.first).isNotBlank()) cuts += stamp.range.first
+            from = stamp.range.last + 1
+        }
+        if (cuts.isEmpty()) return listOf(line)
+        return (listOf(0) + cuts).zip(cuts + line.length) { a, b -> line.substring(a, b).trim() }
+    }
+
+    /**
+     * Background vocals without the parentheses Apple writes them in. They are already set apart by
+     * being drawn beneath the line, and the phone drops the brackets for the same reason.
+     */
+    private fun String.unwrapParentheses(): String =
+        if (length >= 2 && startsWith('(') && endsWith(')')) substring(1, length - 1).trim() else this
 
     /**
      * The word timings inside one enhanced-LRC line body.
@@ -291,15 +413,20 @@ object LrcParser {
      * words are nested spans, timings appear on several namespaces, and background vocals are spans
      * inside spans. This only converts its output into the shape the rest of the app uses.
      *
-     * Background vocal lines are dropped for now. They are a second stream of words overlapping the
-     * main one, and showing them as ordinary lines would interleave two voices into one column of
-     * text that reads as neither.
+     * Background vocals are drawn beneath the line they belong to, without Apple's parentheses, and
+     * so are the translations an Apple document carries in its head. The phone shows both - its own
+     * TTML reader makes each a smaller line of its own - and this dropped them. Beneath rather than
+     * as lines of their own, still: a second stream of words overlapping the main one, interleaved
+     * into one column, reads as neither voice.
      */
     fun parseTtml(ttml: String, source: String): Lyrics {
         val parsed = runCatching { TTMLParser.parseTTML(ttml) }.getOrNull().orEmpty()
+        val translations = TTMLParser.parseTranslations(ttml)
         val lines = parsed
             .filterNot { it.isBackground }
             .map { line ->
+                val beneath = line.backgroundLines.map { it.text.trim().unwrapParentheses() }.filter { it.isNotEmpty() } +
+                    line.key?.let { translations[it] }.orEmpty()
                 LyricLine(
                     timeMs = (line.startTime * 1000).toLong(),
                     text = line.text,
@@ -311,6 +438,7 @@ object LrcParser {
                             trailingSpace = word.hasTrailingSpace,
                         )
                     },
+                    translation = beneath.joinToString("\n").ifEmpty { null },
                 )
             }
             .filter { it.text.isNotBlank() }
@@ -318,14 +446,61 @@ object LrcParser {
         return Lyrics(lines.sortedBy { it.timeMs }, synced = true, source = source)
     }
 
+    private val SRT_TIMING = Regex("""(\d+):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->""")
+    private val SRT_MARKUP = Regex("""<[^>]+>|\{\\[^}]*}""")
+
+    /**
+     * SubRip, which the phone reads beside a song as well as LRC and TTML: numbered cues, each a
+     * `00:01:02,500 --> 00:01:04,000` line and its text.
+     *
+     * A cue's first line is the lyric and any further lines are drawn beneath it, the same as a
+     * translation - which in a bilingual file is exactly what they are. Cues at the same moment fold
+     * together the way LRC lines do. Styling tags are taken out; left in, they would show as text.
+     */
+    fun parseSrt(raw: String, source: String): Lyrics {
+        val lines = raw.replace("\r\n", "\n").replace('\r', '\n').split(Regex("""\n\s*\n""")).mapNotNull { block ->
+            val rows = block.trim().lines()
+            val timingAt = rows.indexOfFirst { SRT_TIMING.containsMatchIn(it) }
+            if (timingAt < 0) return@mapNotNull null
+            val (h, m, sec, ms) = SRT_TIMING.find(rows[timingAt])!!.destructured
+            val text = rows.drop(timingAt + 1).map { SRT_MARKUP.replace(it, "").trim() }.filter { it.isNotEmpty() }
+            LyricLine(
+                timeMs = ((h.toLong() * 60 + m.toLong()) * 60 + sec.toLong()) * 1000 + ms.padEnd(3, '0').toLong(),
+                text = text.firstOrNull().orEmpty(),
+                translation = text.drop(1).joinToString("\n").ifEmpty { null },
+            )
+        }
+        if (lines.isEmpty()) return Lyrics(emptyList(), synced = false, source = source)
+        return Lyrics(mergeSameTime(lines), synced = true, source = source)
+    }
+
+    /**
+     * Whether [raw] is SubRip: the phone's test, that it begins with the first cue's number. Any
+     * stricter and a file saved with a byte-order mark would be missed, so that is allowed for.
+     */
+    fun looksLikeSrt(raw: String): Boolean {
+        val text = raw.removePrefix("﻿")
+        return (text.startsWith("1\n") || text.startsWith("1\r")) && SRT_TIMING.containsMatchIn(text.take(200))
+    }
+
     /**
      * Parses whatever a provider sent, whichever format it is in.
      *
      * Sniffed rather than taken from the source name, because the cache stores raw text and a stored
      * source string is a claim about where it came from rather than about what it is.
+     *
+     * Everything but TTML is tidied first with the cleanup every lyrics source gets (`cleanLyrics`,
+     * shared with the phone): caption speaker marks, `[Music]` and the like. The fetch path already
+     * tidies what it stores, but a row cached before it did and a file beside a song never went
+     * through it, and both are what is on screen - the phone cleans on the way to the screen for the
+     * same reason. Idempotent, so text that is already clean comes out the same. Not TTML, which is
+     * markup: the cleanup works on lines of text, and would eat a tag that starts a line with `>`.
      */
-    fun parseAny(raw: String, source: String): Lyrics =
-        if (TTMLParser.looksLikeTtml(raw)) parseTtml(raw, source) else parse(raw, source)
+    fun parseAny(raw: String, source: String): Lyrics = when {
+        TTMLParser.looksLikeTtml(raw) -> parseTtml(raw, source)
+        looksLikeSrt(raw) -> parseSrt(cleanLyrics(raw), source)
+        else -> parse(cleanLyrics(raw), source)
+    }
 
     /**
      * Which line is being sung at [positionMs], or -1 before the first one.
@@ -399,7 +574,16 @@ class LyricsRepository(private val library: LibraryStore) {
             // than showing a week-old miss for a song whose lyrics have since been added.
             val staleMiss = cached.source == NONE &&
                 (System.currentTimeMillis() - cached.fetchedAt > MISS_TTL_MS || missesRechecked.add(songId))
-            if (!staleMiss) return@withContext LrcParser.parseAny(cached.text, cached.source)
+            if (!staleMiss) {
+                val parsed = LrcParser.parseAny(cached.text, cached.source)
+                // Stored lyrics nothing here can read are looked for again - once a session, as the
+                // phone does, since a provider that keeps sending something unreadable would
+                // otherwise be asked on every play. Until then, and if that finds nothing better,
+                // what is stored is shown as it is.
+                if (cached.source == NONE || !parsed.isEmpty || !unreadableRefetched.add(songId)) {
+                    return@withContext parsed
+                }
+            }
         }
         // Whether any provider failed rather than answered "none" - see the end.
         var failed = false
@@ -410,48 +594,55 @@ class LyricsRepository(private val library: LibraryStore) {
         // because word timings are strictly more than line timings, then LRCLIB, then KuGou, then
         // YouTube's two - and only the ones switched on.
         val enabled = askable(order, this@LyricsRepository.enabled, songId)
+        // Which answer wins is the phone's rule in both modes: the best kind of timing, and the
+        // order only between answers of the same kind - see LyricsRace. The modes differ only in
+        // whether the providers are asked together or one after another.
+        val race = LyricsRace(enabled)
+        val startedAt = System.currentTimeMillis()
         if (inOrder) {
+            // A budget per provider rather than one wall for the lot, as on the phone: a fixed wall
+            // would quietly mean the last entries in the order were never asked at all.
+            val deadline = startedAt + enabled.size * IN_ORDER_BUDGET_MS
             for (source in enabled) {
-                val result = fetchFrom(source, songId, title, artist, durationSeconds)
-                if (result.isFailure) failed = true
-                result.getOrNull()?.let { (text, parsed) ->
-                    ensureActive()
-                    library.cacheLyrics(songId, text, source.id)
-                    return@withContext parsed
+                val remaining = deadline - System.currentTimeMillis()
+                // Out of time with providers still unasked is not their answer that there is nothing.
+                if (remaining <= 0) {
+                    failed = true
+                    break
                 }
+                val result = fetchWithin(minOf(PROVIDER_TIMEOUT_MS, remaining), source, songId, title, artist, durationSeconds)
+                if (result.isFailure) failed = true
+                if (race.offer(source, result.getOrNull())) break
             }
         } else if (enabled.isNotEmpty()) {
-            // Automatic: every provider at once, and the first synced lyrics back win. Plain lyrics
-            // are only taken once nobody has synced ones - then the highest in the order.
-            //
-            // Captions are timed, but they are a transcript - often the speech recogniser's - rather
-            // than a lyric sheet, and they tend to come back quickly. Allowed to win the race like
-            // the rest, they would beat a real line-timed file from a slower provider most of the
-            // time. So they are held instead: used ahead of plain lyrics, as the phone does, but
-            // only once no provider has a real synced file.
+            // Automatic: every provider at once, judged as the answers arrive, until nothing still
+            // out could beat what is held or the whole lookup has had its time.
+            val deadline = startedAt + RACE_TIMEOUT_MS
             val answers = kotlinx.coroutines.channels.Channel<Pair<LyricsSource, Result<Pair<String, Lyrics>?>>>(enabled.size)
-            val jobs = enabled.map { source -> launch { answers.send(source to fetchFrom(source, songId, title, artist, durationSeconds)) } }
-            val plain = HashMap<LyricsSource, Pair<String, Lyrics>>()
-            val heldBack = HashMap<LyricsSource, Pair<String, Lyrics>>()
-            repeat(enabled.size) {
-                val (source, result) = answers.receive()
-                if (result.isFailure) failed = true
-                val found = result.getOrNull() ?: return@repeat
-                if (found.second.synced && !source.transcript) {
-                    jobs.forEach { it.cancel() }
-                    ensureActive()
-                    library.cacheLyrics(songId, found.first, source.id)
-                    return@withContext found.second
+            val jobs = enabled.map { source ->
+                launch { answers.send(source to fetchWithin(PROVIDER_TIMEOUT_MS, source, songId, title, artist, durationSeconds)) }
+            }
+            try {
+                for (asked in enabled.indices) {
+                    val remaining = deadline - System.currentTimeMillis()
+                    val answer = if (remaining > 0) withTimeoutOrNull(remaining) { answers.receive() } else null
+                    // Some never answered in time - which is not an answer that there is nothing.
+                    if (answer == null) {
+                        failed = true
+                        break
+                    }
+                    val (source, result) = answer
+                    if (result.isFailure) failed = true
+                    if (race.offer(source, result.getOrNull())) break
                 }
-                (if (found.second.synced) heldBack else plain)[source] = found
+            } finally {
+                jobs.forEach { it.cancel() }
             }
-            val fallback = enabled.firstNotNullOfOrNull { source -> heldBack[source]?.let { source to it } }
-                ?: enabled.firstNotNullOfOrNull { source -> plain[source]?.let { source to it } }
-            fallback?.let { (source, found) ->
-                ensureActive()
-                library.cacheLyrics(songId, found.first, source.id)
-                return@withContext found.second
-            }
+        }
+        race.best?.let { found ->
+            ensureActive()
+            library.cacheLyrics(songId, found.text, found.source.id)
+            return@withContext found.lyrics
         }
 
         // Recorded as a miss so the next play does not repeat the lookups - but only a real one.
@@ -500,8 +691,9 @@ class LyricsRepository(private val library: LibraryStore) {
 
     /**
      * One provider's lyrics for a song, as the text to keep and the parsed lyrics - null when it has
-     * none, a failure when it could not be asked. A word-timed file that parses to nothing counts as
-     * none: caching it would poison the song until cleared.
+     * none, a failure when it could not be asked. A file that parses to nothing is a failure too
+     * (see [readable]): caching it would poison the song until cleared, and it is no evidence the
+     * song has no lyrics either.
      */
     private suspend fun fetchFrom(
         source: LyricsSource,
@@ -512,26 +704,42 @@ class LyricsRepository(private val library: LibraryStore) {
     ): Result<Pair<String, Lyrics>?> =
         // A local file has no YouTube id to look up - "none", rather than a request that can only fail.
         if (source.byVideoId && LocalMusic.isLocal(songId)) Result.success(null) else when (source) {
+            // TTML is not tidied: it is markup, and the cleanup works on lines of text.
             LyricsSource.BetterLyrics -> BetterLyrics.getLyrics(title, artist, durationSeconds).mapCatching { ttml ->
-                ttml?.takeIf { it.isNotBlank() }?.let { text -> LrcParser.parseTtml(text, BETTERLYRICS).takeIf { !it.isEmpty }?.let { text to it } }
+                ttml?.takeIf { it.isNotBlank() }?.let { readable(it, BETTERLYRICS) }
             }
+            // Every other provider's text gets the cleanup every source gets on the phone, before it
+            // is judged as well as before it is kept: a "lyric sheet" that is nothing but [Music]
+            // over and over is not evidence of lyrics.
             LyricsSource.LrcLib -> LrcLib.getLyrics(title, artist, durationSeconds).mapCatching { text ->
-                text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, LRCLIB) }
+                text?.takeIf { it.isNotBlank() }?.let { readable(cleanLyrics(it), LRCLIB) }
             }
             LyricsSource.KuGou -> KuGou.getLyrics(title, artist, durationSeconds).mapCatching { text ->
-                text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, KUGOU) }
+                text?.takeIf { it.isNotBlank() }?.let { readable(cleanLyrics(it), KUGOU) }
             }
             LyricsSource.YouTubeMusic -> youTubeLyrics(songId).mapCatching { text ->
                 // Never timed: YouTube Music only carries the words, so this parses as plain.
-                text?.takeIf { it.isNotBlank() }?.let { it to LrcParser.parse(it, YOUTUBE) }
+                text?.takeIf { it.isNotBlank() }?.let { readable(cleanLyrics(it), YOUTUBE) }
             }
-            LyricsSource.YouTubeSubtitle -> youTubeCaptions(songId).mapCatching { lrc ->
-                lrc?.takeIf { it.isNotBlank() }
-                    ?.let { it to LrcParser.parse(it, YOUTUBE_SUBTITLE) }
-                    // A track of nothing but cleaned-away annotations is no lyrics at all.
-                    ?.takeIf { (_, parsed) -> parsed.lines.any { it.text.isNotBlank() } }
+            LyricsSource.YouTubeSubtitle -> youTubeCaptions(songId).mapCatching { transcript ->
+                transcript?.let { captionLyrics(it) }
             }
         }
+
+    /**
+     * [fetchFrom], given [timeoutMs] to answer. Running out is a failure rather than "none", so a
+     * provider that was merely slow can never be the reason a song is remembered as having no lyrics.
+     */
+    private suspend fun fetchWithin(
+        timeoutMs: Long,
+        source: LyricsSource,
+        songId: String,
+        title: String,
+        artist: String,
+        durationSeconds: Int,
+    ): Result<Pair<String, Lyrics>?> =
+        withTimeoutOrNull(timeoutMs) { fetchFrom(source, songId, title, artist, durationSeconds) }
+            ?: Result.failure(java.util.concurrent.TimeoutException("${source.label} took longer than ${timeoutMs}ms"))
 
     /**
      * YouTube Music's own lyrics for [videoId], as the phone's YouTubeLyricsProvider gets them: the
@@ -545,13 +753,13 @@ class LyricsRepository(private val library: LibraryStore) {
     }
 
     /**
-     * The video's captions as LRC, tidied the way the phone's YouTubeSubtitleLyricsProvider tidies
-     * them - see cleanCaptionLyrics. `transcript()` signals a video with no caption track through
-     * check(), so an IllegalStateException is "none" rather than a failure.
+     * The video's captions as LRC, as `transcript()` builds it. That signals a video with no caption
+     * track through check(), so an IllegalStateException is "none" rather than a failure. Tidied by
+     * [captionLyrics].
      */
     private suspend fun youTubeCaptions(videoId: String): Result<String?> =
         YouTube.transcript(videoId).fold(
-            onSuccess = { Result.success(cleanCaptionLyrics(it)) },
+            onSuccess = { Result.success(it) },
             onFailure = { if (it is IllegalStateException) Result.success(null) else Result.failure(it) },
         )
 
@@ -570,6 +778,9 @@ class LyricsRepository(private val library: LibraryStore) {
 
     /** Songs whose recorded miss has already been checked again this session - see [lyricsFor]. */
     private val missesRechecked: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** Songs whose unreadable stored lyrics have already been looked for again this session. */
+    private val unreadableRefetched: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     /** Forgets what is stored for a song, so the next request goes back to the providers. */
     fun forget(songId: String) = library.clearLyrics(songId)
@@ -596,6 +807,46 @@ class LyricsRepository(private val library: LibraryStore) {
 
         /** How long a recorded "no lyrics" stands before the providers are asked again. */
         const val MISS_TTL_MS = 7L * 24 * 60 * 60 * 1000
+
+        /** How long one provider has to answer - the phone's figure. */
+        const val PROVIDER_TIMEOUT_MS = 8_000L
+
+        /** The most a lookup asking every provider at once may take - the phone's figure too. */
+        const val RACE_TIMEOUT_MS = 12_000L
+
+        /**
+         * Each provider's share of an in-order lookup: its own timeout and a little over, so the
+         * whole is bounded without the last in the order ever being squeezed out.
+         */
+        const val IN_ORDER_BUDGET_MS = PROVIDER_TIMEOUT_MS + 1_000L
+
+        /**
+         * [text] parsed, as the text to keep and the lyrics; a failure when nothing in it can be
+         * read. The phone counts such a result as neither lyrics nor an absence of them, so it is
+         * neither shown nor remembered as a miss - and a failure is what does both here.
+         */
+        internal fun readable(text: String, source: String): Pair<String, Lyrics> {
+            val parsed = LrcParser.parseAny(text, source)
+            check(!parsed.isEmpty) { "$source sent lyrics nothing here can read" }
+            return text to parsed
+        }
+
+        /**
+         * A caption track, as `transcript()` returns it, made into lyrics the way the phone does:
+         * its YouTubeSubtitleLyricsProvider re-breaks and tidies the track ([cleanCaptionLyrics]),
+         * and then the general cleanup every source gets runs over it ([cleanLyrics]) before it is
+         * judged and stored. The second changes nothing on text the first has already tidied, but
+         * it is what the phone stores, so it is what is stored here.
+         *
+         * Null - "none" - for a track of nothing but annotations, which cleans away to no words at
+         * all. Kept as lyrics it would be a page of empty lines and notes beating a real answer.
+         */
+        internal fun captionLyrics(transcript: String): Pair<String, Lyrics>? {
+            if (transcript.isBlank()) return null
+            val text = cleanLyrics(cleanCaptionLyrics(transcript))
+            val parsed = LrcParser.parseAny(text, YOUTUBE_SUBTITLE)
+            return (text to parsed).takeIf { parsed.lines.any { it.text.isNotBlank() && it.text != "♪" } }
+        }
 
         /**
          * The providers to ask about [songId]: [order] kept, less the ones not [enabled], and less

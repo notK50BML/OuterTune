@@ -232,13 +232,20 @@ object LocalMusic {
     }
 
     /**
-     * Lyrics that came with the file: an .lrc beside it with the same name, or lyrics embedded in
-     * its tags. Null when there are none, and the online providers are asked as for any song.
+     * Lyrics that came with the file: a .ttml, .srt or .lrc beside it with the same name, or lyrics
+     * embedded in its tags. Null when there are none, and the online providers are asked as for any
+     * song.
+     *
+     * The three side files in the phone's order, which is richest first: TTML can carry word timings
+     * and translations, SubRip at least has cue ends, LRC neither as a rule. Only .lrc was read here,
+     * so a folder kept for the phone with .ttml or .srt beside its songs had no lyrics on the desktop.
      */
     fun bundledLyrics(id: String): String? {
         val track = paths[id] ?: return null
-        val lrc = File(track.file.parentFile, track.file.nameWithoutExtension + ".lrc")
-        if (lrc.isFile) return runCatching { lrc.readText() }.getOrNull()
+        for (extension in listOf("ttml", "srt", "lrc")) {
+            val side = File(track.file.parentFile, track.file.nameWithoutExtension + ".$extension")
+            if (side.isFile) runCatching { side.readText() }.getOrNull()?.takeIf { it.isNotBlank() }?.let { return it }
+        }
         return runCatching { AudioFileIO.read(track.file).tag?.getFirst(FieldKey.LYRICS) }
             .getOrNull()?.takeIf { it.isNotBlank() }
     }

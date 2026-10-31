@@ -44,6 +44,9 @@ object TTMLParser {
     private const val TTML_PARAMETER_NS = "http://www.w3.org/ns/ttml#parameter"
     private const val TTML_METADATA_NS = "http://www.w3.org/ns/ttml#metadata"
 
+    /** Apple's internal namespace, which names each line (`itunes:key`) for its translations to point at. */
+    private const val ITUNES_INTERNAL_NS = "http://music.apple.com/lyric-ttml-internal"
+
     /** Characters the LRC syntax gives meaning to, and so cannot appear inside an emitted word. */
     private const val LRC_RESERVED = "<>[]\n\r"
 
@@ -54,6 +57,8 @@ object TTMLParser {
         val agent: String? = null,
         val isBackground: Boolean = false,
         val backgroundLines: List<ParsedLine> = emptyList(),
+        /** The line's `itunes:key`, which [parseTranslations] keys its translations by. */
+        val key: String? = null,
     )
 
     data class ParsedWord(
@@ -82,24 +87,7 @@ object TTMLParser {
     fun parseTTML(ttml: String): List<ParsedLine> {
         val lines = mutableListOf<ParsedLine>()
         try {
-            val factory = DocumentBuilderFactory.newInstance()
-            factory.isNamespaceAware = true
-
-            // Harden against XXE. Android's parser does not support every feature below, and
-            // setFeature throws for the ones it lacks, so each is attempted independently.
-            runCatching {
-                factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
-            }
-            runCatching {
-                factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
-            }
-            runCatching {
-                factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
-            }
-            runCatching { factory.setXIncludeAware(false) }
-            runCatching { factory.isExpandEntityReferences = false }
-
-            val doc = factory.newDocumentBuilder().parse(ttml.byteInputStream())
+            val doc = parseDocument(ttml)
             val root = doc.documentElement ?: return emptyList()
 
             // Apple exports can carry a global offset on head/metadata/audio@lyricOffset.
@@ -116,6 +104,64 @@ object TTMLParser {
             return emptyList()
         }
         return lines
+    }
+
+    /**
+     * The translations an Apple document carries in its head, by the `itunes:key` of the line each
+     * belongs to - `<iTunesMetadata><translations><translation><text for="L1">`.
+     *
+     * Read apart from [parseTTML] because they are not lines of their own: they say what an existing
+     * line means, and belong under it. The phone's strict TTML reader shows them that way, so the
+     * desktop, which reads TTML through this parser instead, needs them handed over separately.
+     *
+     * Only `type="subtitle"` translations, which is the one kind that strict reader accepts. Several
+     * languages give several entries per line, in document order. Empty when there are none or the
+     * document cannot be read - never an exception, since a missing translation is not a reason to
+     * lose the lyrics.
+     */
+    fun parseTranslations(ttml: String): Map<String, List<String>> = try {
+        val root = parseDocument(ttml).documentElement
+        val out = LinkedHashMap<String, MutableList<String>>()
+        if (root != null) {
+            val translations = root.getElementsByTagNameNS("*", "translation")
+            for (i in 0 until translations.length) {
+                val translation = translations.item(i) as? Element ?: continue
+                if (translation.getAttribute("type") != "subtitle") continue
+                var child = translation.firstChild
+                while (child != null) {
+                    if (child is Element && localNameOf(child) == "text") {
+                        val key = child.getAttribute("for")
+                        val text = child.textContent?.trim().orEmpty()
+                        if (key.isNotEmpty() && text.isNotEmpty()) out.getOrPut(key) { mutableListOf() } += text
+                    }
+                    child = child.nextSibling
+                }
+            }
+        }
+        out
+    } catch (e: Exception) {
+        emptyMap()
+    }
+
+    private fun parseDocument(ttml: String): org.w3c.dom.Document {
+        val factory = DocumentBuilderFactory.newInstance()
+        factory.isNamespaceAware = true
+
+        // Harden against XXE. Android's parser does not support every feature below, and
+        // setFeature throws for the ones it lacks, so each is attempted independently.
+        runCatching {
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
+        }
+        runCatching {
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false)
+        }
+        runCatching {
+            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
+        }
+        runCatching { factory.setXIncludeAware(false) }
+        runCatching { factory.isExpandEntityReferences = false }
+
+        return factory.newDocumentBuilder().parse(ttml.byteInputStream())
     }
 
     /**
@@ -204,6 +250,10 @@ object TTMLParser {
         if (direct.isNotEmpty()) return direct
         return el.getAttributeNS(TTML_METADATA_NS, localName)
     }
+
+    /** `itunes:key`, under whichever prefix the document bound Apple's internal namespace to. */
+    private fun lineKey(p: Element): String? =
+        p.getAttributeNS(ITUNES_INTERNAL_NS, "key").ifEmpty { p.getAttribute("itunes:key") }.ifEmpty { null }
 
     private fun timingAttr(el: Element, localName: String): String {
         val direct = el.getAttribute(localName)
@@ -304,7 +354,7 @@ object TTMLParser {
             } else {
                 emptyList()
             }
-            lines += ParsedLine(lineText, startTime, words, agent, isPBackground, bgLines)
+            lines += ParsedLine(lineText, startTime, words, agent, isPBackground, bgLines, lineKey(p))
         } else if (backgroundLines.isNotEmpty()) {
             lines += ParsedLine(
                 text = backgroundLines.joinToString(" ") { it.text },

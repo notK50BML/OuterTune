@@ -56,4 +56,17 @@ class EstimatedWordSyncTest {
         ).withEstimatedWords()
         assertTrue("swept across the break", out.lines[2].words.last().endMs < 8_000L)
     }
+
+    @Test
+    fun `a line before a break longer than any line is still swept, from the song's pace`() {
+        // Thirty seconds and more is a break rather than a line. The phone times such a line from
+        // the pace; this used to leave it with no sweep at all.
+        val out = lyrics(
+            0L to "one two three four", 2_000L to "five six seven eight",
+            4_000L to "nine ten", 60_000L to "after the break",
+        ).withEstimatedWords()
+        val words = out.lines[2].words
+        assertEquals(listOf("nine", "ten"), words.map { it.text })
+        assertTrue("swept across the break", words.last().endMs < 8_000L)
+    }
 }

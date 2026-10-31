@@ -56,8 +56,11 @@ private fun estimateWords(line: LyricLine, end: Long?, paceMs: Double): List<Lyr
     if (sungWeight <= 0.0) return null
 
     val available = when {
-        end == null -> sungWeight * paceMs * PACE_SLACK
-        end <= start || end - start > MAX_PLAUSIBLE_LINE_MS -> return null
+        end != null && end <= start -> return null
+        // No next line, or one so far off that the gap is mostly instrumental: neither says how long
+        // the singing takes, so the line is timed from the song's pace alone, as on the phone. This
+        // used to give up on the second, so a line before a long break was the one left unswept.
+        end == null || end - start > MAX_PLAUSIBLE_LINE_MS -> MAX_PLAUSIBLE_LINE_MS.toDouble()
         else -> (end - start).toDouble()
     }
     val estimatedSung = (sungWeight * paceMs * PACE_SLACK).coerceAtMost(available)
