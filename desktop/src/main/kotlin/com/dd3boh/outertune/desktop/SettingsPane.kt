@@ -611,6 +611,8 @@ private fun SystemSettings(settings: Settings) {
             checked = !onProcessor,
             onCheckedChange = {
                 RenderMode.choose(!it)
+                // And in the settings, so a backup carries it - see RenderMode.
+                settings.renderOnProcessor = !it
                 onProcessor = !it
             },
             icon = OuterTuneIcons.tune,

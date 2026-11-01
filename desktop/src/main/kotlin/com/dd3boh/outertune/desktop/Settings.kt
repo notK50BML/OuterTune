@@ -218,6 +218,12 @@ class Settings(private val store: SettingsStore) {
     /** Battery saver: a still player and no visualisers - see Main. */
     var batterySaver by bool("window.batterySaver", false)
 
+    /**
+     * The library's copy of "Hardware acceleration" off - the switch itself is a file, read before
+     * the library opens (see RenderMode). Kept here only so a backup carries it.
+     */
+    var renderOnProcessor by bool(RenderMode.SETTING_KEY, false)
+
     /** The floating window's place and size, "x,y,width,height" - see WindowMemory. */
     var windowBounds by string("window.bounds", "")
 

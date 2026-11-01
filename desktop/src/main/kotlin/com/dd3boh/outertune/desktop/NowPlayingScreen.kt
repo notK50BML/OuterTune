@@ -661,6 +661,7 @@ fun NowPlayingScreen(
                                         blockWidth = w,
                                         room = titleRoom(block, layout.blocks, areaW, areaH, scale),
                                         centred = block.centred,
+                                        onClick = actions.onViewAlbum,
                                     )
                                     ArtistNames(
                                         artists = song?.artists.orEmpty().map { artist ->
@@ -829,6 +830,7 @@ fun NowPlayingScreen(
                                 blockWidth = maxWidth,
                                 room = maxWidth,
                                 centred = false,
+                                onClick = actions.onViewAlbum,
                             )
                         }
                         ArtistNames(
@@ -2291,9 +2293,12 @@ internal val PlaybackState.showsPlay: Boolean
  * with half the row empty beside it. [blockWidth] is what the block is laid out at, so its place on
  * screen does not move; the title is drawn wider than that, into [room], growing rightwards from a
  * left-aligned block's edge and evenly both ways from a centred one's middle.
+ *
+ * Clicking it opens the song's album, single or EP - [onClick], the player's View album - as the
+ * artist names under it open their artists.
  */
 @Composable
-private fun PlayerTitle(title: String, colour: Color, scale: Float, blockWidth: Dp, room: Dp, centred: Boolean) {
+private fun PlayerTitle(title: String, colour: Color, scale: Float, blockWidth: Dp, room: Dp, centred: Boolean, onClick: (() -> Unit)? = null) {
     val style = MaterialTheme.typography.headlineMedium.copy(
         fontSize = MaterialTheme.typography.headlineMedium.fontSize * scale,
         lineHeight = MaterialTheme.typography.headlineMedium.lineHeight * scale,
@@ -2313,6 +2318,14 @@ private fun PlayerTitle(title: String, colour: Color, scale: Float, blockWidth: 
                     // Left-aligned: from the block's left edge. Centred: about the block's middle.
                     placeable.place(if (centred) (own - placeable.width) / 2 else 0, 0)
                 }
+            }
+            .let {
+                if (onClick == null) it
+                else it.pointerHoverIcon(PointerIcon.Hand).clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick,
+                )
             }
             .basicMarquee(initialDelayMillis = 3000, repeatDelayMillis = 3000),
     )

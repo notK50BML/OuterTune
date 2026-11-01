@@ -57,7 +57,20 @@ class SongActions(
     val showDetails: ((SongItem) -> Unit)? = null,
     /** Downloading now, or waiting its turn - shown as a spinner wherever the download control is. */
     val isDownloading: (String) -> Boolean = { false },
-)
+    /**
+     * The song's album, single or EP - its own album id when it carries one, otherwise looked up on
+     * the way (see AlbumLookup). Null falls back to [openAlbum] with the id the song carries.
+     */
+    val openSongAlbum: ((SongItem) -> Unit)? = null,
+) {
+    /** Whether "Go to album" can do anything for [song]: it carries an album, or one can be looked up. */
+    fun canOpenAlbum(song: SongItem): Boolean =
+        song.album?.id != null || (openSongAlbum != null && !LocalMusic.isLocal(song.id))
+
+    fun goToAlbum(song: SongItem) {
+        openSongAlbum?.invoke(song) ?: song.album?.id?.let(openAlbum)
+    }
+}
 
 val LocalSongActions = compositionLocalOf<SongActions?> { null }
 
@@ -128,8 +141,8 @@ private fun SongMenuItems(song: SongItem, actions: SongActions, close: () -> Uni
     entry("Go to artist", OuterTuneIcons.artist, enabled = artist != null) {
         artist?.let { actions.openArtist(it.id?.let { id -> StoredArtist(id, it.name) } ?: StoredArtist.unlinked(it.name)) }
     }
-    entry("Go to album", OuterTuneIcons.albumRounded, enabled = song.album?.id != null) {
-        song.album?.id?.let(actions.openAlbum)
+    entry("Go to album", OuterTuneIcons.albumRounded, enabled = actions.canOpenAlbum(song)) {
+        actions.goToAlbum(song)
     }
     entry("Copy link", OuterTuneIcons.share) { actions.copyLink(song) }
     actions.showDetails?.let { show -> entry("Details", OuterTuneIcons.info) { show(song) } }

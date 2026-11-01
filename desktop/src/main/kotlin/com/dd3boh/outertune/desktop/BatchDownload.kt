@@ -69,9 +69,14 @@ fun DownloadAllButton(
     }
 }
 
-/** The strip above the player bar while a playlist downloads, and briefly after. */
+/**
+ * The strip above the player bar while a playlist downloads, and briefly after.
+ *
+ * @param slots how many songs may download at once now - below [MAX_PARALLEL_DOWNLOADS] it says so,
+ *   so a download going slower than the last one reads as YouTube throttling, not the app stalling.
+ */
 @Composable
-fun BatchDownloadBar(batch: BatchDownload, onCancel: () -> Unit, onDismiss: () -> Unit) {
+fun BatchDownloadBar(batch: BatchDownload, onCancel: () -> Unit, onDismiss: () -> Unit, slots: Int = MAX_PARALLEL_DOWNLOADS) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier
@@ -91,7 +96,10 @@ fun BatchDownloadBar(batch: BatchDownload, onCancel: () -> Unit, onDismiss: () -
                 "Downloaded ${batch.title}" + if (batch.failed > 0) " · ${batch.failed} could not be fetched" else ""
             } else {
                 "Downloading ${batch.title} · ${batch.done} of ${batch.total}" +
-                    if (batch.failed > 0) " · ${batch.failed} failed" else ""
+                    (if (batch.failed > 0) " · ${batch.failed} failed" else "") +
+                    if (slots < MAX_PARALLEL_DOWNLOADS) {
+                        " · slowed by YouTube, ${if (slots == 1) "1 song" else "$slots songs"} at a time"
+                    } else ""
             },
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSecondaryContainer,

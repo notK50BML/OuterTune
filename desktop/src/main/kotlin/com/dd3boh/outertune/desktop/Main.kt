@@ -168,6 +168,8 @@ private fun runApplication() = application {
     // The modern Windows picker compiles once, in the background, long before anyone clicks.
     remember { FilePicker.warmUp() }
     val settings = remember(library) { Settings(library.settings) }
+    // The one setting kept outside the library too, brought back in line with a restored one.
+    remember(library) { RenderMode.restoreFrom(library.settings) }
     // Before anything can be played, so a stored curve is in effect from the first note rather
     // than from whenever the equaliser drawer is first opened.
     remember(settings) {
@@ -580,6 +582,17 @@ internal fun App(
     LaunchedEffect(openAlbumId) {
         val id = openAlbumId ?: return@LaunchedEffect
         album = AlbumState.Loading
+        // A song whose album id is not known yet: found first, the page spinning meanwhile, then
+        // swapped for the real id - which runs this again to load it. See AlbumLookup.
+        if (id.startsWith(ALBUM_OF_SONG)) {
+            val real = AlbumLookup.albumIdFor(id.removePrefix(ALBUM_OF_SONG))
+            if (real == null) {
+                album = AlbumState.Failed("Couldn't find this song's album on YouTube Music.")
+            } else if (openAlbumId == id) {
+                openAlbumId = real
+            }
+            return@LaunchedEffect
+        }
         album = loadAlbum(id)
     }
 
@@ -611,6 +624,8 @@ internal fun App(
         openArtist = null
         showFullPlayer = false
     }
+    // "Go to album" for any song: its album id when it carries one, otherwise looked up on the way.
+    val openSongAlbum: (SongItem) -> Unit = { song -> openAlbumPage(song.album?.id ?: (ALBUM_OF_SONG + song.id)) }
     // An artist or album opened from a playlist page is drawn over it, and Back returns to the
     // playlist - so a playlist opened while one of those is showing has to clear it, or it would open
     // underneath.
@@ -685,11 +700,21 @@ internal fun App(
     // Filled in off the main thread rather than read during composition: ids() is a database query
     // plus a file check per row, and composition is not the place for either.
     var downloadedIds by remember(library) { mutableStateOf(emptySet<String>()) }
+    // Songs downloading from any row, menu, the player or a playlist download - every one running or
+    // waiting shows a spinner. Up to three at once, fewer while YouTube throttles - see
+    // DownloadLimiter, which single songs and playlist downloads share, so together they stay within it.
+    var downloadingIds by remember { mutableStateOf(emptySet<String>()) }
+    val downloadLimiter = remember { DownloadLimiter() }
+    val downloadSlots by downloadLimiter.limit.collectAsState()
+
     /**
-     * Downloads [songs] one after another, skipping any already saved, and puts each in the
-     * library first so it shows under Downloaded. One list at a time; cancelling stops after the
-     * song in flight. Sequential on purpose: several whole songs at once would each be slower, and
-     * the one being listened to would be competing with all of them.
+     * Downloads [songs], skipping any already saved, and puts each in the library first so it shows
+     * under Downloaded. One list at a time; cancelling stops the songs in flight.
+     *
+     * Three workers take songs off the list in order, each running only while the limiter has a
+     * slot for it - so it is three at a time normally and drops toward one while YouTube throttles,
+     * without reordering anything. It was one song after another: most of each song's time is the
+     * stream lookup, not the transfer, and nothing overlapped it.
      */
     val downloadAll: (String, List<SongItem>) -> Unit = downloadAll@{ title, songs ->
         if (batch?.finished == false) return@downloadAll
@@ -708,14 +733,30 @@ internal fun App(
         batchJob = scope.launch {
             var done = 0
             var failed = 0
-            for (song in todo) {
-                withContext(Dispatchers.IO) {
-                    library.database.upsertSong(song.toStored(), (song.duration ?: 0) * 1000L, song.album?.name.orEmpty())
+            // Handed out in list order. Workers and counters all run on this (the UI) dispatcher,
+            // between suspensions, so the counts need no locking.
+            val queue = todo.iterator()
+            kotlinx.coroutines.coroutineScope {
+                repeat(MAX_PARALLEL_DOWNLOADS) {
+                    launch {
+                        while (queue.hasNext()) {
+                            val song = queue.next()
+                            withContext(Dispatchers.IO) {
+                                library.database.upsertSong(song.toStored(), (song.duration ?: 0) * 1000L, song.album?.name.orEmpty())
+                            }
+                            downloadingIds = downloadingIds + song.id
+                            val result = try {
+                                downloadLimiter.run { player.download(song.id) }
+                                    .also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
+                            } finally {
+                                downloadingIds = downloadingIds - song.id
+                            }
+                            if (result.isSuccess) done++ else failed++
+                            batch = BatchDownload(title, todo.size, done + failed, failed)
+                            downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
+                        }
+                    }
                 }
-                val result = player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
-                if (result.isSuccess) done++ else failed++
-                batch = BatchDownload(title, todo.size, done + failed, failed)
-                downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
             }
             batch = BatchDownload(title, todo.size, done + failed, failed, finished = true)
         }
@@ -724,11 +765,6 @@ internal fun App(
     LaunchedEffect(library) {
         downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
     }
-    // Songs downloading one at a time, from any row, menu or the player - every one waiting shows a
-    // spinner. It used to be one id: a second download asked for meanwhile was silently dropped,
-    // and only the player's own button ever showed that anything was happening.
-    var downloadingIds by remember { mutableStateOf(emptySet<String>()) }
-    val downloadOneAtATime = remember { kotlinx.coroutines.sync.Mutex() }
     val toggleSongDownload: (SongItem) -> Unit = { song ->
         when {
             song.id in downloadedIds -> {
@@ -740,9 +776,8 @@ internal fun App(
                 downloadingIds = downloadingIds + song.id
                 scope.launch {
                     try {
-                        downloadOneAtATime.withLock {
-                            player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
-                        }
+                        downloadLimiter.run { player.download(song.id) }
+                            .also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
                         downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
                     } finally {
                         downloadingIds = downloadingIds - song.id
@@ -1321,6 +1356,7 @@ internal fun App(
         toggleDownload = toggleSongDownload,
         isDownloaded = { it in downloadedIds },
         isDownloading = { it in downloadingIds },
+        openSongAlbum = openSongAlbum,
         openArtist = openArtistPage,
         openAlbum = openAlbumPage,
         copyLink = { copyToClipboard(watchUrl(it.id)) },
@@ -1520,7 +1556,9 @@ internal fun App(
                 onDownload = queue.current?.takeUnless { currentIsLocal }?.let { song -> { toggleSongDownload(song) } },
                 // Only when the song actually carries one. A menu entry that opens an empty page is
                 // worse than one that is not there.
-                onViewAlbum = queue.current?.album?.id?.let { id -> { openAlbumPage(id) } },
+                // A song from the library carries no album id, so it is looked up - see AlbumLookup.
+                // Only a file on this computer has no album page to open.
+                onViewAlbum = queue.current?.takeUnless { currentIsLocal }?.let { song -> { openSongAlbum(song) } },
                 onShare = queue.current?.takeUnless { currentIsLocal }?.let { song -> { copyToClipboard(watchUrl(song.id)) } },
                 onDetails = queue.current?.let { song -> { detailsFor = song } },
             ),
@@ -2005,6 +2043,7 @@ internal fun App(
         batch?.let { current ->
             BatchDownloadBar(
                 batch = current,
+                slots = downloadSlots,
                 onCancel = {
                     batchJob?.cancel()
                     batch = current.copy(finished = true)

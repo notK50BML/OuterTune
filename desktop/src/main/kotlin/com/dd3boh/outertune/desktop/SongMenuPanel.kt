@@ -385,8 +385,8 @@ fun SongMenuPanel(
             MenuTile("Go to artist", OuterTuneIcons.artist, enabled = artists.isNotEmpty(), keepOpen = artists.size > 1) {
                 if (artists.size > 1) pickingArtist = true else artists.firstOrNull()?.let(actions.openArtist)
             },
-            MenuTile("Go to album", OuterTuneIcons.albumRounded, enabled = song.album?.id != null) {
-                song.album?.id?.let(actions.openAlbum)
+            MenuTile("Go to album", OuterTuneIcons.albumRounded, enabled = actions.canOpenAlbum(song)) {
+                actions.goToAlbum(song)
             },
             details,
         ),

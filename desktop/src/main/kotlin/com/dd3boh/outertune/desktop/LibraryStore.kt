@@ -135,6 +135,15 @@ class LibraryStore(
         Thread(r, "settings-writer").apply { isDaemon = true }
     }
 
+    /**
+     * Waits for every setting change made so far to be written. A backup taken a moment after a
+     * change would otherwise copy the database before the change reached it - the writer is a queue,
+     * so a no-op through it returns once everything ahead of it is saved.
+     */
+    fun flushSettings() {
+        runCatching { settingsWriter.submit {}.get(5, java.util.concurrent.TimeUnit.SECONDS) }
+    }
+
     /** What has already been looked up for a song, or null if nothing has. */
     fun cachedLyrics(songId: String): CachedLyrics? = db.lyrics(songId)
 

@@ -68,6 +68,34 @@ suspend fun loadAlbum(browseId: String): AlbumState = withContext(Dispatchers.IO
 }
 
 /**
+ * Album page ids that stand for "this song's album, not yet looked up" - see [AlbumLookup]. Opened as
+ * any album is, so the page shows its spinner while the id is found.
+ */
+const val ALBUM_OF_SONG = "song:"
+
+/**
+ * A song's album, from the song alone.
+ *
+ * The library keeps an album's name but not its YouTube id, so every song coming back out of it -
+ * Library, playlists, Liked, Downloaded, Stats, and any queue made from them - had no album id, and
+ * "Go to album" was greyed out on all of them: only a song straight from search or a YouTube page
+ * could reach its album. YouTube's watch-next answer for a song carries its album, so it is asked
+ * when needed; remembered for the session, since a song does not change albums.
+ */
+object AlbumLookup {
+    private val known = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    suspend fun albumIdFor(songId: String): String? {
+        known[songId]?.let { return it }
+        val found = withContext(Dispatchers.IO) {
+            YouTube.next(com.zionhuang.innertube.models.WatchEndpoint(videoId = songId)).getOrNull()
+                ?.items?.firstOrNull { it.id == songId }?.album?.id
+        }
+        return found?.also { known[songId] = it }
+    }
+}
+
+/**
  * One album: its cover and details, then its tracks.
  *
  * The header is wide rather than stacked, which is the shape a desktop window wants - a phone puts

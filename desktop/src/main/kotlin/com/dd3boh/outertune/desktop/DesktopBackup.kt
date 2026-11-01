@@ -37,6 +37,8 @@ object DesktopBackup {
         val zip = File(folder, "OuterTune_desktop_$stamp.backup")
         val copy = File.createTempFile("outertune-export", ".db")
         try {
+            // Every setting, the newest included: one changed a moment ago may still be queued.
+            library.flushSettings()
             library.database.exportTo(copy)
             ZipOutputStream(zip.outputStream().buffered()).use { out ->
                 out.putNextEntry(ZipEntry(ENTRY))
