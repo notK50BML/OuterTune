@@ -98,6 +98,21 @@ import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.dialog.InfoLabel
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
+import android.widget.Toast
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.dd3boh.outertune.LocalDatabase
+import com.dd3boh.outertune.LocalPlayerConnection
+import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.viewmodels.LyricsMenuViewModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyListState
 
@@ -197,6 +212,70 @@ fun ColumnScope.LyricParserFrag() {
         checked = lyricTrim,
         onCheckedChange = onLyricTrimChange
     )
+}
+
+/**
+ * Refetch all lyrics: every song's lyrics asked for again under the providers as they are set now.
+ *
+ * Lyrics already found are kept through a change of provider order on purpose (see
+ * shouldFetchLyrics), so after reordering, this is how the new order gets its say. Only what a
+ * provider fetched goes - lyrics written by hand, picked from a search or read from a file stay.
+ * The playing song is fetched again straight away; every other song the next time it plays.
+ */
+@Composable
+private fun RefetchAllLyricsEntry() {
+    val context = LocalContext.current
+    val database = LocalDatabase.current
+    val playerConnection = LocalPlayerConnection.current
+    val lyricsMenu: LyricsMenuViewModel = hiltViewModel()
+    val scope = rememberCoroutineScope()
+    var confirmCount by remember { mutableStateOf<Int?>(null) }
+    var working by remember { mutableStateOf(false) }
+
+    PreferenceEntry(
+        title = { Text(stringResource(R.string.lyrics_refetch_all_title)) },
+        description = stringResource(R.string.lyrics_refetch_all_description),
+        icon = {
+            if (working) CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(24.dp))
+            else Icon(Icons.Rounded.Refresh, null)
+        },
+        isEnabled = !working,
+        onClick = {
+            scope.launch {
+                confirmCount = withContext(Dispatchers.IO) { database.fetchedLyricsCount() }
+            }
+        },
+    )
+
+    confirmCount?.let { count ->
+        DefaultDialog(
+            onDismiss = { confirmCount = null },
+            title = { Text(stringResource(R.string.lyrics_refetch_all_title)) },
+            buttons = {
+                TextButton(onClick = { confirmCount = null }) { Text(stringResource(android.R.string.cancel)) }
+                TextButton(
+                    enabled = count > 0,
+                    onClick = {
+                        confirmCount = null
+                        working = true
+                        scope.launch {
+                            withContext(Dispatchers.IO) { database.deleteFetchedLyrics() }
+                            val current = playerConnection?.mediaMetadata?.value
+                            if (current != null) {
+                                // Stored, the player picks it up by itself - it watches the song's row.
+                                lyricsMenu.refetchLyrics(current, onFinished = { working = false }) {}
+                            } else {
+                                working = false
+                            }
+                            Toast.makeText(context, R.string.lyrics_refetch_all_done, Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                ) { Text(stringResource(R.string.lyrics_refetch_all_confirm)) }
+            },
+        ) {
+            Text(pluralStringResource(R.plurals.lyrics_refetch_all_message, count, count))
+        }
+    }
 }
 
 @Composable
@@ -309,6 +388,7 @@ fun ColumnScope.LyricSourceFrag() {
         }
     )
     InfoLabel(text = stringResource(R.string.lyrics_refresh_info))
+    RefetchAllLyricsEntry()
     // prioritize local lyric files over all cloud providers
     SwitchPreference(
         title = { Text(stringResource(R.string.lyrics_prefer_local)) },

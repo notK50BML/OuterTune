@@ -196,6 +196,14 @@ We recycle translations from upstream, they are pulled periodically. -->
         <item quantity="one">Add to %d playlist</item>
         <item quantity="other">Add to %d playlists</item>
     </plurals>
+    <string name="lyrics_refetch_all_title">Refetch all lyrics</string>
+    <string name="lyrics_refetch_all_description">Fetch every song\'s lyrics again with the providers as they are set now - use it after changing the provider order. Lyrics you edited or picked yourself are kept.</string>
+    <string name="lyrics_refetch_all_confirm">Refetch</string>
+    <string name="lyrics_refetch_all_done">Lyrics will be fetched again as each song plays</string>
+    <plurals name="lyrics_refetch_all_message">
+        <item quantity="one">%d song\'s lyrics will be fetched again: the song playing now straight away, the rest the next time they play.</item>
+        <item quantity="other">%d songs\' lyrics will be fetched again: the song playing now straight away, the rest the next time they play.</item>
+    </plurals>
     <string name="resync_playlist_after_add">Resync playlists after adding songs</string>
     <string name="resync_playlist_after_add_desc">Once songs have been added to a synced playlist, fetch it back from YouTube Music so it shows exactly what your account holds</string>
 

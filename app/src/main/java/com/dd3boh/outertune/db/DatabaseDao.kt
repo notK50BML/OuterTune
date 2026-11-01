@@ -587,6 +587,17 @@ AND NOT EXISTS (
     @Query("DELETE FROM lyrics WHERE lyrics.id NOT IN (SELECT song.id FROM song)")
     fun nukeDanglingLyrics()
 
+    /**
+     * Lyrics a provider fetched - the rows with [LyricsEntity.lastCheckedAt] set - for Refetch all
+     * lyrics. Lyrics written by hand, picked from a search or read from a file never carry it, so
+     * they are left exactly as they are.
+     */
+    @Query("SELECT COUNT(*) FROM lyrics WHERE lastCheckedAt IS NOT NULL")
+    fun fetchedLyricsCount(): Int
+
+    @Query("DELETE FROM lyrics WHERE lastCheckedAt IS NOT NULL")
+    fun deleteFetchedLyrics(): Int
+
     @Transaction
     @Query("DELETE FROM playlist WHERE isLocal = 0")
     fun nukeRemotePlaylists()
