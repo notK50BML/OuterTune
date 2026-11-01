@@ -59,6 +59,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.DEFAULT_SHOW_LYRICS_ON_CLICK
+import com.dd3boh.outertune.constants.ShowLyricsOnClickKey
 import com.dd3boh.outertune.constants.EnableBetterLyricsKey
 import com.dd3boh.outertune.constants.EnableKugouKey
 import com.dd3boh.outertune.constants.EnableQqMusicKey
@@ -425,89 +427,107 @@ fun ColumnScope.LyricSourceFrag() {
     }
 }
 
+/**
+ * The rest of how lyrics show, after [LyricFormatFrag]: the type tag, tapping a line, and tapping
+ * the cover to open them. The last came over from Player and audio, since it is a lyrics question.
+ */
 @Composable
-fun ColumnScope.LyricAdvancedFrag() {
-    val (lyricUpdateSpeed, onLyricsUpdateSpeedChange) = rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+fun ColumnScope.LyricDisplayExtrasFrag() {
+    val (showLyricsType, onShowLyricsTypeChange) = rememberPreference(LyricShowTypeKey, true)
+    val (syncedLyricsClickable, onSyncedLyricsClickable) = rememberPreference(LyricClickable, defaultValue = true)
+    val (showLyricsOnClick, onShowLyricsOnClickChange) = rememberPreference(
+        ShowLyricsOnClickKey,
+        defaultValue = DEFAULT_SHOW_LYRICS_ON_CLICK
+    )
+
+    SwitchPreference(
+        title = { Text(stringResource(R.string.tap_artwork_to_show_lyrics_title)) },
+        description = stringResource(R.string.tap_artwork_to_show_lyrics_description),
+        icon = { Icon(Icons.Rounded.Lyrics, null) },
+        checked = showLyricsOnClick,
+        onCheckedChange = onShowLyricsOnClickChange
+    )
+    // clickable lyrics
+    SwitchPreference(
+        title = { Text(stringResource(R.string.lyrics_synced_clickable)) },
+        icon = { Icon(Icons.Rounded.TouchApp, null) },
+        checked = syncedLyricsClickable,
+        onCheckedChange = onSyncedLyricsClickable
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.lyrics_show_type_title)) },
+        description = stringResource(R.string.lyrics_show_type_description),
+        icon = { Icon(Icons.Rounded.Info, null) },
+        checked = showLyricsType,
+        onCheckedChange = onShowLyricsTypeChange,
+    )
+}
+
+/**
+ * Word-by-word lyrics: whether they sweep at all, whether line-synced lyrics get estimated words,
+ * and how a word lights up. A group of its own, matching the desktop's "Word by word".
+ */
+@Composable
+fun ColumnScope.LyricWordByWordFrag() {
     val (lyricsFancy, onLyricsFancyChange) = rememberPreference(LyricKaraokeEnable, false)
     val (estimatedWordSync, onEstimatedWordSyncChange) = rememberPreference(LyricEstimatedWordSync, false)
     val (highlightStyle, onHighlightStyleChange) = rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
-    val (showLyricsType, onShowLyricsTypeChange) = rememberPreference(LyricShowTypeKey, true)
-    val (syncedLyricsClickable, onSyncedLyricsClickable) = rememberPreference(LyricClickable, defaultValue = true)
 
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        // clickable lyrics
-        SwitchPreference(
-            title = { Text(stringResource(R.string.lyrics_synced_clickable)) },
-            icon = { Icon(Icons.Rounded.TouchApp, null) },
-            checked = syncedLyricsClickable,
-            onCheckedChange = onSyncedLyricsClickable
-        )
-    }
-    Spacer(modifier = Modifier.height(16.dp))
+    SwitchPreference(
+        title = { Text(stringResource(R.string.lyrics_karaoke_title)) },
+        description = stringResource(R.string.lyrics_karaoke_description),
+        icon = { Icon(Icons.Rounded.TextRotationAngledown, null) },
+        checked = lyricsFancy,
+        onCheckedChange = onLyricsFancyChange
+    )
 
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        SwitchPreference(
-            title = { Text(stringResource(R.string.lyrics_karaoke_title)) },
-            description = stringResource(R.string.lyrics_karaoke_description),
-            icon = { Icon(Icons.Rounded.TextRotationAngledown, null) },
-            checked = lyricsFancy,
-            onCheckedChange = onLyricsFancyChange
-        )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.lyrics_estimated_word_sync_title)) },
+        description = stringResource(R.string.lyrics_estimated_word_sync_description),
+        icon = { Icon(Icons.Rounded.Timeline, null) },
+        checked = estimatedWordSync,
+        onCheckedChange = onEstimatedWordSyncChange,
+        // Only supplies the timings the karaoke sweep consumes, so it does nothing on its own.
+        isEnabled = lyricsFancy
+    )
 
-        SwitchPreference(
-            title = { Text(stringResource(R.string.lyrics_estimated_word_sync_title)) },
-            description = stringResource(R.string.lyrics_estimated_word_sync_description),
-            icon = { Icon(Icons.Rounded.Timeline, null) },
-            checked = estimatedWordSync,
-            onCheckedChange = onEstimatedWordSyncChange,
-            // Only supplies the timings the karaoke sweep consumes, so it does nothing on its own.
-            isEnabled = lyricsFancy
-        )
+    EnumListPreference(
+        title = { Text(stringResource(R.string.lyrics_highlight_title)) },
+        icon = { Icon(Icons.Rounded.TextRotationAngledown, null) },
+        selectedValue = highlightStyle,
+        onValueSelected = onHighlightStyleChange,
+        values = LyricHighlightStyle.entries,
+        valueText = {
+            when (it) {
+                LyricHighlightStyle.SWEEP -> stringResource(R.string.lyrics_highlight_sweep)
+                LyricHighlightStyle.FADE -> stringResource(R.string.lyrics_highlight_fade)
+            }
+        },
+        isEnabled = lyricsFancy,
+    )
+}
 
-        EnumListPreference(
-            title = { Text(stringResource(R.string.lyrics_highlight_title)) },
-            icon = { Icon(Icons.Rounded.TextRotationAngledown, null) },
-            selectedValue = highlightStyle,
-            onValueSelected = onHighlightStyleChange,
-            values = LyricHighlightStyle.entries,
-            valueText = {
-                when (it) {
-                    LyricHighlightStyle.SWEEP -> stringResource(R.string.lyrics_highlight_sweep)
-                    LyricHighlightStyle.FADE -> stringResource(R.string.lyrics_highlight_fade)
-                }
-            },
-            isEnabled = lyricsFancy,
-        )
+/** How often the word sweep redraws - the one lyrics setting few will ever need, under Advanced. */
+@Composable
+fun ColumnScope.LyricAdvancedFrag() {
+    val (lyricUpdateSpeed, onLyricsUpdateSpeedChange) = rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+    val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
 
-        SwitchPreference(
-            title = { Text(stringResource(R.string.lyrics_show_type_title)) },
-            description = stringResource(R.string.lyrics_show_type_description),
-            icon = { Icon(Icons.Rounded.Info, null) },
-            checked = showLyricsType,
-            onCheckedChange = onShowLyricsTypeChange,
-        )
-
-        ListPreference(
-            title = { Text(stringResource(R.string.lyrics_karaoke_hz_title)) },
-            icon = { Icon(Icons.Rounded.Speed, null) },
-            selectedValue = lyricUpdateSpeed,
-            onValueSelected = onLyricsUpdateSpeedChange,
-            values = Speed.entries,
-            valueText = {
-                when (it) {
-                    Speed.SLOW -> stringResource(R.string.speed_slow)
-                    Speed.MEDIUM -> stringResource(R.string.speed_medium)
-                    Speed.FAST -> stringResource(R.string.speed_fast)
-                }
-            },
-            isEnabled = lyricsFancy
-        )
-    }
-
+    ListPreference(
+        title = { Text(stringResource(R.string.lyrics_karaoke_hz_title)) },
+        icon = { Icon(Icons.Rounded.Speed, null) },
+        selectedValue = lyricUpdateSpeed,
+        onValueSelected = onLyricsUpdateSpeedChange,
+        values = Speed.entries,
+        valueText = {
+            when (it) {
+                Speed.SLOW -> stringResource(R.string.speed_slow)
+                Speed.MEDIUM -> stringResource(R.string.speed_medium)
+                Speed.FAST -> stringResource(R.string.speed_fast)
+            }
+        },
+        isEnabled = lyricsFancy
+    )
 }
 
 @Preview(showBackground = true)
@@ -536,8 +556,8 @@ private fun LyricSourceFragPreview() {
 
 @Preview(showBackground = true)
 @Composable
-private fun LyricAdvancedFragPreview() {
+private fun LyricWordByWordFragPreview() {
     Column {
-        LyricAdvancedFrag()
+        LyricWordByWordFrag()
     }
 }

@@ -35,6 +35,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.ui.screens.settings.fragments.SeekBarFrag
+import androidx.compose.material.icons.rounded.Devices
+import com.dd3boh.outertune.constants.TabletUiKey
 import com.dd3boh.outertune.constants.ArtworkFallbackToLowResKey
 import com.dd3boh.outertune.constants.ShowTopBarLogoKey
 import com.dd3boh.outertune.constants.SlimNavBarKey
@@ -69,6 +72,8 @@ fun AppearanceSettings(
         rememberPreference(ShowTopBarLogoKey, defaultValue = true)
     val (artworkFallbackToLowResPref, onArtworkFallbackToLowResChange) =
         rememberPreference(ArtworkFallbackToLowResKey, defaultValue = true)
+    val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
+    val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -76,13 +81,20 @@ fun AppearanceSettings(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        // The app icon is part of how the app looks on the phone, so it sits with the colours.
         SettingsGroup(title = stringResource(R.string.theme)) {
             ThemeAppFrag()
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.app_icon)) },
+                icon = { Icon(Icons.Rounded.AppShortcut, null) },
+                onClick = { navController.navigate("settings/appearance/icon") }
+            )
         }
 
         // Tabs, the navbar and which tab opens first are all one subject - where the app puts you
-        // and how you move around it - so they belong together. Two of them used to sit under
-        // "Display" instead, which is what made that group unreadable.
+        // and how you move around it - so they belong together. The tablet layout came over from
+        // Experimental, the top bar logo from a "General" group of two, and swipe to queue from a
+        // "Behaviour" group of one.
         SettingsGroup(title = stringResource(R.string.grp_layout)) {
             TabArrangementFrag()
             TabExtrasFrag()
@@ -93,30 +105,6 @@ fun AppearanceSettings(
                 checked = slimNav,
                 onCheckedChange = onSlimNavChange
             )
-        }
-
-        SettingsGroup(title = stringResource(R.string.grp_now_playing)) {
-            PlayerBackgroundFrag()
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.player_layout)) },
-                description = stringResource(R.string.player_layout_summary),
-                icon = { Icon(Icons.Rounded.Dashboard, null) },
-                onClick = { navController.navigate("settings/appearance/layout") }
-            )
-        }
-
-        // High-res artwork is no longer a choice, so only the failure fallback is left here.
-        SettingsGroup(title = stringResource(R.string.grp_thumbnails)) {
-            SwitchPreference(
-                title = { Text(stringResource(R.string.artwork_fallback_low_res_title)) },
-                description = stringResource(R.string.artwork_fallback_low_res_description),
-                icon = { Icon(Icons.Rounded.HighQuality, null) },
-                checked = artworkFallbackToLowResPref,
-                onCheckedChange = onArtworkFallbackToLowResChange,
-            )
-        }
-
-        SettingsGroup(title = stringResource(R.string.grp_general)) {
             SwitchPreference(
                 title = { Text(stringResource(R.string.show_top_bar_logo_title)) },
                 description = stringResource(R.string.show_top_bar_logo_description),
@@ -124,21 +112,39 @@ fun AppearanceSettings(
                 checked = showTopBarLogo,
                 onCheckedChange = onShowTopBarLogoChange
             )
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.app_icon)) },
-                icon = { Icon(Icons.Rounded.AppShortcut, null) },
-                onClick = { navController.navigate("settings/appearance/icon") }
+            GestureSettingsFrag()
+            SwitchPreference(
+                title = { Text(stringResource(R.string.tablet_ui_title)) },
+                description = stringResource(R.string.tablet_ui_title_description),
+                icon = { Icon(Icons.Rounded.Devices, null) },
+                checked = tabletUi,
+                onCheckedChange = onTabletUiChange
             )
         }
 
-        SettingsGroup(title = stringResource(R.string.grp_behavior)) {
-            GestureSettingsFrag()
+        // How the player looks: its background, its layout and the seek bar, which came over from
+        // Player and audio. What the buttons do stays there.
+        SettingsGroup(title = stringResource(R.string.grp_player_look)) {
+            PlayerBackgroundFrag()
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.player_layout)) },
+                description = stringResource(R.string.player_layout_summary),
+                icon = { Icon(Icons.Rounded.Dashboard, null) },
+                onClick = { navController.navigate("settings/appearance/layout") }
+            )
+            SeekBarFrag()
         }
 
-        // Last on the screen, as asked: it changes how every settings screen reads, so it sits
-        // apart from the appearance of the app itself.
-        val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
-        SettingsGroup(title = stringResource(R.string.grp_settings_display)) {
+        // Last on the screen: the artwork fallback is rarely worth touching, and hiding descriptions
+        // changes how every settings screen reads rather than how the app looks.
+        SettingsGroup(title = stringResource(R.string.advanced)) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.artwork_fallback_low_res_title)) },
+                description = stringResource(R.string.artwork_fallback_low_res_description),
+                icon = { Icon(Icons.Rounded.HighQuality, null) },
+                checked = artworkFallbackToLowResPref,
+                onCheckedChange = onArtworkFallbackToLowResChange,
+            )
             SwitchPreference(
                 title = { Text(stringResource(R.string.hide_settings_descriptions)) },
                 description = stringResource(R.string.hide_settings_descriptions_desc),

@@ -32,6 +32,20 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.utils.rememberPreference
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.layout.size
+import kotlinx.coroutines.launch
+import com.dd3boh.outertune.LocalSnackbarHostState
+import com.dd3boh.outertune.LocalDownloadUtil
+import com.dd3boh.outertune.constants.RemovedDownloadsToCacheKey
+import com.dd3boh.outertune.ui.component.SwitchPreference
+import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
@@ -56,6 +70,13 @@ fun StorageSettings(
     navController: NavController,
     scrollBehavior: TopAppBarScrollBehavior,
 ) {
+    val (removedToCache, onRemovedToCacheChange) = rememberPreference(RemovedDownloadsToCacheKey, defaultValue = true)
+
+    val downloadUtil = LocalDownloadUtil.current
+    val snackbarHostState = LocalSnackbarHostState.current
+    val coroutineScope = rememberCoroutineScope()
+    val isDownloadingAllThumbnails by downloadUtil.isDownloadingAllThumbnails.collectAsState()
+    val downloadAllThumbnailsStartedMessage = stringResource(R.string.download_all_thumbnails_started)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -71,6 +92,31 @@ fun StorageSettings(
             modifier = Modifier.fillMaxWidth().animateContentSize()
         ) {
             DownloadsFrag()
+            // Downloads always save the full-resolution cover now - the setting for it is gone.
+            // This fetches covers for songs downloaded before then; it used to sit under Library
+            // and content, away from the downloads it is about.
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.download_all_thumbnails_title)) },
+                description = stringResource(R.string.download_all_thumbnails_description),
+                icon = {
+                    if (isDownloadingAllThumbnails) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(24.dp),
+                            color = MaterialTheme.colorScheme.secondary,
+                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                        )
+                    } else {
+                        Icon(Icons.Rounded.Image, null)
+                    }
+                },
+                isEnabled = !isDownloadingAllThumbnails,
+                onClick = {
+                    coroutineScope.launch {
+                        snackbarHostState.showSnackbar(downloadAllThumbnailsStartedMessage)
+                        downloadUtil.downloadAllThumbnails()
+                    }
+                }
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -83,6 +129,13 @@ fun StorageSettings(
             modifier = Modifier.fillMaxWidth()
         ) {
             SongCacheFrag()
+            SwitchPreference(
+                title = { Text(stringResource(R.string.removed_downloads_to_cache_title)) },
+                description = stringResource(R.string.removed_downloads_to_cache_desc),
+                icon = { Icon(Icons.Rounded.Image, null) },
+                checked = removedToCache,
+                onCheckedChange = onRemovedToCacheChange
+            )
         }
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -98,7 +151,7 @@ fun StorageSettings(
     }
 
     TopAppBar(
-        title = { Text(stringResource(R.string.storage)) },
+        title = { Text(stringResource(R.string.storage_and_downloads)) },
         navigationIcon = {
             IconButton(
                 onClick = navController::navigateUp,

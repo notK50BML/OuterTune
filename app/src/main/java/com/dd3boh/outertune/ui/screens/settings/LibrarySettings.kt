@@ -7,45 +7,35 @@
  */
 package com.dd3boh.outertune.ui.screens.settings
 
-import com.dd3boh.outertune.constants.RemovedDownloadsToCacheKey
 import androidx.compose.material.icons.rounded.FilterList
 import com.dd3boh.outertune.constants.ShowHomeChipsKey
 import androidx.compose.material.icons.rounded.Person
 import com.dd3boh.outertune.constants.ArtistCreditEnrichmentKey
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.FolderCopy
-import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material.icons.rounded.SmartDisplay
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
-import com.dd3boh.outertune.LocalDownloadUtil
-import com.dd3boh.outertune.LocalSnackbarHostState
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.ui.component.SettingsGroup
 import com.dd3boh.outertune.constants.DownloadThumbnailsKey
 import com.dd3boh.outertune.constants.FlatSubfoldersKey
 import com.dd3boh.outertune.constants.ShowArtistVideosAsSongsKey
@@ -53,14 +43,12 @@ import com.dd3boh.outertune.constants.ShowLikedAndDownloadedPlaylist
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
-import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.screens.settings.fragments.LocalizationFrag
 import com.dd3boh.outertune.ui.screens.settings.fragments.SongDetailsArrangement
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -73,7 +61,6 @@ fun LibrarySettings(
         defaultValue = true
     )
     val (flatSubfolders, onFlatSubfoldersChange) = rememberPreference(FlatSubfoldersKey, defaultValue = true)
-    val (removedToCache, onRemovedToCacheChange) = rememberPreference(RemovedDownloadsToCacheKey, defaultValue = true)
     val (showArtistVideosAsSongs, onShowArtistVideosAsSongsChange) = rememberPreference(
         ShowArtistVideosAsSongsKey,
         defaultValue = true
@@ -81,46 +68,28 @@ fun LibrarySettings(
     val (artistEnrichment, onArtistEnrichmentChange) = rememberPreference(ArtistCreditEnrichmentKey, defaultValue = true)
     val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = true)
 
-    val downloadUtil = LocalDownloadUtil.current
-    val snackbarHostState = LocalSnackbarHostState.current
-    val coroutineScope = rememberCoroutineScope()
-    val isDownloadingAllThumbnails by downloadUtil.isDownloadingAllThumbnails.collectAsState()
-    val downloadAllThumbnailsStartedMessage = stringResource(R.string.download_all_thumbnails_started)
-
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
         columnModifier = Modifier
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_localization)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            LocalizationFrag()
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_display)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        // What Home and the song lists show, first: it changes the app most from day to day. The
+        // desktop's order too - Display, Content, Local media.
+        SettingsGroup(title = stringResource(R.string.grp_display)) {
+            SongDetailsArrangement()
+            SwitchPreference(
+                title = { Text(stringResource(R.string.show_home_chips_title)) },
+                description = stringResource(R.string.show_home_chips_description),
+                icon = { Icon(Icons.Rounded.FilterList, null) },
+                checked = showHomeChips,
+                onCheckedChange = onShowHomeChipsChange
+            )
             SwitchPreference(
                 title = { Text(stringResource(R.string.show_liked_and_downloaded_playlist)) },
                 icon = { Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, null) },
                 checked = showLikedAndDownloadedPlaylist,
                 onCheckedChange = onShowLikedAndDownloadedPlaylistChange
-            )
-            SwitchPreference(
-                title = { Text(stringResource(R.string.flat_subfolders_title)) },
-                description = stringResource(R.string.flat_subfolders_description),
-                icon = { Icon(Icons.Rounded.FolderCopy, null) },
-                checked = flatSubfolders,
-                onCheckedChange = onFlatSubfoldersChange
             )
             SwitchPreference(
                 title = { Text(stringResource(R.string.show_artist_videos_as_songs_title)) },
@@ -130,11 +99,11 @@ fun LibrarySettings(
                 onCheckedChange = onShowArtistVideosAsSongsChange
             )
             SwitchPreference(
-                title = { Text(stringResource(R.string.show_home_chips_title)) },
-                description = stringResource(R.string.show_home_chips_description),
-                icon = { Icon(Icons.Rounded.FilterList, null) },
-                checked = showHomeChips,
-                onCheckedChange = onShowHomeChipsChange
+                title = { Text(stringResource(R.string.flat_subfolders_title)) },
+                description = stringResource(R.string.flat_subfolders_description),
+                icon = { Icon(Icons.Rounded.FolderCopy, null) },
+                checked = flatSubfolders,
+                onCheckedChange = onFlatSubfoldersChange
             )
             SwitchPreference(
                 title = { Text(stringResource(R.string.artist_credit_enrichment_title)) },
@@ -143,59 +112,20 @@ fun LibrarySettings(
                 checked = artistEnrichment,
                 onCheckedChange = onArtistEnrichmentChange
             )
-            SongDetailsArrangement()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_thumbnails)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            // Downloads always save the full-resolution cover now - the setting for it is gone.
-            SwitchPreference(
-                title = { Text(stringResource(R.string.removed_downloads_to_cache_title)) },
-                description = stringResource(R.string.removed_downloads_to_cache_desc),
-                icon = { Icon(Icons.Rounded.Image, null) },
-                checked = removedToCache,
-                onCheckedChange = onRemovedToCacheChange
-            )
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.download_all_thumbnails_title)) },
-                description = stringResource(R.string.download_all_thumbnails_description),
-                icon = {
-                    if (isDownloadingAllThumbnails) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.secondary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        )
-                    } else {
-                        Icon(Icons.Rounded.Image, null)
-                    }
-                },
-                isEnabled = !isDownloadingAllThumbnails,
-                onClick = {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(downloadAllThumbnailsStartedMessage)
-                        downloadUtil.downloadAllThumbnails()
-                    }
-                }
-            )
+        // What YouTube Music sends, in which language and for which country - "Content" on the
+        // desktop as well.
+        SettingsGroup(title = stringResource(R.string.content)) {
+            LocalizationFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
         // Local media used to be a section of the main settings list; it lives here now, as it does
         // on the desktop. An entry rather than the settings themselves, because the scanner's folder
         // list and dialogs are a screen's worth on their own - and "settings/local" stays where the
-        // folder browser's scanner button takes you.
-        PreferenceGroupTitle(
-            title = stringResource(R.string.local_player_settings_title)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        // folder browser's scanner button takes you. The thumbnail settings that followed went to
+        // Storage and downloads, being about downloads and the song cache.
+        SettingsGroup(title = stringResource(R.string.local_player_settings_title)) {
             PreferenceEntry(
                 title = { Text(stringResource(R.string.local_player_settings_entry_title)) },
                 description = stringResource(R.string.local_player_settings_entry_description),

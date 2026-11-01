@@ -30,7 +30,6 @@ import androidx.compose.material.icons.rounded.ConfirmationNumber
 import androidx.compose.material.icons.rounded.Coronavirus
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeveloperMode
-import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Queue
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -71,17 +70,13 @@ import com.dd3boh.outertune.constants.AutoBackupDefaults
 import com.dd3boh.outertune.constants.AutoBackupKeepCountKey
 import com.dd3boh.outertune.constants.DevSettingsKey
 import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
-import com.dd3boh.outertune.constants.MaxQueuesKey
 import com.dd3boh.outertune.constants.OobeStatusKey
-import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
-import com.dd3boh.outertune.constants.TabletUiKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
-import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.dataStore
@@ -112,12 +107,6 @@ fun ExperimentalSettings(
         defaultValue = false
     )
     val (audioOffload, onAudioOffloadChange) = rememberPreference(key = AudioOffloadKey, defaultValue = false)
-    val (maxQueues, onMaxQueuesChange) = rememberPreference(MaxQueuesKey, defaultValue = 19)
-    val (showQueuesBesideCurrent, onShowQueuesBesideCurrentChange) = rememberPreference(
-        ShowQueuesBesideCurrentKey,
-        defaultValue = false
-    )
-    val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
 
     val (devSettings, onDevSettingsChange) = rememberPreference(DevSettingsKey, defaultValue = false)
     val (enableStreamPrecache, onEnableStreamPrecacheChange) = rememberPreference(EnableStreamPrecacheKey, defaultValue = true)
@@ -132,63 +121,13 @@ fun ExperimentalSettings(
         mutableStateOf<Pair<String, suspend () -> Any>?>(null)
     }
 
-    var showMaxQueuesDialog by remember {
-        mutableStateOf(false)
-    }
-
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
         columnModifier = Modifier
             .verticalScroll(rememberScrollState())
     ) {
-        PreferenceGroupTitle(
-            title = stringResource(R.string.experimental_settings_title)
-        )
-        SwitchPreference(
-            title = { Text(stringResource(R.string.tablet_ui_title)) },
-            description = stringResource(R.string.tablet_ui_title_description),
-            icon = { Icon(Icons.Rounded.Devices, null) },
-            checked = tabletUi,
-            onCheckedChange = onTabletUiChange
-        )
-        SwitchPreference(
-            title = { Text(stringResource(R.string.show_queues_beside_current_title)) },
-            description = stringResource(R.string.show_queues_beside_current_description),
-            icon = { Icon(Icons.Rounded.Queue, null) },
-            checked = showQueuesBesideCurrent,
-            onCheckedChange = onShowQueuesBesideCurrentChange
-        )
-        PreferenceEntry(
-            title = { Text(stringResource(R.string.max_queues_title)) },
-            icon = { Icon(Icons.Rounded.Queue, null) },
-            onClick = { showMaxQueuesDialog = true }
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        if (showMaxQueuesDialog) {
-            CounterDialog(
-                title = stringResource(R.string.max_queues_title),
-                initialValue = maxQueues,
-                upperBound = 30,
-                lowerBound = 1,
-                onDismiss = { showMaxQueuesDialog = false },
-                onConfirm = {
-                    showMaxQueuesDialog = false
-                    coroutineScope.launch(Dispatchers.IO) {
-                        onMaxQueuesChange(it)
-                        delay(500)
-                        // the queues get reloaded, but not cleared by the database
-                        // this will allow the user to (immediately) revert any accidental changes
-                        playerConnection?.service?.initQueue()
-                    }
-                },
-                onCancel = {
-                    showMaxQueuesDialog = false
-                }
-            )
-        }
-
+        // The tablet layout went to Appearance and the saved queues to Player and audio, where
+        // people look for them; what is left here is for developers and testing.
         PreferenceGroupTitle(
             title = stringResource(R.string.settings_debug)
         )

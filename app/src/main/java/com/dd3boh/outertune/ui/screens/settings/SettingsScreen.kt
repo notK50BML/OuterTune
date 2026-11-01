@@ -23,7 +23,6 @@ import androidx.compose.material.icons.automirrored.rounded.LibraryBooks
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.SystemUpdate
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Cast
@@ -100,6 +99,9 @@ fun SettingsScreen(
             return@ColumnWithContentPadding
         }
 
+        // The same categories, in the same order and under the same names, as the desktop's
+        // settings (SettingsPane.kt), so a setting is found in the same place on both. History
+        // opens from Privacy and history now; it was the one entry here that was not settings.
         ElevatedCard(
             modifier = Modifier.fillMaxWidth()
         ) {
@@ -125,10 +127,9 @@ fun SettingsScreen(
                 onClick = { navController.navigate("settings/player") }
             )
             PreferenceEntry(
-                title = { Text(stringResource(R.string.lt_title)) },
-                description = stringResource(R.string.lt_summary),
-                icon = { Icon(Icons.Rounded.Cast, null) },
-                onClick = { navController.navigate("settings/listen_together") }
+                title = { Text(stringResource(R.string.lyrics_settings_title)) },
+                icon = { Icon(Icons.Rounded.Lyrics, null) },
+                onClick = { navController.navigate("settings/lyrics") }
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -142,17 +143,13 @@ fun SettingsScreen(
                 onClick = { navController.navigate("settings/library") }
             )
             PreferenceEntry(
-                title = { Text(stringResource(R.string.history)) },
-                icon = { Icon(Icons.Rounded.History, null) },
-                onClick = { navController.navigate("history") }
+                title = { Text(stringResource(R.string.lt_title)) },
+                description = stringResource(R.string.lt_summary),
+                icon = { Icon(Icons.Rounded.Cast, null) },
+                onClick = { navController.navigate("settings/listen_together") }
             )
             PreferenceEntry(
-                title = { Text(stringResource(R.string.lyrics_settings_title)) },
-                icon = { Icon(Icons.Rounded.Lyrics, null) },
-                onClick = { navController.navigate("settings/lyrics") }
-            )
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.privacy)) },
+                title = { Text(stringResource(R.string.privacy_and_history)) },
                 icon = { Icon(Icons.Rounded.PrivacyTip, null) },
                 onClick = { navController.navigate("settings/privacy") }
             )
@@ -163,7 +160,7 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             PreferenceEntry(
-                title = { Text(stringResource(R.string.storage)) },
+                title = { Text(stringResource(R.string.storage_and_downloads)) },
                 icon = { Icon(Icons.Rounded.Storage, null) },
                 onClick = { navController.navigate("settings/storage") }
             )
@@ -171,17 +168,6 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.backup_restore)) },
                 icon = { Icon(Icons.Rounded.Restore, null) },
                 onClick = { navController.navigate("settings/backup_restore") }
-            )
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.experimental_settings_title)) },
-                icon = { Icon(Icons.Rounded.WarningAmber, null) },
-                onClick = { navController.navigate("settings/experimental") }
             )
         }
         Spacer(modifier = Modifier.height(16.dp))
@@ -198,6 +184,19 @@ fun SettingsScreen(
                 title = { Text(stringResource(R.string.about)) },
                 icon = { Icon(Icons.Rounded.Info, null) },
                 onClick = { navController.navigate("settings/about") }
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Last, apart from the rest: debugging tools rather than settings, now that the tablet
+        // layout and the saved queues have moved to the pages people look for them on.
+        ElevatedCard(
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.experimental_settings_title)) },
+                icon = { Icon(Icons.Rounded.WarningAmber, null) },
+                onClick = { navController.navigate("settings/experimental") }
             )
         }
     }

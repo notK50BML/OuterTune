@@ -313,15 +313,15 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="audio_quality_high">High</string>
     <string name="audio_quality_low">Low</string>
     <string name="queue">Queue</string>
-    <string name="persistent_queue">Persistent queue</string>
+    <string name="persistent_queue">Remember the queue</string>
     <string name="persistent_queue_desc">Restore your last queue when the app starts</string>
     <string name="auto_load_more">Auto load more songs</string>
     <string name="auto_load_more_desc">Add more songs when the queue runs out</string>
     <string name="skip_silence">Skip silence</string>
-    <string name="audio_normalization">Audio normalization</string>
-    <string name="auto_skip_next_on_error">Auto skip to next song when error occurs</string>
+    <string name="audio_normalization">Audio normalisation</string>
+    <string name="auto_skip_next_on_error">Skip songs that cannot play</string>
     <string name="auto_skip_next_on_error_desc">Move on to the next song instead of stopping</string>
-    <string name="stop_music_on_task_clear">Stop music on task clear</string>
+    <string name="stop_music_on_task_clear">Stop music when the app is swiped away</string>
     <string name="ignore_audio_focus">Keep audio focus</string>
     <string name="ignore_audio_focus_desc">Keep playing over other audio, including phone calls</string>
     <string name="equalizer">Equaliser</string>
@@ -371,7 +371,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="backup_create_failed">Couldn\'t create backup</string>
     <string name="restore_failed">Failed to restore backup</string>
 
-    <string name="discord_integration">Discord Integration</string>
+    <string name="discord_integration">Discord</string>
     <string name="discord_information">OuterTune sets your Discord status through the Discord Gateway (KizzyRPC), which may breach Discord\'s terms. Use at your own risk.\n\nOnly your token is read, and everything stays on this device.</string>
     <string name="dismiss">Dismiss</string>
     <string name="options">Options</string>

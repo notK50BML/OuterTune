@@ -11,7 +11,6 @@ package com.dd3boh.outertune.ui.screens.settings
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
@@ -19,10 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AudioFile
-import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Equalizer
-import androidx.compose.material.icons.rounded.NoCell
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -35,24 +31,21 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.ui.screens.settings.fragments.BackgroundPlaybackFrag
+import com.dd3boh.outertune.ui.screens.settings.fragments.QueueFrag
+import com.dd3boh.outertune.ui.screens.settings.fragments.PlayerControlsFrag
+import com.dd3boh.outertune.ui.screens.settings.fragments.PlaybackFrag
+import com.dd3boh.outertune.ui.component.SettingsGroup
 import com.dd3boh.outertune.constants.AudioDecoderKey
 import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
 import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
-import com.dd3boh.outertune.constants.KeepAliveKey
-import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
-import com.dd3boh.outertune.constants.StopMusicOnTaskClearKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.ListPreference
 import com.dd3boh.outertune.ui.component.PreferenceEntry
-import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
-import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.dialog.InfoLabel
 import com.dd3boh.outertune.ui.screens.settings.fragments.AudioQualityFrag
-import com.dd3boh.outertune.ui.screens.settings.fragments.NowPlayingFrag
-import com.dd3boh.outertune.ui.screens.settings.fragments.PlaybackBehaviourFrag
-import com.dd3boh.outertune.ui.screens.settings.fragments.PlayerGeneralFrag
 import com.dd3boh.outertune.ui.screens.settings.fragments.SleepTimerFrag
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
@@ -73,12 +66,6 @@ fun PlayerSettings(
         key = AudioDecoderKey,
         defaultValue = DEFAULT_AUDIO_DECODER
     )
-    val (statsIncludeRemote, onStatsIncludeRemoteChange) = rememberPreference(key = StatsIncludeRemoteKey, defaultValue = false)
-    val (keepAlive, onKeepAliveChange) = rememberPreference(key = KeepAliveKey, defaultValue = false)
-    val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(
-        key = StopMusicOnTaskClearKey,
-        defaultValue = true
-    )
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -86,84 +73,33 @@ fun PlayerSettings(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_general)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            PlayerGeneralFrag()
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_audio)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            AudioQualityFrag()
+        // The desktop's order: what plays and how it sounds, then the controls, the queue and the
+        // sleep timer, with the niche ones last. How the player looks - background, layout, seek
+        // bar - is under Appearance; tapping the cover for lyrics is under Lyrics; counting plays
+        // from other devices is under Privacy and history.
+        SettingsGroup(title = stringResource(R.string.grp_playback)) {
             PreferenceEntry(
                 title = { Text(stringResource(R.string.eq_settings_title)) },
                 icon = { Icon(Icons.Rounded.Equalizer, null) },
                 onClick = { navController.navigate("settings/player/equalizer") }
             )
+            AudioQualityFrag()
+            PlaybackFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_now_playing)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            NowPlayingFrag()
+        SettingsGroup(title = stringResource(R.string.grp_controls)) {
+            PlayerControlsFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_behavior)
-        )
-
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            PlaybackBehaviourFrag()
+        SettingsGroup(title = stringResource(R.string.queue)) {
+            QueueFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.history)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            SwitchPreference(
-                title = { Text(stringResource(R.string.stats_include_remote_title)) },
-                description = stringResource(R.string.stats_include_remote_description),
-                icon = { Icon(Icons.Rounded.CloudSync, null) },
-                checked = statsIncludeRemote,
-                onCheckedChange = onStatsIncludeRemoteChange,
-            )
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-
-        PreferenceGroupTitle(
-            title = stringResource(R.string.sleep_timer)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        SettingsGroup(title = stringResource(R.string.sleep_timer)) {
             SleepTimerFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.advanced)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        SettingsGroup(title = stringResource(R.string.advanced)) {
             if (ENABLE_FFMETADATAEX) {
                 ListPreference(
                     title = { Text(stringResource(R.string.audio_decoder_preference)) },
@@ -186,18 +122,7 @@ fun PlayerSettings(
                 )
                 InfoLabel(stringResource(R.string.restart_to_apply_changes))
             }
-            SwitchPreference(
-                title = { Text(stringResource(R.string.keep_alive_title)) },
-                description = stringResource(R.string.keep_alive_description),
-                icon = { Icon(Icons.Rounded.NoCell, null) },
-                checked = keepAlive,
-                onCheckedChange = {
-                    if (it) {
-                        onStopMusicOnTaskClearChange(false)
-                    }
-                    onKeepAliveChange(it)
-                }
-            )
+            BackgroundPlaybackFrag()
         }
         Spacer(Modifier.height(96.dp))
     }

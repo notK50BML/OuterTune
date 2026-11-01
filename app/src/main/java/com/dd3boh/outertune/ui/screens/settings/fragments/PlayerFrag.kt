@@ -17,7 +17,6 @@ import androidx.compose.material.icons.rounded.Grain
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Headset
-import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Memory
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Swipe
@@ -36,6 +35,15 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import com.dd3boh.outertune.R
+import androidx.compose.material.icons.rounded.NoCell
+import androidx.compose.material.icons.rounded.Queue
+import androidx.compose.runtime.rememberCoroutineScope
+import com.dd3boh.outertune.LocalPlayerConnection
+import com.dd3boh.outertune.constants.MaxQueuesKey
+import com.dd3boh.outertune.constants.ShowQueuesBesideCurrentKey
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.dd3boh.outertune.constants.AudioNormalizationKey
 import com.dd3boh.outertune.constants.AudioUpscaling
 import com.dd3boh.outertune.constants.AudioUpscalingKey
@@ -46,7 +54,6 @@ import com.dd3boh.outertune.constants.AudioQuality
 import com.dd3boh.outertune.constants.AudioQualityKey
 import com.dd3boh.outertune.constants.AutoLoadMoreKey
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
-import com.dd3boh.outertune.constants.DEFAULT_SHOW_LYRICS_ON_CLICK
 import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
 import com.dd3boh.outertune.constants.DEFAULT_SWIPE_TO_SKIP
 import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
@@ -69,9 +76,7 @@ import com.dd3boh.outertune.constants.PlayerAutoTextContrastKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.SeekIncrement
 import com.dd3boh.outertune.constants.SeekIncrementKey
-import com.dd3boh.outertune.constants.ShowEqualizerButtonKey
 import com.dd3boh.outertune.constants.ShowEqualizerHandleKey
-import com.dd3boh.outertune.constants.ShowLyricsOnClickKey
 import com.dd3boh.outertune.constants.ShowQueueTitleKey
 import com.dd3boh.outertune.constants.SkipOnErrorKey
 import com.dd3boh.outertune.constants.SkipSilenceKey
@@ -96,46 +101,6 @@ import com.dd3boh.outertune.ui.menu.SleepTimerDefaultTimeDialog
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import androidx.compose.ui.tooling.preview.Preview
-
-@Composable
-fun PlayerGeneralFrag() {
-    val (autoLoadMore, onAutoLoadMoreChange) = rememberPreference(AutoLoadMoreKey, defaultValue = true)
-    val (skipSilence, onSkipSilenceChange) = rememberPreference(key = SkipSilenceKey, defaultValue = false)
-
-    val context = LocalContext.current
-    val (seekIncrement, onSeekIncrementChange) = rememberEnumPreference(
-        key = SeekIncrementKey,
-        defaultValue = SeekIncrement.OFF
-    )
-
-    SwitchPreference(
-        title = { Text(stringResource(R.string.auto_load_more)) },
-        description = stringResource(R.string.auto_load_more_desc),
-        icon = { Icon(Icons.Rounded.Autorenew, null) },
-        checked = autoLoadMore,
-        onCheckedChange = onAutoLoadMoreChange
-    )
-    EnumListPreference(
-        title = { Text(stringResource(R.string.seek_increment))},
-        icon = { Icon(Icons.Rounded.FastForward, null) },
-        selectedValue = seekIncrement,
-        onValueSelected = onSeekIncrementChange,
-        valueText = {
-            seekIncrement -> SeekIncrement.getString(context, seekIncrement)
-        }
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.skip_silence)) },
-        icon = { Icon(painterResource(R.drawable.skip_next), null) },
-        checked = skipSilence,
-        onCheckedChange = onSkipSilenceChange
-    )
-}
-
-@Composable
-fun PlayerServiceFrag() {
-
-}
 
 @Composable
 fun AudioQualityFrag() {
@@ -187,106 +152,15 @@ fun AudioQualityFrag() {
     )
 }
 
+/**
+ * Between and around songs: crossfading, skipping silence and songs that will not play, and how
+ * much of a song makes a play. Follows the audio quality under Playback, as on the desktop.
+ */
 @Composable
-fun NowPlayingFrag() {
-    val (showQueueTitle, onShowQueueTitleChange) = rememberPreference(ShowQueueTitleKey, defaultValue = true)
-    val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
-    val (sliderWeight, onSliderWeightChange) = rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
-    val (sliderDot, onSliderDotChange) = rememberPreference(SliderDotKey, defaultValue = false)
-    val (swipeToSkip, onSwipeToSkipChange) = rememberPreference(SwipeToSkipKey, defaultValue = DEFAULT_SWIPE_TO_SKIP)
-    val (showLyricsOnClick, onShowLyricsOnClickChange) = rememberPreference(
-        ShowLyricsOnClickKey,
-        defaultValue = DEFAULT_SHOW_LYRICS_ON_CLICK
-    )
-    val (showEqualizerButton, onShowEqualizerButtonChange) = rememberPreference(
-        ShowEqualizerButtonKey,
-        defaultValue = true
-    )
-    val (showEqualizerHandle, onShowEqualizerHandleChange) = rememberPreference(
-        ShowEqualizerHandleKey,
-        defaultValue = true
-    )
-
-    EnumListPreference(
-        title = { Text(stringResource(R.string.slider_style_title)) },
-        icon = { Icon(Icons.Rounded.GraphicEq, null) },
-        selectedValue = sliderStyle,
-        onValueSelected = onSliderStyleChange,
-        valueText = {
-            when (it) {
-                SliderStyle.SQUIGGLY -> stringResource(R.string.slider_style_squiggly)
-                SliderStyle.DEFAULT -> stringResource(R.string.slider_style_default)
-                SliderStyle.SLIM -> stringResource(R.string.slider_style_slim)
-                SliderStyle.WAVES -> stringResource(R.string.slider_style_waves)
-                SliderStyle.WAVE_LINES -> stringResource(R.string.slider_style_wave_lines)
-            }
-        }
-    )
-    EnumListPreference(
-        title = { Text(stringResource(R.string.slider_weight_title)) },
-        icon = { Icon(Icons.Rounded.GraphicEq, null) },
-        selectedValue = sliderWeight,
-        onValueSelected = onSliderWeightChange,
-        valueText = {
-            when (it) {
-                SliderWeight.DEFAULT -> stringResource(R.string.slider_style_default)
-                SliderWeight.THINNER -> stringResource(R.string.slider_weight_thinner)
-            }
-        }
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.slider_dot_title)) },
-        description = stringResource(R.string.slider_dot_description),
-        icon = { Icon(Icons.Rounded.GraphicEq, null) },
-        checked = sliderDot,
-        onCheckedChange = onSliderDotChange
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.swipe_to_skip_title)) },
-        description = stringResource(R.string.swipe_to_skip_description),
-        icon = { Icon(Icons.Rounded.Swipe, null) },
-        checked = swipeToSkip,
-        onCheckedChange = onSwipeToSkipChange
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.show_queue_title)) },
-        icon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
-        checked = showQueueTitle,
-        onCheckedChange = onShowQueueTitleChange
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.tap_artwork_to_show_lyrics_title)) },
-        description = stringResource(R.string.tap_artwork_to_show_lyrics_description),
-        icon = { Icon(Icons.Rounded.Lyrics, null) },
-        checked = showLyricsOnClick,
-        onCheckedChange = onShowLyricsOnClickChange
-    )
-    // Replaces the old "show equaliser button" and "show sleep timer on player" switches: every
-    // action can be a button now, in any order. Their stored values seed it until it is first saved.
-    PlayerButtonsArrangement()
-    SwitchPreference(
-        title = { Text(stringResource(R.string.show_equalizer_handle_title)) },
-        description = stringResource(R.string.show_equalizer_handle_description),
-        icon = { Icon(Icons.Rounded.GraphicEq, null) },
-        checked = showEqualizerHandle,
-        onCheckedChange = onShowEqualizerHandleChange
-    )
-}
-
-@Composable
-fun PlaybackBehaviourFrag() {
-    val keepAlive by rememberPreference(key = KeepAliveKey, defaultValue = false)
-    val (persistentQueue, onPersistentQueueChange) = rememberPreference(key = PersistentQueueKey, defaultValue = true)
+fun PlaybackFrag() {
+    val (skipSilence, onSkipSilenceChange) = rememberPreference(key = SkipSilenceKey, defaultValue = false)
     val (minPlaybackDur, onMinPlaybackDurChange) = rememberPreference(minPlaybackDurKey, defaultValue = 30)
     val (skipOnErrorKey, onSkipOnErrorChange) = rememberPreference(key = SkipOnErrorKey, defaultValue = false)
-    // Matches MusicService.onTaskRemoved's own default (true) - shown as off here while actually
-    // on there made the switch lie about the app's real behaviour for anyone who had never
-    // touched it.
-    val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(
-        key = StopMusicOnTaskClearKey,
-        defaultValue = true
-    )
-    val (ignoreAudioFocus, onIgnoreAudioFocusChange) = rememberPreference(key = IgnoreAudioFocusKey, defaultValue = false)
     val (crossfade, onCrossfadeChange) = rememberPreference(key = CrossfadeKey, defaultValue = CrossfadeDefaults.ENABLED)
     val (crossfadeDuration, onCrossfadeDurationChange) = rememberPreference(
         CrossfadeDurationKey,
@@ -300,12 +174,6 @@ fun PlaybackBehaviourFrag() {
         mutableStateOf(false)
     }
 
-    PreferenceEntry(
-        title = { Text(stringResource(R.string.min_playback_duration)) },
-        description = stringResource(R.string.min_playback_duration_summary, minPlaybackDur),
-        icon = { Icon(Icons.Rounded.Sync, null) },
-        onClick = { showMinPlaybackDur = true }
-    )
     SwitchPreference(
         title = { Text(stringResource(R.string.crossfade)) },
         description = stringResource(R.string.crossfade_desc),
@@ -321,32 +189,23 @@ fun PlaybackBehaviourFrag() {
         onClick = { showCrossfadeDuration = true }
     )
     SwitchPreference(
+        title = { Text(stringResource(R.string.skip_silence)) },
+        icon = { Icon(painterResource(R.drawable.skip_next), null) },
+        checked = skipSilence,
+        onCheckedChange = onSkipSilenceChange
+    )
+    SwitchPreference(
         title = { Text(stringResource(R.string.auto_skip_next_on_error)) },
         description = stringResource(R.string.auto_skip_next_on_error_desc),
         icon = { Icon(Icons.Rounded.SkipNext, null) },
         checked = skipOnErrorKey,
         onCheckedChange = onSkipOnErrorChange
     )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.stop_music_on_task_clear)) },
-        icon = { Icon(Icons.Rounded.ClearAll, null) },
-        isEnabled = !keepAlive,
-        checked = stopMusicOnTaskClear,
-        onCheckedChange = onStopMusicOnTaskClearChange,
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.ignore_audio_focus)) },
-        description = stringResource(R.string.ignore_audio_focus_desc),
-        icon = { Icon(Icons.Rounded.Headset, null) },
-        checked = ignoreAudioFocus,
-        onCheckedChange = onIgnoreAudioFocusChange
-    )
-    SwitchPreference(
-        title = { Text(stringResource(R.string.persistent_queue)) },
-        description = stringResource(R.string.persistent_queue_desc_ot),
-        icon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
-        checked = persistentQueue,
-        onCheckedChange = onPersistentQueueChange
+    PreferenceEntry(
+        title = { Text(stringResource(R.string.min_playback_duration)) },
+        description = stringResource(R.string.min_playback_duration_summary, minPlaybackDur),
+        icon = { Icon(Icons.Rounded.Sync, null) },
+        onClick = { showMinPlaybackDur = true }
     )
 
     /**
@@ -392,6 +251,221 @@ fun PlaybackBehaviourFrag() {
             }
         )
     }
+}
+
+/**
+ * The player's buttons and gestures. How the player looks - its background, its layout and the
+ * seek bar - is under Appearance, as on the desktop.
+ */
+@Composable
+fun PlayerControlsFrag() {
+    val context = LocalContext.current
+    val (seekIncrement, onSeekIncrementChange) = rememberEnumPreference(
+        key = SeekIncrementKey,
+        defaultValue = SeekIncrement.OFF
+    )
+    val (swipeToSkip, onSwipeToSkipChange) = rememberPreference(SwipeToSkipKey, defaultValue = DEFAULT_SWIPE_TO_SKIP)
+    val (showEqualizerHandle, onShowEqualizerHandleChange) = rememberPreference(
+        ShowEqualizerHandleKey,
+        defaultValue = true
+    )
+
+    // Replaces the old "show equaliser button" and "show sleep timer on player" switches: every
+    // action can be a button now, in any order. Their stored values seed it until it is first saved.
+    PlayerButtonsArrangement()
+    EnumListPreference(
+        title = { Text(stringResource(R.string.seek_increment))},
+        icon = { Icon(Icons.Rounded.FastForward, null) },
+        selectedValue = seekIncrement,
+        onValueSelected = onSeekIncrementChange,
+        valueText = {
+            seekIncrement -> SeekIncrement.getString(context, seekIncrement)
+        }
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.swipe_to_skip_title)) },
+        description = stringResource(R.string.swipe_to_skip_description),
+        icon = { Icon(Icons.Rounded.Swipe, null) },
+        checked = swipeToSkip,
+        onCheckedChange = onSwipeToSkipChange
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.show_equalizer_handle_title)) },
+        description = stringResource(R.string.show_equalizer_handle_description),
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        checked = showEqualizerHandle,
+        onCheckedChange = onShowEqualizerHandleChange
+    )
+}
+
+/**
+ * The seek bar under the cover: its style, thickness and dot. Under Appearance with the rest of the
+ * player's look, where the desktop has it too.
+ */
+@Composable
+fun SeekBarFrag() {
+    val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
+    val (sliderWeight, onSliderWeightChange) = rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
+    val (sliderDot, onSliderDotChange) = rememberPreference(SliderDotKey, defaultValue = false)
+
+    EnumListPreference(
+        title = { Text(stringResource(R.string.slider_style_title)) },
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        selectedValue = sliderStyle,
+        onValueSelected = onSliderStyleChange,
+        valueText = {
+            when (it) {
+                SliderStyle.SQUIGGLY -> stringResource(R.string.slider_style_squiggly)
+                SliderStyle.DEFAULT -> stringResource(R.string.slider_style_default)
+                SliderStyle.SLIM -> stringResource(R.string.slider_style_slim)
+                SliderStyle.WAVES -> stringResource(R.string.slider_style_waves)
+                SliderStyle.WAVE_LINES -> stringResource(R.string.slider_style_wave_lines)
+            }
+        }
+    )
+    EnumListPreference(
+        title = { Text(stringResource(R.string.slider_weight_title)) },
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        selectedValue = sliderWeight,
+        onValueSelected = onSliderWeightChange,
+        valueText = {
+            when (it) {
+                SliderWeight.DEFAULT -> stringResource(R.string.slider_style_default)
+                SliderWeight.THINNER -> stringResource(R.string.slider_weight_thinner)
+            }
+        }
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.slider_dot_title)) },
+        description = stringResource(R.string.slider_dot_description),
+        icon = { Icon(Icons.Rounded.GraphicEq, null) },
+        checked = sliderDot,
+        onCheckedChange = onSliderDotChange
+    )
+}
+
+/**
+ * Everything about the queue in one place: what is kept, what is loaded, and the saved queues. The
+ * last two came from Experimental, where nobody would have looked for them.
+ */
+@Composable
+fun QueueFrag() {
+    val coroutineScope = rememberCoroutineScope()
+    val playerConnection = LocalPlayerConnection.current
+    val (persistentQueue, onPersistentQueueChange) = rememberPreference(key = PersistentQueueKey, defaultValue = true)
+    val (showQueueTitle, onShowQueueTitleChange) = rememberPreference(ShowQueueTitleKey, defaultValue = true)
+    val (autoLoadMore, onAutoLoadMoreChange) = rememberPreference(AutoLoadMoreKey, defaultValue = true)
+    val (maxQueues, onMaxQueuesChange) = rememberPreference(MaxQueuesKey, defaultValue = 19)
+    val (showQueuesBesideCurrent, onShowQueuesBesideCurrentChange) = rememberPreference(
+        ShowQueuesBesideCurrentKey,
+        defaultValue = false
+    )
+
+    var showMaxQueuesDialog by remember {
+        mutableStateOf(false)
+    }
+
+    SwitchPreference(
+        title = { Text(stringResource(R.string.persistent_queue)) },
+        description = stringResource(R.string.persistent_queue_desc_ot),
+        icon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
+        checked = persistentQueue,
+        onCheckedChange = onPersistentQueueChange
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.show_queue_title)) },
+        icon = { Icon(Icons.AutoMirrored.Rounded.QueueMusic, null) },
+        checked = showQueueTitle,
+        onCheckedChange = onShowQueueTitleChange
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.auto_load_more)) },
+        description = stringResource(R.string.auto_load_more_desc),
+        icon = { Icon(Icons.Rounded.Autorenew, null) },
+        checked = autoLoadMore,
+        onCheckedChange = onAutoLoadMoreChange
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.show_queues_beside_current_title)) },
+        description = stringResource(R.string.show_queues_beside_current_description),
+        icon = { Icon(Icons.Rounded.Queue, null) },
+        checked = showQueuesBesideCurrent,
+        onCheckedChange = onShowQueuesBesideCurrentChange
+    )
+    PreferenceEntry(
+        title = { Text(stringResource(R.string.max_queues_title)) },
+        description = maxQueues.toString(),
+        icon = { Icon(Icons.Rounded.Queue, null) },
+        onClick = { showMaxQueuesDialog = true }
+    )
+
+    if (showMaxQueuesDialog) {
+        CounterDialog(
+            title = stringResource(R.string.max_queues_title),
+            initialValue = maxQueues,
+            upperBound = 30,
+            lowerBound = 1,
+            onDismiss = { showMaxQueuesDialog = false },
+            onConfirm = {
+                showMaxQueuesDialog = false
+                coroutineScope.launch(Dispatchers.IO) {
+                    onMaxQueuesChange(it)
+                    delay(500)
+                    // the queues get reloaded, but not cleared by the database
+                    // this will allow the user to (immediately) revert any accidental changes
+                    playerConnection?.service?.initQueue()
+                }
+            },
+            onCancel = {
+                showMaxQueuesDialog = false
+            }
+        )
+    }
+}
+
+/**
+ * How the app gets on with the phone: whether the system may close it, whether swiping it away
+ * stops the music, and whether it gives way to other apps' sound. Under Advanced on Player and
+ * audio - the phone's counterpart of the desktop's close-to-tray, which is under System there.
+ */
+@Composable
+fun BackgroundPlaybackFrag() {
+    val (keepAlive, onKeepAliveChange) = rememberPreference(key = KeepAliveKey, defaultValue = false)
+    // Matches MusicService.onTaskRemoved's own default (true) - shown as off here while actually
+    // on there made the switch lie about the app's real behaviour for anyone who had never
+    // touched it.
+    val (stopMusicOnTaskClear, onStopMusicOnTaskClearChange) = rememberPreference(
+        key = StopMusicOnTaskClearKey,
+        defaultValue = true
+    )
+    val (ignoreAudioFocus, onIgnoreAudioFocusChange) = rememberPreference(key = IgnoreAudioFocusKey, defaultValue = false)
+
+    SwitchPreference(
+        title = { Text(stringResource(R.string.keep_alive_title)) },
+        description = stringResource(R.string.keep_alive_description),
+        icon = { Icon(Icons.Rounded.NoCell, null) },
+        checked = keepAlive,
+        onCheckedChange = {
+            if (it) {
+                onStopMusicOnTaskClearChange(false)
+            }
+            onKeepAliveChange(it)
+        }
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.stop_music_on_task_clear)) },
+        icon = { Icon(Icons.Rounded.ClearAll, null) },
+        isEnabled = !keepAlive,
+        checked = stopMusicOnTaskClear,
+        onCheckedChange = onStopMusicOnTaskClearChange,
+    )
+    SwitchPreference(
+        title = { Text(stringResource(R.string.ignore_audio_focus)) },
+        description = stringResource(R.string.ignore_audio_focus_desc),
+        icon = { Icon(Icons.Rounded.Headset, null) },
+        checked = ignoreAudioFocus,
+        onCheckedChange = onIgnoreAudioFocusChange
+    )
 }
 
 @Composable
@@ -466,26 +540,20 @@ fun SleepTimerFrag() {
 
 @Preview(showBackground = true)
 @Composable
-private fun PlayerGeneralFragPreview() {
-    PlayerGeneralFrag()
-}
-
-@Preview(showBackground = true)
-@Composable
 private fun AudioQualityFragPreview() {
     AudioQualityFrag()
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun NowPlayingFragPreview() {
-    NowPlayingFrag()
+private fun PlayerControlsFragPreview() {
+    PlayerControlsFrag()
 }
 
 @Preview(showBackground = true)
 @Composable
-private fun PlaybackBehaviourFragPreview() {
-    PlaybackBehaviourFrag()
+private fun QueueFragPreview() {
+    QueueFrag()
 }
 
 /**

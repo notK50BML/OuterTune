@@ -71,18 +71,20 @@ import androidx.compose.ui.unit.dp
 /** The sections settings are grouped into, in the phone's order. */
 enum class SettingsCategory(val label: String, val blurb: String) {
     // The phone's sections, in its order and under its names (SettingsScreen.kt), so a setting is
-    // found in the same place on both. Keyboard is the one the phone has no need for.
+    // found in the same place on both. System and Keyboard shortcuts are the two the phone has no
+    // need for: the tray, the graphics card and the keys belong to a computer.
     Account("Account and sync", "YouTube Music, sync and Discord"),
-    Appearance("Appearance", "Theme, colours, fonts, tabs and the player's look"),
-    Player("Player and audio", "Buttons, seek bar, queue, audio and the sleep timer"),
-    ListenTogether("Listen Together", "Play in sync with other devices"),
+    Appearance("Appearance", "Theme, text, tabs, player look"),
+    Player("Player and audio", "Playback, controls, queue"),
+    Lyrics("Lyrics", "Providers, display, word by word"),
     // Local media lives in here, as it does on the phone, rather than in a section of its own.
-    Content("Library and content", "Region and local music folders"),
-    Lyrics("Lyrics", "Providers, timing and how lyrics look"),
-    Keyboard("Keyboard", "Shortcuts for the player, each remappable"),
-    Privacy("Privacy", "Listening and search history"),
-    Storage("Storage", "Downloaded songs"),
-    Backup("Backup and restore", "Backups, the phone's backups, settings profiles"),
+    Content("Library and content", "Song details, region, local media"),
+    ListenTogether("Listen Together", "Play in sync with other devices"),
+    Privacy("Privacy and history", "Listening and search history, proxy"),
+    Storage("Storage and downloads", "Downloaded songs"),
+    Backup("Backup and restore", "Backups and settings profiles"),
+    System("System", "Tray, battery saver and graphics"),
+    Keyboard("Keyboard shortcuts", "Remappable player shortcuts"),
     Updater("Updater", "Check for and install new versions"),
     About("About", "Version and links"),
 }
@@ -98,7 +100,8 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
     SettingsCategory.Storage -> OuterTuneIcons.download
     SettingsCategory.Privacy -> OuterTuneIcons.history
     SettingsCategory.Backup -> OuterTuneIcons.restore
-    SettingsCategory.Updater -> OuterTuneIcons.download
+    SettingsCategory.System -> OuterTuneIcons.devices
+    SettingsCategory.Updater -> OuterTuneIcons.refresh
     SettingsCategory.About -> OuterTuneIcons.info
 }
 
@@ -112,6 +115,8 @@ private fun SettingsCategory.icon(): ImageVector = when (this) {
 internal data class SettingEntry(val title: String, val category: SettingsCategory, val keywords: String = "")
 
 internal val SETTING_ENTRIES = listOf(
+    // In page order, so a page's settings read together here as they do on screen.
+    SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
     SettingEntry("Use login for browsing content", SettingsCategory.Account, "personal recommendations premium guest signed in"),
     SettingEntry("Show login token", SettingsCategory.Account, "cookie token copy session advanced login"),
     SettingEntry("Sync automatically", SettingsCategory.Account, "auto sync startup youtube music account"),
@@ -119,67 +124,95 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("What to sync", SettingsCategory.Account, "liked songs library songs albums artists playlists recent activity"),
     SettingEntry("Sync mode", SettingsCategory.Account, "read only read write push likes"),
     SettingEntry("Conflict resolution", SettingsCategory.Account, "overwrite keep local add remote"),
-    SettingEntry("Scroll in the player", SettingsCategory.Player, "scroll wheel anywhere close dismiss put away open equaliser"),
-    SettingEntry("Song rows", SettingsCategory.Appearance, "row buttons three dots menu like download quick actions"),
-    SettingEntry("Queues to keep", SettingsCategory.Player, "multiple queues saved switch board history"),
-    SettingEntry("Player layout", SettingsCategory.Appearance, "layout editor custom arrange move cover position import"),
-    SettingEntry("Tabs", SettingsCategory.Appearance, "rail navigation sections home songs artists albums playlists library local stats order"),
-    SettingEntry("Keyboard shortcuts", SettingsCategory.Keyboard, "keys keybinds hotkeys shortcut remap play pause next previous equaliser shuffle repeat volume"),
+    SettingEntry("Discord", SettingsCategory.Account, "rich presence rpc status token show what's playing"),
+
     SettingEntry("Theme", SettingsCategory.Appearance, "dark light system mode night"),
     SettingEntry("Pure black", SettingsCategory.Appearance, "amoled oled dark black"),
     SettingEntry("Colour the app from the artwork", SettingsCategory.Appearance, "dynamic material you palette cover color"),
     SettingEntry("Colour controls by value", SettingsCategory.Appearance, "gradient yellow green blue dials color"),
-    SettingEntry("Player background", SettingsCategory.Appearance, "gradient blur frosted solid"),
     SettingEntry("Font", SettingsCategory.Appearance, "typeface family text system fonts"),
     SettingEntry("Text size", SettingsCategory.Appearance, "scale zoom font size bigger smaller"),
+    SettingEntry("Tabs", SettingsCategory.Appearance, "rail navigation sections home songs artists albums playlists library local stats order"),
     SettingEntry("Open on", SettingsCategory.Appearance, "start startup default tab section home"),
+    SettingEntry("Song rows", SettingsCategory.Appearance, "row buttons three dots menu like download quick actions"),
+    SettingEntry("Player background", SettingsCategory.Appearance, "gradient blur frosted solid ferrofluid"),
+    SettingEntry("Ferrofluid reactivity", SettingsCategory.Appearance, "player background ferrofluid bass react"),
+    SettingEntry("Player layout", SettingsCategory.Appearance, "layout editor custom arrange move cover position import"),
+    SettingEntry("Seek bar style", SettingsCategory.Appearance, "slider progress squiggly wavy waves slim"),
+    SettingEntry("Seek bar thickness", SettingsCategory.Appearance, "slider progress thin thinner weight"),
+    SettingEntry("Seek bar dot", SettingsCategory.Appearance, "slider progress thumb position"),
+    SettingEntry("Visualiser", SettingsCategory.Appearance, "spectrum bars visualizer"),
+
+    SettingEntry("Audio quality", SettingsCategory.Player, "bitrate high low streaming"),
+    SettingEntry("Audio normalisation", SettingsCategory.Player, "loudness volume normalize normalization"),
+    SettingEntry("Skip songs that cannot play", SettingsCategory.Player, "error skip unavailable"),
+    SettingEntry("Count a play after", SettingsCategory.Player, "minimum playback duration history stats"),
     SettingEntry("Player buttons", SettingsCategory.Player, "like download sleep menu order arrange actions"),
+    SettingEntry("Separate buttons for local files", SettingsCategory.Player, "local file player buttons computer"),
     SettingEntry("Mini player buttons", SettingsCategory.Player, "bar bottom clock like queue shuffle repeat volume lyrics sleep timer order arrange"),
-    SettingEntry("Seek buttons", SettingsCategory.Player, "skip forward rewind five seconds"),
-    SettingEntry("Visualiser", SettingsCategory.Player, "spectrum bars visualizer"),
+    SettingEntry("Seek buttons", SettingsCategory.Player, "skip forward rewind five seconds seek by"),
+    SettingEntry("Scroll in the player", SettingsCategory.Player, "scroll wheel anywhere close dismiss put away open equaliser"),
+    SettingEntry("Remember the queue", SettingsCategory.Player, "persistent queue restore resume"),
     SettingEntry("Show queue title", SettingsCategory.Player, "queue name handle"),
     SettingEntry("Queue handle in the title bar", SettingsCategory.Player, "queue handle top bottom banner window buttons"),
-    SettingEntry("Provider selection", SettingsCategory.Lyrics, "provider automatic order priority lrclib kugou betterlyrics youtube music subtitle captions source"),
+    SettingEntry("Queues to keep", SettingsCategory.Player, "multiple queues saved switch board history"),
+    SettingEntry("Sleep timer default time", SettingsCategory.Player, "sleep default minutes"),
+    SettingEntry("Sleep timer fade out", SettingsCategory.Player, "sleep fade length"),
+    SettingEntry("Turn up for EQ cuts", SettingsCategory.Player, "equaliser equalizer makeup gain volume"),
+    SettingEntry("Spectrum behind the equaliser", SettingsCategory.Player, "equalizer eq curve live analyser"),
+
+    SettingEntry("Provider selection", SettingsCategory.Lyrics, "provider automatic order priority lrclib kugou betterlyrics qq music youtube music subtitle captions source"),
     SettingEntry("BetterLyrics", SettingsCategory.Lyrics, "word by word karaoke syllable provider"),
-    SettingEntry("Estimate word timings", SettingsCategory.Lyrics, "karaoke interpolation sweep"),
-    SettingEntry("Click the cover for lyrics", SettingsCategory.Lyrics, "artwork tap"),
+    SettingEntry("LRCLIB", SettingsCategory.Lyrics, "lyrics provider lrclib"),
+    SettingEntry("KuGou", SettingsCategory.Lyrics, "lyrics provider kugou"),
+    SettingEntry("QQ Music", SettingsCategory.Lyrics, "lyrics provider qq tencent chinese"),
+    SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
     SettingEntry("Lyrics text size", SettingsCategory.Lyrics, "font scale"),
     SettingEntry("Lyrics alignment", SettingsCategory.Lyrics, "centre center left"),
     SettingEntry("Singer names in lyrics", SettingsCategory.Lyrics, "duet artist singer name colour color code voice who sings hide betterlyrics"),
-    SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
-    SettingEntry("Hide explicit content", SettingsCategory.Content, "explicit filter clean"),
-    SettingEntry("Mood chips on Home", SettingsCategory.Content, "chips filters relax workout energize podcasts home moods"),
+    SettingEntry("Click the cover for lyrics", SettingsCategory.Lyrics, "artwork tap"),
+    SettingEntry("Show lyrics type", SettingsCategory.Lyrics, "word synced line synced estimated unsynced tag"),
+    SettingEntry("Word highlight", SettingsCategory.Lyrics, "karaoke sweep fade word by word"),
+    SettingEntry("Estimate word timings", SettingsCategory.Lyrics, "karaoke interpolation sweep word by word"),
+
     SettingEntry("Song details", SettingsCategory.Content, "subtitle under title song rows artists album length duration time order"),
+    SettingEntry("Mood chips on Home", SettingsCategory.Content, "chips filters relax workout energize podcasts home moods"),
     SettingEntry("Content language", SettingsCategory.Content, "language region locale youtube"),
     SettingEntry("Content country", SettingsCategory.Content, "country region locale youtube"),
-    SettingEntry("Audio normalisation", SettingsCategory.Player, "loudness volume normalize normalization"),
-    SettingEntry("Skip songs that cannot play", SettingsCategory.Player, "error skip unavailable"),
-    SettingEntry("Remember the queue", SettingsCategory.Player, "persistent queue restore resume"),
-    SettingEntry("Count a play after", SettingsCategory.Player, "minimum playback duration history stats"),
-    SettingEntry("Sleep timer fade out", SettingsCategory.Player, "sleep fade"),
-    SettingEntry("Sleep timer default time", SettingsCategory.Player, "sleep default minutes"),
-    SettingEntry("LRCLIB", SettingsCategory.Lyrics, "lyrics provider lrclib"),
-    SettingEntry("KuGou", SettingsCategory.Lyrics, "lyrics provider kugou"),
-    SettingEntry("Sign in", SettingsCategory.Account, "login youtube google cookie firefox browser account"),
-    SettingEntry("Discord", SettingsCategory.Account, "rich presence rpc status token"),
-    SettingEntry("Listen Together", SettingsCategory.ListenTogether, "sync share lan network party"),
+    SettingEntry("Hide explicit content", SettingsCategory.Content, "explicit filter clean"),
     // Local media's own name went with its category, so its words are in the keywords now.
     SettingEntry("Use local media", SettingsCategory.Content, "local media files folders on this computer enable"),
+    SettingEntry("Rescan at every start", SettingsCategory.Content, "local media files scan startup automatic"),
     SettingEntry("Music folders", SettingsCategory.Content, "local media files folder mp3 flac scan computer"),
     SettingEntry("Rescan", SettingsCategory.Content, "local media files refresh scan folders start"),
-    SettingEntry("Downloads", SettingsCategory.Storage, "offline delete space disk"),
+    SettingEntry("Removed from library", SettingsCategory.Content, "local media excluded hidden files restore"),
+
+    SettingEntry("Listen Together", SettingsCategory.ListenTogether, "sync share lan network party"),
+
     SettingEntry("Keep listening history", SettingsCategory.Privacy, "history recent stats record"),
+    SettingEntry("Share listening history with YouTube Music", SettingsCategory.Privacy, "history account remote plays"),
+    SettingEntry("Count plays from other devices", SettingsCategory.Privacy, "stats remote youtube music history"),
     SettingEntry("Clear listening history", SettingsCategory.Privacy, "history delete stats reset"),
-    SettingEntry("Search history", SettingsCategory.Privacy, "search recent queries clear"),
+    SettingEntry("Search history", SettingsCategory.Privacy, "search recent queries clear keep"),
+    SettingEntry("Use a proxy", SettingsCategory.Privacy, "proxy http socks network address"),
+
+    SettingEntry("Downloads", SettingsCategory.Storage, "offline delete space disk"),
+
     SettingEntry("Import from a phone backup", SettingsCategory.Backup, "restore backup android zip"),
-    SettingEntry("Settings profiles", SettingsCategory.Backup, "profile share theme export import equaliser"),
     SettingEntry("Back up library", SettingsCategory.Backup, "export backup save"),
     SettingEntry("Where the library is stored", SettingsCategory.Backup, "database file path backup sqlite"),
-    SettingEntry("Version", SettingsCategory.About, "about github"),
-    SettingEntry("Battery saver", SettingsCategory.Appearance, "battery laptop power performance animations visualiser energy"),
-    SettingEntry("Close to the system tray", SettingsCategory.Appearance, "tray minimise minimize background close keep playing notification area"),
-    SettingEntry("Hardware acceleration", SettingsCategory.Appearance, "graphics card gpu memory ram software rendering performance draw"),
-    SettingEntry("Check for updates", SettingsCategory.Updater, "update updater new version download install release"),
+    SettingEntry("Back up automatically", SettingsCategory.Backup, "automatic backups how often keep"),
+    SettingEntry("Settings profiles", SettingsCategory.Backup, "profile share theme export import equaliser"),
+
+    SettingEntry("Close to the system tray", SettingsCategory.System, "tray minimise minimize background close keep playing notification area window"),
+    SettingEntry("Battery saver", SettingsCategory.System, "battery laptop power performance animations visualiser energy"),
+    SettingEntry("Hardware acceleration", SettingsCategory.System, "graphics card gpu memory ram software rendering performance draw"),
+
+    SettingEntry("Keyboard shortcuts", SettingsCategory.Keyboard, "keys keybinds hotkeys shortcut remap play pause next previous equaliser shuffle repeat volume"),
+
+    SettingEntry("Check for updates", SettingsCategory.Updater, "update updater new version download install release automatically"),
+
+    SettingEntry("Version", SettingsCategory.About, "about github source code"),
 )
 
 /** YouTube's content languages and countries the phone offers most, by code and name. */
@@ -336,7 +369,8 @@ fun SettingsPane(
                 SettingsCategory.Storage -> DownloadSettings(downloads, onDownloadsChanged)
                 SettingsCategory.Privacy -> PrivacySettings(settings, library, account)
                 SettingsCategory.Backup -> BackupSettings(settings, library, libraryPath, onProfileApplied)
-                SettingsCategory.Keyboard -> KeyboardSettings(settings)
+                SettingsCategory.System -> SystemSettings(settings)
+                SettingsCategory.Keyboard -> Section("Shortcuts") { KeyboardSettings(settings) }
                 SettingsCategory.Updater -> UpdaterSettings(settings)
                 SettingsCategory.About -> AboutSettings()
             }
@@ -439,47 +473,8 @@ private fun AppearanceSettings(settings: Settings) {
             divider = false,
         )
     }
+    // Where the app puts you and how you move around it, as the phone's Layout group.
     Section("Layout") {
-        SettingChoice(
-            title = "Player background",
-            icon = OuterTuneIcons.blurOn,
-            options = BackgroundStyle.entries,
-            selected = settings.background,
-            label = { it.label },
-            description = { it.description },
-            onSelect = { settings.background = it },
-        )
-        if (settings.background == BackgroundStyle.Ferrofluid) {
-            SettingChoice(
-                title = "Ferrofluid reactivity",
-                icon = OuterTuneIcons.graphicEq,
-                options = FerroReactivity.entries,
-                selected = settings.ferroReactivity,
-                label = { it.label },
-                onSelect = { settings.ferroReactivity = it },
-            )
-        }
-        PlayerLayoutSetting(settings)
-        var choosingRow by remember { mutableStateOf(false) }
-        SettingRow(
-            title = "Song rows",
-            subtitle = (RowButton.decode(settings.rowButtons).map { it.label } + if (settings.rowMenu) listOf("⋮ menu") else emptyList())
-                .joinToString(", ").ifEmpty { "Nothing - right-click a song for its menu" },
-            icon = OuterTuneIcons.moreVert,
-            onClick = { choosingRow = true },
-        )
-        if (choosingRow) {
-            RowButtonsDialog(
-                current = RowButton.decode(settings.rowButtons),
-                menu = settings.rowMenu,
-                onSave = { buttons, menu ->
-                    settings.rowButtons = RowButton.encode(buttons)
-                    settings.rowMenu = menu
-                    choosingRow = false
-                },
-                onDismiss = { choosingRow = false },
-            )
-        }
         var choosingTabs by remember { mutableStateOf(false) }
         SettingRow(
             title = "Tabs",
@@ -505,23 +500,107 @@ private fun AppearanceSettings(settings: Settings) {
             selected = settings.startTab,
             label = { it.label },
             onSelect = { settings.startTab = it },
+        )
+        var choosingRow by remember { mutableStateOf(false) }
+        SettingRow(
+            title = "Song rows",
+            subtitle = (RowButton.decode(settings.rowButtons).map { it.label } + if (settings.rowMenu) listOf("⋮ menu") else emptyList())
+                .joinToString(", ").ifEmpty { "Nothing - right-click a song for its menu" },
+            icon = OuterTuneIcons.moreVert,
+            onClick = { choosingRow = true },
+        )
+        if (choosingRow) {
+            RowButtonsDialog(
+                current = RowButton.decode(settings.rowButtons),
+                menu = settings.rowMenu,
+                onSave = { buttons, menu ->
+                    settings.rowButtons = RowButton.encode(buttons)
+                    settings.rowMenu = menu
+                    choosingRow = false
+                },
+                onDismiss = { choosingRow = false },
+            )
+        }
+    }
+    // How the player looks: its background, its layout and the seek bar under the cover. What the
+    // buttons do is under Player and audio; this is only the look.
+    Section("Player") {
+        SettingChoice(
+            title = "Player background",
+            icon = OuterTuneIcons.blurOn,
+            options = BackgroundStyle.entries,
+            selected = settings.background,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.background = it },
+        )
+        if (settings.background == BackgroundStyle.Ferrofluid) {
+            SettingChoice(
+                title = "Ferrofluid reactivity",
+                icon = OuterTuneIcons.graphicEq,
+                options = FerroReactivity.entries,
+                selected = settings.ferroReactivity,
+                label = { it.label },
+                onSelect = { settings.ferroReactivity = it },
+            )
+        }
+        PlayerLayoutSetting(settings)
+        SettingChoice(
+            title = "Seek bar style",
+            icon = OuterTuneIcons.palette,
+            options = SeekBarStyle.entries,
+            selected = settings.sliderStyle,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.sliderStyle = it },
+        )
+        SettingChoice(
+            title = "Seek bar thickness",
+            icon = OuterTuneIcons.palette,
+            options = SeekBarWeight.entries,
+            selected = settings.seekBarWeight,
+            label = { it.label },
+            onSelect = { settings.seekBarWeight = it },
+        )
+        SettingSwitch(
+            title = "Seek bar dot",
+            subtitle = "A dot at the current position.",
+            checked = settings.seekBarDot,
+            onCheckedChange = { settings.seekBarDot = it },
+            icon = OuterTuneIcons.palette,
+        )
+        SettingSwitch(
+            title = "Visualiser",
+            subtitle = "Spectrum bars above the seek bar.",
+            checked = settings.showVisualizer,
+            onCheckedChange = { settings.showVisualizer = it },
+            icon = OuterTuneIcons.graphicEq,
             divider = false,
         )
     }
+}
+
+/**
+ * The window and the computer: closing to the tray, and how hard OuterTune works the machine.
+ * Settings the phone has no need for, so they have a page of their own rather than sitting at the
+ * bottom of Appearance, where they used to be.
+ */
+@Composable
+private fun SystemSettings(settings: Settings) {
     // How the window is drawn: by the graphics card, or by the processor - see RenderMode.
-    Section("Performance") {
-        SettingSwitch(
-            title = "Battery saver",
-            subtitle = "Less animation and drawing. The sound is unchanged.",
-            checked = settings.batterySaver,
-            onCheckedChange = { settings.batterySaver = it },
-            icon = OuterTuneIcons.tune,
-        )
+    Section("Window and performance") {
         SettingSwitch(
             title = "Close to the system tray",
             subtitle = "Closing hides OuterTune to the tray; the music plays on.",
             checked = settings.closeToTray,
             onCheckedChange = { settings.closeToTray = it },
+            icon = OuterTuneIcons.tune,
+        )
+        SettingSwitch(
+            title = "Battery saver",
+            subtitle = "Less animation and drawing. The sound is unchanged.",
+            checked = settings.batterySaver,
+            onCheckedChange = { settings.batterySaver = it },
             icon = OuterTuneIcons.tune,
         )
         var onProcessor by remember { mutableStateOf(RenderMode.chosen()) }
@@ -542,43 +621,47 @@ private fun AppearanceSettings(settings: Settings) {
 
 @Composable
 private fun PlayerSettings(settings: Settings) {
-    Section("Player") {
+    // What plays and how it sounds, first: the settings most people come here for.
+    Section("Playback") {
         SettingChoice(
-            title = "Scroll in the player",
+            title = "Audio quality",
             icon = OuterTuneIcons.graphicEq,
-            options = PlayerScroll.entries,
-            selected = settings.playerScroll,
+            options = AudioQuality.entries,
+            selected = settings.audioQuality,
             label = { it.label },
             description = { it.description },
-            onSelect = { settings.playerScroll = it },
+            onSelect = { settings.audioQuality = it },
         )
         SettingSwitch(
-            title = "Seek buttons",
-            subtitle = "Skip back and forward buttons either side of play.",
-            checked = settings.showSeekButtons,
-            onCheckedChange = { settings.showSeekButtons = it },
-            icon = OuterTuneIcons.fastForward,
-        )
-        if (settings.showSeekButtons) {
-            SettingSlider(
-                title = "Seek by",
-                subtitle = "How far those buttons move.",
-                icon = OuterTuneIcons.fastForward,
-                value = settings.seekIncrementSeconds,
-                range = 5..60,
-                step = 5,
-                format = { "$it s" },
-                onChange = { settings.seekIncrementSeconds = it },
-                default = 5,
-            )
-        }
-        SettingSwitch(
-            title = "Visualiser",
-            subtitle = "Spectrum bars above the seek bar.",
-            checked = settings.showVisualizer,
-            onCheckedChange = { settings.showVisualizer = it },
+            title = "Audio normalisation",
+            subtitle = "Evens out volume between songs, only ever turning down.",
+            checked = settings.audioNormalisation,
+            onCheckedChange = { settings.audioNormalisation = it },
             icon = OuterTuneIcons.graphicEq,
         )
+        SettingSwitch(
+            title = "Skip songs that cannot play",
+            subtitle = "Moves on to the next song instead of stopping.",
+            checked = settings.skipOnError,
+            onCheckedChange = { settings.skipOnError = it },
+            icon = OuterTuneIcons.skipNext,
+        )
+        SettingSlider(
+            title = "Count a play after",
+            subtitle = "How much of a song must play to count.",
+            icon = OuterTuneIcons.history,
+            value = settings.minPlayPercent,
+            range = 0..100,
+            step = 10,
+            format = { "$it%" },
+            onChange = { settings.minPlayPercent = it },
+            default = 30,
+            divider = false,
+        )
+    }
+    // The buttons on the player and the mini player, and what the mouse does there. How the
+    // player looks is under Appearance.
+    Section("Controls") {
         var arranging by remember { mutableStateOf(false) }
         SettingRow(
             title = "Player buttons",
@@ -644,34 +727,46 @@ private fun PlayerSettings(settings: Settings) {
                 onDismiss = { arrangingMini = false },
             )
         }
+        SettingSwitch(
+            title = "Seek buttons",
+            subtitle = "Skip back and forward buttons either side of play.",
+            checked = settings.showSeekButtons,
+            onCheckedChange = { settings.showSeekButtons = it },
+            icon = OuterTuneIcons.fastForward,
+        )
+        if (settings.showSeekButtons) {
+            SettingSlider(
+                title = "Seek by",
+                subtitle = "How far those buttons move.",
+                icon = OuterTuneIcons.fastForward,
+                value = settings.seekIncrementSeconds,
+                range = 5..60,
+                step = 5,
+                format = { "$it s" },
+                onChange = { settings.seekIncrementSeconds = it },
+                default = 5,
+            )
+        }
         SettingChoice(
-            title = "Seek bar",
-            icon = OuterTuneIcons.palette,
-            options = SeekBarStyle.entries,
-            selected = settings.sliderStyle,
+            title = "Scroll in the player",
+            icon = OuterTuneIcons.graphicEq,
+            options = PlayerScroll.entries,
+            selected = settings.playerScroll,
             label = { it.label },
             description = { it.description },
-            onSelect = { settings.sliderStyle = it },
-        )
-        SettingChoice(
-            title = "Seek bar thickness",
-            icon = OuterTuneIcons.palette,
-            options = SeekBarWeight.entries,
-            selected = settings.seekBarWeight,
-            label = { it.label },
-            onSelect = { settings.seekBarWeight = it },
-        )
-        SettingSwitch(
-            title = "Seek bar dot",
-            subtitle = "A dot at the current position.",
-            checked = settings.seekBarDot,
-            onCheckedChange = { settings.seekBarDot = it },
-            icon = OuterTuneIcons.palette,
+            onSelect = { settings.playerScroll = it },
             divider = false,
         )
     }
-    // Everything about the queue in one place: how its handle looks on the player, and what is kept.
+    // Everything about the queue in one place: what is kept, and how its handle looks on the player.
     Section("Queue") {
+        SettingSwitch(
+            title = "Remember the queue",
+            subtitle = "Restores the queue and position on next start.",
+            checked = settings.persistentQueue,
+            onCheckedChange = { settings.persistentQueue = it },
+            icon = OuterTuneIcons.queueMusic,
+        )
         SettingSwitch(
             title = "Show queue title",
             subtitle = "Shows the queue's name by its handle.",
@@ -684,13 +779,6 @@ private fun PlayerSettings(settings: Settings) {
             subtitle = "Beside the window buttons in a wide window.",
             checked = settings.queueHandleTop,
             onCheckedChange = { settings.queueHandleTop = it },
-            icon = OuterTuneIcons.queueMusic,
-        )
-        SettingSwitch(
-            title = "Remember the queue",
-            subtitle = "Restores the queue and position on next start.",
-            checked = settings.persistentQueue,
-            onCheckedChange = { settings.persistentQueue = it },
             icon = OuterTuneIcons.queueMusic,
         )
         SettingSlider(
@@ -706,64 +794,25 @@ private fun PlayerSettings(settings: Settings) {
             divider = false,
         )
     }
-    Section("Audio") {
-        SettingChoice(
-            title = "Audio quality",
-            icon = OuterTuneIcons.graphicEq,
-            options = AudioQuality.entries,
-            selected = settings.audioQuality,
-            label = { it.label },
-            description = { it.description },
-            onSelect = { settings.audioQuality = it },
-        )
-        SettingSwitch(
-            title = "Spectrum behind the equaliser",
-            subtitle = "Shows the live spectrum behind the EQ curve.",
-            checked = settings.eqSpectrum,
-            onCheckedChange = { settings.eqSpectrum = it },
-            icon = OuterTuneIcons.graphicEq,
-        )
-        SettingSwitch(
-            title = "Audio normalisation",
-            subtitle = "Evens out volume between songs, only ever turning down.",
-            checked = settings.audioNormalisation,
-            onCheckedChange = { settings.audioNormalisation = it },
-            icon = OuterTuneIcons.graphicEq,
-        )
-        SettingSwitch(
-            title = "Turn up for EQ cuts",
-            subtitle = "Raises the volume to make up for EQ cuts.",
-            checked = settings.eqCutMakeup,
-            onCheckedChange = { settings.eqCutMakeup = it },
-            icon = OuterTuneIcons.equalizer,
-        )
-        SettingSwitch(
-            title = "Skip songs that cannot play",
-            subtitle = "Moves on to the next song instead of stopping.",
-            checked = settings.skipOnError,
-            onCheckedChange = { settings.skipOnError = it },
-            icon = OuterTuneIcons.skipNext,
-        )
-        SettingSlider(
-            title = "Count a play after",
-            subtitle = "How much of a song must play to count.",
-            icon = OuterTuneIcons.history,
-            value = settings.minPlayPercent,
-            range = 0..100,
-            step = 10,
-            format = { "$it%" },
-            onChange = { settings.minPlayPercent = it },
-            default = 30,
-            divider = false,
-        )
-    }
     Section("Sleep timer") {
+        SettingSlider(
+            title = "Default time",
+            subtitle = "Offered first when the sleep timer is opened.",
+            icon = OuterTuneIcons.timer,
+            value = settings.sleepDefaultMinutes,
+            range = 5..120,
+            step = 5,
+            format = { "$it min" },
+            onChange = { settings.sleepDefaultMinutes = it },
+            default = 30,
+        )
         SettingSwitch(
             title = "Fade out",
             subtitle = "Fades the music out as the timer ends.",
             checked = settings.sleepFade,
             onCheckedChange = { settings.sleepFade = it },
             icon = OuterTuneIcons.bedtime,
+            divider = settings.sleepFade,
         )
         if (settings.sleepFade) {
             SettingSlider(
@@ -776,18 +825,25 @@ private fun PlayerSettings(settings: Settings) {
                 format = { "$it s" },
                 onChange = { settings.sleepFadeSeconds = it },
                 default = 30,
+                divider = false,
             )
         }
-        SettingSlider(
-            title = "Default time",
-            subtitle = "Offered first when the sleep timer is opened.",
-            icon = OuterTuneIcons.timer,
-            value = settings.sleepDefaultMinutes,
-            range = 5..120,
-            step = 5,
-            format = { "$it min" },
-            onChange = { settings.sleepDefaultMinutes = it },
-            default = 30,
+    }
+    // The equaliser itself opens from the player; these two change how it behaves.
+    Section("Equaliser") {
+        SettingSwitch(
+            title = "Turn up for EQ cuts",
+            subtitle = "Raises the volume to make up for EQ cuts.",
+            checked = settings.eqCutMakeup,
+            onCheckedChange = { settings.eqCutMakeup = it },
+            icon = OuterTuneIcons.equalizer,
+        )
+        SettingSwitch(
+            title = "Spectrum behind the equaliser",
+            subtitle = "Shows the live spectrum behind the EQ curve.",
+            checked = settings.eqSpectrum,
+            onCheckedChange = { settings.eqSpectrum = it },
+            icon = OuterTuneIcons.graphicEq,
             divider = false,
         )
     }
@@ -795,7 +851,7 @@ private fun PlayerSettings(settings: Settings) {
 
 @Composable
 private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
-    Section("Sources") {
+    Section("Providers") {
         // The mode first, since it decides what follows: in my order, one list to tick and drag; on
         // automatic, where every provider is asked at once and order does not matter, which are on.
         SettingChoice(
@@ -830,13 +886,6 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
                 )
             }
         }
-        SettingSwitch(
-            title = "Estimate word timings",
-            subtitle = "Highlights line-synced lyrics word by word, estimated.",
-            checked = settings.estimateWordTimings,
-            onCheckedChange = { settings.estimateWordTimings = it },
-            icon = OuterTuneIcons.textRotationAngledown,
-        )
         SettingRow(
             title = "Clear cached lyrics",
             subtitle = "For the song playing now.",
@@ -845,13 +894,6 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
         )
     }
     Section("Display") {
-        SettingSwitch(
-            title = "Click the cover for lyrics",
-            subtitle = "Swaps the cover for the lyrics, and back.",
-            checked = settings.lyricsOnCoverClick,
-            onCheckedChange = { settings.lyricsOnCoverClick = it },
-            icon = OuterTuneIcons.lyrics,
-        )
         SettingSlider(
             title = "Lyrics text size",
             icon = OuterTuneIcons.textRotationAngledown,
@@ -871,15 +913,6 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             onSelect = { settings.lyricsAlignment = it },
         )
         SettingChoice(
-            title = "Word highlight",
-            icon = OuterTuneIcons.textRotationAngledown,
-            options = LyricsHighlight.entries,
-            selected = settings.lyricsHighlight,
-            label = { it.label },
-            description = { it.description },
-            onSelect = { settings.lyricsHighlight = it },
-        )
-        SettingChoice(
             title = "Singer names in lyrics",
             icon = OuterTuneIcons.person,
             options = SingerNames.entries,
@@ -889,12 +922,39 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
             onSelect = { settings.singerNames = it },
         )
         SettingSwitch(
+            title = "Click the cover for lyrics",
+            subtitle = "Swaps the cover for the lyrics, and back.",
+            checked = settings.lyricsOnCoverClick,
+            onCheckedChange = { settings.lyricsOnCoverClick = it },
+            icon = OuterTuneIcons.lyrics,
+        )
+        SettingSwitch(
             title = "Show lyrics type",
             subtitle = "Tags lyrics as word-synced, line-synced, estimated or unsynced.",
             checked = settings.lyricsShowKind,
             onCheckedChange = { settings.lyricsShowKind = it },
             icon = OuterTuneIcons.info,
-            // The timing offset that followed this is set per song now, from the lyrics menu.
+            divider = false,
+        )
+    }
+    // How word-by-word lyrics are drawn, and whether line-synced ones get estimated words. The
+    // timing offset that used to follow is set per song now, from the lyrics menu.
+    Section("Word by word") {
+        SettingChoice(
+            title = "Word highlight",
+            icon = OuterTuneIcons.textRotationAngledown,
+            options = LyricsHighlight.entries,
+            selected = settings.lyricsHighlight,
+            label = { it.label },
+            description = { it.description },
+            onSelect = { settings.lyricsHighlight = it },
+        )
+        SettingSwitch(
+            title = "Estimate word timings",
+            subtitle = "Highlights line-synced lyrics word by word, estimated.",
+            checked = settings.estimateWordTimings,
+            onCheckedChange = { settings.estimateWordTimings = it },
+            icon = OuterTuneIcons.textRotationAngledown,
             divider = false,
         )
     }
@@ -902,43 +962,8 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
 
 @Composable
 private fun ContentSettings(settings: Settings) {
-    Section("Region") {
-        SettingChoice(
-            title = "Content language",
-            icon = OuterTuneIcons.info,
-            options = CONTENT_LANGUAGES.map { it.first },
-            selected = settings.contentLanguage,
-            label = { code -> CONTENT_LANGUAGES.firstOrNull { it.first == code }?.second ?: code },
-            onSelect = { settings.contentLanguage = it },
-        )
-        SettingChoice(
-            title = "Content country",
-            icon = OuterTuneIcons.home,
-            options = CONTENT_COUNTRIES.map { it.first },
-            selected = settings.contentCountry,
-            label = { code -> CONTENT_COUNTRIES.firstOrNull { it.first == code }?.second ?: code },
-            onSelect = { settings.contentCountry = it },
-            divider = false,
-        )
-    }
-    Section("Filters") {
-        SettingSwitch(
-            title = "Hide explicit content",
-            subtitle = "Hides explicit songs from search, Home and artists.",
-            checked = settings.hideExplicit,
-            onCheckedChange = { settings.hideExplicit = it },
-            icon = OuterTuneIcons.info,
-            divider = false,
-        )
-    }
+    // What Home and the song lists show, first: it changes the app most from day to day.
     Section("Display") {
-        SettingSwitch(
-            title = "Mood chips on Home",
-            subtitle = "Relax, Workout and the rest, above Home.",
-            checked = settings.showHomeChips,
-            onCheckedChange = { settings.showHomeChips = it },
-            icon = OuterTuneIcons.home,
-        )
         var arrangingDetails by remember { mutableStateOf(false) }
         SettingRow(
             title = "Song details",
@@ -958,6 +983,42 @@ private fun ContentSettings(settings: Settings) {
                 onDismiss = { arrangingDetails = false },
             )
         }
+        SettingSwitch(
+            title = "Mood chips on Home",
+            subtitle = "Relax, Workout and the rest, above Home.",
+            checked = settings.showHomeChips,
+            onCheckedChange = { settings.showHomeChips = it },
+            icon = OuterTuneIcons.home,
+            divider = false,
+        )
+    }
+    // What YouTube Music sends: in which language, for which country, and without what. The
+    // explicit filter used to be a section of its own, one switch long.
+    Section("Content") {
+        SettingChoice(
+            title = "Content language",
+            icon = OuterTuneIcons.info,
+            options = CONTENT_LANGUAGES.map { it.first },
+            selected = settings.contentLanguage,
+            label = { code -> CONTENT_LANGUAGES.firstOrNull { it.first == code }?.second ?: code },
+            onSelect = { settings.contentLanguage = it },
+        )
+        SettingChoice(
+            title = "Content country",
+            icon = OuterTuneIcons.home,
+            options = CONTENT_COUNTRIES.map { it.first },
+            selected = settings.contentCountry,
+            label = { code -> CONTENT_COUNTRIES.firstOrNull { it.first == code }?.second ?: code },
+            onSelect = { settings.contentCountry = it },
+        )
+        SettingSwitch(
+            title = "Hide explicit content",
+            subtitle = "Hides explicit songs from search, Home and artists.",
+            checked = settings.hideExplicit,
+            onCheckedChange = { settings.hideExplicit = it },
+            icon = OuterTuneIcons.info,
+            divider = false,
+        )
     }
 }
 
@@ -1443,50 +1504,6 @@ private fun DownloadSettings(downloads: Downloads, onDownloadsChanged: () -> Uni
 private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPath: String, onProfileApplied: () -> Unit) {
     val scope = rememberCoroutineScope()
 
-    Section("Automatic backups") {
-        // Counted from the folder rather than from a stored timestamp - see AutoBackup. What is on
-        // disk is what can actually be restored, so it is what the screen should report.
-        val existing = remember(settings.autoBackup, settings.autoBackupKeep, settings.autoBackupHours) {
-            AutoBackup.existing(AutoBackup.folder())
-        }
-        SettingSwitch(
-            title = "Back up automatically",
-            subtitle = "Keeps regular copies of the library.",
-            checked = settings.autoBackup,
-            onCheckedChange = { settings.autoBackup = it },
-            icon = OuterTuneIcons.restore,
-            divider = settings.autoBackup,
-        )
-        if (settings.autoBackup) {
-            SettingSlider(
-                title = "How often",
-                icon = OuterTuneIcons.timer,
-                value = settings.autoBackupHours,
-                range = 1..168,
-                step = 1,
-                format = { if (it % 24 == 0) "every ${it / 24} day${if (it > 24) "s" else ""}" else "every $it h" },
-                onChange = { settings.autoBackupHours = it },
-                default = 24,
-            )
-            SettingSlider(
-                title = "How many to keep",
-                subtitle = "Older backups are deleted.",
-                icon = OuterTuneIcons.delete,
-                value = settings.autoBackupKeep,
-                range = 1..20,
-                step = 1,
-                format = { "$it" },
-                onChange = { settings.autoBackupKeep = it },
-                default = 5,
-            )
-            SettingRow(
-                title = if (existing.isEmpty()) "No automatic backups yet" else "${existing.size} kept",
-                subtitle = AutoBackup.folder().absolutePath,
-                icon = OuterTuneIcons.download,
-            )
-        }
-    }
-
     Section("Backup and restore") {
 
         // Merged into this library rather than replacing it, and safe to run twice - see
@@ -1566,9 +1583,6 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
         }
 
         Spacer(modifier = Modifier.height(12.dp))
-        ProfilesSection(settings, onApplied = onProfileApplied)
-
-        Spacer(modifier = Modifier.height(12.dp))
         Text("Stored at", style = MaterialTheme.typography.bodyMedium)
         Text(
             text = libraryPath,
@@ -1580,6 +1594,56 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
+    }
+
+    // Backing up or restoring now comes first, then the automatic backups, then profiles: the
+    // phone's order on its Backup and restore.
+    Section("Automatic backups") {
+        // Counted from the folder rather than from a stored timestamp - see AutoBackup. What is on
+        // disk is what can actually be restored, so it is what the screen should report.
+        val existing = remember(settings.autoBackup, settings.autoBackupKeep, settings.autoBackupHours) {
+            AutoBackup.existing(AutoBackup.folder())
+        }
+        SettingSwitch(
+            title = "Back up automatically",
+            subtitle = "Keeps regular copies of the library.",
+            checked = settings.autoBackup,
+            onCheckedChange = { settings.autoBackup = it },
+            icon = OuterTuneIcons.restore,
+            divider = settings.autoBackup,
+        )
+        if (settings.autoBackup) {
+            SettingSlider(
+                title = "How often",
+                icon = OuterTuneIcons.timer,
+                value = settings.autoBackupHours,
+                range = 1..168,
+                step = 1,
+                format = { if (it % 24 == 0) "every ${it / 24} day${if (it > 24) "s" else ""}" else "every $it h" },
+                onChange = { settings.autoBackupHours = it },
+                default = 24,
+            )
+            SettingSlider(
+                title = "How many to keep",
+                subtitle = "Older backups are deleted.",
+                icon = OuterTuneIcons.delete,
+                value = settings.autoBackupKeep,
+                range = 1..20,
+                step = 1,
+                format = { "$it" },
+                onChange = { settings.autoBackupKeep = it },
+                default = 5,
+            )
+            SettingRow(
+                title = if (existing.isEmpty()) "No automatic backups yet" else "${existing.size} kept",
+                subtitle = AutoBackup.folder().absolutePath,
+                icon = OuterTuneIcons.download,
+            )
+        }
+    }
+
+    Section("Settings profiles") {
+        ProfilesSection(settings, onApplied = onProfileApplied)
     }
 }
 

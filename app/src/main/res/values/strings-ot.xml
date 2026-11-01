@@ -83,7 +83,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="settings_debug">Debug</string>
 
     <string name="grp_account_sync">Account and sync</string>
-    <string name="grp_appearance_controls">Appearance and controls</string>
+    <string name="grp_appearance_controls">Appearance</string>
     <string name="grp_audio">Audio</string>
     <string name="grp_behavior">Behaviour</string>
     <string name="grp_display">Display</string>
@@ -101,6 +101,13 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="grp_now_playing">Now playing</string>
     <string name="grp_proxy">Proxy</string>
     <string name="grp_sync">Sync</string>
+    <string name="grp_controls">Controls</string>
+    <string name="grp_lyrics_providers">Providers</string>
+    <string name="grp_player_look">Player</string>
+    <string name="grp_playback">Playback</string>
+    <string name="grp_word_by_word">Word by word</string>
+    <string name="privacy_and_history">Privacy and history</string>
+    <string name="storage_and_downloads">Storage and downloads</string>
 
 <!-- About settings -->
     <string name="app_info_title">Application information</string>
@@ -204,20 +211,20 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="discord_test_connection">Test connection</string>
     <string name="discord_test_connection_description">Open a connection to Discord and report what happens</string>
     <string name="discord_login_failed">Could not read the token from this page. Go back and use \"Log in with token\" instead.</string>
-    <string name="slider_style_title">Slider style</string>
+    <string name="slider_style_title">Seek bar style</string>
     <string name="slider_style_squiggly">Squiggly</string>
     <string name="slider_style_default">Default</string>
     <string name="slider_style_slim">Slim</string>
     <string name="slider_style_waves">Waves</string>
     <string name="slider_style_wave_lines">Wave lines</string>
-    <string name="slider_weight_title">Slider thickness</string>
+    <string name="slider_weight_title">Seek bar thickness</string>
     <string name="slider_weight_thinner">Thinner</string>
-    <string name="slider_dot_title">Slider dot</string>
+    <string name="slider_dot_title">Seek bar dot</string>
     <string name="slider_dot_description">A dot at the current position</string>
     <string name="tab_arrangement">Arrange tabs</string>
     <string name="tab_arrangement_disable_tip">--- Drag below here to disable ---</string>
     <string name="tab_arrangement_home_required">The Home tab is required.</string>
-    <string name="tablet_ui_title">Force tablet UI</string>
+    <string name="tablet_ui_title">Force tablet layout</string>
     <string name="tablet_ui_title_description">Split layout for large screens, when wide enough</string>
     <string name="filter_arrangement">Arrange filters</string>
 
@@ -248,7 +255,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="keep_alive_title">Prevent system killing app</string>
     <string name="keep_alive_description">Stop OuterTune being closed in the background</string>
     <string name="persistent_queue_desc_ot">Restore previous open queue(s) when the app starts</string>
-    <string name="min_playback_duration">Minimum playback duration</string>
+    <string name="min_playback_duration">Count a play after</string>
     <string name="min_playback_duration_description">How much of a song must play to count</string>
     <string name="crossfade">Crossfade</string>
     <string name="crossfade_desc">Fade from the end of one track into the next</string>
@@ -277,13 +284,13 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="sleep_timer_show_on_player_desc">Show a sleep timer button on the player screen</string>
     <string name="swipe2Queue">Swipe to queue</string>
     <string name="swipe2Queue_description">Swipe a song to play it next</string>
-    <string name="seek_increment">Seek increment</string>
+    <string name="seek_increment">Seek buttons</string>
 
 <!--Lyrics settings -->
     <string name="lyrics_font_Size">Font size</string>
-    <string name="lyrics_karaoke_title">Karaoke style lyrics.</string>
+    <string name="lyrics_karaoke_title">Word-by-word lyrics</string>
     <string name="lyrics_karaoke_description">Word-by-word sync, where the lyrics support it</string>
-    <string name="lyrics_karaoke_hz_title">Adjust karaoke lyrics update speed</string>
+    <string name="lyrics_karaoke_hz_title">Word highlight update speed</string>
     <string name="lyrics_multiline_title">Read multiline lyrics</string>
     <string name="lyrics_multiline_description">Treat lines between sync points as one</string>
     <string name="recognition_placement_title">Identify a song button</string>
@@ -302,7 +309,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="lyrics_prefetch_description">Fetch lyrics for upcoming songs in advance</string>
     <string name="lyrics_prefetch_count_title">Number of songs to pre-fetch</string>
     <string name="lyrics_settings_title">Lyrics</string>
-    <string name="lyrics_synced_clickable">Clickable lyrics</string>
+    <string name="lyrics_synced_clickable">Tap a line to jump to it</string>
     <string name="lyrics_trim_title">Remove spaces around lyrics</string>
 
 <!-- Local player settings -->
@@ -450,7 +457,7 @@ while also allowing users to translate our app as well. New, specific strings to
 	<string name="restore_lm_tooltip">For fresh installs of the app, custom download and local media scan paths may not work. To resolve this, remove and add them again.</string>
 
 <!-- Experimental settings -->
-    <string name="experimental_settings_title">Experimental</string>
+    <string name="experimental_settings_title">Experimental and debug</string>
     <string name="dev_settings_title">Enable developer settings</string>
     <string name="dev_settings_description">Show advanced settings for development</string>
 
@@ -460,7 +467,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="tap_artwork_to_show_lyrics_title">Tap artwork to show lyrics</string>
     <string name="tap_artwork_to_show_lyrics_description">Show lyrics when tapping the artwork in the player</string>
 
-    <string name="max_queues_title">Maximum number of queues</string>
+    <string name="max_queues_title">Queues to keep</string>
     <string name="show_queues_beside_current_title">Show previous queues beside current</string>
     <string name="show_queues_beside_current_description">Older side-by-side queue layout in portrait</string>
 

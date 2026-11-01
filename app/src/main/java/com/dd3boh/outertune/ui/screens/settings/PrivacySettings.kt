@@ -11,14 +11,12 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -30,6 +28,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.History
+import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
+import com.dd3boh.outertune.ui.component.PreferenceEntry
+import com.dd3boh.outertune.ui.component.SettingsGroup
 import com.dd3boh.outertune.constants.ProxyEnabledKey
 import com.dd3boh.outertune.constants.ProxyTypeKey
 import com.dd3boh.outertune.constants.ProxyUrlKey
@@ -37,7 +40,6 @@ import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.EditTextPreference
 import com.dd3boh.outertune.ui.component.ListPreference
-import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.screens.settings.fragments.ListenHistoryFrag
@@ -56,6 +58,7 @@ fun PrivacySettings(
     val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
     val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
+    val (statsIncludeRemote, onStatsIncludeRemoteChange) = rememberPreference(key = StatsIncludeRemoteKey, defaultValue = false)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -63,26 +66,31 @@ fun PrivacySettings(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        // Each kind of history with its own switches and its clear button, as on the desktop. The
+        // history itself opens from here now rather than from the main settings list, where it was
+        // the one entry that was not settings.
+        SettingsGroup(title = stringResource(R.string.listen_history)) {
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.history)) },
+                icon = { Icon(Icons.Rounded.History, null) },
+                onClick = { navController.navigate("history") }
+            )
             ListenHistoryFrag()
+            // Came over from Player and audio, where it sat alone under its own heading.
+            SwitchPreference(
+                title = { Text(stringResource(R.string.stats_include_remote_title)) },
+                description = stringResource(R.string.stats_include_remote_description),
+                icon = { Icon(Icons.Rounded.CloudSync, null) },
+                checked = statsIncludeRemote,
+                onCheckedChange = onStatsIncludeRemoteChange,
+            )
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        SettingsGroup(title = stringResource(R.string.search_history)) {
             SearchHistoryFrag()
         }
-        Spacer(modifier = Modifier.height(16.dp))
 
-        PreferenceGroupTitle(
-            title = stringResource(R.string.grp_proxy)
-        )
-        ElevatedCard(
-            modifier = Modifier.fillMaxWidth()
-        ) {
+        SettingsGroup(title = stringResource(R.string.grp_proxy)) {
             SwitchPreference(
                 title = { Text(stringResource(R.string.enable_proxy)) },
                 checked = proxyEnabled,
@@ -110,7 +118,7 @@ fun PrivacySettings(
     }
 
     TopAppBar(
-        title = { Text(stringResource(R.string.privacy)) },
+        title = { Text(stringResource(R.string.privacy_and_history)) },
         navigationIcon = {
             IconButton(
                 onClick = navController::navigateUp,
