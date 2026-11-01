@@ -52,6 +52,19 @@ object FilePicker {
                 ?: awtFile(title)).firstOrNull()
         }
 
+    /**
+     * Where to save a new file, or null if cancelled. Windows' own Save As dialog - the modern
+     * picker here only opens, and a save needs the overwrite prompt and the name box this one has.
+     */
+    suspend fun saveFile(title: String, suggestedName: String): File? = withContext(Dispatchers.IO) {
+        val dialog = java.awt.FileDialog(null as java.awt.Frame?, title, java.awt.FileDialog.SAVE)
+        dialog.file = suggestedName
+        dialog.isVisible = true
+        val directory = dialog.directory ?: return@withContext null
+        val name = dialog.file ?: return@withContext null
+        File(directory, name)
+    }
+
     /** The modern picker's choice, an empty list if cancelled, or null if it could not be shown. */
     private fun windowsPick(folders: Boolean, multi: Boolean, title: String, filterName: String, filterSpec: String): List<File>? {
         if (!isWindows) return null

@@ -559,6 +559,24 @@ internal fun App(
         onlinePlaylist = OnlinePlaylistState.Loading
         onlinePlaylist = loadOnlinePlaylist(id)
     }
+    // The playlist menu's Sync: fetched again with the songs left on screen meanwhile, its tile
+    // spinning, rather than blanking the page to a spinner. A failure keeps what was showing.
+    var onlineSyncing by remember { mutableStateOf(false) }
+    val syncOnlinePlaylist: () -> Unit = {
+        openOnlinePlaylist?.id?.let { id ->
+            if (!onlineSyncing) {
+                onlineSyncing = true
+                scope.launch {
+                    try {
+                        val fresh = loadOnlinePlaylist(id)
+                        if (fresh is OnlinePlaylistState.Ready && openOnlinePlaylist?.id == id) onlinePlaylist = fresh
+                    } finally {
+                        onlineSyncing = false
+                    }
+                }
+            }
+        }
+    }
     LaunchedEffect(openAlbumId) {
         val id = openAlbumId ?: return@LaunchedEffect
         album = AlbumState.Loading
@@ -837,6 +855,8 @@ internal fun App(
     }
     var openPlaylist by remember { mutableStateOf<StoredPlaylist?>(null) }
     var addingToPlaylist by remember { mutableStateOf<StoredSong?>(null) }
+    // A playlist's name and every song in it, being added to other playlists at once.
+    var addingListToPlaylist by remember { mutableStateOf<Pair<String, List<StoredSong>>?>(null) }
 
     // Read when the open playlist changes, and re-read whenever the playlist list does - which is
     // what changes after an add, a removal or a reorder. A flow per playlist would be more state to
@@ -1078,12 +1098,30 @@ internal fun App(
 
     addingToPlaylist?.let { song ->
         AddToPlaylistDialog(
-            song = song,
+            heading = song.title,
             playlists = playlists,
             containing = remember(song.id, playlists) { library.playlistIdsContaining(song.id) },
             onDismiss = { addingToPlaylist = null },
             onAdd = { chosen -> chosen.forEach { library.addToPlaylist(it.id, song) } },
             onCreateAndAdd = { name -> library.addToPlaylist(library.createPlaylist(name), song) },
+        )
+    }
+
+    // A whole playlist's songs, from its ⋮ - the phone's playlist "Add to playlist".
+    addingListToPlaylist?.let { (from, songs) ->
+        AddToPlaylistDialog(
+            heading = "${songs.size} ${if (songs.size == 1) "song" else "songs"} from $from",
+            playlists = playlists,
+            // Ticked only where every one of them already is.
+            containing = remember(songs, playlists) {
+                songs.map { library.playlistIdsContaining(it.id) }.reduceOrNull { all, next -> all intersect next }.orEmpty()
+            },
+            onDismiss = { addingListToPlaylist = null },
+            onAdd = { chosen -> chosen.forEach { target -> songs.forEach { library.addToPlaylist(target.id, it) } } },
+            onCreateAndAdd = { name ->
+                val id = library.createPlaylist(name)
+                songs.forEach { library.addToPlaylist(id, it) }
+            },
         )
     }
 
@@ -1232,6 +1270,30 @@ internal fun App(
                 RepeatMode.ALL -> 2
             },
         )
+    }
+
+    // A playlist's ⋮ - see PlaylistMenuButton.
+    // Each song goes in straight after the one playing, so a whole list is put in last-first to
+    // come out in its own order.
+    val playListNext: (List<SongItem>) -> Unit = { songs -> songs.asReversed().forEach(playerQueue::playNext) }
+    val addListToQueue: (List<SongItem>) -> Unit = { songs -> songs.forEach(playerQueue::addToQueue) }
+    val exportM3u: (String, List<M3uEntry>) -> Unit = { name, entries ->
+        scope.launch {
+            val safeName = name.replace(Regex("""[\\/:*?"<>|]"""), "_").ifBlank { "playlist" }
+            val file = FilePicker.saveFile("Export playlist", "$safeName.m3u") ?: return@launch
+            val target = if (file.extension.isEmpty()) java.io.File(file.path + ".m3u") else file
+            withContext(Dispatchers.IO) { target.writeText(m3u(entries)) }
+        }
+    }
+    val startPlaylistRadio: (PlaylistItem) -> Unit = { playlist ->
+        playlist.radioEndpoint?.let { endpoint ->
+            scope.launch {
+                val radio = withContext(Dispatchers.IO) { YouTube.next(endpoint).getOrNull() }
+                if (radio != null && radio.items.isNotEmpty()) {
+                    playerQueue.play(radio.items, 0, "Radio: ${playlist.title}", more = radioFeed(radio))
+                }
+            }
+        }
     }
 
     // The right-click menu every song in the window offers - see SongMenuArea.
@@ -1658,6 +1720,28 @@ internal fun App(
                             if (order.isNotEmpty()) playerQueue.play(order, 0, onlineList.title)
                         },
                         onAddToPlaylist = { addingToPlaylist = it },
+                        menu = { playlist, songs ->
+                            PlaylistActions(
+                                playNext = { playListNext(songs) }.takeIf { songs.isNotEmpty() },
+                                addToQueue = { addListToQueue(songs) }.takeIf { songs.isNotEmpty() },
+                                addToPlaylist = { addingListToPlaylist = playlist.title to songs.map { it.toStored() } }
+                                    .takeIf { songs.isNotEmpty() },
+                                startRadio = playlist.radioEndpoint?.let { { startPlaylistRadio(playlist) } },
+                                sync = syncOnlinePlaylist,
+                                syncing = onlineSyncing,
+                                exportM3u = {
+                                    exportM3u(playlist.title, songs.map { song ->
+                                        M3uEntry(
+                                            durationSeconds = song.duration ?: -1,
+                                            artists = song.artists.joinToString(";") { it.name },
+                                            title = song.title,
+                                            location = m3uLocation(song.id, null),
+                                        )
+                                    })
+                                }.takeIf { songs.isNotEmpty() },
+                                copyLink = { copyToClipboard(playlist.shareLink) },
+                            )
+                        },
                     )
                 } else if (tab == NavTab.Settings) {
                     SettingsPane(
@@ -1746,6 +1830,27 @@ internal fun App(
                         saved = savedPlaylists,
                         // Opens the playlist's page, as on the phone, rather than playing it blind.
                         onPlaySaved = openOnlinePlaylistPage,
+                        // On this computer: no link to copy and nothing on YouTube to sync with.
+                        menuFor = { playlist, songs ->
+                            val items = songs.map { it.toItem() }
+                            PlaylistActions(
+                                playNext = { playListNext(items) }.takeIf { songs.isNotEmpty() },
+                                addToQueue = { addListToQueue(items) }.takeIf { songs.isNotEmpty() },
+                                addToPlaylist = { addingListToPlaylist = playlist.name to songs }.takeIf { songs.isNotEmpty() },
+                                exportM3u = {
+                                    val local = LocalMusic.tracks.value.associateBy { it.song.id }
+                                    exportM3u(playlist.name, songs.map { song ->
+                                        val track = local[song.id]
+                                        M3uEntry(
+                                            durationSeconds = track?.let { (it.durationMs / 1000).toInt() } ?: -1,
+                                            artists = song.artistList.takeIf { it.isNotEmpty() }?.joinToString(";") { it.name } ?: song.artists,
+                                            title = song.title,
+                                            location = m3uLocation(song.id, track?.file),
+                                        )
+                                    })
+                                }.takeIf { songs.isNotEmpty() },
+                            )
+                        },
                         onMoveSong = { playlist, from, to ->
                             val ids = openPlaylistSongs.map { it.id }.toMutableList()
                             if (to in ids.indices) {

@@ -91,6 +91,8 @@ fun OnlinePlaylistPane(
     downloadingTitle: String? = null,
     onAddToPlaylist: (StoredSong) -> Unit,
     modifier: Modifier = Modifier,
+    /** The playlist's ⋮ - play next, add to queue, sync and the rest. None when null. */
+    menu: ((PlaylistItem, List<SongItem>) -> PlaylistActions)? = null,
 ) {
     Column(modifier = modifier.fillMaxSize()) {
         Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(8.dp)) {
@@ -160,6 +162,7 @@ fun OnlinePlaylistPane(
                                 // Saves it to Library → Playlists - not for Liked music or your own,
                                 // which are in the library already.
                                 if (state.playlist.saveable()) SaveToLibraryButton(state.playlist.toSaved())
+                                menu?.let { PlaylistMenuButton(it(state.playlist, state.songs)) }
                             }
                         }
                     }

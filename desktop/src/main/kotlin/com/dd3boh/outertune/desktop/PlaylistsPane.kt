@@ -89,6 +89,8 @@ fun PlaylistsPane(
     downloaded: List<StoredSong> = emptyList(),
     grid: Boolean = false,
     onToggleGrid: () -> Unit = {},
+    /** The open playlist's ⋮: play next, add to queue, export... Rename and Delete are added here. */
+    menuFor: (StoredPlaylist, List<StoredSong>) -> PlaylistActions = { _, _ -> PlaylistActions() },
 ) {
     var naming by remember { mutableStateOf<NameRequest?>(null) }
     // Which automatic playlist is open, if one is: "liked" or "downloaded", as on the phone.
@@ -295,6 +297,18 @@ fun PlaylistsPane(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
+            if (songsInSelected.isNotEmpty()) {
+                TextButton(onClick = { onPlay(songsInSelected, 0, null) }) {
+                    Icon(OuterTuneIcons.play, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Play")
+                }
+                TextButton(onClick = { onPlay(songsInSelected.shuffled(), 0, null) }) {
+                    Icon(OuterTuneIcons.shuffle, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Shuffle")
+                }
+            }
             if (onDownloadAll != null) {
                 DownloadAllButton(
                     songIds = songsInSelected.map { it.id },
@@ -303,8 +317,14 @@ fun PlaylistsPane(
                     onDownload = { onDownloadAll(selected.name, songsInSelected) },
                 )
             }
-            TextButton(onClick = { naming = NameRequest(selected) }) { Text("Rename") }
-            TextButton(onClick = { onDelete(selected); onSelect(null) }) { Text("Delete") }
+            // Everything else the phone's playlist menu has, behind a ⋮ as it is there.
+            PlaylistMenuButton(
+                menuFor(selected, songsInSelected).copy(
+                    rename = { naming = NameRequest(selected) },
+                    delete = { onDelete(selected); onSelect(null) },
+                    name = selected.name,
+                )
+            )
         }
 
         if (songsInSelected.isEmpty()) {
@@ -465,12 +485,13 @@ private fun NameDialog(
  * to that one playlist and closes; a long press starts choosing several instead, and the confirm
  * button at the bottom adds to all of them at once.
  *
- * @param containing the ids of the playlists the song is already in.
+ * @param heading what is being added: a song's title, or "12 songs from …" for a whole playlist.
+ * @param containing the ids of the playlists that already hold all of it.
  */
 @OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun AddToPlaylistDialog(
-    song: StoredSong,
+    heading: String,
     playlists: List<StoredPlaylist>,
     containing: Set<String>,
     onDismiss: () -> Unit,
@@ -488,7 +509,7 @@ fun AddToPlaylistDialog(
         text = {
             Column {
                 Text(
-                    song.title,
+                    heading,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
