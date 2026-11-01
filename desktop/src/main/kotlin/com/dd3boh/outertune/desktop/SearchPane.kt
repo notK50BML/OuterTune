@@ -299,23 +299,28 @@ fun SearchSuggestionsPanel(
             SuggestionRow(text, OuterTuneIcons.search, onClick = { onPick(text) })
         }
         items.take(4).forEach { item ->
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.fillMaxWidth().clickable { onOpenItem(item) }.padding(horizontal = 16.dp, vertical = 6.dp),
-            ) {
-                Artwork(item.thumbnail, size = 36.dp, cornerRadius = if (item is ArtistItem) 18.dp else 4.dp)
-                Spacer(Modifier.width(12.dp))
-                Column(Modifier.weight(1f)) {
-                    Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text(
-                        item.shownSubtitle(),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+            val row: @Composable () -> Unit = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth().clickable { onOpenItem(item) }.padding(horizontal = 16.dp, vertical = 6.dp),
+                ) {
+                    Artwork(item.thumbnail, size = 36.dp, cornerRadius = if (item is ArtistItem) 18.dp else 4.dp)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(item.title, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            item.shownSubtitle(),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
+            // A suggested song has the right-click menu every song row has, so it can be played
+            // next or queued straight from the box - no search run first, nothing interrupted.
+            if (item is SongItem) SongMenuArea(item) { row() } else row()
         }
     }
 }
