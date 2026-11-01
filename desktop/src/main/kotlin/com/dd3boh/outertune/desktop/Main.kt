@@ -1668,7 +1668,9 @@ internal fun App(
                         onBack = { tab = NavTab.Home },
                         onClearLyricsCache = {
                             queue.current?.id?.let(lyricsRepository::forget)
-                            fetchedLyrics = null
+                            // And straight back to the providers, rather than leaving "No lyrics"
+                            // showing until the song is played again.
+                            lyricsAttempt++
                         },
                         downloads = library.downloads,
                         library = library,
