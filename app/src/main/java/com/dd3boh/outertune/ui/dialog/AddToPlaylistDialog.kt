@@ -1,17 +1,32 @@
 package com.dd3boh.outertune.ui.dialog
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.IndeterminateCheckBox
+import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -52,6 +67,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
+/**
+ * Picks the playlists to add songs to. A tap adds to that playlist; a long press starts choosing
+ * several, and the button pinned at the bottom adds to all of them at once.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AddToPlaylistDialog(
     navController: NavController,
@@ -64,14 +84,18 @@ fun AddToPlaylistDialog(
     val database = LocalDatabase.current
     val coroutineScope = rememberCoroutineScope()
     val syncUtils = LocalSyncUtils.current
+    val haptic = LocalHapticFeedback.current
 
     // The local rows and the remote playlist, together, so no caller can do one and forget the
     // other - which is what happened to both duplicate-dialog paths below: they wrote the database
     // and never told YouTube anything.
     fun addRemotely(playlist: Playlist, ids: List<String>) {
         if (playlist.playlist.isLocal) return
-        playlist.playlist.browseId?.let { syncUtils.addToRemotePlaylist(it, ids) }
+        playlist.playlist.browseId?.let { syncUtils.addToRemotePlaylist(it, ids, playlistId = playlist.id) }
     }
+
+    // Non-null while choosing several playlists (a long press starts it): the ids picked so far.
+    var picked by remember { mutableStateOf<Set<String>?>(null) }
 
     val (sortType, onSortTypeChange) = rememberEnumPreference(PlaylistSortTypeKey, PlaylistSortType.CREATE_DATE)
     val (sortDescending, onSortDescendingChange) = rememberPreference(PlaylistSortDescendingKey, true)
@@ -122,8 +146,54 @@ fun AddToPlaylistDialog(
         }
     }
 
+    // Adds to every playlist chosen at once. A song already in one of them is skipped there rather
+    // than asked about: one duplicates prompt cannot speak for several playlists at a time.
+    fun addToChosen(chosen: List<Playlist>) {
+        if (chosen.isEmpty()) return
+        coroutineScope.launch(Dispatchers.IO) {
+            if (onPreAdd != null) {
+                val result = onPreAdd(chosen.first())
+                if (songIds == null) songIds = result
+            }
+            val ids = songIds ?: return@launch
+            for (playlist in chosen) {
+                val dupes = database.playlistDuplicates(playlist.id, ids).toSet()
+                val toAdd = ids.filterNot { it in dupes }
+                if (toAdd.isEmpty()) continue
+                database.addSongToPlaylist(playlist, toAdd)
+                addRemotely(playlist, toAdd)
+            }
+            onDismiss()
+        }
+    }
+
     ListDialog(
-        onDismiss = onDismiss
+        onDismiss = onDismiss,
+        footer = picked?.let { selection ->
+            {
+                Row(
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                ) {
+                    TextButton(onClick = { picked = null }) {
+                        Text(stringResource(android.R.string.cancel))
+                    }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = { addToChosen(playlists.filter { it.id in selection }) },
+                        enabled = selection.isNotEmpty(),
+                    ) {
+                        Text(
+                            if (selection.isEmpty()) stringResource(R.string.playlist_choose_several)
+                            else pluralStringResource(R.plurals.add_to_n_playlists, selection.size, selection.size)
+                        )
+                    }
+                }
+            }
+        },
     ) {
         item {
             ListItem(
@@ -149,6 +219,15 @@ fun AddToPlaylistDialog(
             )
         }
 
+        if (picked == null) {
+            item {
+                InfoLabel(
+                    text = stringResource(R.string.playlist_hold_to_choose_several),
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                )
+            }
+        }
+
         item {
             SortHeader(
                 sortType = sortType,
@@ -167,30 +246,64 @@ fun AddToPlaylistDialog(
             )
         }
 
-        items(playlists) { playlist ->
+        items(playlists, key = { it.id }) { playlist ->
+            val selection = picked
+            val selected = selection?.contains(playlist.id) == true
             PlaylistListItem(
                 playlist = playlist,
                 trailingContent = {
                     val inPlaylist =
                         playlistIdsSongParticipation != null && playlist.id in playlistIdsSongParticipation!!
-                    // TODO: checkmark box for all songs in playlist for multiselect
-                    val icon =
-                        if (inPlaylist && songIds?.size == 1) {
-                            Icons.Rounded.CheckBox
-                        } else if (inPlaylist) {
-                            Icons.Rounded.IndeterminateCheckBox
-                        } else {
-                            Icons.Rounded.CheckBoxOutlineBlank
+                    if (selection != null) {
+                        // Choosing several: a small tick still says where the song already is, and
+                        // the box is the choice.
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (inPlaylist) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = stringResource(R.string.playlist_song_already_in),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                                Spacer(Modifier.width(4.dp))
+                            }
+                            Icon(
+                                imageVector = if (selected) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank,
+                                contentDescription = null,
+                                tint = if (selected) MaterialTheme.colorScheme.primary else LocalContentColor.current,
+                                modifier = Modifier.padding(end = 8.dp)
+                            )
                         }
+                    } else {
+                        val icon =
+                            if (inPlaylist && songIds?.size == 1) {
+                                Icons.Rounded.CheckBox
+                            } else if (inPlaylist) {
+                                Icons.Rounded.IndeterminateCheckBox
+                            } else {
+                                Icons.Rounded.CheckBoxOutlineBlank
+                            }
 
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        modifier = Modifier
-                            .padding(end = 8.dp)
-                    )
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            modifier = Modifier
+                                .padding(end = 8.dp)
+                        )
+                    }
                 },
-                modifier = Modifier.clickable {
+                modifier = Modifier
+                    .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+                    .combinedClickable(
+                        onLongClick = {
+                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            picked = (selection ?: emptySet()) + playlist.id
+                        },
+                    ) {
+                    if (selection != null) {
+                        picked = if (selected) selection - playlist.id else selection + playlist.id
+                        return@combinedClickable
+                    }
                     selectedPlaylist = playlist
                     coroutineScope.launch(Dispatchers.IO) {
                         if (onPreAdd != null) {

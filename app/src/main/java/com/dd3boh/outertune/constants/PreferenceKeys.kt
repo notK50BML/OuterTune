@@ -97,6 +97,8 @@ val YtmSyncKey = booleanPreferencesKey("ytmSync")
 val YtmSyncContentKey = stringPreferencesKey("ytmSyncContent")
 val YtmSyncModeKey = stringPreferencesKey("ytmSyncMode")
 val YtmSyncConflictKey = stringPreferencesKey("ytmSyncConflict")
+/** After songs are added to a synced playlist, fetch it back from YouTube once they have all landed. */
+val ResyncPlaylistAfterAddKey = booleanPreferencesKey("resyncPlaylistAfterAdd")
 //val LikedAutoDownloadKey = stringPreferencesKey("likedAutoDownloadKey")
 val ContentLanguageKey = stringPreferencesKey("contentLanguage")
 val ContentCountryKey = stringPreferencesKey("contentCountry")

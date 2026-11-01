@@ -189,6 +189,15 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="add_anyway">Add anyway</string>
     <string name="duplicates_description_single">The song is already in your playlist</string>
     <string name="duplicates_description_multiple">%d songs are already in your playlist</string>
+    <string name="playlist_hold_to_choose_several">Tap a playlist to add. Press and hold to choose several.</string>
+    <string name="playlist_choose_several">Choose playlists</string>
+    <string name="playlist_song_already_in">Already in this playlist</string>
+    <plurals name="add_to_n_playlists">
+        <item quantity="one">Add to %d playlist</item>
+        <item quantity="other">Add to %d playlists</item>
+    </plurals>
+    <string name="resync_playlist_after_add">Resync playlists after adding songs</string>
+    <string name="resync_playlist_after_add_desc">Once songs have been added to a synced playlist, fetch it back from YouTube Music so it shows exactly what your account holds</string>
 
     <!-- Noun -->
     <plurals name="n_song">

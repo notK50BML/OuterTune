@@ -15,6 +15,7 @@ import android.util.Log
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import com.dd3boh.outertune.constants.LastAlbumSyncKey
+import com.dd3boh.outertune.constants.ResyncPlaylistAfterAddKey
 import com.dd3boh.outertune.constants.LastArtistSyncKey
 import com.dd3boh.outertune.constants.LastFullSyncKey
 import com.dd3boh.outertune.constants.LastLibSongSyncKey
@@ -170,8 +171,13 @@ class SyncUtils @Inject constructor(
      *
      * Failures are counted rather than swallowed. The previous code discarded the Result of every
      * call, so a playlist that YouTube refused looked identical to one that worked.
+     *
+     * @param playlistId the local playlist. With [ResyncPlaylistAfterAddKey] on, it is fetched back
+     *   from YouTube once every add has landed, so the local list shows what the account really
+     *   holds - including anything YouTube refused, which would otherwise look added until the next
+     *   sync quietly took it away.
      */
-    fun addToRemotePlaylist(browseId: String, songIds: List<String>) {
+    fun addToRemotePlaylist(browseId: String, songIds: List<String>, playlistId: String? = null) {
         if (songIds.isEmpty()) return
         val job = scope.launch {
             var failed = 0
@@ -193,6 +199,19 @@ class SyncUtils @Inject constructor(
         // second add to the same playlist (which overwrites the entry with its own job) doesn't
         // get its tracking wiped out by the first add finishing after it.
         job.invokeOnCompletion { pendingPlaylistAdds.remove(browseId, job) }
+
+        // Started from outside the job, after it, never from inside it: syncPlaylist joins the
+        // pending add for this playlist first, and a job waiting on itself never finishes.
+        if (playlistId != null) {
+            job.invokeOnCompletion { cause ->
+                if (cause != null) return@invokeOnCompletion
+                scope.launch {
+                    if (context.dataStore.get(ResyncPlaylistAfterAddKey, false)) {
+                        syncPlaylist(browseId, playlistId)
+                    }
+                }
+            }
+        }
     }
 
     private val syncChannel = Channel<SyncOperation>(Channel.BUFFERED)

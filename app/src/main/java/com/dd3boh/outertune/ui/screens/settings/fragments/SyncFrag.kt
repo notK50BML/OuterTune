@@ -43,6 +43,7 @@ import com.dd3boh.outertune.constants.SyncConflictResolution
 import com.dd3boh.outertune.constants.SyncContent
 import com.dd3boh.outertune.constants.SyncMode
 import com.dd3boh.outertune.constants.YtmSyncConflictKey
+import com.dd3boh.outertune.constants.ResyncPlaylistAfterAddKey
 import com.dd3boh.outertune.constants.YtmSyncContentKey
 import com.dd3boh.outertune.constants.YtmSyncKey
 import com.dd3boh.outertune.constants.YtmSyncModeKey
@@ -213,6 +214,16 @@ fun ColumnScope.SyncParamsFrag() {
                 SyncConflictResolution.OVERWRITE_WITH_REMOTE -> stringResource(R.string.sync_conflict_overwrite)
             }
         },
+    )
+    val (resyncAfterAdd, onResyncAfterAddChange) = rememberPreference(ResyncPlaylistAfterAddKey, defaultValue = false)
+    SwitchPreference(
+        title = { Text(stringResource(R.string.resync_playlist_after_add)) },
+        description = stringResource(R.string.resync_playlist_after_add_desc),
+        icon = { Icon(Icons.Rounded.Sync, null) },
+        checked = resyncAfterAdd,
+        onCheckedChange = onResyncAfterAddChange,
+        // Writing to YouTube is what this follows up on; read-only sync never adds anything there.
+        isEnabled = syncMode == SyncMode.RW,
     )
 }
 

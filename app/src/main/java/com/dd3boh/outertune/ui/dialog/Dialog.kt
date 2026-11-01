@@ -176,6 +176,8 @@ fun DefaultDialog(
 fun ListDialog(
     onDismiss: () -> Unit,
     modifier: Modifier = Modifier,
+    /** Pinned under the list, outside its scroll - for a confirm button that must stay reachable. */
+    footer: (@Composable () -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     Dialog(
@@ -195,8 +197,11 @@ fun ListDialog(
                 val lazyListState = rememberLazyListState()
                 LazyColumn(
                     state = lazyListState,
+                    // Gives way to the footer: without the weight a long list pushes it off-screen.
+                    modifier = Modifier.weight(1f, fill = false),
                     content = content
                 )
+                footer?.invoke()
             }
         }
     }
