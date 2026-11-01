@@ -61,6 +61,44 @@ data class LrcResponse(
     val lyric: String? = null,
 )
 
+/**
+ * `search_for_qq_cp`: QQ's oldest public search, in its own older shape - songid/songmid/songname -
+ * read into the same [SearchResponse.Song] the rest of the code matches on. As of November 2026 it is
+ * the one search still answering: the desktop search refuses with 2001 from the first request, and
+ * `client_search_cp` returns HTTP 500.
+ */
+@Serializable
+data class OldSearchResponse(
+    val code: Int = 0,
+    val data: Data? = null,
+) {
+    @Serializable
+    data class Data(val song: SongList? = null)
+
+    @Serializable
+    data class SongList(val list: List<Song> = emptyList())
+
+    @Serializable
+    data class Song(
+        val songid: Long = 0,
+        val songmid: String = "",
+        val songname: String = "",
+        val interval: Int = 0,
+        val singer: List<SearchResponse.Singer> = emptyList(),
+        val grp: List<Song> = emptyList(),
+    ) {
+        fun toSong(): SearchResponse.Song = SearchResponse.Song(
+            id = songid,
+            mid = songmid,
+            name = songname,
+            title = songname,
+            duration = interval,
+            singer = singer,
+            grp = grp.map { it.toSong() },
+        )
+    }
+}
+
 /** `client_search_cp` with new_json=1: the same songs as [SearchResponse], under data.song.list. */
 @Serializable
 data class LegacySearchResponse(

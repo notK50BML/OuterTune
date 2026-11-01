@@ -139,6 +139,33 @@ class SingersTest {
     }
 
     @Test
+    fun `QQ names standing alone on their lines head the verses that follow`() {
+        // As QQ sends 不该: "Jay：" alone, the verse, "AMEI：", "合：" for both.
+        val qrc = """<QrcInfos><Lyric_1 LyricContent="[0,1000]词(0,500)：(500,500)方文山(1000,0)
+[1000,500]Jay(1000,250)：(1250,250)
+[1500,1000]不(1500,500)该(2000,500)
+[2500,1000]让(2500,500)你(3000,500)
+[3500,500]AMEI(3500,250)：(3750,250)
+[4000,1000]我(4000,500)懂(4500,500)
+[5000,500]Jay(5000,250)：(5250,250)
+[5500,1000]是(5500,500)我(6000,500)
+[6500,500]合(6500,250)：(6750,250)
+[7000,1000]不(7000,500)该(7500,500)
+"/></QrcInfos>"""
+        val parsed = TTMLParser.parse(QrcConverter.toTtml(qrc)!!)
+        val lyrics = parsed.lines.filter { Singers.leadingName(it.text) == null }
+        assertEquals(listOf("不该", "让你", "我懂", "是我", "不该"), lyrics.map { it.text })
+        assertEquals(listOf(Voice.ONE, Voice.ONE, Voice.TWO, Voice.ONE, Voice.GROUP), lyrics.map { it.voice })
+        // The credit is still not a singer.
+        assertTrue(parsed.lines.none { it.text.startsWith("词") })
+    }
+
+    @Test
+    fun `one name alone once is not a labelled song`() {
+        assertEquals(emptySet<String>(), Singers.namePrefixes(listOf("Mama:", "come home", "Papa: says no")))
+    }
+
+    @Test
     fun `voice colours stay readable on dark and light backgrounds and apart from each other`() {
         // A Material-ish blue and pink, as dark and light themes might offer them.
         val primary = 0xFF3F51B5.toInt()

@@ -11,7 +11,11 @@ package com.dd3boh.betterlyrics
  * as words of their own.
  */
 object QrcConverter {
-    private val CONTENT = Regex("""LyricContent="([^"]*)"""")
+    // Up to the element's own end, not the next quote. QQ does not escape quotes inside the
+    // attribute, and plenty of songs have one - Abel "The Weeknd" Tesfaye in the credits - so a
+    // [^"]* match stopped in the credits, kept nothing but credit lines, and the song fell back to
+    // line-timed lyrics with its word timing thrown away.
+    private val CONTENT = Regex("""(?s)LyricContent="(.*?)"\s*/>\s*(?=</LyricInfo>|<Lyric_|$)""")
     private val LINE = Regex("""^\[(\d+),(\d+)](.*)$""")
     private val WORD = Regex("""(.*?)\((\d+),(\d+)\)""")
 

@@ -167,15 +167,24 @@ object Singers {
      * labelled when at least two different names lead lines and at least one of them leads two
      * different lines - which is what a duet written out with names looks like, and what a chorus
      * repeated word for word ("Remember: ..." four times over) does not.
+     *
+     * A name standing alone on its line counts as well, when one does so at least twice. That is
+     * how QQ Music heads a duet's verses - `Jay：`, the verse, `AMEI：`, the next, `合：` for both -
+     * and with nothing after the colon those lines all read as the same empty text, so the rule
+     * above never saw two different lines and a labelled duet came out as unlabelled.
      */
     fun namePrefixes(texts: List<String>): Set<String> {
         val seen = LinkedHashMap<String, MutableSet<String>>()
+        val alone = HashMap<String, Int>()
         for (text in texts) {
             val match = NAME_PREFIX.find(text) ?: continue
             val name = match.groupValues[1].trim().takeIf(::isNameShaped) ?: continue
-            seen.getOrPut(name) { mutableSetOf() } += text.substring(match.range.last + 1).trim()
+            val rest = text.substring(match.range.last + 1).trim()
+            seen.getOrPut(name) { mutableSetOf() } += rest
+            if (rest.isEmpty()) alone[name] = (alone[name] ?: 0) + 1
         }
-        if (seen.size < 2 || seen.values.none { it.size > 1 }) return emptySet()
+        val labelled = seen.values.any { it.size > 1 } || alone.values.any { it >= 2 }
+        if (seen.size < 2 || !labelled) return emptySet()
         return seen.keys
     }
 

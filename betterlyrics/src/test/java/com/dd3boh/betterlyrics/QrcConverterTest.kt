@@ -32,6 +32,24 @@ class QrcConverterTest {
     }
 
     @Test
+    fun `a raw quote inside the lyrics does not cut them short`() {
+        // As QQ sends Blinding Lights: quotes unescaped in the credits, inside the attribute.
+        val quoted = """<?xml version="1.0" encoding="utf-8"?>
+<QrcInfos>
+<LyricInfo LyricCount="1">
+<Lyric_1 LyricType="1" LyricContent="[ti:Blinding Lights]
+[1757,4829]Lyrics (1757,439)by：(2196,439)Abel "(3513,439)The (3952,439)Weeknd" (4391,439)Tesfaye(4830,439)
+[27672,2784]I've (27672,200)been (27872,144)tryna (28016,176)call(28192,632)
+[30456,2720]I said "(30456,184)hello"(30640,177)
+"/>
+</LyricInfo>
+</QrcInfos>"""
+        val lines = TTMLParser.parseTTML(QrcConverter.toTtml(quoted, title = "Blinding Lights")!!)
+        assertEquals(listOf("I've been tryna call", "I said \"hello\""), lines.map { it.text.trim() })
+        assertEquals(4, lines[0].words.size)
+    }
+
+    @Test
     fun `nothing timed is no lyrics`() {
         assertNull(QrcConverter.toTtml("""<QrcInfos><Lyric_1 LyricContent="[ti:x]"/></QrcInfos>"""))
     }

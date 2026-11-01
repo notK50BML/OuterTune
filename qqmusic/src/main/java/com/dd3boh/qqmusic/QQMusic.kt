@@ -3,6 +3,7 @@ package com.dd3boh.qqmusic
 import com.dd3boh.betterlyrics.QrcConverter
 import com.dd3boh.qqmusic.models.LrcResponse
 import com.dd3boh.qqmusic.models.LegacySearchResponse
+import com.dd3boh.qqmusic.models.OldSearchResponse
 import com.dd3boh.qqmusic.models.SearchResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
@@ -45,6 +46,7 @@ object QQMusic {
 
     private const val SEARCH_URL = "https://u.y.qq.com/cgi-bin/musicu.fcg"
     private const val LEGACY_SEARCH_URL = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp"
+    private const val OLD_SEARCH_URL = "https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp"
     private const val QRC_URL = "https://c.y.qq.com/qqmusic/fcgi-bin/lyric_download.fcg"
     private const val LRC_URL = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
 
@@ -151,12 +153,39 @@ object QQMusic {
     internal suspend fun search(title: String, artist: String): List<SearchResponse.Song> {
         val query = listOf(normalizeTitle(title).trim().ifEmpty { title }, artistParts(artist, keepCase = true).joinToString(" "))
             .filter { it.isNotBlank() }.joinToString(" ")
-        val primary = runCatching {
-            checkNotResting()
-            primarySearch(query)
+        // In order until one answers. The oldest goes first now: the other two have stopped
+        // answering (see OldSearchResponse), and asking a refused search first only adds a round
+        // trip - and, for the desktop one, a 15-minute rest - to every song. They stay behind it in
+        // case QQ turns any of them back on.
+        val failures = mutableListOf<Throwable>()
+        for (attempt in listOf<suspend () -> List<SearchResponse.Song>>(
+            { oldSearch(query) },
+            { checkNotResting(); primarySearch(query) },
+            { legacySearch(query) },
+        )) {
+            try {
+                return attempt()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                failures += e
+            }
         }
-        primary.getOrNull()?.let { return it }
-        return runCatching { legacySearch(query) }.getOrElse { throw primary.exceptionOrNull() ?: it }
+        // Every search's own reason, rather than only the first - "refused" from one and "HTTP 500"
+        // from another are different problems.
+        throw IOException("QQ Music search failed: " + failures.joinToString("; ") { it.message ?: it::class.simpleName.orEmpty() })
+    }
+
+    private suspend fun oldSearch(query: String): List<SearchResponse.Song> {
+        val text = client.get(OLD_SEARCH_URL) {
+            parameter("w", query)
+            parameter("format", "json")
+            parameter("p", 1)
+            parameter("n", PAGE_SIZE)
+        }.bodyAsText()
+        val response = json.decodeFromString<OldSearchResponse>(text)
+        if (response.code != 0) throw IOException("QQ Music's oldest search refused: code ${response.code}")
+        return response.data?.song?.list.orEmpty().flatMap { song -> listOf(song.toSong()) + song.grp.map { it.toSong() } }
     }
 
     /** `client_search_cp` - the older public search, answering in the same song shape (new_json=1). */
