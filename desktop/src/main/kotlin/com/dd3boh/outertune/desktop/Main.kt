@@ -120,6 +120,7 @@ import com.zionhuang.innertube.models.SongItem
 import com.zionhuang.innertube.models.YouTubeLocale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -1377,9 +1378,19 @@ internal fun App(
                     remove = { lyricsRepository.remove(song.id); lyricsAttempt++ },
                     source = fetchedLyrics?.source,
                     useProvider = { source ->
-                        val found = lyricsRepository.lyricsFrom(source, song.id, song.title, artist, duration)
-                        if (found != null) lyricsAttempt++
-                        found != null
+                        // In the window's own scope, not the menu's: the lyrics header can leave the
+                        // screen while the provider is being asked, and a lookup cancelled with it
+                        // came back as "none" - every provider reported having no lyrics. The song is
+                        // written to the library first, so the choice is kept for a song from search
+                        // or a radio too, and what was found is shown as it is rather than looked up
+                        // all over again.
+                        scope.async {
+                            withContext(Dispatchers.IO) {
+                                library.database.upsertSong(song.toStored(), duration, song.album?.name.orEmpty())
+                            }
+                            lyricsRepository.lyricsFrom(source, song.id, song.title, artist, duration)
+                                ?.also { fetchedLyrics = it }
+                        }.await() != null
                     },
                 )
             },
