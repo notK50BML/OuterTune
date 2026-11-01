@@ -166,7 +166,7 @@ internal val SETTING_ENTRIES = listOf(
     SettingEntry("LRCLIB", SettingsCategory.Lyrics, "lyrics provider lrclib"),
     SettingEntry("KuGou", SettingsCategory.Lyrics, "lyrics provider kugou"),
     SettingEntry("QQ Music", SettingsCategory.Lyrics, "lyrics provider qq tencent chinese"),
-    SettingEntry("Clear cached lyrics", SettingsCategory.Lyrics, "cache refresh refetch"),
+    SettingEntry("Refetch all lyrics", SettingsCategory.Lyrics, "cache clear refresh refetch provider order again"),
     SettingEntry("Lyrics text size", SettingsCategory.Lyrics, "font scale"),
     SettingEntry("Lyrics alignment", SettingsCategory.Lyrics, "centre center left"),
     SettingEntry("Singer names in lyrics", SettingsCategory.Lyrics, "duet artist singer name colour color code voice who sings hide betterlyrics"),
@@ -256,13 +256,16 @@ fun SettingsPane(
     listenTogether: ListenTogetherManager,
     libraryPath: String,
     onBack: () -> Unit,
-    onClearLyricsCache: () -> Unit,
+    /** Refetch all lyrics: forgets every provider's lyrics, and fetches the playing song's again. */
+    onClearLyricsCache: suspend () -> Unit,
     downloads: Downloads,
     onDownloadsChanged: () -> Unit,
     library: LibraryStore,
     modifier: Modifier = Modifier,
     /** After a profile is imported - see ProfilesSection. */
     onProfileApplied: () -> Unit = {},
+    /** How many songs' lyrics Refetch all lyrics would fetch again, for its confirmation. */
+    lyricsToRefetch: suspend () -> Int = { 0 },
     /** The account sync, for Account and sync's options. Null hides them. */
     sync: YouTubeSync? = null,
 ) {
@@ -353,7 +356,7 @@ fun SettingsPane(
             when (category) {
                 SettingsCategory.Appearance -> AppearanceSettings(settings)
                 SettingsCategory.Player -> PlayerSettings(settings)
-                SettingsCategory.Lyrics -> LyricsSettings(settings, onClearLyricsCache)
+                SettingsCategory.Lyrics -> LyricsSettings(settings, onClearLyricsCache, lyricsToRefetch)
                 SettingsCategory.Content -> {
                     ContentSettings(settings)
                     // The folders on this computer, below what shows up from YouTube Music.
@@ -852,7 +855,7 @@ private fun PlayerSettings(settings: Settings) {
 }
 
 @Composable
-private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
+private fun LyricsSettings(settings: Settings, onRefetchAll: suspend () -> Unit, lyricsToRefetch: suspend () -> Int) {
     Section("Providers") {
         // The mode first, since it decides what follows: in my order, one list to tick and drag; on
         // automatic, where every provider is asked at once and order does not matter, which are on.
@@ -888,12 +891,50 @@ private fun LyricsSettings(settings: Settings, onClearLyricsCache: () -> Unit) {
                 )
             }
         }
+        // Lyrics found once are kept, so a new provider order only reaches songs never looked up -
+        // this is how it reaches the rest. It replaced "Clear cached lyrics", which only ever
+        // cleared the song playing.
+        val scope = rememberCoroutineScope()
+        var confirmCount by remember { mutableStateOf<Int?>(null) }
+        var refetching by remember { mutableStateOf(false) }
         SettingRow(
-            title = "Clear cached lyrics",
-            subtitle = "For the song playing now.",
-            icon = OuterTuneIcons.delete,
-            onClick = onClearLyricsCache,
+            title = if (refetching) "Refetching lyrics…" else "Refetch all lyrics",
+            subtitle = "Fetches every song's lyrics again with the providers as they are set now - " +
+                "use it after changing their order. Lyrics you edited or removed are kept.",
+            icon = OuterTuneIcons.refresh,
+            onClick = {
+                if (!refetching) scope.launch { confirmCount = lyricsToRefetch() }
+            },
         )
+        confirmCount?.let { count ->
+            AlertDialog(
+                onDismissRequest = { confirmCount = null },
+                title = { Text("Refetch all lyrics?") },
+                text = {
+                    Text(
+                        if (count == 1) "1 song's lyrics will be fetched again: the song playing now straight away, others the next time they play."
+                        else "$count songs' lyrics will be fetched again: the song playing now straight away, the rest the next time they play."
+                    )
+                },
+                confirmButton = {
+                    TextButton(
+                        enabled = count > 0,
+                        onClick = {
+                            confirmCount = null
+                            refetching = true
+                            scope.launch {
+                                try {
+                                    onRefetchAll()
+                                } finally {
+                                    refetching = false
+                                }
+                            }
+                        },
+                    ) { Text("Refetch") }
+                },
+                dismissButton = { TextButton(onClick = { confirmCount = null }) { Text("Cancel") } },
+            )
+        }
     }
     Section("Display") {
         SettingSlider(
@@ -1579,6 +1620,51 @@ private fun BackupSettings(settings: Settings, library: LibraryStore, libraryPat
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     },
+                    modifier = Modifier.padding(start = 8.dp),
+                )
+            }
+        }
+
+        // Albums only, for a library imported before the import read them - see
+        // BackupImport.fillAlbumsFrom. No like, play or playlist is touched.
+        Spacer(modifier = Modifier.height(12.dp))
+        var filling by remember { mutableStateOf(false) }
+        var fillResult by remember { mutableStateOf<String?>(null) }
+        Text("Album details", style = MaterialTheme.typography.bodyMedium)
+        Text(
+            text = "Fills in the album, single or EP of songs that have none, from an Android backup. " +
+                "Nothing else is changed.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            TextButton(
+                enabled = !filling,
+                onClick = {
+                    scope.launch {
+                        val file = FilePicker.pickFile("Choose an Android backup", "OuterTune backup", "*.backup;*.zip")
+                            ?: return@launch
+                        filling = true
+                        fillResult = null
+                        fillResult = BackupImport.fillAlbumsFrom(file, library).fold(
+                            { if (it == 1) "1 song got its album." else "$it songs got their album." },
+                            { "Could not read that backup: ${it.message}" },
+                        )
+                        filling = false
+                    }
+                },
+            ) {
+                if (filling) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Text(if (filling) "Filling in…" else "Fill in from a backup…")
+            }
+            fillResult?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 8.dp),
                 )
             }

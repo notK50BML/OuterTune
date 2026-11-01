@@ -83,13 +83,14 @@ const val ALBUM_OF_SONG = "song:"
  * when needed; remembered for the session, since a song does not change albums.
  */
 object AlbumLookup {
-    private val known = java.util.concurrent.ConcurrentHashMap<String, String>()
+    private val known = java.util.concurrent.ConcurrentHashMap<String, com.zionhuang.innertube.models.Album>()
 
-    suspend fun albumIdFor(songId: String): String? {
+    /** The song's album - its name and id - or null when YouTube gives it none (a video, an upload). */
+    suspend fun albumFor(songId: String): com.zionhuang.innertube.models.Album? {
         known[songId]?.let { return it }
         val found = withContext(Dispatchers.IO) {
             YouTube.next(com.zionhuang.innertube.models.WatchEndpoint(videoId = songId)).getOrNull()
-                ?.items?.firstOrNull { it.id == songId }?.album?.id
+                ?.items?.firstOrNull { it.id == songId }?.album
         }
         return found?.also { known[songId] = it }
     }

@@ -86,7 +86,12 @@ enum class SongDetail(val code: Char, val label: String) {
 val LocalSongDetails = compositionLocalOf { SongDetail.decode("") }
 
 /** What the library knows of a song beyond its title and credits - see Database.songFacts. */
-data class SongFacts(val album: String, val durationMs: Long)
+data class SongFacts(
+    val album: String,
+    val durationMs: Long,
+    /** The album's YouTube id, when known - lets Go to album skip its lookup (see AlbumLookup). */
+    val albumId: String = "",
+)
 
 /** Every song's [SongFacts] by id, for rows whose own data has no album or length. */
 val LocalSongFacts = compositionLocalOf { emptyMap<String, SongFacts>() }

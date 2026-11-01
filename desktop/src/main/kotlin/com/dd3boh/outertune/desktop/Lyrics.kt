@@ -903,6 +903,20 @@ class LyricsRepository(private val library: LibraryStore) {
     /** Forgets what is stored for a song, so the next request goes back to the providers. */
     fun forget(songId: String) = library.clearLyrics(songId)
 
+    /** The lyrics Refetch all lyrics leaves alone: written by hand, or removed by hand. */
+    private val keptByHand = listOf(EDITED_SOURCE, REMOVED)
+
+    /** How many songs' lyrics [forgetAllFetched] would send back to the providers. */
+    fun fetchedCount(): Int = library.database.fetchedLyricsCount(keptByHand)
+
+    /**
+     * Refetch all lyrics: every provider's lyrics forgotten, so each song asks the providers again -
+     * in their current order - the next time its lyrics are wanted. Lyrics found once are otherwise
+     * kept for good, so this is how a change of provider order reaches songs already looked up.
+     * Edited and removed lyrics stay; so do timing offsets, which are kept apart.
+     */
+    fun forgetAllFetched(): Int = library.database.deleteFetchedLyrics(keptByHand)
+
     /**
      * [songId]'s own timing offset in milliseconds, 0 if never set - positive shows each line later.
      * Applied when the lyrics are handed to the player ([Lyrics.shiftedBy]), never to what is cached,

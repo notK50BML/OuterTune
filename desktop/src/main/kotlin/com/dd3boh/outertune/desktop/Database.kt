@@ -365,6 +365,16 @@ class Database(file: File) {
                     )
                 }
             }
+            if (current < 15) {
+                connection.createStatement().use { st ->
+                    // The album's YouTube id beside its name, so Go to album opens a library song's
+                    // album, single or EP straight away - the name alone could only be shown.
+                    val has = st.executeQuery("PRAGMA table_info(song)").use { rs ->
+                        generateSequence { if (rs.next()) rs.getString("name") else null }.any { it == "albumId" }
+                    }
+                    if (!has) st.executeUpdate("ALTER TABLE song ADD COLUMN albumId TEXT NOT NULL DEFAULT ''")
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -530,6 +540,24 @@ class Database(file: File) {
         }
     }
 
+    /** How many songs' lyrics came from a provider - everything but those in [kept] sources. */
+    fun fetchedLyricsCount(kept: Collection<String>): Int = synchronized(lock) {
+        val marks = kept.joinToString(",") { "?" }
+        connection.prepareStatement("SELECT COUNT(*) FROM lyrics WHERE source NOT IN ($marks)").use { st ->
+            kept.forEachIndexed { i, source -> st.setString(i + 1, source) }
+            st.executeQuery().use { if (it.next()) it.getInt(1) else 0 }
+        }
+    }
+
+    /** Forgets every provider's lyrics, keeping those in [kept] sources; returns how many went. */
+    fun deleteFetchedLyrics(kept: Collection<String>): Int = synchronized(lock) {
+        val marks = kept.joinToString(",") { "?" }
+        connection.prepareStatement("DELETE FROM lyrics WHERE source NOT IN ($marks)").use { st ->
+            kept.forEachIndexed { i, source -> st.setString(i + 1, source) }
+            st.executeUpdate()
+        }
+    }
+
     fun deleteLyrics(songId: String) = synchronized(lock) {
         connection.prepareStatement("DELETE FROM lyrics WHERE songId = ?").use { st ->
             st.setString(1, songId)
@@ -538,11 +566,11 @@ class Database(file: File) {
     }
 
     /** Records a song, or updates what is known about one already recorded. */
-    fun upsertSong(song: StoredSong, durationMs: Long = 0, album: String = "") = synchronized(lock) {
+    fun upsertSong(song: StoredSong, durationMs: Long = 0, album: String = "", albumId: String = "") = synchronized(lock) {
         connection.prepareStatement(
             """
-            INSERT INTO song (id, title, artists, thumbnail, durationMs, album)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO song (id, title, artists, thumbnail, durationMs, album, albumId)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(id) DO UPDATE SET
                 title = excluded.title,
                 artists = excluded.artists,
@@ -551,7 +579,8 @@ class Database(file: File) {
                 -- cover that a richer source had already supplied.
                 thumbnail = CASE WHEN excluded.thumbnail <> '' THEN excluded.thumbnail ELSE song.thumbnail END,
                 durationMs = CASE WHEN excluded.durationMs > 0 THEN excluded.durationMs ELSE song.durationMs END,
-                album = CASE WHEN excluded.album <> '' THEN excluded.album ELSE song.album END
+                album = CASE WHEN excluded.album <> '' THEN excluded.album ELSE song.album END,
+                albumId = CASE WHEN excluded.albumId <> '' THEN excluded.albumId ELSE song.albumId END
             """.trimIndent()
         ).use { st ->
             st.setString(1, song.id)
@@ -560,6 +589,7 @@ class Database(file: File) {
             st.setString(4, song.thumbnail)
             st.setLong(5, durationMs)
             st.setString(6, album)
+            st.setString(7, albumId)
             st.executeUpdate()
         }
         writeCreditsLocked(song)
@@ -1480,7 +1510,7 @@ class Database(file: File) {
         connection.createStatement().use { st ->
             st.executeQuery(
                 """
-                SELECT s.id, s.album, s.durationMs, f.album, f.durationMs
+                SELECT s.id, s.album, s.durationMs, f.album, f.durationMs, s.albumId
                 FROM song s LEFT JOIN local_file f ON f.songId = s.id
                 """.trimIndent()
             ).use { rs ->
@@ -1489,11 +1519,41 @@ class Database(file: File) {
                     // has what it was last played or downloaded as.
                     val album = rs.getString(4)?.takeIf { it.isNotBlank() } ?: rs.getString(2).orEmpty()
                     val durationMs = rs.getLong(5).takeIf { it > 0 } ?: rs.getLong(3)
-                    if (album.isNotEmpty() || durationMs > 0) out[rs.getString(1)] = SongFacts(album, durationMs)
+                    val albumId = rs.getString(6).orEmpty()
+                    if (album.isNotEmpty() || durationMs > 0 || albumId.isNotEmpty()) {
+                        out[rs.getString(1)] = SongFacts(album, durationMs, albumId)
+                    }
                 }
             }
         }
         out
+    }
+
+    /**
+     * Fills in album names and ids for songs already in the library that have none, from
+     * [albums] (song id to album name and id) - nothing else is touched, and an album a song
+     * already has is kept. Returns how many songs gained one.
+     */
+    fun fillAlbums(albums: Map<String, Pair<String, String>>): Int = synchronized(lock) {
+        var filled = 0
+        connection.prepareStatement(
+            """
+            UPDATE song SET
+                album = CASE WHEN album = '' THEN ? ELSE album END,
+                albumId = CASE WHEN albumId = '' THEN ? ELSE albumId END
+            WHERE id = ? AND (album = '' OR albumId = '')
+            """.trimIndent()
+        ).use { st ->
+            for ((songId, album) in albums) {
+                val (name, id) = album
+                if (name.isBlank() && id.isBlank()) continue
+                st.setString(1, name)
+                st.setString(2, id)
+                st.setString(3, songId)
+                filled += st.executeUpdate()
+            }
+        }
+        filled
     }
 
     /** A just-written song's credits, put through what is already known about its artists. */
@@ -1615,7 +1675,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 14
+        const val SCHEMA_VERSION = 15
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

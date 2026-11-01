@@ -585,12 +585,18 @@ internal fun App(
         // A song whose album id is not known yet: found first, the page spinning meanwhile, then
         // swapped for the real id - which runs this again to load it. See AlbumLookup.
         if (id.startsWith(ALBUM_OF_SONG)) {
-            val real = AlbumLookup.albumIdFor(id.removePrefix(ALBUM_OF_SONG))
-            if (real == null) {
+            val songId = id.removePrefix(ALBUM_OF_SONG)
+            val found = AlbumLookup.albumFor(songId)
+            if (found == null) {
                 album = AlbumState.Failed("Couldn't find this song's album on YouTube Music.")
-            } else if (openAlbumId == id) {
-                openAlbumId = real
+                return@LaunchedEffect
             }
+            // Kept in the library, so the song's row names its album from now on and the next
+            // Go to album needs no lookup.
+            withContext(Dispatchers.IO) {
+                if (library.database.fillAlbums(mapOf(songId to (found.name to found.id))) > 0) library.refreshSongFacts()
+            }
+            if (openAlbumId == id) openAlbumId = found.id
             return@LaunchedEffect
         }
         album = loadAlbum(id)
@@ -625,7 +631,10 @@ internal fun App(
         showFullPlayer = false
     }
     // "Go to album" for any song: its album id when it carries one, otherwise looked up on the way.
-    val openSongAlbum: (SongItem) -> Unit = { song -> openAlbumPage(song.album?.id ?: (ALBUM_OF_SONG + song.id)) }
+    val openSongAlbum: (SongItem) -> Unit = { song ->
+        val known = song.album?.id ?: library.songFacts.value[song.id]?.albumId?.takeIf { it.isNotEmpty() }
+        openAlbumPage(known ?: (ALBUM_OF_SONG + song.id))
+    }
     // An artist or album opened from a playlist page is drawn over it, and Back returns to the
     // playlist - so a playlist opened while one of those is showing has to clear it, or it would open
     // underneath.
@@ -1789,12 +1798,13 @@ internal fun App(
                         listenTogether = listenTogether,
                         libraryPath = library.databasePath,
                         onBack = { tab = NavTab.Home },
+                        // Refetch all lyrics - see LyricsRepository.forgetAllFetched. The playing
+                        // song goes straight back to the providers; the rest as they are played.
                         onClearLyricsCache = {
-                            queue.current?.id?.let(lyricsRepository::forget)
-                            // And straight back to the providers, rather than leaving "No lyrics"
-                            // showing until the song is played again.
+                            withContext(Dispatchers.IO) { lyricsRepository.forgetAllFetched() }
                             lyricsAttempt++
                         },
+                        lyricsToRefetch = { withContext(Dispatchers.IO) { lyricsRepository.fetchedCount() } },
                         downloads = library.downloads,
                         library = library,
                         // An imported equaliser is in the settings; the player reads them once.

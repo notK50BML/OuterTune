@@ -92,6 +92,63 @@ object BackupImport {
         }
 
     /**
+     * Fills in album names and ids from a phone backup, and nothing else - for a library imported
+     * before the import read albums. Songs it does not already have are not added, no like or
+     * playlist is touched, and an album a song already has is kept. Returns how many songs gained one.
+     */
+    suspend fun fillAlbumsFrom(backup: File, library: LibraryStore): Result<Int> = withContext(Dispatchers.IO) {
+        runCatching {
+            val extracted = extractDatabase(backup) ?: error("That zip does not contain an OuterTune database.")
+            try {
+                val albums = openReadOnly(extracted).use(::readAlbums)
+                library.database.fillAlbums(albums).also { library.refreshSongFacts() }
+            } finally {
+                extracted.delete()
+            }
+        }
+    }
+
+    /**
+     * Each song's album name and id from the phone's database: the song's own columns, and the
+     * song-to-album table and album table behind them for songs whose own are empty. A backup too
+     * old for any of that gives nothing rather than failing.
+     */
+    private fun readAlbums(connection: Connection): Map<String, Pair<String, String>> {
+        val columns = connection.createStatement().use { st ->
+            st.executeQuery("PRAGMA table_info(song)").use { rs ->
+                generateSequence { if (rs.next()) rs.getString("name") else null }.toSet()
+            }
+        }
+        val name = if ("albumName" in columns) "s.albumName" else "NULL"
+        val id = if ("albumId" in columns) "s.albumId" else "NULL"
+        val withTables = """
+            SELECT s.id,
+                   COALESCE(NULLIF($name, ''), MAX(a.title), ''),
+                   COALESCE(NULLIF($id, ''), MAX(m.albumId), '')
+            FROM song s
+            LEFT JOIN song_album_map m ON m.songId = s.id
+            LEFT JOIN album a ON a.id = m.albumId
+            GROUP BY s.id
+        """.trimIndent()
+        val songOnly = "SELECT s.id, COALESCE($name, ''), COALESCE($id, '') FROM song s"
+        fun query(sql: String) = connection.createStatement().use { st ->
+            st.executeQuery(sql).use { rs ->
+                buildMap {
+                    while (rs.next()) {
+                        val songId = rs.getString(1) ?: continue
+                        val albumName = rs.getString(2).orEmpty()
+                        val albumId = rs.getString(3).orEmpty()
+                        if (albumName.isNotBlank() || albumId.isNotBlank()) put(songId, albumName to albumId)
+                    }
+                }
+            }
+        }
+        // The album tables are older than the song's own columns, but a backup from another fork
+        // may lack them; the song's columns alone are still worth having.
+        return runCatching { query(withTables) }.getOrElse { runCatching { query(songOnly) }.getOrDefault(emptyMap()) }
+    }
+
+    /**
      * Pulls the Room database out of the zip into a file of its own.
      *
      * Extracted rather than read in place because SQLite needs a real file - it seeks, and it wants
@@ -118,6 +175,8 @@ object BackupImport {
 
     private fun read(connection: Connection, library: LibraryStore): ImportSummary {
         val credits = readCredits(connection)
+        // Every song's album name and id, so its row can name the album and Go to album open it.
+        val albums = readAlbums(connection)
 
         var songs = 0
         var liked = 0
@@ -160,7 +219,8 @@ object BackupImport {
                     library.database.upsertSong(
                         song,
                         durationMs = if (hasDuration) rows.getLong("duration").coerceAtLeast(0) * 1000L else 0L,
-                        album = if (hasAlbum) rows.getString("albumName").orEmpty() else "",
+                        album = albums[id]?.first ?: if (hasAlbum) rows.getString("albumName").orEmpty() else "",
+                        albumId = albums[id]?.second.orEmpty(),
                     )
                     imported[id] = song
                     songs++

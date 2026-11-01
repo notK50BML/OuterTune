@@ -344,6 +344,11 @@ class LibraryStore(
         }
     }
 
+    /** Re-reads every song's album and length - after albums are filled in, which no credit change announces. */
+    fun refreshSongFacts() {
+        songFacts.value = db.songFacts()
+    }
+
     /** See Database.renameArtist. */
     fun renameArtist(id: String, name: String) = db.renameArtist(id, name)
 
