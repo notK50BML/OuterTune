@@ -4,6 +4,8 @@
  * SPDX-License-Identifier: GPL-3.0
  */
 
+@file:OptIn(androidx.compose.ui.ExperimentalComposeUiApi::class)
+
 package com.dd3boh.outertune.desktop
 
 import androidx.compose.foundation.clickable
@@ -35,6 +37,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.isShiftPressed
+import androidx.compose.ui.input.pointer.onPointerEvent
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
@@ -325,7 +330,23 @@ fun EqualizerPanel(
                                 color = onColour.copy(alpha = if (band.gainDb == 0f) 0.45f else 0.85f),
                             )
                             Box(
-                                modifier = Modifier.width(48.dp).height(SLIDER_LENGTH),
+                                modifier = Modifier
+                                    .width(48.dp)
+                                    .height(SLIDER_LENGTH)
+                                    // The wheel moves the band it is over - 0.5 dB a notch, 0.1 with
+                                    // Shift - and goes no further: a scroll here used to reach the
+                                    // player behind and close it.
+                                    .onPointerEvent(PointerEventType.Scroll) { event ->
+                                        val delta = event.changes.first().scrollDelta
+                                        val scrolled = if (delta.y != 0f) delta.y else delta.x
+                                        if (scrolled != 0f) {
+                                            val fine = event.keyboardModifiers.isShiftPressed || delta.y == 0f
+                                            val range = rangeFor(bands)
+                                            val next = (band.gainDb - scrolled * if (fine) 0.1f else 0.5f).coerceIn(-range, range)
+                                            apply(bands.toMutableList().also { it[index] = band.copy(gainDb = next) }, persist = true)
+                                        }
+                                        event.changes.forEach { it.consume() }
+                                    },
                                 contentAlignment = Alignment.Center,
                             ) {
                                 Slider(

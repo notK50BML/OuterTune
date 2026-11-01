@@ -103,7 +103,30 @@ fun RotaryDial(
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(2.dp),
-        modifier = modifier,
+        // The wheel turns the dial anywhere over it - its label and value too, not only the face. A
+        // scroll that landed beside the face went on to the player, whose two-notch gesture then
+        // closed it or opened something else while the dial was being turned.
+        modifier = modifier
+            .onPointerEvent(PointerEventType.Scroll) { event ->
+                // Taken even when the dial is off, so it never reaches the player behind.
+                if (!enabled) {
+                    event.changes.forEach { it.consume() }
+                    return@onPointerEvent
+                }
+                val delta = event.changes.first().scrollDelta
+                // Windows turns shift + wheel into a sideways scroll, so with shift held the
+                // notch arrives on x and y is zero - reading y alone, coarse steps never moved
+                // the dial at all. Either axis counts; a sideways delta is the shifted wheel.
+                val sideways = delta.y == 0f && delta.x != 0f
+                val scrolled = if (sideways) delta.x else delta.y
+                if (scrolled != 0f) {
+                    // Up is negative, and up should mean more.
+                    val coarse = sideways || shiftHeld(event)
+                    val by = if (coarse) currentSteps.second else currentSteps.first
+                    set(currentValue - scrolled * by)
+                    event.changes.forEach { it.consume() }
+                }
+            },
     ) {
         label?.let {
             Text(
@@ -116,22 +139,6 @@ fun RotaryDial(
         Canvas(
             modifier = Modifier
                 .size(dialSize)
-                .onPointerEvent(PointerEventType.Scroll) { event ->
-                    if (!enabled) return@onPointerEvent
-                    val delta = event.changes.first().scrollDelta
-                    // Windows turns shift + wheel into a sideways scroll, so with shift held the
-                    // notch arrives on x and y is zero - reading y alone, coarse steps never moved
-                    // the dial at all. Either axis counts; a sideways delta is the shifted wheel.
-                    val sideways = delta.y == 0f && delta.x != 0f
-                    val scrolled = if (sideways) delta.x else delta.y
-                    if (scrolled != 0f) {
-                        // Up is negative, and up should mean more.
-                        val coarse = sideways || shiftHeld(event)
-                        val by = if (coarse) currentSteps.second else currentSteps.first
-                        set(currentValue - scrolled * by)
-                        event.changes.forEach { it.consume() }
-                    }
-                }
                 .pointerInput(enabled, valueRange) {
                     if (!enabled) return@pointerInput
                     detectDragGestures { change, dragAmount ->
