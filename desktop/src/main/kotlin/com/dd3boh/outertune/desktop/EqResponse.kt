@@ -8,6 +8,8 @@ package com.dd3boh.outertune.desktop
 
 import kotlin.math.PI
 import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.ln
 import kotlin.math.log10
 import kotlin.math.pow
 import kotlin.math.sin
@@ -57,6 +59,63 @@ object EqResponse {
             out[i] = db.toFloat()
         }
         return out
+    }
+
+    /** The whole bank's gain at [hz], in decibels - the sum of every section's. */
+    fun gainAtDb(bands: List<EqBand>, hz: Double, sampleRate: Int): Double {
+        var db = 0.0
+        bands.forEach { band -> if (band.gainDb != 0f) db += bandGainDb(band, hz, sampleRate) }
+        return db
+    }
+
+    /**
+     * The bank's highest point, in dB, anywhere from 10Hz to just under Nyquist - which is what the
+     * headroom has to pay for.
+     *
+     * Not floored at zero, so a curve that only cuts reads below it: that is what tells "cuts only"
+     * from "boosts" in [EqAutoGain]. Wider than the graph's 20Hz-20kHz, because the 16Hz band's
+     * peak sits under 20Hz. A coarse log scan finds the neighbourhood, and the stretch either side of
+     * the best probe is scanned again finely, so a narrow band between two probes is measured at its
+     * top rather than on its shoulder.
+     */
+    fun peakDb(bands: List<EqBand>, sampleRate: Int): Float {
+        if (sampleRate <= 0 || bands.none { it.gainDb != 0f }) return 0f
+        val logLow = ln(PEAK_LOW_HZ)
+        val logHigh = ln(sampleRate / 2.0 * 0.99).coerceAtLeast(logLow + 1.0)
+        val step = (logHigh - logLow) / (PEAK_PROBES - 1)
+        var peak = Double.NEGATIVE_INFINITY
+        var best = 0
+        for (i in 0 until PEAK_PROBES) {
+            val db = gainAtDb(bands, exp(logLow + step * i), sampleRate)
+            if (db > peak) { peak = db; best = i }
+        }
+        val from = logLow + step * (best - 1).coerceAtLeast(0)
+        val to = logLow + step * (best + 1).coerceAtMost(PEAK_PROBES - 1)
+        for (i in 0..PEAK_REFINE) {
+            val db = gainAtDb(bands, exp(from + (to - from) * i / PEAK_REFINE), sampleRate)
+            if (db > peak) peak = db
+        }
+        return peak.toFloat()
+    }
+
+    /**
+     * The loudness the bank takes away or adds, in dB: its power averaged over 20Hz-16kHz on a log
+     * axis, which is about how music spreads its energy (roughly equal per octave). The phone's
+     * `BiquadCoefficients.meanPowerGainDb`, over the same range.
+     *
+     * Past 16kHz the filters drift back to 0dB near Nyquist, and streams carry next to nothing there
+     * anyway, so counting it would only dilute the reading.
+     */
+    fun meanPowerDb(bands: List<EqBand>, sampleRate: Int): Float {
+        if (sampleRate <= 0 || bands.none { it.gainDb != 0f }) return 0f
+        val logLow = ln(20.0)
+        val logHigh = ln(minOf(16_000.0, sampleRate / 2.0 * 0.99)).coerceAtLeast(logLow + 1.0)
+        var power = 0.0
+        for (i in 0 until PEAK_PROBES) {
+            val hz = exp(logLow + (logHigh - logLow) * i / (PEAK_PROBES - 1))
+            power += 10.0.pow(gainAtDb(bands, hz, sampleRate) / 10.0)
+        }
+        return (10.0 * log10(power / PEAK_PROBES)).toFloat()
     }
 
     /** Frequency at graph position [fraction] across, for drawing an axis. */
@@ -129,4 +188,12 @@ object EqResponse {
 
     const val MIN_HZ = 20.0
     const val MAX_HZ = 20_000.0
+
+    private const val PEAK_LOW_HZ = 10.0
+
+    /** The phone measures with as many, enough to land within a tenth of a dB of a Q-10 band. */
+    private const val PEAK_PROBES = 512
+
+    /** Probes across the two coarse steps around the best one, when the peak is refined. */
+    private const val PEAK_REFINE = 32
 }

@@ -55,13 +55,23 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     // A cascade of overlapping peaking filters doesn't add its bands' dB values independently -
     // several adjacent bands boosted at once (a "Bass Boost" or "Loudness" curve) sum at the
     // frequencies where their responses overlap, easily clearing 0dBFS on a track that was
-    // already close to it. That summed-over-full-scale signal is exactly what was reaching the
-    // hard clip below and coming out as crackle on transients. Backing off the input by half of
-    // however much total boost is in play - before the cascade even runs - keeps the boosted
-    // result close to where the unboosted signal already was, the same "preamp" a hardware/
-    // Winamp-style EQ needs whenever any band goes above zero.
+    // already close to it. Backing off the input before the cascade runs, by the summed curve's
+    // own highest point, keeps the boosted result where the unboosted signal already was - the
+    // "preamp" a hardware or Winamp-style EQ needs whenever any band goes above zero. The full
+    // rule, cut makeup and normalisation included, is EqAutoGain's.
     @Volatile
     private var preGainLinear: Float = 1f
+
+    /**
+     * Audio-thread-only: the pre-gain actually being applied, walked to [preGainLinear] over
+     * [RAMP_MS] alongside the coefficients. Snapping it was a step in level on every slider move,
+     * and stepping the gain down while the coefficients were still gliding up let the first few
+     * milliseconds of a new boost through at full height.
+     */
+    private var appliedPreGain: Float = 1f
+    private var preGainStep: Float = 0f
+    private var preGainFramesLeft: Int = 0
+    private var lastSeenPreGain: Float = Float.NaN
 
     /**
      * How much of the measured peak is actually taken off, 0..1 - see [EqHeadroom].
@@ -240,12 +250,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
      * Turns the volume back up for a curve that only cuts.
      *
      * The counterpart of headroom. A boost is paid for by turning everything down by the curve's
-     * highest point; a curve whose highest point is below zero - every band turned down - just made
-     * the song quieter, and the way to get it back was to add gain by hand. With this on, such a
-     * curve is raised by exactly that much, so its loudest point sits where the song was. Measured
-     * from the curve's peak, so it can never lift anything above the level it arrived at: nothing new
-     * can clip. A curve that cuts some bands and leaves others at zero has its peak at zero and is
-     * left alone - quieter in the bands that were cut, which is what cutting them asked for.
+     * highest point; a curve that only cuts just made the song quieter, and the way to get it back
+     * was to add gain by hand. With this on, such a curve is raised by the loudness its cuts took
+     * away. A curve that boosts anywhere gets no makeup at all, however much it also cuts - see
+     * [EqAutoGain] for why the boost's headroom always wins.
      */
     fun setCutMakeup(enabled: Boolean) {
         if (enabled == cutMakeup) return
@@ -306,26 +314,18 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val built = Array(bands.size) { i -> BiquadCoefficients.forBand(bands[i], sr) }
         coefficients = built
 
-        // Exactly as much attenuation as the curve's own peak, so a signal that arrived at full
-        // scale leaves at full scale instead of somewhere above it. Only boosts are compensated:
-        // a curve that only cuts is already quieter than what it was given, and attenuating it
-        // further would just make every cut-only preset sound like a volume drop.
-        //
-        // Capped at the band range, so even a single band at maximum is fully accounted for. A
-        // curve asking for +14dB genuinely does have to come down by 14dB somewhere; the only
-        // alternative is to clip it, which is the thing this exists to stop.
-        // The larger of the two, not their sum. The normalisation attenuation is headroom the
-        // boost can be spent into: a +8dB curve on a track already coming down 8dB needs no
-        // further attenuation at all, and taking both would turn the band down by the 8dB it was
-        // just turned up by. Only a boost larger than the headroom costs anything.
-        val peakDb = BiquadCoefficients.peakGainDb(built, sr).coerceIn(0f, MAX_HEADROOM_DB)
-        curvePeakDb = peakDb
-        // A curve that cuts, turned back up by the loudness it takes away - see setCutMakeup and
-        // meanPowerGainDb. Whatever that pushes past full scale is the limiter's to catch.
-        val makeupDb = if (cutMakeup) (-BiquadCoefficients.meanPowerGainDb(built, sr)).coerceIn(0f, MAX_MAKEUP_DB) else 0f
-        makeupLinear = 10f.pow(makeupDb / 20f)
-        val attenuationDb = max(peakDb * headroomFactor, normalisationDb) - makeupDb
-        preGainLinear = 10f.pow(-attenuationDb / 20f)
+        // Measured off the finished cascade - every band and both tone shelves together - so a
+        // bass shelf on top of boosted low bands is counted once, as the sum it really is, and
+        // not band by band. The rule that turns these two numbers into a gain is EqAutoGain's:
+        // boosts turn down by the peak, cuts alone turn up by their loudness, and normalisation
+        // is headroom already paid for.
+        val peakDb = BiquadCoefficients.peakResponseDb(built, sr)
+        val meanDb = BiquadCoefficients.meanPowerGainDb(built, sr)
+        curvePeakDb = peakDb.coerceIn(0f, EqAutoGain.MAX_HEADROOM_DB)
+        makeupLinear = 10f.pow(EqAutoGain.makeupDb(peakDb, meanDb, cutMakeup) / 20f)
+        preGainLinear = 10f.pow(
+            EqAutoGain.gainDb(peakDb, meanDb, cutMakeup, headroomFactor, normalisationDb) / 20f
+        )
 
         val comp = compressorSettings
         compressorCoefficients = if (!comp.enabled) CompressorCoefficients.BYPASS else CompressorCoefficients.from(
@@ -406,6 +406,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
         if (wasBypassed) {
             limiter.reset()
+            // Nothing to glide from: the signal was not going through this gain a moment ago.
+            appliedPreGain = preGainLinear
+            lastSeenPreGain = appliedPreGain
+            preGainFramesLeft = 0
             wasBypassed = false
         }
         if (frame.size != channelCount) frame = FloatArray(channelCount)
@@ -415,7 +419,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         val coeffs = activeCoeffs
         val compCoeffs = compressorCoefficients
         val compressorEnabled = compressorSettings.enabled
-        val preGain = preGainLinear
+        syncPreGainTarget()
         val smart = smartHeadroom
         var smartTarget = 1f
         var smartAttack = 1f
@@ -462,6 +466,9 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
             if (smart) {
                 smartGain += (smartTarget - smartGain) * (if (smartTarget < smartGain) smartAttack else smartRelease)
+            } else if (preGainFramesLeft > 0) {
+                appliedPreGain += preGainStep
+                if (--preGainFramesLeft == 0) appliedPreGain = lastSeenPreGain
             }
 
             var frameSum = 0f
@@ -482,7 +489,7 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
                 // Backed off before the cascade even sees it, not after - the whole point is
                 // giving the boosted bands room to sum without already having clipped.
-                sample *= if (smart) smartGain else preGain
+                sample *= if (smart) smartGain else appliedPreGain
 
                 val channelStates = states[ch]
                 // bands/coefficients are two separate @Volatile fields, written one after the
@@ -571,6 +578,16 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         }
     }
 
+    /** Picks up a pre-gain published by [recomputeCoefficients] and starts walking towards it. */
+    private fun syncPreGainTarget() {
+        val target = preGainLinear
+        if (target == lastSeenPreGain) return
+        lastSeenPreGain = target
+        val frames = (configuredSampleRate * RAMP_MS / 1000).coerceAtLeast(1)
+        preGainStep = (target - appliedPreGain) / frames
+        preGainFramesLeft = frames
+    }
+
     override fun onFlush(streamMetadata: StreamMetadata) {
         // SMART starts every track, and every seek, fully protected and relaxes as it learns how
         // loud this music actually is - never the other way round, which would clip the first beat.
@@ -591,6 +608,10 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             targetCoeffs.copyInto(activeCoeffs)
             rampFramesLeft = 0
         }
+        // And the pre-gain, for the same reason as the coefficients just above.
+        appliedPreGain = preGainLinear
+        lastSeenPreGain = appliedPreGain
+        preGainFramesLeft = 0
         visualizer.reset()
     }
 
@@ -619,21 +640,6 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
 
         /** Long enough to be inaudible as a step, short enough to feel immediate on a slider. */
         const val RAMP_MS = 20
-
-        /**
-         * The most attenuation the pre-gain will apply, in dB.
-         *
-         * [EqualizerSettings.MAX_GAIN_DB], so a single band at the top of its range is fully
-         * compensated. It used to be 12, which was below what the app's own presets actually
-         * reach - "Small Speakers" peaks at +14.5dB - so the loudest curves stayed over the line
-         * no matter how good the estimate was.
-         */
-        const val MAX_HEADROOM_DB = 15f
-
-        /** The most a cut-only curve is turned back up - see setCutMakeup. */
-        const val MAX_MAKEUP_DB = 12f
-
-
     }
 
 }

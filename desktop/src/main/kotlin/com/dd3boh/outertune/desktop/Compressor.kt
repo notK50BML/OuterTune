@@ -9,6 +9,7 @@ package com.dd3boh.outertune.desktop
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.pow
+import kotlin.math.roundToInt
 
 /**
  * Coefficients for a feed-forward dynamics compressor.
@@ -112,7 +113,7 @@ class CompressorState {
 }
 
 /**
- * The compressor as the playback pipeline sees it: settings in, 16-bit PCM changed in place.
+ * The compressor as the playback pipeline sees it: settings in, samples changed in place.
  *
  * Per channel state, because a compressor with one shared envelope across channels is a different
  * effect - it ducks both sides when either gets loud, which is sometimes wanted and is not what the
@@ -145,6 +146,9 @@ class Compressor {
     private var configuredRate = 0
     private var dirty = true
 
+    /** Samples as floats, for the standalone 16-bit [process]. Grown as needed, never shrunk. */
+    private var scratch = FloatArray(0)
+
     /**
      * The gain reduction being applied right now, in decibels, as a negative number.
      *
@@ -169,6 +173,49 @@ class Compressor {
             currentReductionDb = 0f
             return
         }
+        val frames = length / (2 * channels)
+        val samples = frames * channels
+        if (scratch.size < samples) scratch = FloatArray(samples)
+        for (i in 0 until samples) {
+            val at = i * 2
+            scratch[i] = if (bigEndian) {
+                ((bytes[at].toInt() shl 8) or (bytes[at + 1].toInt() and 0xFF)).toShort()
+            } else {
+                ((bytes[at + 1].toInt() shl 8) or (bytes[at].toInt() and 0xFF)).toShort()
+            } / 32768f
+        }
+        processFloat(scratch, frames, channels, sampleRate)
+        for (i in 0 until samples) {
+            val at = i * 2
+            // Clamped rather than wrapped. Only this standalone path can meet it: playback runs
+            // the compressor through processFloat, inside the equaliser's float pass and ahead of
+            // the limiter, so makeup gain there is turned down rather than flattened here.
+            val scaled = (scratch[i] * 32767f).roundToInt().coerceIn(-32768, 32767)
+            if (bigEndian) {
+                bytes[at] = ((scaled shr 8) and 0xFF).toByte()
+                bytes[at + 1] = (scaled and 0xFF).toByte()
+            } else {
+                bytes[at] = (scaled and 0xFF).toByte()
+                bytes[at + 1] = ((scaled shr 8) and 0xFF).toByte()
+            }
+        }
+    }
+
+    /**
+     * Compresses [frames] frames of interleaved float samples in place - the playback path.
+     *
+     * This is how the player runs it: inside [Equalizer.process], on the same floats the bands
+     * produced and before the limiter. It used to run on its own afterwards, reading the
+     * equaliser's 16-bit output back in and writing its own out with a hard clamp - so the makeup
+     * gain, which is the one control here that can only make things louder, pushed every peak
+     * straight into that clamp, after the limiter had already had its turn. That is the harsh,
+     * crackling flat-topping that turning the gain up produced.
+     */
+    fun processFloat(samples: FloatArray, frames: Int, channels: Int, sampleRate: Int) {
+        if (!enabled || channels < 1 || sampleRate <= 0) {
+            currentReductionDb = 0f
+            return
+        }
         if (dirty || configuredRate != sampleRate || states.size != channels) {
             coefficients = CompressorCoefficients.from(
                 sampleRateHz = sampleRate,
@@ -183,28 +230,11 @@ class Compressor {
             dirty = false
         }
 
-        val frames = length / (2 * channels)
         var worst = 0f
         for (f in 0 until frames) {
+            val base = f * channels
             for (c in 0 until channels) {
-                val at = (f * channels + c) * 2
-                val raw = if (bigEndian) {
-                    ((bytes[at].toInt() shl 8) or (bytes[at + 1].toInt() and 0xFF)).toShort()
-                } else {
-                    ((bytes[at + 1].toInt() shl 8) or (bytes[at].toInt() and 0xFF)).toShort()
-                }
-                val out = states[c].process(raw / 32768f, coefficients)
-                // Clamped rather than wrapped: makeup gain can push a loud passage past full scale,
-                // and wrapping turns that into a full-amplitude click rather than a moment of
-                // flat-topping.
-                val scaled = (out * 32767f).coerceIn(-32768f, 32767f).toInt()
-                if (bigEndian) {
-                    bytes[at] = ((scaled shr 8) and 0xFF).toByte()
-                    bytes[at + 1] = (scaled and 0xFF).toByte()
-                } else {
-                    bytes[at] = (scaled and 0xFF).toByte()
-                    bytes[at + 1] = ((scaled shr 8) and 0xFF).toByte()
-                }
+                samples[base + c] = states[c].process(samples[base + c], coefficients)
             }
             // Sampled once per frame off channel zero rather than tracked per sample. The meter
             // needs the worst of the block, not every value that led to it.

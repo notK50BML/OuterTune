@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.desktop
 
+import kotlin.math.log10
 import kotlin.math.pow
 import com.zionhuang.innertube.NewPipeUtils
 import com.zionhuang.innertube.YouTube
@@ -1098,23 +1099,20 @@ class DesktopPlayer {
 
             // Equalised first, so what follows describes the audio that will actually be played -
             // the visualiser in particular measures the signal after this. In place, on the buffer
-            // already destined for the line, so there is no extra copy in the hot path.
-            equalizer.process(
+            // already destined for the line, so there is no extra copy in the hot path. The
+            // compressor and the output limiter run inside the same pass, in floats - see
+            // Equalizer.process - and so does the normalisation while that pass is running, as
+            // headroom a boost can spend.
+            val normalisationDb = if (normalise && trackGain < 1f) -20f * log10(trackGain) else 0f
+            val normalised = equalizer.process(
                 bytes = pcm,
                 length = pcm.size,
                 bitsPerSample = bitsPerSample,
                 channels = channels,
                 bigEndian = bigEndian,
                 sampleRate = sampleRate,
-            )
-
-            compressor.process(
-                bytes = pcm,
-                length = pcm.size,
-                bitsPerSample = bitsPerSample,
-                channels = channels,
-                bigEndian = bigEndian,
-                sampleRate = sampleRate,
+                compressor = compressor,
+                normalisationDb = normalisationDb,
             )
 
             // Then tempo and pitch: after the equaliser so the band frequencies keep their meaning,
@@ -1149,7 +1147,8 @@ class DesktopPlayer {
 
             // Normalisation and volume, after the analysis so the visualiser shows the music
             // rather than how loud it has been set.
-            val gain = (if (normalise) trackGain else 1f) * volume.coerceIn(0f, 1f)
+            // Normalisation only here if the equaliser did not already take it.
+            val gain = (if (normalise && !normalised) trackGain else 1f) * volume.coerceIn(0f, 1f)
             if (gain < 0.999f) Pcm.scale(stretched, stretched.size, bitsPerSample, bigEndian, gain)
 
             // Last, and after the analysis: the spectrum is a mono sum, so balance before it would

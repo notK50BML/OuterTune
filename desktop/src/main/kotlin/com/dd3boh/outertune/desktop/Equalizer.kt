@@ -169,7 +169,8 @@ private class Biquad {
 }
 
 /**
- * A bank of peaking filters, applied to interleaved PCM in place.
+ * A bank of peaking filters, applied to interleaved PCM in place - with the compressor and the
+ * output limiter after it, in the same pass.
  *
  * **Each channel gets its own filters.** A biquad is stateful - it remembers two input and two
  * output samples - so running one filter across an interleaved stream would feed left's history into
@@ -187,40 +188,66 @@ class Equalizer {
     @Volatile
     var enabled: Boolean = false
 
-    /** [channels] filter chains, each [bands] long. Rebuilt when the format or the bands change. */
+    /** [channels] filter chains, each [bands] long. Rebuilt when the format or the band count change. */
     private var filters: Array<Array<Biquad>> = emptyArray()
     private var configuredRate = 0
     private var configuredChannels = 0
 
     /**
-     * How far the input is turned down before the bands, as a linear factor.
+     * Set when the bands or a setting change, so the next block works the filters and the gain out
+     * again. A flag rather than zeroing [configuredRate], which is also what [sampleRate] reports.
+     */
+    @Volatile
+    private var dirty = true
+
+    /** Whether the curve was doing anything, and the normalisation, when last configured. */
+    private var configuredCurve = false
+    private var configuredNormalisationDb = 0f
+
+    /**
+     * How far the input is turned up or down before the bands, as a linear factor.
      *
      * The loudest point of the curve, cancelled in advance. Without it a +6dB bass boost on a track
      * already mastered to full scale has nowhere to go but past it, and the clamp at the end cut
      * every bass peak flat - which is the harsh, crackling distortion a boost produced. This is
-     * what the phone's Automatic headroom does.
+     * what the phone's Automatic headroom does, by the same rule: see [EqAutoGain].
      */
     private var preGain = 1f
 
     /**
-     * Whether a curve that only cuts is turned back up by its own shortfall, so its loudest point
-     * sits at the song's level - the counterpart of the headroom above, and the phone's "Turn up for
-     * cuts". It cannot lift anything above the level it arrived at, so nothing new can clip.
+     * The pre-gain actually being applied, walked to [preGain] over [RAMP_MS] when it changes, so a
+     * slider move is a glide in level rather than a step.
+     */
+    private var appliedPreGain = 1f
+    private var preGainStep = 0f
+    private var preGainFramesLeft = 0
+
+    /**
+     * Whether a curve that only cuts is turned back up by the loudness it took away - the
+     * counterpart of the headroom above, and the phone's "Turn up for cuts". A curve that boosts
+     * anywhere is never turned up: see [EqAutoGain].
      */
     @Volatile
     var cutMakeup: Boolean = true
         set(value) {
             if (field == value) return
             field = value
-            configuredRate = 0 // rebuilt with the new pre-gain on the next block
+            dirty = true // rebuilt with the new pre-gain on the next block
         }
 
     /** The headroom currently applied, in dB, as a positive number - for tests and a meter. */
-    internal val headroomDb: Float get() = -20f * kotlin.math.log10(preGain)
+    internal val headroomDb: Float get() = -20f * log10(preGain)
 
-    /** Catches what the pre-gain cannot - filter ringing on transients - by turning down, not clipping. */
+    /**
+     * The last stage before the samples become integers again, and the only thing between the
+     * processing and full scale. See [PeakLimiter] for why it turns the gain down rather than
+     * reshaping the wave.
+     */
     private val limiter = PeakLimiter()
     private var frame = FloatArray(0)
+
+    /** One block as floats, interleaved, between the bands, the compressor and the limiter. */
+    private var block = FloatArray(0)
     private var wasFlat = true
 
     fun bands(): List<EqBand> = bands
@@ -238,7 +265,7 @@ class Equalizer {
         bands = newBands
         // Forces a rebuild on the next block rather than mutating coefficients under the audio
         // thread mid-buffer, which would apply half of one curve and half of another.
-        configuredRate = 0
+        dirty = true
     }
 
     fun setGain(index: Int, gainDb: Float) {
@@ -251,11 +278,17 @@ class Equalizer {
     fun reset() {
         filters.forEach { chain -> chain.forEach { it.reset() } }
         limiter.reset()
+        appliedPreGain = preGain
+        preGainFramesLeft = 0
     }
 
-    private fun configure(sampleRate: Int, channels: Int) {
+    private fun configure(sampleRate: Int, channels: Int, curve: Boolean, normalisationDb: Float) {
         val current = bands
-        filters = Array(channels) { Array(current.size) { Biquad() } }
+        // The filters keep their history when only their coefficients change. Building new ones
+        // on every slider step started each band from silence mid-song, which is a click.
+        val reuse = sampleRate == configuredRate && curve == configuredCurve &&
+            filters.size == channels && filters.all { it.size == current.size }
+        if (!reuse) filters = Array(channels) { Array(current.size) { Biquad() } }
         for (chain in filters) {
             chain.forEachIndexed { i, filter ->
                 val band = current[i]
@@ -270,28 +303,44 @@ class Equalizer {
         }
         configuredRate = sampleRate
         configuredChannels = channels
+        configuredCurve = curve
+        configuredNormalisationDb = normalisationDb
+        dirty = false
 
-        val curve = EqResponse.curve(current, sampleRate, points = 240)
-        val peakDb = curve.maxOrNull()?.coerceAtLeast(0f) ?: 0f
-        // A curve that cuts is turned up by the loudness it takes away, up to 12dB: its power
-        // averaged over 20Hz-16kHz on the curve's log axis, about how music spreads its energy.
-        // It used to be the curve's highest point, which only moved for a curve cut everywhere -
-        // cutting the bass alone left the mids at 0dB and the makeup at nothing. Past 16kHz the
-        // filters drift back to 0dB near Nyquist, and streams carry next to nothing there anyway.
-        // Whatever this pushes past full scale is the limiter's to catch.
-        val audible = curve.filterIndexed { i, _ ->
-            EqResponse.frequencyAt(i / (curve.size - 1f)) in 20.0..16_000.0
+        // Measured off the summed response of every band together, not added up band by band -
+        // two neighbouring +6dB bands make nearly +12dB between them. With the curve off, only the
+        // normalisation is left to apply.
+        val gainDb = if (curve) {
+            EqAutoGain.gainDb(
+                peakDb = EqResponse.peakDb(current, sampleRate),
+                meanPowerDb = EqResponse.meanPowerDb(current, sampleRate),
+                cutMakeup = cutMakeup,
+                normalisationDb = normalisationDb,
+            )
+        } else {
+            -normalisationDb
         }
-        val meanPowerDb = if (audible.isEmpty()) 0f
-        else (10.0 * log10(audible.sumOf { 10.0.pow(it / 10.0) } / audible.size)).toFloat()
-        val makeupDb = if (cutMakeup) (-meanPowerDb).coerceIn(0f, 12f) else 0f
-        preGain = 10f.pow((makeupDb - peakDb) / 20f)
+        val target = 10f.pow(gainDb / 20f)
+        if (target != preGain) {
+            preGain = target
+            preGainFramesLeft = (sampleRate * RAMP_MS / 1000).coerceAtLeast(1)
+            preGainStep = (target - appliedPreGain) / preGainFramesLeft
+        }
         limiter.configure(sampleRate, channels)
-        frame = FloatArray(channels)
+        if (frame.size != channels) frame = FloatArray(channels)
     }
 
     /**
-     * Filters one block of interleaved PCM, writing the result back over [bytes].
+     * Equalises, compresses and limits one block of interleaved PCM, writing the result back over
+     * [bytes]. Returns whether it ran - and so whether [normalisationDb] has been applied, which the
+     * caller must then not apply again.
+     *
+     * One pass, in floats, from the decoded samples to the limiter, and back to integers once at
+     * the very end. The compressor used to run afterwards as a stage of its own, on the 16-bit
+     * output of this one, after the limiter: its makeup gain could then only be clamped, and was.
+     *
+     * [normalisationDb] is attenuation the track would get at the volume stage anyway, taken here
+     * instead so a boost can spend it as headroom - the phone does the same.
      *
      * Byte order is a parameter for the same reason it is everywhere else here: the decoder in use
      * returns big-endian, and samples must be read *and written back* the same way round. Reading
@@ -304,44 +353,72 @@ class Equalizer {
         channels: Int,
         bigEndian: Boolean,
         sampleRate: Int,
-    ) {
-        if (!enabled || channels < 1 || sampleRate <= 0) return
+        compressor: Compressor? = null,
+        normalisationDb: Float = 0f,
+    ): Boolean {
+        if (channels < 1 || sampleRate <= 0) return false
         val bytesPerSample = bitsPerSample / 8
-        if (bytesPerSample !in 1..4) return
+        if (bytesPerSample !in 1..4) return false
 
-        if (configuredRate != sampleRate || configuredChannels != channels) {
-            configure(sampleRate, channels)
-        }
-        // Nothing to do if every band is flat. Worth checking: it is the common case, and it saves
-        // running the whole cascade over every sample to arrive back where it started.
-        if (bands.none { it.gainDb != 0f }) {
+        // Nothing to do if every band is flat and nothing else is on. Worth checking: it is the
+        // common case, and it saves running the whole cascade over every sample to arrive back
+        // where it started.
+        val curve = enabled && bands.any { it.gainDb != 0f }
+        val compressing = compressor?.enabled == true
+        if (!curve && !compressing) {
             wasFlat = true
-            return
+            // Keeps the compressor's meter honest once it has been switched off.
+            compressor?.processFloat(block, 0, channels, sampleRate)
+            return false
+        }
+        val normalisation = normalisationDb.coerceAtLeast(0f)
+        if (dirty || configuredRate != sampleRate || configuredChannels != channels ||
+            curve != configuredCurve || normalisation != configuredNormalisationDb
+        ) {
+            configure(sampleRate, channels, curve, normalisation)
         }
         // Coming back from flat, the limiter's delay line still holds audio from before. Cleared so
-        // a fragment of the past is not played into the present.
+        // a fragment of the past is not played into the present - and there is no level to glide
+        // from either, since nothing was being applied a moment ago.
         if (wasFlat) {
             limiter.reset()
+            appliedPreGain = preGain
+            preGainFramesLeft = 0
             wasFlat = false
         }
 
         val peak = (1L shl (bitsPerSample - 1)).toFloat()
         val maxValue = peak - 1f
         val frames = length / (bytesPerSample * channels)
+        val samples = frames * channels
+        if (block.size < samples) block = FloatArray(samples)
 
         var pos = 0
         for (f in 0 until frames) {
-            val frameStart = pos
+            if (preGainFramesLeft > 0) {
+                appliedPreGain += preGainStep
+                if (--preGainFramesLeft == 0) appliedPreGain = preGain
+            }
+            val base = f * channels
             for (c in 0 until channels) {
-                var value = Pcm.readSample(bytes, pos, bytesPerSample, bigEndian).toFloat() / peak * preGain
-                for (filter in filters[c]) value = filter.process(value)
-                frame[c] = value
+                var value = Pcm.readSample(bytes, pos, bytesPerSample, bigEndian).toFloat() / peak * appliedPreGain
+                if (curve) for (filter in filters[c]) value = filter.process(value)
+                block[base + c] = value
                 pos += bytesPerSample
             }
+        }
+
+        // After the bands, as on the phone, and before the limiter, so its makeup gain is turned
+        // down when it overshoots rather than flattened.
+        compressor?.processFloat(block, frames, channels, sampleRate)
+
+        pos = 0
+        for (f in 0 until frames) {
+            val base = f * channels
+            for (c in 0 until channels) frame[c] = block[base + c]
             // The whole frame at once: the limiter's gain is linked, so one side peaking turns both
             // down together and the stereo image stays put.
             limiter.process(frame)
-            pos = frameStart
             for (c in 0 until channels) {
                 // Rounded and clamped, not truncated or wrapped. An integer that overflows wraps
                 // from loudest positive to loudest negative, which is heard as a violent crack.
@@ -350,9 +427,13 @@ class Equalizer {
                 pos += bytesPerSample
             }
         }
+        return true
     }
 
     companion object {
+        /** How long a change of pre-gain takes, in milliseconds - the phone's coefficient ramp. */
+        const val RAMP_MS = 20
+
         /** The Android app's own band centres, so gains mean the same thing on both. */
         val DEFAULT_FREQUENCIES = listOf(
             16f, 31f, 62f, 125f, 250f, 500f, 1000f, 2000f, 4000f, 8000f, 12000f, 16000f,

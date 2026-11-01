@@ -154,19 +154,38 @@ class BiquadCoefficients(
          * "Full Bass & Treble", because the two differ in exactly the way a single weighting
          * cannot express.
          */
-        fun peakGainDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float {
+        fun peakGainDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float =
+            peakResponseDb(cascade, sampleRateHz).coerceAtLeast(0f)
+
+        /**
+         * The cascade's highest point in dB, as [peakGainDb] - but not floored at zero, so a curve
+         * that only cuts reads below it. That difference is what tells "cuts only" from "boosts"
+         * in [EqAutoGain], and a floor would hide it.
+         *
+         * The coarse log scan finds the right neighbourhood; the stretch either side of the best
+         * probe is then scanned again more finely, so a narrow band falling between two probes is
+         * measured at its top rather than on its shoulder.
+         */
+        fun peakResponseDb(cascade: Array<BiquadCoefficients>, sampleRateHz: Int): Float {
             if (cascade.isEmpty() || sampleRateHz <= 0) return 0f
             val nyquist = sampleRateHz / 2f
-            val lowHz = 15f
+            val lowHz = 10f
             val highHz = (nyquist * 0.99f).coerceAtLeast(lowHz * 2f)
             // Logarithmically spaced, because the response is: a peaking band at 31Hz is as narrow
             // in octaves as one at 12kHz, and linear probing would step straight over the low ones.
             val logLow = ln(lowHz)
             val logSpan = ln(highHz) - logLow
-            var peak = 0f
+            val step = logSpan / (PROBE_POINTS - 1f)
+            var peak = Float.NEGATIVE_INFINITY
+            var best = 0
             for (i in 0 until PROBE_POINTS) {
-                val hz = exp(logLow + logSpan * i / (PROBE_POINTS - 1f))
-                val db = cascadeDb(cascade, hz, sampleRateHz)
+                val db = cascadeDb(cascade, exp(logLow + step * i), sampleRateHz)
+                if (db > peak) { peak = db; best = i }
+            }
+            val from = logLow + step * (best - 1).coerceAtLeast(0)
+            val to = logLow + step * (best + 1).coerceAtMost(PROBE_POINTS - 1)
+            for (i in 0..REFINE_POINTS) {
+                val db = cascadeDb(cascade, exp(from + (to - from) * i / REFINE_POINTS), sampleRateHz)
                 if (db > peak) peak = db
             }
             return peak
@@ -202,6 +221,9 @@ class BiquadCoefficients(
 
         /** Enough to land within a tenth of a dB of the true peak of a Q-10 band. */
         private const val PROBE_POINTS = 512
+
+        /** Probes across the two coarse steps around the best one, when the peak is refined. */
+        private const val REFINE_POINTS = 32
 
         private fun normalize(b0: Float, b1: Float, b2: Float, a0: Float, a1: Float, a2: Float): BiquadCoefficients {
             // a0 is never zero for these forms (it's a sum of positive terms plus a small alpha
