@@ -122,6 +122,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 /**
@@ -705,7 +706,33 @@ internal fun App(
     LaunchedEffect(library) {
         downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
     }
-    var downloading by remember { mutableStateOf<String?>(null) }
+    // Songs downloading one at a time, from any row, menu or the player - every one waiting shows a
+    // spinner. It used to be one id: a second download asked for meanwhile was silently dropped,
+    // and only the player's own button ever showed that anything was happening.
+    var downloadingIds by remember { mutableStateOf(emptySet<String>()) }
+    val downloadOneAtATime = remember { kotlinx.coroutines.sync.Mutex() }
+    val toggleSongDownload: (SongItem) -> Unit = { song ->
+        when {
+            song.id in downloadedIds -> {
+                downloadedIds = downloadedIds - song.id
+                scope.launch { withContext(Dispatchers.IO) { library.downloads.delete(song.id) } }
+            }
+            song.id in downloadingIds -> Unit
+            else -> {
+                downloadingIds = downloadingIds + song.id
+                scope.launch {
+                    try {
+                        downloadOneAtATime.withLock {
+                            player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
+                        }
+                        downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
+                    } finally {
+                        downloadingIds = downloadingIds - song.id
+                    }
+                }
+            }
+        }
+    }
 
     // The sleep timer, and the countdown the button shows. Polled once a second rather than driven
     // by an alarm: a second of imprecision does not matter here, and the readout has to be redrawn
@@ -1053,8 +1080,9 @@ internal fun App(
         AddToPlaylistDialog(
             song = song,
             playlists = playlists,
+            containing = remember(song.id, playlists) { library.playlistIdsContaining(song.id) },
             onDismiss = { addingToPlaylist = null },
-            onAdd = { library.addToPlaylist(it.id, song) },
+            onAdd = { chosen -> chosen.forEach { library.addToPlaylist(it.id, song) } },
             onCreateAndAdd = { name -> library.addToPlaylist(library.createPlaylist(name), song) },
         )
     }
@@ -1228,20 +1256,9 @@ internal fun App(
         addToPlaylist = { addingToPlaylist = it.toStored() },
         toggleLike = { likeAndPush(it.toStored()) },
         isLiked = { id -> liked.any { it.id == id } },
-        toggleDownload = { song ->
-            if (song.id in downloadedIds) {
-                downloadedIds = downloadedIds - song.id
-                scope.launch { withContext(Dispatchers.IO) { library.downloads.delete(song.id) } }
-            } else if (downloading == null) {
-                downloading = song.id
-                scope.launch {
-                    player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
-                    downloadedIds = withContext(Dispatchers.IO) { library.downloads.ids().toSet() }
-                    downloading = null
-                }
-            }
-        },
+        toggleDownload = toggleSongDownload,
         isDownloaded = { it in downloadedIds },
+        isDownloading = { it in downloadingIds },
         openArtist = openArtistPage,
         openAlbum = openAlbumPage,
         copyLink = { copyToClipboard(watchUrl(it.id)) },
@@ -1369,7 +1386,7 @@ internal fun App(
             sleepRemainingMs = sleepRemaining,
             onSleepTimer = { showSleepDialog = true },
             downloaded = queue.current?.id in downloadedIds,
-            downloading = downloading != null && downloading == queue.current?.id,
+            downloading = queue.current?.id in downloadingIds,
             showSeekButtons = settings.showSeekButtons,
             lyricsTextScale = settings.lyricsTextScale,
             lyricsAlignment = settings.lyricsAlignment,
@@ -1438,23 +1455,7 @@ internal fun App(
                 onOpenArtist = openArtistPage,
                 downloaded = queue.current?.id in downloadedIds,
                 // A file on this computer is already here, has no link and no YouTube album.
-                onDownload = queue.current?.takeUnless { currentIsLocal }?.let { song ->
-                    {
-                        if (song.id in downloadedIds) {
-                            downloadedIds = downloadedIds - song.id
-                            scope.launch { withContext(Dispatchers.IO) { library.downloads.delete(song.id) } }
-                        } else if (downloading == null) {
-                            downloading = song.id
-                            scope.launch {
-                                player.download(song.id).also { if (it.isSuccess) ArtworkCache.keepForOffline(song.thumbnail) }
-                                downloadedIds = withContext(Dispatchers.IO) {
-                                    library.downloads.ids().toSet()
-                                }
-                                downloading = null
-                            }
-                        }
-                    }
-                },
+                onDownload = queue.current?.takeUnless { currentIsLocal }?.let { song -> { toggleSongDownload(song) } },
                 // Only when the song actually carries one. A menu entry that opens an empty page is
                 // worse than one that is not there.
                 onViewAlbum = queue.current?.album?.id?.let { id -> { openAlbumPage(id) } },

@@ -261,6 +261,8 @@ class LibraryStore(
         playlists.value = db.playlists()
     }
 
+    fun playlistIdsContaining(songId: String): Set<String> = db.playlistIdsContaining(songId)
+
     fun removeFromPlaylist(playlistId: String, songId: String) {
         db.removeFromPlaylist(playlistId, songId)
         playlists.value = db.playlists()

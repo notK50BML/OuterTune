@@ -38,6 +38,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -100,12 +101,23 @@ fun RowActions(song: SongItem) {
     val config = LocalRowButtons.current
     // A file on this computer has nothing to like, download, link to or start a radio from.
     val local = LocalMusic.isLocal(song.id)
+    val downloading = actions.isDownloading(song.id)
     Row(verticalAlignment = Alignment.CenterVertically) {
         for (button in config.buttons) {
             if (local && button in YOUTUBE_ONLY_ROW_BUTTONS) continue
             val (icon, label) = rowButtonLook(button, song, actions)
             IconButton(onClick = { runRowButton(button, song, actions) }, modifier = Modifier.size(36.dp)) {
-                Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                if (button == RowButton.DOWNLOAD && downloading) {
+                    CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
+                } else {
+                    Icon(icon, contentDescription = label, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            }
+        }
+        // Started from the ⋮ rather than a quick button, it would otherwise be invisible in the row.
+        if (downloading && RowButton.DOWNLOAD !in config.buttons) {
+            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(36.dp)) {
+                CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
             }
         }
         if (config.menu) {
@@ -144,12 +156,14 @@ private fun runRowButton(button: RowButton, song: SongItem, actions: SongActions
  * One option in a [MenuPanel]: a round icon over its label. Disabled ones stay, dimmed.
  *
  * @param keepOpen for a tile that leads somewhere inside the panel (a page) rather than out of it.
+ * @param busy a spinner in place of the icon, for something this tile started that is still running.
  */
 data class MenuTile(
     val label: String,
     val icon: ImageVector,
     val enabled: Boolean = true,
     val keepOpen: Boolean = false,
+    val busy: Boolean = false,
     val onClick: () -> Unit,
 )
 
@@ -284,7 +298,15 @@ fun MenuPanel(
                                             modifier = Modifier.size(36.dp).clip(CircleShape)
                                                 .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = if (tile.enabled) 1f else 0.4f)),
                                         ) {
-                                            Icon(tile.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                                            if (tile.busy) {
+                                                CircularProgressIndicator(
+                                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    strokeWidth = 2.dp,
+                                                    modifier = Modifier.size(18.dp),
+                                                )
+                                            } else {
+                                                Icon(tile.icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSecondaryContainer, modifier = Modifier.size(20.dp))
+                                            }
                                         }
                                         Spacer(modifier = Modifier.height(6.dp))
                                         Text(
@@ -349,8 +371,13 @@ fun SongMenuPanel(
             MenuTile("Start radio", OuterTuneIcons.radio) { actions.startRadio(song) },
             MenuTile("Add to playlist", OuterTuneIcons.playlistAdd) { actions.addToPlaylist(song) },
             MenuTile(
-                if (actions.isDownloaded(song.id)) "Remove download" else "Download",
+                when {
+                    actions.isDownloading(song.id) -> "Downloading…"
+                    actions.isDownloaded(song.id) -> "Remove download"
+                    else -> "Download"
+                },
                 if (actions.isDownloaded(song.id)) OuterTuneIcons.offlinePin else OuterTuneIcons.download,
+                busy = actions.isDownloading(song.id),
             ) {
                 actions.toggleDownload(song)
             },

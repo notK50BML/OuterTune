@@ -55,6 +55,8 @@ class SongActions(
     val removeFromLibrary: (SongItem) -> Unit = {},
     /** The song's details - the player's Details, for any song. Left out of the menu when null. */
     val showDetails: ((SongItem) -> Unit)? = null,
+    /** Downloading now, or waiting its turn - shown as a spinner wherever the download control is. */
+    val isDownloading: (String) -> Boolean = { false },
 )
 
 val LocalSongActions = compositionLocalOf<SongActions?> { null }

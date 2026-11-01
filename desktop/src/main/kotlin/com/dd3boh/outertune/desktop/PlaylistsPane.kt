@@ -12,6 +12,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.material3.IconButton
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -456,21 +460,31 @@ private fun NameDialog(
  * Creating one from here as well, because the moment someone wants to file a song is exactly when
  * they discover they have nowhere to put it, and sending them elsewhere to make one loses the song
  * they were looking at.
+ *
+ * Playlists that already hold the song are ticked, so filing it twice is not a guess. A click adds
+ * to that one playlist and closes; a long press starts choosing several instead, and the confirm
+ * button at the bottom adds to all of them at once.
+ *
+ * @param containing the ids of the playlists the song is already in.
  */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun AddToPlaylistDialog(
     song: StoredSong,
     playlists: List<StoredPlaylist>,
+    containing: Set<String>,
     onDismiss: () -> Unit,
-    onAdd: (StoredPlaylist) -> Unit,
+    onAdd: (List<StoredPlaylist>) -> Unit,
     onCreateAndAdd: (String) -> Unit,
 ) {
     var creating by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
+    // Non-null while choosing several: the ids picked so far.
+    var picked by remember { mutableStateOf<Set<String>?>(null) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add to playlist") },
+        title = { Text(if (picked != null) "Add to playlists" else "Add to playlist") },
         text = {
             Column {
                 Text(
@@ -497,18 +511,33 @@ fun AddToPlaylistDialog(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    } else if (picked == null) {
+                        Text(
+                            "Click to add · hold to choose several",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp),
+                        )
                     }
-                    LazyColumn {
-                        itemsIndexed(playlists) { _, playlist ->
-                            Text(
-                                playlist.name,
-                                style = MaterialTheme.typography.bodyLarge,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { onAdd(playlist); onDismiss() }
-                                    .padding(vertical = 10.dp),
+                    LazyColumn(modifier = Modifier.heightIn(max = 380.dp)) {
+                        itemsIndexed(playlists, key = { _, it -> it.id }) { _, playlist ->
+                            val selection = picked
+                            AddToPlaylistRow(
+                                playlist = playlist,
+                                alreadyIn = playlist.id in containing,
+                                selecting = selection != null,
+                                selected = selection?.contains(playlist.id) == true,
+                                onClick = {
+                                    if (selection != null) {
+                                        picked = if (playlist.id in selection) selection - playlist.id else selection + playlist.id
+                                    } else {
+                                        onAdd(listOf(playlist))
+                                        onDismiss()
+                                    }
+                                },
+                                onLongClick = {
+                                    picked = (selection ?: emptySet()) + playlist.id
+                                },
                             )
                         }
                     }
@@ -516,17 +545,93 @@ fun AddToPlaylistDialog(
             }
         },
         confirmButton = {
-            if (creating) {
-                TextButton(
+            val selection = picked
+            when {
+                creating -> TextButton(
                     onClick = { onCreateAndAdd(name.trim()); onDismiss() },
                     enabled = name.isNotBlank(),
                 ) { Text("Create and add") }
-            } else {
-                TextButton(onClick = { creating = true }) { Text("New playlist") }
+
+                // Choosing several: the one way out that adds anything.
+                selection != null -> Button(
+                    onClick = {
+                        onAdd(playlists.filter { it.id in selection })
+                        onDismiss()
+                    },
+                    enabled = selection.isNotEmpty(),
+                ) {
+                    Text(
+                        when (selection.size) {
+                            0 -> "Choose playlists"
+                            1 -> "Add to 1 playlist"
+                            else -> "Add to ${selection.size} playlists"
+                        }
+                    )
+                }
+
+                else -> TextButton(onClick = { creating = true }) { Text("New playlist") }
             }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } },
+        dismissButton = {
+            // Backing out of choosing several returns to the list, not out of the dialog.
+            if (picked != null) {
+                TextButton(onClick = { picked = null }) { Text("Back") }
+            } else {
+                TextButton(onClick = onDismiss) { Text("Cancel") }
+            }
+        },
     )
+}
+
+/**
+ * One playlist in [AddToPlaylistDialog]: a checkbox while choosing several, its name and size, and
+ * a tick when the song is already in it.
+ */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+private fun AddToPlaylistRow(
+    playlist: StoredPlaylist,
+    alreadyIn: Boolean,
+    selecting: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (selected) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+    ) {
+        if (selecting) {
+            Checkbox(checked = selected, onCheckedChange = { onClick() }, modifier = Modifier.size(32.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                playlist.name,
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                if (playlist.songCount == 1) "1 song" else "${playlist.songCount} songs",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (alreadyIn) {
+            // Says where the song already is; adding there again changes nothing.
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(OuterTuneIcons.check, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Added", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
 }
 
 /** An automatic playlist in the list: its icon in a tile where a cover would be, as on the phone. */

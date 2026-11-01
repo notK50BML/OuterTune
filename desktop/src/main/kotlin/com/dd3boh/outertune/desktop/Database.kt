@@ -1199,6 +1199,14 @@ class Database(file: File) {
         }
     }
 
+    /** The playlists that already hold [songId] - what Add to playlist ticks. */
+    fun playlistIdsContaining(songId: String): Set<String> = synchronized(lock) {
+        connection.prepareStatement("SELECT playlistId FROM playlist_song WHERE songId = ?").use { st ->
+            st.setString(1, songId)
+            st.executeQuery().use { rs -> buildSet { while (rs.next()) add(rs.getString(1)) } }
+        }
+    }
+
     fun removeFromPlaylist(playlistId: String, songId: String) = synchronized(lock) {
         connection.prepareStatement(
             "DELETE FROM playlist_song WHERE playlistId = ? AND songId = ?"

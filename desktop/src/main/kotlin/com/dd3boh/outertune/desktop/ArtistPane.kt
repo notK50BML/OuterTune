@@ -56,9 +56,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.pointerHoverIcon
@@ -200,7 +201,28 @@ fun ArtistPane(
     val allSongs = sections.flatMap { it.items.filterIsInstance<SongItem>() }.distinctBy { it.id }
         .ifEmpty { librarySongs.map { it.toItem() } }
 
-    LazyColumn(modifier = modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
+    val listState = rememberLazyListState()
+    Column(modifier = modifier.fillMaxSize()) {
+    // Pinned above the list, as every other page's is: inside the header it scrolled away with the
+    // photo, and going back from the bottom of a long discography meant scrolling all the way up.
+    // The name joins it once the header is out of sight, so the page still says whose it is.
+    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
+        TextButton(onClick = onBack) { Text("← Back") }
+        androidx.compose.animation.AnimatedVisibility(
+            visible = listState.firstVisibleItemIndex > 0,
+            enter = androidx.compose.animation.fadeIn(),
+            exit = androidx.compose.animation.fadeOut(),
+        ) {
+            Text(
+                name,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 32.dp)) {
         item {
             ArtistHeader(
                 name = name,
@@ -208,7 +230,6 @@ fun ArtistPane(
                 description = page?.description,
                 loading = content is ArtistContent.Loading,
                 canPlay = allSongs.isNotEmpty(),
-                onBack = onBack,
                 onPlay = { onPlay(allSongs, 0) },
                 onShuffle = {
                     val order = allSongs.shuffled()
@@ -312,6 +333,7 @@ fun ArtistPane(
             }
         }
     }
+    }
 
     if (linking) {
         LinkArtistDialog(
@@ -331,66 +353,94 @@ fun ArtistPane(
 /** How many of an artist's songs the page shows before the arrow. The phone's number. */
 private const val TOP_SONGS = 5
 
+/** The artist header's band: tall enough for the portrait, never a wall of photo on a wide window. */
+private val ARTIST_HEADER_HEIGHT = 232.dp
+private val ARTIST_PORTRAIT = 176.dp
+
 /**
  * The picture, the name and the buttons.
  *
- * The photo runs the full width and fades into the page at the bottom, with the name set over the
- * fade - the phone's artist header, which is what makes the page read as about a person rather
- * than as a list with a title.
+ * The whole photo, in a circle as the phone draws artists, beside the name - over a blurred copy of
+ * itself. It used to be stretched across the page and cropped to a strip 42% of the width tall:
+ * YouTube's artist pictures are mostly square, so a wide window cut heads off and still filled half
+ * the screen. A circle of the full picture can't lose anything, and the blur behind is free to be
+ * cropped any way the window likes because nothing in it needs to be recognisable.
  */
 @Composable
-private fun ArtistHeader(
+internal fun ArtistHeader(
     name: String,
     thumbnail: String?,
     description: String?,
     loading: Boolean,
     canPlay: Boolean,
-    onBack: () -> Unit,
     onPlay: () -> Unit,
     onShuffle: () -> Unit,
 ) {
     val background = MaterialTheme.colorScheme.background
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        val height = (maxWidth * 0.42f).coerceIn(240.dp, 420.dp)
         val fullWidth = maxWidth
-        Box(modifier = Modifier.fillMaxWidth().height(height).clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp))) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(ARTIST_HEADER_HEIGHT)
+                .clip(androidx.compose.foundation.shape.RoundedCornerShape(24.dp)),
+        ) {
             if (thumbnail != null) {
-                // The artist's banner at the box's own shape, cropped from the top - where the face
-                // nearly always is - rather than a square cut from it and then the middle of that.
-                Artwork(thumbnail, size = fullWidth, height = height, cornerRadius = 0.dp, alignment = Alignment.TopCenter)
+                Artwork(
+                    thumbnail,
+                    size = fullWidth,
+                    height = ARTIST_HEADER_HEIGHT,
+                    cornerRadius = 0.dp,
+                    modifier = Modifier.blur(56.dp),
+                )
+                // Pulled toward the page colour so the name reads on any photo, light or dark.
+                Box(modifier = Modifier.fillMaxSize().background(background.copy(alpha = 0.5f)))
             } else {
                 Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.secondaryContainer))
             }
-            Box(
-                modifier = Modifier.fillMaxSize().background(
-                    Brush.verticalGradient(
-                        0f to Color.Transparent,
-                        0.45f to Color.Transparent,
-                        1f to background,
-                    )
-                ),
-            )
-            // Dark on a bright photo, white on a dark one - it was always white, and vanished on the
-            // light ones.
-            val cornerLight = rememberTopLeftIsLight(thumbnail, aspect = fullWidth / height)
-            TextButton(onClick = onBack, modifier = Modifier.padding(8.dp)) {
-                Text("← Back", color = if (cornerLight == true) Color(0xFF111111) else Color.White)
-            }
             Row(
-                verticalAlignment = Alignment.Bottom,
-                modifier = Modifier.align(Alignment.BottomStart).padding(horizontal = 28.dp, vertical = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxSize().padding(horizontal = 28.dp),
             ) {
-                Text(
-                    name,
-                    style = MaterialTheme.typography.displaySmall,
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                )
-                if (loading) {
-                    Spacer(modifier = Modifier.width(12.dp))
-                    CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                if (thumbnail != null) {
+                    Artwork(thumbnail, size = ARTIST_PORTRAIT, cornerRadius = ARTIST_PORTRAIT / 2)
+                } else {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .size(ARTIST_PORTRAIT)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        Icon(
+                            OuterTuneIcons.person,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(ARTIST_PORTRAIT * 0.45f),
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(28.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "Artist",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            name,
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                        if (loading) {
+                            Spacer(modifier = Modifier.width(12.dp))
+                            CircularProgressIndicator(modifier = Modifier.size(22.dp), strokeWidth = 2.dp)
+                        }
+                    }
                 }
             }
         }

@@ -464,11 +464,14 @@ fun NowPlayingScreen(
             // increment defaults to OFF and the buttons are simply absent.
             if (showSeekButtons) {
                 Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                    // The transport row's size, not IconButton's default: at the default the seek
+                    // glyphs sat visibly smaller than skip either side of them.
                     IconButton(
                         onClick = { onSeek((positionMs() - seekStepMs).coerceAtLeast(0)) },
                         enabled = durationMs > 0,
+                        modifier = Modifier.size(transportSize),
                     ) {
-                        Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground)
+                        Icon(OuterTuneIcons.fastRewind, "Back ${seekStepMs / 1000} seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
                     }
                 }
             }
@@ -499,8 +502,9 @@ fun NowPlayingScreen(
                     IconButton(
                         onClick = { onSeek((positionMs() + seekStepMs).coerceAtMost(durationMs)) },
                         enabled = durationMs > 0,
+                        modifier = Modifier.size(transportSize),
                     ) {
-                        Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground)
+                        Icon(OuterTuneIcons.fastForward, "Forward ${seekStepMs / 1000} seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
                     }
                 }
             }
@@ -542,10 +546,10 @@ fun NowPlayingScreen(
                     Icon(OuterTuneIcons.skipNext, "Next", tint = onBackground, modifier = Modifier.size(transportIcon))
                 }
                 "seek_backward" -> IconButton(onClick = { onSeek((positionMs() - seekStepMs).coerceAtLeast(0)) }, modifier = Modifier.size(transportSize)) {
-                    Icon(OuterTuneIcons.fastRewind, "Back 5 seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
+                    Icon(OuterTuneIcons.fastRewind, "Back ${seekStepMs / 1000} seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
                 }
                 "seek_forward" -> IconButton(onClick = { onSeek((positionMs() + seekStepMs).coerceAtMost(durationMs)) }, modifier = Modifier.size(transportSize)) {
-                    Icon(OuterTuneIcons.fastForward, "Forward 5 seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
+                    Icon(OuterTuneIcons.fastForward, "Forward ${seekStepMs / 1000} seconds", tint = onBackground, modifier = Modifier.size(transportIcon))
                 }
                 "repeat" -> IconButton(onClick = onCycleRepeat, modifier = Modifier.size(transportSize)) {
                     Icon(
@@ -1624,6 +1628,9 @@ private fun LyricsHeader(
     var searching by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     var noneFrom by remember { mutableStateOf<LyricsSource?>(null) }
+    // A provider being asked from "Get lyrics from" - spins the menu button like a refetch does,
+    // since a slow provider otherwise looks like the choice did nothing.
+    var asking by remember { mutableStateOf<LyricsSource?>(null) }
     noneFrom?.let { source ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { noneFrom = null },
@@ -1640,7 +1647,7 @@ private fun LyricsHeader(
             IconButton(onClick = { menu = true }) {
                 // A spinner while lyrics are being fetched, so "Fetch lyrics again" visibly does
                 // something where it was asked for, as on the phone.
-                if (fetching) {
+                if (fetching || asking != null) {
                     CircularProgressIndicator(color = tint, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
                 } else {
                     Icon(OuterTuneIcons.moreVert, contentDescription = "Lyrics options", tint = tint)
@@ -1684,15 +1691,23 @@ private fun LyricsHeader(
                         androidx.compose.material3.DropdownMenuItem(
                             text = { Text("Get lyrics from ${source.label}") },
                             leadingIcon = {
-                                if (actions.source == source.id) {
-                                    Icon(OuterTuneIcons.check, null, modifier = Modifier.size(20.dp))
-                                } else {
-                                    Spacer(modifier = Modifier.size(20.dp))
+                                when {
+                                    asking == source -> CircularProgressIndicator(strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
+                                    actions.source == source.id -> Icon(OuterTuneIcons.check, null, modifier = Modifier.size(20.dp))
+                                    else -> Spacer(modifier = Modifier.size(20.dp))
                                 }
                             },
+                            enabled = asking == null,
                             onClick = {
                                 menu = false
-                                scope.launch { if (!actions.useProvider(source)) noneFrom = source }
+                                asking = source
+                                scope.launch {
+                                    try {
+                                        if (!actions.useProvider(source)) noneFrom = source
+                                    } finally {
+                                        asking = null
+                                    }
+                                }
                             },
                         )
                     }
