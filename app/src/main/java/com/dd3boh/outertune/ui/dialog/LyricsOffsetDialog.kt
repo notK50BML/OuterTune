@@ -87,6 +87,9 @@ fun formatLyricsOffset(ms: Int): String = when {
     else -> "0 ms"
 }
 
+/** How big the offset dial is drawn - see [OffsetDial]. */
+private val OFFSET_DIAL_SIZE = 140.dp
+
 /** How far one full turn of the dial moves the offset - half a second, so a quarter turn is a beat. */
 private const val DIAL_MS_PER_TURN = 500
 
@@ -260,7 +263,9 @@ private fun StepButton(stepMs: Int, onStep: (Int) -> Unit, modifier: Modifier = 
 
 /**
  * The dial: a ring of ticks that turns with the offset, a fixed mark at the top to read it against,
- * and the whole face as the handle - 240 dp across, so the thumb never has to find it.
+ * and the whole face as the handle - [OFFSET_DIAL_SIZE] across. It was 240 dp, most of a phone's
+ * width, which buried the lyrics it was tuning; a turn is read by angle, so a smaller face is no
+ * harder to turn, only less in the way. Its markings are drawn in proportion to its size.
  *
  * Read as angles rather than distances: each move is the change in angle about the centre, wrapped
  * so crossing the left-hand side is a small step and not a whole turn back, and what does not yet
@@ -277,10 +282,12 @@ private fun OffsetDial(valueMs: Int, onTurn: (Int) -> Unit, modifier: Modifier =
     val description = stringResource(R.string.lyrics_offset_dial_description, formatLyricsOffset(valueMs))
     Canvas(
         modifier = modifier
-            .size(240.dp)
+            .size(OFFSET_DIAL_SIZE)
             .semantics { contentDescription = description }
             .pointerInput(Unit) {
-                val deadZone = 28.dp.toPx()
+                // The same share of the face as before - near the centre a hair's movement swings
+                // the angle round.
+                val deadZone = OFFSET_DIAL_SIZE.toPx() * 0.12f
                 var last: Float? = null
                 var carried = 0f
                 var at = 0
@@ -320,26 +327,26 @@ private fun OffsetDial(valueMs: Int, onTurn: (Int) -> Unit, modifier: Modifier =
             for (i in 0 until steps) {
                 val major = i % (COARSE_STEP_MS / FINE_STEP_MS) == 0
                 val angle = Math.toRadians((i * 360.0 / steps) - 90.0)
-                val outer = radius - 10.dp.toPx()
-                val inner = outer - (if (major) 18.dp else 8.dp).toPx()
+                val outer = radius * 0.92f
+                val inner = outer - radius * (if (major) 0.15f else 0.07f)
                 val direction = Offset(cos(angle).toFloat(), sin(angle).toFloat())
                 drawLine(
                     color = tick.copy(alpha = if (major) 0.9f else 0.45f),
                     start = center + direction * inner,
                     end = center + direction * outer,
-                    strokeWidth = (if (major) 3.dp else 1.5.dp).toPx(),
+                    strokeWidth = radius * (if (major) 0.026f else 0.013f),
                     cap = StrokeCap.Round,
                 )
             }
             // A grip near the rim, so the turning shows even between ticks.
-            drawCircle(mark, 7.dp.toPx(), center + Offset(0f, -(radius - 44.dp.toPx())))
+            drawCircle(mark, radius * 0.06f, center + Offset(0f, -radius * 0.63f))
         }
         // The fixed mark the ring is read against.
         drawLine(
             color = mark,
             start = center + Offset(0f, -radius),
-            end = center + Offset(0f, -(radius - 12.dp.toPx())),
-            strokeWidth = 4.dp.toPx(),
+            end = center + Offset(0f, -radius * 0.9f),
+            strokeWidth = radius * 0.035f,
             cap = StrokeCap.Round,
         )
     }

@@ -1159,8 +1159,11 @@ internal fun CompressorSection(
             val makeupColor = if (useGradient) valueGradientColor(compressor.makeupGainDb, makeupRange) else color
 
             if (useDials) {
+                // Each dial's double tap goes back to the compressor's own default for it.
+                val defaults = EqualizerSettings.CompressorSettings()
                 Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
                     RotaryDial(
+                        default = defaults.attackMs,
                         value = compressor.attackMs,
                         onValueChange = { onChange(compressor.copy(attackMs = it)) },
                         valueRange = attackRange,
@@ -1170,6 +1173,7 @@ internal fun CompressorSection(
                         valueLabel = "${compressor.attackMs.roundToInt()} ms",
                     )
                     RotaryDial(
+                        default = defaults.releaseMs,
                         value = compressor.releaseMs,
                         onValueChange = { onChange(compressor.copy(releaseMs = it)) },
                         valueRange = releaseRange,
@@ -1179,6 +1183,7 @@ internal fun CompressorSection(
                         valueLabel = "${compressor.releaseMs.roundToInt()} ms",
                     )
                     RotaryDial(
+                        default = defaults.ratio,
                         value = compressor.ratio,
                         onValueChange = { onChange(compressor.copy(ratio = it)) },
                         valueRange = ratioRange,
@@ -1191,6 +1196,7 @@ internal fun CompressorSection(
                 Spacer(Modifier.height(12.dp))
                 Row(horizontalArrangement = Arrangement.SpaceEvenly, modifier = Modifier.fillMaxWidth()) {
                     RotaryDial(
+                        default = defaults.thresholdDb,
                         value = compressor.thresholdDb,
                         onValueChange = { onChange(compressor.copy(thresholdDb = quantizeTenth(it))) },
                         valueRange = thresholdRange,
@@ -1200,6 +1206,7 @@ internal fun CompressorSection(
                         valueLabel = "${formatDb(compressor.thresholdDb)} dB",
                     )
                     RotaryDial(
+                        default = defaults.makeupGainDb,
                         value = compressor.makeupGainDb,
                         onValueChange = { onChange(compressor.copy(makeupGainDb = quantizeTenth(it))) },
                         valueRange = makeupRange,

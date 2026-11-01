@@ -8,6 +8,9 @@ package com.dd3boh.outertune.ui.component
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.size
@@ -63,8 +66,15 @@ fun RotaryDial(
      * panel's background. Defaults to [color] so callers that don't care keep the old look.
      */
     textColor: Color = color,
+    /**
+     * Where a double tap puts the dial back to - its resting value. Defaults to [centeredAt] when
+     * there is one; null means a double tap does nothing. The desktop's dials have always had this,
+     * as a double-click.
+     */
+    default: Float? = centeredAt,
 ) {
     val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
     // detectDragGestures runs in a coroutine that survives across separate physical drag
     // gestures (it loops "await down, track drag, on up, await the next down" for as long as
     // pointerInput's keys stay the same) - closing over `value` directly meant every drag after
@@ -97,6 +107,16 @@ fun RotaryDial(
                         val delta = -dragAmount.y / pxForFullRange * range
                         currentOnValueChange((currentValue + delta).coerceIn(valueRange.start, valueRange.endInclusive))
                     }
+                }
+                .pointerInput(enabled, default) {
+                    if (!enabled || default == null) return@pointerInput
+                    detectTapGestures(onDoubleTap = {
+                        val reset = default.coerceIn(valueRange.start, valueRange.endInclusive)
+                        if (reset != currentValue) {
+                            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                            currentOnValueChange(reset)
+                        }
+                    })
                 }
         ) {
             // A flat physical knob - dark disc, thin bezel, a colored progress arc hugging the
