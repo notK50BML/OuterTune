@@ -345,6 +345,26 @@ class Database(file: File) {
                     if (!has) st.executeUpdate("ALTER TABLE song ADD COLUMN album TEXT NOT NULL DEFAULT ''")
                 }
             }
+            if (current < 14) {
+                connection.createStatement().use { st ->
+                    // Albums and YouTube playlists saved to the library with the heart on their page -
+                    // see SavedCollection. A reference, not a copy: the songs are fetched again when
+                    // the page opens, as they are for any album or playlist.
+                    st.executeUpdate(
+                        """
+                        CREATE TABLE IF NOT EXISTS saved_collection (
+                            id         TEXT PRIMARY KEY NOT NULL,
+                            kind       TEXT NOT NULL,
+                            title      TEXT NOT NULL,
+                            subtitle   TEXT NOT NULL DEFAULT '',
+                            thumbnail  TEXT NOT NULL DEFAULT '',
+                            playlistId TEXT NOT NULL DEFAULT '',
+                            savedAt    INTEGER NOT NULL
+                        )
+                        """.trimIndent()
+                    )
+                }
+            }
             connection.createStatement().use { it.executeUpdate("PRAGMA user_version=$SCHEMA_VERSION") }
             connection.commit()
         } catch (e: Exception) {
@@ -1260,6 +1280,66 @@ class Database(file: File) {
         Unit
     }
 
+    // ---- saved albums and playlists ---------------------------------------------------------
+
+    /** Saves an album or playlist to the library, or refreshes its details if it is already there. */
+    fun saveCollection(collection: SavedCollection) = synchronized(lock) {
+        connection.prepareStatement(
+            """
+            INSERT INTO saved_collection (id, kind, title, subtitle, thumbnail, playlistId, savedAt)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET
+                title = excluded.title, subtitle = excluded.subtitle,
+                thumbnail = excluded.thumbnail, playlistId = excluded.playlistId
+            """.trimIndent()
+        ).use { st ->
+            st.setString(1, collection.id)
+            st.setString(2, collection.kind.name)
+            st.setString(3, collection.title)
+            st.setString(4, collection.subtitle)
+            st.setString(5, collection.thumbnail)
+            st.setString(6, collection.playlistId)
+            st.setLong(7, collection.savedAt)
+            st.executeUpdate()
+        }
+        Unit
+    }
+
+    fun unsaveCollection(id: String) = synchronized(lock) {
+        connection.prepareStatement("DELETE FROM saved_collection WHERE id = ?").use { st ->
+            st.setString(1, id)
+            st.executeUpdate()
+        }
+        Unit
+    }
+
+    /** Saved albums or saved playlists, the most recently saved first. */
+    fun savedCollections(kind: SavedKind): List<SavedCollection> = synchronized(lock) {
+        connection.prepareStatement(
+            "SELECT id, title, subtitle, thumbnail, playlistId, savedAt FROM saved_collection " +
+                "WHERE kind = ? ORDER BY savedAt DESC"
+        ).use { st ->
+            st.setString(1, kind.name)
+            st.executeQuery().use { rs ->
+                buildList {
+                    while (rs.next()) {
+                        add(
+                            SavedCollection(
+                                id = rs.getString(1),
+                                kind = kind,
+                                title = rs.getString(2),
+                                subtitle = rs.getString(3),
+                                thumbnail = rs.getString(4),
+                                playlistId = rs.getString(5),
+                                savedAt = rs.getLong(6),
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     fun credential(key: String): String? = synchronized(lock) {
         connection.prepareStatement("SELECT value FROM credential WHERE key = ?").use { st ->
             st.setString(1, key)
@@ -1527,7 +1607,7 @@ class Database(file: File) {
 
     companion object {
         /** Bumped whenever [migrate] gains a step. */
-        const val SCHEMA_VERSION = 13
+        const val SCHEMA_VERSION = 14
 
         fun defaultFile(): File = File(defaultDataDirectory(), "library.db")
     }

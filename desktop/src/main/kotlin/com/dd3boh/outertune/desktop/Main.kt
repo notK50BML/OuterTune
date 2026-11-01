@@ -451,7 +451,26 @@ internal fun App(
     // trigger, since both are answers to "who is signed in" and neither means anything without one.
     // Part of the sync now (Settings > Account and sync > Playlists), so switching them off hides them.
     val youTubeSync = remember { YouTubeSync(library) }
-    val savedPlaylists by youTubeSync.playlists.collectAsState()
+    val accountPlaylists by youTubeSync.playlists.collectAsState()
+    // Albums and playlists saved with the heart on their page. Saved here first, then sent to the
+    // account when signed in with read-write sync, as a like is - see LibrarySaves.
+    val librarySaves = remember {
+        LibrarySaves(library, youTubeSync) {
+            accountState is AccountState.SignedIn && settings.syncMode == SyncMode.ReadWrite
+        }
+    }
+    val playlistsSavedHere by library.savedPlaylists.collectAsState()
+    val albumsSavedHere by library.savedAlbums.collectAsState()
+    val accountAlbums by youTubeSync.albums.collectAsState()
+    // The account's playlists with those saved here, each once - what every "your playlists" shows.
+    val savedPlaylists = remember(playlistsSavedHere, accountPlaylists) {
+        mergeSaved(playlistsSavedHere.map { it.toPlaylistItem() }, accountPlaylists)
+    }
+    val collectionSaves = remember(playlistsSavedHere, albumsSavedHere, accountPlaylists, accountAlbums) {
+        val ids = (playlistsSavedHere.map { it.id } + albumsSavedHere.map { it.id } +
+            accountPlaylists.map { it.id.bareCollectionId() } + accountAlbums.map { it.browseId }).toSet()
+        CollectionSaves(ids, librarySaves::set)
+    }
     val recentActivity by youTubeSync.recentActivity.collectAsState()
     // Browsing signed in or not - the phone's "Use login for browsing content".
     LaunchedEffect(settings.useLoginForBrowse) { YouTube.useLoginForBrowse = settings.useLoginForBrowse }
@@ -1462,6 +1481,7 @@ internal fun App(
         LocalSongDetails provides SongDetail.decode(settings.songDetails),
         LocalSongFacts provides library.songFacts.collectAsState().value,
         LocalSongActions provides songActions,
+        LocalCollectionSaves provides collectionSaves,
         LocalPlaybackActive provides (playback is PlaybackState.Playing),
     )
     Box(

@@ -157,6 +157,9 @@ fun OnlinePlaylistPane(
                                         onDownload = { onDownloadAll(state.playlist.title, state.songs) },
                                     )
                                 }
+                                // Saves it to Library → Playlists - not for Liked music or your own,
+                                // which are in the library already.
+                                if (state.playlist.saveable()) SaveToLibraryButton(state.playlist.toSaved())
                             }
                         }
                     }

@@ -258,6 +258,36 @@ class DatabaseTest {
         assertTrue(failed.isFailure)
         assertTrue("the inner transaction committed independently", db.playlistSongs("p").isEmpty())
     }
+
+    // ---- saved albums and playlists --------------------------------------------------------
+
+    @Test
+    fun `saved albums and playlists round trip, newest first, and survive a reopen`() {
+        val album = SavedCollection("MPREb_a", SavedKind.Album, "Album", "Band", "a.jpg", "OLAK5uy_a", savedAt = 1000)
+        val older = SavedCollection("PLx", SavedKind.Playlist, "Mix", "Someone", "p.jpg", "PLx", savedAt = 1000)
+        val newer = SavedCollection("PLy", SavedKind.Playlist, "Mix 2", "", "", "PLy", savedAt = 2000)
+        db.saveCollection(album)
+        db.saveCollection(older)
+        db.saveCollection(newer)
+        // Saved again: the details refresh, but it keeps the time it was first saved.
+        db.saveCollection(album.copy(title = "Album (Deluxe)", savedAt = 5000))
+        db.close()
+
+        db = Database(File(dir, "library.db"))
+        assertEquals(listOf(album.copy(title = "Album (Deluxe)")), db.savedCollections(SavedKind.Album))
+        assertEquals(listOf("PLy", "PLx"), db.savedCollections(SavedKind.Playlist).map { it.id })
+
+        db.unsaveCollection("PLy")
+        assertEquals(listOf(older), db.savedCollections(SavedKind.Playlist))
+    }
+
+    @Test
+    fun `a playlist saved here and on the account shows once`() {
+        val here = SavedCollection("PLx", SavedKind.Playlist, "Mix").toPlaylistItem()
+        val account = here.copy(id = "VLPLx", title = "Mix (account)")
+        val other = here.copy(id = "PLz")
+        assertEquals(listOf("PLx", "PLz"), mergeSaved(listOf(here), listOf(account, other)).map { it.id })
+    }
 }
 
 /**

@@ -479,8 +479,12 @@ private fun Section(
  */
 @Composable
 internal fun Card(item: YTItem, playing: Boolean, onClick: () -> Unit) {
-    // Songs get the right-click menu; albums, playlists and artists open pages instead.
-    if (item is SongItem) SongMenuArea(item) { CardBody(item, playing, onClick) } else CardBody(item, playing, onClick)
+    // Songs get the song menu on a right-click; albums and playlists get Save to library.
+    when (item) {
+        is SongItem -> SongMenuArea(item) { CardBody(item, playing, onClick) }
+        is AlbumItem, is PlaylistItem -> CollectionMenuArea(item) { CardBody(item, playing, onClick) }
+        else -> CardBody(item, playing, onClick)
+    }
 }
 
 @Composable

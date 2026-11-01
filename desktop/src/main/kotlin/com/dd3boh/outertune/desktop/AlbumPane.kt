@@ -236,6 +236,8 @@ private fun Header(
                     Text("Shuffle")
                 }
                 download?.invoke()
+                // Saves the album to Library → Albums, and to the account's when signed in.
+                SaveToLibraryButton(page.album.toSaved())
             }
         }
     }

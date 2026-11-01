@@ -167,6 +167,9 @@ class LibraryStore(
     val recentlyPlayed = MutableStateFlow<List<StoredSong>>(emptyList())
     val liked = MutableStateFlow<List<StoredSong>>(emptyList())
     val playlists = MutableStateFlow<List<StoredPlaylist>>(emptyList())
+    /** Albums and YouTube playlists saved here with the heart on their page - see SavedCollection. */
+    val savedAlbums = MutableStateFlow<List<SavedCollection>>(emptyList())
+    val savedPlaylists = MutableStateFlow<List<SavedCollection>>(emptyList())
 
     init {
         directory.mkdirs()
@@ -280,6 +283,17 @@ class LibraryStore(
      */
     fun songsByArtist(artistId: String): List<StoredSong> = db.songsByArtist(artistId)
 
+    /** Saves an album or playlist to the library, or takes it out. The account is LibrarySaves' concern. */
+    fun setSaved(collection: SavedCollection, saved: Boolean) {
+        if (saved) db.saveCollection(collection) else db.unsaveCollection(collection.id)
+        refreshSaved()
+    }
+
+    private fun refreshSaved() {
+        savedAlbums.value = db.savedCollections(SavedKind.Album)
+        savedPlaylists.value = db.savedCollections(SavedKind.Playlist)
+    }
+
     fun reorderPlaylist(playlistId: String, songIdsInOrder: List<String>) {
         db.reorderPlaylist(playlistId, songIdsInOrder)
     }
@@ -288,6 +302,7 @@ class LibraryStore(
         recentlyPlayed.value = db.recentlyPlayed(MAX_RECENT)
         liked.value = db.likedSongs()
         playlists.value = db.playlists()
+        refreshSaved()
     }
 
     /**

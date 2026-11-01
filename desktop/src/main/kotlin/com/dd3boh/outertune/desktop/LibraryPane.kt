@@ -79,8 +79,8 @@ enum class SongSort(val label: String) { Default("Recently added"), Title("Title
  *
  * Songs come from three places the desktop actually keeps: what is liked, what has been played, and
  * what is downloaded. Artists are everyone credited on those, joined by the artists in the account's
- * YouTube library; albums are the account's saved albums. Signed out, artists still fill from what
- * has been played here, and albums say why they are empty.
+ * YouTube library; albums are those saved here and the account's saved albums. Signed out, artists
+ * still fill from what has been played here, and albums from what was saved here.
  */
 @Composable
 fun LibraryPane(
@@ -96,7 +96,7 @@ fun LibraryPane(
     onOpenArtist: (StoredArtist) -> Unit,
     onOpenAlbum: (String) -> Unit,
     modifier: Modifier = Modifier,
-    /** Playlists saved on the YouTube account, beside the ones made here. */
+    /** Playlists saved here and on the YouTube account, beside the ones made here - see mergeSaved. */
     savedPlaylists: List<com.zionhuang.innertube.models.PlaylistItem> = emptyList(),
     onOpenPlaylist: (StoredPlaylist) -> Unit = {},
     onOpenOnlinePlaylist: (com.zionhuang.innertube.models.PlaylistItem) -> Unit = {},
@@ -114,6 +114,9 @@ fun LibraryPane(
     val syncing by sync.syncing.collectAsState()
     val status by sync.status.collectAsState()
     val remoteAlbums by sync.albums.collectAsState()
+    val savedHere by library.savedAlbums.collectAsState()
+    // Albums saved here with the heart, then the account's - each once. See mergeSaved.
+    val albums = remember(savedHere, remoteAlbums) { mergeSaved(savedHere.map { it.toAlbumItem() }, remoteAlbums) }
     val remoteArtists by sync.artists.collectAsState()
     val remoteSongs by sync.librarySongs.collectAsState()
     val scope = rememberCoroutineScope()
@@ -284,19 +287,19 @@ fun LibraryPane(
             }
 
             LibraryView.Albums -> when {
-                remoteAlbums.isNotEmpty() -> LazyVerticalGrid(
+                albums.isNotEmpty() -> LazyVerticalGrid(
                     columns = GridCells.Adaptive(176.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp),
                     contentPadding = PaddingValues(vertical = 8.dp),
                 ) {
-                    val remoteAlbumsUniqueKeys = uniqueKeys(remoteAlbums) { it.id }
-                    gridItemsIndexed(remoteAlbums, key = { i, _ -> remoteAlbumsUniqueKeys[i] }) { _, album ->
+                    val albumsUniqueKeys = uniqueKeys(albums) { it.id }
+                    gridItemsIndexed(albums, key = { i, _ -> albumsUniqueKeys[i] }) { _, album ->
                         Card(item = album, playing = false) { onOpenAlbum(album.browseId) }
                     }
                 }
-                signedIn -> Empty(if (syncing) "Fetching your albums…" else "No saved albums on your account. Sync to check again.")
-                else -> Empty("Saved albums come from your YouTube account. Sign in under Settings → Account.")
+                signedIn -> Empty(if (syncing) "Fetching your albums…" else "No saved albums yet. Save one with the heart on its page, or sync to check your account again.")
+                else -> Empty("No saved albums yet. Save one with the heart on its page, or sign in under Settings → Account to bring yours from YouTube.")
             }
         }
     }
