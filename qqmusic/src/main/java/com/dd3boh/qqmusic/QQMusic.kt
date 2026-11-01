@@ -2,6 +2,7 @@ package com.dd3boh.qqmusic
 
 import com.dd3boh.betterlyrics.QrcConverter
 import com.dd3boh.qqmusic.models.LrcResponse
+import com.dd3boh.qqmusic.models.LegacySearchResponse
 import com.dd3boh.qqmusic.models.SearchResponse
 import io.ktor.client.HttpClient
 import io.ktor.client.plugins.HttpTimeout
@@ -43,6 +44,7 @@ object QQMusic {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
 
     private const val SEARCH_URL = "https://u.y.qq.com/cgi-bin/musicu.fcg"
+    private const val LEGACY_SEARCH_URL = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp"
     private const val QRC_URL = "https://c.y.qq.com/qqmusic/fcgi-bin/lyric_download.fcg"
     private const val LRC_URL = "https://c.y.qq.com/lyric/fcgi-bin/fcg_query_lyric_new.fcg"
 
@@ -94,7 +96,6 @@ object QQMusic {
      * song has no lyrics (a definitive absence), and a failure when a request itself failed.
      */
     suspend fun getLyrics(title: String, artist: String, duration: Int): Result<String?> = runCatching {
-        checkNotResting()
         val song = rankCandidates(search(title, artist), title, artist, duration, strict = true).firstOrNull()
             ?: return@runCatching null
         lyricsFor(song, title)
@@ -105,7 +106,6 @@ object QQMusic {
      * A candidate whose download fails is skipped; the failure is only thrown when none came through.
      */
     suspend fun getAllLyrics(title: String, artist: String, duration: Int, callback: (String) -> Unit) {
-        checkNotResting()
         val candidates = rankCandidates(search(title, artist), title, artist, duration, strict = false)
             .take(MAX_ALL_LYRICS)
         var delivered = false
@@ -142,9 +142,39 @@ object QQMusic {
 
     // ---- requests ----
 
+    /**
+     * QQ's search: its current one first, then its older public one when that refuses or fails -
+     * the current one turns a client away (code 2001) after a burst of searches, and stays shut for
+     * a long while, during which the older one has kept answering. While the current one is resting
+     * after a refusal, only the older one is asked. The first failure is the one reported if both fail.
+     */
     internal suspend fun search(title: String, artist: String): List<SearchResponse.Song> {
         val query = listOf(normalizeTitle(title).trim().ifEmpty { title }, artistParts(artist, keepCase = true).joinToString(" "))
             .filter { it.isNotBlank() }.joinToString(" ")
+        val primary = runCatching {
+            checkNotResting()
+            primarySearch(query)
+        }
+        primary.getOrNull()?.let { return it }
+        return runCatching { legacySearch(query) }.getOrElse { throw primary.exceptionOrNull() ?: it }
+    }
+
+    /** `client_search_cp` - the older public search, answering in the same song shape (new_json=1). */
+    private suspend fun legacySearch(query: String): List<SearchResponse.Song> {
+        val text = client.get(LEGACY_SEARCH_URL) {
+            parameter("w", query)
+            parameter("format", "json")
+            parameter("p", 1)
+            parameter("n", PAGE_SIZE)
+            parameter("new_json", 1)
+            parameter("cr", 1)
+        }.bodyAsText()
+        val response = json.decodeFromString<LegacySearchResponse>(text)
+        if (response.code != 0) throw IOException("QQ Music's older search refused: code ${response.code}")
+        return response.data?.song?.list.orEmpty().flatMap { listOf(it) + it.grp }
+    }
+
+    private suspend fun primarySearch(query: String): List<SearchResponse.Song> {
         val body = buildJsonObject {
             putJsonObject("comm") {
                 put("ct", "19")

@@ -60,3 +60,15 @@ data class LrcResponse(
     val code: Int = 0,
     val lyric: String? = null,
 )
+
+/** `client_search_cp` with new_json=1: the same songs as [SearchResponse], under data.song.list. */
+@Serializable
+data class LegacySearchResponse(
+    val code: Int = 0,
+    val data: Data? = null,
+) {
+    @Serializable
+    data class Data(
+        val song: SearchResponse.SongList? = null,
+    )
+}
