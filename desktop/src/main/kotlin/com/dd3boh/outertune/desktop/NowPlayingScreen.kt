@@ -1397,6 +1397,13 @@ private fun EqualizerOverlay(
                 modifier = Modifier
                     .fillMaxSize()
                     .onPointerEvent(PointerEventType.Scroll) { event ->
+                        // A scroll a dial or slider has taken was turning it, not leaving: the
+                        // Additional settings dials sit at the very bottom, where every turn of the
+                        // wheel over them also counted towards closing the panel.
+                        if (event.changes.first().isConsumed) {
+                            pastBottom = 0f
+                            return@onPointerEvent
+                        }
                         val scrolled = event.changes.first().scrollDelta.y
                         val atBottom = panelScroll.value >= panelScroll.maxValue
                         pastBottom = when {
