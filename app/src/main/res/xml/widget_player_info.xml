@@ -1,16 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- No updatePeriodMillis: the widget is pushed to by the music service whenever the song or the
-     play state changes, so a periodic wake-up would only cost battery. -->
+     play state changes, so a periodic wake-up would only cost battery.
+     Resizable down to one cell tall: PlayerWidget picks what to show from the size - controls only,
+     then cover / title / controls, then the full arrangement from the widget editor.
+     configure + widgetFeatures: the launcher's "Edit" option on the widget opens that editor
+     (WidgetConfigureActivity); optional on Android 13+, so placing one opens nothing. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:configure="com.dd3boh.outertune.widget.WidgetConfigureActivity"
     android:description="@string/widget_description"
     android:initialLayout="@layout/widget_player"
-    android:minWidth="250dp"
-    android:minHeight="100dp"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="90dp"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="110dp"
+    android:minResizeHeight="40dp"
     android:previewLayout="@layout/widget_player"
     android:resizeMode="horizontal|vertical"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:updatePeriodMillis="0"
-    android:widgetCategory="home_screen" />
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable|configuration_optional" />

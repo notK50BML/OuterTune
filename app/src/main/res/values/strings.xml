@@ -296,6 +296,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="widget_el_artist">Artist picture</string>
     <string name="widget_el_info">Title and artist</string>
     <string name="widget_el_up_next">Up next</string>
+    <string name="widget_el_lyrics">Lyrics line</string>
     <string name="widget_el_seek_bar">Seek bar</string>
     <string name="widget_el_previous">Previous</string>
     <string name="widget_el_play_pause">Play / pause</string>

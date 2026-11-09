@@ -13,6 +13,59 @@ import com.dd3boh.outertune.R
 data class SettingsIndexEntry(val route: String, @StringRes val title: Int, @StringRes val screen: Int)
 
 /**
+ * Words people search for, grouped with the words the settings actually use. A search for "dark
+ * mode" finds the theme, "font" the lyrics size, "wallpaper" the player background - the setting's
+ * own title rarely uses the word someone thinks of first. Each group is a set of interchangeable
+ * words; a searched word matches a setting if any word in its group appears in the setting's title
+ * or screen name.
+ */
+private val SETTING_SYNONYMS: List<Set<String>> = listOf(
+    setOf("dark", "night", "theme", "black", "amoled", "light"),
+    setOf("colour", "color", "accent", "palette", "material", "dynamic", "theme", "tint"),
+    setOf("font", "text", "size", "big", "small", "scale"),
+    setOf("equaliser", "equalizer", "eq", "bass", "treble", "sound", "tone", "autoeq", "headphone"),
+    setOf("volume", "loud", "loudness", "normalisation", "normalization", "quiet", "gain"),
+    setOf("download", "offline", "save"),
+    setOf("cache", "storage", "space", "memory", "clear"),
+    setOf("lyrics", "lyric", "words", "karaoke", "synced", "sing"),
+    setOf("background", "wallpaper", "backdrop", "frosted", "blur", "liquid", "visualiser", "visualizer", "ferrofluid"),
+    setOf("seek", "slider", "progress", "bar", "wave", "squiggly"),
+    setOf("sleep", "timer", "bedtime"),
+    setOf("crossfade", "fade", "gapless", "transition"),
+    setOf("discord", "presence", "rpc", "status", "activity"),
+    setOf("notification", "media", "controls", "lockscreen"),
+    setOf("widget", "home screen", "homescreen", "launcher"),
+    setOf("tab", "tabs", "navigation", "navbar", "bottom bar", "rail"),
+    setOf("backup", "restore", "export", "import", "transfer"),
+    setOf("update", "updater", "version", "upgrade", "release"),
+    setOf("account", "login", "log in", "sign in", "youtube", "google", "sync", "cookie"),
+    setOf("history", "privacy", "incognito", "pause"),
+    setOf("language", "country", "region", "locale"),
+    setOf("shuffle", "repeat", "loop"),
+    setOf("skip", "silence", "swipe"),
+    setOf("queue", "playlist", "up next"),
+    setOf("bluetooth", "latency", "delay", "offset", "listen together", "sync"),
+    setOf("icon", "logo", "app icon"),
+    setOf("chips", "mood", "relax", "workout"),
+    setOf("local", "files", "folder", "scan", "scanner", "device"),
+    setOf("quality", "bitrate", "stream", "data", "wifi"),
+)
+
+/**
+ * [word] and every word it is grouped with. Prefixes count both ways ("equal" finds equaliser,
+ * "notifications" finds notification), but only from three letters on - a one- or two-letter
+ * prefix would pull in nearly every group.
+ */
+fun expandSearchWord(word: String): Set<String> {
+    fun related(a: String, b: String) =
+        a == b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)))
+    return SETTING_SYNONYMS
+        .filter { group -> group.any { related(it, word) } }
+        .flatten()
+        .toSet() + word
+}
+
+/**
  * Every setting, for the settings search.
  *
  * Generated from the settings screens' own titles (route -> screen composable -> each title it shows),
@@ -42,6 +95,7 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/appearance", R.string.swipe2Queue, R.string.grp_appearance_controls),
     SettingsIndexEntry("settings/appearance", R.string.player_background_style, R.string.grp_appearance_controls),
     SettingsIndexEntry("settings/appearance", R.string.player_auto_text_contrast_title, R.string.grp_appearance_controls),
+    SettingsIndexEntry("settings/appearance/widget", R.string.widget_layout_title, R.string.grp_appearance_controls),
     SettingsIndexEntry("settings/appearance", R.string.default_open_tab, R.string.grp_appearance_controls),
     SettingsIndexEntry("settings/appearance", R.string.recognition_placement_title, R.string.grp_appearance_controls),
     SettingsIndexEntry("settings/appearance", R.string.tab_arrangement, R.string.grp_appearance_controls),

@@ -51,6 +51,38 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
   Wired 3.5mm headphones can't be identified, so they're skipped.
 
+## Widget, round two
+
+- **Seek bar moves and shows its wave.**
+  - It was updated with partial updates (only the bar's picture), which launchers may ignore,
+    and HyperOS's does. The bar sat at the start of the song, which in the wave styles is a flat
+    line. It now sends full updates, every 2 seconds while playing, and only while the screen is
+    on.
+  - It's drawn at the bar's real size on each widget, so the waves aren't stretched.
+- **The app's own rounded icons**, drawn from the same Material icons the player uses, instead of
+  a different icon set. Shuffle and repeat are lit when on and dimmed when off.
+- **Sizes:**
+  - one cell tall: playback controls
+  - two cells: cover (if your arrangement has one), title and controls
+  - three or more: the full arrangement
+  - narrow widgets keep previous / play / next with smaller buttons
+  - resizing redraws at once
+- **Default arrangement** is now cover and title, lyrics, seek bar, then shuffle / previous / play
+  / next / repeat. Up to four rows.
+- **Lyrics line (new element):** the line being sung, from the song's synced lyrics. It's hidden
+  when there's no line, and on widgets too short for it.
+- **Bigger text** (title 18sp, artist 15sp), a bigger cover, and rounded corners on the cover
+  (the artist picture is round).
+- **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+  it's in the settings search.
+
+## Settings search
+
+- **Finds related words**, not only the setting's own title: "dark mode", "font", "wallpaper",
+  "visualiser", "bluetooth delay", "loop" and so on lead to the right setting.
+- **When nothing matches every word**, it shows the settings that match the most words, best
+  first.
+
 ## Home chips fixed, and off by default
 
 - **Chips now change Home.** They always loaded the mood's page, but only YouTube's shelves at

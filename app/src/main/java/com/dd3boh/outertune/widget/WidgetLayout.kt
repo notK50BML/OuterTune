@@ -16,6 +16,8 @@ enum class WidgetElement(val flexible: Boolean) {
     COVER(false),
     ARTIST(false),
     INFO(true),
+    /** The line of the lyrics being sung, when the song has synced lyrics. */
+    LYRICS(true),
     UP_NEXT(true),
     SEEK_BAR(true),
     PREVIOUS(false),
@@ -109,14 +111,19 @@ data class WidgetLayout(val rows: List<List<WidgetElement>>) {
     }
 
     companion object {
-        const val MAX_ROWS = 3
+        const val MAX_ROWS = 4
         const val MAX_PER_ROW = 6
 
-        /** What the widget looked like before it could be arranged. */
+        /** The full widget: the player's own order - cover and title, lyrics, seek bar, controls. */
         val DEFAULT = WidgetLayout(
             listOf(
-                listOf(WidgetElement.COVER, WidgetElement.INFO, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT),
+                listOf(WidgetElement.COVER, WidgetElement.INFO),
+                listOf(WidgetElement.LYRICS),
                 listOf(WidgetElement.SEEK_BAR),
+                listOf(
+                    WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE,
+                    WidgetElement.NEXT, WidgetElement.REPEAT,
+                ),
             )
         )
 

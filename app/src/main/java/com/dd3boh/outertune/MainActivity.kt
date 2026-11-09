@@ -460,6 +460,9 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     if (intent?.action == ACTION_SEARCH) {
                         navController.navigate("search")
+                    } else if (intent?.action == ACTION_WIDGET_SETTINGS) {
+                        // From the widget's own "Edit" option - see WidgetConfigureActivity.
+                        navController.navigate("settings/appearance/widget")
                     } else if (tabOpenedFromShortcut != null && navigationItems.contains(Screens.Library)) {
                         filter = when (intent?.action) {
                             ACTION_SONGS -> Screens.LibraryFilter.SONGS
@@ -1271,6 +1274,7 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         const val ACTION_SEARCH = "com.dd3boh.outertune.action.SEARCH"
+        const val ACTION_WIDGET_SETTINGS = "com.dd3boh.outertune.action.WIDGET_SETTINGS"
         const val ACTION_SONGS = "com.dd3boh.outertune.action.SONGS"
         const val ACTION_ALBUMS = "com.dd3boh.outertune.action.ALBUMS"
         const val ACTION_PLAYLISTS = "com.dd3boh.outertune.action.PLAYLISTS"

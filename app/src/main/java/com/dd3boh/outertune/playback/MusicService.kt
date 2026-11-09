@@ -145,6 +145,7 @@ import com.dd3boh.outertune.utils.ArtistCreditEnricher
 import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.DiscordRPC
 import com.dd3boh.outertune.widget.PlayerWidget
+import com.dd3boh.outertune.widget.WidgetLyrics
 import com.dd3boh.outertune.utils.NetworkConnectivityObserver
 import com.dd3boh.outertune.utils.SyncUtils
 import com.dd3boh.outertune.utils.YTPlayerUtils
@@ -613,6 +614,15 @@ class MusicService : MediaLibraryService(),
                         withContext(Dispatchers.IO) { database.artist(artistId).first()?.artist?.thumbnailUrl }
                     }.getOrNull()
                 }
+                // The song's synced lyrics, for the widget's lyrics line - read only when a widget
+                // shows one. Read again while empty: lyrics are often fetched after the song starts.
+                suspend fun readLyrics() = if (PlayerWidget.wantsLyrics && metadata != null) {
+                    runCatching {
+                        withContext(Dispatchers.IO) { WidgetLyrics.parse(database.lyrics(metadata.id).first()?.lyrics) }
+                    }.getOrDefault(emptyList())
+                } else emptyList()
+                var lyricLines = readLyrics()
+                PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
                 runCatching {
                     PlayerWidget.update(
                         this@MusicService, metadata, playing, fraction(),
@@ -622,12 +632,15 @@ class MusicService : MediaLibraryService(),
                         artistImageUrl = artistImageUrl,
                     )
                 }.onFailure { if (it is CancellationException) throw it }
-                // The seek bar, while something is playing. Every couple of seconds rather than
-                // continuously: a widget redraw goes through the launcher, and a bar that is a second
-                // or two behind is invisible at that size. Ends with the song or the pause, since
-                // collectLatest cancels this block when either changes.
+                // The seek bar and lyrics line, while something is playing. Every couple of seconds
+                // rather than continuously: a widget redraw goes through the launcher, and a bar that
+                // is a second or two behind is invisible at that size. Ends with the song or the
+                // pause, since collectLatest cancels this block when either changes.
+                var ticks = 0
                 while (playing) {
                     delay(WIDGET_PROGRESS_INTERVAL_MS)
+                    if (lyricLines.isEmpty() && ++ticks % 5 == 0) lyricLines = readLyrics()
+                    PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
                     runCatching { PlayerWidget.updateProgress(this@MusicService, fraction()) }
                 }
             }

@@ -61,13 +61,24 @@ fun SettingsSearchResults(query: String, onOpen: (String) -> Unit) {
     val context = LocalContext.current
     val matches = remember(query) {
         val words = query.trim().lowercase().split(' ').filter { it.isNotBlank() }
-        SETTINGS_INDEX
+        // Each word may be matched by any word it is commonly meant as - see SETTING_SYNONYMS.
+        val alternatives = words.map { expandSearchWord(it) }
+        val all = SETTINGS_INDEX
             .map { Triple(it, context.getString(it.title), context.getString(it.screen)) }
-            .filter { (_, title, screen) ->
-                val haystack = "$title $screen".lowercase()
-                words.all { it in haystack }
-            }
             .distinctBy { (entry, title, _) -> entry.route + title }
+        fun matchCount(title: String, screen: String): Int {
+            val haystack = "$title $screen".lowercase()
+            return alternatives.count { options -> options.any { it in haystack } }
+        }
+        // Every word first. Failing that, the settings matching the most words, best first - so
+        // "dark mode" still finds "Dark theme", where "mode" alone appears nowhere.
+        val strict = all.filter { (_, title, screen) -> matchCount(title, screen) == alternatives.size }
+        strict.ifEmpty {
+            all.map { it to matchCount(it.second, it.third) }
+                .filter { it.second > 0 }
+                .sortedByDescending { it.second }
+                .map { it.first }
+        }
     }
     if (matches.isEmpty()) {
         Text(

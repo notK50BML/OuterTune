@@ -57,7 +57,22 @@ import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.playback.MusicService
 import com.dd3boh.outertune.utils.dataStore
 import kotlinx.coroutines.flow.first
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Repeat
+import androidx.compose.material.icons.rounded.RepeatOne
+import androidx.compose.material.icons.rounded.Shuffle
+import androidx.compose.material.icons.rounded.SkipNext
+import androidx.compose.material.icons.rounded.SkipPrevious
+import androidx.compose.ui.graphics.PathFillType
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.vector.VectorGroup
+import androidx.compose.ui.graphics.vector.VectorPath
+import androidx.compose.ui.graphics.vector.toPath
 import kotlin.math.PI
+import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /**
@@ -76,6 +91,16 @@ import kotlin.math.sin
 class PlayerWidgetProvider : AppWidgetProvider() {
     override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
         PlayerWidget.pushLast(context, appWidgetManager, appWidgetIds)
+    }
+
+    /** Resized: what fits has changed - controls only, compact, or everything. */
+    override fun onAppWidgetOptionsChanged(
+        context: Context,
+        appWidgetManager: AppWidgetManager,
+        appWidgetId: Int,
+        newOptions: Bundle,
+    ) {
+        PlayerWidget.pushLast(context, appWidgetManager, intArrayOf(appWidgetId))
     }
 
     override fun onReceive(context: Context, intent: Intent) {
@@ -126,17 +151,26 @@ class PlayerWidgetProvider : AppWidgetProvider() {
 
 object PlayerWidget {
 
-    /** Big enough for a 56dp cell on a dense screen; small enough to stay far under the binder limit. */
-    private const val ART_PX = 256
-
-    /** The drawn background and seek bar, scaled to fit the widget. Wide, like the widget itself. */
-    private const val BG_W = 720
-    private const val BG_H = 300
-    private const val SEEK_W = 900
-    private const val SEEK_H = 42
+    /**
+     * Every update carries its pictures inside it, and Android caps a single update at about 1MB, so
+     * they are kept small: a blurred background loses nothing at 360px, and the cover is drawn at
+     * 64dp at most.
+     */
+    private const val ART_PX = 160
+    private const val BG_W = 360
+    private const val BG_H = 150
+    private const val ICON_PX = 64
 
     /** How round the background's corners are, in background pixels - about the launcher's own. */
-    private const val CORNER_PX = 44f
+    private const val CORNER_PX = 22f
+
+    /** How much of what the widget can show fits, from its size - see [sizeOf]. */
+    private enum class WidgetSize { CONTROLS, COMPACT, FULL }
+
+    private val CONTROL_ELEMENTS = setOf(
+        WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT, WidgetElement.REPEAT,
+    )
+    private val CORE_CONTROLS = setOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT)
 
     /** What the player looks like, as far as the widget copies it. */
     private data class Look(
@@ -164,6 +198,15 @@ object PlayerWidget {
     @Volatile private var lastArtistArt: Bitmap? = null
     @Volatile private var lastArtistArtUrl: String? = null
     @Volatile private var lastLayout = WidgetLayout.DEFAULT
+    @Volatile private var lastLyricLine: String? = null
+
+    /** Whether any placed widget's arrangement shows lyrics - the service only works them out if so. */
+    val wantsLyrics: Boolean get() = lastLayout.rows.any { WidgetElement.LYRICS in it }
+
+    /** The lyric line now being sung, or null for none. Shown at the next update. */
+    fun setLyricLine(line: String?) {
+        lastLyricLine = line
+    }
 
     /** The drawn background, kept until the song, the look or light/dark changes. */
     @Volatile private var lastBackground: Bitmap? = null
@@ -237,25 +280,88 @@ object PlayerWidget {
         if (changed) pushLast(context, manager, ids)
     }
 
-    /** Moves only the seek bar. Cheap enough to call every couple of seconds while playing. */
+    /**
+     * Moves the seek bar while playing.
+     *
+     * A whole update rather than a partial one. A partial update - only the seek bar's picture - is
+     * the cheaper call, but launchers are free to drop them, and some (HyperOS's among them) do: the
+     * bar sat at the very start of the song, which in the wave styles is just a flat line. Skipped
+     * while the screen is off, when there is nobody to see it move.
+     */
     fun updateProgress(context: Context, fraction: Float) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = ids(context, manager)
         if (ids.isEmpty()) return
         lastFraction = fraction
-        val colours = colours(context, lastLook.background, lastArt != null)
-        if (lastLayout.rows.none { WidgetElement.SEEK_BAR in it }) return
-        val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
-            setImageViewBitmap(R.id.el_seekbar, seekBar(context, fraction, lastLook, colours))
+        val power = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
+        if (power?.isInteractive == false) return
+        if (lastLayout.rows.none { WidgetElement.SEEK_BAR in it || WidgetElement.LYRICS in it }) return
+        pushLast(context, manager, ids)
+    }
+
+    /**
+     * How much fits, from the size the launcher reports (portrait: minimum width, maximum height).
+     * One cell tall is room for the controls alone; two for the cover, the title and the controls;
+     * three or more for the whole arrangement.
+     */
+    private data class Fit(val size: WidgetSize, val widthDp: Int, val heightDp: Int)
+
+    private fun sizeOf(manager: AppWidgetManager, id: Int): Fit {
+        val options = manager.getAppWidgetOptions(id)
+        val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
+        val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
+        val size = when {
+            heightDp <= 0 -> WidgetSize.FULL
+            heightDp < 100 -> WidgetSize.CONTROLS
+            heightDp < 190 -> WidgetSize.COMPACT
+            else -> WidgetSize.FULL
         }
-        manager.partiallyUpdateAppWidget(ids, views)
+        return Fit(size, widthDp.takeIf { it > 0 } ?: 300, heightDp.takeIf { it > 0 } ?: 400)
+    }
+
+    /**
+     * What a widget of [size] shows. The small sizes are cut from the user's own arrangement - its
+     * controls, in its order, and its cover if it has one - rather than being fixed, so they follow
+     * the editor. Narrow widgets keep only previous, play and next, which is what fits two cells.
+     */
+    private fun layoutFor(size: WidgetSize, widthDp: Int, heightDp: Int): WidgetLayout {
+        val all = lastLayout.rows.flatten()
+        val chosen = all.filter { it in CONTROL_ELEMENTS }.ifEmpty { listOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT) }
+        val controls = if (widthDp < 250) {
+            chosen.filter { it in CORE_CONTROLS }.ifEmpty { listOf(WidgetElement.PLAY_PAUSE) }
+        } else chosen
+        return when (size) {
+            WidgetSize.CONTROLS -> WidgetLayout(listOf(controls))
+            WidgetSize.COMPACT -> WidgetLayout(
+                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), controls)
+            )
+            WidgetSize.FULL -> {
+                // The line-of-text pieces go first when the arrangement is taller than the widget:
+                // a three-cell widget holds cover, seek bar and controls, a four-cell one the lot.
+                // Lyrics also step aside while the song has no line to show.
+                val drop = buildSet {
+                    if (heightDp < 260) { add(WidgetElement.LYRICS); add(WidgetElement.UP_NEXT) }
+                    if (lastLyricLine.isNullOrBlank()) add(WidgetElement.LYRICS)
+                }
+                WidgetLayout(lastLayout.rows.map { row -> row.filter { it !in drop } }.filter { it.isNotEmpty() })
+                    .takeIf { it.rows.isNotEmpty() } ?: lastLayout
+            }
+        }
     }
 
     internal fun pushLast(context: Context, manager: AppWidgetManager, ids: IntArray) {
-        if (ids.isEmpty()) return
+        // One build per widget: each can be a different size, and so show different things.
+        ids.forEach { id -> pushTo(context, manager, id) }
+    }
+
+    private fun pushTo(context: Context, manager: AppWidgetManager, id: Int) {
         val art = lastArt
         val look = lastLook
         val colours = colours(context, look.background, art != null)
+        val (size, widthDp, heightDp) = sizeOf(manager, id)
+        val layout = layoutFor(size, widthDp, heightDp)
+        // Small buttons on a narrow widget, so three of them fit two cells.
+        val small = widthDp < 200
         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
             val drawn = art?.let { background(context, it, look.background) }
             if (drawn != null) {
@@ -269,31 +375,49 @@ object PlayerWidget {
             setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
 
             removeAllViews(R.id.widget_rows)
-            for (row in lastLayout.rows) {
+            for (row in layout.rows) {
                 val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
-                row.forEach { element -> rowViews.addView(R.id.widget_row_container, elementView(context, element, colours, look)) }
+                row.forEach { element ->
+                    rowViews.addView(R.id.widget_row_container, elementView(context, element, colours, look, widthDp, small))
+                }
                 addView(R.id.widget_rows, rowViews)
             }
         }
-        manager.updateAppWidget(ids, views)
+        runCatching { manager.updateAppWidget(id, views) }
     }
 
     /** One element of the arrangement, filled in - see [WidgetElement] and the widget_el_* layouts. */
-    private fun elementView(context: Context, element: WidgetElement, colours: Colours, look: Look): RemoteViews {
-        fun button(icon: Int, action: String, requestCode: Int, tint: Int, layout: Int = R.layout.widget_el_button) =
-            RemoteViews(context.packageName, layout).apply {
-                setImageViewResource(R.id.el_button, icon)
-                setInt(R.id.el_button, "setColorFilter", tint)
+    private fun elementView(
+        context: Context,
+        element: WidgetElement,
+        colours: Colours,
+        look: Look,
+        widthDp: Int,
+        small: Boolean,
+    ): RemoteViews {
+        // The app's own rounded Material icons, drawn to bitmaps, so the widget's buttons are the
+        // player's buttons rather than look-alikes from a different icon set.
+        fun button(icon: ImageVector, action: String, requestCode: Int, tint: Int, big: Boolean = false) =
+            RemoteViews(
+                context.packageName,
+                when {
+                    big && small -> R.layout.widget_el_play_small
+                    big -> R.layout.widget_el_play
+                    small -> R.layout.widget_el_button_small
+                    else -> R.layout.widget_el_button
+                },
+            ).apply {
+                setImageViewBitmap(R.id.el_button, iconBitmap(icon, tint))
                 setOnClickPendingIntent(R.id.el_button, commandIntent(context, action, requestCode))
             }
         return when (element) {
             WidgetElement.COVER -> RemoteViews(context.packageName, R.layout.widget_el_cover).apply {
-                lastArt?.let { setImageViewBitmap(R.id.el_image, it) }
+                lastArt?.let { setImageViewBitmap(R.id.el_image, rounded(it, 0.16f)) }
                 setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
             }
 
             WidgetElement.ARTIST -> RemoteViews(context.packageName, R.layout.widget_el_artist).apply {
-                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, it) }
+                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, rounded(it, 0.5f)) }
                 setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
             }
 
@@ -313,30 +437,83 @@ object PlayerWidget {
             }
 
             WidgetElement.SEEK_BAR -> RemoteViews(context.packageName, R.layout.widget_el_seekbar).apply {
-                setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours))
+                // Drawn at the bar's real size on this widget - the padding taken off its width - so
+                // the waves are not stretched or squashed into shape by the image view.
+                val density = context.resources.displayMetrics.density
+                val widthPx = ((widthDp - 24).coerceAtLeast(80) * density).roundToInt()
+                val heightPx = (16 * density).roundToInt()
+                setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours, widthPx, heightPx))
             }
 
-            WidgetElement.PREVIOUS -> button(R.drawable.skip_previous, ACTION_PREVIOUS, 1, colours.text)
+            WidgetElement.LYRICS -> RemoteViews(context.packageName, R.layout.widget_el_lyrics).apply {
+                setTextViewText(R.id.el_text, lastLyricLine.orEmpty())
+                setTextColor(R.id.el_text, colours.text)
+            }
+
+            WidgetElement.PREVIOUS -> button(Icons.Rounded.SkipPrevious, ACTION_PREVIOUS, 1, colours.text)
             WidgetElement.PLAY_PAUSE -> button(
-                if (lastPlaying) R.drawable.pause else R.drawable.play, ACTION_PLAY_PAUSE, 2, colours.accent,
-                layout = R.layout.widget_el_play,
+                if (lastPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, ACTION_PLAY_PAUSE, 2, colours.accent,
+                big = true,
             )
-            WidgetElement.NEXT -> button(R.drawable.skip_next, ACTION_NEXT, 3, colours.text)
-            // Lit in the accent while on, like the player's own buttons.
+            WidgetElement.NEXT -> button(Icons.Rounded.SkipNext, ACTION_NEXT, 3, colours.text)
+            // Lit in the accent while on, dimmed while off - the player's own buttons.
             WidgetElement.SHUFFLE -> button(
-                if (lastShuffle) R.drawable.shuffle_on else R.drawable.shuffle_off, ACTION_SHUFFLE, 4,
-                if (lastShuffle) colours.accent else colours.text,
+                Icons.Rounded.Shuffle, ACTION_SHUFFLE, 4,
+                if (lastShuffle) colours.accent else ColorUtils.setAlphaComponent(colours.text, 0x80),
             )
             WidgetElement.REPEAT -> button(
-                when (lastRepeat) {
-                    Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
-                    Player.REPEAT_MODE_ALL -> R.drawable.repeat_on
-                    else -> R.drawable.repeat_off
-                },
+                if (lastRepeat == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
                 ACTION_REPEAT, 5,
-                if (lastRepeat != Player.REPEAT_MODE_OFF) colours.accent else colours.text,
+                if (lastRepeat != Player.REPEAT_MODE_OFF) colours.accent else ColorUtils.setAlphaComponent(colours.text, 0x80),
             )
         }
+    }
+
+    /** Drawn icons, kept per icon and colour - the same few are redrawn on every update otherwise. */
+    private val iconCache = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
+
+    /** [vector] drawn [ICON_PX] square in [colour] - the Compose icon itself, path for path. */
+    private fun iconBitmap(vector: ImageVector, colour: Int): Bitmap {
+        val key = "${vector.name}|$colour"
+        iconCache[key]?.let { return it }
+        val bitmap = Bitmap.createBitmap(ICON_PX, ICON_PX, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        canvas.scale(ICON_PX / vector.viewportWidth, ICON_PX / vector.viewportHeight)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = colour
+            style = Paint.Style.FILL
+        }
+        fun draw(group: VectorGroup) {
+            for (node in group) {
+                when (node) {
+                    is VectorPath -> {
+                        val path = node.pathData.toPath().asAndroidPath()
+                        path.fillType = if (node.pathFillType == PathFillType.EvenOdd) {
+                            android.graphics.Path.FillType.EVEN_ODD
+                        } else {
+                            android.graphics.Path.FillType.WINDING
+                        }
+                        canvas.drawPath(path, paint)
+                    }
+                    is VectorGroup -> draw(node)
+                }
+            }
+        }
+        draw(vector.root)
+        if (iconCache.size > 64) iconCache.clear()
+        iconCache[key] = bitmap
+        return bitmap
+    }
+
+    /** [source] with its corners rounded by [fraction] of its shorter side; 0.5 is a circle. */
+    private fun rounded(source: Bitmap, fraction: Float): Bitmap {
+        val out = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+        val radius = minOf(source.width, source.height) * fraction
+        Canvas(out).drawRoundRect(
+            RectF(0f, 0f, source.width.toFloat(), source.height.toFloat()), radius, radius,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) },
+        )
+        return out
     }
 
     /**
@@ -551,7 +728,10 @@ object PlayerWidget {
      * the rest a faint track. The waves are drawn still - a home screen is not the place for
      * something animating all day.
      */
-    private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours): Bitmap {
+    @Suppress("LocalVariableName")
+    private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours, widthPx: Int, heightPx: Int): Bitmap {
+        val SEEK_W = widthPx
+        val SEEK_H = heightPx
         val bitmap = Bitmap.createBitmap(SEEK_W, SEEK_H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(bitmap)
         val cy = SEEK_H / 2f

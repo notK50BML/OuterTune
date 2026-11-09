@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.KeyboardArrowDown
 import androidx.compose.material.icons.rounded.KeyboardArrowUp
 import androidx.compose.material.icons.rounded.LinearScale
+import androidx.compose.material.icons.rounded.Lyrics
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Repeat
@@ -244,6 +245,10 @@ private fun WidgetPreview(layout: WidgetLayout, selected: WidgetElement?) {
                                 Spacer(Modifier.height(5.dp))
                                 Box(Modifier.fillMaxWidth(0.5f).height(8.dp).background(onPreview.copy(alpha = 0.4f), CircleShape))
                             }
+                            WidgetElement.LYRICS -> Box(
+                                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp).height(10.dp)
+                                    .background(onPreview.copy(alpha = 0.75f), CircleShape)
+                            )
                             WidgetElement.UP_NEXT -> Box(
                                 Modifier.padding(start = 6.dp).fillMaxWidth(0.7f).height(7.dp)
                                     .background(onPreview.copy(alpha = 0.35f), CircleShape)
@@ -266,6 +271,7 @@ private val WidgetElement.label: Int
         WidgetElement.COVER -> R.string.widget_el_cover
         WidgetElement.ARTIST -> R.string.widget_el_artist
         WidgetElement.INFO -> R.string.widget_el_info
+        WidgetElement.LYRICS -> R.string.widget_el_lyrics
         WidgetElement.UP_NEXT -> R.string.widget_el_up_next
         WidgetElement.SEEK_BAR -> R.string.widget_el_seek_bar
         WidgetElement.PREVIOUS -> R.string.widget_el_previous
@@ -280,6 +286,7 @@ private val WidgetElement.icon: ImageVector
         WidgetElement.COVER -> Icons.Rounded.Album
         WidgetElement.ARTIST -> Icons.Rounded.Person
         WidgetElement.INFO -> Icons.Rounded.Title
+        WidgetElement.LYRICS -> Icons.Rounded.Lyrics
         WidgetElement.UP_NEXT -> Icons.AutoMirrored.Rounded.QueueMusic
         WidgetElement.SEEK_BAR -> Icons.Rounded.LinearScale
         WidgetElement.PREVIOUS -> Icons.Rounded.SkipPrevious
