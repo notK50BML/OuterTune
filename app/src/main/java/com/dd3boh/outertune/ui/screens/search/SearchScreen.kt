@@ -124,10 +124,10 @@ fun SearchBarContainer(
     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
     val recognizePlacement by rememberEnumPreference(
         RecognitionButtonPlacementKey,
-        RecognitionButtonPlacement.TOP_BAR
+        RecognitionButtonPlacement.SEARCH_FIELD
     )
     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
-    val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = true)
+    val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = false)
 
     val navigationItems = remember { Screens.getScreens(enabledTabs) }
     val searchBarFocusRequester = remember { FocusRequester() }

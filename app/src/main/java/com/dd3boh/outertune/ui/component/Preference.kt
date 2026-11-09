@@ -51,7 +51,7 @@ fun PreferenceEntry(
      */
     descriptionIsExplanation: Boolean = (description?.length ?: 0) > EXPLANATION_MIN_LENGTH,
 ) {
-    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
+    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = true)
     val shownDescription = description?.takeUnless { hideExplanations && descriptionIsExplanation }
     Row(
         verticalAlignment = Alignment.CenterVertically,

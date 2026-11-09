@@ -814,7 +814,7 @@ fun ControlsContent(
         key = SliderStyleKey,
         defaultValue = DEFAULT_SLIDER_STYLE
     )
-    val sliderWeight by rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
+    val sliderWeight by rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.THINNER)
     val sliderDot by rememberPreference(SliderDotKey, defaultValue = false)
 
     // Parsed once per change rather than per frame. A file that no longer parses - edited by

@@ -695,7 +695,7 @@ fun InfoLabel(
     isError: Boolean = false,
 ) {
     // Explanations go with "Hide setting descriptions"; errors stay, since they are news.
-    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
+    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = true)
     if (hideExplanations && !isError) return
     InfoLabelRow(text, modifier, isError)
 }

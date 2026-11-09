@@ -325,7 +325,7 @@ private fun EqualizerPanelContent(
     // compressor control appears, so there's one place that decides "how does this look" rather
     // than each control guessing independently.
     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
-    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
+    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = true)
 
     // Only while it is actually open: composed ahead of a drag, it is still off screen, and Back
     // must go on doing whatever it did before.

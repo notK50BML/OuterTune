@@ -51,6 +51,24 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
   Wired 3.5mm headphones can't be identified, so they're skipped.
 
+## New defaults (9 Nov 2026)
+
+What a fresh install looks like. Anything already set by hand keeps its value.
+
+- Seek bar: wave lines, thinner, no position dot.
+- Player background: Frosted. Material (dynamic) theming stays on.
+- Tabs: Home, Library, Playlists.
+- Search bar: no app logo; Identify song sits in the search field.
+- Swipe to queue on (unchanged). Settings descriptions hidden.
+- "Match text to the artwork" is renamed **Auto contrast** (still on).
+- Lyrics:
+  - Providers are asked in order: BetterLyrics, QQ Music, LrcLib, Kugou, SimpMusic, then
+    YouTube. "In my order" is now the default fetch mode, so the order is honoured.
+  - Left-aligned, word-by-word and estimated word timings on.
+  - Singer colour-coding off.
+  - Stored lyrics are re-checked every two weeks.
+- Equaliser: colour by value on.
+
 ## Listen together (new)
 
 Play the same song, at the same moment, on several devices on one Wi-Fi.

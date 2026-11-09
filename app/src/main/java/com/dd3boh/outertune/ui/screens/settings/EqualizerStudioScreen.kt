@@ -119,7 +119,7 @@ fun EqualizerStudioScreen(
     val colour = MaterialTheme.colorScheme.onSurface
     val colourVariant = MaterialTheme.colorScheme.onSurfaceVariant
     val useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
-    val useGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
+    val useGradient by rememberPreference(EqValueColorGradientKey, defaultValue = true)
     val (headroom, _) = rememberEnumPreference(EqHeadroomKey, defaultValue = EqHeadroom.AUTO)
     var globalJson by rememberPreference(EqualizerSettingsKey, "")
     var profilesJson by rememberPreference(EqualizerProfilesKey, "")

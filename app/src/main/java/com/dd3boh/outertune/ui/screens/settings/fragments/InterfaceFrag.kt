@@ -384,7 +384,7 @@ fun ColumnScope.TabExtrasFrag() {
     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
     val (defaultOpenTab, onDefaultOpenTabChange) = rememberPreference(DefaultOpenTabKey, defaultValue = "home")
     val (recognizePlacement, onRecognizePlacementChange) =
-        rememberEnumPreference(RecognitionButtonPlacementKey, RecognitionButtonPlacement.TOP_BAR)
+        rememberEnumPreference(RecognitionButtonPlacementKey, RecognitionButtonPlacement.SEARCH_FIELD)
 
     ListPreference(
         title = { Text(stringResource(R.string.default_open_tab)) },

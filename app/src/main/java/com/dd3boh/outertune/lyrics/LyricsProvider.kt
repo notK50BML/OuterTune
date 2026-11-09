@@ -49,11 +49,11 @@ interface LyricsProvider {
  * this list's position for that provider.
  */
 val REMOTE_LYRICS_PROVIDERS: List<LyricsProvider> = listOf(
-    SimpMusicLyricsProvider,
     BetterLyricsProvider,
     QQMusicLyricsProvider,
     LrcLibLyricsProvider,
     KuGouLyricsProvider,
+    SimpMusicLyricsProvider,
     YouTubeLyricsProvider,
     YouTubeSubtitleLyricsProvider,
 )

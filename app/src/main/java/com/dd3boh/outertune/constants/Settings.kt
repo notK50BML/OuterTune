@@ -48,7 +48,7 @@ enum class SliderStyle {
     WAVE_LINES,
 }
 
-val DEFAULT_SLIDER_STYLE = SliderStyle.SQUIGGLY
+val DEFAULT_SLIDER_STYLE = SliderStyle.WAVE_LINES
 
 /** How thick the seek bar is drawn, whatever its style. */
 enum class SliderWeight(val scale: Float) {
@@ -68,7 +68,8 @@ enum class LyricsPosition {
     LEFT, CENTER, RIGHT
 }
 
-const val DEFAULT_ENABLED_TABS = "HSFOM"
+/** Home, Library, Playlists - see Screens.screenPairs for the letters. */
+const val DEFAULT_ENABLED_TABS = "HML"
 const val DEFAULT_ENABLED_FILTERS = "ARP"
 const val DEFAULT_SWIPE_TO_SKIP = true
 const val DEFAULT_SHOW_LYRICS_ON_CLICK = true

@@ -69,11 +69,11 @@ fun AppearanceSettings(
 ) {
     val (slimNav, onSlimNavChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
     val (showTopBarLogo, onShowTopBarLogoChange) =
-        rememberPreference(ShowTopBarLogoKey, defaultValue = true)
+        rememberPreference(ShowTopBarLogoKey, defaultValue = false)
     val (artworkFallbackToLowResPref, onArtworkFallbackToLowResChange) =
         rememberPreference(ArtworkFallbackToLowResKey, defaultValue = true)
     val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
-    val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
+    val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = true)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),

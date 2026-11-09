@@ -757,13 +757,17 @@ private val LINE_TIMING = Regex("""(^|\n)\s*\[\d{1,2}:\d{2}([.:]\d{1,3})?]""")
 fun readLyricsRefreshInterval(context: Context): LyricsRefreshInterval =
     context.dataStore[LyricsRefreshIntervalKey]
         ?.let { stored -> LyricsRefreshInterval.entries.find { it.name == stored } }
-        ?: LyricsRefreshInterval.NEVER
+        ?: LyricsRefreshInterval.FORTNIGHTLY
 
-/** Fetch mode as stored, falling back to [LyricsFetchMode.AUTO] for an unset or unknown value. */
+/**
+ * Fetch mode as stored, falling back to [LyricsFetchMode.MANUAL] for an unset or unknown value -
+ * the provider order (BetterLyrics, then QQ Music, ...) is the default, so it has to be honoured by
+ * default; AUTO takes whichever provider answers first.
+ */
 fun readFetchMode(context: Context): LyricsFetchMode =
     context.dataStore[LyricsFetchModeKey]
         ?.let { stored -> LyricsFetchMode.entries.find { it.name == stored } }
-        ?: LyricsFetchMode.AUTO
+        ?: LyricsFetchMode.MANUAL
 
 /** The stored provider order as a list of ids, empty when the user has never set one. */
 fun readProviderOrder(context: Context): List<String> =

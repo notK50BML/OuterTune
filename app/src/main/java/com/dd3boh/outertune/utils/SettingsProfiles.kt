@@ -12,6 +12,8 @@ import com.dd3boh.outertune.constants.LyricHighlightStyleKey
 import com.dd3boh.outertune.constants.LyricSingerNamesKey
 import com.dd3boh.betterlyrics.SingerNames
 import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
+import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
+import com.dd3boh.outertune.constants.SliderStyle
 import com.dd3boh.outertune.constants.EnabledTabsKey
 import com.dd3boh.outertune.constants.SliderStyleKey
 import androidx.annotation.StringRes
@@ -213,7 +215,7 @@ object SettingsProfiles {
                 put("themeMode", when (p[DarkModeKey]) { "ON" -> "dark"; "OFF" -> "light"; else -> "system" })
                 put("pureBlack", p[PureBlackKey] ?: false)
                 put("dynamicTheme", p[DynamicThemeKey] ?: true)
-                put("sliderStyle", (p[SliderStyleKey] ?: "SQUIGGLY").lowercase())
+                put("sliderStyle", (p[SliderStyleKey] ?: DEFAULT_SLIDER_STYLE.name).lowercase())
                 put("tabs", p[EnabledTabsKey] ?: DEFAULT_ENABLED_TABS)
                 val custom = p[CustomThemeKey] ?: false
                 put("accentColor", if (custom) p[CustomThemeColorKey]?.let { String.format("#%06X", 0xFFFFFF and it) } else JSONObject.NULL)
@@ -250,12 +252,12 @@ object SettingsProfiles {
             Category.LYRICS -> {
                 // The desktop's lyrics text is a percentage of 20sp, the phone's default size.
                 put("textScalePercent", (p[LyricFontSizeKey] ?: 20) * 5)
-                put("alignment", when (p[LyricsTextPositionKey]) { "LEFT" -> "left"; "RIGHT" -> "right"; else -> "center" })
-                put("wordByWord", p[LyricKaraokeEnable] ?: false)
-                put("estimateWordTimings", p[LyricEstimatedWordSync] ?: false)
+                put("alignment", when (p[LyricsTextPositionKey]) { "CENTER" -> "center"; "RIGHT" -> "right"; else -> "left" })
+                put("wordByWord", p[LyricKaraokeEnable] ?: true)
+                put("estimateWordTimings", p[LyricEstimatedWordSync] ?: true)
                 put("highlightStyle", if (p[LyricHighlightStyleKey] == LyricHighlightStyle.FADE.name) "fade" else "sweep")
                 put("showLyricsType", p[LyricShowTypeKey] ?: true)
-                put("singerNames", (p[LyricSingerNamesKey] ?: SingerNames.COLOUR.name).lowercase())
+                put("singerNames", (p[LyricSingerNamesKey] ?: SingerNames.HIDE.name).lowercase())
                 // No "offsetMs": the lyrics timing offset is each song's own now, kept in the
                 // library database rather than the settings, so a profile has none to carry.
                 put("openOnCoverClick", p[ShowLyricsOnClickKey] ?: true)
@@ -287,7 +289,7 @@ object SettingsProfiles {
                 bool("dynamicTheme", DynamicThemeKey)
                 // Only the letters this app has tabs for - the desktop's Stats (T) is not one.
                 str("tabs") { v -> v.filter { it in "HSFOABLM" }.toList().distinct().joinToString("").takeIf { it.isNotEmpty() }?.let { p[EnabledTabsKey] = it } }
-                str("sliderStyle") { v -> if (v.uppercase() in setOf("SQUIGGLY", "DEFAULT", "SLIM")) p[SliderStyleKey] = v.uppercase() }
+                str("sliderStyle") { v -> if (SliderStyle.entries.any { it.name == v.uppercase() }) p[SliderStyleKey] = v.uppercase() }
                 if (c.has("accentColor")) {
                     if (c.isNull("accentColor")) {
                         p[CustomThemeKey] = false

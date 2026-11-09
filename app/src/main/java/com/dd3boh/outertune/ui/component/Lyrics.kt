@@ -127,17 +127,17 @@ fun Lyrics(
     var (showLyrics, onShowLyricsChange) = rememberPreference(ShowLyricsKey, false)
     val landscapeOffset = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.CENTER)
+    val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.LEFT)
     val lyricsFontSize by rememberPreference(LyricFontSizeKey, 20)
 
     val lyricsClickable by rememberPreference(LyricClickable, true)
-    val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
-    val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, false)
+    val lyricsFancy by rememberPreference(LyricKaraokeEnable, true)
+    val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, true)
     val highlightStyle by rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
     val showLyricsType by rememberPreference(LyricShowTypeKey, true)
     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
     // Settings > Lyrics > Singer names in lyrics: colours by singer, no names, or names as text.
-    val singerNames by rememberEnumPreference(LyricSingerNamesKey, SingerNames.COLOUR)
+    val singerNames by rememberEnumPreference(LyricSingerNamesKey, SingerNames.HIDE)
 
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     // This song's own timing offset (see LyricsOffsetEntity), taken off the playback position

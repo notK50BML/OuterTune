@@ -305,7 +305,7 @@ fun PlayerControlsFrag() {
 @Composable
 fun SeekBarFrag() {
     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
-    val (sliderWeight, onSliderWeightChange) = rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
+    val (sliderWeight, onSliderWeightChange) = rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.THINNER)
     val (sliderDot, onSliderDotChange) = rememberPreference(SliderDotKey, defaultValue = false)
 
     EnumListPreference(

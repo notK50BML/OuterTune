@@ -132,7 +132,7 @@ fun EqualizerSettingsScreen(
     val eqColorVariant = MaterialTheme.colorScheme.onSurfaceVariant
 
     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
-    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
+    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = true)
 
     var settingsJson by rememberPreference(EqualizerSettingsKey, "")
     // Derived from the stored value, never held: see the note above the function.

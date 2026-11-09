@@ -120,10 +120,10 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
 fun ColumnScope.LyricFormatFrag() {
     val (lyricsPosition, onLyricsPositionChange) = rememberEnumPreference(
         LyricsTextPositionKey,
-        defaultValue = LyricsPosition.CENTER
+        defaultValue = LyricsPosition.LEFT
     )
     val (lyricFontSize, onLyricFontSizeChange) = rememberPreference(LyricFontSizeKey, defaultValue = 20)
-    val (singerNames, onSingerNamesChange) = rememberEnumPreference(LyricSingerNamesKey, SingerNames.COLOUR)
+    val (singerNames, onSingerNamesChange) = rememberEnumPreference(LyricSingerNamesKey, SingerNames.HIDE)
 
     var showFontSizeDialog by remember {
         mutableStateOf(false)
@@ -288,7 +288,7 @@ fun ColumnScope.LyricSourceFrag() {
     val (preferLocalLyric, onPreferLocalLyric) = rememberPreference(LyricSourcePrefKey, defaultValue = true)
     val (enablePrefetch, onEnablePrefetchChange) = rememberPreference(EnableLyricsPrefetchKey, defaultValue = true)
     val (prefetchCount, onPrefetchCountChange) = rememberPreference(LyricsPrefetchCountKey, defaultValue = 3)
-    val (fetchMode, onFetchModeChange) = rememberEnumPreference(LyricsFetchModeKey, LyricsFetchMode.AUTO)
+    val (fetchMode, onFetchModeChange) = rememberEnumPreference(LyricsFetchModeKey, LyricsFetchMode.MANUAL)
     val (providerOrder, onProviderOrderChange) = rememberPreference(LyricsProviderOrderKey, defaultValue = "")
 
     var showPrefetchCountDialog by remember {
@@ -333,7 +333,7 @@ fun ColumnScope.LyricSourceFrag() {
 
     val (refreshInterval, onRefreshIntervalChange) = rememberEnumPreference(
         key = LyricsRefreshIntervalKey,
-        defaultValue = LyricsRefreshInterval.NEVER
+        defaultValue = LyricsRefreshInterval.FORTNIGHTLY
     )
 
     EnumListPreference(
@@ -549,8 +549,8 @@ fun ColumnScope.LyricDisplayExtrasFrag() {
  */
 @Composable
 fun ColumnScope.LyricWordByWordFrag() {
-    val (lyricsFancy, onLyricsFancyChange) = rememberPreference(LyricKaraokeEnable, false)
-    val (estimatedWordSync, onEstimatedWordSyncChange) = rememberPreference(LyricEstimatedWordSync, false)
+    val (lyricsFancy, onLyricsFancyChange) = rememberPreference(LyricKaraokeEnable, true)
+    val (estimatedWordSync, onEstimatedWordSyncChange) = rememberPreference(LyricEstimatedWordSync, true)
     val (highlightStyle, onHighlightStyleChange) = rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
 
     SwitchPreference(
@@ -591,7 +591,7 @@ fun ColumnScope.LyricWordByWordFrag() {
 @Composable
 fun ColumnScope.LyricAdvancedFrag() {
     val (lyricUpdateSpeed, onLyricsUpdateSpeedChange) = rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
-    val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
+    val lyricsFancy by rememberPreference(LyricKaraokeEnable, true)
 
     ListPreference(
         title = { Text(stringResource(R.string.lyrics_karaoke_hz_title)) },
