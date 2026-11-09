@@ -252893,3 +252893,157 @@ index 467e7cd..90b55ba 100644
 -- 
 2.56.0.windows.4
 
+From 68c3d18f4806071564e600badbdb099a2b54def9 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 21:11:23 +0800
+Subject: [PATCH] Let text-holding rows grow with large system fonts
+
+List rows (songs, albums, artists) use a 64dp minimum instead of a fixed
+64dp, so a large font no longer clips the subtitle. Recent activity
+cards, which sit in a fixed grid, fall back to a one-line title above
+1.15x font scale. Sleep timer buttons and the player's timer pill use
+minimum heights.
+---
+ CHANGELOG-current.md                              | 15 +++++++++++++++
+ .../dd3boh/outertune/ui/component/items/Items.kt  | 15 +++++++++++----
+ .../com/dd3boh/outertune/ui/menu/PlayerMenu.kt    |  7 +++++--
+ .../java/com/dd3boh/outertune/ui/player/Player.kt |  5 ++++-
+ 4 files changed, 35 insertions(+), 7 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 41df2f5..d28209e 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -51,6 +51,21 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
+   Wired 3.5mm headphones can't be identified, so they're skipped.
+ 
++## Large fonts and small screens
++
++A pass for the same kind of bug as the ⋮ menu: fixed-height boxes holding text, which a larger
++system font (the default on HyperOS and One UI) overflows.
++
++- **Song, album and artist rows** are at least 64dp rather than exactly 64dp, so the subtitle is no
++  longer clipped off the bottom with a large font.
++- **Home's Recent activity cards** can't grow (fixed grid), so their titles drop to one line when
++  the font is more than 15% larger, instead of showing half of a second line.
++- **Sleep timer buttons** and the player's sleep-timer pill grow with the font instead of clipping.
++- Checked and fine as they are:
++  - the mini player (single-line text)
++  - the player's cover, which shrinks on short screens
++  - the tablet breakpoints and the artist header, which size from the screen
++
+ ## Widget editor and pre-update backups (after build 180)
+ 
+ - **Arrange the widget** in Settings → Appearance → Home-screen widget.
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+index f17a3ae..a282cfc 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.aspectRatio
+ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+@@ -133,8 +134,11 @@ inline fun ListItem(
+     Row(
+         verticalAlignment = Alignment.CenterVertically,
+         modifier = if (isActive) {
++            // heightIn, not height: 64dp is the normal size, but a large system font (HyperOS and
++            // One UI both default larger) makes the title and subtitle taller than that, and a fixed
++            // height clipped the subtitle off the bottom. The row grows only when its text needs it.
+             modifier // playing highlight
+-                .height(ListItemHeight)
++                .heightIn(min = ListItemHeight)
+                 .padding(horizontal = 8.dp)
+                 .clip(RoundedCornerShape(8.dp))
+                 .background(
+@@ -144,13 +148,13 @@ inline fun ListItem(
+                 )
+         } else if (isSelected == true) {
+             modifier // inactive selected
+-                .height(ListItemHeight)
++                .heightIn(min = ListItemHeight)
+                 .padding(horizontal = 8.dp)
+                 .clip(RoundedCornerShape(8.dp))
+                 .background(color = MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.4f))
+         } else {
+             modifier // default
+-                .height(ListItemHeight)
++                .heightIn(min = ListItemHeight)
+                 .padding(horizontal = 8.dp)
+         }
+     ) {
+@@ -645,7 +649,10 @@ fun YouTubeCardItem(
+                 color = MaterialTheme.colorScheme.onSurface,
+                 fontWeight = FontWeight.Bold,
+                 textAlign = TextAlign.Start,
+-                maxLines = 2,
++                // The card is a fixed 60dp in a fixed-height grid, so it cannot grow. Two lines fit
++                // at the normal font size; with a larger system font the second line was cut in half,
++                // so it is one line, ellipsised, there instead.
++                maxLines = if (LocalDensity.current.fontScale > 1.15f) 1 else 2,
+                 overflow = TextOverflow.Ellipsis
+             )
+         }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
+index 650c9d5..6f08d2c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlayerMenu.kt
+@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
+ import androidx.compose.foundation.layout.asPaddingValues
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.systemBars
+@@ -299,7 +300,9 @@ fun SleepTimerDialog(
+                             onDismiss()
+                             playerConnection.service.startSleepTimer(-1, sleepTimerFade, sleepTimerFadeDuration)
+                         },
+-                        modifier = Modifier.height(40.dp)
++                        // A minimum, not a fixed height: with a large system font the label is
++                        // taller than 40dp and a fixed height cut it off.
++                        modifier = Modifier.heightIn(min = 40.dp)
+                     ) {
+                         Text(stringResource(R.string.end_of_song))
+                     }
+@@ -534,7 +537,7 @@ fun SleepTimerDurationPicker(
+                 Box(modifier = Modifier.padding(horizontal = 4.dp)) {
+                     OutlinedButton(
+                         onClick = { onMinutesChange(preset.toFloat()) },
+-                        modifier = Modifier.height(40.dp)
++                        modifier = Modifier.heightIn(min = 40.dp)
+                     ) {
+                         Text(stringResource(R.string.sleep_timer_minutes_short, preset))
+                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 4443bd6..b9cbe47 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.fillMaxSize
+ import androidx.compose.foundation.layout.fillMaxHeight
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.offset
+ import androidx.compose.foundation.layout.only
+ import androidx.compose.foundation.layout.padding
+@@ -922,7 +923,9 @@ fun ControlsContent(
+                     if (sleepTimerActive) {
+                         Box(
+                             modifier = Modifier
+-                                .height(36.dp)
++                                // At least 36dp, grown by a very large system font rather than
++                                // clipping the time in half.
++                                .heightIn(min = 36.dp)
+                                 .clip(RoundedCornerShape(24.dp))
+                                 .background(MaterialTheme.colorScheme.primary)
+                                 .clickable { showSleepTimerDialog = true }
+-- 
+2.56.0.windows.4
+
