@@ -47,6 +47,8 @@ import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.MediaSessionConstants
 import com.dd3boh.outertune.constants.WidgetLayoutKey
+import com.dd3boh.outertune.constants.WidgetLayoutMediumKey
+import com.dd3boh.outertune.constants.WidgetLayoutSmallKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.SliderStyle
@@ -198,10 +200,16 @@ object PlayerWidget {
     @Volatile private var lastArtistArt: Bitmap? = null
     @Volatile private var lastArtistArtUrl: String? = null
     @Volatile private var lastLayout = WidgetLayout.DEFAULT
+
+    /** Arrangements set for the smaller sizes in the editor, or null to cut them from [lastLayout]. */
+    @Volatile private var lastSmall: WidgetLayout? = null
+    @Volatile private var lastMedium: WidgetLayout? = null
     @Volatile private var lastLyricLine: String? = null
 
     /** Whether any placed widget's arrangement shows lyrics - the service only works them out if so. */
-    val wantsLyrics: Boolean get() = lastLayout.rows.any { WidgetElement.LYRICS in it }
+    val wantsLyrics: Boolean get() = allLayouts().any { WidgetElement.LYRICS in it }
+
+    private fun allLayouts() = listOfNotNull(lastLayout, lastSmall, lastMedium)
 
     /** The lyric line now being sung, or null for none. Shown at the next update. */
     fun setLyricLine(line: String?) {
@@ -259,6 +267,8 @@ object PlayerWidget {
                 ?: LiquidColorScheme.SURFACE,
         )
         lastLayout = WidgetLayout.parse(prefs[WidgetLayoutKey])
+        lastSmall = prefs[WidgetLayoutSmallKey]?.takeIf { it.isNotBlank() }?.let { WidgetLayout.parse(it, WidgetLayout.SMALL_ROWS) }
+        lastMedium = prefs[WidgetLayoutMediumKey]?.takeIf { it.isNotBlank() }?.let { WidgetLayout.parse(it, WidgetLayout.MEDIUM_ROWS) }
 
         // Text and buttons straight away; the cover, and the background drawn from it, follow.
         pushLast(context, manager, ids)
@@ -271,7 +281,7 @@ object PlayerWidget {
             }
         }
         // The artist's own picture, only when the arrangement shows it.
-        val wantsArtist = lastLayout.rows.any { WidgetElement.ARTIST in it }
+        val wantsArtist = allLayouts().any { WidgetElement.ARTIST in it }
         if (wantsArtist && artistImageUrl != lastArtistArtUrl) {
             lastArtistArtUrl = artistImageUrl
             lastArtistArt = artistImageUrl?.let { loadArt(context, it) }
@@ -295,7 +305,7 @@ object PlayerWidget {
         lastFraction = fraction
         val power = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
         if (power?.isInteractive == false) return
-        if (lastLayout.rows.none { WidgetElement.SEEK_BAR in it || WidgetElement.LYRICS in it }) return
+        if (allLayouts().none { WidgetElement.SEEK_BAR in it || WidgetElement.LYRICS in it }) return
         pushLast(context, manager, ids)
     }
 
@@ -325,26 +335,29 @@ object PlayerWidget {
      * the editor. Narrow widgets keep only previous, play and next, which is what fits two cells.
      */
     private fun layoutFor(size: WidgetSize, widthDp: Int, heightDp: Int): WidgetLayout {
-        val all = lastLayout.rows.flatten()
+        val all = lastLayout.elements
         val chosen = all.filter { it in CONTROL_ELEMENTS }.ifEmpty { listOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT) }
         val controls = if (widthDp < 250) {
             chosen.filter { it in CORE_CONTROLS }.ifEmpty { listOf(WidgetElement.PLAY_PAUSE) }
         } else chosen
         return when (size) {
-            WidgetSize.CONTROLS -> WidgetLayout(listOf(controls))
-            WidgetSize.COMPACT -> WidgetLayout(
-                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), controls)
+            // Set in the editor's Small / Medium tabs if they were; otherwise cut from the large one.
+            WidgetSize.CONTROLS -> lastSmall ?: WidgetLayout.fromRows(listOf(controls), WidgetLayout.SMALL_ROWS)
+            WidgetSize.COMPACT -> lastMedium ?: WidgetLayout.fromRows(
+                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), controls),
+                WidgetLayout.MEDIUM_ROWS,
             )
             WidgetSize.FULL -> {
                 // The line-of-text pieces go first when the arrangement is taller than the widget:
                 // a three-cell widget holds cover, seek bar and controls, a four-cell one the lot.
-                // Lyrics also step aside while the song has no line to show.
+                // Lyrics also step aside while the song has no line to show. The grid closes up the
+                // rows they leave empty.
                 val drop = buildSet {
                     if (heightDp < 260) { add(WidgetElement.LYRICS); add(WidgetElement.UP_NEXT) }
                     if (lastLyricLine.isNullOrBlank()) add(WidgetElement.LYRICS)
                 }
-                WidgetLayout(lastLayout.rows.map { row -> row.filter { it !in drop } }.filter { it.isNotEmpty() })
-                    .takeIf { it.rows.isNotEmpty() } ?: lastLayout
+                val kept = lastLayout.placements.filter { it.element !in drop }
+                if (kept.isEmpty()) lastLayout else WidgetLayout(kept).normalised()
             }
         }
     }
@@ -375,11 +388,23 @@ object PlayerWidget {
             setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
 
             removeAllViews(R.id.widget_rows)
-            for (row in layout.rows) {
+            // Each grid row as a line of cells: a gap cell up to the next piece, the piece in a cell
+            // as wide as its span, and a gap to the end - all twelve columns accounted for, so the
+            // widths come out exactly as placed in the editor.
+            layout.placements.groupBy { it.row }.toSortedMap().values.forEach { rowPlacements ->
                 val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
-                row.forEach { element ->
-                    rowViews.addView(R.id.widget_row_container, elementView(context, element, colours, look, widthDp, small))
+                var col = 0
+                rowPlacements.sortedBy { it.col }.forEach { placement ->
+                    if (placement.col > col) rowViews.addView(R.id.widget_row_container, cell(context, placement.col - col))
+                    val cellViews = cell(context, placement.span)
+                    cellViews.addView(
+                        R.id.el_cell,
+                        elementView(context, placement.element, colours, look, widthDp * placement.span / WidgetLayout.COLUMNS, small),
+                    )
+                    rowViews.addView(R.id.widget_row_container, cellViews)
+                    col = placement.end
                 }
+                if (col < WidgetLayout.COLUMNS) rowViews.addView(R.id.widget_row_container, cell(context, WidgetLayout.COLUMNS - col))
                 addView(R.id.widget_rows, rowViews)
             }
         }
@@ -469,6 +494,16 @@ object PlayerWidget {
         }
     }
 
+    private val CELL_LAYOUTS = intArrayOf(
+        R.layout.widget_cell_1, R.layout.widget_cell_2, R.layout.widget_cell_3, R.layout.widget_cell_4,
+        R.layout.widget_cell_5, R.layout.widget_cell_6, R.layout.widget_cell_7, R.layout.widget_cell_8,
+        R.layout.widget_cell_9, R.layout.widget_cell_10, R.layout.widget_cell_11, R.layout.widget_cell_12,
+    )
+
+    /** A grid cell [span] columns wide - see the widget_cell_* layouts. */
+    private fun cell(context: Context, span: Int) =
+        RemoteViews(context.packageName, CELL_LAYOUTS[span.coerceIn(1, WidgetLayout.COLUMNS) - 1])
+
     /** Drawn icons, kept per icon and colour - the same few are redrawn on every update otherwise. */
     private val iconCache = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
 
@@ -521,7 +556,11 @@ object PlayerWidget {
      * song or play-state change to redraw.
      */
     fun applyLayout(context: Context, layout: WidgetLayout) {
-        lastLayout = layout
+        when (layout.maxRows) {
+            WidgetLayout.SMALL_ROWS -> lastSmall = layout
+            WidgetLayout.MEDIUM_ROWS -> lastMedium = layout
+            else -> lastLayout = layout
+        }
         val manager = AppWidgetManager.getInstance(context)
         pushLast(context, manager, ids(context, manager))
     }

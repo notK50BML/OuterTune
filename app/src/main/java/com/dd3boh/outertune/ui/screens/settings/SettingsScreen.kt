@@ -93,9 +93,17 @@ fun SettingsScreen(
         // Searches every setting by the title it has on its own screen - see SettingsIndex - and
         // replaces the category list with the matches while anything is typed.
         var settingsQuery by rememberSaveable { mutableStateOf("") }
+        val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
         SettingsSearchField(settingsQuery) { settingsQuery = it }
         if (settingsQuery.isNotBlank()) {
-            SettingsSearchResults(settingsQuery, onOpen = { navController.navigate(it) })
+            SettingsSearchResults(settingsQuery, onOpen = { route ->
+                // Search finished with: cleared, keyboard gone. Left as it was, coming back from the
+                // setting landed on the results with the field still focused, so the first Back
+                // only closed the keyboard and the second was needed to actually go back.
+                focusManager.clearFocus()
+                settingsQuery = ""
+                navController.navigate(route)
+            })
             return@ColumnWithContentPadding
         }
 

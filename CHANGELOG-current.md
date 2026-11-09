@@ -76,6 +76,28 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Widget editor: a snapping grid, one arrangement per size
+
+- **Drag pieces around a grid** (12 columns; 1, 2 or 4 rows) and they snap into the cells.
+  - While you drag, an outline shows where the piece will land. It turns red where it would
+    cover another piece, and dropping there puts the piece back, so pieces can never overlap.
+  - Tap a piece to make it wider or narrower, or to remove it. Add unused pieces from the list.
+- **Small, Medium and Large tabs.** Each widget size can be arranged on its own (1 row, 2 rows,
+  up to 4 rows), so a 2-row widget can hold the title and all five controls if you like. A size
+  you haven't arranged is still cut from the Large one automatically.
+- **The widget draws exactly the grid:** each row becomes cells as wide as the pieces' spans,
+  with gaps where you left them.
+- **Old arrangements carry over.** Ones saved by the previous row editor are converted
+  automatically.
+
+## Top bars and Back
+
+- **The top bar no longer stays hidden.** Settings titles and the search bar could stay
+  scrolled away at the top of a screen until you pulled down. Every screen now arrives with its
+  bar showing.
+- **One Back after a settings search.** Opening a search result now clears the search and the
+  keyboard, so coming back lands on the settings list and one Back leaves it.
+
 ## Settings search
 
 - **Finds related words**, not only the setting's own title: "dark mode", "font", "wallpaper",

@@ -214,13 +214,17 @@ fun SearchBarContainer(
     // as the icon row rendering stuck up under the status bar right after navigating back to it.
     // remember(key) {} runs its block synchronously on the same composition pass the key changes in,
     // which closes that gap.
+    // Every screen arrives with its bar showing. Restoring the collapsed offset a screen was left
+    // with looked right only when its list also came back scrolled down; it often comes back at the
+    // top, and then the bar - the settings title, the search bar - stayed hidden at the top of the
+    // page until you pulled down to find it.
     remember(navBackStackEntry) {
         val currentRoute = navBackStackEntry?.destination?.route
         previousRoute?.let { savedHeightOffsets[it] = scrollBehavior.state.heightOffset }
         if (currentRoute?.startsWith("${Screens.Folders.route}/") == true) {
             savedHeightOffsets[Screens.Folders.route] = 0f
         } else {
-            scrollBehavior.state.heightOffset = savedHeightOffsets[currentRoute] ?: 0f
+            scrollBehavior.state.heightOffset = 0f
             scrollBehavior.state.contentOffset = 0f
         }
         previousRoute = currentRoute

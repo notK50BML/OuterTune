@@ -81,6 +81,9 @@ val EnabledTabsKey = stringPreferencesKey("enabledTabs")
 val PlayerButtonsKey = stringPreferencesKey("playerButtons")
 /** The home-screen widget's arrangement - see [com.dd3boh.outertune.widget.WidgetLayout]. */
 val WidgetLayoutKey = stringPreferencesKey("widgetLayout")
+/** The small (one row) and medium (two row) widget arrangements; unset means made from the large one. */
+val WidgetLayoutSmallKey = stringPreferencesKey("widgetLayoutSmall")
+val WidgetLayoutMediumKey = stringPreferencesKey("widgetLayoutMedium")
 /** Hides the explanatory text under settings, leaving titles, values and errors. */
 val HideSettingsDescriptionsKey = booleanPreferencesKey("hideSettingsDescriptions")
 val EnabledFiltersKey = stringPreferencesKey("enabledFilters")

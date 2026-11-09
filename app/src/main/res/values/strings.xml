@@ -290,13 +290,16 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="widget_layout_summary">Choose what the widget shows, and where</string>
     <string name="widget_layout_row">Row %1$d</string>
     <string name="widget_layout_add">Add to the widget</string>
-    <string name="widget_layout_hint">Tap an item to move or remove it. Items sit side by side in rows, never on top of each other; the title, seek bar and up next stretch to fill their row.</string>
+    <string name="widget_layout_hint">Drag pieces around the grid; they snap into the cells. Pieces can\'t overlap - a red outline means that spot is taken. Tap a piece to make it wider, narrower or remove it. Small widgets show just the controls, or the cover, title and controls.</string>
     <string name="widget_layout_reset">Reset to default</string>
     <string name="widget_el_cover">Cover</string>
     <string name="widget_el_artist">Artist picture</string>
     <string name="widget_el_info">Title and artist</string>
     <string name="widget_el_up_next">Up next</string>
     <string name="widget_el_lyrics">Lyrics line</string>
+    <string name="widget_size_small">Small</string>
+    <string name="widget_size_medium">Medium</string>
+    <string name="widget_size_large">Large</string>
     <string name="widget_el_seek_bar">Seek bar</string>
     <string name="widget_el_previous">Previous</string>
     <string name="widget_el_play_pause">Play / pause</string>
