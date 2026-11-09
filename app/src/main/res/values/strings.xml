@@ -199,7 +199,7 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lyrics_refetch_all_title">Refetch all lyrics</string>
     <string name="lyrics_refetch_all_description">Fetch every song\'s lyrics again with the providers as they are set now - use it after changing the provider order. Lyrics you edited or picked yourself are kept.</string>
     <string name="lyrics_refetch_all_confirm">Refetch</string>
-    <string name="lyrics_refetch_all_done">Lyrics will be fetched again as each song plays</string>
+    <string name="lyrics_refetch_all_done">Lyrics will be fetched again as each song plays. Until then, and offline, each song keeps the lyrics it has.</string>
     <plurals name="lyrics_refetch_all_message">
         <item quantity="one">%d song\'s lyrics will be fetched again: the song playing now straight away, the rest the next time they play.</item>
         <item quantity="other">%d songs\' lyrics will be fetched again: the song playing now straight away, the rest the next time they play.</item>
@@ -442,7 +442,13 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_ended_version">That device is running a different version of OuterTune</string>
     <string name="lt_ended_rejected">The host declined the connection</string>
     <string name="lt_offset_title">Timing offset</string>
-    <string name="lt_offset_description">Plays %1$d ms ahead of the host. Bluetooth usually needs 150–250 ms.</string>
+    <string name="lt_offset_description">Plays %1$d ms ahead of the host. Every device takes a while to get sound out of its speakers after the player says so: built-in speakers and wired headphones a few ms, Bluetooth headphones and speakers usually 150–300 ms, TVs and soundbars sometimes more. The players can agree perfectly and still be heard apart by that much, so this device plays early by its extra delay. The host can measure it for you: tap this device in the host\'s list of listeners.</string>
+    <string name="lt_measure_hint">Tap to measure this device\'s speaker delay</string>
+    <string name="lt_measuring_delay">Measuring… keep the two devices near this phone and the room quiet</string>
+    <string name="lt_measure_result">%1$s plays %2$d ms late, and has been set to make up for it</string>
+    <string name="lt_measure_applied">The host measured this device\'s speaker delay. Timing offset set to %1$d ms.</string>
+    <string name="lt_measure_failed">Couldn\'t hear both test clicks. Move the devices closer, turn the volume up or pause the music, and try again.</string>
+    <string name="lt_measure_no_mic">The microphone isn\'t available, so the delay can\'t be measured</string>
     <string name="eq_song_profile">Apply only to current song</string>
     <string name="eq_song_profile_on">Saved for \"%1$s\" and used instead of the global curve while it plays</string>
     <string name="eq_song_profile_off">Changes apply to every song</string>

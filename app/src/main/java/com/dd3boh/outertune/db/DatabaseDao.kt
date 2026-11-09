@@ -611,6 +611,14 @@ AND NOT EXISTS (
     @Query("DELETE FROM lyrics WHERE lastCheckedAt IS NOT NULL")
     fun deleteFetchedLyrics(): Int
 
+    /**
+     * Refetch all lyrics, without losing any: marks every fetched row as due for a re-check (a
+     * lastCheckedAt of 0, see LyricsHelper.REFETCH_REQUESTED) instead of deleting it. The lyrics stay
+     * on screen - offline included - and are replaced only once a provider actually returns new ones.
+     */
+    @Query("UPDATE lyrics SET lastCheckedAt = 0 WHERE lastCheckedAt IS NOT NULL")
+    fun markFetchedLyricsForRefetch(): Int
+
     @Transaction
     @Query("DELETE FROM playlist WHERE isLocal = 0")
     fun nukeRemotePlaylists()

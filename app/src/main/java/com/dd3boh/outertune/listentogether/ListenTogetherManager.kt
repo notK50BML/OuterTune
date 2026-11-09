@@ -10,7 +10,10 @@ import android.content.Context
 import android.os.SystemClock
 import android.util.Log
 import androidx.annotation.StringRes
+import androidx.datastore.preferences.core.edit
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.ListenTogetherOffsetKey
+import com.dd3boh.outertune.utils.dataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -285,6 +288,9 @@ class ListenTogetherManager @Inject constructor(
                     // longer apply.
                     val session = FollowerSession(scope, bridge, ::nowUs, deviceName())
                     session.offsetMs = offsetMs
+                    // The host's latency measurement: play its click when asked, and take the answer.
+                    session.onClickRequested = { atUs -> scope.launch { LatencyCalibration.playClickAt(atUs) } }
+                    session.onCalibrated = { measuredMs -> applyCalibration(measuredMs) }
                     followerSession = session
                     val mirror = launch {
                         session.state.collect { state ->
@@ -355,6 +361,68 @@ class ListenTogetherManager @Inject constructor(
         }
     }
 
+    /** True while the host is measuring a listener's delay. */
+    private val _measuring = MutableStateFlow(false)
+    val measuring: StateFlow<Boolean> = _measuring.asStateFlow()
+
+    /** What the last delay measurement found, in words, on whichever device is showing it. */
+    private val _calibrationMessage = MutableStateFlow<String?>(null)
+    val calibrationMessage: StateFlow<String?> = _calibrationMessage.asStateFlow()
+
+    /**
+     * Measures how far behind [listener]'s speakers are and sends it the offset to use. Host only;
+     * the caller must already hold RECORD_AUDIO. See [LatencyCalibration] for how.
+     */
+    fun measureLatency(listener: Listener) {
+        val session = hostSession ?: return
+        if (_measuring.value) return
+        _measuring.value = true
+        _calibrationMessage.value = null
+        scope.launch {
+            try {
+                val recording = LatencyCalibration.startRecording(seconds = 4.5)
+                if (recording == null) {
+                    _calibrationMessage.value = context.getString(R.string.lt_measure_no_mic)
+                    return@launch
+                }
+                // Give the microphone a moment to actually start delivering audio first.
+                delay(MIC_SETTLE_MS)
+                val hostClickUs = nowUs() + LatencyCalibration.HOST_CLICK_LEAD_US
+                val followerClickUs = hostClickUs + LatencyCalibration.FOLLOWER_GAP_US
+                if (!session.requestClick(listener, followerClickUs)) {
+                    LatencyCalibration.analyse(recording) // drains and releases the microphone
+                    _calibrationMessage.value = context.getString(R.string.lt_measure_failed)
+                    return@launch
+                }
+                launch { LatencyCalibration.playClickAt(hostClickUs) }
+                val measured = LatencyCalibration.analyse(recording)
+                if (measured == null) {
+                    _calibrationMessage.value = context.getString(R.string.lt_measure_failed)
+                    return@launch
+                }
+                session.sendCalibration(listener, measured)
+                _calibrationMessage.value = context.getString(R.string.lt_measure_result, listener.name, measured)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.e(TAG, "latency measurement failed", e)
+                _calibrationMessage.value = context.getString(R.string.lt_measure_failed)
+            } finally {
+                _measuring.value = false
+            }
+        }
+    }
+
+    /** A follower taking the host's measured offset: in force at once, and kept for next time. */
+    private fun applyCalibration(measuredMs: Int) {
+        val clamped = measuredMs.coerceIn(-3000, 3000)
+        offsetMs = clamped.toLong()
+        _calibrationMessage.value = context.getString(R.string.lt_measure_applied, clamped)
+        scope.launch {
+            context.dataStore.edit { it[ListenTogetherOffsetKey] = clamped }
+        }
+    }
+
     /** Ends a follow attempt with a message, leaving the manager idle. */
     private fun fail(message: String) {
         _error.value = message
@@ -418,5 +486,8 @@ class ListenTogetherManager @Inject constructor(
          * which has actually gone does not leave the screen claiming to be reconnecting all evening.
          */
         const val RECONNECT_GIVE_UP_MS = 45_000L
+
+        /** How long the microphone gets to start before the first click is scheduled. */
+        const val MIC_SETTLE_MS = 300L
     }
 }

@@ -126,6 +126,26 @@ class HostSession(
         }
     }
 
+    private fun linkFor(listener: Listener): PeerLink? =
+        greeted.entries.firstOrNull { it.value == listener.name && it.key.remoteAddress == listener.address }?.key
+
+    /**
+     * Asks [listener] to play the latency test click at [atHostClockUs]. False when that listener has
+     * gone. See LatencyCalibration for the measurement this is half of.
+     */
+    fun requestClick(listener: Listener, atHostClockUs: Long): Boolean {
+        val link = linkFor(listener) ?: return false
+        link.send(Protocol.Frame.Click(atHostClockUs))
+        return true
+    }
+
+    /** Tells [listener] how far ahead it should play, once a measurement has worked it out. */
+    fun sendCalibration(listener: Listener, offsetMs: Int): Boolean {
+        val link = linkFor(listener) ?: return false
+        link.send(Protocol.Frame.Calibrated(offsetMs))
+        return true
+    }
+
     private fun drop(link: PeerLink) {
         links.remove(link)
         greeted.remove(link)

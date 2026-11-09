@@ -64,6 +64,12 @@ import coil3.imageLoader
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.LocalPlayerConnection
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.LocalDownloadUtil
+import com.dd3boh.outertune.LocalSnackbarHostState
+import androidx.compose.runtime.collectAsState
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.foundation.layout.size
 import com.dd3boh.outertune.constants.AudioGaplessOffloadKey
 import com.dd3boh.outertune.constants.AudioOffloadKey
 import com.dd3boh.outertune.constants.AutoBackupDefaults
@@ -137,6 +143,31 @@ fun ExperimentalSettings(
             icon = { Icon(Icons.Rounded.Delete, null) },
             onClick = {
                 context.imageLoader.memoryCache?.clear()
+            }
+        )
+
+        // Moved here from Storage: downloads save the full-resolution cover by themselves, so this
+        // only repairs songs downloaded before they did.
+        val downloadUtil = LocalDownloadUtil.current
+        val snackbarHostState = LocalSnackbarHostState.current
+        val isDownloadingAllThumbnails by downloadUtil.isDownloadingAllThumbnails.collectAsState()
+        val downloadAllThumbnailsStartedMessage = stringResource(R.string.download_all_thumbnails_started)
+        PreferenceEntry(
+            title = { Text(stringResource(R.string.download_all_thumbnails_title)) },
+            description = stringResource(R.string.download_all_thumbnails_description),
+            icon = {
+                if (isDownloadingAllThumbnails) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
+                } else {
+                    Icon(Icons.Rounded.Image, null)
+                }
+            },
+            isEnabled = !isDownloadingAllThumbnails,
+            onClick = {
+                coroutineScope.launch {
+                    snackbarHostState.showSnackbar(downloadAllThumbnailsStartedMessage)
+                    downloadUtil.downloadAllThumbnails()
+                }
             }
         )
 

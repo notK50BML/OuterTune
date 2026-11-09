@@ -582,8 +582,20 @@ class MusicService : MediaLibraryService(),
         combine(currentMediaMetadata, widgetPlayWhenReady) { metadata, playing -> metadata to playing }
             .distinctUntilChanged()
             .collectLatest(scope) { (metadata, playing) ->
-                runCatching { PlayerWidget.update(this@MusicService, metadata, playing) }
+                fun fraction(): Float {
+                    val duration = player.duration
+                    return if (duration > 0) (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
+                }
+                runCatching { PlayerWidget.update(this@MusicService, metadata, playing, fraction()) }
                     .onFailure { if (it is CancellationException) throw it }
+                // The seek bar, while something is playing. Every couple of seconds rather than
+                // continuously: a widget redraw goes through the launcher, and a bar that is a second
+                // or two behind is invisible at that size. Ends with the song or the pause, since
+                // collectLatest cancels this block when either changes.
+                while (playing) {
+                    delay(WIDGET_PROGRESS_INTERVAL_MS)
+                    runCatching { PlayerWidget.updateProgress(this@MusicService, fraction()) }
+                }
             }
 
         setMediaNotificationProvider(
@@ -2062,6 +2074,9 @@ class MusicService : MediaLibraryService(),
     companion object {
         /** How long to wait for a just-queued track's database row before giving up on it. */
         private const val DISCORD_SONG_ROW_TIMEOUT_MS = 5_000L
+
+        /** How often the home-screen widget's seek bar moves while playing. */
+        private const val WIDGET_PROGRESS_INTERVAL_MS = 2_000L
 
         /**
          * How often to force-reconnect the Discord RPC socket while a song is actively playing,

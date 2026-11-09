@@ -283,23 +283,15 @@ fun SongMenu(
             )
 
         // Independent of the song's own audio download - see SongEntity.thumbnailPath's own doc.
-        if (!song.song.isLocal) {
-            if (song.song.thumbnailPath == null) {
-                GridMenuItem(
-                    icon = Icons.Rounded.Image,
-                    title = R.string.download_thumbnail
-                ) {
-                    coroutineScope.launch { downloadUtil.downloadThumbnail(song.id) }
-                    onDismiss()
-                }
-            } else {
-                GridMenuItem(
-                    icon = Icons.Rounded.HideImage,
-                    title = R.string.remove_thumbnail
-                ) {
-                    coroutineScope.launch { downloadUtil.removeThumbnail(song.id) }
-                    onDismiss()
-                }
+        // There is no "remove thumbnail" here any more: downloads keep their cover by themselves and
+        // drop it with the download, so removing one by hand only ever made a song look broken.
+        if (!song.song.isLocal && song.song.thumbnailPath == null) {
+            GridMenuItem(
+                icon = Icons.Rounded.Image,
+                title = R.string.download_thumbnail
+            ) {
+                coroutineScope.launch { downloadUtil.downloadThumbnail(song.id) }
+                onDismiss()
             }
         }
 

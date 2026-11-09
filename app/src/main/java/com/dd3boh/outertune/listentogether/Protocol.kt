@@ -47,6 +47,8 @@ object Protocol {
         const val TRACK: Byte = 5
         const val TICK: Byte = 6
         const val BYE: Byte = 7
+        const val CLICK: Byte = 8
+        const val CALIBRATED: Byte = 9
     }
 
     /** Why a session ended, carried by [Frame.Bye] so the other end can say something useful. */
@@ -102,6 +104,16 @@ object Protocol {
         ) : Frame
 
         data class Bye(val reason: Byte) : Frame
+
+        /**
+         * Latency measurement, host to follower: play the test click at [atHostClockUs] on the host's
+         * clock. See LatencyCalibration. A new type rather than a version bump, because an older peer
+         * simply ignores a frame it does not know - the measurement times out, nothing else breaks.
+         */
+        data class Click(val atHostClockUs: Long) : Frame
+
+        /** The measurement's answer, host to follower: how far ahead this follower should play. */
+        data class Calibrated(val offsetMs: Int) : Frame
     }
 
     /**
@@ -143,6 +155,8 @@ object Protocol {
             putFloat(frame.speed)
         }
         is Frame.Bye -> buffer(Type.BYE) { put(frame.reason) }
+        is Frame.Click -> buffer(Type.CLICK) { putLong(frame.atHostClockUs) }
+        is Frame.Calibrated -> buffer(Type.CALIBRATED) { putInt(frame.offsetMs) }
     }
 
     /**
@@ -174,6 +188,8 @@ object Protocol {
                 speed = b.float,
             )
             Type.BYE -> Frame.Bye(b.get())
+            Type.CLICK -> Frame.Click(b.long)
+            Type.CALIBRATED -> Frame.Calibrated(b.int)
             else -> null
         }
     }.getOrNull()

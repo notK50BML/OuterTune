@@ -72,11 +72,6 @@ fun StorageSettings(
 ) {
     val (removedToCache, onRemovedToCacheChange) = rememberPreference(RemovedDownloadsToCacheKey, defaultValue = true)
 
-    val downloadUtil = LocalDownloadUtil.current
-    val snackbarHostState = LocalSnackbarHostState.current
-    val coroutineScope = rememberCoroutineScope()
-    val isDownloadingAllThumbnails by downloadUtil.isDownloadingAllThumbnails.collectAsState()
-    val downloadAllThumbnailsStartedMessage = stringResource(R.string.download_all_thumbnails_started)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -92,31 +87,9 @@ fun StorageSettings(
             modifier = Modifier.fillMaxWidth().animateContentSize()
         ) {
             DownloadsFrag()
-            // Downloads always save the full-resolution cover now - the setting for it is gone.
-            // This fetches covers for songs downloaded before then; it used to sit under Library
-            // and content, away from the downloads it is about.
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.download_all_thumbnails_title)) },
-                description = stringResource(R.string.download_all_thumbnails_description),
-                icon = {
-                    if (isDownloadingAllThumbnails) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
-                            color = MaterialTheme.colorScheme.secondary,
-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                        )
-                    } else {
-                        Icon(Icons.Rounded.Image, null)
-                    }
-                },
-                isEnabled = !isDownloadingAllThumbnails,
-                onClick = {
-                    coroutineScope.launch {
-                        snackbarHostState.showSnackbar(downloadAllThumbnailsStartedMessage)
-                        downloadUtil.downloadAllThumbnails()
-                    }
-                }
-            )
+            // "Download all thumbnails" moved to Experimental and debug: downloads save the
+            // full-resolution cover on their own, so it only matters for songs downloaded before
+            // that, which is a one-off repair rather than an everyday setting.
         }
         Spacer(modifier = Modifier.height(16.dp))
 

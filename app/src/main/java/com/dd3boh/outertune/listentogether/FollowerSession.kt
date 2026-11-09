@@ -187,6 +187,15 @@ class FollowerSession(
     var offsetMs: Long = 0L
 
     /**
+     * Plays the latency test click at a time on this device's clock. Set by the manager, which has
+     * the audio hardware; this class stays Android-free.
+     */
+    var onClickRequested: ((localClockUs: Long) -> Unit)? = null
+
+    /** The host's measured answer for [offsetMs]. */
+    var onCalibrated: ((offsetMs: Int) -> Unit)? = null
+
+    /**
      * Joins a session over an already-connected link. Returns when the session ends.
      *
      * Suspends for the whole session rather than returning immediately, so the caller's scope owns
@@ -269,6 +278,18 @@ class FollowerSession(
                 _state.update { it.copy(endedReason = frame.reason, connected = false) }
                 link?.close(null)
             }
+
+            // Latency measurement - see LatencyCalibration. The host names a moment on its own clock;
+            // this converts it to ours with the same offset the playback sync uses, which is what
+            // makes the two clicks comparable. Without a converged offset there is no honest local
+            // time to play it at, so the request is dropped and the host's measurement times out.
+            is Protocol.Frame.Click -> {
+                val offset = sync.offsetUs ?: return
+                if (sync.sampleCount < MIN_SAMPLES) return
+                onClickRequested?.invoke(frame.atHostClockUs - offset)
+            }
+
+            is Protocol.Frame.Calibrated -> onCalibrated?.invoke(frame.offsetMs)
 
             // HELLO and PING are a host's business. Ignored rather than refused, so a newer host
             // sending something extra does not break an older follower.

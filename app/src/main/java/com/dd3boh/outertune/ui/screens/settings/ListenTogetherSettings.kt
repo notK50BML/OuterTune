@@ -6,6 +6,13 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import com.dd3boh.outertune.listentogether.Listener
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -98,6 +105,19 @@ fun ListenTogetherSettings(
     val (offsetMs, onOffsetChange) = rememberPreference(ListenTogetherOffsetKey, 0)
     var showOffsetDialog by remember { mutableStateOf(false) }
 
+    val measuring by manager.measuring.collectAsStateWithLifecycle()
+    val calibrationMessage by manager.calibrationMessage.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    fun hasMicPermission() =
+        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+    // Asked for only when a measurement is actually started, never up front.
+    var pendingMeasure by remember { mutableStateOf<Listener?>(null) }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        val listener = pendingMeasure
+        pendingMeasure = null
+        if (granted && listener != null) manager.measureLatency(listener)
+    }
+
     // Pushed into the manager whenever it changes, including on first composition, so a value set
     // in a previous session is in force before anyone joins. Applied live, which is the only
     // practical way to tune it: the right number depends on the audio route and can only be found
@@ -129,6 +149,17 @@ fun ListenTogetherSettings(
             .padding(horizontal = 16.dp)
             .verticalScroll(rememberScrollState())
     ) {
+        calibrationMessage?.let {
+            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                PreferenceEntry(
+                    title = { Text(it) },
+                    icon = { Icon(Icons.Rounded.Timer, null) },
+                    onClick = {},
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         error?.let {
             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
                 PreferenceEntry(
@@ -171,11 +202,25 @@ fun ListenTogetherSettings(
                         Hint(stringResource(R.string.lt_waiting_for_listeners))
                     } else {
                         listeners.forEach { listener ->
+                            // Tapping a listener measures its speaker delay: this phone's microphone
+                            // listens to a click from each device and sends it the difference.
                             PreferenceEntry(
                                 title = { Text(listener.name) },
-                                description = listener.address,
+                                description = if (measuring) {
+                                    stringResource(R.string.lt_measuring_delay)
+                                } else {
+                                    stringResource(R.string.lt_measure_hint)
+                                },
                                 icon = { Icon(Icons.Rounded.Person, null) },
-                                onClick = {},
+                                onClick = {
+                                    if (measuring) return@PreferenceEntry
+                                    if (hasMicPermission()) {
+                                        manager.measureLatency(listener)
+                                    } else {
+                                        pendingMeasure = listener
+                                        micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                                    }
+                                },
                             )
                         }
                     }
@@ -284,12 +329,6 @@ fun ListenTogetherSettings(
                 description = stringResource(R.string.lt_offset_description, offsetMs),
                 icon = { Icon(Icons.Rounded.Timer, null) },
                 onClick = { showOffsetDialog = true },
-            )
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.lt_how_it_works)) },
-                description = stringResource(R.string.lt_how_it_works_summary),
-                icon = { Icon(Icons.Rounded.Wifi, null) },
-                onClick = {},
             )
         }
     }

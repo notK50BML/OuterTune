@@ -175,7 +175,9 @@ class LyricsHelper @Inject constructor(
                         // Bound here rather than asserted below: the downgrade test already implies
                         // a stored row, and tying the two together means a later edit cannot leave
                         // a !! standing on an invariant it no longer holds.
-                        existing?.takeIf { isDowngrade(it, result) }?.let { kept ->
+                        // Except after Refetch all: that was asked for so the current provider order
+                        // takes over, so whatever it finds replaces the old lyrics.
+                        existing?.takeIf { it.lastCheckedAt != REFETCH_REQUESTED && isDowngrade(it, result) }?.let { kept ->
                             // A scheduled re-check that came back with less than is already
                             // stored. The whole point of re-checking is that providers improve;
                             // replacing word-timed lyrics with a plain text sheet because today's
@@ -195,13 +197,17 @@ class LyricsHelper @Inject constructor(
                         }
 
                     RemoteLyricsResult.DefinitiveNotFound ->
-                        LyricsEntity(
-                            id = mediaMetadata.id,
-                            lyrics = LYRICS_NOT_FOUND,
-                            provider = null,
-                            lastCheckedAt = now,
-                            providerSignature = selection.signature,
-                        )
+                        // Lyrics already in hand are never swapped for "not found" by a re-check -
+                        // a provider dropping a song, or a refetch with fewer providers on, should
+                        // not take away lyrics that were fine. Kept, with the check noted.
+                        existing?.takeIf { it.lyrics != LYRICS_NOT_FOUND }?.copy(lastCheckedAt = now)
+                            ?: LyricsEntity(
+                                id = mediaMetadata.id,
+                                lyrics = LYRICS_NOT_FOUND,
+                                provider = null,
+                                lastCheckedAt = now,
+                                providerSignature = selection.signature,
+                            )
 
                     RemoteLyricsResult.Indeterminate, RemoteLyricsResult.Skipped -> null
                 }
@@ -659,6 +665,8 @@ internal fun shouldFetchLyrics(
         // not throw away lyrics that are already in hand and already good; if the new provider has
         // something better, the next scheduled re-check finds it, and that is the whole difference
         // between a preference change and a cache invalidation.
+        // Refetch all asked for this one, whatever the schedule says.
+        if (lastChecked == REFETCH_REQUESTED) return true
         if (positiveTtlMs <= 0L) return false
         if (lastChecked == null) return true
         if (now < lastChecked) return true
@@ -752,6 +760,12 @@ private fun syncLevelOf(raw: String): Int = when {
 
 private val WORD_TIMING = Regex("""<\d{1,2}:\d{2}([.:]\d{1,3})?>""")
 private val LINE_TIMING = Regex("""(^|\n)\s*\[\d{1,2}:\d{2}([.:]\d{1,3})?]""")
+
+/**
+ * The lastCheckedAt that Refetch all leaves on a row (DatabaseDao.markFetchedLyricsForRefetch):
+ * re-check at the next chance, and keep the lyrics until something replaces them.
+ */
+const val REFETCH_REQUESTED = 0L
 
 /** How often a song that already has lyrics is re-checked, as stored. */
 fun readLyricsRefreshInterval(context: Context): LyricsRefreshInterval =

@@ -259,7 +259,9 @@ private fun RefetchAllLyricsEntry() {
                         confirmCount = null
                         working = true
                         scope.launch {
-                            withContext(Dispatchers.IO) { database.deleteFetchedLyrics() }
+                            // Marked, not deleted: every song keeps its lyrics until new ones have
+                            // actually arrived, so an offline refetch loses nothing.
+                            withContext(Dispatchers.IO) { database.markFetchedLyricsForRefetch() }
                             val current = playerConnection?.mediaMetadata?.value
                             if (current != null) {
                                 // Stored, the player picks it up by itself - it watches the song's row.
