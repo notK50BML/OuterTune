@@ -251008,3 +251008,498 @@ index 0a45c3b..e60dcd4 100644
 -- 
 2.56.0.windows.4
 
+From fef762a83d14f6ded7e36cce1e1f055661b4b683 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 20:49:16 +0800
+Subject: [PATCH] Widget draws the Liquid background; optional Search tab
+
+- Widget: the Liquid style is drawn as a still of the player's shape
+  (petal, spheres or ferrofluid crown) on its backdrop colour.
+- Search tab (letter E in the enabled tabs). With it on, the other tabs
+  lose the top search bar and its height, Stats / Settings / Account sit
+  at the right of Home's chips row, and the tab opens search.
+---
+ CHANGELOG-current.md                          |  22 +++
+ .../java/com/dd3boh/outertune/MainActivity.kt |  21 ++-
+ .../dd3boh/outertune/ui/screens/HomeScreen.kt |  33 +++-
+ .../outertune/ui/screens/HomeShortcutIcons.kt |  43 ++++++
+ .../dd3boh/outertune/ui/screens/Screens.kt    |  13 +-
+ .../ui/screens/search/SearchScreen.kt         |  11 +-
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 142 +++++++++++++++++-
+ 7 files changed, 269 insertions(+), 16 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index a331f3c..4a087eb 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -51,6 +51,28 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
+   Wired 3.5mm headphones can't be identified, so they're skipped.
+ 
++## More (9 Nov 2026, after 0.22.1 build 179)
++
++- **Listen together measures the delay for you.** On the host, tap a listener. The host's
++  microphone hears a click from its own speaker, then one from the listener 1.5 seconds later on
++  the shared clock. The gap minus 1.5 seconds is how far behind the listener's speakers are, and
++  it's sent back and applied as their timing offset. The microphone's own delay is in both clicks,
++  so it cancels out. Microphone permission is asked only when you tap. The offset description now
++  explains why the offset is needed, and "How it works" is gone.
++- **Refetch all lyrics keeps your lyrics.** It now marks lyrics as due for a re-check instead of
++  deleting them. Each song keeps what it has, offline included, until a provider actually returns
++  replacements. A re-check also never swaps lyrics you have for "not found".
++- **Thumbnails:** "Download all thumbnails" moved to Experimental and debug, and "Remove
++  thumbnail" is gone from the song menu.
++- **Widget follows the player's look:**
++  - The background matches your player setting: blurred or frosted cover, cover gradient, a
++    still of the Liquid shape (petal, spheres or ferrofluid crown on its backdrop), or Material
++    You colours.
++  - A seek bar in your slider style and thickness, updated every 2 seconds while playing.
++- **Search tab (new, optional).** Add Search in the tab settings. With it on, the search bar
++  across the top of the other tabs goes, Stats / Settings / Account move to the right end of
++  Home's chips row, and tapping the tab opens search.
++
+ ## New defaults (9 Nov 2026)
+ 
+ What a fresh install looks like. Anything already set by hand keeps its value.
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index deaa58f..e7f9ddc 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -492,8 +492,19 @@ class MainActivity : ComponentActivity() {
+                     // Do not leave the navigation rail reserving space or visible over it.
+                     val showNavRail = useNavRail && !(isLandscape && playerBottomSheetState.isExpanded)
+ 
++                    // With the Search tab on, the other tabs have no search bar across the top (see
++                    // SearchBarContainer), so their content starts right under the status bar
++                    // instead of leaving the bar's height empty. Every other screen keeps it, since
++                    // they draw their own top bar there.
++                    val currentRoute = navBackStackEntry?.destination?.route
++                    val noTopBar = Screens.hasSearchTab(enabledTabs) &&
++                            currentRoute != Screens.Search.route &&
++                            navigationItems.any { it.route == currentRoute }
++                    val topBarHeight = if (noTopBar) 0.dp else AppBarHeight
++
+                     val playerAwareWindowInsets =
+                         remember(
++                            topBarHeight,
+                             bottomInset,
+                             playerBottomSheetState.isDismissed,
+                             // Both read below, and neither used to be a key. showNavRail decides
+@@ -519,14 +530,14 @@ class MainActivity : ComponentActivity() {
+                                     .add(
+                                         WindowInsets(
+                                             left = if (!showNavRail) 0.dp else NavigationBarHeight,
+-                                            top = AppBarHeight,
++                                            top = topBarHeight,
+                                             bottom = bottom
+                                         )
+                                     )
+                             } else {
+                                 windowsInsets
+                                     .only(WindowInsetsSides.Top)
+-                                    .add(WindowInsets(top = AppBarHeight, bottom = bottom))
++                                    .add(WindowInsets(top = topBarHeight, bottom = bottom))
+                             }
+                         }
+ 
+@@ -686,6 +697,12 @@ class MainActivity : ComponentActivity() {
+                                     composable(Screens.Library.route) {
+                                         LibraryScreen(navController, scrollBehavior)
+                                     }
++                                    composable(Screens.Search.route) {
++                                        // Nothing of its own: arriving here opens the search bar
++                                        // over it, with history and suggestions - see
++                                        // SearchBarContainer.
++                                        Box(Modifier.fillMaxSize())
++                                    }
+                                     composable(Screens.Player.route) {
+                                         PlayerScreen(navController, bottomPadding = getNavPadding())
+                                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+index 963f5d0..691f5a8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+@@ -1,6 +1,8 @@
+ package com.dd3boh.outertune.ui.screens
+ 
+ import com.dd3boh.outertune.constants.ShowHomeChipsKey
++import com.dd3boh.outertune.constants.EnabledTabsKey
++import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
+ import android.annotation.SuppressLint
+ import androidx.activity.compose.BackHandler
+ import androidx.compose.foundation.ExperimentalFoundationApi
+@@ -145,6 +147,8 @@ fun HomeScreen(
+     val selectedChip by viewModel.selectedChip.collectAsState()
+     val emptyChips by viewModel.emptyChips.collectAsState()
+     val showHomeChips by rememberPreference(ShowHomeChipsKey, defaultValue = true)
++    val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
++    val searchTab = Screens.hasSearchTab(enabledTabs)
+ 
+     val allLocalItems by viewModel.allLocalItems.collectAsState()
+     val allYtItems by viewModel.allYtItems.collectAsState()
+@@ -387,15 +391,28 @@ fun HomeScreen(
+             state = lazylistState,
+             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
+         ) {
+-            if (showHomeChips) item {
+-                ChipsRow(
+-                    // Without the ones known to have nothing to show - see HomeViewModel.emptyChips.
+-                    chips = homePage?.chips?.filter { it.title !in emptyChips }?.map { it to it.title } ?: emptyList(),
+-                    currentValue = selectedChip,
+-                    onValueUpdate = {
+-                        viewModel.toggleChip(it)
++            // With the Search tab on there is no row across the top, so Stats / Settings / Account
++            // sit at the end of this one - shown even with the chips themselves switched off.
++            if (showHomeChips || searchTab) item {
++                androidx.compose.foundation.layout.Row(
++                    verticalAlignment = Alignment.CenterVertically,
++                    modifier = Modifier.fillMaxWidth(),
++                ) {
++                    if (showHomeChips) {
++                        ChipsRow(
++                            // Without the ones known to have nothing to show - see HomeViewModel.emptyChips.
++                            chips = homePage?.chips?.filter { it.title !in emptyChips }?.map { it to it.title } ?: emptyList(),
++                            currentValue = selectedChip,
++                            onValueUpdate = {
++                                viewModel.toggleChip(it)
++                            },
++                            modifier = Modifier.weight(1f),
++                        )
++                    } else {
++                        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                     }
+-                )
++                    if (searchTab) HomeShortcutIcons(navController)
++                }
+             }
+ 
+             if (isLoggedIn && !recentActivity.isNullOrEmpty()) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
+new file mode 100644
+index 0000000..b97fac5
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeShortcutIcons.kt
+@@ -0,0 +1,43 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.screens
++
++import androidx.compose.foundation.layout.Row
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.TrendingUp
++import androidx.compose.material.icons.rounded.Person
++import androidx.compose.material.icons.rounded.Settings
++import androidx.compose.material3.Icon
++import androidx.compose.material3.IconButton
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.navigation.NavController
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.ui.component.AccountAvatar
++
++/**
++ * Stats, Settings and Account, for the end of Home's chips row when the Search tab is on - the
++ * search bar they normally share a row with is gone then, and they still need somewhere to live.
++ */
++@Composable
++fun HomeShortcutIcons(navController: NavController, modifier: Modifier = Modifier) {
++    Row(verticalAlignment = Alignment.CenterVertically, modifier = modifier) {
++        IconButton(onClick = { navController.navigate("stats") }) {
++            Icon(Icons.AutoMirrored.Rounded.TrendingUp, contentDescription = stringResource(R.string.stats))
++        }
++        IconButton(onClick = { navController.navigate("settings") }) {
++            Icon(Icons.Rounded.Settings, contentDescription = stringResource(R.string.settings))
++        }
++        IconButton(onClick = { navController.navigate("settings/account_sync") }) {
++            AccountAvatar(contentDescription = stringResource(R.string.account)) {
++                Icon(Icons.Rounded.Person, contentDescription = stringResource(R.string.account))
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt
+index e0d057f..f991672 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt
+@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.MusicNote
+ import androidx.compose.material.icons.rounded.Person
+ import androidx.compose.material.icons.rounded.PlayCircle
+ import androidx.compose.material.icons.rounded.SdCard
++import androidx.compose.material.icons.rounded.Search
+ import androidx.compose.runtime.Immutable
+ import androidx.compose.ui.graphics.vector.ImageVector
+ import com.dd3boh.outertune.R
+@@ -40,6 +41,12 @@ sealed class Screens(
+     data object Library : Screens(R.string.library, Icons.Rounded.LibraryMusic, "library")
+     data object Player : Screens(R.string.player, Icons.Rounded.PlayCircle, "player")
+ 
++    /**
++     * Search as a tab of its own. With it on, the search bar at the top of the other tabs goes, and
++     * Stats / Settings / Account sit at the end of Home's chips row instead.
++     */
++    data object Search : Screens(R.string.search, Icons.Rounded.Search, "search_tab")
++
+     enum class LibraryFilter {
+         ALL, ALBUMS, ARTISTS, PLAYLISTS, SONGS, FOLDERS
+     }
+@@ -59,10 +66,10 @@ sealed class Screens(
+          * L: Playlists
+          * M: Library
+          * P: Player
++         * E: Search
+          *
+          * Not/won't implement
+          * Q: Queue
+-         * E: Search
+          */
+         val screenPairs = listOf(
+             Home to 'H',
+@@ -73,9 +80,13 @@ sealed class Screens(
+             Albums to 'B',
+             Playlists to 'L',
+             Library to 'M',
++            Search to 'E',
+ //            Player to 'P',
+         )
+ 
++        /** Whether the Search tab is switched on in an enabled-tabs string. */
++        fun hasSearchTab(enabledTabs: String) = 'E' in enabledTabs
++
+         fun getAllScreens() = screenPairs.map { it.first }
+ 
+         fun getScreens(screens: String): List<Screens> {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index 30f9864..4be6e28 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -188,8 +188,12 @@ fun SearchBarContainer(
+ 
+     val isTabRoute = navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }
+     val isSearchRoute = navBackStackEntry?.destination?.route?.startsWith("search/") == true
+-    val showSearchBar = searchActive || isSearchRoute
+-    val showIconRow = isTabRoute && !searchActive && !isSearchRoute
++    // The Search tab: the bar lives there, and the other tabs lose the row across the top - its
++    // Stats / Settings / Account move to the end of Home's chips row.
++    val searchTabEnabled = Screens.hasSearchTab(enabledTabs)
++    val isSearchTab = navBackStackEntry?.destination?.route == Screens.Search.route
++    val showSearchBar = searchActive || isSearchRoute || isSearchTab
++    val showIconRow = isTabRoute && !searchActive && !isSearchRoute && !searchTabEnabled
+ 
+     LaunchedEffect(searchActive) {
+         if (searchActive) {
+@@ -229,6 +233,9 @@ fun SearchBarContainer(
+             // Back out of a search to a tab: the next search starts from an empty box.
+             onQueryChange(TextFieldValue())
+         }
++        // Arriving on the Search tab is asking to search: open the bar, keyboard up. After the
++        // closing above, which runs on every route change, so this one wins.
++        if (isSearchTab) onSearchActiveChange(true)
+     }
+ 
+     AnimatedVisibility(
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index c231ca5..4da01d4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -40,6 +40,10 @@ import com.dd3boh.outertune.MainActivity
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+ import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
++import com.dd3boh.outertune.constants.LiquidColorScheme
++import com.dd3boh.outertune.constants.LiquidColorSchemeKey
++import com.dd3boh.outertune.constants.LiquidShapeStyle
++import com.dd3boh.outertune.constants.LiquidShapeStyleKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.SliderStyle
+@@ -126,7 +130,13 @@ object PlayerWidget {
+     private const val CORNER_PX = 44f
+ 
+     /** What the player looks like, as far as the widget copies it. */
+-    private data class Look(val background: PlayerBackgroundStyle, val slider: SliderStyle, val weight: SliderWeight)
++    private data class Look(
++        val background: PlayerBackgroundStyle,
++        val slider: SliderStyle,
++        val weight: SliderWeight,
++        val liquidShape: LiquidShapeStyle = LiquidShapeStyle.PETAL,
++        val liquidBackdrop: LiquidColorScheme = LiquidColorScheme.SURFACE,
++    )
+ 
+     /** The colours one look resolves to - see [colours]. */
+     private data class Colours(val background: Int, val text: Int, val subtext: Int, val accent: Int, val track: Int)
+@@ -172,6 +182,10 @@ object PlayerWidget {
+                 ?.let { stored -> PlayerBackgroundStyle.entries.find { it.name == stored } } ?: DEFAULT_PLAYER_BACKGROUND,
+             slider = prefs[SliderStyleKey]?.let { stored -> SliderStyle.entries.find { it.name == stored } } ?: DEFAULT_SLIDER_STYLE,
+             weight = prefs[SliderWeightKey]?.let { stored -> SliderWeight.entries.find { it.name == stored } } ?: SliderWeight.THINNER,
++            liquidShape = prefs[LiquidShapeStyleKey]?.let { stored -> LiquidShapeStyle.entries.find { it.name == stored } }
++                ?: LiquidShapeStyle.PETAL,
++            liquidBackdrop = prefs[LiquidColorSchemeKey]?.let { stored -> LiquidColorScheme.entries.find { it.name == stored } }
++                ?: LiquidColorScheme.SURFACE,
+         )
+ 
+         // Text and buttons straight away; the cover, and the background drawn from it, follow.
+@@ -244,6 +258,16 @@ object PlayerWidget {
+      * palette the app's dynamic theme comes from, and the app's dark grey before that.
+      */
+     private fun colours(context: Context, style: PlayerBackgroundStyle, hasArt: Boolean): Colours {
++        // Liquid on its white backdrop is the one picture that needs dark text.
++        if (hasArt && style == PlayerBackgroundStyle.LIQUID && lastLook.liquidBackdrop == LiquidColorScheme.WHITE) {
++            return Colours(
++                background = Color.WHITE,
++                text = 0xFF1B1B1F.toInt(),
++                subtext = 0xB31B1B1F.toInt(),
++                accent = 0xFF1B1B1F.toInt(),
++                track = 0x401B1B1F,
++            )
++        }
+         val overPicture = hasArt && style != PlayerBackgroundStyle.FOLLOW_THEME
+         if (overPicture || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+             return Colours(
+@@ -269,7 +293,7 @@ object PlayerWidget {
+     /** The background picture for [style], or null when it is the plain theme colour. */
+     private fun background(context: Context, art: Bitmap, style: PlayerBackgroundStyle): Bitmap? {
+         if (style == PlayerBackgroundStyle.FOLLOW_THEME) return null
+-        val key = "${lastArtSongId}|$style|${isNight(context)}"
++        val key = "${lastArtSongId}|$style|${lastLook.liquidShape}|${lastLook.liquidBackdrop}|${isNight(context)}"
+         if (key == lastBackgroundKey) lastBackground?.let { return it }
+ 
+         val fill = Bitmap.createBitmap(BG_W, BG_H, Bitmap.Config.ARGB_8888)
+@@ -287,8 +311,10 @@ object PlayerWidget {
+                 canvas.drawColor(if (style == PlayerBackgroundStyle.FROSTED) 0x73000000 else 0x80000000.toInt())
+             }
+ 
++            PlayerBackgroundStyle.LIQUID -> drawLiquid(context, canvas, art)
++
+             else -> {
+-                // Gradient and Liquid: the cover's two sides, as a sweep, darkened enough for text.
++                // Gradient: the cover's two sides, as a sweep, darkened enough for text.
+                 val sides = Bitmap.createScaledBitmap(art, 2, 1, true)
+                 val left = ColorUtils.blendARGB(sides.getPixel(0, 0), Color.BLACK, 0.45f)
+                 val right = ColorUtils.blendARGB(sides.getPixel(1, 0), Color.BLACK, 0.55f)
+@@ -310,6 +336,116 @@ object PlayerWidget {
+         return rounded
+     }
+ 
++    /**
++     * The Liquid background, as a still: the same backdrop and the same shape as the player - petal,
++     * spheres or ferrofluid crown - frozen at one moment rather than moving, since a home screen is
++     * no place for an animation running all day. Drawn off to the right, behind the buttons, so the
++     * cover and the title stay readable.
++     */
++    private fun drawLiquid(context: Context, canvas: Canvas, art: Bitmap) {
++        val night = isNight(context)
++        val dynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
++        fun sys(dark: Int, light: Int) = context.getColor(if (night) dark else light)
++        // The cover's own colours, for the spheres and as the accent where the system has none.
++        val sides = Bitmap.createScaledBitmap(art, 3, 1, true)
++        val coverColours = List(3) { sides.getPixel(it, 0) }
++        val accent = if (dynamic) sys(android.R.color.system_accent1_300, android.R.color.system_accent1_500) else coverColours[1]
++        val secondary = if (dynamic) sys(android.R.color.system_accent2_300, android.R.color.system_accent2_500) else coverColours[0]
++        val backdrop = when (lastLook.liquidBackdrop) {
++            LiquidColorScheme.BLACK -> Color.BLACK
++            LiquidColorScheme.WHITE -> Color.WHITE
++            LiquidColorScheme.SURFACE ->
++                if (dynamic) sys(android.R.color.system_accent1_800, android.R.color.system_accent1_200)
++                else ColorUtils.blendARGB(coverColours[1], Color.BLACK, 0.7f)
++        }
++        canvas.drawColor(backdrop)
++
++        val cx = BG_W * 0.72f
++        val cy = BG_H * 0.5f
++        val base = BG_H * 0.42f
++        when (lastLook.liquidShape) {
++            LiquidShapeStyle.SPHERES -> {
++                coverColours.forEachIndexed { i, colour ->
++                    val x = BG_W * (0.55f + 0.16f * i)
++                    val y = BG_H * (0.35f + 0.22f * ((i * 7) % 3) / 2f)
++                    val r = base * (0.9f + 0.25f * i)
++                    canvas.drawCircle(x, y, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
++                        shader = android.graphics.RadialGradient(
++                            x, y, r,
++                            intArrayOf(ColorUtils.setAlphaComponent(colour, 0xD9), ColorUtils.setAlphaComponent(colour, 0x60), Color.TRANSPARENT),
++                            null, Shader.TileMode.CLAMP,
++                        )
++                    })
++                }
++            }
++
++            LiquidShapeStyle.PETAL -> {
++                val petal = Path()
++                val samples = 96
++                for (i in 0..samples) {
++                    val a = 2 * PI * i / samples
++                    val r = base * (1f + 0.12f * sin(a * 3).toFloat() + 0.16f * sin(a * 5 + 1.3).toFloat())
++                    val x = cx + r * kotlin.math.cos(a).toFloat()
++                    val y = cy + r * sin(a).toFloat()
++                    if (i == 0) petal.moveTo(x, y) else petal.lineTo(x, y)
++                }
++                petal.close()
++                canvas.drawPath(petal, Paint(Paint.ANTI_ALIAS_FLAG).apply {
++                    shader = android.graphics.RadialGradient(
++                        cx, cy - base * 0.2f, base * 1.6f,
++                        intArrayOf(ColorUtils.blendARGB(accent, secondary, 0.35f), accent, ColorUtils.setAlphaComponent(accent, 0)),
++                        floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP,
++                    )
++                })
++            }
++
++            LiquidShapeStyle.FERROFLUID -> {
++                // The crown: a dark pool with sharp spikes standing up around it, and a wet highlight.
++                val spikes = 16
++                val pool = base * 0.55f
++                val crown = Path()
++                for (i in 0 until spikes) {
++                    val peakA = 2 * PI * i / spikes
++                    val valleyA = 2 * PI * (i + 0.5) / spikes
++                    val variance = 0.75f + 0.5f * (0.5f + 0.5f * sin(i * 12.9898).toFloat())
++                    val peak = pool * (1.15f + 0.4f * variance) * 1.3f
++                    val px = cx + peak * kotlin.math.cos(peakA).toFloat()
++                    val py = cy + peak * sin(peakA).toFloat()
++                    val vx = cx + pool * 0.9f * kotlin.math.cos(valleyA).toFloat()
++                    val vy = cy + pool * 0.9f * sin(valleyA).toFloat()
++                    if (i == 0) crown.moveTo(px, py) else crown.lineTo(px, py)
++                    crown.lineTo(vx, vy)
++                }
++                crown.close()
++                val ink = ColorUtils.blendARGB(Color.BLACK, accent, 0.18f)
++                canvas.drawPath(crown, Paint(Paint.ANTI_ALIAS_FLAG).apply {
++                    shader = android.graphics.RadialGradient(
++                        cx, cy - pool * 0.3f, pool * 3f,
++                        intArrayOf(ColorUtils.blendARGB(ink, Color.WHITE, 0.12f), ink, Color.BLACK),
++                        null, Shader.TileMode.CLAMP,
++                    )
++                })
++                canvas.save()
++                canvas.clipPath(crown)
++                val gx = cx - pool * 0.6f
++                val gy = cy - pool * 0.7f
++                canvas.drawCircle(gx, gy, pool * 1.6f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
++                    shader = android.graphics.RadialGradient(
++                        gx, gy, pool * 1.6f,
++                        intArrayOf(ColorUtils.setAlphaComponent(accent, 0x80), Color.TRANSPARENT),
++                        null, Shader.TileMode.CLAMP,
++                    )
++                })
++                canvas.restore()
++            }
++        }
++        // Keep the left side, where the cover and the title sit, a touch darker or lighter for contrast.
++        val scrim = if (lastLook.liquidBackdrop == LiquidColorScheme.WHITE) 0x33FFFFFF else 0x40000000
++        canvas.drawRect(0f, 0f, BG_W * 0.5f, BG_H.toFloat(), Paint().apply {
++            shader = LinearGradient(0f, 0f, BG_W * 0.5f, 0f, scrim, Color.TRANSPARENT, Shader.TileMode.CLAMP)
++        })
++    }
++
+     /**
+      * The seek bar, drawn in the player's own style and thickness: the played part in the accent,
+      * the rest a faint track. The waves are drawn still - a home screen is not the place for
+-- 
+2.56.0.windows.4
+
