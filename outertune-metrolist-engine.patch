@@ -251503,3 +251503,1393 @@ index c231ca5..4da01d4 100644
 -- 
 2.56.0.windows.4
 
+From b743090ad182318a081103dba691f1bc81a5214b Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 21:03:49 +0800
+Subject: [PATCH] Widget editor; backup before installing an update
+
+- Widget arrangement (WidgetLayout): up to three rows of elements -
+  cover, artist picture, title/artist, up next, seek bar, previous,
+  play/pause, next, shuffle, repeat - each at most once, side by side,
+  never layered. Built at runtime from per-element RemoteViews added to
+  rows. Edited in Settings > Appearance > Home-screen widget with a live
+  preview; changes apply to the placed widget at once. Shuffle and repeat
+  send the notification's session commands.
+- Backup before update (default on): AppUpdater writes a backup to
+  Downloads/OuterTune Backup after the download and before the
+  installer opens, named after the current version, keeping the last
+  three. Failures are logged and never block the install.
+---
+ CHANGELOG-current.md                          |  16 +
+ .../java/com/dd3boh/outertune/MainActivity.kt |   3 +
+ .../outertune/constants/PreferenceKeys.kt     |   4 +
+ .../dd3boh/outertune/playback/MusicService.kt |  57 +++-
+ .../ui/screens/settings/AboutScreen.kt        |   3 +-
+ .../ui/screens/settings/AppearanceSettings.kt |   7 +
+ .../ui/screens/settings/UpdaterSettings.kt    |  14 +-
+ .../screens/settings/WidgetLayoutSettings.kt  | 290 ++++++++++++++++++
+ .../com/dd3boh/outertune/utils/AppUpdater.kt  |  15 +
+ .../com/dd3boh/outertune/utils/BackupUtil.kt  |  36 ++-
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 156 ++++++++--
+ .../dd3boh/outertune/widget/WidgetLayout.kt   | 131 ++++++++
+ app/src/main/res/layout/widget_el_artist.xml  |   9 +
+ app/src/main/res/layout/widget_el_button.xml  |   7 +
+ app/src/main/res/layout/widget_el_cover.xml   |   9 +
+ app/src/main/res/layout/widget_el_info.xml    |  27 ++
+ app/src/main/res/layout/widget_el_play.xml    |   7 +
+ app/src/main/res/layout/widget_el_seekbar.xml |   9 +
+ app/src/main/res/layout/widget_el_upnext.xml  |  11 +
+ app/src/main/res/layout/widget_player.xml     |  90 +-----
+ app/src/main/res/layout/widget_row.xml        |   9 +
+ app/src/main/res/values/strings-ot.xml        |   2 +
+ app/src/main/res/values/strings.xml           |  17 +
+ 23 files changed, 808 insertions(+), 121 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+ create mode 100644 app/src/main/res/layout/widget_el_artist.xml
+ create mode 100644 app/src/main/res/layout/widget_el_button.xml
+ create mode 100644 app/src/main/res/layout/widget_el_cover.xml
+ create mode 100644 app/src/main/res/layout/widget_el_info.xml
+ create mode 100644 app/src/main/res/layout/widget_el_play.xml
+ create mode 100644 app/src/main/res/layout/widget_el_seekbar.xml
+ create mode 100644 app/src/main/res/layout/widget_el_upnext.xml
+ create mode 100644 app/src/main/res/layout/widget_row.xml
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 4a087eb..41df2f5 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -51,6 +51,22 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
+   Wired 3.5mm headphones can't be identified, so they're skipped.
+ 
++## Widget editor and pre-update backups (after build 180)
++
++- **Arrange the widget** in Settings → Appearance → Home-screen widget.
++  - Pieces: cover, artist picture, title and artist, up next, seek bar, previous, play/pause,
++    next, shuffle and repeat. Show any of them, in any order, across up to three rows.
++  - Pieces sit side by side in rows and never overlap. Title, seek bar and up next stretch to
++    fill their row; the others keep their size.
++  - The editor has a live preview, and the widget on your home screen updates as you go.
++  - Shuffle and repeat use the same commands as the notification's buttons.
++- **Backup before installing an update** (on by default; Settings → Updater).
++  - Just before the installer opens, the library and settings are saved to
++    Downloads/OuterTune Backup.
++  - The file is named after the version you're updating from, and the last three are kept,
++    separately from automatic backups.
++  - It never blocks the update.
++
+ ## More (9 Nov 2026, after 0.22.1 build 179)
+ 
+ - **Listen together measures the delay for you.** On the host, tap a listener. The host's
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index e7f9ddc..bb786cd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -870,6 +870,9 @@ class MainActivity : ComponentActivity() {
+                                     composable("settings/appearance") {
+                                         AppearanceSettings(navController, scrollBehavior)
+                                     }
++                                    composable("settings/appearance/widget") {
++                                        com.dd3boh.outertune.ui.screens.settings.WidgetLayoutSettings(navController, scrollBehavior)
++                                    }
+                                     composable("settings/appearance/icon") {
+                                         AppIconSettings(navController, scrollBehavior)
+                                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 299929f..2559385 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -79,6 +79,8 @@ val TabletUiKey = booleanPreferencesKey("tabletUi")
+ val EnabledTabsKey = stringPreferencesKey("enabledTabs")
+ /** The player's title-row buttons, in order - see PlayerButton. Empty until first set. */
+ val PlayerButtonsKey = stringPreferencesKey("playerButtons")
++/** The home-screen widget's arrangement - see [com.dd3boh.outertune.widget.WidgetLayout]. */
++val WidgetLayoutKey = stringPreferencesKey("widgetLayout")
+ /** Hides the explanatory text under settings, leaving titles, values and errors. */
+ val HideSettingsDescriptionsKey = booleanPreferencesKey("hideSettingsDescriptions")
+ val EnabledFiltersKey = stringPreferencesKey("enabledFilters")
+@@ -657,6 +659,8 @@ val CountryCodeToName = mapOf(
+ // Updater
+ val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
+ val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
++/** Write a backup before handing an update to the installer. On by default. */
++val BackupBeforeUpdateKey = booleanPreferencesKey("backupBeforeUpdate")
+ 
+ /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
+ val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index cba1c1a..7fb8183 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -334,8 +334,28 @@ class MusicService : MediaLibraryService(),
+     // Player vars
+     val currentMediaMetadata = MutableStateFlow<MediaMetadata?>(null)
+ 
+-    /** The player's playWhenReady, for the home-screen widget's play/pause icon. */
+-    private val widgetPlayWhenReady = MutableStateFlow(false)
++    /** What the home-screen widget shows besides the song itself - see PlayerWidget. */
++    private data class WidgetPlayerState(
++        val playWhenReady: Boolean = false,
++        val shuffle: Boolean = false,
++        val repeatMode: Int = REPEAT_MODE_OFF,
++        val upNext: String? = null,
++    )
++
++    private val widgetPlayerState = MutableStateFlow(WidgetPlayerState())
++
++    private fun refreshWidgetPlayerState() {
++        val nextIndex = player.nextMediaItemIndex
++        val upNext = if (nextIndex != C.INDEX_UNSET && nextIndex < player.mediaItemCount) {
++            player.getMediaItemAt(nextIndex).mediaMetadata.title?.toString()
++        } else null
++        widgetPlayerState.value = WidgetPlayerState(
++            playWhenReady = player.playWhenReady,
++            shuffle = player.shuffleModeEnabled,
++            repeatMode = player.repeatMode,
++            upNext = upNext,
++        )
++    }
+ 
+     private val currentSong = currentMediaMetadata.flatMapLatest { mediaMetadata ->
+         database.song(mediaMetadata?.id)
+@@ -579,15 +599,29 @@ class MusicService : MediaLibraryService(),
+         // previous song is dropped rather than landing on top of the new one. playWhenReady, as for
+         // Discord: isPlaying also drops while a track buffers, which would flash the play icon on
+         // every skip.
+-        combine(currentMediaMetadata, widgetPlayWhenReady) { metadata, playing -> metadata to playing }
++        combine(currentMediaMetadata, widgetPlayerState) { metadata, state -> metadata to state }
+             .distinctUntilChanged()
+-            .collectLatest(scope) { (metadata, playing) ->
++            .collectLatest(scope) { (metadata, state) ->
++                val playing = state.playWhenReady
+                 fun fraction(): Float {
+                     val duration = player.duration
+                     return if (duration > 0) (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
+                 }
+-                runCatching { PlayerWidget.update(this@MusicService, metadata, playing, fraction()) }
+-                    .onFailure { if (it is CancellationException) throw it }
++                // The artist's own picture, from the library, for the widget's artist element.
++                val artistImageUrl = metadata?.artists?.firstOrNull()?.id?.let { artistId ->
++                    runCatching {
++                        withContext(Dispatchers.IO) { database.artist(artistId).first()?.artist?.thumbnailUrl }
++                    }.getOrNull()
++                }
++                runCatching {
++                    PlayerWidget.update(
++                        this@MusicService, metadata, playing, fraction(),
++                        shuffle = state.shuffle,
++                        repeatMode = state.repeatMode,
++                        upNext = state.upNext,
++                        artistImageUrl = artistImageUrl,
++                    )
++                }.onFailure { if (it is CancellationException) throw it }
+                 // The seek bar, while something is playing. Every couple of seconds rather than
+                 // continuously: a widget redraw goes through the launcher, and a bar that is a second
+                 // or two behind is invisible at that size. Ends with the song or the pause, since
+@@ -1898,8 +1932,15 @@ class MusicService : MediaLibraryService(),
+         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
+             currentMediaMetadata.value = player.currentMetadata
+         }
+-        if (events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
+-            widgetPlayWhenReady.value = player.playWhenReady
++        if (events.containsAny(
++                Player.EVENT_PLAY_WHEN_READY_CHANGED,
++                Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED,
++                Player.EVENT_REPEAT_MODE_CHANGED,
++                EVENT_TIMELINE_CHANGED,
++                EVENT_MEDIA_ITEM_TRANSITION,
++            )
++        ) {
++            refreshWidgetPlayerState()
+         }
+ 
+         // Anything that can change what should be on the card asks for an update; the collector in
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
+index b19238a..da5916f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
+@@ -96,6 +96,7 @@ fun AboutScreen(
+     val resources = LocalResources.current
+     val clipboardManager = LocalClipboard.current
+     val uriHandler = LocalUriHandler.current
++    val database = com.dd3boh.outertune.LocalDatabase.current
+ 
+     val showDebugInfo = BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "userdebug"
+ 
+@@ -207,7 +208,7 @@ fun AboutScreen(
+                                 return@launch
+                             }
+                             updateStatus = context.getString(R.string.update_downloading, available.versionName, 0)
+-                            AppUpdater.downloadAndInstall(context, available) { fraction ->
++                            AppUpdater.downloadAndInstall(context, available, database) { fraction ->
+                                 updateStatus = context.getString(
+                                     R.string.update_downloading,
+                                     available.versionName,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index 107492f..42dcd26 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.AppShortcut
+ import androidx.compose.material.icons.rounded.Dashboard
++import androidx.compose.material.icons.rounded.Widgets
+ import androidx.compose.material.icons.rounded.HighQuality
+ import androidx.compose.material.icons.rounded.Image
+ import androidx.compose.material.icons.rounded.MoreHoriz
+@@ -133,6 +134,12 @@ fun AppearanceSettings(
+                 onClick = { navController.navigate("settings/appearance/layout") }
+             )
+             SeekBarFrag()
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.widget_layout_title)) },
++                description = stringResource(R.string.widget_layout_summary),
++                icon = { Icon(Icons.Rounded.Widgets, null) },
++                onClick = { navController.navigate("settings/appearance/widget") }
++            )
+         }
+ 
+         // Last on the screen: the artwork fallback is rarely worth touching, and hiding descriptions
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+index 38eda04..719d0b5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+@@ -39,6 +39,8 @@ import com.dd3boh.outertune.BuildConfig
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.AutoCheckUpdatesKey
+ import com.dd3boh.outertune.constants.AutoDownloadUpdatesKey
++import com.dd3boh.outertune.constants.BackupBeforeUpdateKey
++import com.dd3boh.outertune.LocalDatabase
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.constants.UpdateAvailableKey
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+@@ -72,6 +74,8 @@ fun UpdaterSettings(
+ 
+     var autoCheck by rememberPreference(AutoCheckUpdatesKey, defaultValue = true)
+     var autoDownload by rememberPreference(AutoDownloadUpdatesKey, defaultValue = false)
++    var backupBeforeUpdate by rememberPreference(BackupBeforeUpdateKey, defaultValue = true)
++    val database = LocalDatabase.current
+ 
+     // Already read by the search bar and the settings list, but until now nothing ever wrote it,
+     // so those indicators could not light up. This is the only place that knows the answer.
+@@ -94,7 +98,7 @@ fun UpdaterSettings(
+         }
+         checking = false
+         if (found != null && thenDownload) {
+-            AppUpdater.downloadAndInstall(context, found) { fraction ->
++            AppUpdater.downloadAndInstall(context, found, database) { fraction ->
+                 status = context.getString(
+                     R.string.update_downloading, found.versionName, (fraction * 100).toInt()
+                 )
+@@ -138,7 +142,7 @@ fun UpdaterSettings(
+                     if (update == null) {
+                         check(thenDownload = autoDownload)
+                     } else {
+-                        AppUpdater.downloadAndInstall(context, update) { fraction ->
++                        AppUpdater.downloadAndInstall(context, update, database) { fraction ->
+                             status = context.getString(
+                                 R.string.update_downloading, update.versionName, (fraction * 100).toInt()
+                             )
+@@ -167,6 +171,12 @@ fun UpdaterSettings(
+             checked = autoDownload,
+             onCheckedChange = { autoDownload = it }
+         )
++        SwitchPreference(
++            title = { Text(stringResource(R.string.update_backup_first)) },
++            description = stringResource(R.string.update_backup_first_desc),
++            checked = backupBeforeUpdate,
++            onCheckedChange = { backupBeforeUpdate = it }
++        )
+ 
+         Spacer(modifier = Modifier.height(16.dp))
+         InfoLabel(stringResource(R.string.update_install_tooltip))
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+new file mode 100644
+index 0000000..765ef0c
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+@@ -0,0 +1,290 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.screens.settings
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.ExperimentalLayoutApi
++import androidx.compose.foundation.layout.FlowRow
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowLeft
++import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
++import androidx.compose.material.icons.automirrored.rounded.QueueMusic
++import androidx.compose.material.icons.rounded.Add
++import androidx.compose.material.icons.rounded.Album
++import androidx.compose.material.icons.rounded.Delete
++import androidx.compose.material.icons.rounded.KeyboardArrowDown
++import androidx.compose.material.icons.rounded.KeyboardArrowUp
++import androidx.compose.material.icons.rounded.LinearScale
++import androidx.compose.material.icons.rounded.Person
++import androidx.compose.material.icons.rounded.PlayArrow
++import androidx.compose.material.icons.rounded.Repeat
++import androidx.compose.material.icons.rounded.Restore
++import androidx.compose.material.icons.rounded.Shuffle
++import androidx.compose.material.icons.rounded.SkipNext
++import androidx.compose.material.icons.rounded.SkipPrevious
++import androidx.compose.material.icons.rounded.Title
++import androidx.compose.material3.AssistChip
++import androidx.compose.material3.ElevatedCard
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.FilterChip
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarScrollBehavior
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.navigation.NavController
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.TopBarInsets
++import com.dd3boh.outertune.constants.WidgetLayoutKey
++import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
++import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.rememberPreference
++import com.dd3boh.outertune.widget.PlayerWidget
++import com.dd3boh.outertune.widget.WidgetElement
++import com.dd3boh.outertune.widget.WidgetLayout
++import androidx.compose.material3.IconButton as M3IconButton
++
++/**
++ * Arranges the home-screen widget: which pieces it shows, in which row, in what order.
++ *
++ * Moved with buttons rather than dragged on a canvas, on purpose. The widget is rows of slots - see
++ * [WidgetLayout] for why that is both all a widget can do and what rules out pieces landing on top
++ * of each other - so "left / right / up a row / down a row" is the whole vocabulary, and buttons say
++ * exactly that. The preview at the top redraws as you go, and the widget itself updates at once.
++ */
++@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
++@Composable
++fun WidgetLayoutSettings(
++    navController: NavController,
++    scrollBehavior: TopAppBarScrollBehavior,
++) {
++    val context = LocalContext.current
++    var stored by rememberPreference(WidgetLayoutKey, "")
++    val layout = remember(stored) { WidgetLayout.parse(stored) }
++    var selected by remember { mutableStateOf<WidgetElement?>(null) }
++
++    fun save(newLayout: WidgetLayout) {
++        stored = newLayout.encode()
++        PlayerWidget.applyLayout(context, newLayout)
++    }
++
++    ColumnWithContentPadding(
++        modifier = Modifier.fillMaxHeight(),
++        columnModifier = Modifier
++            .padding(horizontal = 16.dp)
++            .verticalScroll(rememberScrollState())
++    ) {
++        WidgetPreview(layout, selected)
++        Spacer(Modifier.height(12.dp))
++        Text(
++            text = stringResource(R.string.widget_layout_hint),
++            style = MaterialTheme.typography.bodySmall,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++        )
++        Spacer(Modifier.height(12.dp))
++
++        layout.rows.forEachIndexed { r, row ->
++            ElevatedCard(modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)) {
++                Column(Modifier.padding(12.dp)) {
++                    Text(stringResource(R.string.widget_layout_row, r + 1), style = MaterialTheme.typography.titleSmall)
++                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
++                        row.forEach { element ->
++                            FilterChip(
++                                selected = selected == element,
++                                onClick = { selected = if (selected == element) null else element },
++                                label = { Text(stringResource(element.label)) },
++                                leadingIcon = { Icon(element.icon, null, Modifier.size(18.dp)) },
++                            )
++                        }
++                    }
++                    // The controls belong to the row the selected piece is in, so they appear right
++                    // beside it rather than at the bottom of a long screen.
++                    val current = selected
++                    if (current != null && current in row) {
++                        Row(verticalAlignment = Alignment.CenterVertically) {
++                            M3IconButton(onClick = { save(layout.moveWithinRow(current, -1)) }) {
++                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, null)
++                            }
++                            M3IconButton(onClick = { save(layout.moveWithinRow(current, 1)) }) {
++                                Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null)
++                            }
++                            M3IconButton(onClick = { save(layout.moveToRow(current, -1)) }) {
++                                Icon(Icons.Rounded.KeyboardArrowUp, null)
++                            }
++                            M3IconButton(onClick = { save(layout.moveToRow(current, 1)) }) {
++                                Icon(Icons.Rounded.KeyboardArrowDown, null)
++                            }
++                            Spacer(Modifier.weight(1f))
++                            M3IconButton(onClick = {
++                                save(layout.remove(current))
++                                selected = null
++                            }) {
++                                Icon(Icons.Rounded.Delete, null)
++                            }
++                        }
++                    }
++                }
++            }
++        }
++
++        val unused = layout.unused
++        if (unused.isNotEmpty()) {
++            Spacer(Modifier.height(8.dp))
++            Text(stringResource(R.string.widget_layout_add), style = MaterialTheme.typography.titleSmall)
++            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
++                unused.forEach { element ->
++                    AssistChip(
++                        onClick = {
++                            // Into the selected piece's row when there is one, else the last row;
++                            // a full row starts a new one below it.
++                            val targetRow = selected?.let { s -> layout.rows.indexOfFirst { s in it } }
++                                ?.takeIf { it >= 0 } ?: layout.rows.lastIndex
++                            val added = layout.add(element, targetRow)
++                            save(if (added == layout) layout.add(element, layout.rows.size) else added)
++                        },
++                        label = { Text(stringResource(element.label)) },
++                        leadingIcon = { Icon(Icons.Rounded.Add, null, Modifier.size(18.dp)) },
++                    )
++                }
++            }
++        }
++
++        Spacer(Modifier.height(8.dp))
++        TextButton(onClick = {
++            save(WidgetLayout.DEFAULT)
++            selected = null
++        }) {
++            Icon(Icons.Rounded.Restore, null)
++            Spacer(Modifier.width(8.dp))
++            Text(stringResource(R.string.widget_layout_reset))
++        }
++        Spacer(Modifier.height(24.dp))
++    }
++
++    TopAppBar(
++        title = { Text(stringResource(R.string.widget_layout_title)) },
++        navigationIcon = {
++            IconButton(
++                onClick = navController::navigateUp,
++                onLongClick = navController::backToMain,
++            ) {
++                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null)
++            }
++        },
++        windowInsets = TopBarInsets,
++        scrollBehavior = scrollBehavior,
++    )
++}
++
++/** A sketch of the widget in this arrangement, the selected piece outlined. */
++@Composable
++private fun WidgetPreview(layout: WidgetLayout, selected: WidgetElement?) {
++    val onPreview = MaterialTheme.colorScheme.onSecondaryContainer
++    Column(
++        verticalArrangement = Arrangement.Center,
++        modifier = Modifier
++            .fillMaxWidth()
++            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(24.dp))
++            .padding(12.dp)
++    ) {
++        layout.rows.forEach { row ->
++            Row(
++                verticalAlignment = Alignment.CenterVertically,
++                modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp),
++            ) {
++                row.forEach { element ->
++                    val outline = if (element == selected) {
++                        Modifier.border(2.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(8.dp))
++                    } else Modifier
++                    val slot = if (element.flexible) Modifier.weight(1f) else Modifier
++                    Box(slot.then(outline).padding(2.dp), contentAlignment = Alignment.CenterStart) {
++                        when (element) {
++                            WidgetElement.COVER -> Box(
++                                Modifier.size(48.dp).background(onPreview.copy(alpha = 0.25f), RoundedCornerShape(6.dp))
++                            )
++                            WidgetElement.ARTIST -> Box(
++                                Modifier.size(34.dp).background(onPreview.copy(alpha = 0.25f), CircleShape)
++                            )
++                            WidgetElement.INFO -> Column(Modifier.padding(start = 6.dp)) {
++                                Box(Modifier.fillMaxWidth(0.8f).height(10.dp).background(onPreview.copy(alpha = 0.7f), CircleShape))
++                                Spacer(Modifier.height(5.dp))
++                                Box(Modifier.fillMaxWidth(0.5f).height(8.dp).background(onPreview.copy(alpha = 0.4f), CircleShape))
++                            }
++                            WidgetElement.UP_NEXT -> Box(
++                                Modifier.padding(start = 6.dp).fillMaxWidth(0.7f).height(7.dp)
++                                    .background(onPreview.copy(alpha = 0.35f), CircleShape)
++                            )
++                            WidgetElement.SEEK_BAR -> Box(
++                                Modifier.fillMaxWidth().padding(vertical = 6.dp).height(3.dp)
++                                    .background(onPreview.copy(alpha = 0.6f), CircleShape)
++                            )
++                            else -> Icon(element.icon, null, tint = onPreview, modifier = Modifier.padding(6.dp).size(24.dp))
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
++
++private val WidgetElement.label: Int
++    get() = when (this) {
++        WidgetElement.COVER -> R.string.widget_el_cover
++        WidgetElement.ARTIST -> R.string.widget_el_artist
++        WidgetElement.INFO -> R.string.widget_el_info
++        WidgetElement.UP_NEXT -> R.string.widget_el_up_next
++        WidgetElement.SEEK_BAR -> R.string.widget_el_seek_bar
++        WidgetElement.PREVIOUS -> R.string.widget_el_previous
++        WidgetElement.PLAY_PAUSE -> R.string.widget_el_play_pause
++        WidgetElement.NEXT -> R.string.widget_el_next
++        WidgetElement.SHUFFLE -> R.string.widget_el_shuffle
++        WidgetElement.REPEAT -> R.string.widget_el_repeat
++    }
++
++private val WidgetElement.icon: ImageVector
++    get() = when (this) {
++        WidgetElement.COVER -> Icons.Rounded.Album
++        WidgetElement.ARTIST -> Icons.Rounded.Person
++        WidgetElement.INFO -> Icons.Rounded.Title
++        WidgetElement.UP_NEXT -> Icons.AutoMirrored.Rounded.QueueMusic
++        WidgetElement.SEEK_BAR -> Icons.Rounded.LinearScale
++        WidgetElement.PREVIOUS -> Icons.Rounded.SkipPrevious
++        WidgetElement.PLAY_PAUSE -> Icons.Rounded.PlayArrow
++        WidgetElement.NEXT -> Icons.Rounded.SkipNext
++        WidgetElement.SHUFFLE -> Icons.Rounded.Shuffle
++        WidgetElement.REPEAT -> Icons.Rounded.Repeat
++    }
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt b/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt
+index 2ab1c92..c37047c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt
+@@ -12,8 +12,11 @@ import android.os.Build
+ import android.util.Log
+ import androidx.core.content.FileProvider
+ import com.dd3boh.outertune.BuildConfig
++import com.dd3boh.outertune.constants.BackupBeforeUpdateKey
++import com.dd3boh.outertune.db.MusicDatabase
+ import com.zionhuang.innertube.YouTube
+ import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.withContext
+ import okhttp3.OkHttpClient
+ import okhttp3.Request
+@@ -176,6 +179,8 @@ object AppUpdater {
+     suspend fun downloadAndInstall(
+         context: Context,
+         update: Update,
++        /** For the backup taken before installing - see [BackupBeforeUpdateKey]. Null skips it. */
++        database: MusicDatabase? = null,
+         onProgress: (Float) -> Unit = {},
+     ): Result<Unit> = withContext(Dispatchers.IO) {
+         runCatching {
+@@ -215,6 +220,16 @@ object AppUpdater {
+                 error("Download incomplete (${apk.length()} of ${update.sizeBytes} bytes)")
+             }
+ 
++            // A backup of the library and settings, taken now - after the download, so a failed
++            // download leaves nothing behind, and before the installer, which is the last moment
++            // this version can still write one. An update that turns out to break something (a
++            // database migration, say) then has a way back from the version before it. Never blocks
++            // the update: a backup that fails is logged and the install goes ahead.
++            if (database != null && context.dataStore.data.first()[BackupBeforeUpdateKey] != false) {
++                val saved = writePreUpdateBackup(context, database, BuildConfig.VERSION_NAME)
++                Log.i(TAG, if (saved) "pre-update backup written" else "pre-update backup failed")
++            }
++
+             val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.FileProvider", apk)
+             val intent = Intent(Intent.ACTION_VIEW).apply {
+                 setDataAndType(uri, "application/vnd.android.package-archive")
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt b/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt
+index bc07791..8be8e70 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/BackupUtil.kt
+@@ -95,12 +95,40 @@ suspend fun writeAutoBackup(
+     context: Context,
+     database: MusicDatabase,
+     keepCount: Int,
++): Boolean = writeDownloadsBackup(context, database, AUTO_BACKUP_PREFIX, keepCount)
++
++/**
++ * A backup taken just before an update is installed - see AppUpdater.downloadAndInstall. Same folder
++ * as the automatic ones, its own name and its own count, so neither kind prunes the other: the last
++ * [PRE_UPDATE_KEEP_COUNT] updates each leave a way back. [fromVersion] goes in the file name, since
++ * "the backup from before I installed 0.23" is exactly how someone will look for it.
++ */
++suspend fun writePreUpdateBackup(
++    context: Context,
++    database: MusicDatabase,
++    fromVersion: String,
++): Boolean = writeDownloadsBackup(
++    context, database,
++    prefix = "$PRE_UPDATE_BACKUP_PREFIX${fromVersion.replace(Regex("[^A-Za-z0-9.]"), "_")}_",
++    keepCount = PRE_UPDATE_KEEP_COUNT,
++    prunePrefix = PRE_UPDATE_BACKUP_PREFIX,
++)
++
++private const val PRE_UPDATE_BACKUP_PREFIX = "outertune_before_update_"
++private const val PRE_UPDATE_KEEP_COUNT = 3
++
++private suspend fun writeDownloadsBackup(
++    context: Context,
++    database: MusicDatabase,
++    prefix: String,
++    keepCount: Int,
++    prunePrefix: String = prefix,
+ ): Boolean = withContext(Dispatchers.IO) {
+     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext false
+ 
+     runCatching {
+         val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
+-        val fileName = "$AUTO_BACKUP_PREFIX${LocalDateTime.now().format(formatter)}.backup"
++        val fileName = "$prefix${LocalDateTime.now().format(formatter)}.backup"
+ 
+         val values = ContentValues().apply {
+             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+@@ -120,7 +148,7 @@ suspend fun writeAutoBackup(
+             return@runCatching false
+         }
+ 
+-        pruneOldAutoBackups(context, keepCount)
++        pruneOldAutoBackups(context, keepCount, prunePrefix)
+         true
+     }.onFailure {
+         Log.e(TAG, "Automatic backup failed", it)
+@@ -128,10 +156,10 @@ suspend fun writeAutoBackup(
+ }
+ 
+ /** Deletes every automatic backup past the newest [keepCount], oldest first. */
+-private fun pruneOldAutoBackups(context: Context, keepCount: Int) {
++private fun pruneOldAutoBackups(context: Context, keepCount: Int, prefix: String = AUTO_BACKUP_PREFIX) {
+     val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME)
+     val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
+-    val args = arrayOf("${Environment.DIRECTORY_DOWNLOADS}/$AUTO_BACKUP_RELATIVE_DIR/", "$AUTO_BACKUP_PREFIX%")
++    val args = arrayOf("${Environment.DIRECTORY_DOWNLOADS}/$AUTO_BACKUP_RELATIVE_DIR/", "$prefix%")
+ 
+     val toDelete = mutableListOf<Uri>()
+     context.contentResolver.query(
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index 4da01d4..63dd243 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -23,6 +23,7 @@ import android.graphics.Path
+ import android.graphics.RectF
+ import android.graphics.Shader
+ import android.os.Build
++import android.os.Bundle
+ import android.os.Handler
+ import android.os.Looper
+ import android.widget.RemoteViews
+@@ -44,6 +45,8 @@ import com.dd3boh.outertune.constants.LiquidColorScheme
+ import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+ import com.dd3boh.outertune.constants.LiquidShapeStyle
+ import com.dd3boh.outertune.constants.LiquidShapeStyleKey
++import com.dd3boh.outertune.constants.MediaSessionConstants
++import com.dd3boh.outertune.constants.WidgetLayoutKey
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyle
+ import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
+ import com.dd3boh.outertune.constants.SliderStyle
+@@ -100,6 +103,12 @@ class PlayerWidgetProvider : AppWidgetProvider() {
+                     if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
+                     controller.play()
+                 }
++                // The notification's own commands, so the widget shuffles and repeats exactly the
++                // way the notification buttons do (the app's queue shuffle, not just the player's).
++                PlayerWidget.ACTION_SHUFFLE ->
++                    controller.sendCustomCommand(MediaSessionConstants.CommandToggleShuffle, Bundle.EMPTY)
++                PlayerWidget.ACTION_REPEAT ->
++                    controller.sendCustomCommand(MediaSessionConstants.CommandToggleRepeatMode, Bundle.EMPTY)
+             }
+             // Released a moment later rather than at once, so the command is delivered before the
+             // connection it travels on goes away.
+@@ -149,6 +158,13 @@ object PlayerWidget {
+     @Volatile private var lastArtSongId: String? = null
+     @Volatile private var lastLook = Look(DEFAULT_PLAYER_BACKGROUND, DEFAULT_SLIDER_STYLE, SliderWeight.THINNER)
+ 
++    @Volatile private var lastShuffle = false
++    @Volatile private var lastRepeat = Player.REPEAT_MODE_OFF
++    @Volatile private var lastUpNext: String? = null
++    @Volatile private var lastArtistArt: Bitmap? = null
++    @Volatile private var lastArtistArtUrl: String? = null
++    @Volatile private var lastLayout = WidgetLayout.DEFAULT
++
+     /** The drawn background, kept until the song, the look or light/dark changes. */
+     @Volatile private var lastBackground: Bitmap? = null
+     @Volatile private var lastBackgroundKey: String? = null
+@@ -161,7 +177,16 @@ object PlayerWidget {
+      * the cover itself, so call it from a coroutine that a newer song will cancel (the service uses
+      * collectLatest).
+      */
+-    suspend fun update(context: Context, metadata: MediaMetadata?, playing: Boolean, fraction: Float) {
++    suspend fun update(
++        context: Context,
++        metadata: MediaMetadata?,
++        playing: Boolean,
++        fraction: Float,
++        shuffle: Boolean = false,
++        repeatMode: Int = Player.REPEAT_MODE_OFF,
++        upNext: String? = null,
++        artistImageUrl: String? = null,
++    ) {
+         val manager = AppWidgetManager.getInstance(context)
+         val ids = ids(context, manager)
+ 
+@@ -169,6 +194,9 @@ object PlayerWidget {
+         lastArtist = metadata?.artists?.joinToString { it.name }
+         lastPlaying = playing
+         lastFraction = fraction
++        lastShuffle = shuffle
++        lastRepeat = repeatMode
++        lastUpNext = upNext
+         if (metadata?.id != lastArtSongId) {
+             lastArt = null
+             lastArtSongId = metadata?.id
+@@ -187,15 +215,26 @@ object PlayerWidget {
+             liquidBackdrop = prefs[LiquidColorSchemeKey]?.let { stored -> LiquidColorScheme.entries.find { it.name == stored } }
+                 ?: LiquidColorScheme.SURFACE,
+         )
++        lastLayout = WidgetLayout.parse(prefs[WidgetLayoutKey])
+ 
+         // Text and buttons straight away; the cover, and the background drawn from it, follow.
+         pushLast(context, manager, ids)
++        var changed = false
+         if (metadata != null && lastArt == null) {
+-            val art = loadArt(context, metadata) ?: return
+-            if (lastArtSongId != metadata.id) return
+-            lastArt = art
+-            pushLast(context, manager, ids)
++            val art = loadArt(context, metadata.getThumbnailModel(ART_PX, ART_PX))
++            if (art != null && lastArtSongId == metadata.id) {
++                lastArt = art
++                changed = true
++            }
+         }
++        // The artist's own picture, only when the arrangement shows it.
++        val wantsArtist = lastLayout.rows.any { WidgetElement.ARTIST in it }
++        if (wantsArtist && artistImageUrl != lastArtistArtUrl) {
++            lastArtistArtUrl = artistImageUrl
++            lastArtistArt = artistImageUrl?.let { loadArt(context, it) }
++            changed = true
++        }
++        if (changed) pushLast(context, manager, ids)
+     }
+ 
+     /** Moves only the seek bar. Cheap enough to call every couple of seconds while playing. */
+@@ -205,8 +244,9 @@ object PlayerWidget {
+         if (ids.isEmpty()) return
+         lastFraction = fraction
+         val colours = colours(context, lastLook.background, lastArt != null)
++        if (lastLayout.rows.none { WidgetElement.SEEK_BAR in it }) return
+         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
+-            setImageViewBitmap(R.id.widget_seekbar, seekBar(context, fraction, lastLook, colours))
++            setImageViewBitmap(R.id.el_seekbar, seekBar(context, fraction, lastLook, colours))
+         }
+         manager.partiallyUpdateAppWidget(ids, views)
+     }
+@@ -217,18 +257,6 @@ object PlayerWidget {
+         val look = lastLook
+         val colours = colours(context, look.background, art != null)
+         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
+-            setTextViewText(R.id.widget_title, lastTitle ?: context.getString(R.string.widget_nothing_playing))
+-            setTextViewText(R.id.widget_artist, lastArtist.orEmpty())
+-            setTextColor(R.id.widget_title, colours.text)
+-            setTextColor(R.id.widget_artist, colours.subtext)
+-            setImageViewResource(R.id.widget_play_pause, if (lastPlaying) R.drawable.pause else R.drawable.play)
+-            setInt(R.id.widget_play_pause, "setColorFilter", colours.accent)
+-            setInt(R.id.widget_previous, "setColorFilter", colours.text)
+-            setInt(R.id.widget_next, "setColorFilter", colours.text)
+-
+-            if (art != null) setImageViewBitmap(R.id.widget_artwork, art)
+-            else setImageViewResource(R.id.widget_artwork, R.drawable.placeholder_icon)
+-
+             val drawn = art?.let { background(context, it, look.background) }
+             if (drawn != null) {
+                 setImageViewBitmap(R.id.widget_background, drawn)
+@@ -238,17 +266,89 @@ object PlayerWidget {
+                 setImageViewResource(R.id.widget_background, R.drawable.widget_background)
+                 setInt(R.id.widget_background, "setColorFilter", colours.background)
+             }
+-            setImageViewBitmap(R.id.widget_seekbar, seekBar(context, lastFraction, look, colours))
+-
+             setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
+-            setOnClickPendingIntent(R.id.widget_artwork, openAppIntent(context))
+-            setOnClickPendingIntent(R.id.widget_previous, commandIntent(context, ACTION_PREVIOUS, 1))
+-            setOnClickPendingIntent(R.id.widget_play_pause, commandIntent(context, ACTION_PLAY_PAUSE, 2))
+-            setOnClickPendingIntent(R.id.widget_next, commandIntent(context, ACTION_NEXT, 3))
++
++            removeAllViews(R.id.widget_rows)
++            for (row in lastLayout.rows) {
++                val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
++                row.forEach { element -> rowViews.addView(R.id.widget_row_container, elementView(context, element, colours, look)) }
++                addView(R.id.widget_rows, rowViews)
++            }
+         }
+         manager.updateAppWidget(ids, views)
+     }
+ 
++    /** One element of the arrangement, filled in - see [WidgetElement] and the widget_el_* layouts. */
++    private fun elementView(context: Context, element: WidgetElement, colours: Colours, look: Look): RemoteViews {
++        fun button(icon: Int, action: String, requestCode: Int, tint: Int, layout: Int = R.layout.widget_el_button) =
++            RemoteViews(context.packageName, layout).apply {
++                setImageViewResource(R.id.el_button, icon)
++                setInt(R.id.el_button, "setColorFilter", tint)
++                setOnClickPendingIntent(R.id.el_button, commandIntent(context, action, requestCode))
++            }
++        return when (element) {
++            WidgetElement.COVER -> RemoteViews(context.packageName, R.layout.widget_el_cover).apply {
++                lastArt?.let { setImageViewBitmap(R.id.el_image, it) }
++                setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
++            }
++
++            WidgetElement.ARTIST -> RemoteViews(context.packageName, R.layout.widget_el_artist).apply {
++                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, it) }
++                setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
++            }
++
++            WidgetElement.INFO -> RemoteViews(context.packageName, R.layout.widget_el_info).apply {
++                setTextViewText(R.id.el_title, lastTitle ?: context.getString(R.string.widget_nothing_playing))
++                setTextViewText(R.id.el_subtitle, lastArtist.orEmpty())
++                setTextColor(R.id.el_title, colours.text)
++                setTextColor(R.id.el_subtitle, colours.subtext)
++            }
++
++            WidgetElement.UP_NEXT -> RemoteViews(context.packageName, R.layout.widget_el_upnext).apply {
++                setTextViewText(
++                    R.id.el_text,
++                    lastUpNext?.let { context.getString(R.string.widget_up_next, it) } ?: "",
++                )
++                setTextColor(R.id.el_text, colours.subtext)
++            }
++
++            WidgetElement.SEEK_BAR -> RemoteViews(context.packageName, R.layout.widget_el_seekbar).apply {
++                setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours))
++            }
++
++            WidgetElement.PREVIOUS -> button(R.drawable.skip_previous, ACTION_PREVIOUS, 1, colours.text)
++            WidgetElement.PLAY_PAUSE -> button(
++                if (lastPlaying) R.drawable.pause else R.drawable.play, ACTION_PLAY_PAUSE, 2, colours.accent,
++                layout = R.layout.widget_el_play,
++            )
++            WidgetElement.NEXT -> button(R.drawable.skip_next, ACTION_NEXT, 3, colours.text)
++            // Lit in the accent while on, like the player's own buttons.
++            WidgetElement.SHUFFLE -> button(
++                if (lastShuffle) R.drawable.shuffle_on else R.drawable.shuffle_off, ACTION_SHUFFLE, 4,
++                if (lastShuffle) colours.accent else colours.text,
++            )
++            WidgetElement.REPEAT -> button(
++                when (lastRepeat) {
++                    Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
++                    Player.REPEAT_MODE_ALL -> R.drawable.repeat_on
++                    else -> R.drawable.repeat_off
++                },
++                ACTION_REPEAT, 5,
++                if (lastRepeat != Player.REPEAT_MODE_OFF) colours.accent else colours.text,
++            )
++        }
++    }
++
++    /**
++     * Applies a new arrangement from the widget editor straight away, without waiting for the next
++     * song or play-state change to redraw.
++     */
++    fun applyLayout(context: Context, layout: WidgetLayout) {
++        lastLayout = layout
++        val manager = AppWidgetManager.getInstance(context)
++        pushLast(context, manager, ids(context, manager))
++    }
++
+     private fun isNight(context: Context) =
+         context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+ 
+@@ -520,8 +620,8 @@ object PlayerWidget {
+         return bitmap
+     }
+ 
+-    private suspend fun loadArt(context: Context, metadata: MediaMetadata): Bitmap? {
+-        val model = metadata.getThumbnailModel(ART_PX, ART_PX) ?: return null
++    private suspend fun loadArt(context: Context, model: Any?): Bitmap? {
++        if (model == null) return null
+         val result = context.imageLoader.execute(
+             ImageRequest.Builder(context)
+                 .data(model)
+@@ -555,5 +655,7 @@ object PlayerWidget {
+     internal const val ACTION_PREVIOUS = "com.dd3boh.outertune.widget.PREVIOUS"
+     internal const val ACTION_PLAY_PAUSE = "com.dd3boh.outertune.widget.PLAY_PAUSE"
+     internal const val ACTION_NEXT = "com.dd3boh.outertune.widget.NEXT"
+-    internal val COMMANDS = setOf(ACTION_PREVIOUS, ACTION_PLAY_PAUSE, ACTION_NEXT)
++    internal const val ACTION_SHUFFLE = "com.dd3boh.outertune.widget.SHUFFLE"
++    internal const val ACTION_REPEAT = "com.dd3boh.outertune.widget.REPEAT"
++    internal val COMMANDS = setOf(ACTION_PREVIOUS, ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_SHUFFLE, ACTION_REPEAT)
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+new file mode 100644
+index 0000000..1b440fe
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+@@ -0,0 +1,131 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.widget
++
++/**
++ * One piece of the home-screen widget.
++ *
++ * [flexible] pieces stretch to share whatever width their row has left; the rest are their own
++ * fixed size. That split is the whole of the placement rules - see [WidgetLayout].
++ */
++enum class WidgetElement(val flexible: Boolean) {
++    COVER(false),
++    ARTIST(false),
++    INFO(true),
++    UP_NEXT(true),
++    SEEK_BAR(true),
++    PREVIOUS(false),
++    PLAY_PAUSE(false),
++    NEXT(false),
++    SHUFFLE(false),
++    REPEAT(false),
++}
++
++/**
++ * The widget's arrangement: rows, top to bottom, each an ordered list of elements, left to right.
++ *
++ * Rows of slots rather than free positions, which is what makes layering impossible by
++ * construction - nothing can be placed on top of anything else, only beside it. It is also the only
++ * thing a home-screen widget can actually do: RemoteViews has no free placement, but it can nest
++ * rows. The rules, all enforced by [normalised]:
++ *
++ * - Every element appears at most once.
++ * - At most [MAX_ROWS] rows and [MAX_PER_ROW] elements in a row, so a row always fits.
++ * - No empty rows, and never an empty layout - that falls back to [DEFAULT].
++ *
++ * Stored as text, "COVER,INFO,PLAY_PAUSE|SEEK_BAR": rows split by '|', elements by ','. Unknown
++ * names are dropped, so a layout written by a newer version still loads.
++ */
++data class WidgetLayout(val rows: List<List<WidgetElement>>) {
++
++    fun encode(): String = rows.joinToString("|") { row -> row.joinToString(",") { it.name } }
++
++    val unused: List<WidgetElement> get() = WidgetElement.entries.filter { element -> rows.none { element in it } }
++
++    fun normalised(): WidgetLayout {
++        val seen = mutableSetOf<WidgetElement>()
++        val cleaned = rows
++            .map { row -> row.filter { seen.add(it) }.take(MAX_PER_ROW) }
++            .filter { it.isNotEmpty() }
++            .take(MAX_ROWS)
++        return if (cleaned.isEmpty()) DEFAULT else WidgetLayout(cleaned)
++    }
++
++    private fun locate(element: WidgetElement): Pair<Int, Int>? {
++        rows.forEachIndexed { r, row -> row.indexOf(element).takeIf { it >= 0 }?.let { return r to it } }
++        return null
++    }
++
++    /** Swaps [element] with its neighbour, [by] = -1 left or +1 right. */
++    fun moveWithinRow(element: WidgetElement, by: Int): WidgetLayout {
++        val (r, i) = locate(element) ?: return this
++        val target = i + by
++        if (target !in rows[r].indices) return this
++        val row = rows[r].toMutableList().apply { add(target, removeAt(i)) }
++        return WidgetLayout(rows.toMutableList().apply { this[r] = row }).normalised()
++    }
++
++    /**
++     * Moves [element] to the row above ([by] = -1) or below (+1), at the end. Moving down from the
++     * last row starts a new one, while there is room for it. Refused when the row is full.
++     */
++    fun moveToRow(element: WidgetElement, by: Int): WidgetLayout {
++        val (r, _) = locate(element) ?: return this
++        val target = r + by
++        if (target < 0) return this
++        val newRows = rows.map { it.toMutableList() }.toMutableList()
++        if (target >= newRows.size) {
++            if (newRows.size >= MAX_ROWS || newRows[r].size == 1) return this
++            newRows.add(mutableListOf())
++        }
++        if (newRows[target].size >= MAX_PER_ROW) return this
++        newRows[r].remove(element)
++        newRows[target].add(element)
++        return WidgetLayout(newRows).normalised()
++    }
++
++    fun remove(element: WidgetElement): WidgetLayout {
++        val removed = WidgetLayout(rows.map { row -> row.filter { it != element } })
++        // Removing the last element would leave nothing; the default is not what was asked for.
++        return if (removed.rows.all { it.isEmpty() }) this else removed.normalised()
++    }
++
++    /** Adds [element] to the end of row [row], or a new last row if [row] is past the end. */
++    fun add(element: WidgetElement, row: Int): WidgetLayout {
++        if (element !in unused) return this
++        val newRows = rows.map { it.toMutableList() }.toMutableList()
++        if (row >= newRows.size) {
++            if (newRows.size >= MAX_ROWS) return this
++            newRows.add(mutableListOf())
++        }
++        val target = row.coerceAtMost(newRows.lastIndex)
++        if (newRows[target].size >= MAX_PER_ROW) return this
++        newRows[target].add(element)
++        return WidgetLayout(newRows).normalised()
++    }
++
++    companion object {
++        const val MAX_ROWS = 3
++        const val MAX_PER_ROW = 6
++
++        /** What the widget looked like before it could be arranged. */
++        val DEFAULT = WidgetLayout(
++            listOf(
++                listOf(WidgetElement.COVER, WidgetElement.INFO, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT),
++                listOf(WidgetElement.SEEK_BAR),
++            )
++        )
++
++        fun parse(text: String?): WidgetLayout {
++            if (text.isNullOrBlank()) return DEFAULT
++            val rows = text.split('|').map { row ->
++                row.split(',').mapNotNull { name -> WidgetElement.entries.find { it.name == name.trim() } }
++            }
++            return WidgetLayout(rows).normalised()
++        }
++    }
++}
+diff --git a/app/src/main/res/layout/widget_el_artist.xml b/app/src/main/res/layout/widget_el_artist.xml
+new file mode 100644
+index 0000000..cbe9057
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_artist.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_image"
++    android:layout_width="40dp"
++    android:layout_height="40dp"
++    android:layout_marginEnd="10dp"
++    android:contentDescription="@null"
++    android:scaleType="centerCrop"
++    android:src="@drawable/placeholder_icon" />
+diff --git a/app/src/main/res/layout/widget_el_button.xml b/app/src/main/res/layout/widget_el_button.xml
+new file mode 100644
+index 0000000..525d3d8
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_button.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_button"
++    android:layout_width="42dp"
++    android:layout_height="42dp"
++    android:background="@android:color/transparent"
++    android:scaleType="centerInside" />
+diff --git a/app/src/main/res/layout/widget_el_cover.xml b/app/src/main/res/layout/widget_el_cover.xml
+new file mode 100644
+index 0000000..39480d2
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_cover.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_image"
++    android:layout_width="56dp"
++    android:layout_height="56dp"
++    android:layout_marginEnd="10dp"
++    android:contentDescription="@null"
++    android:scaleType="centerCrop"
++    android:src="@drawable/placeholder_icon" />
+diff --git a/app/src/main/res/layout/widget_el_info.xml b/app/src/main/res/layout/widget_el_info.xml
+new file mode 100644
+index 0000000..77cd7c1
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_info.xml
+@@ -0,0 +1,27 @@
++<?xml version="1.0" encoding="utf-8"?>
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="0dp"
++    android:layout_height="wrap_content"
++    android:layout_marginEnd="4dp"
++    android:layout_weight="1"
++    android:orientation="vertical">
++
++    <TextView
++        android:id="@+id/el_title"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:ellipsize="end"
++        android:maxLines="1"
++        android:textColor="#FFFFFFFF"
++        android:textSize="15sp"
++        android:textStyle="bold" />
++
++    <TextView
++        android:id="@+id/el_subtitle"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:ellipsize="end"
++        android:maxLines="1"
++        android:textColor="#B3FFFFFF"
++        android:textSize="13sp" />
++</LinearLayout>
+diff --git a/app/src/main/res/layout/widget_el_play.xml b/app/src/main/res/layout/widget_el_play.xml
+new file mode 100644
+index 0000000..0c4f91d
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_play.xml
+@@ -0,0 +1,7 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_button"
++    android:layout_width="50dp"
++    android:layout_height="50dp"
++    android:background="@android:color/transparent"
++    android:scaleType="centerInside" />
+diff --git a/app/src/main/res/layout/widget_el_seekbar.xml b/app/src/main/res/layout/widget_el_seekbar.xml
+new file mode 100644
+index 0000000..ae97523
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_seekbar.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ImageView xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_seekbar"
++    android:layout_width="0dp"
++    android:layout_height="14dp"
++    android:layout_marginVertical="4dp"
++    android:layout_weight="1"
++    android:contentDescription="@null"
++    android:scaleType="fitXY" />
+diff --git a/app/src/main/res/layout/widget_el_upnext.xml b/app/src/main/res/layout/widget_el_upnext.xml
+new file mode 100644
+index 0000000..c61f401
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_upnext.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<TextView xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_text"
++    android:layout_width="0dp"
++    android:layout_height="wrap_content"
++    android:layout_marginEnd="4dp"
++    android:layout_weight="1"
++    android:ellipsize="end"
++    android:maxLines="1"
++    android:textColor="#B3FFFFFF"
++    android:textSize="12sp" />
+diff --git a/app/src/main/res/layout/widget_player.xml b/app/src/main/res/layout/widget_player.xml
+index ee58468..a7fd30e 100644
+--- a/app/src/main/res/layout/widget_player.xml
++++ b/app/src/main/res/layout/widget_player.xml
+@@ -1,7 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<!-- The home-screen player. RemoteViews only allow a fixed set of plain views, hence plain layouts.
+-     The background and the seek bar are both images drawn by PlayerWidget, which is how they follow
+-     the player's appearance settings (frosted cover, theme colours, wave seek bar) at all. -->
++<!-- The home-screen player. A background image and an empty column: PlayerWidget fills the column
++     with rows (widget_row) of elements (widget_el_*) in whatever arrangement the widget editor
++     saved. RemoteViews cannot place views freely, but it can add them to a container, which is
++     what makes the arrangement editable at all. -->
+ <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     android:id="@+id/widget_root"
+     android:layout_width="match_parent"
+@@ -16,89 +17,20 @@
+         android:src="@drawable/widget_background" />
+ 
+     <LinearLayout
++        android:id="@+id/widget_rows"
+         android:layout_width="match_parent"
+         android:layout_height="match_parent"
+         android:gravity="center_vertical"
+         android:orientation="vertical"
+         android:padding="12dp">
+ 
+-        <LinearLayout
++        <!-- Shown until the first update fills the column. -->
++        <TextView
+             android:layout_width="match_parent"
+             android:layout_height="wrap_content"
+-            android:gravity="center_vertical"
+-            android:orientation="horizontal">
+-
+-            <ImageView
+-                android:id="@+id/widget_artwork"
+-                android:layout_width="56dp"
+-                android:layout_height="56dp"
+-                android:contentDescription="@null"
+-                android:scaleType="centerCrop"
+-                android:src="@drawable/placeholder_icon" />
+-
+-            <LinearLayout
+-                android:layout_width="0dp"
+-                android:layout_height="wrap_content"
+-                android:layout_marginStart="12dp"
+-                android:layout_marginEnd="4dp"
+-                android:layout_weight="1"
+-                android:orientation="vertical">
+-
+-                <TextView
+-                    android:id="@+id/widget_title"
+-                    android:layout_width="match_parent"
+-                    android:layout_height="wrap_content"
+-                    android:ellipsize="end"
+-                    android:maxLines="1"
+-                    android:text="@string/widget_nothing_playing"
+-                    android:textColor="#FFFFFFFF"
+-                    android:textSize="15sp"
+-                    android:textStyle="bold" />
+-
+-                <TextView
+-                    android:id="@+id/widget_artist"
+-                    android:layout_width="match_parent"
+-                    android:layout_height="wrap_content"
+-                    android:ellipsize="end"
+-                    android:maxLines="1"
+-                    android:textColor="#B3FFFFFF"
+-                    android:textSize="13sp" />
+-            </LinearLayout>
+-
+-            <ImageButton
+-                android:id="@+id/widget_previous"
+-                android:layout_width="40dp"
+-                android:layout_height="40dp"
+-                android:background="@android:color/transparent"
+-                android:contentDescription="@string/widget_previous"
+-                android:scaleType="centerInside"
+-                android:src="@drawable/skip_previous" />
+-
+-            <ImageButton
+-                android:id="@+id/widget_play_pause"
+-                android:layout_width="48dp"
+-                android:layout_height="48dp"
+-                android:background="@android:color/transparent"
+-                android:contentDescription="@string/widget_play_pause"
+-                android:scaleType="centerInside"
+-                android:src="@drawable/play" />
+-
+-            <ImageButton
+-                android:id="@+id/widget_next"
+-                android:layout_width="40dp"
+-                android:layout_height="40dp"
+-                android:background="@android:color/transparent"
+-                android:contentDescription="@string/widget_next"
+-                android:scaleType="centerInside"
+-                android:src="@drawable/skip_next" />
+-        </LinearLayout>
+-
+-        <ImageView
+-            android:id="@+id/widget_seekbar"
+-            android:layout_width="match_parent"
+-            android:layout_height="14dp"
+-            android:layout_marginTop="8dp"
+-            android:contentDescription="@null"
+-            android:scaleType="fitXY" />
++            android:text="@string/widget_nothing_playing"
++            android:textColor="#FFFFFFFF"
++            android:textSize="15sp"
++            android:textStyle="bold" />
+     </LinearLayout>
+ </FrameLayout>
+diff --git a/app/src/main/res/layout/widget_row.xml b/app/src/main/res/layout/widget_row.xml
+new file mode 100644
+index 0000000..f9f87c9
+--- /dev/null
++++ b/app/src/main/res/layout/widget_row.xml
+@@ -0,0 +1,9 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- One row of the widget. Elements are added to it left to right; flexible ones carry weight 1. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/widget_row_container"
++    android:layout_width="match_parent"
++    android:layout_height="wrap_content"
++    android:layout_marginVertical="3dp"
++    android:gravity="center_vertical"
++    android:orientation="horizontal" />
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index f157912..8299755 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -152,6 +152,8 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="update_auto_check_desc">Looks for a new release when the Updater is opened</string>
+     <string name="update_auto_download">Download automatically</string>
+     <string name="update_auto_download_desc">Downloads updates as soon as they\'re found</string>
++    <string name="update_backup_first">Back up before installing</string>
++    <string name="update_backup_first_desc">Saves your library and settings to Downloads/OuterTune Backup just before an update installs, so a bad update can be undone. Keeps the last three.</string>
+     <string name="update_install_tooltip">Android does the installing, not OuterTune. You will be asked to allow installing unknown apps once, and to confirm every update after that.</string>
+ 
+ <!-- Appearance settings -->
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 467e7cd..90b55ba 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -285,6 +285,23 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="widget_previous">Previous</string>
+     <string name="widget_play_pause">Play or pause</string>
+     <string name="widget_next">Next</string>
++    <string name="widget_up_next">Next: %1$s</string>
++    <string name="widget_layout_title">Home-screen widget</string>
++    <string name="widget_layout_summary">Choose what the widget shows, and where</string>
++    <string name="widget_layout_row">Row %1$d</string>
++    <string name="widget_layout_add">Add to the widget</string>
++    <string name="widget_layout_hint">Tap an item to move or remove it. Items sit side by side in rows, never on top of each other; the title, seek bar and up next stretch to fill their row.</string>
++    <string name="widget_layout_reset">Reset to default</string>
++    <string name="widget_el_cover">Cover</string>
++    <string name="widget_el_artist">Artist picture</string>
++    <string name="widget_el_info">Title and artist</string>
++    <string name="widget_el_up_next">Up next</string>
++    <string name="widget_el_seek_bar">Seek bar</string>
++    <string name="widget_el_previous">Previous</string>
++    <string name="widget_el_play_pause">Play / pause</string>
++    <string name="widget_el_next">Next</string>
++    <string name="widget_el_shuffle">Shuffle</string>
++    <string name="widget_el_repeat">Repeat</string>
+ 
+     <!-- Settings -->
+     <string name="settings">Settings</string>
+-- 
+2.56.0.windows.4
+
