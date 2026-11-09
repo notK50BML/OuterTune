@@ -51,6 +51,20 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
   Wired 3.5mm headphones can't be identified, so they're skipped.
 
+## Home chips fixed, and off by default
+
+- **Chips now change Home.** They always loaded the mood's page, but only YouTube's shelves at
+  the bottom of Home were replaced. Recent activity, Quick picks, Forgotten favourites, Keep
+  listening, your playlists and "Similar to" stayed on top, so the screen looked unchanged. With a
+  chip selected, Home now shows only that chip's page, from the top.
+- **Loading shows.** The chip spins while its page loads, and placeholder shelves replace the
+  previous view's.
+- **A failed chip goes back** to whatever was showing before, instead of leaving it empty.
+- **Pull to refresh** while a chip is selected no longer swaps the chip's page for the plain Home
+  page underneath it.
+- **Off by default.** Turn them on in Settings → Library and content → Mood chips on Home. While
+  they're off, Home no longer fetches every chip's page in the background on each load.
+
 ## Large fonts and small screens
 
 A pass for the same kind of bug as the ⋮ menu: fixed-height boxes holding text, which a larger

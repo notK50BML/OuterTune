@@ -66,7 +66,7 @@ fun LibrarySettings(
         defaultValue = true
     )
     val (artistEnrichment, onArtistEnrichmentChange) = rememberPreference(ArtistCreditEnrichmentKey, defaultValue = true)
-    val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = true)
+    val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = false)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),

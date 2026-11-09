@@ -17,6 +17,8 @@ import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.models.SimilarRecommendation
 import com.dd3boh.outertune.utils.SyncUtils
 import com.dd3boh.outertune.utils.dataStore
+import com.dd3boh.outertune.utils.get
+import com.dd3boh.outertune.constants.ShowHomeChipsKey
 import com.dd3boh.outertune.utils.reportException
 import com.dd3boh.outertune.utils.syncCoroutine
 import com.zionhuang.innertube.YouTube
@@ -60,6 +62,9 @@ class HomeViewModel @Inject constructor(
     val accountPlaylists = MutableStateFlow<List<PlaylistItem>?>(null)
     val homePage = MutableStateFlow<HomePage?>(null)
     val selectedChip = MutableStateFlow<HomePage.Chip?>(null)
+
+    /** The chip whose page is being fetched with nothing of it to show yet - drives its spinner. */
+    val loadingChip = MutableStateFlow<HomePage.Chip?>(null)
 
     /**
      * Each chip's page, fetched in the background once Home has loaded - see [prefetchChips]. A tap
@@ -186,8 +191,19 @@ class HomeViewModel @Inject constructor(
             val homeJob = async {
                 runCatching {
                     YouTube.home().onSuccess { page ->
-                        homePage.value = page
-                        prefetchChips(page.chips.orEmpty())
+                        // A refresh while a chip is showing updates the page that deselecting goes
+                        // back to, not the one on screen - that one belongs to the chip, which stayed
+                        // lit while its shelves were swapped for the plain Home ones underneath it.
+                        if (selectedChip.value != null) {
+                            previousHomePage.value = page
+                            homePage.value = homePage.value?.copy(chips = page.chips)
+                        } else {
+                            homePage.value = page
+                        }
+                        // One request per chip, so only when the chips are actually shown - they
+                        // are off by default, and fetching every mood's page on each Home load for
+                        // nobody to see is a lot of data for nothing.
+                        if (context.dataStore[ShowHomeChipsKey] == true) prefetchChips(page.chips.orEmpty())
                     }
                         .onFailure { reportException(it) }
                 }.onFailure { reportException(it) }
@@ -275,6 +291,7 @@ class HomeViewModel @Inject constructor(
     fun toggleChip(chip: HomePage.Chip?) {
         if (chip == null || chip == selectedChip.value && previousHomePage.value != null) {
             chipJob?.cancel()
+            loadingChip.value = null
             previousHomePage.value?.let { homePage.value = it }
             previousHomePage.value = null
             selectedChip.value = null
@@ -291,22 +308,42 @@ class HomeViewModel @Inject constructor(
         selectedChip.value = chip
         chipJob?.cancel()
         // Fetched already: shown now, and refreshed below like any other tap.
-        chipPages[chip.title]?.let { cached ->
+        val cached = chipPages[chip.title]
+        if (cached != null) {
             homePage.value = cached.copy(chips = homePage.value?.chips)
+            loadingChip.value = null
+        } else {
+            // Nothing of this chip yet. The shelves of whatever was showing are cleared rather than
+            // left up - they belong to the previous view, and leaving them looked like the tap had
+            // been ignored - and the chip spins until its own arrive.
+            homePage.value = homePage.value?.copy(sections = emptyList(), continuation = null)
+            loadingChip.value = chip
         }
         chipJob = viewModelScope.launch(Dispatchers.IO) {
+            try {
+                loadChip(chip, selectedBefore)
+            } finally {
+                if (loadingChip.value == chip) loadingChip.value = null
+            }
+        }
+    }
+
+    private suspend fun loadChip(chip: HomePage.Chip, selectedBefore: HomePage.Chip?) {
             val nextSections = YouTube.home(params = chip.endpoint?.params).getOrNull()
             // Some chips - Podcasts, today - come back as shelves this app does not draw, which
             // parse to nothing. Showing an empty home for those reads as broken; saying so and
             // staying where you were does not.
             // Already showing its fetched page: a refresh that fails changes nothing.
-            if (nextSections == null && chipPages.containsKey(chip.title)) return@launch
+            if (nextSections == null && chipPages.containsKey(chip.title)) return
             if (nextSections == null || nextSections.sections.isEmpty()) {
                 if (selectedChip.value == chip) {
                     selectedChip.value = selectedBefore
                     if (selectedBefore == null) {
                         previousHomePage.value?.let { homePage.value = it }
                         previousHomePage.value = null
+                    } else {
+                        // Back to the chip that was showing, whose shelves were cleared on the tap.
+                        chipPages[selectedBefore.title]?.let { homePage.value = it.copy(chips = homePage.value?.chips) }
                     }
                 }
                 withContext(Dispatchers.Main) {
@@ -319,16 +356,15 @@ class HomeViewModel @Inject constructor(
                         Toast.LENGTH_SHORT,
                     ).show()
                 }
-                return@launch
+                return
             }
             chipPages[chip.title] = nextSections
-            if (selectedChip.value != chip) return@launch
+            if (selectedChip.value != chip) return
             homePage.value = nextSections.copy(
                 chips = homePage.value?.chips,
                 sections = nextSections.sections,
                 continuation = nextSections.continuation
             )
-        }
     }
 
     fun refresh() {

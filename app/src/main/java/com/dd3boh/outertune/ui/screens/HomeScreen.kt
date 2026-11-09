@@ -146,7 +146,12 @@ fun HomeScreen(
 
     val selectedChip by viewModel.selectedChip.collectAsState()
     val emptyChips by viewModel.emptyChips.collectAsState()
-    val showHomeChips by rememberPreference(ShowHomeChipsKey, defaultValue = true)
+    val showHomeChips by rememberPreference(ShowHomeChipsKey, defaultValue = false)
+    // Switching the chips off while one is selected would leave Home stuck on that chip's page with
+    // no chip left to tap to get out of it.
+    LaunchedEffect(showHomeChips) {
+        if (!showHomeChips && viewModel.selectedChip.value != null) viewModel.toggleChip(null)
+    }
     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
     val searchTab = Screens.hasSearchTab(enabledTabs)
 
@@ -178,6 +183,8 @@ fun HomeScreen(
                 }
             }
     }
+
+    val loadingChip by viewModel.loadingChip.collectAsState()
 
     if (selectedChip != null) {
         BackHandler {
@@ -387,6 +394,8 @@ fun HomeScreen(
         }
 
         ScrollToTopManager(navController, lazylistState)
+        // A different chip is a different page; start it from the top.
+        LaunchedEffect(selectedChip) { lazylistState.scrollToItem(0) }
         LazyColumn(
             state = lazylistState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
@@ -407,6 +416,8 @@ fun HomeScreen(
                                 viewModel.toggleChip(it)
                             },
                             modifier = Modifier.weight(1f),
+                            // The spinner on the chip itself while its page loads.
+                            isLoading = { it == loadingChip },
                         )
                     } else {
                         androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
@@ -415,6 +426,12 @@ fun HomeScreen(
                 }
             }
 
+            // A chip is a view of Home, not a filter on its last few shelves. These sections are this
+            // device's own (recent activity, quick picks, favourites, your playlists, "similar to")
+            // and came first, so a chip used to swap only YouTube's shelves at the very bottom while
+            // everything on screen stayed the same - which read as the chip doing nothing at all.
+            // With one selected, Home is that chip's page and nothing else.
+            if (selectedChip == null) {
             if (isLoggedIn && !recentActivity.isNullOrEmpty()) {
                 item {
                     NavigationTitle(
@@ -697,6 +714,26 @@ fun HomeScreen(
                     }
                 }
             }
+            } // selectedChip == null
+
+            // A chip whose page is still on its way: placeholders where its shelves will go.
+            if (loadingChip != null) {
+                items(3) {
+                    ShimmerHost(modifier = Modifier.animateItem()) {
+                        TextPlaceholder(
+                            height = 36.dp,
+                            modifier = Modifier
+                                .padding(12.dp)
+                                .width(250.dp),
+                        )
+                        LazyRow {
+                            items(4) {
+                                GridItemPlaceHolder()
+                            }
+                        }
+                    }
+                }
+            }
 
             homePage?.sections?.forEach {
                 item {
@@ -765,7 +802,7 @@ fun HomeScreen(
                 }
             }
 
-            explorePage?.moodAndGenres?.let { moodAndGenres ->
+            explorePage?.moodAndGenres?.takeIf { selectedChip == null }?.let { moodAndGenres ->
                 item {
                     NavigationTitle(
                         title = stringResource(R.string.mood_and_genres),

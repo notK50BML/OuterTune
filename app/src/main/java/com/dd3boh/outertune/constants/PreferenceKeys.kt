@@ -197,7 +197,7 @@ val CrossfadeDurationKey = intPreferencesKey("crossfadeDuration")
 val ShowArtistVideosAsSongsKey = booleanPreferencesKey("showArtistVideosAsSongs")
 /** Settings > Library and content: repair and refresh artist credits (ArtistCreditEnricher). On by default. */
 val ArtistCreditEnrichmentKey = booleanPreferencesKey("artistCreditEnrichment")
-/** Settings > Library and content: the mood chips (Relax, Workout...) at the top of Home. On by default. */
+/** Settings > Library and content: the mood chips (Relax, Workout...) at the top of Home. Off by default. */
 val ShowHomeChipsKey = booleanPreferencesKey("showHomeChips")
 /**
  * Settings > Library and content: what shows under a song's title on its row, in order - see
