@@ -253047,3 +253047,289 @@ index 4443bd6..b9cbe47 100644
 -- 
 2.56.0.windows.4
 
+From f9d1ad02cbb1fc4db488a3384aa208abbca00aec Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 21:14:50 +0800
+Subject: [PATCH] Home chips: show the chip's page, spin while loading; off by
+ default
+
+A selected chip only replaced YouTube's shelves at the bottom of Home,
+under the local sections, so nothing visible changed. With a chip
+selected Home now shows only its page, scrolled to the top; the chip
+spins and placeholder shelves show while it loads; a failed load
+returns to the previous view; refresh no longer overwrites a chip's
+page. Mood chips default to off (Settings > Library and content), and
+their pages are only prefetched while they are shown.
+---
+ CHANGELOG-current.md                          | 14 ++++++
+ .../outertune/constants/PreferenceKeys.kt     |  2 +-
+ .../dd3boh/outertune/ui/screens/HomeScreen.kt | 41 ++++++++++++++-
+ .../ui/screens/settings/LibrarySettings.kt    |  2 +-
+ .../outertune/viewmodels/HomeViewModel.kt     | 50 ++++++++++++++++---
+ 5 files changed, 98 insertions(+), 11 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index d28209e..d40e175 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -51,6 +51,20 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
+   Wired 3.5mm headphones can't be identified, so they're skipped.
+ 
++## Home chips fixed, and off by default
++
++- **Chips now change Home.** They always loaded the mood's page, but only YouTube's shelves at
++  the bottom of Home were replaced. Recent activity, Quick picks, Forgotten favourites, Keep
++  listening, your playlists and "Similar to" stayed on top, so the screen looked unchanged. With a
++  chip selected, Home now shows only that chip's page, from the top.
++- **Loading shows.** The chip spins while its page loads, and placeholder shelves replace the
++  previous view's.
++- **A failed chip goes back** to whatever was showing before, instead of leaving it empty.
++- **Pull to refresh** while a chip is selected no longer swaps the chip's page for the plain Home
++  page underneath it.
++- **Off by default.** Turn them on in Settings → Library and content → Mood chips on Home. While
++  they're off, Home no longer fetches every chip's page in the background on each load.
++
+ ## Large fonts and small screens
+ 
+ A pass for the same kind of bug as the ⋮ menu: fixed-height boxes holding text, which a larger
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 2559385..1d62168 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -197,7 +197,7 @@ val CrossfadeDurationKey = intPreferencesKey("crossfadeDuration")
+ val ShowArtistVideosAsSongsKey = booleanPreferencesKey("showArtistVideosAsSongs")
+ /** Settings > Library and content: repair and refresh artist credits (ArtistCreditEnricher). On by default. */
+ val ArtistCreditEnrichmentKey = booleanPreferencesKey("artistCreditEnrichment")
+-/** Settings > Library and content: the mood chips (Relax, Workout...) at the top of Home. On by default. */
++/** Settings > Library and content: the mood chips (Relax, Workout...) at the top of Home. Off by default. */
+ val ShowHomeChipsKey = booleanPreferencesKey("showHomeChips")
+ /**
+  * Settings > Library and content: what shows under a song's title on its row, in order - see
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+index 691f5a8..188dd20 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+@@ -146,7 +146,12 @@ fun HomeScreen(
+ 
+     val selectedChip by viewModel.selectedChip.collectAsState()
+     val emptyChips by viewModel.emptyChips.collectAsState()
+-    val showHomeChips by rememberPreference(ShowHomeChipsKey, defaultValue = true)
++    val showHomeChips by rememberPreference(ShowHomeChipsKey, defaultValue = false)
++    // Switching the chips off while one is selected would leave Home stuck on that chip's page with
++    // no chip left to tap to get out of it.
++    LaunchedEffect(showHomeChips) {
++        if (!showHomeChips && viewModel.selectedChip.value != null) viewModel.toggleChip(null)
++    }
+     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+     val searchTab = Screens.hasSearchTab(enabledTabs)
+ 
+@@ -179,6 +184,8 @@ fun HomeScreen(
+             }
+     }
+ 
++    val loadingChip by viewModel.loadingChip.collectAsState()
++
+     if (selectedChip != null) {
+         BackHandler {
+             // if a chip is selected, go back to the normal homepage first
+@@ -387,6 +394,8 @@ fun HomeScreen(
+         }
+ 
+         ScrollToTopManager(navController, lazylistState)
++        // A different chip is a different page; start it from the top.
++        LaunchedEffect(selectedChip) { lazylistState.scrollToItem(0) }
+         LazyColumn(
+             state = lazylistState,
+             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
+@@ -407,6 +416,8 @@ fun HomeScreen(
+                                 viewModel.toggleChip(it)
+                             },
+                             modifier = Modifier.weight(1f),
++                            // The spinner on the chip itself while its page loads.
++                            isLoading = { it == loadingChip },
+                         )
+                     } else {
+                         androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+@@ -415,6 +426,12 @@ fun HomeScreen(
+                 }
+             }
+ 
++            // A chip is a view of Home, not a filter on its last few shelves. These sections are this
++            // device's own (recent activity, quick picks, favourites, your playlists, "similar to")
++            // and came first, so a chip used to swap only YouTube's shelves at the very bottom while
++            // everything on screen stayed the same - which read as the chip doing nothing at all.
++            // With one selected, Home is that chip's page and nothing else.
++            if (selectedChip == null) {
+             if (isLoggedIn && !recentActivity.isNullOrEmpty()) {
+                 item {
+                     NavigationTitle(
+@@ -697,6 +714,26 @@ fun HomeScreen(
+                     }
+                 }
+             }
++            } // selectedChip == null
++
++            // A chip whose page is still on its way: placeholders where its shelves will go.
++            if (loadingChip != null) {
++                items(3) {
++                    ShimmerHost(modifier = Modifier.animateItem()) {
++                        TextPlaceholder(
++                            height = 36.dp,
++                            modifier = Modifier
++                                .padding(12.dp)
++                                .width(250.dp),
++                        )
++                        LazyRow {
++                            items(4) {
++                                GridItemPlaceHolder()
++                            }
++                        }
++                    }
++                }
++            }
+ 
+             homePage?.sections?.forEach {
+                 item {
+@@ -765,7 +802,7 @@ fun HomeScreen(
+                 }
+             }
+ 
+-            explorePage?.moodAndGenres?.let { moodAndGenres ->
++            explorePage?.moodAndGenres?.takeIf { selectedChip == null }?.let { moodAndGenres ->
+                 item {
+                     NavigationTitle(
+                         title = stringResource(R.string.mood_and_genres),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
+index c474812..f46f3d8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
+@@ -66,7 +66,7 @@ fun LibrarySettings(
+         defaultValue = true
+     )
+     val (artistEnrichment, onArtistEnrichmentChange) = rememberPreference(ArtistCreditEnrichmentKey, defaultValue = true)
+-    val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = true)
++    val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = false)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+index 6bf3ca5..ceab6d7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/HomeViewModel.kt
+@@ -17,6 +17,8 @@ import com.dd3boh.outertune.db.entities.Song
+ import com.dd3boh.outertune.models.SimilarRecommendation
+ import com.dd3boh.outertune.utils.SyncUtils
+ import com.dd3boh.outertune.utils.dataStore
++import com.dd3boh.outertune.utils.get
++import com.dd3boh.outertune.constants.ShowHomeChipsKey
+ import com.dd3boh.outertune.utils.reportException
+ import com.dd3boh.outertune.utils.syncCoroutine
+ import com.zionhuang.innertube.YouTube
+@@ -61,6 +63,9 @@ class HomeViewModel @Inject constructor(
+     val homePage = MutableStateFlow<HomePage?>(null)
+     val selectedChip = MutableStateFlow<HomePage.Chip?>(null)
+ 
++    /** The chip whose page is being fetched with nothing of it to show yet - drives its spinner. */
++    val loadingChip = MutableStateFlow<HomePage.Chip?>(null)
++
+     /**
+      * Each chip's page, fetched in the background once Home has loaded - see [prefetchChips]. A tap
+      * then shows it at once and refreshes it behind, rather than waiting a round trip with nothing
+@@ -186,8 +191,19 @@ class HomeViewModel @Inject constructor(
+             val homeJob = async {
+                 runCatching {
+                     YouTube.home().onSuccess { page ->
+-                        homePage.value = page
+-                        prefetchChips(page.chips.orEmpty())
++                        // A refresh while a chip is showing updates the page that deselecting goes
++                        // back to, not the one on screen - that one belongs to the chip, which stayed
++                        // lit while its shelves were swapped for the plain Home ones underneath it.
++                        if (selectedChip.value != null) {
++                            previousHomePage.value = page
++                            homePage.value = homePage.value?.copy(chips = page.chips)
++                        } else {
++                            homePage.value = page
++                        }
++                        // One request per chip, so only when the chips are actually shown - they
++                        // are off by default, and fetching every mood's page on each Home load for
++                        // nobody to see is a lot of data for nothing.
++                        if (context.dataStore[ShowHomeChipsKey] == true) prefetchChips(page.chips.orEmpty())
+                     }
+                         .onFailure { reportException(it) }
+                 }.onFailure { reportException(it) }
+@@ -275,6 +291,7 @@ class HomeViewModel @Inject constructor(
+     fun toggleChip(chip: HomePage.Chip?) {
+         if (chip == null || chip == selectedChip.value && previousHomePage.value != null) {
+             chipJob?.cancel()
++            loadingChip.value = null
+             previousHomePage.value?.let { homePage.value = it }
+             previousHomePage.value = null
+             selectedChip.value = null
+@@ -291,22 +308,42 @@ class HomeViewModel @Inject constructor(
+         selectedChip.value = chip
+         chipJob?.cancel()
+         // Fetched already: shown now, and refreshed below like any other tap.
+-        chipPages[chip.title]?.let { cached ->
++        val cached = chipPages[chip.title]
++        if (cached != null) {
+             homePage.value = cached.copy(chips = homePage.value?.chips)
++            loadingChip.value = null
++        } else {
++            // Nothing of this chip yet. The shelves of whatever was showing are cleared rather than
++            // left up - they belong to the previous view, and leaving them looked like the tap had
++            // been ignored - and the chip spins until its own arrive.
++            homePage.value = homePage.value?.copy(sections = emptyList(), continuation = null)
++            loadingChip.value = chip
+         }
+         chipJob = viewModelScope.launch(Dispatchers.IO) {
++            try {
++                loadChip(chip, selectedBefore)
++            } finally {
++                if (loadingChip.value == chip) loadingChip.value = null
++            }
++        }
++    }
++
++    private suspend fun loadChip(chip: HomePage.Chip, selectedBefore: HomePage.Chip?) {
+             val nextSections = YouTube.home(params = chip.endpoint?.params).getOrNull()
+             // Some chips - Podcasts, today - come back as shelves this app does not draw, which
+             // parse to nothing. Showing an empty home for those reads as broken; saying so and
+             // staying where you were does not.
+             // Already showing its fetched page: a refresh that fails changes nothing.
+-            if (nextSections == null && chipPages.containsKey(chip.title)) return@launch
++            if (nextSections == null && chipPages.containsKey(chip.title)) return
+             if (nextSections == null || nextSections.sections.isEmpty()) {
+                 if (selectedChip.value == chip) {
+                     selectedChip.value = selectedBefore
+                     if (selectedBefore == null) {
+                         previousHomePage.value?.let { homePage.value = it }
+                         previousHomePage.value = null
++                    } else {
++                        // Back to the chip that was showing, whose shelves were cleared on the tap.
++                        chipPages[selectedBefore.title]?.let { homePage.value = it.copy(chips = homePage.value?.chips) }
+                     }
+                 }
+                 withContext(Dispatchers.Main) {
+@@ -319,16 +356,15 @@ class HomeViewModel @Inject constructor(
+                         Toast.LENGTH_SHORT,
+                     ).show()
+                 }
+-                return@launch
++                return
+             }
+             chipPages[chip.title] = nextSections
+-            if (selectedChip.value != chip) return@launch
++            if (selectedChip.value != chip) return
+             homePage.value = nextSections.copy(
+                 chips = homePage.value?.chips,
+                 sections = nextSections.sections,
+                 continuation = nextSections.continuation
+             )
+-        }
+     }
+ 
+     fun refresh() {
+-- 
+2.56.0.windows.4
+
