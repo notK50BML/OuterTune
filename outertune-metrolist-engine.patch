@@ -249561,3 +249561,1450 @@ index 5dcbf4a..f157912 100644
 -- 
 2.56.0.windows.4
 
+From 81ece0a5c84451789b31c25ad3607a8124261676 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 20:45:45 +0800
+Subject: [PATCH] Latency measurement, lyrics refetch, thumbnails, widget
+ appearance
+
+- Listen together: the host can measure a listener's speaker delay by
+  ear. Its microphone records a click from its own speaker and one from
+  the listener 1.5s later on the shared clock; the gap minus 1.5s is the
+  listener's extra output delay, sent back and applied as its offset.
+  The mic's own delay is in both clicks and cancels. New CLICK and
+  CALIBRATED frames, ignored by older peers. Offset text explains the
+  latency; the how-it-works entry is gone.
+- Refetch all lyrics marks fetched rows due instead of deleting them, so
+  lyrics stay (offline too) until replacements arrive; a re-check never
+  swaps found lyrics for not-found.
+- Download all thumbnails moved to Experimental and debug; Remove
+  thumbnail is gone from the song menu.
+- Widget follows the player appearance: blurred/frosted cover or cover
+  gradient behind it, Material You colours on Follow theme, and a seek
+  bar drawn in the chosen slider style and thickness, updated every 2s
+  while playing.
+---
+ .../com/dd3boh/outertune/db/DatabaseDao.kt    |   8 +
+ .../listentogether/FollowerSession.kt         |  21 ++
+ .../outertune/listentogether/HostSession.kt   |  20 ++
+ .../listentogether/LatencyCalibration.kt      | 213 ++++++++++++++
+ .../listentogether/ListenTogetherManager.kt   |  71 +++++
+ .../outertune/listentogether/Protocol.kt      |  16 ++
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   |  30 +-
+ .../dd3boh/outertune/playback/MusicService.kt |  17 +-
+ .../com/dd3boh/outertune/ui/menu/SongMenu.kt  |  26 +-
+ .../screens/settings/ExperimentalSettings.kt  |  31 ++
+ .../settings/ListenTogetherSettings.kt        |  55 +++-
+ .../ui/screens/settings/SettingsIndex.kt      |   3 +-
+ .../ui/screens/settings/StorageSettings.kt    |  33 +--
+ .../screens/settings/fragments/LyricFrag.kt   |   4 +-
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 272 ++++++++++++++++--
+ app/src/main/res/layout/widget_player.xml     | 150 ++++++----
+ app/src/main/res/values/strings.xml           |  10 +-
+ app/src/main/res/xml/widget_player_info.xml   |   6 +-
+ 18 files changed, 831 insertions(+), 155 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/listentogether/LatencyCalibration.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+index 78ef330..7ee9ff7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+@@ -611,6 +611,14 @@ AND NOT EXISTS (
+     @Query("DELETE FROM lyrics WHERE lastCheckedAt IS NOT NULL")
+     fun deleteFetchedLyrics(): Int
+ 
++    /**
++     * Refetch all lyrics, without losing any: marks every fetched row as due for a re-check (a
++     * lastCheckedAt of 0, see LyricsHelper.REFETCH_REQUESTED) instead of deleting it. The lyrics stay
++     * on screen - offline included - and are replaced only once a provider actually returns new ones.
++     */
++    @Query("UPDATE lyrics SET lastCheckedAt = 0 WHERE lastCheckedAt IS NOT NULL")
++    fun markFetchedLyricsForRefetch(): Int
++
+     @Transaction
+     @Query("DELETE FROM playlist WHERE isLocal = 0")
+     fun nukeRemotePlaylists()
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
+index a1d05be..6f36f96 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
+@@ -186,6 +186,15 @@ class FollowerSession(
+     @Volatile
+     var offsetMs: Long = 0L
+ 
++    /**
++     * Plays the latency test click at a time on this device's clock. Set by the manager, which has
++     * the audio hardware; this class stays Android-free.
++     */
++    var onClickRequested: ((localClockUs: Long) -> Unit)? = null
++
++    /** The host's measured answer for [offsetMs]. */
++    var onCalibrated: ((offsetMs: Int) -> Unit)? = null
++
+     /**
+      * Joins a session over an already-connected link. Returns when the session ends.
+      *
+@@ -270,6 +279,18 @@ class FollowerSession(
+                 link?.close(null)
+             }
+ 
++            // Latency measurement - see LatencyCalibration. The host names a moment on its own clock;
++            // this converts it to ours with the same offset the playback sync uses, which is what
++            // makes the two clicks comparable. Without a converged offset there is no honest local
++            // time to play it at, so the request is dropped and the host's measurement times out.
++            is Protocol.Frame.Click -> {
++                val offset = sync.offsetUs ?: return
++                if (sync.sampleCount < MIN_SAMPLES) return
++                onClickRequested?.invoke(frame.atHostClockUs - offset)
++            }
++
++            is Protocol.Frame.Calibrated -> onCalibrated?.invoke(frame.offsetMs)
++
+             // HELLO and PING are a host's business. Ignored rather than refused, so a newer host
+             // sending something extra does not break an older follower.
+             else -> Unit
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
+index 0024368..af14296 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
+@@ -126,6 +126,26 @@ class HostSession(
+         }
+     }
+ 
++    private fun linkFor(listener: Listener): PeerLink? =
++        greeted.entries.firstOrNull { it.value == listener.name && it.key.remoteAddress == listener.address }?.key
++
++    /**
++     * Asks [listener] to play the latency test click at [atHostClockUs]. False when that listener has
++     * gone. See LatencyCalibration for the measurement this is half of.
++     */
++    fun requestClick(listener: Listener, atHostClockUs: Long): Boolean {
++        val link = linkFor(listener) ?: return false
++        link.send(Protocol.Frame.Click(atHostClockUs))
++        return true
++    }
++
++    /** Tells [listener] how far ahead it should play, once a measurement has worked it out. */
++    fun sendCalibration(listener: Listener, offsetMs: Int): Boolean {
++        val link = linkFor(listener) ?: return false
++        link.send(Protocol.Frame.Calibrated(offsetMs))
++        return true
++    }
++
+     private fun drop(link: PeerLink) {
+         links.remove(link)
+         greeted.remove(link)
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/LatencyCalibration.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/LatencyCalibration.kt
+new file mode 100644
+index 0000000..7390f4b
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/LatencyCalibration.kt
+@@ -0,0 +1,213 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.listentogether
++
++import android.annotation.SuppressLint
++import android.media.AudioAttributes
++import android.media.AudioFormat
++import android.media.AudioRecord
++import android.media.AudioTimestamp
++import android.media.AudioTrack
++import android.media.MediaRecorder
++import android.os.SystemClock
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.withContext
++import kotlin.math.PI
++import kotlin.math.abs
++import kotlin.math.cos
++import kotlin.math.roundToInt
++import kotlin.math.sin
++
++/**
++ * Measures how much later one device's speakers sound than another's, by ear - the host's
++ * microphone listening to a click from each.
++ *
++ * The timing offset exists because nothing in the sync protocol can see audio output delay: two
++ * players can agree exactly on position while Bluetooth puts one of them a fifth of a second behind.
++ * The only thing that can observe that is a microphone. The host records, plays a click on its own
++ * speaker, and has the follower play one [FOLLOWER_GAP_US] later on the shared clock. Both clicks
++ * land in the same recording, so the microphone's own input delay - unknown, and different on every
++ * phone - is in both arrival times and cancels out of their difference:
++ *
++ *     measured gap - scheduled gap = follower output delay - host output delay
++ *
++ * which is exactly how far ahead the follower has to play.
++ *
++ * Each click is placed using the AudioTrack's own presentation timestamps, the same information the
++ * player uses to report its position. So what the measurement sees is the part of each device's
++ * delay that its audio stack does *not* report - which is precisely the part the music is out by.
++ */
++object LatencyCalibration {
++
++    /** Scheduled gap between the host's click and the follower's. */
++    const val FOLLOWER_GAP_US = 1_500_000L
++
++    /** Lead time before the host's click, enough for the follower to receive its request and start. */
++    const val HOST_CLICK_LEAD_US = 1_200_000L
++
++    /** Anything past this either way is a misdetection, not a real device. */
++    private const val MAX_PLAUSIBLE_OFFSET_MS = 900
++
++    private const val PLAY_RATE = 48_000
++    private const val RECORD_RATE = 16_000
++    private const val CHIRP_MS = 30
++    private const val CHIRP_LOW_HZ = 1_500.0
++    private const val CHIRP_HIGH_HZ = 4_000.0
++
++    /** The test click: a short rising sweep, Hann-windowed, which a matched filter finds sharply. */
++    private fun chirp(rate: Int, amplitude: Double): ShortArray {
++        val n = rate * CHIRP_MS / 1000
++        val seconds = CHIRP_MS / 1000.0
++        val sweep = (CHIRP_HIGH_HZ - CHIRP_LOW_HZ) / seconds
++        return ShortArray(n) { i ->
++            val t = i.toDouble() / rate
++            val phase = 2 * PI * (CHIRP_LOW_HZ * t + 0.5 * sweep * t * t)
++            val window = 0.5 - 0.5 * cos(2 * PI * i / (n - 1))
++            (sin(phase) * window * amplitude * Short.MAX_VALUE).roundToInt().toShort()
++        }
++    }
++
++    /** Microseconds on [SystemClock.elapsedRealtimeNanos], the clock the session runs on. */
++    private fun nowUs() = SystemClock.elapsedRealtimeNanos() / 1_000
++
++    /**
++     * Plays the click so that it reaches the speaker at [atUs] (elapsed-realtime microseconds), as
++     * far as this device's audio stack knows. False if it could not be scheduled in time.
++     *
++     * Streams silence while waiting for the track's first presentation timestamp, then works out
++     * which frame will be presented at [atUs] and writes silence exactly up to it.
++     */
++    suspend fun playClickAt(atUs: Long): Boolean = withContext(Dispatchers.IO) {
++        val minBuffer = AudioTrack.getMinBufferSize(PLAY_RATE, AudioFormat.CHANNEL_OUT_MONO, AudioFormat.ENCODING_PCM_16BIT)
++        val track = AudioTrack.Builder()
++            .setAudioAttributes(
++                AudioAttributes.Builder()
++                    // Media, like the music, so it takes the same route and the same delay.
++                    .setUsage(AudioAttributes.USAGE_MEDIA)
++                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
++                    .build()
++            )
++            .setAudioFormat(
++                AudioFormat.Builder()
++                    .setSampleRate(PLAY_RATE)
++                    .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
++                    .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
++                    .build()
++            )
++            .setBufferSizeInBytes(maxOf(minBuffer, PLAY_RATE / 10 * 2))
++            .setTransferMode(AudioTrack.MODE_STREAM)
++            .build()
++        try {
++            val silence = ShortArray(PLAY_RATE / 100) // 10 ms
++            val click = chirp(PLAY_RATE, amplitude = 0.7)
++            val timestamp = AudioTimestamp()
++            var written = 0L
++            var clickFrame = -1L
++            track.play()
++            while (isActive) {
++                if (clickFrame < 0 && track.getTimestamp(timestamp)) {
++                    // AudioTimestamp is on CLOCK_MONOTONIC; the session clock is BOOTTIME.
++                    val bootMinusMonoNs = SystemClock.elapsedRealtimeNanos() - System.nanoTime()
++                    val presentedAtBootNs = timestamp.nanoTime + bootMinusMonoNs
++                    clickFrame = timestamp.framePosition + (atUs * 1_000 - presentedAtBootNs) * PLAY_RATE / 1_000_000_000L
++                    if (clickFrame < written) return@withContext false
++                }
++                if (clickFrame < 0 && nowUs() > atUs) return@withContext false
++                if (clickFrame >= 0 && written >= clickFrame) break
++                val frames = if (clickFrame >= 0) minOf(silence.size.toLong(), clickFrame - written).toInt() else silence.size
++                track.write(silence, 0, frames)
++                written += frames
++            }
++            track.write(click, 0, click.size)
++            // Enough trailing silence that the click has certainly played before the track goes.
++            repeat(40) { track.write(silence, 0, silence.size) }
++            true
++        } catch (e: Exception) {
++            false
++        } finally {
++            runCatching { track.stop() }
++            track.release()
++        }
++    }
++
++    /** A recording in progress - see [startRecording]. */
++    class Recording internal constructor(private val record: AudioRecord, private val buffer: ShortArray) {
++        /** Reads until the buffer is full, then stops. Blocking; call on an IO thread. */
++        internal fun readAll(): ShortArray {
++            var filled = 0
++            while (filled < buffer.size) {
++                val n = record.read(buffer, filled, buffer.size - filled)
++                if (n <= 0) break
++                filled += n
++            }
++            runCatching { record.stop() }
++            record.release()
++            return buffer.copyOf(filled)
++        }
++    }
++
++    /**
++     * Starts recording [seconds] of microphone audio. The caller must hold RECORD_AUDIO. Null when
++     * the microphone could not be opened (in use, or no permission after all).
++     */
++    @SuppressLint("MissingPermission")
++    fun startRecording(seconds: Double): Recording? = runCatching {
++        val minBuffer = AudioRecord.getMinBufferSize(RECORD_RATE, AudioFormat.CHANNEL_IN_MONO, AudioFormat.ENCODING_PCM_16BIT)
++        // VOICE_RECOGNITION: no automatic gain or noise suppression, both of which smear a click.
++        val record = AudioRecord(
++            MediaRecorder.AudioSource.VOICE_RECOGNITION,
++            RECORD_RATE,
++            AudioFormat.CHANNEL_IN_MONO,
++            AudioFormat.ENCODING_PCM_16BIT,
++            maxOf(minBuffer, RECORD_RATE / 5 * 2),
++        )
++        if (record.state != AudioRecord.STATE_INITIALIZED) {
++            record.release()
++            return null
++        }
++        record.startRecording()
++        Recording(record, ShortArray((RECORD_RATE * seconds).toInt()))
++    }.getOrNull()
++
++    /** Finishes [recording] and works out the follower's offset in ms, or null if the clicks were not both heard. */
++    suspend fun analyse(recording: Recording): Int? = withContext(Dispatchers.Default) {
++        val samples = withContext(Dispatchers.IO) { recording.readAll() }
++        offsetFrom(samples)
++    }
++
++    /**
++     * Finds the two clicks in [samples] and returns how much later the second sounded than
++     * scheduled, in ms. Pure arithmetic, so it can be tested on synthetic recordings.
++     */
++    internal fun offsetFrom(samples: ShortArray): Int? {
++        val template = chirp(RECORD_RATE, amplitude = 1.0)
++        if (samples.size <= template.size) return null
++        // Matched filter: correlate against the known sweep. Its peak is sharp (well under a
++        // millisecond wide) and stands far above music or room noise at any other position.
++        val score = FloatArray(samples.size - template.size)
++        for (i in score.indices) {
++            var acc = 0.0
++            for (k in template.indices) acc += samples[i + k].toDouble() * template[k]
++            score[i] = abs(acc).toFloat()
++        }
++        val first = score.indices.maxByOrNull { score[it] } ?: return null
++        // The other click is at least half a second away from this one.
++        val exclusion = RECORD_RATE / 2
++        val second = score.indices
++            .filter { abs(it - first) > exclusion }
++            .maxByOrNull { score[it] } ?: return null
++        // Both must be real clicks: a second peak far below the first is just the loudest noise.
++        if (score[second] < score[first] * 0.2f) return null
++
++        val hostAt = minOf(first, second)
++        val followerAt = maxOf(first, second)
++        val gapUs = (followerAt - hostAt) * 1_000_000L / RECORD_RATE
++        val offsetMs = ((gapUs - FOLLOWER_GAP_US) / 1_000).toInt()
++        return offsetMs.takeIf { abs(it) <= MAX_PLAUSIBLE_OFFSET_MS }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
+index a8f4a0f..80afbd1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
+@@ -10,7 +10,10 @@ import android.content.Context
+ import android.os.SystemClock
+ import android.util.Log
+ import androidx.annotation.StringRes
++import androidx.datastore.preferences.core.edit
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.ListenTogetherOffsetKey
++import com.dd3boh.outertune.utils.dataStore
+ import dagger.hilt.android.qualifiers.ApplicationContext
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.CoroutineScope
+@@ -285,6 +288,9 @@ class ListenTogetherManager @Inject constructor(
+                     // longer apply.
+                     val session = FollowerSession(scope, bridge, ::nowUs, deviceName())
+                     session.offsetMs = offsetMs
++                    // The host's latency measurement: play its click when asked, and take the answer.
++                    session.onClickRequested = { atUs -> scope.launch { LatencyCalibration.playClickAt(atUs) } }
++                    session.onCalibrated = { measuredMs -> applyCalibration(measuredMs) }
+                     followerSession = session
+                     val mirror = launch {
+                         session.state.collect { state ->
+@@ -355,6 +361,68 @@ class ListenTogetherManager @Inject constructor(
+         }
+     }
+ 
++    /** True while the host is measuring a listener's delay. */
++    private val _measuring = MutableStateFlow(false)
++    val measuring: StateFlow<Boolean> = _measuring.asStateFlow()
++
++    /** What the last delay measurement found, in words, on whichever device is showing it. */
++    private val _calibrationMessage = MutableStateFlow<String?>(null)
++    val calibrationMessage: StateFlow<String?> = _calibrationMessage.asStateFlow()
++
++    /**
++     * Measures how far behind [listener]'s speakers are and sends it the offset to use. Host only;
++     * the caller must already hold RECORD_AUDIO. See [LatencyCalibration] for how.
++     */
++    fun measureLatency(listener: Listener) {
++        val session = hostSession ?: return
++        if (_measuring.value) return
++        _measuring.value = true
++        _calibrationMessage.value = null
++        scope.launch {
++            try {
++                val recording = LatencyCalibration.startRecording(seconds = 4.5)
++                if (recording == null) {
++                    _calibrationMessage.value = context.getString(R.string.lt_measure_no_mic)
++                    return@launch
++                }
++                // Give the microphone a moment to actually start delivering audio first.
++                delay(MIC_SETTLE_MS)
++                val hostClickUs = nowUs() + LatencyCalibration.HOST_CLICK_LEAD_US
++                val followerClickUs = hostClickUs + LatencyCalibration.FOLLOWER_GAP_US
++                if (!session.requestClick(listener, followerClickUs)) {
++                    LatencyCalibration.analyse(recording) // drains and releases the microphone
++                    _calibrationMessage.value = context.getString(R.string.lt_measure_failed)
++                    return@launch
++                }
++                launch { LatencyCalibration.playClickAt(hostClickUs) }
++                val measured = LatencyCalibration.analyse(recording)
++                if (measured == null) {
++                    _calibrationMessage.value = context.getString(R.string.lt_measure_failed)
++                    return@launch
++                }
++                session.sendCalibration(listener, measured)
++                _calibrationMessage.value = context.getString(R.string.lt_measure_result, listener.name, measured)
++            } catch (e: CancellationException) {
++                throw e
++            } catch (e: Exception) {
++                Log.e(TAG, "latency measurement failed", e)
++                _calibrationMessage.value = context.getString(R.string.lt_measure_failed)
++            } finally {
++                _measuring.value = false
++            }
++        }
++    }
++
++    /** A follower taking the host's measured offset: in force at once, and kept for next time. */
++    private fun applyCalibration(measuredMs: Int) {
++        val clamped = measuredMs.coerceIn(-3000, 3000)
++        offsetMs = clamped.toLong()
++        _calibrationMessage.value = context.getString(R.string.lt_measure_applied, clamped)
++        scope.launch {
++            context.dataStore.edit { it[ListenTogetherOffsetKey] = clamped }
++        }
++    }
++
+     /** Ends a follow attempt with a message, leaving the manager idle. */
+     private fun fail(message: String) {
+         _error.value = message
+@@ -418,5 +486,8 @@ class ListenTogetherManager @Inject constructor(
+          * which has actually gone does not leave the screen claiming to be reconnecting all evening.
+          */
+         const val RECONNECT_GIVE_UP_MS = 45_000L
++
++        /** How long the microphone gets to start before the first click is scheduled. */
++        const val MIC_SETTLE_MS = 300L
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
+index 2d4bb1d..8fe4a7e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
+@@ -47,6 +47,8 @@ object Protocol {
+         const val TRACK: Byte = 5
+         const val TICK: Byte = 6
+         const val BYE: Byte = 7
++        const val CLICK: Byte = 8
++        const val CALIBRATED: Byte = 9
+     }
+ 
+     /** Why a session ended, carried by [Frame.Bye] so the other end can say something useful. */
+@@ -102,6 +104,16 @@ object Protocol {
+         ) : Frame
+ 
+         data class Bye(val reason: Byte) : Frame
++
++        /**
++         * Latency measurement, host to follower: play the test click at [atHostClockUs] on the host's
++         * clock. See LatencyCalibration. A new type rather than a version bump, because an older peer
++         * simply ignores a frame it does not know - the measurement times out, nothing else breaks.
++         */
++        data class Click(val atHostClockUs: Long) : Frame
++
++        /** The measurement's answer, host to follower: how far ahead this follower should play. */
++        data class Calibrated(val offsetMs: Int) : Frame
+     }
+ 
+     /**
+@@ -143,6 +155,8 @@ object Protocol {
+             putFloat(frame.speed)
+         }
+         is Frame.Bye -> buffer(Type.BYE) { put(frame.reason) }
++        is Frame.Click -> buffer(Type.CLICK) { putLong(frame.atHostClockUs) }
++        is Frame.Calibrated -> buffer(Type.CALIBRATED) { putInt(frame.offsetMs) }
+     }
+ 
+     /**
+@@ -174,6 +188,8 @@ object Protocol {
+                 speed = b.float,
+             )
+             Type.BYE -> Frame.Bye(b.get())
++            Type.CLICK -> Frame.Click(b.long)
++            Type.CALIBRATED -> Frame.Calibrated(b.int)
+             else -> null
+         }
+     }.getOrNull()
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 8a3b6ea..8fffc5e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -175,7 +175,9 @@ class LyricsHelper @Inject constructor(
+                         // Bound here rather than asserted below: the downgrade test already implies
+                         // a stored row, and tying the two together means a later edit cannot leave
+                         // a !! standing on an invariant it no longer holds.
+-                        existing?.takeIf { isDowngrade(it, result) }?.let { kept ->
++                        // Except after Refetch all: that was asked for so the current provider order
++                        // takes over, so whatever it finds replaces the old lyrics.
++                        existing?.takeIf { it.lastCheckedAt != REFETCH_REQUESTED && isDowngrade(it, result) }?.let { kept ->
+                             // A scheduled re-check that came back with less than is already
+                             // stored. The whole point of re-checking is that providers improve;
+                             // replacing word-timed lyrics with a plain text sheet because today's
+@@ -195,13 +197,17 @@ class LyricsHelper @Inject constructor(
+                         }
+ 
+                     RemoteLyricsResult.DefinitiveNotFound ->
+-                        LyricsEntity(
+-                            id = mediaMetadata.id,
+-                            lyrics = LYRICS_NOT_FOUND,
+-                            provider = null,
+-                            lastCheckedAt = now,
+-                            providerSignature = selection.signature,
+-                        )
++                        // Lyrics already in hand are never swapped for "not found" by a re-check -
++                        // a provider dropping a song, or a refetch with fewer providers on, should
++                        // not take away lyrics that were fine. Kept, with the check noted.
++                        existing?.takeIf { it.lyrics != LYRICS_NOT_FOUND }?.copy(lastCheckedAt = now)
++                            ?: LyricsEntity(
++                                id = mediaMetadata.id,
++                                lyrics = LYRICS_NOT_FOUND,
++                                provider = null,
++                                lastCheckedAt = now,
++                                providerSignature = selection.signature,
++                            )
+ 
+                     RemoteLyricsResult.Indeterminate, RemoteLyricsResult.Skipped -> null
+                 }
+@@ -659,6 +665,8 @@ internal fun shouldFetchLyrics(
+         // not throw away lyrics that are already in hand and already good; if the new provider has
+         // something better, the next scheduled re-check finds it, and that is the whole difference
+         // between a preference change and a cache invalidation.
++        // Refetch all asked for this one, whatever the schedule says.
++        if (lastChecked == REFETCH_REQUESTED) return true
+         if (positiveTtlMs <= 0L) return false
+         if (lastChecked == null) return true
+         if (now < lastChecked) return true
+@@ -753,6 +761,12 @@ private fun syncLevelOf(raw: String): Int = when {
+ private val WORD_TIMING = Regex("""<\d{1,2}:\d{2}([.:]\d{1,3})?>""")
+ private val LINE_TIMING = Regex("""(^|\n)\s*\[\d{1,2}:\d{2}([.:]\d{1,3})?]""")
+ 
++/**
++ * The lastCheckedAt that Refetch all leaves on a row (DatabaseDao.markFetchedLyricsForRefetch):
++ * re-check at the next chance, and keep the lyrics until something replaces them.
++ */
++const val REFETCH_REQUESTED = 0L
++
+ /** How often a song that already has lyrics is re-checked, as stored. */
+ fun readLyricsRefreshInterval(context: Context): LyricsRefreshInterval =
+     context.dataStore[LyricsRefreshIntervalKey]
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 8ab25cc..cba1c1a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -582,8 +582,20 @@ class MusicService : MediaLibraryService(),
+         combine(currentMediaMetadata, widgetPlayWhenReady) { metadata, playing -> metadata to playing }
+             .distinctUntilChanged()
+             .collectLatest(scope) { (metadata, playing) ->
+-                runCatching { PlayerWidget.update(this@MusicService, metadata, playing) }
++                fun fraction(): Float {
++                    val duration = player.duration
++                    return if (duration > 0) (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
++                }
++                runCatching { PlayerWidget.update(this@MusicService, metadata, playing, fraction()) }
+                     .onFailure { if (it is CancellationException) throw it }
++                // The seek bar, while something is playing. Every couple of seconds rather than
++                // continuously: a widget redraw goes through the launcher, and a bar that is a second
++                // or two behind is invisible at that size. Ends with the song or the pause, since
++                // collectLatest cancels this block when either changes.
++                while (playing) {
++                    delay(WIDGET_PROGRESS_INTERVAL_MS)
++                    runCatching { PlayerWidget.updateProgress(this@MusicService, fraction()) }
++                }
+             }
+ 
+         setMediaNotificationProvider(
+@@ -2063,6 +2075,9 @@ class MusicService : MediaLibraryService(),
+         /** How long to wait for a just-queued track's database row before giving up on it. */
+         private const val DISCORD_SONG_ROW_TIMEOUT_MS = 5_000L
+ 
++        /** How often the home-screen widget's seek bar moves while playing. */
++        private const val WIDGET_PROGRESS_INTERVAL_MS = 2_000L
++
+         /**
+          * How often to force-reconnect the Discord RPC socket while a song is actively playing,
+          * as a safety net against a connection silently dying (the OS drops an idle socket after
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt
+index b231071..3e225fd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/SongMenu.kt
+@@ -283,23 +283,15 @@ fun SongMenu(
+             )
+ 
+         // Independent of the song's own audio download - see SongEntity.thumbnailPath's own doc.
+-        if (!song.song.isLocal) {
+-            if (song.song.thumbnailPath == null) {
+-                GridMenuItem(
+-                    icon = Icons.Rounded.Image,
+-                    title = R.string.download_thumbnail
+-                ) {
+-                    coroutineScope.launch { downloadUtil.downloadThumbnail(song.id) }
+-                    onDismiss()
+-                }
+-            } else {
+-                GridMenuItem(
+-                    icon = Icons.Rounded.HideImage,
+-                    title = R.string.remove_thumbnail
+-                ) {
+-                    coroutineScope.launch { downloadUtil.removeThumbnail(song.id) }
+-                    onDismiss()
+-                }
++        // There is no "remove thumbnail" here any more: downloads keep their cover by themselves and
++        // drop it with the download, so removing one by hand only ever made a song look broken.
++        if (!song.song.isLocal && song.song.thumbnailPath == null) {
++            GridMenuItem(
++                icon = Icons.Rounded.Image,
++                title = R.string.download_thumbnail
++            ) {
++                coroutineScope.launch { downloadUtil.downloadThumbnail(song.id) }
++                onDismiss()
+             }
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+index 3396fa6..5f193c8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ExperimentalSettings.kt
+@@ -64,6 +64,12 @@ import coil3.imageLoader
+ import com.dd3boh.outertune.LocalDatabase
+ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.LocalDownloadUtil
++import com.dd3boh.outertune.LocalSnackbarHostState
++import androidx.compose.runtime.collectAsState
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material.icons.rounded.Image
++import androidx.compose.foundation.layout.size
+ import com.dd3boh.outertune.constants.AudioGaplessOffloadKey
+ import com.dd3boh.outertune.constants.AudioOffloadKey
+ import com.dd3boh.outertune.constants.AutoBackupDefaults
+@@ -140,6 +146,31 @@ fun ExperimentalSettings(
+             }
+         )
+ 
++        // Moved here from Storage: downloads save the full-resolution cover by themselves, so this
++        // only repairs songs downloaded before they did.
++        val downloadUtil = LocalDownloadUtil.current
++        val snackbarHostState = LocalSnackbarHostState.current
++        val isDownloadingAllThumbnails by downloadUtil.isDownloadingAllThumbnails.collectAsState()
++        val downloadAllThumbnailsStartedMessage = stringResource(R.string.download_all_thumbnails_started)
++        PreferenceEntry(
++            title = { Text(stringResource(R.string.download_all_thumbnails_title)) },
++            description = stringResource(R.string.download_all_thumbnails_description),
++            icon = {
++                if (isDownloadingAllThumbnails) {
++                    CircularProgressIndicator(modifier = Modifier.size(24.dp))
++                } else {
++                    Icon(Icons.Rounded.Image, null)
++                }
++            },
++            isEnabled = !isDownloadingAllThumbnails,
++            onClick = {
++                coroutineScope.launch {
++                    snackbarHostState.showSnackbar(downloadAllThumbnailsStartedMessage)
++                    downloadUtil.downloadAllThumbnails()
++                }
++            }
++        )
++
+         // dev settings
+         SwitchPreference(
+             title = { Text(stringResource(R.string.dev_settings_title)) },
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
+index edb656b..71051b7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
+@@ -6,6 +6,13 @@
+ 
+ package com.dd3boh.outertune.ui.screens.settings
+ 
++import android.Manifest
++import android.content.pm.PackageManager
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.ui.platform.LocalContext
++import androidx.core.content.ContextCompat
++import com.dd3boh.outertune.listentogether.Listener
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.Row
+@@ -98,6 +105,19 @@ fun ListenTogetherSettings(
+     val (offsetMs, onOffsetChange) = rememberPreference(ListenTogetherOffsetKey, 0)
+     var showOffsetDialog by remember { mutableStateOf(false) }
+ 
++    val measuring by manager.measuring.collectAsStateWithLifecycle()
++    val calibrationMessage by manager.calibrationMessage.collectAsStateWithLifecycle()
++    val context = LocalContext.current
++    fun hasMicPermission() =
++        ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
++    // Asked for only when a measurement is actually started, never up front.
++    var pendingMeasure by remember { mutableStateOf<Listener?>(null) }
++    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
++        val listener = pendingMeasure
++        pendingMeasure = null
++        if (granted && listener != null) manager.measureLatency(listener)
++    }
++
+     // Pushed into the manager whenever it changes, including on first composition, so a value set
+     // in a previous session is in force before anyone joins. Applied live, which is the only
+     // practical way to tune it: the right number depends on the audio route and can only be found
+@@ -129,6 +149,17 @@ fun ListenTogetherSettings(
+             .padding(horizontal = 16.dp)
+             .verticalScroll(rememberScrollState())
+     ) {
++        calibrationMessage?.let {
++            ElevatedCard(modifier = Modifier.fillMaxWidth()) {
++                PreferenceEntry(
++                    title = { Text(it) },
++                    icon = { Icon(Icons.Rounded.Timer, null) },
++                    onClick = {},
++                )
++            }
++            Spacer(modifier = Modifier.height(16.dp))
++        }
++
+         error?.let {
+             ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+                 PreferenceEntry(
+@@ -171,11 +202,25 @@ fun ListenTogetherSettings(
+                         Hint(stringResource(R.string.lt_waiting_for_listeners))
+                     } else {
+                         listeners.forEach { listener ->
++                            // Tapping a listener measures its speaker delay: this phone's microphone
++                            // listens to a click from each device and sends it the difference.
+                             PreferenceEntry(
+                                 title = { Text(listener.name) },
+-                                description = listener.address,
++                                description = if (measuring) {
++                                    stringResource(R.string.lt_measuring_delay)
++                                } else {
++                                    stringResource(R.string.lt_measure_hint)
++                                },
+                                 icon = { Icon(Icons.Rounded.Person, null) },
+-                                onClick = {},
++                                onClick = {
++                                    if (measuring) return@PreferenceEntry
++                                    if (hasMicPermission()) {
++                                        manager.measureLatency(listener)
++                                    } else {
++                                        pendingMeasure = listener
++                                        micPermission.launch(Manifest.permission.RECORD_AUDIO)
++                                    }
++                                },
+                             )
+                         }
+                     }
+@@ -285,12 +330,6 @@ fun ListenTogetherSettings(
+                 icon = { Icon(Icons.Rounded.Timer, null) },
+                 onClick = { showOffsetDialog = true },
+             )
+-            PreferenceEntry(
+-                title = { Text(stringResource(R.string.lt_how_it_works)) },
+-                description = stringResource(R.string.lt_how_it_works_summary),
+-                icon = { Icon(Icons.Rounded.Wifi, null) },
+-                onClick = {},
+-            )
+         }
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+index cda4267..603ba47 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+@@ -148,7 +148,6 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/listen_together", R.string.lt_leave, R.string.lt_title),
+     SettingsIndexEntry("settings/listen_together", R.string.lt_start_sharing, R.string.lt_title),
+     SettingsIndexEntry("settings/listen_together", R.string.lt_offset_title, R.string.lt_title),
+-    SettingsIndexEntry("settings/listen_together", R.string.lt_how_it_works, R.string.lt_title),
+     SettingsIndexEntry("settings/listen_together", R.string.lt_title, R.string.lt_title),
+     SettingsIndexEntry("settings/privacy", R.string.enable_proxy, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/privacy", R.string.proxy_type, R.string.privacy_and_history),
+@@ -161,7 +160,7 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/privacy", R.string.clear_listen_history, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/privacy", R.string.stats_include_remote_title, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/privacy", R.string.history, R.string.privacy_and_history),
+-    SettingsIndexEntry("settings/storage", R.string.download_all_thumbnails_title, R.string.storage_and_downloads),
++    SettingsIndexEntry("settings/experimental", R.string.download_all_thumbnails_title, R.string.experimental_settings_title),
+     SettingsIndexEntry("settings/storage", R.string.storage_and_downloads, R.string.storage_and_downloads),
+     SettingsIndexEntry("settings/storage", R.string.max_cache_size, R.string.storage_and_downloads),
+     SettingsIndexEntry("settings/storage", R.string.clear_image_cache, R.string.storage_and_downloads),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/StorageSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/StorageSettings.kt
+index 56ffe6b..ad62bdf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/StorageSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/StorageSettings.kt
+@@ -72,11 +72,6 @@ fun StorageSettings(
+ ) {
+     val (removedToCache, onRemovedToCacheChange) = rememberPreference(RemovedDownloadsToCacheKey, defaultValue = true)
+ 
+-    val downloadUtil = LocalDownloadUtil.current
+-    val snackbarHostState = LocalSnackbarHostState.current
+-    val coroutineScope = rememberCoroutineScope()
+-    val isDownloadingAllThumbnails by downloadUtil.isDownloadingAllThumbnails.collectAsState()
+-    val downloadAllThumbnailsStartedMessage = stringResource(R.string.download_all_thumbnails_started)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+@@ -92,31 +87,9 @@ fun StorageSettings(
+             modifier = Modifier.fillMaxWidth().animateContentSize()
+         ) {
+             DownloadsFrag()
+-            // Downloads always save the full-resolution cover now - the setting for it is gone.
+-            // This fetches covers for songs downloaded before then; it used to sit under Library
+-            // and content, away from the downloads it is about.
+-            PreferenceEntry(
+-                title = { Text(stringResource(R.string.download_all_thumbnails_title)) },
+-                description = stringResource(R.string.download_all_thumbnails_description),
+-                icon = {
+-                    if (isDownloadingAllThumbnails) {
+-                        CircularProgressIndicator(
+-                            modifier = Modifier.size(24.dp),
+-                            color = MaterialTheme.colorScheme.secondary,
+-                            trackColor = MaterialTheme.colorScheme.surfaceVariant,
+-                        )
+-                    } else {
+-                        Icon(Icons.Rounded.Image, null)
+-                    }
+-                },
+-                isEnabled = !isDownloadingAllThumbnails,
+-                onClick = {
+-                    coroutineScope.launch {
+-                        snackbarHostState.showSnackbar(downloadAllThumbnailsStartedMessage)
+-                        downloadUtil.downloadAllThumbnails()
+-                    }
+-                }
+-            )
++            // "Download all thumbnails" moved to Experimental and debug: downloads save the
++            // full-resolution cover on their own, so it only matters for songs downloaded before
++            // that, which is a one-off repair rather than an everyday setting.
+         }
+         Spacer(modifier = Modifier.height(16.dp))
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+index b3c3c24..5243db7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+@@ -259,7 +259,9 @@ private fun RefetchAllLyricsEntry() {
+                         confirmCount = null
+                         working = true
+                         scope.launch {
+-                            withContext(Dispatchers.IO) { database.deleteFetchedLyrics() }
++                            // Marked, not deleted: every song keeps its lyrics until new ones have
++                            // actually arrived, so an offline refetch loses nothing.
++                            withContext(Dispatchers.IO) { database.markFetchedLyricsForRefetch() }
+                             val current = playerConnection?.mediaMetadata?.value
+                             if (current != null) {
+                                 // Stored, the player picks it up by itself - it watches the song's row.
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index 7829438..c231ca5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -12,11 +12,22 @@ import android.appwidget.AppWidgetProvider
+ import android.content.ComponentName
+ import android.content.Context
+ import android.content.Intent
++import android.content.res.Configuration
+ import android.graphics.Bitmap
++import android.graphics.BitmapShader
++import android.graphics.Canvas
++import android.graphics.Color
++import android.graphics.LinearGradient
++import android.graphics.Paint
++import android.graphics.Path
++import android.graphics.RectF
++import android.graphics.Shader
++import android.os.Build
+ import android.os.Handler
+ import android.os.Looper
+ import android.widget.RemoteViews
+ import androidx.core.content.ContextCompat
++import androidx.core.graphics.ColorUtils
+ import androidx.media3.common.Player
+ import androidx.media3.session.MediaController
+ import androidx.media3.session.SessionToken
+@@ -27,16 +38,27 @@ import coil3.request.allowHardware
+ import coil3.toBitmap
+ import com.dd3boh.outertune.MainActivity
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
++import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
++import com.dd3boh.outertune.constants.PlayerBackgroundStyle
++import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
++import com.dd3boh.outertune.constants.SliderStyle
++import com.dd3boh.outertune.constants.SliderStyleKey
++import com.dd3boh.outertune.constants.SliderWeight
++import com.dd3boh.outertune.constants.SliderWeightKey
+ import com.dd3boh.outertune.models.MediaMetadata
+ import com.dd3boh.outertune.playback.MusicService
++import com.dd3boh.outertune.utils.dataStore
++import kotlinx.coroutines.flow.first
++import kotlin.math.PI
++import kotlin.math.sin
+ 
+ /**
+- * The home-screen player: cover, title, artist, and previous / play-pause / next.
++ * The home-screen player: cover, title, artist, previous / play-pause / next, and a seek bar.
+  *
+  * A classic RemoteViews widget rather than Glance, so it adds no dependency. It holds no state of
+- * its own and never polls - [MusicService][com.dd3boh.outertune.playback.MusicService] pushes to it
+- * through [PlayerWidget.update] whenever the song or the play state changes, and a widget placed
+- * while nothing is playing shows the last thing pushed, or "Nothing playing".
++ * its own and never polls - [MusicService] pushes to it through [PlayerWidget.update] whenever the
++ * song or the play state changes, and nudges the seek bar every couple of seconds while playing.
+  *
+  * The buttons are broadcasts back to this provider, which drives the player through a short-lived
+  * [MediaController] - the route Media3 intends for widgets. Media3's own MediaButtonReceiver was
+@@ -94,40 +116,65 @@ object PlayerWidget {
+     /** Big enough for a 56dp cell on a dense screen; small enough to stay far under the binder limit. */
+     private const val ART_PX = 256
+ 
+-    @Volatile
+-    private var lastTitle: String? = null
++    /** The drawn background and seek bar, scaled to fit the widget. Wide, like the widget itself. */
++    private const val BG_W = 720
++    private const val BG_H = 300
++    private const val SEEK_W = 900
++    private const val SEEK_H = 42
+ 
+-    @Volatile
+-    private var lastArtist: String? = null
++    /** How round the background's corners are, in background pixels - about the launcher's own. */
++    private const val CORNER_PX = 44f
+ 
+-    @Volatile
+-    private var lastPlaying = false
++    /** What the player looks like, as far as the widget copies it. */
++    private data class Look(val background: PlayerBackgroundStyle, val slider: SliderStyle, val weight: SliderWeight)
+ 
+-    @Volatile
+-    private var lastArt: Bitmap? = null
++    /** The colours one look resolves to - see [colours]. */
++    private data class Colours(val background: Int, val text: Int, val subtext: Int, val accent: Int, val track: Int)
+ 
+-    @Volatile
+-    private var lastArtSongId: String? = null
++    @Volatile private var lastTitle: String? = null
++    @Volatile private var lastArtist: String? = null
++    @Volatile private var lastPlaying = false
++    @Volatile private var lastFraction = 0f
++    @Volatile private var lastArt: Bitmap? = null
++    @Volatile private var lastArtSongId: String? = null
++    @Volatile private var lastLook = Look(DEFAULT_PLAYER_BACKGROUND, DEFAULT_SLIDER_STYLE, SliderWeight.THINNER)
++
++    /** The drawn background, kept until the song, the look or light/dark changes. */
++    @Volatile private var lastBackground: Bitmap? = null
++    @Volatile private var lastBackgroundKey: String? = null
++
++    private fun ids(context: Context, manager: AppWidgetManager) =
++        manager.getAppWidgetIds(ComponentName(context, PlayerWidgetProvider::class.java))
+ 
+     /**
+-     * Shows [metadata] and [playing] on every placed widget. Loads the cover itself, so call it from
+-     * a coroutine that a newer song will cancel (the service uses collectLatest).
++     * Shows [metadata], [playing] and how far through the song it is on every placed widget. Loads
++     * the cover itself, so call it from a coroutine that a newer song will cancel (the service uses
++     * collectLatest).
+      */
+-    suspend fun update(context: Context, metadata: MediaMetadata?, playing: Boolean) {
++    suspend fun update(context: Context, metadata: MediaMetadata?, playing: Boolean, fraction: Float) {
+         val manager = AppWidgetManager.getInstance(context)
+-        val ids = manager.getAppWidgetIds(ComponentName(context, PlayerWidgetProvider::class.java))
++        val ids = ids(context, manager)
+ 
+         lastTitle = metadata?.title
+         lastArtist = metadata?.artists?.joinToString { it.name }
+         lastPlaying = playing
++        lastFraction = fraction
+         if (metadata?.id != lastArtSongId) {
+             lastArt = null
+             lastArtSongId = metadata?.id
+         }
+-        // Nothing placed: remember the state for when one is, and skip the cover load.
++        // Nothing placed: remember the state for when one is, and skip the work.
+         if (ids.isEmpty()) return
+ 
+-        // Text and buttons straight away; the cover follows once it has loaded.
++        val prefs = context.dataStore.data.first()
++        lastLook = Look(
++            background = prefs[PlayerBackgroundStyleKey]
++                ?.let { stored -> PlayerBackgroundStyle.entries.find { it.name == stored } } ?: DEFAULT_PLAYER_BACKGROUND,
++            slider = prefs[SliderStyleKey]?.let { stored -> SliderStyle.entries.find { it.name == stored } } ?: DEFAULT_SLIDER_STYLE,
++            weight = prefs[SliderWeightKey]?.let { stored -> SliderWeight.entries.find { it.name == stored } } ?: SliderWeight.THINNER,
++        )
++
++        // Text and buttons straight away; the cover, and the background drawn from it, follow.
+         pushLast(context, manager, ids)
+         if (metadata != null && lastArt == null) {
+             val art = loadArt(context, metadata) ?: return
+@@ -137,16 +184,48 @@ object PlayerWidget {
+         }
+     }
+ 
++    /** Moves only the seek bar. Cheap enough to call every couple of seconds while playing. */
++    fun updateProgress(context: Context, fraction: Float) {
++        val manager = AppWidgetManager.getInstance(context)
++        val ids = ids(context, manager)
++        if (ids.isEmpty()) return
++        lastFraction = fraction
++        val colours = colours(context, lastLook.background, lastArt != null)
++        val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
++            setImageViewBitmap(R.id.widget_seekbar, seekBar(context, fraction, lastLook, colours))
++        }
++        manager.partiallyUpdateAppWidget(ids, views)
++    }
++
+     internal fun pushLast(context: Context, manager: AppWidgetManager, ids: IntArray) {
+         if (ids.isEmpty()) return
++        val art = lastArt
++        val look = lastLook
++        val colours = colours(context, look.background, art != null)
+         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
+             setTextViewText(R.id.widget_title, lastTitle ?: context.getString(R.string.widget_nothing_playing))
+             setTextViewText(R.id.widget_artist, lastArtist.orEmpty())
++            setTextColor(R.id.widget_title, colours.text)
++            setTextColor(R.id.widget_artist, colours.subtext)
+             setImageViewResource(R.id.widget_play_pause, if (lastPlaying) R.drawable.pause else R.drawable.play)
+-            val art = lastArt
++            setInt(R.id.widget_play_pause, "setColorFilter", colours.accent)
++            setInt(R.id.widget_previous, "setColorFilter", colours.text)
++            setInt(R.id.widget_next, "setColorFilter", colours.text)
++
+             if (art != null) setImageViewBitmap(R.id.widget_artwork, art)
+             else setImageViewResource(R.id.widget_artwork, R.drawable.placeholder_icon)
+ 
++            val drawn = art?.let { background(context, it, look.background) }
++            if (drawn != null) {
++                setImageViewBitmap(R.id.widget_background, drawn)
++                // A transparent filter, SRC_ATOP: leaves the picture exactly as drawn.
++                setInt(R.id.widget_background, "setColorFilter", Color.TRANSPARENT)
++            } else {
++                setImageViewResource(R.id.widget_background, R.drawable.widget_background)
++                setInt(R.id.widget_background, "setColorFilter", colours.background)
++            }
++            setImageViewBitmap(R.id.widget_seekbar, seekBar(context, lastFraction, look, colours))
++
+             setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
+             setOnClickPendingIntent(R.id.widget_artwork, openAppIntent(context))
+             setOnClickPendingIntent(R.id.widget_previous, commandIntent(context, ACTION_PREVIOUS, 1))
+@@ -156,13 +235,162 @@ object PlayerWidget {
+         manager.updateAppWidget(ids, views)
+     }
+ 
++    private fun isNight(context: Context) =
++        context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
++
++    /**
++     * Over a picture (frosted, blurred, gradient) the widget is white on dark, like the player. On
++     * the theme style it takes the system's own Material You colours on Android 12+, the same
++     * palette the app's dynamic theme comes from, and the app's dark grey before that.
++     */
++    private fun colours(context: Context, style: PlayerBackgroundStyle, hasArt: Boolean): Colours {
++        val overPicture = hasArt && style != PlayerBackgroundStyle.FOLLOW_THEME
++        if (overPicture || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
++            return Colours(
++                background = 0xE6202124.toInt(),
++                text = Color.WHITE,
++                subtext = 0xB3FFFFFF.toInt(),
++                accent = Color.WHITE,
++                track = 0x59FFFFFF,
++            )
++        }
++        val night = isNight(context)
++        fun c(id: Int) = context.getColor(id)
++        val accent = c(if (night) android.R.color.system_accent1_200 else android.R.color.system_accent1_600)
++        return Colours(
++            background = c(if (night) android.R.color.system_neutral1_900 else android.R.color.system_neutral1_50),
++            text = c(if (night) android.R.color.system_neutral1_50 else android.R.color.system_neutral1_900),
++            subtext = c(if (night) android.R.color.system_neutral2_200 else android.R.color.system_neutral2_700),
++            accent = accent,
++            track = ColorUtils.setAlphaComponent(accent, 0x59),
++        )
++    }
++
++    /** The background picture for [style], or null when it is the plain theme colour. */
++    private fun background(context: Context, art: Bitmap, style: PlayerBackgroundStyle): Bitmap? {
++        if (style == PlayerBackgroundStyle.FOLLOW_THEME) return null
++        val key = "${lastArtSongId}|$style|${isNight(context)}"
++        if (key == lastBackgroundKey) lastBackground?.let { return it }
++
++        val fill = Bitmap.createBitmap(BG_W, BG_H, Bitmap.Config.ARGB_8888)
++        val canvas = Canvas(fill)
++        when (style) {
++            PlayerBackgroundStyle.FROSTED, PlayerBackgroundStyle.BLUR -> {
++                // A blur without RenderScript: the middle band of the cover shrunk to a handful of
++                // pixels and stretched back up with filtering, twice so it comes out smooth.
++                val band = Bitmap.createBitmap(art, 0, art.height / 3, art.width, art.height / 3)
++                val tiny = Bitmap.createScaledBitmap(band, 24, 10, true)
++                val mid = Bitmap.createScaledBitmap(tiny, 96, 40, true)
++                canvas.drawBitmap(Bitmap.createScaledBitmap(mid, BG_W, BG_H, true), 0f, 0f, null)
++                // Frosted is the pale pane of glass over the blur; plain blur is just darkened.
++                if (style == PlayerBackgroundStyle.FROSTED) canvas.drawColor(0x26FFFFFF)
++                canvas.drawColor(if (style == PlayerBackgroundStyle.FROSTED) 0x73000000 else 0x80000000.toInt())
++            }
++
++            else -> {
++                // Gradient and Liquid: the cover's two sides, as a sweep, darkened enough for text.
++                val sides = Bitmap.createScaledBitmap(art, 2, 1, true)
++                val left = ColorUtils.blendARGB(sides.getPixel(0, 0), Color.BLACK, 0.45f)
++                val right = ColorUtils.blendARGB(sides.getPixel(1, 0), Color.BLACK, 0.55f)
++                val paint = Paint().apply {
++                    shader = LinearGradient(0f, 0f, BG_W.toFloat(), BG_H.toFloat(), left, right, Shader.TileMode.CLAMP)
++                }
++                canvas.drawRect(0f, 0f, BG_W.toFloat(), BG_H.toFloat(), paint)
++            }
++        }
++
++        // Rounded here, since a RemoteViews ImageView cannot clip itself before Android 12.
++        val rounded = Bitmap.createBitmap(BG_W, BG_H, Bitmap.Config.ARGB_8888)
++        Canvas(rounded).drawRoundRect(
++            RectF(0f, 0f, BG_W.toFloat(), BG_H.toFloat()), CORNER_PX, CORNER_PX,
++            Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(fill, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) },
++        )
++        lastBackground = rounded
++        lastBackgroundKey = key
++        return rounded
++    }
++
++    /**
++     * The seek bar, drawn in the player's own style and thickness: the played part in the accent,
++     * the rest a faint track. The waves are drawn still - a home screen is not the place for
++     * something animating all day.
++     */
++    private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours): Bitmap {
++        val bitmap = Bitmap.createBitmap(SEEK_W, SEEK_H, Bitmap.Config.ARGB_8888)
++        val canvas = Canvas(bitmap)
++        val cy = SEEK_H / 2f
++        val played = SEEK_W * fraction.coerceIn(0f, 1f)
++        val weight = look.weight.scale
++        val minStroke = context.resources.displayMetrics.density
++        fun stroke(color: Int, width: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
++            this.color = color
++            style = Paint.Style.STROKE
++            strokeWidth = maxOf(width, minStroke)
++            strokeCap = Paint.Cap.ROUND
++        }
++        fun wave(amplitude: Float, wavelength: Float, phase: Float, until: Float): Path = Path().apply {
++            var x = 0f
++            moveTo(0f, cy)
++            while (x <= until) {
++                lineTo(x, cy + amplitude * sin(2 * PI * x / wavelength + phase).toFloat())
++                x += 3f
++            }
++        }
++
++        val trackPaint = stroke(colours.track, SEEK_H * 0.12f * weight)
++        val inset = trackPaint.strokeWidth
++        if (played < SEEK_W - inset) canvas.drawLine(maxOf(played, inset), cy, SEEK_W - inset, cy, trackPaint)
++
++        when (look.slider) {
++            SliderStyle.DEFAULT -> {
++                val active = stroke(colours.accent, SEEK_H * 0.28f * weight)
++                if (played > inset) canvas.drawLine(inset, cy, played, cy, active)
++                canvas.drawCircle(played.coerceIn(SEEK_H * 0.35f, SEEK_W - SEEK_H * 0.35f), cy, SEEK_H * 0.32f,
++                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colours.accent })
++            }
++
++            SliderStyle.SLIM -> {
++                val active = stroke(colours.accent, SEEK_H * 0.14f * weight)
++                if (played > inset) canvas.drawLine(inset, cy, played, cy, active)
++            }
++
++            SliderStyle.SQUIGGLY -> {
++                canvas.drawPath(wave(SEEK_H * 0.22f, SEEK_H * 1.6f, 0f, played), stroke(colours.accent, SEEK_H * 0.16f * weight))
++            }
++
++            SliderStyle.WAVES -> {
++                // Soft overlapping waves above the line, filled.
++                for ((i, alpha) in listOf(0x66, 0x44, 0x2A).withIndex()) {
++                    val path = wave(SEEK_H * (0.30f - i * 0.06f), SEEK_H * (2.2f + i * 0.7f), i * 1.3f, played)
++                    path.lineTo(played, cy); path.lineTo(0f, cy); path.close()
++                    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
++                        color = ColorUtils.setAlphaComponent(colours.accent, alpha)
++                        style = Paint.Style.FILL
++                    })
++                }
++                if (played > inset) canvas.drawLine(inset, cy, played, cy, stroke(colours.accent, SEEK_H * 0.08f * weight))
++            }
++
++            SliderStyle.WAVE_LINES -> {
++                // The same three waves, as fine lines a shade apart.
++                for ((i, alpha) in listOf(0xFF, 0xAA, 0x70).withIndex()) {
++                    canvas.drawPath(
++                        wave(SEEK_H * (0.30f - i * 0.06f), SEEK_H * (2.2f + i * 0.7f), i * 1.3f, played),
++                        stroke(ColorUtils.setAlphaComponent(colours.accent, alpha), SEEK_H * 0.07f * weight),
++                    )
++                }
++            }
++        }
++        return bitmap
++    }
++
+     private suspend fun loadArt(context: Context, metadata: MediaMetadata): Bitmap? {
+         val model = metadata.getThumbnailModel(ART_PX, ART_PX) ?: return null
+         val result = context.imageLoader.execute(
+             ImageRequest.Builder(context)
+                 .data(model)
+                 .size(ART_PX, ART_PX)
+-                // A hardware bitmap cannot be parcelled into RemoteViews.
++                // A hardware bitmap cannot be parcelled into RemoteViews, or drawn on a Canvas.
+                 .allowHardware(false)
+                 .build()
+         )
+diff --git a/app/src/main/res/layout/widget_player.xml b/app/src/main/res/layout/widget_player.xml
+index 479314c..ee58468 100644
+--- a/app/src/main/res/layout/widget_player.xml
++++ b/app/src/main/res/layout/widget_player.xml
+@@ -1,76 +1,104 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<!-- The home-screen player. RemoteViews only allow a fixed set of plain views, hence the plain
+-     LinearLayouts and ImageButtons rather than anything from Compose. -->
+-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++<!-- The home-screen player. RemoteViews only allow a fixed set of plain views, hence plain layouts.
++     The background and the seek bar are both images drawn by PlayerWidget, which is how they follow
++     the player's appearance settings (frosted cover, theme colours, wave seek bar) at all. -->
++<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     android:id="@+id/widget_root"
+     android:layout_width="match_parent"
+-    android:layout_height="match_parent"
+-    android:background="@drawable/widget_background"
+-    android:gravity="center_vertical"
+-    android:orientation="horizontal"
+-    android:padding="10dp">
++    android:layout_height="match_parent">
+ 
+     <ImageView
+-        android:id="@+id/widget_artwork"
+-        android:layout_width="56dp"
+-        android:layout_height="56dp"
++        android:id="@+id/widget_background"
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
+         android:contentDescription="@null"
+-        android:scaleType="centerCrop"
+-        android:src="@drawable/placeholder_icon" />
++        android:scaleType="fitXY"
++        android:src="@drawable/widget_background" />
+ 
+     <LinearLayout
+-        android:layout_width="0dp"
+-        android:layout_height="wrap_content"
+-        android:layout_marginStart="12dp"
+-        android:layout_marginEnd="4dp"
+-        android:layout_weight="1"
+-        android:orientation="vertical">
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        android:gravity="center_vertical"
++        android:orientation="vertical"
++        android:padding="12dp">
+ 
+-        <TextView
+-            android:id="@+id/widget_title"
++        <LinearLayout
+             android:layout_width="match_parent"
+             android:layout_height="wrap_content"
+-            android:ellipsize="end"
+-            android:maxLines="1"
+-            android:text="@string/widget_nothing_playing"
+-            android:textColor="#FFFFFFFF"
+-            android:textSize="15sp"
+-            android:textStyle="bold" />
++            android:gravity="center_vertical"
++            android:orientation="horizontal">
+ 
+-        <TextView
+-            android:id="@+id/widget_artist"
+-            android:layout_width="match_parent"
+-            android:layout_height="wrap_content"
+-            android:ellipsize="end"
+-            android:maxLines="1"
+-            android:textColor="#B3FFFFFF"
+-            android:textSize="13sp" />
+-    </LinearLayout>
++            <ImageView
++                android:id="@+id/widget_artwork"
++                android:layout_width="56dp"
++                android:layout_height="56dp"
++                android:contentDescription="@null"
++                android:scaleType="centerCrop"
++                android:src="@drawable/placeholder_icon" />
++
++            <LinearLayout
++                android:layout_width="0dp"
++                android:layout_height="wrap_content"
++                android:layout_marginStart="12dp"
++                android:layout_marginEnd="4dp"
++                android:layout_weight="1"
++                android:orientation="vertical">
++
++                <TextView
++                    android:id="@+id/widget_title"
++                    android:layout_width="match_parent"
++                    android:layout_height="wrap_content"
++                    android:ellipsize="end"
++                    android:maxLines="1"
++                    android:text="@string/widget_nothing_playing"
++                    android:textColor="#FFFFFFFF"
++                    android:textSize="15sp"
++                    android:textStyle="bold" />
+ 
+-    <ImageButton
+-        android:id="@+id/widget_previous"
+-        android:layout_width="40dp"
+-        android:layout_height="40dp"
+-        android:background="@android:color/transparent"
+-        android:contentDescription="@string/widget_previous"
+-        android:scaleType="centerInside"
+-        android:src="@drawable/skip_previous" />
++                <TextView
++                    android:id="@+id/widget_artist"
++                    android:layout_width="match_parent"
++                    android:layout_height="wrap_content"
++                    android:ellipsize="end"
++                    android:maxLines="1"
++                    android:textColor="#B3FFFFFF"
++                    android:textSize="13sp" />
++            </LinearLayout>
+ 
+-    <ImageButton
+-        android:id="@+id/widget_play_pause"
+-        android:layout_width="48dp"
+-        android:layout_height="48dp"
+-        android:background="@android:color/transparent"
+-        android:contentDescription="@string/widget_play_pause"
+-        android:scaleType="centerInside"
+-        android:src="@drawable/play" />
++            <ImageButton
++                android:id="@+id/widget_previous"
++                android:layout_width="40dp"
++                android:layout_height="40dp"
++                android:background="@android:color/transparent"
++                android:contentDescription="@string/widget_previous"
++                android:scaleType="centerInside"
++                android:src="@drawable/skip_previous" />
+ 
+-    <ImageButton
+-        android:id="@+id/widget_next"
+-        android:layout_width="40dp"
+-        android:layout_height="40dp"
+-        android:background="@android:color/transparent"
+-        android:contentDescription="@string/widget_next"
+-        android:scaleType="centerInside"
+-        android:src="@drawable/skip_next" />
+-</LinearLayout>
++            <ImageButton
++                android:id="@+id/widget_play_pause"
++                android:layout_width="48dp"
++                android:layout_height="48dp"
++                android:background="@android:color/transparent"
++                android:contentDescription="@string/widget_play_pause"
++                android:scaleType="centerInside"
++                android:src="@drawable/play" />
++
++            <ImageButton
++                android:id="@+id/widget_next"
++                android:layout_width="40dp"
++                android:layout_height="40dp"
++                android:background="@android:color/transparent"
++                android:contentDescription="@string/widget_next"
++                android:scaleType="centerInside"
++                android:src="@drawable/skip_next" />
++        </LinearLayout>
++
++        <ImageView
++            android:id="@+id/widget_seekbar"
++            android:layout_width="match_parent"
++            android:layout_height="14dp"
++            android:layout_marginTop="8dp"
++            android:contentDescription="@null"
++            android:scaleType="fitXY" />
++    </LinearLayout>
++</FrameLayout>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 3f12df3..467e7cd 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -199,7 +199,7 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="lyrics_refetch_all_title">Refetch all lyrics</string>
+     <string name="lyrics_refetch_all_description">Fetch every song\'s lyrics again with the providers as they are set now - use it after changing the provider order. Lyrics you edited or picked yourself are kept.</string>
+     <string name="lyrics_refetch_all_confirm">Refetch</string>
+-    <string name="lyrics_refetch_all_done">Lyrics will be fetched again as each song plays</string>
++    <string name="lyrics_refetch_all_done">Lyrics will be fetched again as each song plays. Until then, and offline, each song keeps the lyrics it has.</string>
+     <plurals name="lyrics_refetch_all_message">
+         <item quantity="one">%d song\'s lyrics will be fetched again: the song playing now straight away, the rest the next time they play.</item>
+         <item quantity="other">%d songs\' lyrics will be fetched again: the song playing now straight away, the rest the next time they play.</item>
+@@ -442,7 +442,13 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="lt_ended_version">That device is running a different version of OuterTune</string>
+     <string name="lt_ended_rejected">The host declined the connection</string>
+     <string name="lt_offset_title">Timing offset</string>
+-    <string name="lt_offset_description">Plays %1$d ms ahead of the host. Bluetooth usually needs 150–250 ms.</string>
++    <string name="lt_offset_description">Plays %1$d ms ahead of the host. Every device takes a while to get sound out of its speakers after the player says so: built-in speakers and wired headphones a few ms, Bluetooth headphones and speakers usually 150–300 ms, TVs and soundbars sometimes more. The players can agree perfectly and still be heard apart by that much, so this device plays early by its extra delay. The host can measure it for you: tap this device in the host\'s list of listeners.</string>
++    <string name="lt_measure_hint">Tap to measure this device\'s speaker delay</string>
++    <string name="lt_measuring_delay">Measuring… keep the two devices near this phone and the room quiet</string>
++    <string name="lt_measure_result">%1$s plays %2$d ms late, and has been set to make up for it</string>
++    <string name="lt_measure_applied">The host measured this device\'s speaker delay. Timing offset set to %1$d ms.</string>
++    <string name="lt_measure_failed">Couldn\'t hear both test clicks. Move the devices closer, turn the volume up or pause the music, and try again.</string>
++    <string name="lt_measure_no_mic">The microphone isn\'t available, so the delay can\'t be measured</string>
+     <string name="eq_song_profile">Apply only to current song</string>
+     <string name="eq_song_profile_on">Saved for \"%1$s\" and used instead of the global curve while it plays</string>
+     <string name="eq_song_profile_off">Changes apply to every song</string>
+diff --git a/app/src/main/res/xml/widget_player_info.xml b/app/src/main/res/xml/widget_player_info.xml
+index 0a45c3b..e60dcd4 100644
+--- a/app/src/main/res/xml/widget_player_info.xml
++++ b/app/src/main/res/xml/widget_player_info.xml
+@@ -5,12 +5,12 @@
+     android:description="@string/widget_description"
+     android:initialLayout="@layout/widget_player"
+     android:minWidth="250dp"
+-    android:minHeight="56dp"
++    android:minHeight="100dp"
+     android:minResizeWidth="180dp"
+-    android:minResizeHeight="56dp"
++    android:minResizeHeight="90dp"
+     android:previewLayout="@layout/widget_player"
+     android:resizeMode="horizontal|vertical"
+     android:targetCellWidth="4"
+-    android:targetCellHeight="1"
++    android:targetCellHeight="2"
+     android:updatePeriodMillis="0"
+     android:widgetCategory="home_screen" />
+-- 
+2.56.0.windows.4
+
