@@ -253333,3 +253333,1011 @@ index 6bf3ca5..ceab6d7 100644
 -- 
 2.56.0.windows.4
 
+From 69c031cc42e51de29d930abeccb5fff3012b929c Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 21:48:42 +0800
+Subject: [PATCH] Widget: app icons, size-based content, lyrics line; settings
+ search synonyms
+
+- Seek bar: full updates (launchers may drop partial ones, leaving the
+  bar at zero with no wave), only while the screen is on; drawn at the
+  bar's real pixel size per widget.
+- Buttons are the app's Compose rounded icons rendered to bitmaps.
+- Per-widget content from its size: controls / cover+title+controls /
+  full arrangement; narrow widgets get core controls and small buttons;
+  redraws on resize.
+- New LYRICS element (current synced line, read from the library);
+  default arrangement adds lyrics, shuffle and repeat; up to four rows.
+- Bigger text and cover, rounded cover, round artist picture.
+- Launcher Edit opens the widget editor (WidgetConfigureActivity); the
+  editor is in the settings search.
+- Settings search matches related words, and falls back to the best
+  partial matches.
+---
+ CHANGELOG-current.md                          |  32 +++
+ app/src/main/AndroidManifest.xml              |  10 +
+ .../java/com/dd3boh/outertune/MainActivity.kt |   4 +
+ .../dd3boh/outertune/playback/MusicService.kt |  21 +-
+ .../ui/screens/settings/SettingsIndex.kt      |  54 ++++
+ .../ui/screens/settings/SettingsSearch.kt     |  21 +-
+ .../screens/settings/WidgetLayoutSettings.kt  |   7 +
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 262 +++++++++++++++---
+ .../widget/WidgetConfigureActivity.kt         |  36 +++
+ .../dd3boh/outertune/widget/WidgetLayout.kt   |  13 +-
+ .../dd3boh/outertune/widget/WidgetLyrics.kt   |  40 +++
+ app/src/main/res/layout/widget_el_button.xml  |   7 +-
+ .../res/layout/widget_el_button_small.xml     |   8 +
+ app/src/main/res/layout/widget_el_cover.xml   |   6 +-
+ app/src/main/res/layout/widget_el_info.xml    |   4 +-
+ app/src/main/res/layout/widget_el_lyrics.xml  |  13 +
+ app/src/main/res/layout/widget_el_play.xml    |   7 +-
+ .../main/res/layout/widget_el_play_small.xml  |   8 +
+ app/src/main/res/layout/widget_el_upnext.xml  |   2 +-
+ app/src/main/res/layout/widget_row.xml        |   5 +-
+ app/src/main/res/values/strings.xml           |   1 +
+ app/src/main/res/xml/widget_player_info.xml   |  18 +-
+ 22 files changed, 506 insertions(+), 73 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/widget/WidgetConfigureActivity.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+ create mode 100644 app/src/main/res/layout/widget_el_button_small.xml
+ create mode 100644 app/src/main/res/layout/widget_el_lyrics.xml
+ create mode 100644 app/src/main/res/layout/widget_el_play_small.xml
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index d40e175..1275221 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -51,6 +51,38 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
+   Wired 3.5mm headphones can't be identified, so they're skipped.
+ 
++## Widget, round two
++
++- **Seek bar moves and shows its wave.**
++  - It was updated with partial updates (only the bar's picture), which launchers may ignore,
++    and HyperOS's does. The bar sat at the start of the song, which in the wave styles is a flat
++    line. It now sends full updates, every 2 seconds while playing, and only while the screen is
++    on.
++  - It's drawn at the bar's real size on each widget, so the waves aren't stretched.
++- **The app's own rounded icons**, drawn from the same Material icons the player uses, instead of
++  a different icon set. Shuffle and repeat are lit when on and dimmed when off.
++- **Sizes:**
++  - one cell tall: playback controls
++  - two cells: cover (if your arrangement has one), title and controls
++  - three or more: the full arrangement
++  - narrow widgets keep previous / play / next with smaller buttons
++  - resizing redraws at once
++- **Default arrangement** is now cover and title, lyrics, seek bar, then shuffle / previous / play
++  / next / repeat. Up to four rows.
++- **Lyrics line (new element):** the line being sung, from the song's synced lyrics. It's hidden
++  when there's no line, and on widgets too short for it.
++- **Bigger text** (title 18sp, artist 15sp), a bigger cover, and rounded corners on the cover
++  (the artist picture is round).
++- **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
++  it's in the settings search.
++
++## Settings search
++
++- **Finds related words**, not only the setting's own title: "dark mode", "font", "wallpaper",
++  "visualiser", "bluetooth delay", "loop" and so on lead to the right setting.
++- **When nothing matches every word**, it shows the settings that match the most words, best
++  first.
++
+ ## Home chips fixed, and off by default
+ 
+ - **Chips now change Home.** They always loaded the mood's page, but only YouTube's shelves at
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 52457b4..0ba8931 100755
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -270,6 +270,16 @@
+             </intent-filter>
+         </receiver>
+ 
++        <activity
++            android:name=".widget.WidgetConfigureActivity"
++            android:exported="true"
++            android:excludeFromRecents="true"
++            android:theme="@android:style/Theme.Translucent.NoTitleBar">
++            <intent-filter>
++                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
++            </intent-filter>
++        </activity>
++
+         <receiver
+             android:name=".widget.PlayerWidgetProvider"
+             android:exported="false"
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index bb786cd..0daaaa9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -460,6 +460,9 @@ class MainActivity : ComponentActivity() {
+                 LaunchedEffect(Unit) {
+                     if (intent?.action == ACTION_SEARCH) {
+                         navController.navigate("search")
++                    } else if (intent?.action == ACTION_WIDGET_SETTINGS) {
++                        // From the widget's own "Edit" option - see WidgetConfigureActivity.
++                        navController.navigate("settings/appearance/widget")
+                     } else if (tabOpenedFromShortcut != null && navigationItems.contains(Screens.Library)) {
+                         filter = when (intent?.action) {
+                             ACTION_SONGS -> Screens.LibraryFilter.SONGS
+@@ -1271,6 +1274,7 @@ class MainActivity : ComponentActivity() {
+ 
+     companion object {
+         const val ACTION_SEARCH = "com.dd3boh.outertune.action.SEARCH"
++        const val ACTION_WIDGET_SETTINGS = "com.dd3boh.outertune.action.WIDGET_SETTINGS"
+         const val ACTION_SONGS = "com.dd3boh.outertune.action.SONGS"
+         const val ACTION_ALBUMS = "com.dd3boh.outertune.action.ALBUMS"
+         const val ACTION_PLAYLISTS = "com.dd3boh.outertune.action.PLAYLISTS"
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 7fb8183..5a0026c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -145,6 +145,7 @@ import com.dd3boh.outertune.utils.ArtistCreditEnricher
+ import com.dd3boh.outertune.utils.CoilBitmapLoader
+ import com.dd3boh.outertune.utils.DiscordRPC
+ import com.dd3boh.outertune.widget.PlayerWidget
++import com.dd3boh.outertune.widget.WidgetLyrics
+ import com.dd3boh.outertune.utils.NetworkConnectivityObserver
+ import com.dd3boh.outertune.utils.SyncUtils
+ import com.dd3boh.outertune.utils.YTPlayerUtils
+@@ -613,6 +614,15 @@ class MusicService : MediaLibraryService(),
+                         withContext(Dispatchers.IO) { database.artist(artistId).first()?.artist?.thumbnailUrl }
+                     }.getOrNull()
+                 }
++                // The song's synced lyrics, for the widget's lyrics line - read only when a widget
++                // shows one. Read again while empty: lyrics are often fetched after the song starts.
++                suspend fun readLyrics() = if (PlayerWidget.wantsLyrics && metadata != null) {
++                    runCatching {
++                        withContext(Dispatchers.IO) { WidgetLyrics.parse(database.lyrics(metadata.id).first()?.lyrics) }
++                    }.getOrDefault(emptyList())
++                } else emptyList()
++                var lyricLines = readLyrics()
++                PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
+                 runCatching {
+                     PlayerWidget.update(
+                         this@MusicService, metadata, playing, fraction(),
+@@ -622,12 +632,15 @@ class MusicService : MediaLibraryService(),
+                         artistImageUrl = artistImageUrl,
+                     )
+                 }.onFailure { if (it is CancellationException) throw it }
+-                // The seek bar, while something is playing. Every couple of seconds rather than
+-                // continuously: a widget redraw goes through the launcher, and a bar that is a second
+-                // or two behind is invisible at that size. Ends with the song or the pause, since
+-                // collectLatest cancels this block when either changes.
++                // The seek bar and lyrics line, while something is playing. Every couple of seconds
++                // rather than continuously: a widget redraw goes through the launcher, and a bar that
++                // is a second or two behind is invisible at that size. Ends with the song or the
++                // pause, since collectLatest cancels this block when either changes.
++                var ticks = 0
+                 while (playing) {
+                     delay(WIDGET_PROGRESS_INTERVAL_MS)
++                    if (lyricLines.isEmpty() && ++ticks % 5 == 0) lyricLines = readLyrics()
++                    PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
+                     runCatching { PlayerWidget.updateProgress(this@MusicService, fraction()) }
+                 }
+             }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+index 603ba47..d2837f4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+@@ -12,6 +12,59 @@ import com.dd3boh.outertune.R
+ /** One searchable setting: its title, the screen it lives on, and that screen's name. */
+ data class SettingsIndexEntry(val route: String, @StringRes val title: Int, @StringRes val screen: Int)
+ 
++/**
++ * Words people search for, grouped with the words the settings actually use. A search for "dark
++ * mode" finds the theme, "font" the lyrics size, "wallpaper" the player background - the setting's
++ * own title rarely uses the word someone thinks of first. Each group is a set of interchangeable
++ * words; a searched word matches a setting if any word in its group appears in the setting's title
++ * or screen name.
++ */
++private val SETTING_SYNONYMS: List<Set<String>> = listOf(
++    setOf("dark", "night", "theme", "black", "amoled", "light"),
++    setOf("colour", "color", "accent", "palette", "material", "dynamic", "theme", "tint"),
++    setOf("font", "text", "size", "big", "small", "scale"),
++    setOf("equaliser", "equalizer", "eq", "bass", "treble", "sound", "tone", "autoeq", "headphone"),
++    setOf("volume", "loud", "loudness", "normalisation", "normalization", "quiet", "gain"),
++    setOf("download", "offline", "save"),
++    setOf("cache", "storage", "space", "memory", "clear"),
++    setOf("lyrics", "lyric", "words", "karaoke", "synced", "sing"),
++    setOf("background", "wallpaper", "backdrop", "frosted", "blur", "liquid", "visualiser", "visualizer", "ferrofluid"),
++    setOf("seek", "slider", "progress", "bar", "wave", "squiggly"),
++    setOf("sleep", "timer", "bedtime"),
++    setOf("crossfade", "fade", "gapless", "transition"),
++    setOf("discord", "presence", "rpc", "status", "activity"),
++    setOf("notification", "media", "controls", "lockscreen"),
++    setOf("widget", "home screen", "homescreen", "launcher"),
++    setOf("tab", "tabs", "navigation", "navbar", "bottom bar", "rail"),
++    setOf("backup", "restore", "export", "import", "transfer"),
++    setOf("update", "updater", "version", "upgrade", "release"),
++    setOf("account", "login", "log in", "sign in", "youtube", "google", "sync", "cookie"),
++    setOf("history", "privacy", "incognito", "pause"),
++    setOf("language", "country", "region", "locale"),
++    setOf("shuffle", "repeat", "loop"),
++    setOf("skip", "silence", "swipe"),
++    setOf("queue", "playlist", "up next"),
++    setOf("bluetooth", "latency", "delay", "offset", "listen together", "sync"),
++    setOf("icon", "logo", "app icon"),
++    setOf("chips", "mood", "relax", "workout"),
++    setOf("local", "files", "folder", "scan", "scanner", "device"),
++    setOf("quality", "bitrate", "stream", "data", "wifi"),
++)
++
++/**
++ * [word] and every word it is grouped with. Prefixes count both ways ("equal" finds equaliser,
++ * "notifications" finds notification), but only from three letters on - a one- or two-letter
++ * prefix would pull in nearly every group.
++ */
++fun expandSearchWord(word: String): Set<String> {
++    fun related(a: String, b: String) =
++        a == b || (a.length >= 3 && b.length >= 3 && (a.startsWith(b) || b.startsWith(a)))
++    return SETTING_SYNONYMS
++        .filter { group -> group.any { related(it, word) } }
++        .flatten()
++        .toSet() + word
++}
++
+ /**
+  * Every setting, for the settings search.
+  *
+@@ -42,6 +95,7 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/appearance", R.string.swipe2Queue, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.player_background_style, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.player_auto_text_contrast_title, R.string.grp_appearance_controls),
++    SettingsIndexEntry("settings/appearance/widget", R.string.widget_layout_title, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.default_open_tab, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.recognition_placement_title, R.string.grp_appearance_controls),
+     SettingsIndexEntry("settings/appearance", R.string.tab_arrangement, R.string.grp_appearance_controls),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsSearch.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsSearch.kt
+index 5bfb3c7..8ad67eb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsSearch.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsSearch.kt
+@@ -61,13 +61,24 @@ fun SettingsSearchResults(query: String, onOpen: (String) -> Unit) {
+     val context = LocalContext.current
+     val matches = remember(query) {
+         val words = query.trim().lowercase().split(' ').filter { it.isNotBlank() }
+-        SETTINGS_INDEX
++        // Each word may be matched by any word it is commonly meant as - see SETTING_SYNONYMS.
++        val alternatives = words.map { expandSearchWord(it) }
++        val all = SETTINGS_INDEX
+             .map { Triple(it, context.getString(it.title), context.getString(it.screen)) }
+-            .filter { (_, title, screen) ->
+-                val haystack = "$title $screen".lowercase()
+-                words.all { it in haystack }
+-            }
+             .distinctBy { (entry, title, _) -> entry.route + title }
++        fun matchCount(title: String, screen: String): Int {
++            val haystack = "$title $screen".lowercase()
++            return alternatives.count { options -> options.any { it in haystack } }
++        }
++        // Every word first. Failing that, the settings matching the most words, best first - so
++        // "dark mode" still finds "Dark theme", where "mode" alone appears nowhere.
++        val strict = all.filter { (_, title, screen) -> matchCount(title, screen) == alternatives.size }
++        strict.ifEmpty {
++            all.map { it to matchCount(it.second, it.third) }
++                .filter { it.second > 0 }
++                .sortedByDescending { it.second }
++                .map { it.first }
++        }
+     }
+     if (matches.isEmpty()) {
+         Text(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+index 765ef0c..4f10559 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+@@ -36,6 +36,7 @@ import androidx.compose.material.icons.rounded.Delete
+ import androidx.compose.material.icons.rounded.KeyboardArrowDown
+ import androidx.compose.material.icons.rounded.KeyboardArrowUp
+ import androidx.compose.material.icons.rounded.LinearScale
++import androidx.compose.material.icons.rounded.Lyrics
+ import androidx.compose.material.icons.rounded.Person
+ import androidx.compose.material.icons.rounded.PlayArrow
+ import androidx.compose.material.icons.rounded.Repeat
+@@ -244,6 +245,10 @@ private fun WidgetPreview(layout: WidgetLayout, selected: WidgetElement?) {
+                                 Spacer(Modifier.height(5.dp))
+                                 Box(Modifier.fillMaxWidth(0.5f).height(8.dp).background(onPreview.copy(alpha = 0.4f), CircleShape))
+                             }
++                            WidgetElement.LYRICS -> Box(
++                                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 4.dp).height(10.dp)
++                                    .background(onPreview.copy(alpha = 0.75f), CircleShape)
++                            )
+                             WidgetElement.UP_NEXT -> Box(
+                                 Modifier.padding(start = 6.dp).fillMaxWidth(0.7f).height(7.dp)
+                                     .background(onPreview.copy(alpha = 0.35f), CircleShape)
+@@ -266,6 +271,7 @@ private val WidgetElement.label: Int
+         WidgetElement.COVER -> R.string.widget_el_cover
+         WidgetElement.ARTIST -> R.string.widget_el_artist
+         WidgetElement.INFO -> R.string.widget_el_info
++        WidgetElement.LYRICS -> R.string.widget_el_lyrics
+         WidgetElement.UP_NEXT -> R.string.widget_el_up_next
+         WidgetElement.SEEK_BAR -> R.string.widget_el_seek_bar
+         WidgetElement.PREVIOUS -> R.string.widget_el_previous
+@@ -280,6 +286,7 @@ private val WidgetElement.icon: ImageVector
+         WidgetElement.COVER -> Icons.Rounded.Album
+         WidgetElement.ARTIST -> Icons.Rounded.Person
+         WidgetElement.INFO -> Icons.Rounded.Title
++        WidgetElement.LYRICS -> Icons.Rounded.Lyrics
+         WidgetElement.UP_NEXT -> Icons.AutoMirrored.Rounded.QueueMusic
+         WidgetElement.SEEK_BAR -> Icons.Rounded.LinearScale
+         WidgetElement.PREVIOUS -> Icons.Rounded.SkipPrevious
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index 63dd243..ccb571a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -57,7 +57,22 @@ import com.dd3boh.outertune.models.MediaMetadata
+ import com.dd3boh.outertune.playback.MusicService
+ import com.dd3boh.outertune.utils.dataStore
+ import kotlinx.coroutines.flow.first
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.rounded.Pause
++import androidx.compose.material.icons.rounded.PlayArrow
++import androidx.compose.material.icons.rounded.Repeat
++import androidx.compose.material.icons.rounded.RepeatOne
++import androidx.compose.material.icons.rounded.Shuffle
++import androidx.compose.material.icons.rounded.SkipNext
++import androidx.compose.material.icons.rounded.SkipPrevious
++import androidx.compose.ui.graphics.PathFillType
++import androidx.compose.ui.graphics.asAndroidPath
++import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.graphics.vector.VectorGroup
++import androidx.compose.ui.graphics.vector.VectorPath
++import androidx.compose.ui.graphics.vector.toPath
+ import kotlin.math.PI
++import kotlin.math.roundToInt
+ import kotlin.math.sin
+ 
+ /**
+@@ -78,6 +93,16 @@ class PlayerWidgetProvider : AppWidgetProvider() {
+         PlayerWidget.pushLast(context, appWidgetManager, appWidgetIds)
+     }
+ 
++    /** Resized: what fits has changed - controls only, compact, or everything. */
++    override fun onAppWidgetOptionsChanged(
++        context: Context,
++        appWidgetManager: AppWidgetManager,
++        appWidgetId: Int,
++        newOptions: Bundle,
++    ) {
++        PlayerWidget.pushLast(context, appWidgetManager, intArrayOf(appWidgetId))
++    }
++
+     override fun onReceive(context: Context, intent: Intent) {
+         super.onReceive(context, intent)
+         val action = intent.action ?: return
+@@ -126,17 +151,26 @@ class PlayerWidgetProvider : AppWidgetProvider() {
+ 
+ object PlayerWidget {
+ 
+-    /** Big enough for a 56dp cell on a dense screen; small enough to stay far under the binder limit. */
+-    private const val ART_PX = 256
+-
+-    /** The drawn background and seek bar, scaled to fit the widget. Wide, like the widget itself. */
+-    private const val BG_W = 720
+-    private const val BG_H = 300
+-    private const val SEEK_W = 900
+-    private const val SEEK_H = 42
++    /**
++     * Every update carries its pictures inside it, and Android caps a single update at about 1MB, so
++     * they are kept small: a blurred background loses nothing at 360px, and the cover is drawn at
++     * 64dp at most.
++     */
++    private const val ART_PX = 160
++    private const val BG_W = 360
++    private const val BG_H = 150
++    private const val ICON_PX = 64
+ 
+     /** How round the background's corners are, in background pixels - about the launcher's own. */
+-    private const val CORNER_PX = 44f
++    private const val CORNER_PX = 22f
++
++    /** How much of what the widget can show fits, from its size - see [sizeOf]. */
++    private enum class WidgetSize { CONTROLS, COMPACT, FULL }
++
++    private val CONTROL_ELEMENTS = setOf(
++        WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT, WidgetElement.REPEAT,
++    )
++    private val CORE_CONTROLS = setOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT)
+ 
+     /** What the player looks like, as far as the widget copies it. */
+     private data class Look(
+@@ -164,6 +198,15 @@ object PlayerWidget {
+     @Volatile private var lastArtistArt: Bitmap? = null
+     @Volatile private var lastArtistArtUrl: String? = null
+     @Volatile private var lastLayout = WidgetLayout.DEFAULT
++    @Volatile private var lastLyricLine: String? = null
++
++    /** Whether any placed widget's arrangement shows lyrics - the service only works them out if so. */
++    val wantsLyrics: Boolean get() = lastLayout.rows.any { WidgetElement.LYRICS in it }
++
++    /** The lyric line now being sung, or null for none. Shown at the next update. */
++    fun setLyricLine(line: String?) {
++        lastLyricLine = line
++    }
+ 
+     /** The drawn background, kept until the song, the look or light/dark changes. */
+     @Volatile private var lastBackground: Bitmap? = null
+@@ -237,25 +280,88 @@ object PlayerWidget {
+         if (changed) pushLast(context, manager, ids)
+     }
+ 
+-    /** Moves only the seek bar. Cheap enough to call every couple of seconds while playing. */
++    /**
++     * Moves the seek bar while playing.
++     *
++     * A whole update rather than a partial one. A partial update - only the seek bar's picture - is
++     * the cheaper call, but launchers are free to drop them, and some (HyperOS's among them) do: the
++     * bar sat at the very start of the song, which in the wave styles is just a flat line. Skipped
++     * while the screen is off, when there is nobody to see it move.
++     */
+     fun updateProgress(context: Context, fraction: Float) {
+         val manager = AppWidgetManager.getInstance(context)
+         val ids = ids(context, manager)
+         if (ids.isEmpty()) return
+         lastFraction = fraction
+-        val colours = colours(context, lastLook.background, lastArt != null)
+-        if (lastLayout.rows.none { WidgetElement.SEEK_BAR in it }) return
+-        val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
+-            setImageViewBitmap(R.id.el_seekbar, seekBar(context, fraction, lastLook, colours))
++        val power = context.getSystemService(Context.POWER_SERVICE) as? android.os.PowerManager
++        if (power?.isInteractive == false) return
++        if (lastLayout.rows.none { WidgetElement.SEEK_BAR in it || WidgetElement.LYRICS in it }) return
++        pushLast(context, manager, ids)
++    }
++
++    /**
++     * How much fits, from the size the launcher reports (portrait: minimum width, maximum height).
++     * One cell tall is room for the controls alone; two for the cover, the title and the controls;
++     * three or more for the whole arrangement.
++     */
++    private data class Fit(val size: WidgetSize, val widthDp: Int, val heightDp: Int)
++
++    private fun sizeOf(manager: AppWidgetManager, id: Int): Fit {
++        val options = manager.getAppWidgetOptions(id)
++        val widthDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)
++        val heightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)
++        val size = when {
++            heightDp <= 0 -> WidgetSize.FULL
++            heightDp < 100 -> WidgetSize.CONTROLS
++            heightDp < 190 -> WidgetSize.COMPACT
++            else -> WidgetSize.FULL
++        }
++        return Fit(size, widthDp.takeIf { it > 0 } ?: 300, heightDp.takeIf { it > 0 } ?: 400)
++    }
++
++    /**
++     * What a widget of [size] shows. The small sizes are cut from the user's own arrangement - its
++     * controls, in its order, and its cover if it has one - rather than being fixed, so they follow
++     * the editor. Narrow widgets keep only previous, play and next, which is what fits two cells.
++     */
++    private fun layoutFor(size: WidgetSize, widthDp: Int, heightDp: Int): WidgetLayout {
++        val all = lastLayout.rows.flatten()
++        val chosen = all.filter { it in CONTROL_ELEMENTS }.ifEmpty { listOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT) }
++        val controls = if (widthDp < 250) {
++            chosen.filter { it in CORE_CONTROLS }.ifEmpty { listOf(WidgetElement.PLAY_PAUSE) }
++        } else chosen
++        return when (size) {
++            WidgetSize.CONTROLS -> WidgetLayout(listOf(controls))
++            WidgetSize.COMPACT -> WidgetLayout(
++                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), controls)
++            )
++            WidgetSize.FULL -> {
++                // The line-of-text pieces go first when the arrangement is taller than the widget:
++                // a three-cell widget holds cover, seek bar and controls, a four-cell one the lot.
++                // Lyrics also step aside while the song has no line to show.
++                val drop = buildSet {
++                    if (heightDp < 260) { add(WidgetElement.LYRICS); add(WidgetElement.UP_NEXT) }
++                    if (lastLyricLine.isNullOrBlank()) add(WidgetElement.LYRICS)
++                }
++                WidgetLayout(lastLayout.rows.map { row -> row.filter { it !in drop } }.filter { it.isNotEmpty() })
++                    .takeIf { it.rows.isNotEmpty() } ?: lastLayout
++            }
+         }
+-        manager.partiallyUpdateAppWidget(ids, views)
+     }
+ 
+     internal fun pushLast(context: Context, manager: AppWidgetManager, ids: IntArray) {
+-        if (ids.isEmpty()) return
++        // One build per widget: each can be a different size, and so show different things.
++        ids.forEach { id -> pushTo(context, manager, id) }
++    }
++
++    private fun pushTo(context: Context, manager: AppWidgetManager, id: Int) {
+         val art = lastArt
+         val look = lastLook
+         val colours = colours(context, look.background, art != null)
++        val (size, widthDp, heightDp) = sizeOf(manager, id)
++        val layout = layoutFor(size, widthDp, heightDp)
++        // Small buttons on a narrow widget, so three of them fit two cells.
++        val small = widthDp < 200
+         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
+             val drawn = art?.let { background(context, it, look.background) }
+             if (drawn != null) {
+@@ -269,31 +375,49 @@ object PlayerWidget {
+             setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
+ 
+             removeAllViews(R.id.widget_rows)
+-            for (row in lastLayout.rows) {
++            for (row in layout.rows) {
+                 val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
+-                row.forEach { element -> rowViews.addView(R.id.widget_row_container, elementView(context, element, colours, look)) }
++                row.forEach { element ->
++                    rowViews.addView(R.id.widget_row_container, elementView(context, element, colours, look, widthDp, small))
++                }
+                 addView(R.id.widget_rows, rowViews)
+             }
+         }
+-        manager.updateAppWidget(ids, views)
++        runCatching { manager.updateAppWidget(id, views) }
+     }
+ 
+     /** One element of the arrangement, filled in - see [WidgetElement] and the widget_el_* layouts. */
+-    private fun elementView(context: Context, element: WidgetElement, colours: Colours, look: Look): RemoteViews {
+-        fun button(icon: Int, action: String, requestCode: Int, tint: Int, layout: Int = R.layout.widget_el_button) =
+-            RemoteViews(context.packageName, layout).apply {
+-                setImageViewResource(R.id.el_button, icon)
+-                setInt(R.id.el_button, "setColorFilter", tint)
++    private fun elementView(
++        context: Context,
++        element: WidgetElement,
++        colours: Colours,
++        look: Look,
++        widthDp: Int,
++        small: Boolean,
++    ): RemoteViews {
++        // The app's own rounded Material icons, drawn to bitmaps, so the widget's buttons are the
++        // player's buttons rather than look-alikes from a different icon set.
++        fun button(icon: ImageVector, action: String, requestCode: Int, tint: Int, big: Boolean = false) =
++            RemoteViews(
++                context.packageName,
++                when {
++                    big && small -> R.layout.widget_el_play_small
++                    big -> R.layout.widget_el_play
++                    small -> R.layout.widget_el_button_small
++                    else -> R.layout.widget_el_button
++                },
++            ).apply {
++                setImageViewBitmap(R.id.el_button, iconBitmap(icon, tint))
+                 setOnClickPendingIntent(R.id.el_button, commandIntent(context, action, requestCode))
+             }
+         return when (element) {
+             WidgetElement.COVER -> RemoteViews(context.packageName, R.layout.widget_el_cover).apply {
+-                lastArt?.let { setImageViewBitmap(R.id.el_image, it) }
++                lastArt?.let { setImageViewBitmap(R.id.el_image, rounded(it, 0.16f)) }
+                 setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
+             }
+ 
+             WidgetElement.ARTIST -> RemoteViews(context.packageName, R.layout.widget_el_artist).apply {
+-                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, it) }
++                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, rounded(it, 0.5f)) }
+                 setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
+             }
+ 
+@@ -313,32 +437,85 @@ object PlayerWidget {
+             }
+ 
+             WidgetElement.SEEK_BAR -> RemoteViews(context.packageName, R.layout.widget_el_seekbar).apply {
+-                setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours))
++                // Drawn at the bar's real size on this widget - the padding taken off its width - so
++                // the waves are not stretched or squashed into shape by the image view.
++                val density = context.resources.displayMetrics.density
++                val widthPx = ((widthDp - 24).coerceAtLeast(80) * density).roundToInt()
++                val heightPx = (16 * density).roundToInt()
++                setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours, widthPx, heightPx))
+             }
+ 
+-            WidgetElement.PREVIOUS -> button(R.drawable.skip_previous, ACTION_PREVIOUS, 1, colours.text)
++            WidgetElement.LYRICS -> RemoteViews(context.packageName, R.layout.widget_el_lyrics).apply {
++                setTextViewText(R.id.el_text, lastLyricLine.orEmpty())
++                setTextColor(R.id.el_text, colours.text)
++            }
++
++            WidgetElement.PREVIOUS -> button(Icons.Rounded.SkipPrevious, ACTION_PREVIOUS, 1, colours.text)
+             WidgetElement.PLAY_PAUSE -> button(
+-                if (lastPlaying) R.drawable.pause else R.drawable.play, ACTION_PLAY_PAUSE, 2, colours.accent,
+-                layout = R.layout.widget_el_play,
++                if (lastPlaying) Icons.Rounded.Pause else Icons.Rounded.PlayArrow, ACTION_PLAY_PAUSE, 2, colours.accent,
++                big = true,
+             )
+-            WidgetElement.NEXT -> button(R.drawable.skip_next, ACTION_NEXT, 3, colours.text)
+-            // Lit in the accent while on, like the player's own buttons.
++            WidgetElement.NEXT -> button(Icons.Rounded.SkipNext, ACTION_NEXT, 3, colours.text)
++            // Lit in the accent while on, dimmed while off - the player's own buttons.
+             WidgetElement.SHUFFLE -> button(
+-                if (lastShuffle) R.drawable.shuffle_on else R.drawable.shuffle_off, ACTION_SHUFFLE, 4,
+-                if (lastShuffle) colours.accent else colours.text,
++                Icons.Rounded.Shuffle, ACTION_SHUFFLE, 4,
++                if (lastShuffle) colours.accent else ColorUtils.setAlphaComponent(colours.text, 0x80),
+             )
+             WidgetElement.REPEAT -> button(
+-                when (lastRepeat) {
+-                    Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
+-                    Player.REPEAT_MODE_ALL -> R.drawable.repeat_on
+-                    else -> R.drawable.repeat_off
+-                },
++                if (lastRepeat == Player.REPEAT_MODE_ONE) Icons.Rounded.RepeatOne else Icons.Rounded.Repeat,
+                 ACTION_REPEAT, 5,
+-                if (lastRepeat != Player.REPEAT_MODE_OFF) colours.accent else colours.text,
++                if (lastRepeat != Player.REPEAT_MODE_OFF) colours.accent else ColorUtils.setAlphaComponent(colours.text, 0x80),
+             )
+         }
+     }
+ 
++    /** Drawn icons, kept per icon and colour - the same few are redrawn on every update otherwise. */
++    private val iconCache = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
++
++    /** [vector] drawn [ICON_PX] square in [colour] - the Compose icon itself, path for path. */
++    private fun iconBitmap(vector: ImageVector, colour: Int): Bitmap {
++        val key = "${vector.name}|$colour"
++        iconCache[key]?.let { return it }
++        val bitmap = Bitmap.createBitmap(ICON_PX, ICON_PX, Bitmap.Config.ARGB_8888)
++        val canvas = Canvas(bitmap)
++        canvas.scale(ICON_PX / vector.viewportWidth, ICON_PX / vector.viewportHeight)
++        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
++            color = colour
++            style = Paint.Style.FILL
++        }
++        fun draw(group: VectorGroup) {
++            for (node in group) {
++                when (node) {
++                    is VectorPath -> {
++                        val path = node.pathData.toPath().asAndroidPath()
++                        path.fillType = if (node.pathFillType == PathFillType.EvenOdd) {
++                            android.graphics.Path.FillType.EVEN_ODD
++                        } else {
++                            android.graphics.Path.FillType.WINDING
++                        }
++                        canvas.drawPath(path, paint)
++                    }
++                    is VectorGroup -> draw(node)
++                }
++            }
++        }
++        draw(vector.root)
++        if (iconCache.size > 64) iconCache.clear()
++        iconCache[key] = bitmap
++        return bitmap
++    }
++
++    /** [source] with its corners rounded by [fraction] of its shorter side; 0.5 is a circle. */
++    private fun rounded(source: Bitmap, fraction: Float): Bitmap {
++        val out = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
++        val radius = minOf(source.width, source.height) * fraction
++        Canvas(out).drawRoundRect(
++            RectF(0f, 0f, source.width.toFloat(), source.height.toFloat()), radius, radius,
++            Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(source, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) },
++        )
++        return out
++    }
++
+     /**
+      * Applies a new arrangement from the widget editor straight away, without waiting for the next
+      * song or play-state change to redraw.
+@@ -551,7 +728,10 @@ object PlayerWidget {
+      * the rest a faint track. The waves are drawn still - a home screen is not the place for
+      * something animating all day.
+      */
+-    private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours): Bitmap {
++    @Suppress("LocalVariableName")
++    private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours, widthPx: Int, heightPx: Int): Bitmap {
++        val SEEK_W = widthPx
++        val SEEK_H = heightPx
+         val bitmap = Bitmap.createBitmap(SEEK_W, SEEK_H, Bitmap.Config.ARGB_8888)
+         val canvas = Canvas(bitmap)
+         val cy = SEEK_H / 2f
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetConfigureActivity.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetConfigureActivity.kt
+new file mode 100644
+index 0000000..44a32f9
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetConfigureActivity.kt
+@@ -0,0 +1,36 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.widget
++
++import android.app.Activity
++import android.appwidget.AppWidgetManager
++import android.content.Intent
++import android.os.Bundle
++import com.dd3boh.outertune.MainActivity
++
++/**
++ * What the launcher opens from the widget's "Edit" / "Customise" option (long-press the widget):
++ * the widget editor in the app's settings. No screen of its own - it accepts straight away, so the
++ * launcher keeps the widget, and hands over to the app.
++ *
++ * On Android 13+ the widget declares this optional, so placing a widget does not open anything;
++ * older versions open it once on placement too, which lands on the same editor.
++ */
++class WidgetConfigureActivity : Activity() {
++    override fun onCreate(savedInstanceState: Bundle?) {
++        super.onCreate(savedInstanceState)
++        val widgetId = intent?.extras?.getInt(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
++            ?: AppWidgetManager.INVALID_APPWIDGET_ID
++        setResult(RESULT_OK, Intent().putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, widgetId))
++        startActivity(
++            Intent(this, MainActivity::class.java)
++                .setAction(MainActivity.ACTION_WIDGET_SETTINGS)
++                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
++        )
++        finish()
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+index 1b440fe..09f6662 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+@@ -16,6 +16,8 @@ enum class WidgetElement(val flexible: Boolean) {
+     COVER(false),
+     ARTIST(false),
+     INFO(true),
++    /** The line of the lyrics being sung, when the song has synced lyrics. */
++    LYRICS(true),
+     UP_NEXT(true),
+     SEEK_BAR(true),
+     PREVIOUS(false),
+@@ -109,14 +111,19 @@ data class WidgetLayout(val rows: List<List<WidgetElement>>) {
+     }
+ 
+     companion object {
+-        const val MAX_ROWS = 3
++        const val MAX_ROWS = 4
+         const val MAX_PER_ROW = 6
+ 
+-        /** What the widget looked like before it could be arranged. */
++        /** The full widget: the player's own order - cover and title, lyrics, seek bar, controls. */
+         val DEFAULT = WidgetLayout(
+             listOf(
+-                listOf(WidgetElement.COVER, WidgetElement.INFO, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT),
++                listOf(WidgetElement.COVER, WidgetElement.INFO),
++                listOf(WidgetElement.LYRICS),
+                 listOf(WidgetElement.SEEK_BAR),
++                listOf(
++                    WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE,
++                    WidgetElement.NEXT, WidgetElement.REPEAT,
++                ),
+             )
+         )
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+new file mode 100644
+index 0000000..496335f
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+@@ -0,0 +1,40 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.widget
++
++/**
++ * The widget's lyrics line: just enough LRC reading to say which line is being sung.
++ *
++ * Deliberately not the app's full lyrics parser. The widget shows one line of plain text, refreshed
++ * every couple of seconds, so word timings, translations and singer markup have nothing to drive;
++ * what it needs is the line timestamps, and the text with any inline word marks taken out.
++ */
++object WidgetLyrics {
++    private val LINE = Regex("""^\s*\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?]\s*(.*)$""")
++    private val WORD_MARK = Regex("""<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>""")
++
++    /** Timed lines, in order. Empty for unsynced lyrics - there is no "current line" to show then. */
++    fun parse(raw: String?): List<Pair<Long, String>> {
++        if (raw.isNullOrBlank()) return emptyList()
++        return raw.lineSequence().mapNotNull { line ->
++            val match = LINE.find(line) ?: return@mapNotNull null
++            val (min, sec, frac, text) = match.destructured
++            val fracMs = when (frac.length) {
++                0 -> 0L
++                1 -> frac.toLong() * 100
++                2 -> frac.toLong() * 10
++                else -> frac.take(3).toLong()
++            }
++            val cleaned = text.replace(WORD_MARK, "").trim()
++            (min.toLong() * 60_000 + sec.toLong() * 1_000 + fracMs) to cleaned
++        }.filter { it.second.isNotEmpty() }.sortedBy { it.first }.toList()
++    }
++
++    /** The line being sung at [positionMs], or null before the first one. */
++    fun lineAt(lines: List<Pair<Long, String>>, positionMs: Long): String? =
++        lines.lastOrNull { it.first <= positionMs }?.second
++}
+diff --git a/app/src/main/res/layout/widget_el_button.xml b/app/src/main/res/layout/widget_el_button.xml
+index 525d3d8..15d98ea 100644
+--- a/app/src/main/res/layout/widget_el_button.xml
++++ b/app/src/main/res/layout/widget_el_button.xml
+@@ -1,7 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
+     android:id="@+id/el_button"
+-    android:layout_width="42dp"
+-    android:layout_height="42dp"
++    android:layout_width="46dp"
++    android:layout_height="46dp"
+     android:background="@android:color/transparent"
+-    android:scaleType="centerInside" />
++    android:padding="9dp"
++    android:scaleType="fitCenter" />
+diff --git a/app/src/main/res/layout/widget_el_button_small.xml b/app/src/main/res/layout/widget_el_button_small.xml
+new file mode 100644
+index 0000000..b4540f5
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_button_small.xml
+@@ -0,0 +1,8 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_button"
++    android:layout_width="38dp"
++    android:layout_height="38dp"
++    android:background="@android:color/transparent"
++    android:padding="7dp"
++    android:scaleType="fitCenter" />
+diff --git a/app/src/main/res/layout/widget_el_cover.xml b/app/src/main/res/layout/widget_el_cover.xml
+index 39480d2..f99c59e 100644
+--- a/app/src/main/res/layout/widget_el_cover.xml
++++ b/app/src/main/res/layout/widget_el_cover.xml
+@@ -1,9 +1,9 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+     android:id="@+id/el_image"
+-    android:layout_width="56dp"
+-    android:layout_height="56dp"
+-    android:layout_marginEnd="10dp"
++    android:layout_width="64dp"
++    android:layout_height="64dp"
++    android:layout_marginEnd="12dp"
+     android:contentDescription="@null"
+     android:scaleType="centerCrop"
+     android:src="@drawable/placeholder_icon" />
+diff --git a/app/src/main/res/layout/widget_el_info.xml b/app/src/main/res/layout/widget_el_info.xml
+index 77cd7c1..1af7413 100644
+--- a/app/src/main/res/layout/widget_el_info.xml
++++ b/app/src/main/res/layout/widget_el_info.xml
+@@ -13,7 +13,7 @@
+         android:ellipsize="end"
+         android:maxLines="1"
+         android:textColor="#FFFFFFFF"
+-        android:textSize="15sp"
++        android:textSize="18sp"
+         android:textStyle="bold" />
+ 
+     <TextView
+@@ -23,5 +23,5 @@
+         android:ellipsize="end"
+         android:maxLines="1"
+         android:textColor="#B3FFFFFF"
+-        android:textSize="13sp" />
++        android:textSize="15sp" />
+ </LinearLayout>
+diff --git a/app/src/main/res/layout/widget_el_lyrics.xml b/app/src/main/res/layout/widget_el_lyrics.xml
+new file mode 100644
+index 0000000..aab85fe
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_lyrics.xml
+@@ -0,0 +1,13 @@
++<?xml version="1.0" encoding="utf-8"?>
++<TextView xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_text"
++    android:layout_width="0dp"
++    android:layout_height="wrap_content"
++    android:layout_marginVertical="2dp"
++    android:layout_weight="1"
++    android:ellipsize="end"
++    android:gravity="center"
++    android:maxLines="2"
++    android:textColor="#FFFFFFFF"
++    android:textSize="16sp"
++    android:textStyle="bold" />
+diff --git a/app/src/main/res/layout/widget_el_play.xml b/app/src/main/res/layout/widget_el_play.xml
+index 0c4f91d..8bae3c0 100644
+--- a/app/src/main/res/layout/widget_el_play.xml
++++ b/app/src/main/res/layout/widget_el_play.xml
+@@ -1,7 +1,8 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
+     android:id="@+id/el_button"
+-    android:layout_width="50dp"
+-    android:layout_height="50dp"
++    android:layout_width="56dp"
++    android:layout_height="56dp"
+     android:background="@android:color/transparent"
+-    android:scaleType="centerInside" />
++    android:padding="8dp"
++    android:scaleType="fitCenter" />
+diff --git a/app/src/main/res/layout/widget_el_play_small.xml b/app/src/main/res/layout/widget_el_play_small.xml
+new file mode 100644
+index 0000000..bd6f0c1
+--- /dev/null
++++ b/app/src/main/res/layout/widget_el_play_small.xml
+@@ -0,0 +1,8 @@
++<?xml version="1.0" encoding="utf-8"?>
++<ImageButton xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_button"
++    android:layout_width="46dp"
++    android:layout_height="46dp"
++    android:background="@android:color/transparent"
++    android:padding="7dp"
++    android:scaleType="fitCenter" />
+diff --git a/app/src/main/res/layout/widget_el_upnext.xml b/app/src/main/res/layout/widget_el_upnext.xml
+index c61f401..ab94083 100644
+--- a/app/src/main/res/layout/widget_el_upnext.xml
++++ b/app/src/main/res/layout/widget_el_upnext.xml
+@@ -8,4 +8,4 @@
+     android:ellipsize="end"
+     android:maxLines="1"
+     android:textColor="#B3FFFFFF"
+-    android:textSize="12sp" />
++    android:textSize="14sp" />
+diff --git a/app/src/main/res/layout/widget_row.xml b/app/src/main/res/layout/widget_row.xml
+index f9f87c9..0988d42 100644
+--- a/app/src/main/res/layout/widget_row.xml
++++ b/app/src/main/res/layout/widget_row.xml
+@@ -1,9 +1,10 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<!-- One row of the widget. Elements are added to it left to right; flexible ones carry weight 1. -->
++<!-- One row of the widget. Elements are added to it left to right; flexible ones carry weight 1.
++     Centred, so a row of buttons sits in the middle rather than against the left edge. -->
+ <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     android:id="@+id/widget_row_container"
+     android:layout_width="match_parent"
+     android:layout_height="wrap_content"
+     android:layout_marginVertical="3dp"
+-    android:gravity="center_vertical"
++    android:gravity="center"
+     android:orientation="horizontal" />
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 90b55ba..a67d494 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -296,6 +296,7 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="widget_el_artist">Artist picture</string>
+     <string name="widget_el_info">Title and artist</string>
+     <string name="widget_el_up_next">Up next</string>
++    <string name="widget_el_lyrics">Lyrics line</string>
+     <string name="widget_el_seek_bar">Seek bar</string>
+     <string name="widget_el_previous">Previous</string>
+     <string name="widget_el_play_pause">Play / pause</string>
+diff --git a/app/src/main/res/xml/widget_player_info.xml b/app/src/main/res/xml/widget_player_info.xml
+index e60dcd4..7056b36 100644
+--- a/app/src/main/res/xml/widget_player_info.xml
++++ b/app/src/main/res/xml/widget_player_info.xml
+@@ -1,16 +1,22 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <!-- No updatePeriodMillis: the widget is pushed to by the music service whenever the song or the
+-     play state changes, so a periodic wake-up would only cost battery. -->
++     play state changes, so a periodic wake-up would only cost battery.
++     Resizable down to one cell tall: PlayerWidget picks what to show from the size - controls only,
++     then cover / title / controls, then the full arrangement from the widget editor.
++     configure + widgetFeatures: the launcher's "Edit" option on the widget opens that editor
++     (WidgetConfigureActivity); optional on Android 13+, so placing one opens nothing. -->
+ <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
++    android:configure="com.dd3boh.outertune.widget.WidgetConfigureActivity"
+     android:description="@string/widget_description"
+     android:initialLayout="@layout/widget_player"
+-    android:minWidth="250dp"
+-    android:minHeight="100dp"
+-    android:minResizeWidth="180dp"
+-    android:minResizeHeight="90dp"
++    android:minWidth="110dp"
++    android:minHeight="40dp"
++    android:minResizeWidth="110dp"
++    android:minResizeHeight="40dp"
+     android:previewLayout="@layout/widget_player"
+     android:resizeMode="horizontal|vertical"
+     android:targetCellWidth="4"
+     android:targetCellHeight="2"
+     android:updatePeriodMillis="0"
+-    android:widgetCategory="home_screen" />
++    android:widgetCategory="home_screen"
++    android:widgetFeatures="reconfigurable|configuration_optional" />
+-- 
+2.56.0.windows.4
+
