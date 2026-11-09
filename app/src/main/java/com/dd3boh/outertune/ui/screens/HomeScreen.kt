@@ -1,6 +1,8 @@
 package com.dd3boh.outertune.ui.screens
 
 import com.dd3boh.outertune.constants.ShowHomeChipsKey
+import com.dd3boh.outertune.constants.EnabledTabsKey
+import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
 import android.annotation.SuppressLint
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -145,6 +147,8 @@ fun HomeScreen(
     val selectedChip by viewModel.selectedChip.collectAsState()
     val emptyChips by viewModel.emptyChips.collectAsState()
     val showHomeChips by rememberPreference(ShowHomeChipsKey, defaultValue = true)
+    val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+    val searchTab = Screens.hasSearchTab(enabledTabs)
 
     val allLocalItems by viewModel.allLocalItems.collectAsState()
     val allYtItems by viewModel.allYtItems.collectAsState()
@@ -387,15 +391,28 @@ fun HomeScreen(
             state = lazylistState,
             contentPadding = LocalPlayerAwareWindowInsets.current.asPaddingValues()
         ) {
-            if (showHomeChips) item {
-                ChipsRow(
-                    // Without the ones known to have nothing to show - see HomeViewModel.emptyChips.
-                    chips = homePage?.chips?.filter { it.title !in emptyChips }?.map { it to it.title } ?: emptyList(),
-                    currentValue = selectedChip,
-                    onValueUpdate = {
-                        viewModel.toggleChip(it)
+            // With the Search tab on there is no row across the top, so Stats / Settings / Account
+            // sit at the end of this one - shown even with the chips themselves switched off.
+            if (showHomeChips || searchTab) item {
+                androidx.compose.foundation.layout.Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    if (showHomeChips) {
+                        ChipsRow(
+                            // Without the ones known to have nothing to show - see HomeViewModel.emptyChips.
+                            chips = homePage?.chips?.filter { it.title !in emptyChips }?.map { it to it.title } ?: emptyList(),
+                            currentValue = selectedChip,
+                            onValueUpdate = {
+                                viewModel.toggleChip(it)
+                            },
+                            modifier = Modifier.weight(1f),
+                        )
+                    } else {
+                        androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
                     }
-                )
+                    if (searchTab) HomeShortcutIcons(navController)
+                }
             }
 
             if (isLoggedIn && !recentActivity.isNullOrEmpty()) {

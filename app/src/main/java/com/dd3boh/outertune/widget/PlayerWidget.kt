@@ -40,6 +40,10 @@ import com.dd3boh.outertune.MainActivity
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
 import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
+import com.dd3boh.outertune.constants.LiquidColorScheme
+import com.dd3boh.outertune.constants.LiquidColorSchemeKey
+import com.dd3boh.outertune.constants.LiquidShapeStyle
+import com.dd3boh.outertune.constants.LiquidShapeStyleKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.SliderStyle
@@ -126,7 +130,13 @@ object PlayerWidget {
     private const val CORNER_PX = 44f
 
     /** What the player looks like, as far as the widget copies it. */
-    private data class Look(val background: PlayerBackgroundStyle, val slider: SliderStyle, val weight: SliderWeight)
+    private data class Look(
+        val background: PlayerBackgroundStyle,
+        val slider: SliderStyle,
+        val weight: SliderWeight,
+        val liquidShape: LiquidShapeStyle = LiquidShapeStyle.PETAL,
+        val liquidBackdrop: LiquidColorScheme = LiquidColorScheme.SURFACE,
+    )
 
     /** The colours one look resolves to - see [colours]. */
     private data class Colours(val background: Int, val text: Int, val subtext: Int, val accent: Int, val track: Int)
@@ -172,6 +182,10 @@ object PlayerWidget {
                 ?.let { stored -> PlayerBackgroundStyle.entries.find { it.name == stored } } ?: DEFAULT_PLAYER_BACKGROUND,
             slider = prefs[SliderStyleKey]?.let { stored -> SliderStyle.entries.find { it.name == stored } } ?: DEFAULT_SLIDER_STYLE,
             weight = prefs[SliderWeightKey]?.let { stored -> SliderWeight.entries.find { it.name == stored } } ?: SliderWeight.THINNER,
+            liquidShape = prefs[LiquidShapeStyleKey]?.let { stored -> LiquidShapeStyle.entries.find { it.name == stored } }
+                ?: LiquidShapeStyle.PETAL,
+            liquidBackdrop = prefs[LiquidColorSchemeKey]?.let { stored -> LiquidColorScheme.entries.find { it.name == stored } }
+                ?: LiquidColorScheme.SURFACE,
         )
 
         // Text and buttons straight away; the cover, and the background drawn from it, follow.
@@ -244,6 +258,16 @@ object PlayerWidget {
      * palette the app's dynamic theme comes from, and the app's dark grey before that.
      */
     private fun colours(context: Context, style: PlayerBackgroundStyle, hasArt: Boolean): Colours {
+        // Liquid on its white backdrop is the one picture that needs dark text.
+        if (hasArt && style == PlayerBackgroundStyle.LIQUID && lastLook.liquidBackdrop == LiquidColorScheme.WHITE) {
+            return Colours(
+                background = Color.WHITE,
+                text = 0xFF1B1B1F.toInt(),
+                subtext = 0xB31B1B1F.toInt(),
+                accent = 0xFF1B1B1F.toInt(),
+                track = 0x401B1B1F,
+            )
+        }
         val overPicture = hasArt && style != PlayerBackgroundStyle.FOLLOW_THEME
         if (overPicture || Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
             return Colours(
@@ -269,7 +293,7 @@ object PlayerWidget {
     /** The background picture for [style], or null when it is the plain theme colour. */
     private fun background(context: Context, art: Bitmap, style: PlayerBackgroundStyle): Bitmap? {
         if (style == PlayerBackgroundStyle.FOLLOW_THEME) return null
-        val key = "${lastArtSongId}|$style|${isNight(context)}"
+        val key = "${lastArtSongId}|$style|${lastLook.liquidShape}|${lastLook.liquidBackdrop}|${isNight(context)}"
         if (key == lastBackgroundKey) lastBackground?.let { return it }
 
         val fill = Bitmap.createBitmap(BG_W, BG_H, Bitmap.Config.ARGB_8888)
@@ -287,8 +311,10 @@ object PlayerWidget {
                 canvas.drawColor(if (style == PlayerBackgroundStyle.FROSTED) 0x73000000 else 0x80000000.toInt())
             }
 
+            PlayerBackgroundStyle.LIQUID -> drawLiquid(context, canvas, art)
+
             else -> {
-                // Gradient and Liquid: the cover's two sides, as a sweep, darkened enough for text.
+                // Gradient: the cover's two sides, as a sweep, darkened enough for text.
                 val sides = Bitmap.createScaledBitmap(art, 2, 1, true)
                 val left = ColorUtils.blendARGB(sides.getPixel(0, 0), Color.BLACK, 0.45f)
                 val right = ColorUtils.blendARGB(sides.getPixel(1, 0), Color.BLACK, 0.55f)
@@ -308,6 +334,116 @@ object PlayerWidget {
         lastBackground = rounded
         lastBackgroundKey = key
         return rounded
+    }
+
+    /**
+     * The Liquid background, as a still: the same backdrop and the same shape as the player - petal,
+     * spheres or ferrofluid crown - frozen at one moment rather than moving, since a home screen is
+     * no place for an animation running all day. Drawn off to the right, behind the buttons, so the
+     * cover and the title stay readable.
+     */
+    private fun drawLiquid(context: Context, canvas: Canvas, art: Bitmap) {
+        val night = isNight(context)
+        val dynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+        fun sys(dark: Int, light: Int) = context.getColor(if (night) dark else light)
+        // The cover's own colours, for the spheres and as the accent where the system has none.
+        val sides = Bitmap.createScaledBitmap(art, 3, 1, true)
+        val coverColours = List(3) { sides.getPixel(it, 0) }
+        val accent = if (dynamic) sys(android.R.color.system_accent1_300, android.R.color.system_accent1_500) else coverColours[1]
+        val secondary = if (dynamic) sys(android.R.color.system_accent2_300, android.R.color.system_accent2_500) else coverColours[0]
+        val backdrop = when (lastLook.liquidBackdrop) {
+            LiquidColorScheme.BLACK -> Color.BLACK
+            LiquidColorScheme.WHITE -> Color.WHITE
+            LiquidColorScheme.SURFACE ->
+                if (dynamic) sys(android.R.color.system_accent1_800, android.R.color.system_accent1_200)
+                else ColorUtils.blendARGB(coverColours[1], Color.BLACK, 0.7f)
+        }
+        canvas.drawColor(backdrop)
+
+        val cx = BG_W * 0.72f
+        val cy = BG_H * 0.5f
+        val base = BG_H * 0.42f
+        when (lastLook.liquidShape) {
+            LiquidShapeStyle.SPHERES -> {
+                coverColours.forEachIndexed { i, colour ->
+                    val x = BG_W * (0.55f + 0.16f * i)
+                    val y = BG_H * (0.35f + 0.22f * ((i * 7) % 3) / 2f)
+                    val r = base * (0.9f + 0.25f * i)
+                    canvas.drawCircle(x, y, r, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        shader = android.graphics.RadialGradient(
+                            x, y, r,
+                            intArrayOf(ColorUtils.setAlphaComponent(colour, 0xD9), ColorUtils.setAlphaComponent(colour, 0x60), Color.TRANSPARENT),
+                            null, Shader.TileMode.CLAMP,
+                        )
+                    })
+                }
+            }
+
+            LiquidShapeStyle.PETAL -> {
+                val petal = Path()
+                val samples = 96
+                for (i in 0..samples) {
+                    val a = 2 * PI * i / samples
+                    val r = base * (1f + 0.12f * sin(a * 3).toFloat() + 0.16f * sin(a * 5 + 1.3).toFloat())
+                    val x = cx + r * kotlin.math.cos(a).toFloat()
+                    val y = cy + r * sin(a).toFloat()
+                    if (i == 0) petal.moveTo(x, y) else petal.lineTo(x, y)
+                }
+                petal.close()
+                canvas.drawPath(petal, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = android.graphics.RadialGradient(
+                        cx, cy - base * 0.2f, base * 1.6f,
+                        intArrayOf(ColorUtils.blendARGB(accent, secondary, 0.35f), accent, ColorUtils.setAlphaComponent(accent, 0)),
+                        floatArrayOf(0f, 0.55f, 1f), Shader.TileMode.CLAMP,
+                    )
+                })
+            }
+
+            LiquidShapeStyle.FERROFLUID -> {
+                // The crown: a dark pool with sharp spikes standing up around it, and a wet highlight.
+                val spikes = 16
+                val pool = base * 0.55f
+                val crown = Path()
+                for (i in 0 until spikes) {
+                    val peakA = 2 * PI * i / spikes
+                    val valleyA = 2 * PI * (i + 0.5) / spikes
+                    val variance = 0.75f + 0.5f * (0.5f + 0.5f * sin(i * 12.9898).toFloat())
+                    val peak = pool * (1.15f + 0.4f * variance) * 1.3f
+                    val px = cx + peak * kotlin.math.cos(peakA).toFloat()
+                    val py = cy + peak * sin(peakA).toFloat()
+                    val vx = cx + pool * 0.9f * kotlin.math.cos(valleyA).toFloat()
+                    val vy = cy + pool * 0.9f * sin(valleyA).toFloat()
+                    if (i == 0) crown.moveTo(px, py) else crown.lineTo(px, py)
+                    crown.lineTo(vx, vy)
+                }
+                crown.close()
+                val ink = ColorUtils.blendARGB(Color.BLACK, accent, 0.18f)
+                canvas.drawPath(crown, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = android.graphics.RadialGradient(
+                        cx, cy - pool * 0.3f, pool * 3f,
+                        intArrayOf(ColorUtils.blendARGB(ink, Color.WHITE, 0.12f), ink, Color.BLACK),
+                        null, Shader.TileMode.CLAMP,
+                    )
+                })
+                canvas.save()
+                canvas.clipPath(crown)
+                val gx = cx - pool * 0.6f
+                val gy = cy - pool * 0.7f
+                canvas.drawCircle(gx, gy, pool * 1.6f, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    shader = android.graphics.RadialGradient(
+                        gx, gy, pool * 1.6f,
+                        intArrayOf(ColorUtils.setAlphaComponent(accent, 0x80), Color.TRANSPARENT),
+                        null, Shader.TileMode.CLAMP,
+                    )
+                })
+                canvas.restore()
+            }
+        }
+        // Keep the left side, where the cover and the title sit, a touch darker or lighter for contrast.
+        val scrim = if (lastLook.liquidBackdrop == LiquidColorScheme.WHITE) 0x33FFFFFF else 0x40000000
+        canvas.drawRect(0f, 0f, BG_W * 0.5f, BG_H.toFloat(), Paint().apply {
+            shader = LinearGradient(0f, 0f, BG_W * 0.5f, 0f, scrim, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+        })
     }
 
     /**

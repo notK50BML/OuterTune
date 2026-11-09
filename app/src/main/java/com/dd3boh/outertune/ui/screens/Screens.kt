@@ -20,6 +20,7 @@ import androidx.compose.material.icons.rounded.MusicNote
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.PlayCircle
 import androidx.compose.material.icons.rounded.SdCard
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.dd3boh.outertune.R
@@ -40,6 +41,12 @@ sealed class Screens(
     data object Library : Screens(R.string.library, Icons.Rounded.LibraryMusic, "library")
     data object Player : Screens(R.string.player, Icons.Rounded.PlayCircle, "player")
 
+    /**
+     * Search as a tab of its own. With it on, the search bar at the top of the other tabs goes, and
+     * Stats / Settings / Account sit at the end of Home's chips row instead.
+     */
+    data object Search : Screens(R.string.search, Icons.Rounded.Search, "search_tab")
+
     enum class LibraryFilter {
         ALL, ALBUMS, ARTISTS, PLAYLISTS, SONGS, FOLDERS
     }
@@ -59,10 +66,10 @@ sealed class Screens(
          * L: Playlists
          * M: Library
          * P: Player
+         * E: Search
          *
          * Not/won't implement
          * Q: Queue
-         * E: Search
          */
         val screenPairs = listOf(
             Home to 'H',
@@ -73,8 +80,12 @@ sealed class Screens(
             Albums to 'B',
             Playlists to 'L',
             Library to 'M',
+            Search to 'E',
 //            Player to 'P',
         )
+
+        /** Whether the Search tab is switched on in an enabled-tabs string. */
+        fun hasSearchTab(enabledTabs: String) = 'E' in enabledTabs
 
         fun getAllScreens() = screenPairs.map { it.first }
 

@@ -492,8 +492,19 @@ class MainActivity : ComponentActivity() {
                     // Do not leave the navigation rail reserving space or visible over it.
                     val showNavRail = useNavRail && !(isLandscape && playerBottomSheetState.isExpanded)
 
+                    // With the Search tab on, the other tabs have no search bar across the top (see
+                    // SearchBarContainer), so their content starts right under the status bar
+                    // instead of leaving the bar's height empty. Every other screen keeps it, since
+                    // they draw their own top bar there.
+                    val currentRoute = navBackStackEntry?.destination?.route
+                    val noTopBar = Screens.hasSearchTab(enabledTabs) &&
+                            currentRoute != Screens.Search.route &&
+                            navigationItems.any { it.route == currentRoute }
+                    val topBarHeight = if (noTopBar) 0.dp else AppBarHeight
+
                     val playerAwareWindowInsets =
                         remember(
+                            topBarHeight,
                             bottomInset,
                             playerBottomSheetState.isDismissed,
                             // Both read below, and neither used to be a key. showNavRail decides
@@ -519,14 +530,14 @@ class MainActivity : ComponentActivity() {
                                     .add(
                                         WindowInsets(
                                             left = if (!showNavRail) 0.dp else NavigationBarHeight,
-                                            top = AppBarHeight,
+                                            top = topBarHeight,
                                             bottom = bottom
                                         )
                                     )
                             } else {
                                 windowsInsets
                                     .only(WindowInsetsSides.Top)
-                                    .add(WindowInsets(top = AppBarHeight, bottom = bottom))
+                                    .add(WindowInsets(top = topBarHeight, bottom = bottom))
                             }
                         }
 
@@ -685,6 +696,12 @@ class MainActivity : ComponentActivity() {
                                     }
                                     composable(Screens.Library.route) {
                                         LibraryScreen(navController, scrollBehavior)
+                                    }
+                                    composable(Screens.Search.route) {
+                                        // Nothing of its own: arriving here opens the search bar
+                                        // over it, with history and suggestions - see
+                                        // SearchBarContainer.
+                                        Box(Modifier.fillMaxSize())
                                     }
                                     composable(Screens.Player.route) {
                                         PlayerScreen(navController, bottomPadding = getNavPadding())

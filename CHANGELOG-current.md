@@ -51,6 +51,28 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
   Wired 3.5mm headphones can't be identified, so they're skipped.
 
+## More (9 Nov 2026, after 0.22.1 build 179)
+
+- **Listen together measures the delay for you.** On the host, tap a listener. The host's
+  microphone hears a click from its own speaker, then one from the listener 1.5 seconds later on
+  the shared clock. The gap minus 1.5 seconds is how far behind the listener's speakers are, and
+  it's sent back and applied as their timing offset. The microphone's own delay is in both clicks,
+  so it cancels out. Microphone permission is asked only when you tap. The offset description now
+  explains why the offset is needed, and "How it works" is gone.
+- **Refetch all lyrics keeps your lyrics.** It now marks lyrics as due for a re-check instead of
+  deleting them. Each song keeps what it has, offline included, until a provider actually returns
+  replacements. A re-check also never swaps lyrics you have for "not found".
+- **Thumbnails:** "Download all thumbnails" moved to Experimental and debug, and "Remove
+  thumbnail" is gone from the song menu.
+- **Widget follows the player's look:**
+  - The background matches your player setting: blurred or frosted cover, cover gradient, a
+    still of the Liquid shape (petal, spheres or ferrofluid crown on its backdrop), or Material
+    You colours.
+  - A seek bar in your slider style and thickness, updated every 2 seconds while playing.
+- **Search tab (new, optional).** Add Search in the tab settings. With it on, the search bar
+  across the top of the other tabs goes, Stats / Settings / Account move to the right end of
+  Home's chips row, and tapping the tab opens search.
+
 ## New defaults (9 Nov 2026)
 
 What a fresh install looks like. Anything already set by hand keeps its value.

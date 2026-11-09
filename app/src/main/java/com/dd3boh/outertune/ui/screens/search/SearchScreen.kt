@@ -188,8 +188,12 @@ fun SearchBarContainer(
 
     val isTabRoute = navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }
     val isSearchRoute = navBackStackEntry?.destination?.route?.startsWith("search/") == true
-    val showSearchBar = searchActive || isSearchRoute
-    val showIconRow = isTabRoute && !searchActive && !isSearchRoute
+    // The Search tab: the bar lives there, and the other tabs lose the row across the top - its
+    // Stats / Settings / Account move to the end of Home's chips row.
+    val searchTabEnabled = Screens.hasSearchTab(enabledTabs)
+    val isSearchTab = navBackStackEntry?.destination?.route == Screens.Search.route
+    val showSearchBar = searchActive || isSearchRoute || isSearchTab
+    val showIconRow = isTabRoute && !searchActive && !isSearchRoute && !searchTabEnabled
 
     LaunchedEffect(searchActive) {
         if (searchActive) {
@@ -229,6 +233,9 @@ fun SearchBarContainer(
             // Back out of a search to a tab: the next search starts from an empty box.
             onQueryChange(TextFieldValue())
         }
+        // Arriving on the Search tab is asking to search: open the bar, keyboard up. After the
+        // closing above, which runs on every route change, so this one wins.
+        if (isSearchTab) onSearchActiveChange(true)
     }
 
     AnimatedVisibility(
