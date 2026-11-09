@@ -249135,3 +249135,429 @@ index 1c04cf9..995871d 100644
 -- 
 2.56.0.windows.4
 
+From 710fbcc60cc28c016ede73f8ff4f551ecb099e17 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 20:36:20 +0800
+Subject: [PATCH] New defaults for a fresh install
+
+Wave-lines seek bar (thinner, no dot), Frosted player background, tabs
+Home/Library/Playlists, no top-bar logo, Identify song in the search
+field, settings descriptions hidden, Match text to the artwork renamed
+Auto contrast. Lyrics: BetterLyrics then QQ Music first with ordered
+fetching by default, left-aligned, word-by-word and estimated timings
+on, singer colour-coding off, re-checked fortnightly. EQ colour by
+value on.
+---
+ CHANGELOG-current.md                           | 18 ++++++++++++++++++
+ .../com/dd3boh/outertune/constants/Settings.kt |  5 +++--
+ .../com/dd3boh/outertune/constants/Vars.kt     |  3 +--
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt    | 10 +++++++---
+ .../dd3boh/outertune/lyrics/LyricsProvider.kt  |  2 +-
+ .../dd3boh/outertune/ui/component/Lyrics.kt    |  8 ++++----
+ .../outertune/ui/component/Preference.kt       |  2 +-
+ .../com/dd3boh/outertune/ui/dialog/Dialog.kt   |  2 +-
+ .../outertune/ui/player/EqualizerPanel.kt      |  2 +-
+ .../com/dd3boh/outertune/ui/player/Player.kt   |  2 +-
+ .../ui/screens/search/SearchScreen.kt          |  4 ++--
+ .../ui/screens/settings/AppearanceSettings.kt  |  4 ++--
+ .../ui/screens/settings/EqualizerSettings.kt   |  2 +-
+ .../screens/settings/EqualizerStudioScreen.kt  |  2 +-
+ .../settings/fragments/InterfaceFrag.kt        |  2 +-
+ .../ui/screens/settings/fragments/LyricFrag.kt | 14 +++++++-------
+ .../screens/settings/fragments/PlayerFrag.kt   |  2 +-
+ .../dd3boh/outertune/utils/SettingsProfiles.kt | 14 ++++++++------
+ app/src/main/res/values/strings-ot.xml         |  2 +-
+ 19 files changed, 62 insertions(+), 38 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 452fd65..a331f3c 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -51,6 +51,24 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
+   Wired 3.5mm headphones can't be identified, so they're skipped.
+ 
++## New defaults (9 Nov 2026)
++
++What a fresh install looks like. Anything already set by hand keeps its value.
++
++- Seek bar: wave lines, thinner, no position dot.
++- Player background: Frosted. Material (dynamic) theming stays on.
++- Tabs: Home, Library, Playlists.
++- Search bar: no app logo; Identify song sits in the search field.
++- Swipe to queue on (unchanged). Settings descriptions hidden.
++- "Match text to the artwork" is renamed **Auto contrast** (still on).
++- Lyrics:
++  - Providers are asked in order: BetterLyrics, QQ Music, LrcLib, Kugou, SimpMusic, then
++    YouTube. "In my order" is now the default fetch mode, so the order is honoured.
++  - Left-aligned, word-by-word and estimated word timings on.
++  - Singer colour-coding off.
++  - Stored lyrics are re-checked every two weeks.
++- Equaliser: colour by value on.
++
+ ## Listen together (new)
+ 
+ Play the same song, at the same moment, on several devices on one Wi-Fi.
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+index 49bfc83..6a5818e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Settings.kt
+@@ -48,7 +48,7 @@ enum class SliderStyle {
+     WAVE_LINES,
+ }
+ 
+-val DEFAULT_SLIDER_STYLE = SliderStyle.SQUIGGLY
++val DEFAULT_SLIDER_STYLE = SliderStyle.WAVE_LINES
+ 
+ /** How thick the seek bar is drawn, whatever its style. */
+ enum class SliderWeight(val scale: Float) {
+@@ -68,7 +68,8 @@ enum class LyricsPosition {
+     LEFT, CENTER, RIGHT
+ }
+ 
+-const val DEFAULT_ENABLED_TABS = "HSFOM"
++/** Home, Library, Playlists - see Screens.screenPairs for the letters. */
++const val DEFAULT_ENABLED_TABS = "HML"
+ const val DEFAULT_ENABLED_FILTERS = "ARP"
+ const val DEFAULT_SWIPE_TO_SKIP = true
+ const val DEFAULT_SHOW_LYRICS_ON_CLICK = true
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt b/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
+index 4db83ff..cbf0d2b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/Vars.kt
+@@ -98,8 +98,7 @@ const val MAX_PLAYER_CONSECUTIVE_ERR = 3
+  * Misc weird constants
+  */
+ 
+-val DEFAULT_PLAYER_BACKGROUND =
+-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) PlayerBackgroundStyle.BLUR else PlayerBackgroundStyle.GRADIENT
++val DEFAULT_PLAYER_BACKGROUND = PlayerBackgroundStyle.FROSTED
+ 
+ val scannerWhitelistExts = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+     listOf("dsf", "dff", "xm", "mod", "tta", "ape", "wv")
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 728a4bc..8a3b6ea 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -757,13 +757,17 @@ private val LINE_TIMING = Regex("""(^|\n)\s*\[\d{1,2}:\d{2}([.:]\d{1,3})?]""")
+ fun readLyricsRefreshInterval(context: Context): LyricsRefreshInterval =
+     context.dataStore[LyricsRefreshIntervalKey]
+         ?.let { stored -> LyricsRefreshInterval.entries.find { it.name == stored } }
+-        ?: LyricsRefreshInterval.NEVER
++        ?: LyricsRefreshInterval.FORTNIGHTLY
+ 
+-/** Fetch mode as stored, falling back to [LyricsFetchMode.AUTO] for an unset or unknown value. */
++/**
++ * Fetch mode as stored, falling back to [LyricsFetchMode.MANUAL] for an unset or unknown value -
++ * the provider order (BetterLyrics, then QQ Music, ...) is the default, so it has to be honoured by
++ * default; AUTO takes whichever provider answers first.
++ */
+ fun readFetchMode(context: Context): LyricsFetchMode =
+     context.dataStore[LyricsFetchModeKey]
+         ?.let { stored -> LyricsFetchMode.entries.find { it.name == stored } }
+-        ?: LyricsFetchMode.AUTO
++        ?: LyricsFetchMode.MANUAL
+ 
+ /** The stored provider order as a list of ids, empty when the user has never set one. */
+ fun readProviderOrder(context: Context): List<String> =
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt
+index 78bbc22..5495634 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsProvider.kt
+@@ -49,11 +49,11 @@ interface LyricsProvider {
+  * this list's position for that provider.
+  */
+ val REMOTE_LYRICS_PROVIDERS: List<LyricsProvider> = listOf(
+-    SimpMusicLyricsProvider,
+     BetterLyricsProvider,
+     QQMusicLyricsProvider,
+     LrcLibLyricsProvider,
+     KuGouLyricsProvider,
++    SimpMusicLyricsProvider,
+     YouTubeLyricsProvider,
+     YouTubeSubtitleLyricsProvider,
+ )
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+index a543e7b..9faf778 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Lyrics.kt
+@@ -127,17 +127,17 @@ fun Lyrics(
+     var (showLyrics, onShowLyricsChange) = rememberPreference(ShowLyricsKey, false)
+     val landscapeOffset = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+ 
+-    val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.CENTER)
++    val lyricsTextPosition by rememberEnumPreference(LyricsTextPositionKey, LyricsPosition.LEFT)
+     val lyricsFontSize by rememberPreference(LyricFontSizeKey, 20)
+ 
+     val lyricsClickable by rememberPreference(LyricClickable, true)
+-    val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
+-    val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, false)
++    val lyricsFancy by rememberPreference(LyricKaraokeEnable, true)
++    val estimatedWordSync by rememberPreference(LyricEstimatedWordSync, true)
+     val highlightStyle by rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
+     val showLyricsType by rememberPreference(LyricShowTypeKey, true)
+     val lyricsUpdateSpeed by rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+     // Settings > Lyrics > Singer names in lyrics: colours by singer, no names, or names as text.
+-    val singerNames by rememberEnumPreference(LyricSingerNamesKey, SingerNames.COLOUR)
++    val singerNames by rememberEnumPreference(LyricSingerNamesKey, SingerNames.HIDE)
+ 
+     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+     // This song's own timing offset (see LyricsOffsetEntity), taken off the playback position
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Preference.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Preference.kt
+index 71cc661..7c430b9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Preference.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Preference.kt
+@@ -51,7 +51,7 @@ fun PreferenceEntry(
+      */
+     descriptionIsExplanation: Boolean = (description?.length ?: 0) > EXPLANATION_MIN_LENGTH,
+ ) {
+-    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
++    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = true)
+     val shownDescription = description?.takeUnless { hideExplanations && descriptionIsExplanation }
+     Row(
+         verticalAlignment = Alignment.CenterVertically,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/dialog/Dialog.kt b/app/src/main/java/com/dd3boh/outertune/ui/dialog/Dialog.kt
+index ca67d55..ef74ab0 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/dialog/Dialog.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/dialog/Dialog.kt
+@@ -695,7 +695,7 @@ fun InfoLabel(
+     isError: Boolean = false,
+ ) {
+     // Explanations go with "Hide setting descriptions"; errors stay, since they are news.
+-    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
++    val hideExplanations by rememberPreference(HideSettingsDescriptionsKey, defaultValue = true)
+     if (hideExplanations && !isError) return
+     InfoLabelRow(text, modifier, isError)
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index f98b635..13784c6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -325,7 +325,7 @@ private fun EqualizerPanelContent(
+     // compressor control appears, so there's one place that decides "how does this look" rather
+     // than each control guessing independently.
+     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+-    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
++    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = true)
+ 
+     // Only while it is actually open: composed ahead of a drag, it is still off screen, and Back
+     // must go on doing whatever it did before.
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index e734115..4443bd6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -814,7 +814,7 @@ fun ControlsContent(
+         key = SliderStyleKey,
+         defaultValue = DEFAULT_SLIDER_STYLE
+     )
+-    val sliderWeight by rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
++    val sliderWeight by rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.THINNER)
+     val sliderDot by rememberPreference(SliderDotKey, defaultValue = false)
+ 
+     // Parsed once per change rather than per frame. A file that no longer parses - edited by
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index fed6d3e..30f9864 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -124,10 +124,10 @@ fun SearchBarContainer(
+     var searchSource by rememberEnumPreference(SearchSourceKey, SearchSource.ONLINE)
+     val recognizePlacement by rememberEnumPreference(
+         RecognitionButtonPlacementKey,
+-        RecognitionButtonPlacement.TOP_BAR
++        RecognitionButtonPlacement.SEARCH_FIELD
+     )
+     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
+-    val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = true)
++    val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = false)
+ 
+     val navigationItems = remember { Screens.getScreens(enabledTabs) }
+     val searchBarFocusRequester = remember { FocusRequester() }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index 35c04c8..107492f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -69,11 +69,11 @@ fun AppearanceSettings(
+ ) {
+     val (slimNav, onSlimNavChange) = rememberPreference(SlimNavBarKey, defaultValue = false)
+     val (showTopBarLogo, onShowTopBarLogoChange) =
+-        rememberPreference(ShowTopBarLogoKey, defaultValue = true)
++        rememberPreference(ShowTopBarLogoKey, defaultValue = false)
+     val (artworkFallbackToLowResPref, onArtworkFallbackToLowResChange) =
+         rememberPreference(ArtworkFallbackToLowResKey, defaultValue = true)
+     val (tabletUi, onTabletUiChange) = rememberPreference(TabletUiKey, defaultValue = false)
+-    val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = false)
++    val (hideDescriptions, onHideDescriptionsChange) = rememberPreference(HideSettingsDescriptionsKey, defaultValue = true)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index 545ee9f..7140097 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -132,7 +132,7 @@ fun EqualizerSettingsScreen(
+     val eqColorVariant = MaterialTheme.colorScheme.onSurfaceVariant
+ 
+     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+-    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
++    var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = true)
+ 
+     var settingsJson by rememberPreference(EqualizerSettingsKey, "")
+     // Derived from the stored value, never held: see the note above the function.
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+index b7392d3..fa40dcb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+@@ -119,7 +119,7 @@ fun EqualizerStudioScreen(
+     val colour = MaterialTheme.colorScheme.onSurface
+     val colourVariant = MaterialTheme.colorScheme.onSurfaceVariant
+     val useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+-    val useGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
++    val useGradient by rememberPreference(EqValueColorGradientKey, defaultValue = true)
+     val (headroom, _) = rememberEnumPreference(EqHeadroomKey, defaultValue = EqHeadroom.AUTO)
+     var globalJson by rememberPreference(EqualizerSettingsKey, "")
+     var profilesJson by rememberPreference(EqualizerProfilesKey, "")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+index 14b4e92..1b365b4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/InterfaceFrag.kt
+@@ -384,7 +384,7 @@ fun ColumnScope.TabExtrasFrag() {
+     val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
+     val (defaultOpenTab, onDefaultOpenTabChange) = rememberPreference(DefaultOpenTabKey, defaultValue = "home")
+     val (recognizePlacement, onRecognizePlacementChange) =
+-        rememberEnumPreference(RecognitionButtonPlacementKey, RecognitionButtonPlacement.TOP_BAR)
++        rememberEnumPreference(RecognitionButtonPlacementKey, RecognitionButtonPlacement.SEARCH_FIELD)
+ 
+     ListPreference(
+         title = { Text(stringResource(R.string.default_open_tab)) },
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+index 094e8dc..b3c3c24 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LyricFrag.kt
+@@ -120,10 +120,10 @@ import sh.calvin.reorderable.rememberReorderableLazyListState
+ fun ColumnScope.LyricFormatFrag() {
+     val (lyricsPosition, onLyricsPositionChange) = rememberEnumPreference(
+         LyricsTextPositionKey,
+-        defaultValue = LyricsPosition.CENTER
++        defaultValue = LyricsPosition.LEFT
+     )
+     val (lyricFontSize, onLyricFontSizeChange) = rememberPreference(LyricFontSizeKey, defaultValue = 20)
+-    val (singerNames, onSingerNamesChange) = rememberEnumPreference(LyricSingerNamesKey, SingerNames.COLOUR)
++    val (singerNames, onSingerNamesChange) = rememberEnumPreference(LyricSingerNamesKey, SingerNames.HIDE)
+ 
+     var showFontSizeDialog by remember {
+         mutableStateOf(false)
+@@ -288,7 +288,7 @@ fun ColumnScope.LyricSourceFrag() {
+     val (preferLocalLyric, onPreferLocalLyric) = rememberPreference(LyricSourcePrefKey, defaultValue = true)
+     val (enablePrefetch, onEnablePrefetchChange) = rememberPreference(EnableLyricsPrefetchKey, defaultValue = true)
+     val (prefetchCount, onPrefetchCountChange) = rememberPreference(LyricsPrefetchCountKey, defaultValue = 3)
+-    val (fetchMode, onFetchModeChange) = rememberEnumPreference(LyricsFetchModeKey, LyricsFetchMode.AUTO)
++    val (fetchMode, onFetchModeChange) = rememberEnumPreference(LyricsFetchModeKey, LyricsFetchMode.MANUAL)
+     val (providerOrder, onProviderOrderChange) = rememberPreference(LyricsProviderOrderKey, defaultValue = "")
+ 
+     var showPrefetchCountDialog by remember {
+@@ -333,7 +333,7 @@ fun ColumnScope.LyricSourceFrag() {
+ 
+     val (refreshInterval, onRefreshIntervalChange) = rememberEnumPreference(
+         key = LyricsRefreshIntervalKey,
+-        defaultValue = LyricsRefreshInterval.NEVER
++        defaultValue = LyricsRefreshInterval.FORTNIGHTLY
+     )
+ 
+     EnumListPreference(
+@@ -549,8 +549,8 @@ fun ColumnScope.LyricDisplayExtrasFrag() {
+  */
+ @Composable
+ fun ColumnScope.LyricWordByWordFrag() {
+-    val (lyricsFancy, onLyricsFancyChange) = rememberPreference(LyricKaraokeEnable, false)
+-    val (estimatedWordSync, onEstimatedWordSyncChange) = rememberPreference(LyricEstimatedWordSync, false)
++    val (lyricsFancy, onLyricsFancyChange) = rememberPreference(LyricKaraokeEnable, true)
++    val (estimatedWordSync, onEstimatedWordSyncChange) = rememberPreference(LyricEstimatedWordSync, true)
+     val (highlightStyle, onHighlightStyleChange) = rememberEnumPreference(LyricHighlightStyleKey, LyricHighlightStyle.SWEEP)
+ 
+     SwitchPreference(
+@@ -591,7 +591,7 @@ fun ColumnScope.LyricWordByWordFrag() {
+ @Composable
+ fun ColumnScope.LyricAdvancedFrag() {
+     val (lyricUpdateSpeed, onLyricsUpdateSpeedChange) = rememberEnumPreference(LyricUpdateSpeed, Speed.MEDIUM)
+-    val lyricsFancy by rememberPreference(LyricKaraokeEnable, false)
++    val lyricsFancy by rememberPreference(LyricKaraokeEnable, true)
+ 
+     ListPreference(
+         title = { Text(stringResource(R.string.lyrics_karaoke_hz_title)) },
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+index fd2235d..ec3a03c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlayerFrag.kt
+@@ -305,7 +305,7 @@ fun PlayerControlsFrag() {
+ @Composable
+ fun SeekBarFrag() {
+     val (sliderStyle, onSliderStyleChange) = rememberEnumPreference(SliderStyleKey, defaultValue = DEFAULT_SLIDER_STYLE)
+-    val (sliderWeight, onSliderWeightChange) = rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.DEFAULT)
++    val (sliderWeight, onSliderWeightChange) = rememberEnumPreference(SliderWeightKey, defaultValue = SliderWeight.THINNER)
+     val (sliderDot, onSliderDotChange) = rememberPreference(SliderDotKey, defaultValue = false)
+ 
+     EnumListPreference(
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/SettingsProfiles.kt b/app/src/main/java/com/dd3boh/outertune/utils/SettingsProfiles.kt
+index a67f15d..63f9d36 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/SettingsProfiles.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/SettingsProfiles.kt
+@@ -12,6 +12,8 @@ import com.dd3boh.outertune.constants.LyricHighlightStyleKey
+ import com.dd3boh.outertune.constants.LyricSingerNamesKey
+ import com.dd3boh.betterlyrics.SingerNames
+ import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
++import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
++import com.dd3boh.outertune.constants.SliderStyle
+ import com.dd3boh.outertune.constants.EnabledTabsKey
+ import com.dd3boh.outertune.constants.SliderStyleKey
+ import androidx.annotation.StringRes
+@@ -213,7 +215,7 @@ object SettingsProfiles {
+                 put("themeMode", when (p[DarkModeKey]) { "ON" -> "dark"; "OFF" -> "light"; else -> "system" })
+                 put("pureBlack", p[PureBlackKey] ?: false)
+                 put("dynamicTheme", p[DynamicThemeKey] ?: true)
+-                put("sliderStyle", (p[SliderStyleKey] ?: "SQUIGGLY").lowercase())
++                put("sliderStyle", (p[SliderStyleKey] ?: DEFAULT_SLIDER_STYLE.name).lowercase())
+                 put("tabs", p[EnabledTabsKey] ?: DEFAULT_ENABLED_TABS)
+                 val custom = p[CustomThemeKey] ?: false
+                 put("accentColor", if (custom) p[CustomThemeColorKey]?.let { String.format("#%06X", 0xFFFFFF and it) } else JSONObject.NULL)
+@@ -250,12 +252,12 @@ object SettingsProfiles {
+             Category.LYRICS -> {
+                 // The desktop's lyrics text is a percentage of 20sp, the phone's default size.
+                 put("textScalePercent", (p[LyricFontSizeKey] ?: 20) * 5)
+-                put("alignment", when (p[LyricsTextPositionKey]) { "LEFT" -> "left"; "RIGHT" -> "right"; else -> "center" })
+-                put("wordByWord", p[LyricKaraokeEnable] ?: false)
+-                put("estimateWordTimings", p[LyricEstimatedWordSync] ?: false)
++                put("alignment", when (p[LyricsTextPositionKey]) { "CENTER" -> "center"; "RIGHT" -> "right"; else -> "left" })
++                put("wordByWord", p[LyricKaraokeEnable] ?: true)
++                put("estimateWordTimings", p[LyricEstimatedWordSync] ?: true)
+                 put("highlightStyle", if (p[LyricHighlightStyleKey] == LyricHighlightStyle.FADE.name) "fade" else "sweep")
+                 put("showLyricsType", p[LyricShowTypeKey] ?: true)
+-                put("singerNames", (p[LyricSingerNamesKey] ?: SingerNames.COLOUR.name).lowercase())
++                put("singerNames", (p[LyricSingerNamesKey] ?: SingerNames.HIDE.name).lowercase())
+                 // No "offsetMs": the lyrics timing offset is each song's own now, kept in the
+                 // library database rather than the settings, so a profile has none to carry.
+                 put("openOnCoverClick", p[ShowLyricsOnClickKey] ?: true)
+@@ -287,7 +289,7 @@ object SettingsProfiles {
+                 bool("dynamicTheme", DynamicThemeKey)
+                 // Only the letters this app has tabs for - the desktop's Stats (T) is not one.
+                 str("tabs") { v -> v.filter { it in "HSFOABLM" }.toList().distinct().joinToString("").takeIf { it.isNotEmpty() }?.let { p[EnabledTabsKey] = it } }
+-                str("sliderStyle") { v -> if (v.uppercase() in setOf("SQUIGGLY", "DEFAULT", "SLIM")) p[SliderStyleKey] = v.uppercase() }
++                str("sliderStyle") { v -> if (SliderStyle.entries.any { it.name == v.uppercase() }) p[SliderStyleKey] = v.uppercase() }
+                 if (c.has("accentColor")) {
+                     if (c.isNull("accentColor")) {
+                         p[CustomThemeKey] = false
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 5dcbf4a..f157912 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -162,7 +162,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="player_background_liquid">Liquid</string>
+     <string name="player_background_style">Player background style</string>
+     <string name="player_background_frosted">Frosted glass</string>
+-    <string name="player_auto_text_contrast_title">Match text to the artwork</string>
++    <string name="player_auto_text_contrast_title">Auto contrast</string>
+     <string name="player_auto_text_contrast_description">Dark text over pale covers, light over dark</string>
+     <string name="show_queue_title">Show queue name on player</string>
+     <string name="show_liked_and_downloaded_playlist">Show playlists for liked and downloaded songs in library</string>
+-- 
+2.56.0.windows.4
+
