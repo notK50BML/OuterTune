@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The home-screen player. RemoteViews only allow a fixed set of plain views, hence plain layouts.
-     The background and the seek bar are both images drawn by PlayerWidget, which is how they follow
-     the player's appearance settings (frosted cover, theme colours, wave seek bar) at all. -->
+<!-- The home-screen player. A background image and an empty column: PlayerWidget fills the column
+     with rows (widget_row) of elements (widget_el_*) in whatever arrangement the widget editor
+     saved. RemoteViews cannot place views freely, but it can add them to a container, which is
+     what makes the arrangement editable at all. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
     android:layout_width="match_parent"
@@ -16,89 +17,20 @@
         android:src="@drawable/widget_background" />
 
     <LinearLayout
+        android:id="@+id/widget_rows"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:gravity="center_vertical"
         android:orientation="vertical"
         android:padding="12dp">
 
-        <LinearLayout
+        <!-- Shown until the first update fills the column. -->
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <ImageView
-                android:id="@+id/widget_artwork"
-                android:layout_width="56dp"
-                android:layout_height="56dp"
-                android:contentDescription="@null"
-                android:scaleType="centerCrop"
-                android:src="@drawable/placeholder_icon" />
-
-            <LinearLayout
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="12dp"
-                android:layout_marginEnd="4dp"
-                android:layout_weight="1"
-                android:orientation="vertical">
-
-                <TextView
-                    android:id="@+id/widget_title"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:text="@string/widget_nothing_playing"
-                    android:textColor="#FFFFFFFF"
-                    android:textSize="15sp"
-                    android:textStyle="bold" />
-
-                <TextView
-                    android:id="@+id/widget_artist"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:ellipsize="end"
-                    android:maxLines="1"
-                    android:textColor="#B3FFFFFF"
-                    android:textSize="13sp" />
-            </LinearLayout>
-
-            <ImageButton
-                android:id="@+id/widget_previous"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/widget_previous"
-                android:scaleType="centerInside"
-                android:src="@drawable/skip_previous" />
-
-            <ImageButton
-                android:id="@+id/widget_play_pause"
-                android:layout_width="48dp"
-                android:layout_height="48dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/widget_play_pause"
-                android:scaleType="centerInside"
-                android:src="@drawable/play" />
-
-            <ImageButton
-                android:id="@+id/widget_next"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
-                android:background="@android:color/transparent"
-                android:contentDescription="@string/widget_next"
-                android:scaleType="centerInside"
-                android:src="@drawable/skip_next" />
-        </LinearLayout>
-
-        <ImageView
-            android:id="@+id/widget_seekbar"
-            android:layout_width="match_parent"
-            android:layout_height="14dp"
-            android:layout_marginTop="8dp"
-            android:contentDescription="@null"
-            android:scaleType="fitXY" />
+            android:text="@string/widget_nothing_playing"
+            android:textColor="#FFFFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
     </LinearLayout>
 </FrameLayout>

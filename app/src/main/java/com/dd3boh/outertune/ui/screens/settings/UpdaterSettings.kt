@@ -39,6 +39,8 @@ import com.dd3boh.outertune.BuildConfig
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AutoCheckUpdatesKey
 import com.dd3boh.outertune.constants.AutoDownloadUpdatesKey
+import com.dd3boh.outertune.constants.BackupBeforeUpdateKey
+import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.constants.UpdateAvailableKey
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
@@ -72,6 +74,8 @@ fun UpdaterSettings(
 
     var autoCheck by rememberPreference(AutoCheckUpdatesKey, defaultValue = true)
     var autoDownload by rememberPreference(AutoDownloadUpdatesKey, defaultValue = false)
+    var backupBeforeUpdate by rememberPreference(BackupBeforeUpdateKey, defaultValue = true)
+    val database = LocalDatabase.current
 
     // Already read by the search bar and the settings list, but until now nothing ever wrote it,
     // so those indicators could not light up. This is the only place that knows the answer.
@@ -94,7 +98,7 @@ fun UpdaterSettings(
         }
         checking = false
         if (found != null && thenDownload) {
-            AppUpdater.downloadAndInstall(context, found) { fraction ->
+            AppUpdater.downloadAndInstall(context, found, database) { fraction ->
                 status = context.getString(
                     R.string.update_downloading, found.versionName, (fraction * 100).toInt()
                 )
@@ -138,7 +142,7 @@ fun UpdaterSettings(
                     if (update == null) {
                         check(thenDownload = autoDownload)
                     } else {
-                        AppUpdater.downloadAndInstall(context, update) { fraction ->
+                        AppUpdater.downloadAndInstall(context, update, database) { fraction ->
                             status = context.getString(
                                 R.string.update_downloading, update.versionName, (fraction * 100).toInt()
                             )
@@ -166,6 +170,12 @@ fun UpdaterSettings(
             isEnabled = autoCheck,
             checked = autoDownload,
             onCheckedChange = { autoDownload = it }
+        )
+        SwitchPreference(
+            title = { Text(stringResource(R.string.update_backup_first)) },
+            description = stringResource(R.string.update_backup_first_desc),
+            checked = backupBeforeUpdate,
+            onCheckedChange = { backupBeforeUpdate = it }
         )
 
         Spacer(modifier = Modifier.height(16.dp))

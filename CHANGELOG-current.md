@@ -51,6 +51,22 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
   Wired 3.5mm headphones can't be identified, so they're skipped.
 
+## Widget editor and pre-update backups (after build 180)
+
+- **Arrange the widget** in Settings → Appearance → Home-screen widget.
+  - Pieces: cover, artist picture, title and artist, up next, seek bar, previous, play/pause,
+    next, shuffle and repeat. Show any of them, in any order, across up to three rows.
+  - Pieces sit side by side in rows and never overlap. Title, seek bar and up next stretch to
+    fill their row; the others keep their size.
+  - The editor has a live preview, and the widget on your home screen updates as you go.
+  - Shuffle and repeat use the same commands as the notification's buttons.
+- **Backup before installing an update** (on by default; Settings → Updater).
+  - Just before the installer opens, the library and settings are saved to
+    Downloads/OuterTune Backup.
+  - The file is named after the version you're updating from, and the last three are kept,
+    separately from automatic backups.
+  - It never blocks the update.
+
 ## More (9 Nov 2026, after 0.22.1 build 179)
 
 - **Listen together measures the delay for you.** On the host, tap a listener. The host's

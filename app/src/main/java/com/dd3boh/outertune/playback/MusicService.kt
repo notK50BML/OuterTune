@@ -334,8 +334,28 @@ class MusicService : MediaLibraryService(),
     // Player vars
     val currentMediaMetadata = MutableStateFlow<MediaMetadata?>(null)
 
-    /** The player's playWhenReady, for the home-screen widget's play/pause icon. */
-    private val widgetPlayWhenReady = MutableStateFlow(false)
+    /** What the home-screen widget shows besides the song itself - see PlayerWidget. */
+    private data class WidgetPlayerState(
+        val playWhenReady: Boolean = false,
+        val shuffle: Boolean = false,
+        val repeatMode: Int = REPEAT_MODE_OFF,
+        val upNext: String? = null,
+    )
+
+    private val widgetPlayerState = MutableStateFlow(WidgetPlayerState())
+
+    private fun refreshWidgetPlayerState() {
+        val nextIndex = player.nextMediaItemIndex
+        val upNext = if (nextIndex != C.INDEX_UNSET && nextIndex < player.mediaItemCount) {
+            player.getMediaItemAt(nextIndex).mediaMetadata.title?.toString()
+        } else null
+        widgetPlayerState.value = WidgetPlayerState(
+            playWhenReady = player.playWhenReady,
+            shuffle = player.shuffleModeEnabled,
+            repeatMode = player.repeatMode,
+            upNext = upNext,
+        )
+    }
 
     private val currentSong = currentMediaMetadata.flatMapLatest { mediaMetadata ->
         database.song(mediaMetadata?.id)
@@ -579,15 +599,29 @@ class MusicService : MediaLibraryService(),
         // previous song is dropped rather than landing on top of the new one. playWhenReady, as for
         // Discord: isPlaying also drops while a track buffers, which would flash the play icon on
         // every skip.
-        combine(currentMediaMetadata, widgetPlayWhenReady) { metadata, playing -> metadata to playing }
+        combine(currentMediaMetadata, widgetPlayerState) { metadata, state -> metadata to state }
             .distinctUntilChanged()
-            .collectLatest(scope) { (metadata, playing) ->
+            .collectLatest(scope) { (metadata, state) ->
+                val playing = state.playWhenReady
                 fun fraction(): Float {
                     val duration = player.duration
                     return if (duration > 0) (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
                 }
-                runCatching { PlayerWidget.update(this@MusicService, metadata, playing, fraction()) }
-                    .onFailure { if (it is CancellationException) throw it }
+                // The artist's own picture, from the library, for the widget's artist element.
+                val artistImageUrl = metadata?.artists?.firstOrNull()?.id?.let { artistId ->
+                    runCatching {
+                        withContext(Dispatchers.IO) { database.artist(artistId).first()?.artist?.thumbnailUrl }
+                    }.getOrNull()
+                }
+                runCatching {
+                    PlayerWidget.update(
+                        this@MusicService, metadata, playing, fraction(),
+                        shuffle = state.shuffle,
+                        repeatMode = state.repeatMode,
+                        upNext = state.upNext,
+                        artistImageUrl = artistImageUrl,
+                    )
+                }.onFailure { if (it is CancellationException) throw it }
                 // The seek bar, while something is playing. Every couple of seconds rather than
                 // continuously: a widget redraw goes through the launcher, and a bar that is a second
                 // or two behind is invisible at that size. Ends with the song or the pause, since
@@ -1898,8 +1932,15 @@ class MusicService : MediaLibraryService(),
         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
             currentMediaMetadata.value = player.currentMetadata
         }
-        if (events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
-            widgetPlayWhenReady.value = player.playWhenReady
+        if (events.containsAny(
+                Player.EVENT_PLAY_WHEN_READY_CHANGED,
+                Player.EVENT_SHUFFLE_MODE_ENABLED_CHANGED,
+                Player.EVENT_REPEAT_MODE_CHANGED,
+                EVENT_TIMELINE_CHANGED,
+                EVENT_MEDIA_ITEM_TRANSITION,
+            )
+        ) {
+            refreshWidgetPlayerState()
         }
 
         // Anything that can change what should be on the card asks for an update; the collector in

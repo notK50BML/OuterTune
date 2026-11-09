@@ -285,6 +285,23 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="widget_previous">Previous</string>
     <string name="widget_play_pause">Play or pause</string>
     <string name="widget_next">Next</string>
+    <string name="widget_up_next">Next: %1$s</string>
+    <string name="widget_layout_title">Home-screen widget</string>
+    <string name="widget_layout_summary">Choose what the widget shows, and where</string>
+    <string name="widget_layout_row">Row %1$d</string>
+    <string name="widget_layout_add">Add to the widget</string>
+    <string name="widget_layout_hint">Tap an item to move or remove it. Items sit side by side in rows, never on top of each other; the title, seek bar and up next stretch to fill their row.</string>
+    <string name="widget_layout_reset">Reset to default</string>
+    <string name="widget_el_cover">Cover</string>
+    <string name="widget_el_artist">Artist picture</string>
+    <string name="widget_el_info">Title and artist</string>
+    <string name="widget_el_up_next">Up next</string>
+    <string name="widget_el_seek_bar">Seek bar</string>
+    <string name="widget_el_previous">Previous</string>
+    <string name="widget_el_play_pause">Play / pause</string>
+    <string name="widget_el_next">Next</string>
+    <string name="widget_el_shuffle">Shuffle</string>
+    <string name="widget_el_repeat">Repeat</string>
 
     <!-- Settings -->
     <string name="settings">Settings</string>

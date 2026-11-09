@@ -12,8 +12,11 @@ import android.os.Build
 import android.util.Log
 import androidx.core.content.FileProvider
 import com.dd3boh.outertune.BuildConfig
+import com.dd3boh.outertune.constants.BackupBeforeUpdateKey
+import com.dd3boh.outertune.db.MusicDatabase
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -176,6 +179,8 @@ object AppUpdater {
     suspend fun downloadAndInstall(
         context: Context,
         update: Update,
+        /** For the backup taken before installing - see [BackupBeforeUpdateKey]. Null skips it. */
+        database: MusicDatabase? = null,
         onProgress: (Float) -> Unit = {},
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
@@ -213,6 +218,16 @@ object AppUpdater {
             if (update.sizeBytes > 0 && apk.length() != update.sizeBytes) {
                 apk.delete()
                 error("Download incomplete (${apk.length()} of ${update.sizeBytes} bytes)")
+            }
+
+            // A backup of the library and settings, taken now - after the download, so a failed
+            // download leaves nothing behind, and before the installer, which is the last moment
+            // this version can still write one. An update that turns out to break something (a
+            // database migration, say) then has a way back from the version before it. Never blocks
+            // the update: a backup that fails is logged and the install goes ahead.
+            if (database != null && context.dataStore.data.first()[BackupBeforeUpdateKey] != false) {
+                val saved = writePreUpdateBackup(context, database, BuildConfig.VERSION_NAME)
+                Log.i(TAG, if (saved) "pre-update backup written" else "pre-update backup failed")
             }
 
             val uri = FileProvider.getUriForFile(context, "${BuildConfig.APPLICATION_ID}.FileProvider", apk)

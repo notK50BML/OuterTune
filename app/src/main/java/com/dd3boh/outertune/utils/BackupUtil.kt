@@ -95,12 +95,40 @@ suspend fun writeAutoBackup(
     context: Context,
     database: MusicDatabase,
     keepCount: Int,
+): Boolean = writeDownloadsBackup(context, database, AUTO_BACKUP_PREFIX, keepCount)
+
+/**
+ * A backup taken just before an update is installed - see AppUpdater.downloadAndInstall. Same folder
+ * as the automatic ones, its own name and its own count, so neither kind prunes the other: the last
+ * [PRE_UPDATE_KEEP_COUNT] updates each leave a way back. [fromVersion] goes in the file name, since
+ * "the backup from before I installed 0.23" is exactly how someone will look for it.
+ */
+suspend fun writePreUpdateBackup(
+    context: Context,
+    database: MusicDatabase,
+    fromVersion: String,
+): Boolean = writeDownloadsBackup(
+    context, database,
+    prefix = "$PRE_UPDATE_BACKUP_PREFIX${fromVersion.replace(Regex("[^A-Za-z0-9.]"), "_")}_",
+    keepCount = PRE_UPDATE_KEEP_COUNT,
+    prunePrefix = PRE_UPDATE_BACKUP_PREFIX,
+)
+
+private const val PRE_UPDATE_BACKUP_PREFIX = "outertune_before_update_"
+private const val PRE_UPDATE_KEEP_COUNT = 3
+
+private suspend fun writeDownloadsBackup(
+    context: Context,
+    database: MusicDatabase,
+    prefix: String,
+    keepCount: Int,
+    prunePrefix: String = prefix,
 ): Boolean = withContext(Dispatchers.IO) {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return@withContext false
 
     runCatching {
         val formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmss")
-        val fileName = "$AUTO_BACKUP_PREFIX${LocalDateTime.now().format(formatter)}.backup"
+        val fileName = "$prefix${LocalDateTime.now().format(formatter)}.backup"
 
         val values = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
@@ -120,7 +148,7 @@ suspend fun writeAutoBackup(
             return@runCatching false
         }
 
-        pruneOldAutoBackups(context, keepCount)
+        pruneOldAutoBackups(context, keepCount, prunePrefix)
         true
     }.onFailure {
         Log.e(TAG, "Automatic backup failed", it)
@@ -128,10 +156,10 @@ suspend fun writeAutoBackup(
 }
 
 /** Deletes every automatic backup past the newest [keepCount], oldest first. */
-private fun pruneOldAutoBackups(context: Context, keepCount: Int) {
+private fun pruneOldAutoBackups(context: Context, keepCount: Int, prefix: String = AUTO_BACKUP_PREFIX) {
     val projection = arrayOf(MediaStore.MediaColumns._ID, MediaStore.MediaColumns.DISPLAY_NAME)
     val selection = "${MediaStore.MediaColumns.RELATIVE_PATH} = ? AND ${MediaStore.MediaColumns.DISPLAY_NAME} LIKE ?"
-    val args = arrayOf("${Environment.DIRECTORY_DOWNLOADS}/$AUTO_BACKUP_RELATIVE_DIR/", "$AUTO_BACKUP_PREFIX%")
+    val args = arrayOf("${Environment.DIRECTORY_DOWNLOADS}/$AUTO_BACKUP_RELATIVE_DIR/", "$prefix%")
 
     val toDelete = mutableListOf<Uri>()
     context.contentResolver.query(

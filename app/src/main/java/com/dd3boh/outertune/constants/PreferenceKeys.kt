@@ -79,6 +79,8 @@ val TabletUiKey = booleanPreferencesKey("tabletUi")
 val EnabledTabsKey = stringPreferencesKey("enabledTabs")
 /** The player's title-row buttons, in order - see PlayerButton. Empty until first set. */
 val PlayerButtonsKey = stringPreferencesKey("playerButtons")
+/** The home-screen widget's arrangement - see [com.dd3boh.outertune.widget.WidgetLayout]. */
+val WidgetLayoutKey = stringPreferencesKey("widgetLayout")
 /** Hides the explanatory text under settings, leaving titles, values and errors. */
 val HideSettingsDescriptionsKey = booleanPreferencesKey("hideSettingsDescriptions")
 val EnabledFiltersKey = stringPreferencesKey("enabledFilters")
@@ -657,6 +659,8 @@ val CountryCodeToName = mapOf(
 // Updater
 val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
 val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
+/** Write a backup before handing an update to the installer. On by default. */
+val BackupBeforeUpdateKey = booleanPreferencesKey("backupBeforeUpdate")
 
 /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
 val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")

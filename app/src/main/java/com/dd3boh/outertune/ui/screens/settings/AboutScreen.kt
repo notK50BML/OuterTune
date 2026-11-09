@@ -96,6 +96,7 @@ fun AboutScreen(
     val resources = LocalResources.current
     val clipboardManager = LocalClipboard.current
     val uriHandler = LocalUriHandler.current
+    val database = com.dd3boh.outertune.LocalDatabase.current
 
     val showDebugInfo = BuildConfig.DEBUG || BuildConfig.BUILD_TYPE == "userdebug"
 
@@ -207,7 +208,7 @@ fun AboutScreen(
                                 return@launch
                             }
                             updateStatus = context.getString(R.string.update_downloading, available.versionName, 0)
-                            AppUpdater.downloadAndInstall(context, available) { fraction ->
+                            AppUpdater.downloadAndInstall(context, available, database) { fraction ->
                                 updateStatus = context.getString(
                                     R.string.update_downloading,
                                     available.versionName,

@@ -23,6 +23,7 @@ import android.graphics.Path
 import android.graphics.RectF
 import android.graphics.Shader
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.widget.RemoteViews
@@ -44,6 +45,8 @@ import com.dd3boh.outertune.constants.LiquidColorScheme
 import com.dd3boh.outertune.constants.LiquidColorSchemeKey
 import com.dd3boh.outertune.constants.LiquidShapeStyle
 import com.dd3boh.outertune.constants.LiquidShapeStyleKey
+import com.dd3boh.outertune.constants.MediaSessionConstants
+import com.dd3boh.outertune.constants.WidgetLayoutKey
 import com.dd3boh.outertune.constants.PlayerBackgroundStyle
 import com.dd3boh.outertune.constants.PlayerBackgroundStyleKey
 import com.dd3boh.outertune.constants.SliderStyle
@@ -100,6 +103,12 @@ class PlayerWidgetProvider : AppWidgetProvider() {
                     if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
                     controller.play()
                 }
+                // The notification's own commands, so the widget shuffles and repeats exactly the
+                // way the notification buttons do (the app's queue shuffle, not just the player's).
+                PlayerWidget.ACTION_SHUFFLE ->
+                    controller.sendCustomCommand(MediaSessionConstants.CommandToggleShuffle, Bundle.EMPTY)
+                PlayerWidget.ACTION_REPEAT ->
+                    controller.sendCustomCommand(MediaSessionConstants.CommandToggleRepeatMode, Bundle.EMPTY)
             }
             // Released a moment later rather than at once, so the command is delivered before the
             // connection it travels on goes away.
@@ -149,6 +158,13 @@ object PlayerWidget {
     @Volatile private var lastArtSongId: String? = null
     @Volatile private var lastLook = Look(DEFAULT_PLAYER_BACKGROUND, DEFAULT_SLIDER_STYLE, SliderWeight.THINNER)
 
+    @Volatile private var lastShuffle = false
+    @Volatile private var lastRepeat = Player.REPEAT_MODE_OFF
+    @Volatile private var lastUpNext: String? = null
+    @Volatile private var lastArtistArt: Bitmap? = null
+    @Volatile private var lastArtistArtUrl: String? = null
+    @Volatile private var lastLayout = WidgetLayout.DEFAULT
+
     /** The drawn background, kept until the song, the look or light/dark changes. */
     @Volatile private var lastBackground: Bitmap? = null
     @Volatile private var lastBackgroundKey: String? = null
@@ -161,7 +177,16 @@ object PlayerWidget {
      * the cover itself, so call it from a coroutine that a newer song will cancel (the service uses
      * collectLatest).
      */
-    suspend fun update(context: Context, metadata: MediaMetadata?, playing: Boolean, fraction: Float) {
+    suspend fun update(
+        context: Context,
+        metadata: MediaMetadata?,
+        playing: Boolean,
+        fraction: Float,
+        shuffle: Boolean = false,
+        repeatMode: Int = Player.REPEAT_MODE_OFF,
+        upNext: String? = null,
+        artistImageUrl: String? = null,
+    ) {
         val manager = AppWidgetManager.getInstance(context)
         val ids = ids(context, manager)
 
@@ -169,6 +194,9 @@ object PlayerWidget {
         lastArtist = metadata?.artists?.joinToString { it.name }
         lastPlaying = playing
         lastFraction = fraction
+        lastShuffle = shuffle
+        lastRepeat = repeatMode
+        lastUpNext = upNext
         if (metadata?.id != lastArtSongId) {
             lastArt = null
             lastArtSongId = metadata?.id
@@ -187,15 +215,26 @@ object PlayerWidget {
             liquidBackdrop = prefs[LiquidColorSchemeKey]?.let { stored -> LiquidColorScheme.entries.find { it.name == stored } }
                 ?: LiquidColorScheme.SURFACE,
         )
+        lastLayout = WidgetLayout.parse(prefs[WidgetLayoutKey])
 
         // Text and buttons straight away; the cover, and the background drawn from it, follow.
         pushLast(context, manager, ids)
+        var changed = false
         if (metadata != null && lastArt == null) {
-            val art = loadArt(context, metadata) ?: return
-            if (lastArtSongId != metadata.id) return
-            lastArt = art
-            pushLast(context, manager, ids)
+            val art = loadArt(context, metadata.getThumbnailModel(ART_PX, ART_PX))
+            if (art != null && lastArtSongId == metadata.id) {
+                lastArt = art
+                changed = true
+            }
         }
+        // The artist's own picture, only when the arrangement shows it.
+        val wantsArtist = lastLayout.rows.any { WidgetElement.ARTIST in it }
+        if (wantsArtist && artistImageUrl != lastArtistArtUrl) {
+            lastArtistArtUrl = artistImageUrl
+            lastArtistArt = artistImageUrl?.let { loadArt(context, it) }
+            changed = true
+        }
+        if (changed) pushLast(context, manager, ids)
     }
 
     /** Moves only the seek bar. Cheap enough to call every couple of seconds while playing. */
@@ -205,8 +244,9 @@ object PlayerWidget {
         if (ids.isEmpty()) return
         lastFraction = fraction
         val colours = colours(context, lastLook.background, lastArt != null)
+        if (lastLayout.rows.none { WidgetElement.SEEK_BAR in it }) return
         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
-            setImageViewBitmap(R.id.widget_seekbar, seekBar(context, fraction, lastLook, colours))
+            setImageViewBitmap(R.id.el_seekbar, seekBar(context, fraction, lastLook, colours))
         }
         manager.partiallyUpdateAppWidget(ids, views)
     }
@@ -217,18 +257,6 @@ object PlayerWidget {
         val look = lastLook
         val colours = colours(context, look.background, art != null)
         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
-            setTextViewText(R.id.widget_title, lastTitle ?: context.getString(R.string.widget_nothing_playing))
-            setTextViewText(R.id.widget_artist, lastArtist.orEmpty())
-            setTextColor(R.id.widget_title, colours.text)
-            setTextColor(R.id.widget_artist, colours.subtext)
-            setImageViewResource(R.id.widget_play_pause, if (lastPlaying) R.drawable.pause else R.drawable.play)
-            setInt(R.id.widget_play_pause, "setColorFilter", colours.accent)
-            setInt(R.id.widget_previous, "setColorFilter", colours.text)
-            setInt(R.id.widget_next, "setColorFilter", colours.text)
-
-            if (art != null) setImageViewBitmap(R.id.widget_artwork, art)
-            else setImageViewResource(R.id.widget_artwork, R.drawable.placeholder_icon)
-
             val drawn = art?.let { background(context, it, look.background) }
             if (drawn != null) {
                 setImageViewBitmap(R.id.widget_background, drawn)
@@ -238,15 +266,87 @@ object PlayerWidget {
                 setImageViewResource(R.id.widget_background, R.drawable.widget_background)
                 setInt(R.id.widget_background, "setColorFilter", colours.background)
             }
-            setImageViewBitmap(R.id.widget_seekbar, seekBar(context, lastFraction, look, colours))
-
             setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
-            setOnClickPendingIntent(R.id.widget_artwork, openAppIntent(context))
-            setOnClickPendingIntent(R.id.widget_previous, commandIntent(context, ACTION_PREVIOUS, 1))
-            setOnClickPendingIntent(R.id.widget_play_pause, commandIntent(context, ACTION_PLAY_PAUSE, 2))
-            setOnClickPendingIntent(R.id.widget_next, commandIntent(context, ACTION_NEXT, 3))
+
+            removeAllViews(R.id.widget_rows)
+            for (row in lastLayout.rows) {
+                val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
+                row.forEach { element -> rowViews.addView(R.id.widget_row_container, elementView(context, element, colours, look)) }
+                addView(R.id.widget_rows, rowViews)
+            }
         }
         manager.updateAppWidget(ids, views)
+    }
+
+    /** One element of the arrangement, filled in - see [WidgetElement] and the widget_el_* layouts. */
+    private fun elementView(context: Context, element: WidgetElement, colours: Colours, look: Look): RemoteViews {
+        fun button(icon: Int, action: String, requestCode: Int, tint: Int, layout: Int = R.layout.widget_el_button) =
+            RemoteViews(context.packageName, layout).apply {
+                setImageViewResource(R.id.el_button, icon)
+                setInt(R.id.el_button, "setColorFilter", tint)
+                setOnClickPendingIntent(R.id.el_button, commandIntent(context, action, requestCode))
+            }
+        return when (element) {
+            WidgetElement.COVER -> RemoteViews(context.packageName, R.layout.widget_el_cover).apply {
+                lastArt?.let { setImageViewBitmap(R.id.el_image, it) }
+                setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
+            }
+
+            WidgetElement.ARTIST -> RemoteViews(context.packageName, R.layout.widget_el_artist).apply {
+                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, it) }
+                setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
+            }
+
+            WidgetElement.INFO -> RemoteViews(context.packageName, R.layout.widget_el_info).apply {
+                setTextViewText(R.id.el_title, lastTitle ?: context.getString(R.string.widget_nothing_playing))
+                setTextViewText(R.id.el_subtitle, lastArtist.orEmpty())
+                setTextColor(R.id.el_title, colours.text)
+                setTextColor(R.id.el_subtitle, colours.subtext)
+            }
+
+            WidgetElement.UP_NEXT -> RemoteViews(context.packageName, R.layout.widget_el_upnext).apply {
+                setTextViewText(
+                    R.id.el_text,
+                    lastUpNext?.let { context.getString(R.string.widget_up_next, it) } ?: "",
+                )
+                setTextColor(R.id.el_text, colours.subtext)
+            }
+
+            WidgetElement.SEEK_BAR -> RemoteViews(context.packageName, R.layout.widget_el_seekbar).apply {
+                setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours))
+            }
+
+            WidgetElement.PREVIOUS -> button(R.drawable.skip_previous, ACTION_PREVIOUS, 1, colours.text)
+            WidgetElement.PLAY_PAUSE -> button(
+                if (lastPlaying) R.drawable.pause else R.drawable.play, ACTION_PLAY_PAUSE, 2, colours.accent,
+                layout = R.layout.widget_el_play,
+            )
+            WidgetElement.NEXT -> button(R.drawable.skip_next, ACTION_NEXT, 3, colours.text)
+            // Lit in the accent while on, like the player's own buttons.
+            WidgetElement.SHUFFLE -> button(
+                if (lastShuffle) R.drawable.shuffle_on else R.drawable.shuffle_off, ACTION_SHUFFLE, 4,
+                if (lastShuffle) colours.accent else colours.text,
+            )
+            WidgetElement.REPEAT -> button(
+                when (lastRepeat) {
+                    Player.REPEAT_MODE_ONE -> R.drawable.repeat_one
+                    Player.REPEAT_MODE_ALL -> R.drawable.repeat_on
+                    else -> R.drawable.repeat_off
+                },
+                ACTION_REPEAT, 5,
+                if (lastRepeat != Player.REPEAT_MODE_OFF) colours.accent else colours.text,
+            )
+        }
+    }
+
+    /**
+     * Applies a new arrangement from the widget editor straight away, without waiting for the next
+     * song or play-state change to redraw.
+     */
+    fun applyLayout(context: Context, layout: WidgetLayout) {
+        lastLayout = layout
+        val manager = AppWidgetManager.getInstance(context)
+        pushLast(context, manager, ids(context, manager))
     }
 
     private fun isNight(context: Context) =
@@ -520,8 +620,8 @@ object PlayerWidget {
         return bitmap
     }
 
-    private suspend fun loadArt(context: Context, metadata: MediaMetadata): Bitmap? {
-        val model = metadata.getThumbnailModel(ART_PX, ART_PX) ?: return null
+    private suspend fun loadArt(context: Context, model: Any?): Bitmap? {
+        if (model == null) return null
         val result = context.imageLoader.execute(
             ImageRequest.Builder(context)
                 .data(model)
@@ -555,5 +655,7 @@ object PlayerWidget {
     internal const val ACTION_PREVIOUS = "com.dd3boh.outertune.widget.PREVIOUS"
     internal const val ACTION_PLAY_PAUSE = "com.dd3boh.outertune.widget.PLAY_PAUSE"
     internal const val ACTION_NEXT = "com.dd3boh.outertune.widget.NEXT"
-    internal val COMMANDS = setOf(ACTION_PREVIOUS, ACTION_PLAY_PAUSE, ACTION_NEXT)
+    internal const val ACTION_SHUFFLE = "com.dd3boh.outertune.widget.SHUFFLE"
+    internal const val ACTION_REPEAT = "com.dd3boh.outertune.widget.REPEAT"
+    internal val COMMANDS = setOf(ACTION_PREVIOUS, ACTION_PLAY_PAUSE, ACTION_NEXT, ACTION_SHUFFLE, ACTION_REPEAT)
 }
