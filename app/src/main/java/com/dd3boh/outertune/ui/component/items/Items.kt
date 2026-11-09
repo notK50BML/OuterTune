@@ -30,6 +30,7 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -133,8 +134,11 @@ inline fun ListItem(
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = if (isActive) {
+            // heightIn, not height: 64dp is the normal size, but a large system font (HyperOS and
+            // One UI both default larger) makes the title and subtitle taller than that, and a fixed
+            // height clipped the subtitle off the bottom. The row grows only when its text needs it.
             modifier // playing highlight
-                .height(ListItemHeight)
+                .heightIn(min = ListItemHeight)
                 .padding(horizontal = 8.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(
@@ -144,13 +148,13 @@ inline fun ListItem(
                 )
         } else if (isSelected == true) {
             modifier // inactive selected
-                .height(ListItemHeight)
+                .heightIn(min = ListItemHeight)
                 .padding(horizontal = 8.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(color = MaterialTheme.colorScheme.inversePrimary.copy(alpha = 0.4f))
         } else {
             modifier // default
-                .height(ListItemHeight)
+                .heightIn(min = ListItemHeight)
                 .padding(horizontal = 8.dp)
         }
     ) {
@@ -645,7 +649,10 @@ fun YouTubeCardItem(
                 color = MaterialTheme.colorScheme.onSurface,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Start,
-                maxLines = 2,
+                // The card is a fixed 60dp in a fixed-height grid, so it cannot grow. Two lines fit
+                // at the normal font size; with a larger system font the second line was cut in half,
+                // so it is one line, ellipsised, there instead.
+                maxLines = if (LocalDensity.current.fontScale > 1.15f) 1 else 2,
                 overflow = TextOverflow.Ellipsis
             )
         }

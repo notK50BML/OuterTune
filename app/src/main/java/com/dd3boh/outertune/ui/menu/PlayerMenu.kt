@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBars
@@ -299,7 +300,9 @@ fun SleepTimerDialog(
                             onDismiss()
                             playerConnection.service.startSleepTimer(-1, sleepTimerFade, sleepTimerFadeDuration)
                         },
-                        modifier = Modifier.height(40.dp)
+                        // A minimum, not a fixed height: with a large system font the label is
+                        // taller than 40dp and a fixed height cut it off.
+                        modifier = Modifier.heightIn(min = 40.dp)
                     ) {
                         Text(stringResource(R.string.end_of_song))
                     }
@@ -534,7 +537,7 @@ fun SleepTimerDurationPicker(
                 Box(modifier = Modifier.padding(horizontal = 4.dp)) {
                     OutlinedButton(
                         onClick = { onMinutesChange(preset.toFloat()) },
-                        modifier = Modifier.height(40.dp)
+                        modifier = Modifier.heightIn(min = 40.dp)
                     ) {
                         Text(stringResource(R.string.sleep_timer_minutes_short, preset))
                     }

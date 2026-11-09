@@ -45,6 +45,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
@@ -922,7 +923,9 @@ fun ControlsContent(
                     if (sleepTimerActive) {
                         Box(
                             modifier = Modifier
-                                .height(36.dp)
+                                // At least 36dp, grown by a very large system font rather than
+                                // clipping the time in half.
+                                .heightIn(min = 36.dp)
                                 .clip(RoundedCornerShape(24.dp))
                                 .background(MaterialTheme.colorScheme.primary)
                                 .clickable { showSleepTimerDialog = true }

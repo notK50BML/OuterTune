@@ -51,6 +51,21 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
   or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
   Wired 3.5mm headphones can't be identified, so they're skipped.
 
+## Large fonts and small screens
+
+A pass for the same kind of bug as the ⋮ menu: fixed-height boxes holding text, which a larger
+system font (the default on HyperOS and One UI) overflows.
+
+- **Song, album and artist rows** are at least 64dp rather than exactly 64dp, so the subtitle is no
+  longer clipped off the bottom with a large font.
+- **Home's Recent activity cards** can't grow (fixed grid), so their titles drop to one line when
+  the font is more than 15% larger, instead of showing half of a second line.
+- **Sleep timer buttons** and the player's sleep-timer pill grow with the font instead of clipping.
+- Checked and fine as they are:
+  - the mini player (single-line text)
+  - the player's cover, which shrinks on short screens
+  - the tablet breakpoints and the artist header, which size from the screen
+
 ## Widget editor and pre-update backups (after build 180)
 
 - **Arrange the widget** in Settings → Appearance → Home-screen widget.
