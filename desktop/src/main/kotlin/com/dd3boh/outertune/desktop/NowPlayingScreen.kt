@@ -799,10 +799,15 @@ fun NowPlayingScreen(
                     )
                     }
                 } else {
-                    val side = min(min(maxHeight - 24.dp, maxWidth), coverMax)
+                    val side = min(min(maxHeight - 24.dp, maxWidth), coverMax).coerceAtLeast(120.dp)
+                    // A music video's art is a 16:9 frame (video thumbnails come from i.ytimg.com),
+                    // and cropping it to the album-cover square cut the sides off the picture. Same
+                    // width, video-shaped height - the phone's player does the same.
+                    val isVideoArt = song?.thumbnail?.contains("i.ytimg.com") == true
                     Artwork(
                         song?.thumbnail,
-                        size = side.coerceAtLeast(120.dp),
+                        size = side,
+                        height = if (isVideoArt) side * 9f / 16f else side,
                         // Proportional to the art rather than fixed, so it reads the same at any
                         // window size - see the note on the parameter.
                         cornerRadius = side * 0.045f,

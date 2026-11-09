@@ -6,10 +6,18 @@
 
 package com.dd3boh.outertune.ui.player
 
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.input.pointer.util.addPointerInputChange
+import androidx.compose.ui.unit.dp
 import com.dd3boh.outertune.ui.component.BottomSheetState
 
 /**
@@ -41,6 +49,16 @@ class EqualizerPanelState {
     /** Asked for before the sheet existed - honoured when it arrives. */
     private var pendingOpen by mutableStateOf(false)
 
+    /**
+     * Set the moment a finger lands on the pull-down handle, so the panel's content is built then,
+     * while the finger is still inside touch slop, rather than on the drag's first frame. Building
+     * twelve faders, a response curve and a compressor in the middle of a drag stalled it for a few
+     * frames, after which the sheet jumped to wherever the finger had got to - the "jumps out" the
+     * queue never did. Cleared by [EqualizerPanel] once the sheet has sat collapsed for a moment.
+     */
+    var warm by mutableStateOf(false)
+        internal set
+
     var visible: Boolean
         get() = sheet?.let { !it.isCollapsed } ?: pendingOpen
         set(value) {
@@ -65,3 +83,61 @@ class EqualizerPanelState {
 val LocalEqualizerPanelState = staticCompositionLocalOf<EqualizerPanelState> {
     error("No EqualizerPanelState provided")
 }
+
+/**
+ * Release speed above which the equaliser counts a release as a flick and goes all the way.
+ *
+ * The shared sheet default is 250 px/s, which on a modern phone is under 100dp a second - slower
+ * than a finger moves while simply letting go. So nearly every release counted as a flick, and a
+ * short pull opened the whole panel the moment the finger lifted. Measured in dp so it means the
+ * same on every screen; below it, the panel settles by how far it was pulled.
+ */
+private val EqualizerFlingThresholdPerSecond = 700.dp
+
+/**
+ * Drags the equaliser sheet with the finger, 1:1, and settles it on release - used by both the
+ * handle in the player that pulls it open and the one at the top of the panel that pushes it shut,
+ * so the two directions feel the same.
+ *
+ * [warmState] marks the panel warm on touch-down (see [EqualizerPanelState.warm]); the closing
+ * handle passes null, since the panel is already built by then.
+ */
+internal fun Modifier.equalizerSheetDrag(
+    sheet: BottomSheetState?,
+    warmState: EqualizerPanelState? = null,
+): Modifier = this
+    .pointerInput(warmState) {
+        if (warmState == null) return@pointerInput
+        // Observes only - never consumes - so the tap and drag handling still see everything.
+        awaitEachGesture {
+            awaitFirstDown(requireUnconsumed = false)
+            warmState.warm = true
+        }
+    }
+    .pointerInput(sheet) {
+        if (sheet == null) return@pointerInput
+        val velocityTracker = VelocityTracker()
+        val threshold = EqualizerFlingThresholdPerSecond.toPx()
+        detectVerticalDragGestures(
+            onDragStart = { velocityTracker.resetTracking() },
+            onVerticalDrag = { change, dragAmount ->
+                // Consumed, so the player's own sheet does not also take this drag and start
+                // closing underneath the equaliser that is being pulled down.
+                change.consume()
+                velocityTracker.addPointerInputChange(change)
+                // Negated for the same reason TopSheet negates it: down opens this one.
+                sheet.dispatchRawDelta(-dragAmount)
+            },
+            onDragEnd = {
+                val velocity = velocityTracker.calculateVelocity().y
+                velocityTracker.resetTracking()
+                sheet.performFling(velocity, null, threshold)
+            },
+            // Settled where it is rather than snapped shut: a cancel (the handle leaving the
+            // composition mid-drag, say) is not the user asking for it to close.
+            onDragCancel = {
+                velocityTracker.resetTracking()
+                sheet.performFling(0f, null, threshold)
+            },
+        )
+    }

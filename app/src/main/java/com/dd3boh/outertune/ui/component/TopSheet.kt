@@ -51,6 +51,12 @@ fun TopSheet(
     modifier: Modifier = Modifier,
     background: @Composable (BoxScope.() -> Unit) = { },
     onDismiss: (() -> Unit)? = null,
+    /**
+     * Keep [content] composed while collapsed (drawn fully off the top of the screen). Lets a
+     * caller build heavy content just before a drag opens the sheet, rather than on the drag's
+     * first frame, where building it stalls the sheet and it then jumps to catch up with the finger.
+     */
+    composeWhenCollapsed: Boolean = false,
     collapsedContent: @Composable BoxScope.() -> Unit = { },
     content: @Composable BoxScope.() -> Unit,
 ) {
@@ -101,7 +107,7 @@ fun TopSheet(
                 )
             }
     ) {
-        if (!state.isCollapsed) {
+        if (!state.isCollapsed || composeWhenCollapsed) {
             content()
         }
         if (state.progress < 1f) {

@@ -28,7 +28,6 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
@@ -102,9 +101,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.util.addPointerInputChange
-import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -550,31 +546,10 @@ private fun EqualizerHandle() {
             // it was a pre-baked slide rather than a drawer. Now each frame of the drag moves the
             // sheet by exactly that much, and on release its speed and position decide where it
             // settles - fast or past halfway opens it, otherwise it falls back - with the same
-            // spring the queue uses, because it is the same state and the same fling.
-            .pointerInput(sheet) {
-                if (sheet == null) return@pointerInput
-                val velocityTracker = VelocityTracker()
-                detectVerticalDragGestures(
-                    onDragStart = { sheet.dragStartedCollapsed = true },
-                    onVerticalDrag = { change, dragAmount ->
-                        // Consumed, so the player's own sheet does not also take this drag and
-                        // start closing underneath the equaliser that is being pulled down.
-                        change.consume()
-                        velocityTracker.addPointerInputChange(change)
-                        // Negated for the same reason TopSheet negates it: down opens this one.
-                        sheet.dispatchRawDelta(-dragAmount)
-                    },
-                    onDragEnd = {
-                        val velocity = velocityTracker.calculateVelocity().y
-                        velocityTracker.resetTracking()
-                        sheet.performFling(velocity, null)
-                    },
-                    onDragCancel = {
-                        velocityTracker.resetTracking()
-                        sheet.collapseSoft()
-                    },
-                )
-            }
+            // spring the queue uses, because it is the same state and the same fling. Shared with
+            // the panel's own closing handle - see equalizerSheetDrag, which also builds the
+            // panel on touch-down so the drag's first frames are not spent composing it.
+            .equalizerSheetDrag(sheet, warmState = equalizerPanelState)
     ) {
         Box(
             modifier = Modifier
@@ -1696,9 +1671,14 @@ fun PlayerBackground(
             // Only pay for feature extraction while this is actually the thing on screen wanting
             // it - the processor otherwise takes the cheap bulk-copy path whenever the EQ has
             // nothing else to do.
+            // Counted, not set: this background is composed in more than one place at once (the
+            // player sheet, the equaliser panel over it, the player screen), and each instance
+            // turning a shared flag off as it left is what stopped the visualiser reacting.
             DisposableEffect(visualizerWanted) {
-                visualizerAudioProcessor.visualizerEnabled = visualizerWanted
-                onDispose { visualizerAudioProcessor.visualizerEnabled = false }
+                if (visualizerWanted) visualizerAudioProcessor.acquireVisualizer()
+                onDispose {
+                    if (visualizerWanted) visualizerAudioProcessor.releaseVisualizer()
+                }
             }
 
             val visualizerFrame by visualizerAudioProcessor.visualizer.frames.collectAsState()

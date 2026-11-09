@@ -12,12 +12,15 @@ package com.dd3boh.outertune.ui.menu
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -43,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.exoplayer.offline.Download
 import com.dd3boh.outertune.R
@@ -51,6 +55,9 @@ import com.dd3boh.outertune.utils.makeTimeString
 import java.time.LocalDateTime
 
 val GridMenuItemHeight = 96.dp
+
+/** The icon's own space inside a tile - an icon's 24dp plus a little air. */
+private val GridMenuIconSlot = 32.dp
 
 @Composable
 fun GridMenu(
@@ -93,32 +100,62 @@ fun LazyGridScope.GridMenuItem(
     onClick: () -> Unit,
 ) {
     item {
-        Column(
-            modifier = modifier
-                .clip(ShapeDefaults.Large)
-                .height(GridMenuItemHeight)
-                .clickable(
-                    enabled = enabled,
-                    onClick = onClick
-                )
-                .alpha(if (enabled) 1f else 0.5f)
-                .padding(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center,
-                content = icon
+        GridMenuTile(
+            modifier = modifier.alpha(if (enabled) 1f else 0.5f),
+            label = stringResource(title),
+            enabled = enabled,
+            onClick = onClick,
+            icon = icon,
+        )
+    }
+}
+
+/**
+ * One tile of a [GridMenu]: an icon above a label of up to two lines.
+ *
+ * The icon has a fixed slot rather than "whatever height the label leaves". The tile used to be a
+ * fixed 96dp with the icon in a weight(1f) box above the text, so the icon got only what the label
+ * did not take. On a low-density screen, or with a larger system font (HyperOS ships one), a narrow
+ * column wraps the label onto two tall lines, the label takes nearly all of the 72dp inside the
+ * padding, and the icon was squeezed down to a dot. Now the icon always gets its full slot, and the
+ * tile grows instead - 96dp is a minimum, not a cap.
+ */
+@Composable
+private fun GridMenuTile(
+    modifier: Modifier,
+    label: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    icon: @Composable BoxScope.() -> Unit,
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .clip(ShapeDefaults.Large)
+            .heightIn(min = GridMenuItemHeight)
+            .clickable(
+                enabled = enabled,
+                onClick = onClick
             )
-            Text(
-                text = stringResource(title),
-                style = MaterialTheme.typography.labelLarge,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+            .padding(12.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(GridMenuIconSlot),
+            contentAlignment = Alignment.Center,
+            content = icon
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            textAlign = TextAlign.Center,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth()
+        )
     }
 }
 
@@ -227,37 +264,20 @@ fun LazyGridScope.SleepTimerGridMenu(
     onClick: () -> Unit
 ) {
     item {
-        Column(
-            modifier = modifier
-                .clip(ShapeDefaults.Large)
-                .height(GridMenuItemHeight)
-                .clickable(
-                    onClick = onClick
+        // Always clickable: "enabled" here only means a timer is running, and tapping is how one
+        // is started.
+        GridMenuTile(
+            modifier = modifier,
+            label = if (enabled) makeTimeString(sleepTimerTimeLeft) else stringResource(id = R.string.sleep_timer),
+            enabled = true,
+            onClick = onClick,
+            icon = {
+                Icon(
+                    imageVector = Icons.Rounded.Bedtime,
+                    contentDescription = null,
+                    modifier = Modifier.alpha(if (enabled) 1f else 0.5f)
                 )
-                .padding(12.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f),
-                contentAlignment = Alignment.Center,
-                content = {
-                    Icon(
-                        imageVector = Icons.Rounded.Bedtime,
-                        contentDescription = null,
-                        modifier = Modifier.alpha(if (enabled) 1f else 0.5f)
-                    )
-                }
-            )
-            Text(
-                text = if (enabled) makeTimeString(sleepTimerTimeLeft) else stringResource(
-                    id = R.string.sleep_timer
-                ),
-                style = MaterialTheme.typography.labelLarge,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
+            },
+        )
     }
 }

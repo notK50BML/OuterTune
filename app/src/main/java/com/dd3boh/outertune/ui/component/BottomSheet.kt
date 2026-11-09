@@ -260,10 +260,15 @@ class BottomSheetState(
         }
     }
 
-    fun performFling(velocity: Float, onDismiss: (() -> Unit)?) {
-        if (velocity > 250) {
+    /**
+     * Settles the sheet after a drag. [flingThreshold] is the speed, in px/s, above which a release
+     * counts as a flick and goes all the way regardless of position; below it the sheet settles by
+     * how far it was pulled.
+     */
+    fun performFling(velocity: Float, onDismiss: (() -> Unit)?, flingThreshold: Float = 250f) {
+        if (velocity > flingThreshold) {
             expand()
-        } else if (velocity < -250) {
+        } else if (velocity < -flingThreshold) {
             if (value < collapsedBound && onDismiss != null) {
                 dismiss()
                 onDismiss.invoke()

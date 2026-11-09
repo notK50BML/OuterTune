@@ -70,7 +70,6 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -81,8 +80,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -226,42 +223,67 @@ internal fun EqualizerCard(
 @Composable
 fun EqualizerPanel() {
     val panelState = LocalEqualizerPanelState.current
-    val configuration = LocalConfiguration.current
 
     // A real sheet rather than an AnimatedVisibility, and the same one the queue is - see
     // [TopSheet]. It used to slide in on a boolean, which meant the only way to open or close it
     // was to hit the handle exactly: a swipe did nothing, and a fast one did nothing twice over
     // because there was no gesture to interrupt. Now it is dragged, it follows the finger, and a
     // flick either way is a flick.
-    val sheetState = rememberBottomSheetState(
-        dismissedBound = 0.dp,
-        expandedBound = configuration.screenHeightDp.dp,
-    )
+    // The travel is the height the panel is actually drawn at, measured, not
+    // configuration.screenHeightDp. That figure leaves out parts of the window (system bars,
+    // cutouts) on some devices, more so on low-density ones, so the panel was shorter in "travel"
+    // than it was on screen: closing slid it up, stopped short of the top edge with its lower part
+    // still showing, and then it vanished outright when the content was dropped at collapse.
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val sheetState = rememberBottomSheetState(
+            dismissedBound = 0.dp,
+            expandedBound = maxHeight,
+        )
 
-    // Handed to the shared state rather than kept here, so the pull-down handle in the player -
-    // a different part of the tree entirely - can drag this exact sheet. See EqualizerPanelState
-    // for why the sheet, rather than a boolean beside it, is the thing that says whether it is open.
-    SideEffect { panelState.attach(sheetState) }
+        // Handed to the shared state rather than kept here, so the pull-down handle in the player -
+        // a different part of the tree entirely - can drag this exact sheet. See EqualizerPanelState
+        // for why the sheet, rather than a boolean beside it, is the thing that says whether it is open.
+        SideEffect { panelState.attach(sheetState) }
 
-    TopSheet(
-        state = sheetState,
-        onDismiss = { panelState.visible = false },
-        background = {
-            Box(
-                modifier = Modifier
-                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation))
-                    .fillMaxSize()
-            )
-        },
-    ) {
-        // Nothing to build while it is shut, which matters more here than for the queue: this
-        // panel holds twelve faders, a response curve and a compressor, and composing all of it
-        // behind a closed sheet would be paid for on every track change.
-        if (!sheetState.isCollapsed) {
-            EqualizerPanelContent(onDismiss = { panelState.visible = false })
+        val open = !sheetState.isCollapsed
+        // Warmed by a touch on the handle (see EqualizerPanelState.warm), and let go again once the
+        // sheet has sat shut for a moment - so a tap that never became a drag does not leave the
+        // whole panel composed off screen for the rest of the session.
+        LaunchedEffect(open, panelState.warm) {
+            if (!open && panelState.warm) {
+                delay(PANEL_WARM_HOLD_MS)
+                panelState.warm = false
+            }
+        }
+
+        TopSheet(
+            state = sheetState,
+            onDismiss = { panelState.visible = false },
+            composeWhenCollapsed = panelState.warm,
+            background = {
+                Box(
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation))
+                        .fillMaxSize()
+                )
+            },
+        ) {
+            // Nothing to build while it is shut and nobody is reaching for it, which matters more
+            // here than for the queue: this panel holds twelve faders, a response curve and a
+            // compressor, and composing all of it behind a closed sheet would be paid for on every
+            // track change.
+            if (open || panelState.warm) {
+                EqualizerPanelContent(
+                    active = open,
+                    onDismiss = { panelState.visible = false },
+                )
+            }
         }
     }
 }
+
+/** How long a warmed-but-unopened panel stays composed before it is let go. */
+private const val PANEL_WARM_HOLD_MS = 1500L
 
 /**
  * How long the controls must sit still before a song override is written.
@@ -273,7 +295,11 @@ private const val SONG_PROFILE_SETTLE_MS = 400L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+private fun EqualizerPanelContent(
+    /** False while composed ahead of time behind a shut sheet (see EqualizerPanelState.warm). */
+    active: Boolean,
+    onDismiss: () -> Unit,
+) {
     val context = LocalContext.current
     val playerConnection = LocalPlayerConnection.current ?: return
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
@@ -301,7 +327,9 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
     var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
 
-    BackHandler(onBack = onDismiss)
+    // Only while it is actually open: composed ahead of a drag, it is still off screen, and Back
+    // must go on doing whatever it did before.
+    BackHandler(enabled = active, onBack = onDismiss)
 
     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
     val isSystemInDarkTheme = isSystemInDarkTheme()
@@ -1264,31 +1292,21 @@ internal fun CompressorSection(
  */
 @Composable
 private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
-    var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
-    val closeThresholdPx = with(LocalDensity.current) { 40.dp.toPx() }
+    val sheet = LocalEqualizerPanelState.current.sheet
 
     // The whole top of the panel is the grab zone, not a slim strip - a small band was easy to
     // miss and drag past, landing on content below that doesn't handle drags itself and so let
     // the gesture fall through to the player underneath.
+    //
+    // Pushing it shut follows the finger the same way pulling it open does. It used to add up 40dp
+    // of upward movement and then fire the canned close animation, so the panel sat still under
+    // the finger and then left on its own.
     Box(
         modifier = Modifier
             .fillMaxWidth()
             .height(EqualizerHandleHeight)
             .clickable(onClick = onDismiss)
-            .pointerInput(Unit) {
-                detectVerticalDragGestures(
-                    onDragEnd = { dragAccumulatorPx = 0f },
-                    onDragCancel = { dragAccumulatorPx = 0f },
-                    onVerticalDrag = { change, dragAmount ->
-                        change.consume()
-                        dragAccumulatorPx += dragAmount
-                        if (dragAccumulatorPx < -closeThresholdPx) {
-                            onDismiss()
-                            dragAccumulatorPx = 0f
-                        }
-                    }
-                )
-            }
+            .equalizerSheetDrag(sheet)
     ) {
         Box(
             modifier = Modifier

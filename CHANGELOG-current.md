@@ -2,6 +2,30 @@
 
 Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 
+## Fixes (9 Nov 2026)
+
+- **The visualiser reacts to the music again.** Every Liquid shape drew, but none of them moved
+  with the audio. The player background is drawn in three places at once (the player sheet, the
+  equaliser panel, the player screen), and each one switched the audio analysis off as it closed,
+  so opening and closing the equaliser stopped it under the player that was still showing. The
+  processor now counts who is using it and only stops when nobody is.
+- **Player ⋮ menu icons no longer shrink to dots.** On low-density screens, or with a larger system
+  font, a two-line label took almost all of the tile's fixed 96dp and the icon got what was left.
+  The icon now has its own fixed slot and the tile grows instead.
+- **Music videos show as 16:9 in the player** instead of being cropped to a square, on Android and
+  Windows. Android also checks the loaded image's shape, so a downloaded video thumbnail is
+  caught too, and a 4:3 frame with baked-in black bars loses the bars.
+- **Equaliser handle:**
+  - Pulling it no longer stalls and then jumps. The panel is now built when your finger touches
+    the handle, not on the first frame of the drag.
+  - Letting go settles by how far you pulled. Before, any release faster than about 90dp a second
+    counted as a flick and opened the whole panel.
+  - The close handle at the top of the panel now follows your finger too, instead of waiting for
+    40dp and then playing a canned animation.
+- **Equaliser panel closes off the top edge on low-density screens.** Its travel came from the
+  configured screen height, which can be shorter than the space the panel fills, so it slid up,
+  stopped short and vanished. It now uses its measured height.
+
 ## Listen together (new)
 
 Play the same song, at the same moment, on several devices on one Wi-Fi.

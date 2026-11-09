@@ -16,6 +16,7 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -49,6 +51,9 @@ import com.dd3boh.outertune.constants.ThumbnailCornerRadius
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.ui.component.Lyrics
 import com.dd3boh.outertune.utils.rememberPreference
+
+/** Width over height past which the player treats artwork as a video frame rather than a cover. */
+private const val VIDEO_ART_MIN_ASPECT = 1.2f
 
 @SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
@@ -108,15 +113,36 @@ fun Thumbnail(
                         with(density) { maxOf(maxWidth, maxHeight).roundToPx() }
                     }
 
+                    // A music video's artwork is a 16:9 frame, and cropping it to the album-cover
+                    // square cut the sides off the picture. It is drawn in its own shape instead.
+                    // The URL gives the first guess (video thumbnails come from i.ytimg.com), so
+                    // the usual case never changes shape on screen; the decoded image's own size
+                    // then settles it, which also catches a downloaded video thumbnail that only
+                    // has a local path. Anything clearly wider than square counts as a video: an
+                    // hqdefault frame is 4:3 with black bars baked in, and cropping that to 16:9
+                    // is exactly what removes the bars.
+                    val urlLooksLikeVideo = mediaMetadata?.thumbnailUrl?.contains("i.ytimg.com") == true
+                    var measuredAspect by remember(mediaMetadata?.id) { mutableStateOf<Float?>(null) }
+                    val isWideArt = measuredAspect?.let { it >= VIDEO_ART_MIN_ASPECT } ?: urlLooksLikeVideo
+                    val coverAspect by animateFloatAsState(
+                        targetValue = if (isWideArt) 16f / 9f else 1f,
+                        label = "coverAspect",
+                    )
+
                     AsyncImage(
                         model = mediaMetadata?.getThumbnailModel(coverPx, coverPx),
                         contentDescription = null,
-                        // Cropped, not fitted: a song that is only a music video has a 16:9
-                        // thumbnail, which fitted into this square left a band of nothing above
-                        // and below it - see ItemThumbnail.
+                        // Still cropped rather than fitted, so a 4:3 letterboxed frame loses its
+                        // bars and a square cover fills its square exactly.
                         contentScale = ContentScale.Crop,
+                        onSuccess = { state ->
+                            val image = state.result.image
+                            if (image.width > 0 && image.height > 0) {
+                                measuredAspect = image.width.toFloat() / image.height
+                            }
+                        },
                         modifier = Modifier
-                            .aspectRatio(1f)
+                            .aspectRatio(coverAspect)
                             // Scaled as a transform about its centre - the layout editor's "size" -
                             // so a bigger or smaller cover moves nothing else, and the radius is
                             // divided back out so the corners come out at the size asked for.

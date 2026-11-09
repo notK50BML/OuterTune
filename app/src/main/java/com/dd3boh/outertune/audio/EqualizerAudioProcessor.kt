@@ -13,6 +13,7 @@ import androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException
 import androidx.media3.common.audio.BaseAudioProcessor
 import com.dd3boh.outertune.models.EqualizerSettings
 import java.nio.ByteBuffer
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.log10
@@ -194,8 +195,32 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     @Volatile
     private var exciterCutoffHz: Float? = null
 
-    @Volatile
-    var visualizerEnabled: Boolean = false
+    /**
+     * How many on-screen consumers currently want [visualizer] fed.
+     *
+     * A count, not a boolean. The player background is drawn in several places at once - the
+     * player sheet, the equaliser panel on top of it, the player screen - and each one used to
+     * write a single shared flag, turning it off as it left. Closing the equaliser panel therefore
+     * switched the analysis off underneath the player that was still showing, and every Liquid
+     * shape went on drawing with no audio behind it until playback was paused and resumed.
+     */
+    private val visualizerUsers = AtomicInteger(0)
+
+    val visualizerEnabled: Boolean
+        get() = visualizerUsers.get() > 0
+
+    /** Call once per consumer that starts wanting visualiser frames; pair with [releaseVisualizer]. */
+    fun acquireVisualizer() {
+        visualizerUsers.incrementAndGet()
+    }
+
+    fun releaseVisualizer() {
+        // Never below zero, so an unbalanced release cannot leave a later acquire ineffective.
+        while (true) {
+            val current = visualizerUsers.get()
+            if (current <= 0 || visualizerUsers.compareAndSet(current, current - 1)) return
+        }
+    }
 
     private var configuredSampleRate = 0
 
