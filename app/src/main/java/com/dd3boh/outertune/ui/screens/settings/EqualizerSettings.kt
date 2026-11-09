@@ -9,6 +9,11 @@
 package com.dd3boh.outertune.ui.screens.settings
 
 import com.dd3boh.outertune.constants.EqCutMakeupKey
+import android.content.Context
+import android.media.AudioDeviceInfo
+import android.media.AudioManager
+import android.os.Build
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -322,6 +327,35 @@ fun EqualizerSettingsScreen(
 }
 
 /**
+ * The name of the headphones playing right now, if any - a Bluetooth or USB headset's own product
+ * name, which is what AutoEq's folders are named after too ("WH-1000XM4" finds "Sony WH-1000XM4").
+ *
+ * Read from AudioManager's output devices rather than from the Bluetooth stack, which is what
+ * keeps this free of permissions: listing Bluetooth devices directly needs BLUETOOTH_CONNECT on
+ * Android 12+, a runtime prompt for a convenience. Wired 3.5mm outputs are skipped - they only
+ * ever report the phone's own model, never the headphones on the end of the cable - and so is a
+ * name that is just the phone's model for the same reason.
+ */
+private fun connectedHeadphoneName(context: Context): String? {
+    val audioManager = context.getSystemService(AudioManager::class.java) ?: return null
+    val headphoneTypes = setOf(
+        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+        AudioDeviceInfo.TYPE_USB_HEADSET,
+        // TYPE_BLE_HEADSET (Android 12+). A plain constant, so it is safe to name on older
+        // versions - those simply never report a device of this type.
+        26,
+    )
+    return runCatching {
+        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .filter { it.type in headphoneTypes }
+            .map { it.productName?.toString()?.trim().orEmpty() }
+            // LE Audio devices often advertise as "LE-<name>".
+            .map { it.removePrefix("LE-").removePrefix("LE_").trim() }
+            .firstOrNull { it.isNotEmpty() && !it.equals(Build.MODEL, ignoreCase = true) }
+    }.getOrNull()
+}
+
+/**
  * Searches oratory1990's AutoEQ measurements (see [AutoEqRepository] for why that source
  * specifically, and its own doc for the format being parsed) live against GitHub, and applies the
  * chosen headphone's curve - replacing the bands, keeping this screen's current balance/compressor
@@ -329,7 +363,11 @@ fun EqualizerSettingsScreen(
  */
 @Composable
 private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: () -> Unit) {
-    var query by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    // Starts from whatever headphones are connected right now, so the usual case is open the
+    // dialog, check the match, tap it. Editable like any other search.
+    val detectedHeadphones = remember { connectedHeadphoneName(context) }
+    var query by remember { mutableStateOf(detectedHeadphones.orEmpty()) }
     var results by remember { mutableStateOf<List<AutoEqRepository.Result>>(emptyList()) }
     var isSearching by remember { mutableStateOf(false) }
     var isApplying by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
@@ -394,6 +432,14 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: 
             singleLine = true,
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
         )
+        if (detectedHeadphones != null) {
+            Text(
+                text = stringResource(R.string.eq_settings_autoeq_detected, detectedHeadphones),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        }
         Spacer(Modifier.height(8.dp))
 
         when {

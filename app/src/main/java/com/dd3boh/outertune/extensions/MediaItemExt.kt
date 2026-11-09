@@ -11,6 +11,20 @@ import com.zionhuang.innertube.models.SongItem
 val MediaItem.metadata: MediaMetadata?
     get() = localConfiguration?.tag as? MediaMetadata
 
+/**
+ * The picture the media session - and so the notification, the lock screen and the system's media
+ * controls - shows for a song.
+ *
+ * This used to be the remote thumbnail URL alone. A song from this phone's own storage often has
+ * none (its cover is inside the audio file), so it was handed no artwork at all, and a downloaded
+ * song ignored the full-size cover already saved for it. With nothing to show, the system's media
+ * card falls back to the app's icon - which is what HyperOS was showing. In order of preference:
+ * the saved full-size cover, the remote art, then the audio file itself, whose embedded picture
+ * CoilBitmapLoader knows how to pull out.
+ */
+private fun artworkUri(thumbnailPath: String?, thumbnailUrl: String?, isLocal: Boolean, localPath: String?) =
+    (thumbnailPath ?: thumbnailUrl ?: localPath.takeIf { isLocal })?.toUri()
+
 fun Song.toMediaItem() = MediaItem.Builder()
     .setMediaId(song.id)
     .setUri(song.id)
@@ -21,7 +35,7 @@ fun Song.toMediaItem() = MediaItem.Builder()
             .setTitle(song.title)
             .setSubtitle(artists.joinToString { it.name })
             .setArtist(artists.joinToString { it.name })
-            .setArtworkUri(song.thumbnailUrl?.toUri())
+            .setArtworkUri(artworkUri(song.thumbnailPath, song.thumbnailUrl, song.isLocal, song.localPath))
             .setAlbumTitle(song.albumName)
             .setMediaType(MEDIA_TYPE_MUSIC)
             .build()
@@ -55,7 +69,7 @@ fun MediaMetadata.toMediaItem() = MediaItem.Builder()
             .setTitle(title)
             .setSubtitle(artists.joinToString { it.name })
             .setArtist(artists.joinToString { it.name })
-            .setArtworkUri(thumbnailUrl?.toUri())
+            .setArtworkUri(artworkUri(thumbnailPath, thumbnailUrl, isLocal, localPath))
             .setAlbumTitle(album?.title)
             .setMediaType(MEDIA_TYPE_MUSIC)
             .build()

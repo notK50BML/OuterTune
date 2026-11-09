@@ -80,8 +80,25 @@ open class DiscordWebSocket(
     // stale socket could keep answering isRpcRunning() after a logout.
     private val socketJob = SupervisorJob()
     override val coroutineContext: CoroutineContext = socketJob + Dispatchers.Default
+
+    /**
+     * The running connection - it lives as long as the socket does, receive loop included.
+     *
+     * connect() is a no-op while it is active. isWebSocketConnected() only turns true once the
+     * session object exists, which is after the handshake, so two presence updates close together
+     * (a skip, then the play state settling) each saw "not running" and each opened a socket. The
+     * second replaced the first in [websocket], and the first, no longer reachable from here, could
+     * stay identified holding the previous song's presence: the card stuck on an old song.
+     */
+    @Volatile
+    private var connectJob: Job? = null
+
     suspend fun connect() {
-        launch {
+        if (connectJob?.isActive == true) return
+        connectJob = openConnection()
+    }
+
+    private fun openConnection(): Job = launch {
             try {
                 Logger.getLogger("Kizzy").log(INFO, "Gateway: Connect called")
                 lastStatus = "Connecting…"
@@ -104,7 +121,6 @@ open class DiscordWebSocket(
                 lastStatus = "Connection error: ${e.message ?: e::class.simpleName}"
                 close()
             }
-        }
     }
     private suspend fun handleClose() {
         heartbeatJob?.cancel()
@@ -119,7 +135,8 @@ open class DiscordWebSocket(
         }
         if (close?.code?.toInt() == 4000) {
             delay(200.milliseconds)
-            connect()
+            // Straight to a new connection: connect() would see this job, still running, and skip.
+            connectJob = openConnection()
         } else
             close()
     }
@@ -255,6 +272,7 @@ open class DiscordWebSocket(
         // dead, and a later connect() would launch into a cancelled scope and never run - so
         // sendActivity would then spin forever waiting for a connection that cannot happen.
         socketJob.cancelChildren()
+        connectJob = null
         resumeGatewayUrl = null
         sessionId = null
         connected = false

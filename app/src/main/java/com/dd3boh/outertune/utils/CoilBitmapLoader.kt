@@ -62,11 +62,21 @@ class CoilBitmapLoader @Inject constructor(
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> =
         scope.future {
             try {
-                // local images
-                val result = if (uri.toString().startsWith("/storage/")) {
+                // Anything on this device: a song's own file under /storage/, but also a saved cover,
+                // which lives in the app's private files (/data/...) and used to fall through to the
+                // network branch below, fail, and come back as the app-icon placeholder.
+                val uriString = uri.toString()
+                val localPath = when {
+                    uriString.startsWith("/") -> uriString
+                    uri.scheme == "file" -> uri.path
+                    else -> null
+                }
+                val result = if (localPath != null) {
                     context.imageLoader.execute(
                         ImageRequest.Builder(context)
-                            .data(LocalArtworkPath(uri.toString()))
+                            // Sized: a file's own cover can be 3000px, which is 36MB as a bitmap -
+                            // far more than a notification or lock screen ever draws.
+                            .data(LocalArtworkPath(localPath, SESSION_ART_PX, SESSION_ART_PX))
                             .allowHardware(false)
                             .diskCachePolicy(CachePolicy.DISABLED)
                             .build()
@@ -191,6 +201,9 @@ class CoilBitmapLoader @Inject constructor(
     }
 
     companion object {
+        /** Media-session artwork read from this device is decoded at about this size. */
+        private const val SESSION_ART_PX = 720
+
         // TODO: re eval dimens after a few months
         /**
          * Draw a centered square app icon with the maximum possible size while maintaining aspect ratio.

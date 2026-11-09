@@ -23,6 +23,9 @@ import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.statement.bodyAsText
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withTimeoutOrNull
 import org.json.JSONObject
 
 /**
@@ -103,7 +106,7 @@ open class KizzyRPC(token: String) {
         if (!isRpcRunning()) {
             discordWebSocket.connect()
         }
-        val presence = Presence(
+        fun presence(large: String?, small: String?) = Presence(
             activities = listOf(
                 Activity(
                     name = name,
@@ -115,8 +118,8 @@ open class KizzyRPC(token: String) {
                     statusDisplayType = statusDisplayType.value,
                     timestamps = Timestamps(startTime, endTime),
                     assets = Assets(
-                        largeImage = largeImage?.resolveImage(kizzyRepository, applicationId),
-                        smallImage = smallImage?.resolveImage(kizzyRepository, applicationId),
+                        largeImage = large,
+                        smallImage = small,
                         largeText = largeText,
                         smallText = smallText
                     ),
@@ -130,7 +133,35 @@ open class KizzyRPC(token: String) {
             since = since,
             status = status ?: "online"
         )
-        discordWebSocket.sendActivity(presence)
+
+        // The words first, the pictures when they are ready.
+        //
+        // Both images have to be registered with Discord before a presence can carry them, and that
+        // used to happen in turn, each allowed up to 30 seconds, before anything was sent. All that
+        // time the card went on showing the previous song - which on a slow connection, or on a skip
+        // straight after a skip, is the presence "stuck on the same song". Now both resolve at
+        // once; whatever is ready within a moment goes out with the new title, and if either was
+        // still pending the card is sent again with it once it arrives. A newer song cancels this
+        // whole call (the caller's collectLatest), so a late picture can never land on the wrong
+        // song.
+        coroutineScope {
+            val large = async { largeImage?.resolveImage(kizzyRepository, applicationId) }
+            val small = async { smallImage?.resolveImage(kizzyRepository, applicationId) }
+            // Awaiting with a timeout does not cancel the request itself - it carries on below.
+            val quickLarge = withTimeoutOrNull(QUICK_IMAGE_WAIT_MS) { large.await() }
+            val quickSmall = withTimeoutOrNull(QUICK_IMAGE_WAIT_MS) { small.await() }
+            discordWebSocket.sendActivity(presence(quickLarge, quickSmall))
+
+            val largeLate = largeImage != null && quickLarge == null
+            val smallLate = smallImage != null && quickSmall == null
+            if (largeLate || smallLate) {
+                val finalLarge = large.await()
+                val finalSmall = small.await()
+                if ((largeLate && finalLarge != null) || (smallLate && finalSmall != null)) {
+                    discordWebSocket.sendActivity(presence(finalLarge, finalSmall))
+                }
+            }
+        }
     }
 
     enum class Type(val value: Int) {
@@ -148,6 +179,9 @@ open class KizzyRPC(token: String) {
     }
 
     companion object {
+        /** How long a new song's card waits for its pictures before going out without them. */
+        private const val QUICK_IMAGE_WAIT_MS = 1_500L
+
         suspend fun getUserInfo(token: String): Result<UserInfo> = runCatching {
             val client = HttpClient()
             val response = client.get("https://discord.com/api/v9/users/@me") {

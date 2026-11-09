@@ -195,6 +195,7 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="eq_settings_autoeq_search_hint">Headphone model</string>
     <string name="eq_settings_autoeq_searching">Searching…</string>
     <string name="eq_settings_autoeq_no_results">No matching headphones found.</string>
+    <string name="eq_settings_autoeq_detected">Filled in from your connected headphones: %1$s</string>
     <string name="eq_settings_autoeq_error">Couldn\'t fetch that curve: %1$s</string>
 
 <!-- Discord integration -->

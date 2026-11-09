@@ -53,6 +53,15 @@ data class SongEntity(
     val year: Int? = null,
     val date: LocalDateTime? = null, // ID3 tag property
     val dateModified: LocalDateTime? = null, // file property
+    /**
+     * YouTube's explicit badge, remembered. Before this column existed only rows built straight
+     * from a YouTube response could show the badge, so the same song was marked in search and
+     * unmarked in the library, a saved album or the queue. Only ever set, never cleared, by what
+     * the app sees online (see DatabaseDao.markExplicit) - many responses carry no badges at all,
+     * and "no badge in this response" is not "not explicit".
+     */
+    @ColumnInfo(defaultValue = "0")
+    val explicit: Boolean = false,
 ) {
 
     // Unliking remembers when the song was liked, and liking it again this session restores that

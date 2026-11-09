@@ -419,7 +419,9 @@ fun YouTubeListItem(
         ) {
             Icon.Favorite()
         }
-        if (item.explicit) {
+        // Either source: this response's badge, or one the library remembers from an earlier one
+        // (see SongEntity.explicit). Many responses carry no badges, so this page alone could miss it.
+        if (item.explicit || item is SongItem && song?.song?.explicit == true) {
             Icon.Explicit()
         }
         if (item is SongItem && song?.song?.inLibrary != null) {
@@ -489,7 +491,7 @@ fun YouTubeGridItem(
         ) {
             Icon.Favorite()
         }
-        if (item.explicit) {
+        if (item.explicit || item is SongItem && song?.song?.explicit == true) {
             Icon.Explicit()
         }
         if (item is SongItem && song?.song?.inLibrary != null) {

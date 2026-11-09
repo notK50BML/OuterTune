@@ -80,7 +80,7 @@ class MusicDatabase(
     fun close() = delegate.close()
 
     companion object {
-        const val MUSIC_DATABASE_VERSION = 26
+        const val MUSIC_DATABASE_VERSION = 27
     }
 }
 
@@ -154,6 +154,7 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_22_23)
                     .addMigrations(MIGRATION_23_24)
                     .addMigrations(MIGRATION_24_25)
+                    .addMigrations(MIGRATION_26_27)
                     // This app gets rebuilt from different, sometimes-diverging local patch
                     // lines rather than shipping one monotonically-increasing version history,
                     // so the database on disk can genuinely be a newer version than the build
@@ -179,8 +180,20 @@ abstract class InternalDatabase : RoomDatabase() {
                     .addMigrations(MIGRATION_22_23)
                     .addMigrations(MIGRATION_23_24)
                     .addMigrations(MIGRATION_24_25)
+                    .addMigrations(MIGRATION_26_27)
                     .build()
             )
+    }
+}
+
+/**
+ * The song's explicit flag (SongEntity.explicit). A hand-written migration rather than an
+ * AutoMigration, so it does not depend on the 27 schema file having been exported first - it is one
+ * column, defaulting to "not explicit", which is what every existing row was being shown as anyway.
+ */
+val MIGRATION_26_27 = object : Migration(26, 27) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE `song` ADD COLUMN `explicit` INTEGER NOT NULL DEFAULT 0")
     }
 }
 

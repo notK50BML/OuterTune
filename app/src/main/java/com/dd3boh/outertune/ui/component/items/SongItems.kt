@@ -127,6 +127,9 @@ fun SongListItem(
                 if (showLikedIcon && song.song.liked) {
                     Icon.Favorite()
                 }
+                if (song.song.explicit) {
+                    Icon.Explicit()
+                }
                 if (showInLibraryIcon && song.song.isLocal) {
                     Icon.FolderCopy()
                 } else if (showInLibraryIcon && song.song.inLibrary != null) {
@@ -348,6 +351,9 @@ fun SongGridItem(
                     .size(18.dp)
                     .padding(end = 2.dp)
             )
+        }
+        if (song.song.explicit) {
+            Icon.Explicit()
         }
         if (showInLibraryIcon && song.song.inLibrary != null) {
             Icon(

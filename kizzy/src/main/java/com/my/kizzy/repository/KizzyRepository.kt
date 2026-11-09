@@ -33,8 +33,13 @@ class KizzyRepository(token: String) {
      * short strings; the cap exists so a long shuffle cannot grow it without limit, and at that
      * size the difference between dropping the oldest and dropping all of them is one extra round
      * trip for whatever is playing next.
+     *
+     * Shared by every instance (see the companion), keyed by application and URL. The app rebuilds
+     * its RPC client - and with it this repository - every few minutes to recover dead sockets, and
+     * a per-instance map was thrown away with each rebuild, so the next track paid the full round
+     * trips again.
      */
-    private val resolved = ConcurrentHashMap<String, String>()
+    private val resolved get() = sharedResolved
 
     /**
      * Why the last resolution failed, or null if the last one worked.
@@ -52,12 +57,13 @@ class KizzyRepository(token: String) {
             lastError = "No application id, so Discord has nothing to register the image against"
             return null
         }
-        resolved[url]?.let { return it }
+        val key = "$applicationId|$url"
+        resolved[key]?.let { return it }
 
         return api.externalAsset(applicationId, url)
             .onSuccess { asset ->
                 if (resolved.size >= MAX_CACHED) resolved.clear()
-                resolved[url] = asset
+                resolved[key] = asset
                 lastError = null
             }
             .onFailure { lastError = it.message ?: it::class.simpleName }
@@ -65,6 +71,7 @@ class KizzyRepository(token: String) {
     }
 
     private companion object {
-        const val MAX_CACHED = 64
+        const val MAX_CACHED = 128
+        val sharedResolved = ConcurrentHashMap<String, String>()
     }
 }

@@ -144,6 +144,7 @@ import com.dd3boh.outertune.playback.queues.YouTubeQueue
 import com.dd3boh.outertune.utils.ArtistCreditEnricher
 import com.dd3boh.outertune.utils.CoilBitmapLoader
 import com.dd3boh.outertune.utils.DiscordRPC
+import com.dd3boh.outertune.widget.PlayerWidget
 import com.dd3boh.outertune.utils.NetworkConnectivityObserver
 import com.dd3boh.outertune.utils.SyncUtils
 import com.dd3boh.outertune.utils.YTPlayerUtils
@@ -332,6 +333,9 @@ class MusicService : MediaLibraryService(),
 
     // Player vars
     val currentMediaMetadata = MutableStateFlow<MediaMetadata?>(null)
+
+    /** The player's playWhenReady, for the home-screen widget's play/pause icon. */
+    private val widgetPlayWhenReady = MutableStateFlow(false)
 
     private val currentSong = currentMediaMetadata.flatMapLatest { mediaMetadata ->
         database.song(mediaMetadata?.id)
@@ -570,6 +574,17 @@ class MusicService : MediaLibraryService(),
             .map { it?.id }
             .distinctUntilChanged()
             .collect(scope) { requestDiscordUpdate() }
+
+        // The home-screen widget (PlayerWidget). Latest-only, so a cover still loading for the
+        // previous song is dropped rather than landing on top of the new one. playWhenReady, as for
+        // Discord: isPlaying also drops while a track buffers, which would flash the play icon on
+        // every skip.
+        combine(currentMediaMetadata, widgetPlayWhenReady) { metadata, playing -> metadata to playing }
+            .distinctUntilChanged()
+            .collectLatest(scope) { (metadata, playing) ->
+                runCatching { PlayerWidget.update(this@MusicService, metadata, playing) }
+                    .onFailure { if (it is CancellationException) throw it }
+            }
 
         setMediaNotificationProvider(
             DefaultMediaNotificationProvider(
@@ -1870,6 +1885,9 @@ class MusicService : MediaLibraryService(),
         }
         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
             currentMediaMetadata.value = player.currentMetadata
+        }
+        if (events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
+            widgetPlayWhenReady.value = player.playWhenReady
         }
 
         // Anything that can change what should be on the card asks for an update; the collector in

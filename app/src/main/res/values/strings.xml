@@ -279,6 +279,13 @@ We recycle translations from upstream, they are pulled periodically. -->
     <!-- Notification name -->
     <string name="music_player">Music Player</string>
 
+    <!-- Home-screen widget -->
+    <string name="widget_description">What\'s playing, with play/pause and skip</string>
+    <string name="widget_nothing_playing">Nothing playing</string>
+    <string name="widget_previous">Previous</string>
+    <string name="widget_play_pause">Play or pause</string>
+    <string name="widget_next">Next</string>
+
     <!-- Settings -->
     <string name="settings">Settings</string>
     <string name="appearance">Appearance</string>

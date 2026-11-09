@@ -188,9 +188,20 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     fun insert(map: RelatedSongMap)
 
+    /**
+     * Marks a song explicit. Only ever sets the flag: plenty of YouTube responses carry no badges
+     * at all, so a source without one says nothing about the song, and clearing on it would undo
+     * what a richer source (an album page, search) already established.
+     */
+    @Query("UPDATE song SET explicit = 1 WHERE id = :songId AND explicit = 0")
+    fun markExplicit(songId: String)
+
     @Transaction
     fun insert(mediaMetadata: MediaMetadata, block: (SongEntity) -> SongEntity = { it }) {
         val isNewSong = insert(mediaMetadata.toSongEntity().let(block)) != -1L
+        // The insert above is IGNORE, so a song already stored keeps its old row - which, for every
+        // song saved before the column existed, says "not explicit".
+        if (!isNewSong && mediaMetadata.explicit) markExplicit(mediaMetadata.id)
         // A song that already has credits keeps them. Those are what ArtistCreditEnricher and
         // ArtistNameRefresher maintain - a combined "X & Y" split into two channels, an old alias
         // folded into the artist's current one - and adding back whatever this metadata credits
@@ -480,6 +491,8 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao 
             // played with no artists at all. Those, and any left that way before, get the full one.
             if (insert(song.toSongEntity()) != -1L || songArtistIdsOnce(song.id).isEmpty()) {
                 insert(song)
+            } else if (song.explicit) {
+                markExplicit(song.id)
             }
             insert(
                 QueueSongMap(

@@ -32,6 +32,8 @@ data class MediaMetadata(
     val isLocal: Boolean = false,
     val localPath: String? = null,
     val liked: Boolean = false,
+    /** YouTube's explicit badge - see SongEntity.explicit. */
+    val explicit: Boolean = false,
     val composeUidWorkaround: Double = Math.random(), // compose will crash without this hax
 
     var shuffleIndex: Int = -1
@@ -79,7 +81,8 @@ data class MediaMetadata(
         liked = liked,
         isLocal = isLocal,
         inLibrary = if (isLocal) LocalDateTime.now() else null,
-        localPath = localPath
+        localPath = localPath,
+        explicit = explicit,
     )
 
     /**
@@ -163,7 +166,8 @@ fun Song.toMediaMetadata() = MediaMetadata(
     inLibrary = song.inLibrary,
     liked = song.liked,
     isLocal = song.isLocal,
-    localPath = song.localPath
+    localPath = song.localPath,
+    explicit = song.explicit,
 )
 
 fun SongItem.toMediaMetadata() = MediaMetadata(
@@ -184,5 +188,6 @@ fun SongItem.toMediaMetadata() = MediaMetadata(
         )
     },
     genre = null,
-    setVideoId = setVideoId
+    setVideoId = setVideoId,
+    explicit = explicit,
 )

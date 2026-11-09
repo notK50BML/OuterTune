@@ -25,6 +25,31 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Equaliser panel closes off the top edge on low-density screens.** Its travel came from the
   configured screen height, which can be shorter than the space the panel fills, so it slid up,
   stopped short and vanished. It now uses its measured height.
+- **Explicit tags stick.** Only rows built straight from a YouTube response could show the badge,
+  so the same song was tagged in search but not in the library, a saved album or the queue.
+  Songs now remember it: a new database column (version 27, one-line migration, nothing else
+  touched) that is set whenever any source reports the song as explicit and never cleared by a
+  source that simply carries no badges. Online rows also show the badge when only the library
+  knows it.
+- **Discord presence no longer sticks on the previous song.**
+  - Each update used to register the cover and the artist picture with Discord before sending
+    anything, one after the other, each allowed 30 seconds, and the card showed the old song
+    until both had finished. The title and artist now go out straight away, and the pictures
+    follow once they're ready.
+  - Registered images are kept across the periodic connection rebuild instead of thrown away.
+  - Two updates close together could each open a gateway connection, and the orphaned one could
+    keep showing an old song. Only one connection can exist now.
+- **Notification artwork for local and downloaded songs.** The media session was only ever given
+  the remote thumbnail, so a song from your own storage had no picture at all and the system
+  media card (HyperOS especially) fell back to the app icon. It now gets the saved full-size
+  cover, then the remote art, then the cover embedded in the audio file. Saved covers under
+  /data/ also no longer fail to load and turn into the placeholder.
+- **Home-screen widget (new).** Cover, title, artist, previous / play-pause / next. Plain Android
+  widget, no new libraries; updated by the player when the song or play state changes, never
+  polled. The buttons work when the app is closed, and play resumes the saved queue.
+- **AutoEQ fills in your headphones.** Opening the AutoEQ search pre-fills the connected Bluetooth
+  or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
+  Wired 3.5mm headphones can't be identified, so they're skipped.
 
 ## Listen together (new)
 
