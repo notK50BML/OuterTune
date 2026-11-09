@@ -247304,3 +247304,1834 @@ index c526a1a90..5cdb689ca 100644
 -- 
 2.45.1.windows.1
 
+From bac5760f7477d697e778012b03c89d1d3669c0ac Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 19:10:06 +0800
+Subject: [PATCH 1/2] Fix visualiser, menu icons, video covers and the
+ equaliser sheet
+
+- Visualiser: the audio processor now counts its users instead of keeping
+  one shared flag, so closing one of the three player backgrounds (the EQ
+  panel's, say) no longer switches the analysis off under the others.
+- Player menu tiles: the icon has a fixed slot and the tile grows, so a
+  two-line label on a low-density screen or a large font no longer
+  squeezes the icon to a dot.
+- Player cover: music videos are drawn 16:9 rather than cropped to a
+  square, on Android (URL hint, then the decoded image's shape) and on
+  Windows (URL hint).
+- Equaliser sheet: the panel is built on touch-down so the drag does not
+  stall and jump; releases settle by position below 700dp/s; the close
+  handle follows the finger; the travel is the measured height, so the
+  panel closes past the top edge on low-density screens.
+---
+ CHANGELOG-current.md                          |  24 ++++
+ .../audio/EqualizerAudioProcessor.kt          |  29 +++-
+ .../outertune/ui/component/BottomSheet.kt     |  11 +-
+ .../dd3boh/outertune/ui/component/TopSheet.kt |   8 +-
+ .../com/dd3boh/outertune/ui/menu/GridMenu.kt  | 132 ++++++++++--------
+ .../outertune/ui/player/EqualizerPanel.kt     | 110 +++++++++------
+ .../ui/player/EqualizerPanelState.kt          |  76 ++++++++++
+ .../com/dd3boh/outertune/ui/player/Player.kt  |  42 ++----
+ .../dd3boh/outertune/ui/player/Thumbnail.kt   |  34 ++++-
+ .../outertune/desktop/NowPlayingScreen.kt     |   9 +-
+ 10 files changed, 330 insertions(+), 145 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 0fbf835..00fc67a 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -2,6 +2,30 @@
+ 
+ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ 
++## Fixes (9 Nov 2026)
++
++- **The visualiser reacts to the music again.** Every Liquid shape drew, but none of them moved
++  with the audio. The player background is drawn in three places at once (the player sheet, the
++  equaliser panel, the player screen), and each one switched the audio analysis off as it closed,
++  so opening and closing the equaliser stopped it under the player that was still showing. The
++  processor now counts who is using it and only stops when nobody is.
++- **Player ⋮ menu icons no longer shrink to dots.** On low-density screens, or with a larger system
++  font, a two-line label took almost all of the tile's fixed 96dp and the icon got what was left.
++  The icon now has its own fixed slot and the tile grows instead.
++- **Music videos show as 16:9 in the player** instead of being cropped to a square, on Android and
++  Windows. Android also checks the loaded image's shape, so a downloaded video thumbnail is
++  caught too, and a 4:3 frame with baked-in black bars loses the bars.
++- **Equaliser handle:**
++  - Pulling it no longer stalls and then jumps. The panel is now built when your finger touches
++    the handle, not on the first frame of the drag.
++  - Letting go settles by how far you pulled. Before, any release faster than about 90dp a second
++    counted as a flick and opened the whole panel.
++  - The close handle at the top of the panel now follows your finger too, instead of waiting for
++    40dp and then playing a canned animation.
++- **Equaliser panel closes off the top edge on low-density screens.** Its travel came from the
++  configured screen height, which can be shorter than the space the panel fills, so it slid up,
++  stopped short and vanished. It now uses its measured height.
++
+ ## Listen together (new)
+ 
+ Play the same song, at the same moment, on several devices on one Wi-Fi.
+diff --git a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+index f214e82..830a536 100644
+--- a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
++++ b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+@@ -13,6 +13,7 @@ import androidx.media3.common.audio.AudioProcessor.UnhandledAudioFormatException
+ import androidx.media3.common.audio.BaseAudioProcessor
+ import com.dd3boh.outertune.models.EqualizerSettings
+ import java.nio.ByteBuffer
++import java.util.concurrent.atomic.AtomicInteger
+ import kotlin.math.abs
+ import kotlin.math.exp
+ import kotlin.math.log10
+@@ -194,8 +195,32 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
+     @Volatile
+     private var exciterCutoffHz: Float? = null
+ 
+-    @Volatile
+-    var visualizerEnabled: Boolean = false
++    /**
++     * How many on-screen consumers currently want [visualizer] fed.
++     *
++     * A count, not a boolean. The player background is drawn in several places at once - the
++     * player sheet, the equaliser panel on top of it, the player screen - and each one used to
++     * write a single shared flag, turning it off as it left. Closing the equaliser panel therefore
++     * switched the analysis off underneath the player that was still showing, and every Liquid
++     * shape went on drawing with no audio behind it until playback was paused and resumed.
++     */
++    private val visualizerUsers = AtomicInteger(0)
++
++    val visualizerEnabled: Boolean
++        get() = visualizerUsers.get() > 0
++
++    /** Call once per consumer that starts wanting visualiser frames; pair with [releaseVisualizer]. */
++    fun acquireVisualizer() {
++        visualizerUsers.incrementAndGet()
++    }
++
++    fun releaseVisualizer() {
++        // Never below zero, so an unbalanced release cannot leave a later acquire ineffective.
++        while (true) {
++            val current = visualizerUsers.get()
++            if (current <= 0 || visualizerUsers.compareAndSet(current, current - 1)) return
++        }
++    }
+ 
+     private var configuredSampleRate = 0
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+index f285ca0..369efc9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/BottomSheet.kt
+@@ -260,10 +260,15 @@ class BottomSheetState(
+         }
+     }
+ 
+-    fun performFling(velocity: Float, onDismiss: (() -> Unit)?) {
+-        if (velocity > 250) {
++    /**
++     * Settles the sheet after a drag. [flingThreshold] is the speed, in px/s, above which a release
++     * counts as a flick and goes all the way regardless of position; below it the sheet settles by
++     * how far it was pulled.
++     */
++    fun performFling(velocity: Float, onDismiss: (() -> Unit)?, flingThreshold: Float = 250f) {
++        if (velocity > flingThreshold) {
+             expand()
+-        } else if (velocity < -250) {
++        } else if (velocity < -flingThreshold) {
+             if (value < collapsedBound && onDismiss != null) {
+                 dismiss()
+                 onDismiss.invoke()
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/TopSheet.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/TopSheet.kt
+index 0f21585..4472bba 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/TopSheet.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/TopSheet.kt
+@@ -51,6 +51,12 @@ fun TopSheet(
+     modifier: Modifier = Modifier,
+     background: @Composable (BoxScope.() -> Unit) = { },
+     onDismiss: (() -> Unit)? = null,
++    /**
++     * Keep [content] composed while collapsed (drawn fully off the top of the screen). Lets a
++     * caller build heavy content just before a drag opens the sheet, rather than on the drag's
++     * first frame, where building it stalls the sheet and it then jumps to catch up with the finger.
++     */
++    composeWhenCollapsed: Boolean = false,
+     collapsedContent: @Composable BoxScope.() -> Unit = { },
+     content: @Composable BoxScope.() -> Unit,
+ ) {
+@@ -101,7 +107,7 @@ fun TopSheet(
+                 )
+             }
+     ) {
+-        if (!state.isCollapsed) {
++        if (!state.isCollapsed || composeWhenCollapsed) {
+             content()
+         }
+         if (state.progress < 1f) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/GridMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/GridMenu.kt
+index 3d5f1a3..0456adb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/GridMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/GridMenu.kt
+@@ -12,12 +12,15 @@ package com.dd3boh.outertune.ui.menu
+ import androidx.annotation.DrawableRes
+ import androidx.annotation.StringRes
+ import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.BoxScope
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.fillMaxWidth
+ import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.heightIn
+ import androidx.compose.foundation.layout.padding
+ import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.lazy.grid.GridCells
+@@ -43,6 +46,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
+ import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+ import androidx.media3.exoplayer.offline.Download
+ import com.dd3boh.outertune.R
+@@ -52,6 +56,9 @@ import java.time.LocalDateTime
+ 
+ val GridMenuItemHeight = 96.dp
+ 
++/** The icon's own space inside a tile - an icon's 24dp plus a little air. */
++private val GridMenuIconSlot = 32.dp
++
+ @Composable
+ fun GridMenu(
+     modifier: Modifier = Modifier,
+@@ -93,32 +100,62 @@ fun LazyGridScope.GridMenuItem(
+     onClick: () -> Unit,
+ ) {
+     item {
+-        Column(
+-            modifier = modifier
+-                .clip(ShapeDefaults.Large)
+-                .height(GridMenuItemHeight)
+-                .clickable(
+-                    enabled = enabled,
+-                    onClick = onClick
+-                )
+-                .alpha(if (enabled) 1f else 0.5f)
+-                .padding(12.dp)
+-        ) {
+-            Box(
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .weight(1f),
+-                contentAlignment = Alignment.Center,
+-                content = icon
+-            )
+-            Text(
+-                text = stringResource(title),
+-                style = MaterialTheme.typography.labelLarge,
+-                textAlign = TextAlign.Center,
+-                maxLines = 2,
+-                modifier = Modifier.fillMaxWidth()
++        GridMenuTile(
++            modifier = modifier.alpha(if (enabled) 1f else 0.5f),
++            label = stringResource(title),
++            enabled = enabled,
++            onClick = onClick,
++            icon = icon,
++        )
++    }
++}
++
++/**
++ * One tile of a [GridMenu]: an icon above a label of up to two lines.
++ *
++ * The icon has a fixed slot rather than "whatever height the label leaves". The tile used to be a
++ * fixed 96dp with the icon in a weight(1f) box above the text, so the icon got only what the label
++ * did not take. On a low-density screen, or with a larger system font (HyperOS ships one), a narrow
++ * column wraps the label onto two tall lines, the label takes nearly all of the 72dp inside the
++ * padding, and the icon was squeezed down to a dot. Now the icon always gets its full slot, and the
++ * tile grows instead - 96dp is a minimum, not a cap.
++ */
++@Composable
++private fun GridMenuTile(
++    modifier: Modifier,
++    label: String,
++    enabled: Boolean,
++    onClick: () -> Unit,
++    icon: @Composable BoxScope.() -> Unit,
++) {
++    Column(
++        horizontalAlignment = Alignment.CenterHorizontally,
++        verticalArrangement = Arrangement.Center,
++        modifier = modifier
++            .clip(ShapeDefaults.Large)
++            .heightIn(min = GridMenuItemHeight)
++            .clickable(
++                enabled = enabled,
++                onClick = onClick
+             )
+-        }
++            .padding(12.dp)
++    ) {
++        Box(
++            modifier = Modifier
++                .fillMaxWidth()
++                .height(GridMenuIconSlot),
++            contentAlignment = Alignment.Center,
++            content = icon
++        )
++        Spacer(Modifier.height(6.dp))
++        Text(
++            text = label,
++            style = MaterialTheme.typography.labelLarge,
++            textAlign = TextAlign.Center,
++            maxLines = 2,
++            overflow = TextOverflow.Ellipsis,
++            modifier = Modifier.fillMaxWidth()
++        )
+     }
+ }
+ 
+@@ -227,37 +264,20 @@ fun LazyGridScope.SleepTimerGridMenu(
+     onClick: () -> Unit
+ ) {
+     item {
+-        Column(
+-            modifier = modifier
+-                .clip(ShapeDefaults.Large)
+-                .height(GridMenuItemHeight)
+-                .clickable(
+-                    onClick = onClick
++        // Always clickable: "enabled" here only means a timer is running, and tapping is how one
++        // is started.
++        GridMenuTile(
++            modifier = modifier,
++            label = if (enabled) makeTimeString(sleepTimerTimeLeft) else stringResource(id = R.string.sleep_timer),
++            enabled = true,
++            onClick = onClick,
++            icon = {
++                Icon(
++                    imageVector = Icons.Rounded.Bedtime,
++                    contentDescription = null,
++                    modifier = Modifier.alpha(if (enabled) 1f else 0.5f)
+                 )
+-                .padding(12.dp)
+-        ) {
+-            Box(
+-                modifier = Modifier
+-                    .fillMaxWidth()
+-                    .weight(1f),
+-                contentAlignment = Alignment.Center,
+-                content = {
+-                    Icon(
+-                        imageVector = Icons.Rounded.Bedtime,
+-                        contentDescription = null,
+-                        modifier = Modifier.alpha(if (enabled) 1f else 0.5f)
+-                    )
+-                }
+-            )
+-            Text(
+-                text = if (enabled) makeTimeString(sleepTimerTimeLeft) else stringResource(
+-                    id = R.string.sleep_timer
+-                ),
+-                style = MaterialTheme.typography.labelLarge,
+-                textAlign = TextAlign.Center,
+-                maxLines = 2,
+-                modifier = Modifier.fillMaxWidth()
+-            )
+-        }
++            },
++        )
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+index c69eb38..f98b635 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanel.kt
+@@ -70,7 +70,6 @@ import androidx.compose.runtime.SideEffect
+ import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableFloatStateOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+@@ -81,8 +80,6 @@ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.lerp
+ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.platform.LocalContext
+-import androidx.compose.ui.platform.LocalConfiguration
+-import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.Dp
+@@ -226,43 +223,68 @@ internal fun EqualizerCard(
+ @Composable
+ fun EqualizerPanel() {
+     val panelState = LocalEqualizerPanelState.current
+-    val configuration = LocalConfiguration.current
+ 
+     // A real sheet rather than an AnimatedVisibility, and the same one the queue is - see
+     // [TopSheet]. It used to slide in on a boolean, which meant the only way to open or close it
+     // was to hit the handle exactly: a swipe did nothing, and a fast one did nothing twice over
+     // because there was no gesture to interrupt. Now it is dragged, it follows the finger, and a
+     // flick either way is a flick.
+-    val sheetState = rememberBottomSheetState(
+-        dismissedBound = 0.dp,
+-        expandedBound = configuration.screenHeightDp.dp,
+-    )
++    // The travel is the height the panel is actually drawn at, measured, not
++    // configuration.screenHeightDp. That figure leaves out parts of the window (system bars,
++    // cutouts) on some devices, more so on low-density ones, so the panel was shorter in "travel"
++    // than it was on screen: closing slid it up, stopped short of the top edge with its lower part
++    // still showing, and then it vanished outright when the content was dropped at collapse.
++    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
++        val sheetState = rememberBottomSheetState(
++            dismissedBound = 0.dp,
++            expandedBound = maxHeight,
++        )
+ 
+-    // Handed to the shared state rather than kept here, so the pull-down handle in the player -
+-    // a different part of the tree entirely - can drag this exact sheet. See EqualizerPanelState
+-    // for why the sheet, rather than a boolean beside it, is the thing that says whether it is open.
+-    SideEffect { panelState.attach(sheetState) }
++        // Handed to the shared state rather than kept here, so the pull-down handle in the player -
++        // a different part of the tree entirely - can drag this exact sheet. See EqualizerPanelState
++        // for why the sheet, rather than a boolean beside it, is the thing that says whether it is open.
++        SideEffect { panelState.attach(sheetState) }
++
++        val open = !sheetState.isCollapsed
++        // Warmed by a touch on the handle (see EqualizerPanelState.warm), and let go again once the
++        // sheet has sat shut for a moment - so a tap that never became a drag does not leave the
++        // whole panel composed off screen for the rest of the session.
++        LaunchedEffect(open, panelState.warm) {
++            if (!open && panelState.warm) {
++                delay(PANEL_WARM_HOLD_MS)
++                panelState.warm = false
++            }
++        }
+ 
+-    TopSheet(
+-        state = sheetState,
+-        onDismiss = { panelState.visible = false },
+-        background = {
+-            Box(
+-                modifier = Modifier
+-                    .background(MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation))
+-                    .fillMaxSize()
+-            )
+-        },
+-    ) {
+-        // Nothing to build while it is shut, which matters more here than for the queue: this
+-        // panel holds twelve faders, a response curve and a compressor, and composing all of it
+-        // behind a closed sheet would be paid for on every track change.
+-        if (!sheetState.isCollapsed) {
+-            EqualizerPanelContent(onDismiss = { panelState.visible = false })
++        TopSheet(
++            state = sheetState,
++            onDismiss = { panelState.visible = false },
++            composeWhenCollapsed = panelState.warm,
++            background = {
++                Box(
++                    modifier = Modifier
++                        .background(MaterialTheme.colorScheme.surfaceColorAtElevation(NavigationBarDefaults.Elevation))
++                        .fillMaxSize()
++                )
++            },
++        ) {
++            // Nothing to build while it is shut and nobody is reaching for it, which matters more
++            // here than for the queue: this panel holds twelve faders, a response curve and a
++            // compressor, and composing all of it behind a closed sheet would be paid for on every
++            // track change.
++            if (open || panelState.warm) {
++                EqualizerPanelContent(
++                    active = open,
++                    onDismiss = { panelState.visible = false },
++                )
++            }
+         }
+     }
+ }
+ 
++/** How long a warmed-but-unopened panel stays composed before it is let go. */
++private const val PANEL_WARM_HOLD_MS = 1500L
++
+ /**
+  * How long the controls must sit still before a song override is written.
+  *
+@@ -273,7 +295,11 @@ private const val SONG_PROFILE_SETTLE_MS = 400L
+ 
+ @OptIn(ExperimentalMaterial3Api::class)
+ @Composable
+-private fun EqualizerPanelContent(onDismiss: () -> Unit) {
++private fun EqualizerPanelContent(
++    /** False while composed ahead of time behind a shut sheet (see EqualizerPanelState.warm). */
++    active: Boolean,
++    onDismiss: () -> Unit,
++) {
+     val context = LocalContext.current
+     val playerConnection = LocalPlayerConnection.current ?: return
+     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+@@ -301,7 +327,9 @@ private fun EqualizerPanelContent(onDismiss: () -> Unit) {
+     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+     var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = false)
+ 
+-    BackHandler(onBack = onDismiss)
++    // Only while it is actually open: composed ahead of a drag, it is still off screen, and Back
++    // must go on doing whatever it did before.
++    BackHandler(enabled = active, onBack = onDismiss)
+ 
+     val darkTheme by rememberEnumPreference(DarkModeKey, defaultValue = DarkMode.AUTO)
+     val isSystemInDarkTheme = isSystemInDarkTheme()
+@@ -1264,31 +1292,21 @@ internal fun CompressorSection(
+  */
+ @Composable
+ private fun EqualizerPanelHandle(onDismiss: () -> Unit, handleColor: Color) {
+-    var dragAccumulatorPx by remember { mutableFloatStateOf(0f) }
+-    val closeThresholdPx = with(LocalDensity.current) { 40.dp.toPx() }
++    val sheet = LocalEqualizerPanelState.current.sheet
+ 
+     // The whole top of the panel is the grab zone, not a slim strip - a small band was easy to
+     // miss and drag past, landing on content below that doesn't handle drags itself and so let
+     // the gesture fall through to the player underneath.
++    //
++    // Pushing it shut follows the finger the same way pulling it open does. It used to add up 40dp
++    // of upward movement and then fire the canned close animation, so the panel sat still under
++    // the finger and then left on its own.
+     Box(
+         modifier = Modifier
+             .fillMaxWidth()
+             .height(EqualizerHandleHeight)
+             .clickable(onClick = onDismiss)
+-            .pointerInput(Unit) {
+-                detectVerticalDragGestures(
+-                    onDragEnd = { dragAccumulatorPx = 0f },
+-                    onDragCancel = { dragAccumulatorPx = 0f },
+-                    onVerticalDrag = { change, dragAmount ->
+-                        change.consume()
+-                        dragAccumulatorPx += dragAmount
+-                        if (dragAccumulatorPx < -closeThresholdPx) {
+-                            onDismiss()
+-                            dragAccumulatorPx = 0f
+-                        }
+-                    }
+-                )
+-            }
++            .equalizerSheetDrag(sheet)
+     ) {
+         Box(
+             modifier = Modifier
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanelState.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanelState.kt
+index 5962261..be0dd62 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanelState.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/EqualizerPanelState.kt
+@@ -6,10 +6,18 @@
+ 
+ package com.dd3boh.outertune.ui.player
+ 
++import androidx.compose.foundation.gestures.awaitEachGesture
++import androidx.compose.foundation.gestures.awaitFirstDown
++import androidx.compose.foundation.gestures.detectVerticalDragGestures
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.staticCompositionLocalOf
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.input.pointer.util.VelocityTracker
++import androidx.compose.ui.input.pointer.util.addPointerInputChange
++import androidx.compose.ui.unit.dp
+ import com.dd3boh.outertune.ui.component.BottomSheetState
+ 
+ /**
+@@ -41,6 +49,16 @@ class EqualizerPanelState {
+     /** Asked for before the sheet existed - honoured when it arrives. */
+     private var pendingOpen by mutableStateOf(false)
+ 
++    /**
++     * Set the moment a finger lands on the pull-down handle, so the panel's content is built then,
++     * while the finger is still inside touch slop, rather than on the drag's first frame. Building
++     * twelve faders, a response curve and a compressor in the middle of a drag stalled it for a few
++     * frames, after which the sheet jumped to wherever the finger had got to - the "jumps out" the
++     * queue never did. Cleared by [EqualizerPanel] once the sheet has sat collapsed for a moment.
++     */
++    var warm by mutableStateOf(false)
++        internal set
++
+     var visible: Boolean
+         get() = sheet?.let { !it.isCollapsed } ?: pendingOpen
+         set(value) {
+@@ -65,3 +83,61 @@ class EqualizerPanelState {
+ val LocalEqualizerPanelState = staticCompositionLocalOf<EqualizerPanelState> {
+     error("No EqualizerPanelState provided")
+ }
++
++/**
++ * Release speed above which the equaliser counts a release as a flick and goes all the way.
++ *
++ * The shared sheet default is 250 px/s, which on a modern phone is under 100dp a second - slower
++ * than a finger moves while simply letting go. So nearly every release counted as a flick, and a
++ * short pull opened the whole panel the moment the finger lifted. Measured in dp so it means the
++ * same on every screen; below it, the panel settles by how far it was pulled.
++ */
++private val EqualizerFlingThresholdPerSecond = 700.dp
++
++/**
++ * Drags the equaliser sheet with the finger, 1:1, and settles it on release - used by both the
++ * handle in the player that pulls it open and the one at the top of the panel that pushes it shut,
++ * so the two directions feel the same.
++ *
++ * [warmState] marks the panel warm on touch-down (see [EqualizerPanelState.warm]); the closing
++ * handle passes null, since the panel is already built by then.
++ */
++internal fun Modifier.equalizerSheetDrag(
++    sheet: BottomSheetState?,
++    warmState: EqualizerPanelState? = null,
++): Modifier = this
++    .pointerInput(warmState) {
++        if (warmState == null) return@pointerInput
++        // Observes only - never consumes - so the tap and drag handling still see everything.
++        awaitEachGesture {
++            awaitFirstDown(requireUnconsumed = false)
++            warmState.warm = true
++        }
++    }
++    .pointerInput(sheet) {
++        if (sheet == null) return@pointerInput
++        val velocityTracker = VelocityTracker()
++        val threshold = EqualizerFlingThresholdPerSecond.toPx()
++        detectVerticalDragGestures(
++            onDragStart = { velocityTracker.resetTracking() },
++            onVerticalDrag = { change, dragAmount ->
++                // Consumed, so the player's own sheet does not also take this drag and start
++                // closing underneath the equaliser that is being pulled down.
++                change.consume()
++                velocityTracker.addPointerInputChange(change)
++                // Negated for the same reason TopSheet negates it: down opens this one.
++                sheet.dispatchRawDelta(-dragAmount)
++            },
++            onDragEnd = {
++                val velocity = velocityTracker.calculateVelocity().y
++                velocityTracker.resetTracking()
++                sheet.performFling(velocity, null, threshold)
++            },
++            // Settled where it is rather than snapped shut: a cancel (the handle leaving the
++            // composition mid-drag, say) is not the user asking for it to close.
++            onDragCancel = {
++                velocityTracker.resetTracking()
++                sheet.performFling(0f, null, threshold)
++            },
++        )
++    }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index a6c17bc..e734115 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -28,7 +28,6 @@ import androidx.compose.foundation.Image
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.basicMarquee
+ import androidx.compose.foundation.clickable
+-import androidx.compose.foundation.gestures.detectVerticalDragGestures
+ import androidx.compose.foundation.gestures.snapping.rememberSnapFlingBehavior
+ import androidx.compose.foundation.isSystemInDarkTheme
+ import androidx.compose.foundation.layout.Arrangement
+@@ -102,9 +101,6 @@ import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.ColorFilter
+ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+ import androidx.compose.ui.input.nestedscroll.nestedScroll
+-import androidx.compose.ui.input.pointer.pointerInput
+-import androidx.compose.ui.input.pointer.util.addPointerInputChange
+-import androidx.compose.ui.input.pointer.util.VelocityTracker
+ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+@@ -550,31 +546,10 @@ private fun EqualizerHandle() {
+             // it was a pre-baked slide rather than a drawer. Now each frame of the drag moves the
+             // sheet by exactly that much, and on release its speed and position decide where it
+             // settles - fast or past halfway opens it, otherwise it falls back - with the same
+-            // spring the queue uses, because it is the same state and the same fling.
+-            .pointerInput(sheet) {
+-                if (sheet == null) return@pointerInput
+-                val velocityTracker = VelocityTracker()
+-                detectVerticalDragGestures(
+-                    onDragStart = { sheet.dragStartedCollapsed = true },
+-                    onVerticalDrag = { change, dragAmount ->
+-                        // Consumed, so the player's own sheet does not also take this drag and
+-                        // start closing underneath the equaliser that is being pulled down.
+-                        change.consume()
+-                        velocityTracker.addPointerInputChange(change)
+-                        // Negated for the same reason TopSheet negates it: down opens this one.
+-                        sheet.dispatchRawDelta(-dragAmount)
+-                    },
+-                    onDragEnd = {
+-                        val velocity = velocityTracker.calculateVelocity().y
+-                        velocityTracker.resetTracking()
+-                        sheet.performFling(velocity, null)
+-                    },
+-                    onDragCancel = {
+-                        velocityTracker.resetTracking()
+-                        sheet.collapseSoft()
+-                    },
+-                )
+-            }
++            // spring the queue uses, because it is the same state and the same fling. Shared with
++            // the panel's own closing handle - see equalizerSheetDrag, which also builds the
++            // panel on touch-down so the drag's first frames are not spent composing it.
++            .equalizerSheetDrag(sheet, warmState = equalizerPanelState)
+     ) {
+         Box(
+             modifier = Modifier
+@@ -1696,9 +1671,14 @@ fun PlayerBackground(
+             // Only pay for feature extraction while this is actually the thing on screen wanting
+             // it - the processor otherwise takes the cheap bulk-copy path whenever the EQ has
+             // nothing else to do.
++            // Counted, not set: this background is composed in more than one place at once (the
++            // player sheet, the equaliser panel over it, the player screen), and each instance
++            // turning a shared flag off as it left is what stopped the visualiser reacting.
+             DisposableEffect(visualizerWanted) {
+-                visualizerAudioProcessor.visualizerEnabled = visualizerWanted
+-                onDispose { visualizerAudioProcessor.visualizerEnabled = false }
++                if (visualizerWanted) visualizerAudioProcessor.acquireVisualizer()
++                onDispose {
++                    if (visualizerWanted) visualizerAudioProcessor.releaseVisualizer()
++                }
+             }
+ 
+             val visualizerFrame by visualizerAudioProcessor.visualizer.frames.collectAsState()
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
+index 1e6a5ae..8c59a1b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Thumbnail.kt
+@@ -16,6 +16,7 @@ import android.annotation.SuppressLint
+ import androidx.compose.animation.AnimatedVisibility
+ import androidx.compose.animation.fadeIn
+ import androidx.compose.animation.fadeOut
++import androidx.compose.animation.core.animateFloatAsState
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.interaction.MutableInteractionSource
+ import androidx.compose.foundation.layout.Arrangement
+@@ -31,6 +32,7 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.collectAsState
+ import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+@@ -50,6 +52,9 @@ import com.dd3boh.outertune.models.MediaMetadata
+ import com.dd3boh.outertune.ui.component.Lyrics
+ import com.dd3boh.outertune.utils.rememberPreference
+ 
++/** Width over height past which the player treats artwork as a video frame rather than a cover. */
++private const val VIDEO_ART_MIN_ASPECT = 1.2f
++
+ @SuppressLint("UnusedBoxWithConstraintsScope")
+ @Composable
+ fun Thumbnail(
+@@ -108,15 +113,36 @@ fun Thumbnail(
+                         with(density) { maxOf(maxWidth, maxHeight).roundToPx() }
+                     }
+ 
++                    // A music video's artwork is a 16:9 frame, and cropping it to the album-cover
++                    // square cut the sides off the picture. It is drawn in its own shape instead.
++                    // The URL gives the first guess (video thumbnails come from i.ytimg.com), so
++                    // the usual case never changes shape on screen; the decoded image's own size
++                    // then settles it, which also catches a downloaded video thumbnail that only
++                    // has a local path. Anything clearly wider than square counts as a video: an
++                    // hqdefault frame is 4:3 with black bars baked in, and cropping that to 16:9
++                    // is exactly what removes the bars.
++                    val urlLooksLikeVideo = mediaMetadata?.thumbnailUrl?.contains("i.ytimg.com") == true
++                    var measuredAspect by remember(mediaMetadata?.id) { mutableStateOf<Float?>(null) }
++                    val isWideArt = measuredAspect?.let { it >= VIDEO_ART_MIN_ASPECT } ?: urlLooksLikeVideo
++                    val coverAspect by animateFloatAsState(
++                        targetValue = if (isWideArt) 16f / 9f else 1f,
++                        label = "coverAspect",
++                    )
++
+                     AsyncImage(
+                         model = mediaMetadata?.getThumbnailModel(coverPx, coverPx),
+                         contentDescription = null,
+-                        // Cropped, not fitted: a song that is only a music video has a 16:9
+-                        // thumbnail, which fitted into this square left a band of nothing above
+-                        // and below it - see ItemThumbnail.
++                        // Still cropped rather than fitted, so a 4:3 letterboxed frame loses its
++                        // bars and a square cover fills its square exactly.
+                         contentScale = ContentScale.Crop,
++                        onSuccess = { state ->
++                            val image = state.result.image
++                            if (image.width > 0 && image.height > 0) {
++                                measuredAspect = image.width.toFloat() / image.height
++                            }
++                        },
+                         modifier = Modifier
+-                            .aspectRatio(1f)
++                            .aspectRatio(coverAspect)
+                             // Scaled as a transform about its centre - the layout editor's "size" -
+                             // so a bigger or smaller cover moves nothing else, and the radius is
+                             // divided back out so the corners come out at the size asked for.
+diff --git a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/NowPlayingScreen.kt b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/NowPlayingScreen.kt
+index fcb6a1b..a5ae0a2 100644
+--- a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/NowPlayingScreen.kt
++++ b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/NowPlayingScreen.kt
+@@ -799,10 +799,15 @@ fun NowPlayingScreen(
+                     )
+                     }
+                 } else {
+-                    val side = min(min(maxHeight - 24.dp, maxWidth), coverMax)
++                    val side = min(min(maxHeight - 24.dp, maxWidth), coverMax).coerceAtLeast(120.dp)
++                    // A music video's art is a 16:9 frame (video thumbnails come from i.ytimg.com),
++                    // and cropping it to the album-cover square cut the sides off the picture. Same
++                    // width, video-shaped height - the phone's player does the same.
++                    val isVideoArt = song?.thumbnail?.contains("i.ytimg.com") == true
+                     Artwork(
+                         song?.thumbnail,
+-                        size = side.coerceAtLeast(120.dp),
++                        size = side,
++                        height = if (isVideoArt) side * 9f / 16f else side,
+                         // Proportional to the art rather than fixed, so it reads the same at any
+                         // window size - see the note on the parameter.
+                         cornerRadius = side * 0.045f,
+-- 
+2.56.0.windows.4
+
+From bb21ef1fdd99c4147ac89a72b64ae36885ad985f Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Mon, 9 Nov 2026 19:21:30 +0800
+Subject: [PATCH 2/2] Explicit tags, Discord presence, notification art,
+ widget, AutoEQ detection
+
+- Explicit: songs remember YouTube's explicit badge in a new song column
+  (database 27, ALTER TABLE migration). Set by any source that reports
+  it, never cleared by one that carries no badges; library, album and
+  queue rows now show it, and online rows show it when the library knows.
+- Discord: the title and artist are sent at once and the pictures follow
+  when resolved, instead of the card waiting up to a minute on the old
+  song; resolved images survive the periodic rebuild; connect() can no
+  longer open a second, orphaned gateway session.
+- Media session artwork: saved cover, then remote art, then the audio
+  file's embedded cover, so local and downloaded songs no longer show the
+  app icon; the bitmap loader treats any absolute path as local.
+- New home-screen widget (RemoteViews, no new dependencies), pushed to by
+  MusicService; buttons drive the player through a MediaController.
+- AutoEQ search pre-fills the connected Bluetooth/USB headset's name from
+  AudioManager's outputs - no Bluetooth permission needed.
+---
+ CHANGELOG-current.md                          |  25 +++
+ app/src/main/AndroidManifest.xml              |  12 ++
+ .../com/dd3boh/outertune/db/DatabaseDao.kt    |  13 ++
+ .../com/dd3boh/outertune/db/MusicDatabase.kt  |  15 +-
+ .../outertune/db/entities/SongEntity.kt       |   9 +
+ .../outertune/extensions/MediaItemExt.kt      |  18 +-
+ .../dd3boh/outertune/models/MediaMetadata.kt  |  11 +-
+ .../dd3boh/outertune/playback/MusicService.kt |  18 ++
+ .../outertune/ui/component/items/Items.kt     |   6 +-
+ .../outertune/ui/component/items/SongItems.kt |   6 +
+ .../ui/screens/settings/EqualizerSettings.kt  |  48 ++++-
+ .../outertune/utils/CoilBitmapLoader.kt       |  19 +-
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 195 ++++++++++++++++++
+ .../main/res/drawable/widget_background.xml   |   6 +
+ app/src/main/res/layout/widget_player.xml     |  76 +++++++
+ app/src/main/res/values/strings-ot.xml        |   1 +
+ app/src/main/res/values/strings.xml           |   7 +
+ app/src/main/res/xml/widget_player_info.xml   |  16 ++
+ .../com/my/kizzy/gateway/DiscordWebSocket.kt  |  24 ++-
+ .../my/kizzy/repository/KizzyRepository.kt    |  15 +-
+ .../main/java/com/my/kizzy/rpc/KizzyRPC.kt    |  42 +++-
+ 21 files changed, 559 insertions(+), 23 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+ create mode 100644 app/src/main/res/drawable/widget_background.xml
+ create mode 100644 app/src/main/res/layout/widget_player.xml
+ create mode 100644 app/src/main/res/xml/widget_player_info.xml
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 00fc67a..452fd65 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -25,6 +25,31 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Equaliser panel closes off the top edge on low-density screens.** Its travel came from the
+   configured screen height, which can be shorter than the space the panel fills, so it slid up,
+   stopped short and vanished. It now uses its measured height.
++- **Explicit tags stick.** Only rows built straight from a YouTube response could show the badge,
++  so the same song was tagged in search but not in the library, a saved album or the queue.
++  Songs now remember it: a new database column (version 27, one-line migration, nothing else
++  touched) that is set whenever any source reports the song as explicit and never cleared by a
++  source that simply carries no badges. Online rows also show the badge when only the library
++  knows it.
++- **Discord presence no longer sticks on the previous song.**
++  - Each update used to register the cover and the artist picture with Discord before sending
++    anything, one after the other, each allowed 30 seconds, and the card showed the old song
++    until both had finished. The title and artist now go out straight away, and the pictures
++    follow once they're ready.
++  - Registered images are kept across the periodic connection rebuild instead of thrown away.
++  - Two updates close together could each open a gateway connection, and the orphaned one could
++    keep showing an old song. Only one connection can exist now.
++- **Notification artwork for local and downloaded songs.** The media session was only ever given
++  the remote thumbnail, so a song from your own storage had no picture at all and the system
++  media card (HyperOS especially) fell back to the app icon. It now gets the saved full-size
++  cover, then the remote art, then the cover embedded in the audio file. Saved covers under
++  /data/ also no longer fail to load and turn into the placeholder.
++- **Home-screen widget (new).** Cover, title, artist, previous / play-pause / next. Plain Android
++  widget, no new libraries; updated by the player when the song or play state changes, never
++  polled. The buttons work when the app is closed, and play resumes the saved queue.
++- **AutoEQ fills in your headphones.** Opening the AutoEQ search pre-fills the connected Bluetooth
++  or USB headset's name, read from Android's audio outputs. This needs no Bluetooth permission.
++  Wired 3.5mm headphones can't be identified, so they're skipped.
+ 
+ ## Listen together (new)
+ 
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 150576a..52457b4 100755
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -270,6 +270,18 @@
+             </intent-filter>
+         </receiver>
+ 
++        <receiver
++            android:name=".widget.PlayerWidgetProvider"
++            android:exported="false"
++            android:label="@string/music_player">
++            <intent-filter>
++                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
++            </intent-filter>
++            <meta-data
++                android:name="android.appwidget.provider"
++                android:resource="@xml/widget_player_info" />
++        </receiver>
++
+         <service
+             android:name=".playback.ExoDownloadService"
+             android:exported="false"
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+index 8234525..78ef330 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/DatabaseDao.kt
+@@ -188,9 +188,20 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+     @Insert(onConflict = OnConflictStrategy.IGNORE)
+     fun insert(map: RelatedSongMap)
+ 
++    /**
++     * Marks a song explicit. Only ever sets the flag: plenty of YouTube responses carry no badges
++     * at all, so a source without one says nothing about the song, and clearing on it would undo
++     * what a richer source (an album page, search) already established.
++     */
++    @Query("UPDATE song SET explicit = 1 WHERE id = :songId AND explicit = 0")
++    fun markExplicit(songId: String)
++
+     @Transaction
+     fun insert(mediaMetadata: MediaMetadata, block: (SongEntity) -> SongEntity = { it }) {
+         val isNewSong = insert(mediaMetadata.toSongEntity().let(block)) != -1L
++        // The insert above is IGNORE, so a song already stored keeps its old row - which, for every
++        // song saved before the column existed, says "not explicit".
++        if (!isNewSong && mediaMetadata.explicit) markExplicit(mediaMetadata.id)
+         // A song that already has credits keeps them. Those are what ArtistCreditEnricher and
+         // ArtistNameRefresher maintain - a combined "X & Y" split into two channels, an old alias
+         // folded into the artist's current one - and adding back whatever this metadata credits
+@@ -480,6 +491,8 @@ interface DatabaseDao : SongsDao, AlbumsDao, ArtistsDao, PlaylistsDao, QueueDao
+             // played with no artists at all. Those, and any left that way before, get the full one.
+             if (insert(song.toSongEntity()) != -1L || songArtistIdsOnce(song.id).isEmpty()) {
+                 insert(song)
++            } else if (song.explicit) {
++                markExplicit(song.id)
+             }
+             insert(
+                 QueueSongMap(
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+index e8713e9..6ad9249 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/MusicDatabase.kt
+@@ -80,7 +80,7 @@ class MusicDatabase(
+     fun close() = delegate.close()
+ 
+     companion object {
+-        const val MUSIC_DATABASE_VERSION = 26
++        const val MUSIC_DATABASE_VERSION = 27
+     }
+ }
+ 
+@@ -154,6 +154,7 @@ abstract class InternalDatabase : RoomDatabase() {
+                     .addMigrations(MIGRATION_22_23)
+                     .addMigrations(MIGRATION_23_24)
+                     .addMigrations(MIGRATION_24_25)
++                    .addMigrations(MIGRATION_26_27)
+                     // This app gets rebuilt from different, sometimes-diverging local patch
+                     // lines rather than shipping one monotonically-increasing version history,
+                     // so the database on disk can genuinely be a newer version than the build
+@@ -179,11 +180,23 @@ abstract class InternalDatabase : RoomDatabase() {
+                     .addMigrations(MIGRATION_22_23)
+                     .addMigrations(MIGRATION_23_24)
+                     .addMigrations(MIGRATION_24_25)
++                    .addMigrations(MIGRATION_26_27)
+                     .build()
+             )
+     }
+ }
+ 
++/**
++ * The song's explicit flag (SongEntity.explicit). A hand-written migration rather than an
++ * AutoMigration, so it does not depend on the 27 schema file having been exported first - it is one
++ * column, defaulting to "not explicit", which is what every existing row was being shown as anyway.
++ */
++val MIGRATION_26_27 = object : Migration(26, 27) {
++    override fun migrate(db: SupportSQLiteDatabase) {
++        db.execSQL("ALTER TABLE `song` ADD COLUMN `explicit` INTEGER NOT NULL DEFAULT 0")
++    }
++}
++
+ val MIGRATION_1_2 = object : Migration(1, 2) {
+     override fun migrate(db: SupportSQLiteDatabase) {
+         data class OldSongEntity(
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
+index 97269f8..eaa2514 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/entities/SongEntity.kt
+@@ -53,6 +53,15 @@ data class SongEntity(
+     val year: Int? = null,
+     val date: LocalDateTime? = null, // ID3 tag property
+     val dateModified: LocalDateTime? = null, // file property
++    /**
++     * YouTube's explicit badge, remembered. Before this column existed only rows built straight
++     * from a YouTube response could show the badge, so the same song was marked in search and
++     * unmarked in the library, a saved album or the queue. Only ever set, never cleared, by what
++     * the app sees online (see DatabaseDao.markExplicit) - many responses carry no badges at all,
++     * and "no badge in this response" is not "not explicit".
++     */
++    @ColumnInfo(defaultValue = "0")
++    val explicit: Boolean = false,
+ ) {
+ 
+     // Unliking remembers when the song was liked, and liking it again this session restores that
+diff --git a/app/src/main/java/com/dd3boh/outertune/extensions/MediaItemExt.kt b/app/src/main/java/com/dd3boh/outertune/extensions/MediaItemExt.kt
+index 27cf203..34e8253 100644
+--- a/app/src/main/java/com/dd3boh/outertune/extensions/MediaItemExt.kt
++++ b/app/src/main/java/com/dd3boh/outertune/extensions/MediaItemExt.kt
+@@ -11,6 +11,20 @@ import com.zionhuang.innertube.models.SongItem
+ val MediaItem.metadata: MediaMetadata?
+     get() = localConfiguration?.tag as? MediaMetadata
+ 
++/**
++ * The picture the media session - and so the notification, the lock screen and the system's media
++ * controls - shows for a song.
++ *
++ * This used to be the remote thumbnail URL alone. A song from this phone's own storage often has
++ * none (its cover is inside the audio file), so it was handed no artwork at all, and a downloaded
++ * song ignored the full-size cover already saved for it. With nothing to show, the system's media
++ * card falls back to the app's icon - which is what HyperOS was showing. In order of preference:
++ * the saved full-size cover, the remote art, then the audio file itself, whose embedded picture
++ * CoilBitmapLoader knows how to pull out.
++ */
++private fun artworkUri(thumbnailPath: String?, thumbnailUrl: String?, isLocal: Boolean, localPath: String?) =
++    (thumbnailPath ?: thumbnailUrl ?: localPath.takeIf { isLocal })?.toUri()
++
+ fun Song.toMediaItem() = MediaItem.Builder()
+     .setMediaId(song.id)
+     .setUri(song.id)
+@@ -21,7 +35,7 @@ fun Song.toMediaItem() = MediaItem.Builder()
+             .setTitle(song.title)
+             .setSubtitle(artists.joinToString { it.name })
+             .setArtist(artists.joinToString { it.name })
+-            .setArtworkUri(song.thumbnailUrl?.toUri())
++            .setArtworkUri(artworkUri(song.thumbnailPath, song.thumbnailUrl, song.isLocal, song.localPath))
+             .setAlbumTitle(song.albumName)
+             .setMediaType(MEDIA_TYPE_MUSIC)
+             .build()
+@@ -55,7 +69,7 @@ fun MediaMetadata.toMediaItem() = MediaItem.Builder()
+             .setTitle(title)
+             .setSubtitle(artists.joinToString { it.name })
+             .setArtist(artists.joinToString { it.name })
+-            .setArtworkUri(thumbnailUrl?.toUri())
++            .setArtworkUri(artworkUri(thumbnailPath, thumbnailUrl, isLocal, localPath))
+             .setAlbumTitle(album?.title)
+             .setMediaType(MEDIA_TYPE_MUSIC)
+             .build()
+diff --git a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
+index f926ded..e20aeeb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
++++ b/app/src/main/java/com/dd3boh/outertune/models/MediaMetadata.kt
+@@ -32,6 +32,8 @@ data class MediaMetadata(
+     val isLocal: Boolean = false,
+     val localPath: String? = null,
+     val liked: Boolean = false,
++    /** YouTube's explicit badge - see SongEntity.explicit. */
++    val explicit: Boolean = false,
+     val composeUidWorkaround: Double = Math.random(), // compose will crash without this hax
+ 
+     var shuffleIndex: Int = -1
+@@ -79,7 +81,8 @@ data class MediaMetadata(
+         liked = liked,
+         isLocal = isLocal,
+         inLibrary = if (isLocal) LocalDateTime.now() else null,
+-        localPath = localPath
++        localPath = localPath,
++        explicit = explicit,
+     )
+ 
+     /**
+@@ -163,7 +166,8 @@ fun Song.toMediaMetadata() = MediaMetadata(
+     inLibrary = song.inLibrary,
+     liked = song.liked,
+     isLocal = song.isLocal,
+-    localPath = song.localPath
++    localPath = song.localPath,
++    explicit = song.explicit,
+ )
+ 
+ fun SongItem.toMediaMetadata() = MediaMetadata(
+@@ -184,5 +188,6 @@ fun SongItem.toMediaMetadata() = MediaMetadata(
+         )
+     },
+     genre = null,
+-    setVideoId = setVideoId
++    setVideoId = setVideoId,
++    explicit = explicit,
+ )
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 1f60535..8ab25cc 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -144,6 +144,7 @@ import com.dd3boh.outertune.playback.queues.YouTubeQueue
+ import com.dd3boh.outertune.utils.ArtistCreditEnricher
+ import com.dd3boh.outertune.utils.CoilBitmapLoader
+ import com.dd3boh.outertune.utils.DiscordRPC
++import com.dd3boh.outertune.widget.PlayerWidget
+ import com.dd3boh.outertune.utils.NetworkConnectivityObserver
+ import com.dd3boh.outertune.utils.SyncUtils
+ import com.dd3boh.outertune.utils.YTPlayerUtils
+@@ -333,6 +334,9 @@ class MusicService : MediaLibraryService(),
+     // Player vars
+     val currentMediaMetadata = MutableStateFlow<MediaMetadata?>(null)
+ 
++    /** The player's playWhenReady, for the home-screen widget's play/pause icon. */
++    private val widgetPlayWhenReady = MutableStateFlow(false)
++
+     private val currentSong = currentMediaMetadata.flatMapLatest { mediaMetadata ->
+         database.song(mediaMetadata?.id)
+     }.stateIn(offloadScope, SharingStarted.Lazily, null)
+@@ -571,6 +575,17 @@ class MusicService : MediaLibraryService(),
+             .distinctUntilChanged()
+             .collect(scope) { requestDiscordUpdate() }
+ 
++        // The home-screen widget (PlayerWidget). Latest-only, so a cover still loading for the
++        // previous song is dropped rather than landing on top of the new one. playWhenReady, as for
++        // Discord: isPlaying also drops while a track buffers, which would flash the play icon on
++        // every skip.
++        combine(currentMediaMetadata, widgetPlayWhenReady) { metadata, playing -> metadata to playing }
++            .distinctUntilChanged()
++            .collectLatest(scope) { (metadata, playing) ->
++                runCatching { PlayerWidget.update(this@MusicService, metadata, playing) }
++                    .onFailure { if (it is CancellationException) throw it }
++            }
++
+         setMediaNotificationProvider(
+             DefaultMediaNotificationProvider(
+                 this@MusicService,
+@@ -1871,6 +1886,9 @@ class MusicService : MediaLibraryService(),
+         if (events.containsAny(EVENT_TIMELINE_CHANGED, EVENT_POSITION_DISCONTINUITY)) {
+             currentMediaMetadata.value = player.currentMetadata
+         }
++        if (events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
++            widgetPlayWhenReady.value = player.playWhenReady
++        }
+ 
+         // Anything that can change what should be on the card asks for an update; the collector in
+         // onCreate decides what that update contains. Asking too often is free - requests
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+index 27bfb0c..f17a3ae 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/Items.kt
+@@ -419,7 +419,9 @@ fun YouTubeListItem(
+         ) {
+             Icon.Favorite()
+         }
+-        if (item.explicit) {
++        // Either source: this response's badge, or one the library remembers from an earlier one
++        // (see SongEntity.explicit). Many responses carry no badges, so this page alone could miss it.
++        if (item.explicit || item is SongItem && song?.song?.explicit == true) {
+             Icon.Explicit()
+         }
+         if (item is SongItem && song?.song?.inLibrary != null) {
+@@ -489,7 +491,7 @@ fun YouTubeGridItem(
+         ) {
+             Icon.Favorite()
+         }
+-        if (item.explicit) {
++        if (item.explicit || item is SongItem && song?.song?.explicit == true) {
+             Icon.Explicit()
+         }
+         if (item is SongItem && song?.song?.inLibrary != null) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
+index 54d83f6..50f6079 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/SongItems.kt
+@@ -127,6 +127,9 @@ fun SongListItem(
+                 if (showLikedIcon && song.song.liked) {
+                     Icon.Favorite()
+                 }
++                if (song.song.explicit) {
++                    Icon.Explicit()
++                }
+                 if (showInLibraryIcon && song.song.isLocal) {
+                     Icon.FolderCopy()
+                 } else if (showInLibraryIcon && song.song.inLibrary != null) {
+@@ -349,6 +352,9 @@ fun SongGridItem(
+                     .padding(end = 2.dp)
+             )
+         }
++        if (song.song.explicit) {
++            Icon.Explicit()
++        }
+         if (showInLibraryIcon && song.song.inLibrary != null) {
+             Icon(
+                 painter = painterResource(R.drawable.library_add_check),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index f2818de..545ee9f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -9,6 +9,11 @@
+ package com.dd3boh.outertune.ui.screens.settings
+ 
+ import com.dd3boh.outertune.constants.EqCutMakeupKey
++import android.content.Context
++import android.media.AudioDeviceInfo
++import android.media.AudioManager
++import android.os.Build
++import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.foundation.clickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Column
+@@ -321,6 +326,35 @@ fun EqualizerSettingsScreen(
+     )
+ }
+ 
++/**
++ * The name of the headphones playing right now, if any - a Bluetooth or USB headset's own product
++ * name, which is what AutoEq's folders are named after too ("WH-1000XM4" finds "Sony WH-1000XM4").
++ *
++ * Read from AudioManager's output devices rather than from the Bluetooth stack, which is what
++ * keeps this free of permissions: listing Bluetooth devices directly needs BLUETOOTH_CONNECT on
++ * Android 12+, a runtime prompt for a convenience. Wired 3.5mm outputs are skipped - they only
++ * ever report the phone's own model, never the headphones on the end of the cable - and so is a
++ * name that is just the phone's model for the same reason.
++ */
++private fun connectedHeadphoneName(context: Context): String? {
++    val audioManager = context.getSystemService(AudioManager::class.java) ?: return null
++    val headphoneTypes = setOf(
++        AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
++        AudioDeviceInfo.TYPE_USB_HEADSET,
++        // TYPE_BLE_HEADSET (Android 12+). A plain constant, so it is safe to name on older
++        // versions - those simply never report a device of this type.
++        26,
++    )
++    return runCatching {
++        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
++            .filter { it.type in headphoneTypes }
++            .map { it.productName?.toString()?.trim().orEmpty() }
++            // LE Audio devices often advertise as "LE-<name>".
++            .map { it.removePrefix("LE-").removePrefix("LE_").trim() }
++            .firstOrNull { it.isNotEmpty() && !it.equals(Build.MODEL, ignoreCase = true) }
++    }.getOrNull()
++}
++
+ /**
+  * Searches oratory1990's AutoEQ measurements (see [AutoEqRepository] for why that source
+  * specifically, and its own doc for the format being parsed) live against GitHub, and applies the
+@@ -329,7 +363,11 @@ fun EqualizerSettingsScreen(
+  */
+ @Composable
+ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: () -> Unit) {
+-    var query by remember { mutableStateOf("") }
++    val context = LocalContext.current
++    // Starts from whatever headphones are connected right now, so the usual case is open the
++    // dialog, check the match, tap it. Editable like any other search.
++    val detectedHeadphones = remember { connectedHeadphoneName(context) }
++    var query by remember { mutableStateOf(detectedHeadphones.orEmpty()) }
+     var results by remember { mutableStateOf<List<AutoEqRepository.Result>>(emptyList()) }
+     var isSearching by remember { mutableStateOf(false) }
+     var isApplying by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
+@@ -394,6 +432,14 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss:
+             singleLine = true,
+             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+         )
++        if (detectedHeadphones != null) {
++            Text(
++                text = stringResource(R.string.eq_settings_autoeq_detected, detectedHeadphones),
++                style = MaterialTheme.typography.labelSmall,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++                modifier = Modifier.padding(top = 4.dp),
++            )
++        }
+         Spacer(Modifier.height(8.dp))
+ 
+         when {
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt b/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt
+index f908e7b..0c0c482 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/CoilBitmapLoader.kt
+@@ -62,11 +62,21 @@ class CoilBitmapLoader @Inject constructor(
+     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> =
+         scope.future {
+             try {
+-                // local images
+-                val result = if (uri.toString().startsWith("/storage/")) {
++                // Anything on this device: a song's own file under /storage/, but also a saved cover,
++                // which lives in the app's private files (/data/...) and used to fall through to the
++                // network branch below, fail, and come back as the app-icon placeholder.
++                val uriString = uri.toString()
++                val localPath = when {
++                    uriString.startsWith("/") -> uriString
++                    uri.scheme == "file" -> uri.path
++                    else -> null
++                }
++                val result = if (localPath != null) {
+                     context.imageLoader.execute(
+                         ImageRequest.Builder(context)
+-                            .data(LocalArtworkPath(uri.toString()))
++                            // Sized: a file's own cover can be 3000px, which is 36MB as a bitmap -
++                            // far more than a notification or lock screen ever draws.
++                            .data(LocalArtworkPath(localPath, SESSION_ART_PX, SESSION_ART_PX))
+                             .allowHardware(false)
+                             .diskCachePolicy(CachePolicy.DISABLED)
+                             .build()
+@@ -191,6 +201,9 @@ class CoilBitmapLoader @Inject constructor(
+     }
+ 
+     companion object {
++        /** Media-session artwork read from this device is decoded at about this size. */
++        private const val SESSION_ART_PX = 720
++
+         // TODO: re eval dimens after a few months
+         /**
+          * Draw a centered square app icon with the maximum possible size while maintaining aspect ratio.
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+new file mode 100644
+index 0000000..7829438
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -0,0 +1,195 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.widget
++
++import android.app.PendingIntent
++import android.appwidget.AppWidgetManager
++import android.appwidget.AppWidgetProvider
++import android.content.ComponentName
++import android.content.Context
++import android.content.Intent
++import android.graphics.Bitmap
++import android.os.Handler
++import android.os.Looper
++import android.widget.RemoteViews
++import androidx.core.content.ContextCompat
++import androidx.media3.common.Player
++import androidx.media3.session.MediaController
++import androidx.media3.session.SessionToken
++import coil3.imageLoader
++import coil3.request.ImageRequest
++import coil3.request.SuccessResult
++import coil3.request.allowHardware
++import coil3.toBitmap
++import com.dd3boh.outertune.MainActivity
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.models.MediaMetadata
++import com.dd3boh.outertune.playback.MusicService
++
++/**
++ * The home-screen player: cover, title, artist, and previous / play-pause / next.
++ *
++ * A classic RemoteViews widget rather than Glance, so it adds no dependency. It holds no state of
++ * its own and never polls - [MusicService][com.dd3boh.outertune.playback.MusicService] pushes to it
++ * through [PlayerWidget.update] whenever the song or the play state changes, and a widget placed
++ * while nothing is playing shows the last thing pushed, or "Nothing playing".
++ *
++ * The buttons are broadcasts back to this provider, which drives the player through a short-lived
++ * [MediaController] - the route Media3 intends for widgets. Media3's own MediaButtonReceiver was
++ * the obvious alternative and does not work: on Android 8 and later it ignores every key except
++ * "play", so skip and pause would have done nothing. A controller also binds the service, which
++ * starts it if it is not running, so play from the widget resumes the saved queue.
++ */
++class PlayerWidgetProvider : AppWidgetProvider() {
++    override fun onUpdate(context: Context, appWidgetManager: AppWidgetManager, appWidgetIds: IntArray) {
++        PlayerWidget.pushLast(context, appWidgetManager, appWidgetIds)
++    }
++
++    override fun onReceive(context: Context, intent: Intent) {
++        super.onReceive(context, intent)
++        val action = intent.action ?: return
++        if (action !in PlayerWidget.COMMANDS) return
++
++        val pending = goAsync()
++        val appContext = context.applicationContext
++        val token = SessionToken(appContext, ComponentName(appContext, MusicService::class.java))
++        val future = MediaController.Builder(appContext, token).buildAsync()
++        val mainExecutor = ContextCompat.getMainExecutor(appContext)
++        future.addListener({
++            val controller = runCatching { future.get() }.getOrNull()
++            if (controller == null) {
++                pending.finish()
++                return@addListener
++            }
++            when (action) {
++                PlayerWidget.ACTION_PREVIOUS -> controller.seekToPrevious()
++                PlayerWidget.ACTION_NEXT -> controller.seekToNext()
++                PlayerWidget.ACTION_PLAY_PAUSE -> if (controller.playWhenReady) {
++                    controller.pause()
++                } else {
++                    if (controller.playbackState == Player.STATE_IDLE) controller.prepare()
++                    controller.play()
++                }
++            }
++            // Released a moment later rather than at once, so the command is delivered before the
++            // connection it travels on goes away.
++            Handler(Looper.getMainLooper()).postDelayed({
++                controller.release()
++                pending.finish()
++            }, CONTROLLER_LINGER_MS)
++        }, mainExecutor)
++    }
++
++    private companion object {
++        const val CONTROLLER_LINGER_MS = 1_000L
++    }
++}
++
++object PlayerWidget {
++
++    /** Big enough for a 56dp cell on a dense screen; small enough to stay far under the binder limit. */
++    private const val ART_PX = 256
++
++    @Volatile
++    private var lastTitle: String? = null
++
++    @Volatile
++    private var lastArtist: String? = null
++
++    @Volatile
++    private var lastPlaying = false
++
++    @Volatile
++    private var lastArt: Bitmap? = null
++
++    @Volatile
++    private var lastArtSongId: String? = null
++
++    /**
++     * Shows [metadata] and [playing] on every placed widget. Loads the cover itself, so call it from
++     * a coroutine that a newer song will cancel (the service uses collectLatest).
++     */
++    suspend fun update(context: Context, metadata: MediaMetadata?, playing: Boolean) {
++        val manager = AppWidgetManager.getInstance(context)
++        val ids = manager.getAppWidgetIds(ComponentName(context, PlayerWidgetProvider::class.java))
++
++        lastTitle = metadata?.title
++        lastArtist = metadata?.artists?.joinToString { it.name }
++        lastPlaying = playing
++        if (metadata?.id != lastArtSongId) {
++            lastArt = null
++            lastArtSongId = metadata?.id
++        }
++        // Nothing placed: remember the state for when one is, and skip the cover load.
++        if (ids.isEmpty()) return
++
++        // Text and buttons straight away; the cover follows once it has loaded.
++        pushLast(context, manager, ids)
++        if (metadata != null && lastArt == null) {
++            val art = loadArt(context, metadata) ?: return
++            if (lastArtSongId != metadata.id) return
++            lastArt = art
++            pushLast(context, manager, ids)
++        }
++    }
++
++    internal fun pushLast(context: Context, manager: AppWidgetManager, ids: IntArray) {
++        if (ids.isEmpty()) return
++        val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
++            setTextViewText(R.id.widget_title, lastTitle ?: context.getString(R.string.widget_nothing_playing))
++            setTextViewText(R.id.widget_artist, lastArtist.orEmpty())
++            setImageViewResource(R.id.widget_play_pause, if (lastPlaying) R.drawable.pause else R.drawable.play)
++            val art = lastArt
++            if (art != null) setImageViewBitmap(R.id.widget_artwork, art)
++            else setImageViewResource(R.id.widget_artwork, R.drawable.placeholder_icon)
++
++            setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
++            setOnClickPendingIntent(R.id.widget_artwork, openAppIntent(context))
++            setOnClickPendingIntent(R.id.widget_previous, commandIntent(context, ACTION_PREVIOUS, 1))
++            setOnClickPendingIntent(R.id.widget_play_pause, commandIntent(context, ACTION_PLAY_PAUSE, 2))
++            setOnClickPendingIntent(R.id.widget_next, commandIntent(context, ACTION_NEXT, 3))
++        }
++        manager.updateAppWidget(ids, views)
++    }
++
++    private suspend fun loadArt(context: Context, metadata: MediaMetadata): Bitmap? {
++        val model = metadata.getThumbnailModel(ART_PX, ART_PX) ?: return null
++        val result = context.imageLoader.execute(
++            ImageRequest.Builder(context)
++                .data(model)
++                .size(ART_PX, ART_PX)
++                // A hardware bitmap cannot be parcelled into RemoteViews.
++                .allowHardware(false)
++                .build()
++        )
++        return (result as? SuccessResult)?.image?.toBitmap()
++    }
++
++    private fun openAppIntent(context: Context): PendingIntent = PendingIntent.getActivity(
++        context,
++        0,
++        Intent(context, MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
++        PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
++    )
++
++    private fun commandIntent(context: Context, action: String, requestCode: Int): PendingIntent {
++        val intent = Intent(action).setClass(context, PlayerWidgetProvider::class.java)
++        // A distinct request code per button, so the three are three intents rather than the last
++        // one created standing in for all of them.
++        return PendingIntent.getBroadcast(
++            context,
++            requestCode,
++            intent,
++            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
++        )
++    }
++
++    internal const val ACTION_PREVIOUS = "com.dd3boh.outertune.widget.PREVIOUS"
++    internal const val ACTION_PLAY_PAUSE = "com.dd3boh.outertune.widget.PLAY_PAUSE"
++    internal const val ACTION_NEXT = "com.dd3boh.outertune.widget.NEXT"
++    internal val COMMANDS = setOf(ACTION_PREVIOUS, ACTION_PLAY_PAUSE, ACTION_NEXT)
++}
+diff --git a/app/src/main/res/drawable/widget_background.xml b/app/src/main/res/drawable/widget_background.xml
+new file mode 100644
+index 0000000..35c2934
+--- /dev/null
++++ b/app/src/main/res/drawable/widget_background.xml
+@@ -0,0 +1,6 @@
++<?xml version="1.0" encoding="utf-8"?>
++<shape xmlns:android="http://schemas.android.com/apk/res/android"
++    android:shape="rectangle">
++    <solid android:color="#E6202124" />
++    <corners android:radius="24dp" />
++</shape>
+diff --git a/app/src/main/res/layout/widget_player.xml b/app/src/main/res/layout/widget_player.xml
+new file mode 100644
+index 0000000..479314c
+--- /dev/null
++++ b/app/src/main/res/layout/widget_player.xml
+@@ -0,0 +1,76 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- The home-screen player. RemoteViews only allow a fixed set of plain views, hence the plain
++     LinearLayouts and ImageButtons rather than anything from Compose. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/widget_root"
++    android:layout_width="match_parent"
++    android:layout_height="match_parent"
++    android:background="@drawable/widget_background"
++    android:gravity="center_vertical"
++    android:orientation="horizontal"
++    android:padding="10dp">
++
++    <ImageView
++        android:id="@+id/widget_artwork"
++        android:layout_width="56dp"
++        android:layout_height="56dp"
++        android:contentDescription="@null"
++        android:scaleType="centerCrop"
++        android:src="@drawable/placeholder_icon" />
++
++    <LinearLayout
++        android:layout_width="0dp"
++        android:layout_height="wrap_content"
++        android:layout_marginStart="12dp"
++        android:layout_marginEnd="4dp"
++        android:layout_weight="1"
++        android:orientation="vertical">
++
++        <TextView
++            android:id="@+id/widget_title"
++            android:layout_width="match_parent"
++            android:layout_height="wrap_content"
++            android:ellipsize="end"
++            android:maxLines="1"
++            android:text="@string/widget_nothing_playing"
++            android:textColor="#FFFFFFFF"
++            android:textSize="15sp"
++            android:textStyle="bold" />
++
++        <TextView
++            android:id="@+id/widget_artist"
++            android:layout_width="match_parent"
++            android:layout_height="wrap_content"
++            android:ellipsize="end"
++            android:maxLines="1"
++            android:textColor="#B3FFFFFF"
++            android:textSize="13sp" />
++    </LinearLayout>
++
++    <ImageButton
++        android:id="@+id/widget_previous"
++        android:layout_width="40dp"
++        android:layout_height="40dp"
++        android:background="@android:color/transparent"
++        android:contentDescription="@string/widget_previous"
++        android:scaleType="centerInside"
++        android:src="@drawable/skip_previous" />
++
++    <ImageButton
++        android:id="@+id/widget_play_pause"
++        android:layout_width="48dp"
++        android:layout_height="48dp"
++        android:background="@android:color/transparent"
++        android:contentDescription="@string/widget_play_pause"
++        android:scaleType="centerInside"
++        android:src="@drawable/play" />
++
++    <ImageButton
++        android:id="@+id/widget_next"
++        android:layout_width="40dp"
++        android:layout_height="40dp"
++        android:background="@android:color/transparent"
++        android:contentDescription="@string/widget_next"
++        android:scaleType="centerInside"
++        android:src="@drawable/skip_next" />
++</LinearLayout>
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 16acb62..5dcbf4a 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -195,6 +195,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="eq_settings_autoeq_search_hint">Headphone model</string>
+     <string name="eq_settings_autoeq_searching">Searching…</string>
+     <string name="eq_settings_autoeq_no_results">No matching headphones found.</string>
++    <string name="eq_settings_autoeq_detected">Filled in from your connected headphones: %1$s</string>
+     <string name="eq_settings_autoeq_error">Couldn\'t fetch that curve: %1$s</string>
+ 
+ <!-- Discord integration -->
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 5eae838..3f12df3 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -279,6 +279,13 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <!-- Notification name -->
+     <string name="music_player">Music Player</string>
+ 
++    <!-- Home-screen widget -->
++    <string name="widget_description">What\'s playing, with play/pause and skip</string>
++    <string name="widget_nothing_playing">Nothing playing</string>
++    <string name="widget_previous">Previous</string>
++    <string name="widget_play_pause">Play or pause</string>
++    <string name="widget_next">Next</string>
++
+     <!-- Settings -->
+     <string name="settings">Settings</string>
+     <string name="appearance">Appearance</string>
+diff --git a/app/src/main/res/xml/widget_player_info.xml b/app/src/main/res/xml/widget_player_info.xml
+new file mode 100644
+index 0000000..0a45c3b
+--- /dev/null
++++ b/app/src/main/res/xml/widget_player_info.xml
+@@ -0,0 +1,16 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- No updatePeriodMillis: the widget is pushed to by the music service whenever the song or the
++     play state changes, so a periodic wake-up would only cost battery. -->
++<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
++    android:description="@string/widget_description"
++    android:initialLayout="@layout/widget_player"
++    android:minWidth="250dp"
++    android:minHeight="56dp"
++    android:minResizeWidth="180dp"
++    android:minResizeHeight="56dp"
++    android:previewLayout="@layout/widget_player"
++    android:resizeMode="horizontal|vertical"
++    android:targetCellWidth="4"
++    android:targetCellHeight="1"
++    android:updatePeriodMillis="0"
++    android:widgetCategory="home_screen" />
+diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+index 7c9db8d..0fbfcfd 100644
+--- a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
++++ b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+@@ -80,8 +80,25 @@ open class DiscordWebSocket(
+     // stale socket could keep answering isRpcRunning() after a logout.
+     private val socketJob = SupervisorJob()
+     override val coroutineContext: CoroutineContext = socketJob + Dispatchers.Default
++
++    /**
++     * The running connection - it lives as long as the socket does, receive loop included.
++     *
++     * connect() is a no-op while it is active. isWebSocketConnected() only turns true once the
++     * session object exists, which is after the handshake, so two presence updates close together
++     * (a skip, then the play state settling) each saw "not running" and each opened a socket. The
++     * second replaced the first in [websocket], and the first, no longer reachable from here, could
++     * stay identified holding the previous song's presence: the card stuck on an old song.
++     */
++    @Volatile
++    private var connectJob: Job? = null
++
+     suspend fun connect() {
+-        launch {
++        if (connectJob?.isActive == true) return
++        connectJob = openConnection()
++    }
++
++    private fun openConnection(): Job = launch {
+             try {
+                 Logger.getLogger("Kizzy").log(INFO, "Gateway: Connect called")
+                 lastStatus = "Connecting…"
+@@ -104,7 +121,6 @@ open class DiscordWebSocket(
+                 lastStatus = "Connection error: ${e.message ?: e::class.simpleName}"
+                 close()
+             }
+-        }
+     }
+     private suspend fun handleClose() {
+         heartbeatJob?.cancel()
+@@ -119,7 +135,8 @@ open class DiscordWebSocket(
+         }
+         if (close?.code?.toInt() == 4000) {
+             delay(200.milliseconds)
+-            connect()
++            // Straight to a new connection: connect() would see this job, still running, and skip.
++            connectJob = openConnection()
+         } else
+             close()
+     }
+@@ -255,6 +272,7 @@ open class DiscordWebSocket(
+         // dead, and a later connect() would launch into a cancelled scope and never run - so
+         // sendActivity would then spin forever waiting for a connection that cannot happen.
+         socketJob.cancelChildren()
++        connectJob = null
+         resumeGatewayUrl = null
+         sessionId = null
+         connected = false
+diff --git a/kizzy/src/main/java/com/my/kizzy/repository/KizzyRepository.kt b/kizzy/src/main/java/com/my/kizzy/repository/KizzyRepository.kt
+index 3b2a2d1..849c061 100644
+--- a/kizzy/src/main/java/com/my/kizzy/repository/KizzyRepository.kt
++++ b/kizzy/src/main/java/com/my/kizzy/repository/KizzyRepository.kt
+@@ -33,8 +33,13 @@ class KizzyRepository(token: String) {
+      * short strings; the cap exists so a long shuffle cannot grow it without limit, and at that
+      * size the difference between dropping the oldest and dropping all of them is one extra round
+      * trip for whatever is playing next.
++     *
++     * Shared by every instance (see the companion), keyed by application and URL. The app rebuilds
++     * its RPC client - and with it this repository - every few minutes to recover dead sockets, and
++     * a per-instance map was thrown away with each rebuild, so the next track paid the full round
++     * trips again.
+      */
+-    private val resolved = ConcurrentHashMap<String, String>()
++    private val resolved get() = sharedResolved
+ 
+     /**
+      * Why the last resolution failed, or null if the last one worked.
+@@ -52,12 +57,13 @@ class KizzyRepository(token: String) {
+             lastError = "No application id, so Discord has nothing to register the image against"
+             return null
+         }
+-        resolved[url]?.let { return it }
++        val key = "$applicationId|$url"
++        resolved[key]?.let { return it }
+ 
+         return api.externalAsset(applicationId, url)
+             .onSuccess { asset ->
+                 if (resolved.size >= MAX_CACHED) resolved.clear()
+-                resolved[url] = asset
++                resolved[key] = asset
+                 lastError = null
+             }
+             .onFailure { lastError = it.message ?: it::class.simpleName }
+@@ -65,6 +71,7 @@ class KizzyRepository(token: String) {
+     }
+ 
+     private companion object {
+-        const val MAX_CACHED = 64
++        const val MAX_CACHED = 128
++        val sharedResolved = ConcurrentHashMap<String, String>()
+     }
+ }
+diff --git a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
+index 1c04cf9..995871d 100644
+--- a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
++++ b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
+@@ -23,6 +23,9 @@ import io.ktor.client.HttpClient
+ import io.ktor.client.request.get
+ import io.ktor.client.request.header
+ import io.ktor.client.statement.bodyAsText
++import kotlinx.coroutines.async
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.withTimeoutOrNull
+ import org.json.JSONObject
+ 
+ /**
+@@ -103,7 +106,7 @@ open class KizzyRPC(token: String) {
+         if (!isRpcRunning()) {
+             discordWebSocket.connect()
+         }
+-        val presence = Presence(
++        fun presence(large: String?, small: String?) = Presence(
+             activities = listOf(
+                 Activity(
+                     name = name,
+@@ -115,8 +118,8 @@ open class KizzyRPC(token: String) {
+                     statusDisplayType = statusDisplayType.value,
+                     timestamps = Timestamps(startTime, endTime),
+                     assets = Assets(
+-                        largeImage = largeImage?.resolveImage(kizzyRepository, applicationId),
+-                        smallImage = smallImage?.resolveImage(kizzyRepository, applicationId),
++                        largeImage = large,
++                        smallImage = small,
+                         largeText = largeText,
+                         smallText = smallText
+                     ),
+@@ -130,7 +133,35 @@ open class KizzyRPC(token: String) {
+             since = since,
+             status = status ?: "online"
+         )
+-        discordWebSocket.sendActivity(presence)
++
++        // The words first, the pictures when they are ready.
++        //
++        // Both images have to be registered with Discord before a presence can carry them, and that
++        // used to happen in turn, each allowed up to 30 seconds, before anything was sent. All that
++        // time the card went on showing the previous song - which on a slow connection, or on a skip
++        // straight after a skip, is the presence "stuck on the same song". Now both resolve at
++        // once; whatever is ready within a moment goes out with the new title, and if either was
++        // still pending the card is sent again with it once it arrives. A newer song cancels this
++        // whole call (the caller's collectLatest), so a late picture can never land on the wrong
++        // song.
++        coroutineScope {
++            val large = async { largeImage?.resolveImage(kizzyRepository, applicationId) }
++            val small = async { smallImage?.resolveImage(kizzyRepository, applicationId) }
++            // Awaiting with a timeout does not cancel the request itself - it carries on below.
++            val quickLarge = withTimeoutOrNull(QUICK_IMAGE_WAIT_MS) { large.await() }
++            val quickSmall = withTimeoutOrNull(QUICK_IMAGE_WAIT_MS) { small.await() }
++            discordWebSocket.sendActivity(presence(quickLarge, quickSmall))
++
++            val largeLate = largeImage != null && quickLarge == null
++            val smallLate = smallImage != null && quickSmall == null
++            if (largeLate || smallLate) {
++                val finalLarge = large.await()
++                val finalSmall = small.await()
++                if ((largeLate && finalLarge != null) || (smallLate && finalSmall != null)) {
++                    discordWebSocket.sendActivity(presence(finalLarge, finalSmall))
++                }
++            }
++        }
+     }
+ 
+     enum class Type(val value: Int) {
+@@ -148,6 +179,9 @@ open class KizzyRPC(token: String) {
+     }
+ 
+     companion object {
++        /** How long a new song's card waits for its pictures before going out without them. */
++        private const val QUICK_IMAGE_WAIT_MS = 1_500L
++
+         suspend fun getUserInfo(token: String): Result<UserInfo> = runCatching {
+             val client = HttpClient()
+             val response = client.get("https://discord.com/api/v9/users/@me") {
+-- 
+2.56.0.windows.4
+
