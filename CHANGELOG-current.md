@@ -76,6 +76,23 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Stats: real plays from your other devices
+
+- **Add plays from another device** (Settings → Backup and restore). Pick another phone's backup or
+  an OuterTune for Windows backup, and its plays are added to this phone's Stats, with their dates
+  and listening time. Nothing else is changed: no likes, playlists or settings, and nothing is
+  replaced.
+  - **Never counts a play twice.** A play is its song plus the exact moment it was recorded, and
+    one already here is skipped. Both apps keep that moment exactly as first written, so merging
+    the same backup again, or a PC backup that holds plays it took from this phone, adds only
+    what's new. Merge as often as you like, in either direction.
+  - Songs this phone already has keep their details; songs new to it are added with their artists
+    and length. Local files are left out, since their ids mean nothing on another device.
+- **Why the YouTube Music way couldn't do this:** its history keeps each song once, moved to the
+  top when replayed, with no play count and no listening time. "Count plays from other devices"
+  can only ever add about one play per song played elsewhere, and its description now says so.
+  Sending plays to YouTube Music wouldn't help either: it can't record counts or past dates.
+
 ## Updater: skip betas
 
 - **Skip beta releases** (Settings → Updater), off by default. When on, a release whose tag or name

@@ -135,7 +135,7 @@ while also allowing users to translate our app as well. New, specific strings to
 
     <!-- In-app updater -->
     <string name="stats_include_remote_title">Count plays from other devices</string>
-    <string name="stats_include_remote_description">Adds plays from your YouTube Music history to Stats</string>
+    <string name="stats_include_remote_description">Adds songs from your YouTube Music history to Stats. That history keeps each song once, without play counts or times, so it adds about one play per song played elsewhere. For a device\'s real plays and listening time, use Backup and restore → Add plays from another device.</string>
 
     <string name="updater">Updater</string>
     <string name="check_for_updates">Check for updates</string>
