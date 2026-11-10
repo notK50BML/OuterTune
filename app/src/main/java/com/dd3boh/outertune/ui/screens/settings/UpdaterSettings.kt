@@ -40,6 +40,7 @@ import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.AutoCheckUpdatesKey
 import com.dd3boh.outertune.constants.AutoDownloadUpdatesKey
 import com.dd3boh.outertune.constants.BackupBeforeUpdateKey
+import com.dd3boh.outertune.constants.SkipBetaUpdatesKey
 import com.dd3boh.outertune.LocalDatabase
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.constants.UpdateAvailableKey
@@ -75,6 +76,7 @@ fun UpdaterSettings(
     var autoCheck by rememberPreference(AutoCheckUpdatesKey, defaultValue = true)
     var autoDownload by rememberPreference(AutoDownloadUpdatesKey, defaultValue = false)
     var backupBeforeUpdate by rememberPreference(BackupBeforeUpdateKey, defaultValue = true)
+    var skipBetas by rememberPreference(SkipBetaUpdatesKey, defaultValue = false)
     val database = LocalDatabase.current
 
     // Already read by the search bar and the settings list, but until now nothing ever wrote it,
@@ -85,10 +87,10 @@ fun UpdaterSettings(
     var available by remember { mutableStateOf<AppUpdater.Update?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
 
-    suspend fun check(thenDownload: Boolean) {
+    suspend fun check(thenDownload: Boolean, betasSkipped: Boolean = skipBetas) {
         checking = true
         status = context.getString(R.string.update_checking)
-        val found = AppUpdater.checkForUpdate()
+        val found = AppUpdater.checkForUpdate(skipBetas = betasSkipped)
         available = found
         updateAvailable = found != null
         status = if (found == null) {
@@ -176,6 +178,19 @@ fun UpdaterSettings(
             description = stringResource(R.string.update_backup_first_desc),
             checked = backupBeforeUpdate,
             onCheckedChange = { backupBeforeUpdate = it }
+        )
+        SwitchPreference(
+            title = { Text(stringResource(R.string.update_skip_betas)) },
+            description = stringResource(R.string.update_skip_betas_desc),
+            checked = skipBetas,
+            onCheckedChange = {
+                skipBetas = it
+                // A beta already offered should go (or one passed over appear) straight away.
+                available = null
+                updateAvailable = false
+                status = null
+                if (autoCheck) coroutineScope.launch { check(thenDownload = false, betasSkipped = it) }
+            }
         )
 
         Spacer(modifier = Modifier.height(16.dp))

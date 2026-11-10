@@ -76,6 +76,14 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Updater: skip betas
+
+- **Skip beta releases** (Settings → Updater), off by default. When on, a release whose tag or name
+  has a "b" right after the version - v0.23.0b, 0.23.0b2, v0.23.0-beta - is never offered, in the
+  Updater or on About. Only straight after the version number, so "Core-v0.22.2" or a "build" in a
+  name is not taken for a beta. Turning it on or off checks again at once. Releases GitHub marks
+  as pre-releases were already skipped and still are.
+
 ## QQ Music word-by-word on Android
 
 - QQ's word-timed lyrics come as TTML without a `<head>`, which the strict reader rejects; the

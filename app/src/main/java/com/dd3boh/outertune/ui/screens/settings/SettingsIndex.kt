@@ -237,6 +237,7 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_keep_count, R.string.backup_restore),
     SettingsIndexEntry("settings/updater", R.string.update_auto_check, R.string.updater),
     SettingsIndexEntry("settings/updater", R.string.update_auto_download, R.string.updater),
+    SettingsIndexEntry("settings/updater", R.string.update_skip_betas, R.string.updater),
     SettingsIndexEntry("settings/updater", R.string.updater, R.string.updater),
     SettingsIndexEntry("settings/about", R.string.check_for_updates, R.string.about),
     SettingsIndexEntry("settings/about", R.string.attribution_title, R.string.about),

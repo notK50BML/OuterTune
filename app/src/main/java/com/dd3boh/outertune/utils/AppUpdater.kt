@@ -70,6 +70,15 @@ object AppUpdater {
      */
     private val ASSET_NAME = Regex("""^OuterTune-.*-(\d+)\.apk$""")
 
+    /**
+     * A beta's tag: a "b" (or "beta") straight after the version number - v0.23.0b, 0.23.0b2,
+     * v0.23.0-beta. Only right after a digit, so "Core-v0.22.2" or a "build" in the name is not
+     * mistaken for one.
+     */
+    private val BETA_TAG = Regex("""(?i)\d[-.]?(?:b|beta)\d*(?![a-z])""")
+
+    fun isBeta(tagOrName: String): Boolean = BETA_TAG.containsMatchIn(tagOrName)
+
     private val httpClient by lazy {
         OkHttpClient.Builder().proxy(YouTube.proxy).build()
     }
@@ -93,7 +102,11 @@ object AppUpdater {
      *   always what is wanted; it is settable so someone on core can move to full (or back) by
      *   taking the next update, rather than having to find and sideload an apk by hand.
      */
-    suspend fun checkForUpdate(flavor: String = BuildConfig.FLAVOR): Update? = withContext(Dispatchers.IO) {
+    suspend fun checkForUpdate(
+        flavor: String = BuildConfig.FLAVOR,
+        /** Pass over releases tagged as betas - see [isBeta]. */
+        skipBetas: Boolean = false,
+    ): Update? = withContext(Dispatchers.IO) {
         runCatching {
             val request = Request.Builder()
                 .url(RELEASES_API)
@@ -128,6 +141,7 @@ object AppUpdater {
                     // directly: this is the ordinary update channel, and a draft or a pre-release is
                     // neither something to offer unasked nor something every install should take.
                     if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
+                    if (skipBetas && (isBeta(release.optString("tag_name")) || isBeta(release.optString("name")))) continue
 
                     // The release's own name first, its tag second. This repo tags releases by
                     // flavour (Core-v0.18.2) while naming them by version (v0.18.2), and the tag is

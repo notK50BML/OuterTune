@@ -665,6 +665,8 @@ val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
 val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
 /** Write a backup before handing an update to the installer. On by default. */
 val BackupBeforeUpdateKey = booleanPreferencesKey("backupBeforeUpdate")
+/** Pass over releases tagged as betas (a "b" right after the version) when checking for updates. */
+val SkipBetaUpdatesKey = booleanPreferencesKey("skipBetaUpdates")
 
 /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
 val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")

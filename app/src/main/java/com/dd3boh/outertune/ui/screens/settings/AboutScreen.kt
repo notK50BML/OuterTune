@@ -47,6 +47,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import com.dd3boh.outertune.utils.AppUpdater
+import com.dd3boh.outertune.utils.dataStore
+import com.dd3boh.outertune.utils.get
+import com.dd3boh.outertune.constants.SkipBetaUpdatesKey
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -201,7 +204,7 @@ fun AboutScreen(
                         if (updateInProgress) return@PreferenceEntry
                         coroutineScope.launch {
                             updateInProgress = true
-                            val available = AppUpdater.checkForUpdate()
+                            val available = AppUpdater.checkForUpdate(skipBetas = context.dataStore.get(SkipBetaUpdatesKey, false))
                             if (available == null) {
                                 updateStatus = context.getString(R.string.update_up_to_date)
                                 updateInProgress = false

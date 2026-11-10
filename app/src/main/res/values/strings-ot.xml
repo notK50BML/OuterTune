@@ -154,6 +154,8 @@ while also allowing users to translate our app as well. New, specific strings to
     <string name="update_auto_download_desc">Downloads updates as soon as they\'re found</string>
     <string name="update_backup_first">Back up before installing</string>
     <string name="update_backup_first_desc">Saves your library and settings to Downloads/OuterTune Backup just before an update installs, so a bad update can be undone. Keeps the last three.</string>
+    <string name="update_skip_betas">Skip beta releases</string>
+    <string name="update_skip_betas_desc">Don\'t offer releases tagged as betas, with a b after the version (v0.23.0b)</string>
     <string name="update_install_tooltip">Android does the installing, not OuterTune. You will be asked to allow installing unknown apps once, and to confirm every update after that.</string>
 
 <!-- Appearance settings -->
