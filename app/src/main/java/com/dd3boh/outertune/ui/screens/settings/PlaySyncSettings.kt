@@ -44,6 +44,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextRange
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -233,19 +235,19 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
     }
 
     if (entering) {
-        var typed by remember { mutableStateOf("") }
-        val valid = SyncCode.normalize(typed)
+        var typed by remember { mutableStateOf(TextFieldValue("")) }
+        val valid = SyncCode.normalize(typed.text)
         AlertDialog(
             onDismissRequest = { entering = false },
             title = { Text(stringResource(R.string.sync_enter_code)) },
             text = {
                 OutlinedTextField(
                     value = typed,
-                    onValueChange = { typed = it },
+                    onValueChange = { v -> SyncCode.asTyped(v.text).let { typed = TextFieldValue(it, TextRange(it.length)) } },
                     singleLine = true,
                     placeholder = { Text(stringResource(R.string.sync_code_hint)) },
-                    isError = typed.length >= 12 && valid == null,
-                    supportingText = if (typed.length >= 12 && valid == null) {
+                    isError = typed.text.length >= 14 && valid == null,
+                    supportingText = if (typed.text.length >= 14 && valid == null) {
                         { Text(stringResource(R.string.sync_code_invalid)) }
                     } else null,
                 )

@@ -80,6 +80,9 @@ object SyncCode {
 
     private fun format(chars: String) = chars.chunked(4).joinToString("-")
 
+    /** What has been typed so far, as a code is written: capitals, dashes put in every four. */
+    fun asTyped(input: String): String = format(input.uppercase().filter { it.isLetterOrDigit() }.take(LENGTH))
+
     /** The secret both ends prove they hold. Never sent. */
     fun key(code: String): ByteArray = sha256("outertune-sync-key-v1:$code")
 
