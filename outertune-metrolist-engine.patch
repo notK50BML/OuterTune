@@ -259662,3 +259662,199 @@ index 2c637f1..56cd9a4 100644
 -- 
 2.56.0.windows.4
 
+From 74379a37cbe0e57203357344956c963a6df1fca6 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 12:43:06 +0800
+Subject: [PATCH] Updater: setting to skip beta releases
+
+Releases whose tag or name carries a b right after the version (v0.23.0b, 0.23.0b2,
+v0.23.0-beta) are passed over when Skip beta releases is on, in the Updater and on About.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          |  8 ++++++++
+ .../outertune/constants/PreferenceKeys.kt     |  2 ++
+ .../ui/screens/settings/AboutScreen.kt        |  5 ++++-
+ .../ui/screens/settings/SettingsIndex.kt      |  1 +
+ .../ui/screens/settings/UpdaterSettings.kt    | 19 +++++++++++++++++--
+ .../com/dd3boh/outertune/utils/AppUpdater.kt  | 16 +++++++++++++++-
+ app/src/main/res/values/strings-ot.xml        |  2 ++
+ 7 files changed, 49 insertions(+), 4 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index e8ee102..e046a3f 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,14 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Updater: skip betas
++
++- **Skip beta releases** (Settings → Updater), off by default. When on, a release whose tag or name
++  has a "b" right after the version - v0.23.0b, 0.23.0b2, v0.23.0-beta - is never offered, in the
++  Updater or on About. Only straight after the version number, so "Core-v0.22.2" or a "build" in a
++  name is not taken for a beta. Turning it on or off checks again at once. Releases GitHub marks
++  as pre-releases were already skipped and still are.
++
+ ## QQ Music word-by-word on Android
+ 
+ - QQ's word-timed lyrics come as TTML without a `<head>`, which the strict reader rejects; the
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 727334f..9f1b553 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -665,6 +665,8 @@ val AutoCheckUpdatesKey = booleanPreferencesKey("autoCheckUpdates")
+ val AutoDownloadUpdatesKey = booleanPreferencesKey("autoDownloadUpdates")
+ /** Write a backup before handing an update to the installer. On by default. */
+ val BackupBeforeUpdateKey = booleanPreferencesKey("backupBeforeUpdate")
++/** Pass over releases tagged as betas (a "b" right after the version) when checking for updates. */
++val SkipBetaUpdatesKey = booleanPreferencesKey("skipBetaUpdates")
+ 
+ /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
+ val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
+index da5916f..ae4bcb1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AboutScreen.kt
+@@ -47,6 +47,9 @@ import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.platform.LocalContext
+ import com.dd3boh.outertune.utils.AppUpdater
++import com.dd3boh.outertune.utils.dataStore
++import com.dd3boh.outertune.utils.get
++import com.dd3boh.outertune.constants.SkipBetaUpdatesKey
+ import kotlinx.coroutines.launch
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+@@ -201,7 +204,7 @@ fun AboutScreen(
+                         if (updateInProgress) return@PreferenceEntry
+                         coroutineScope.launch {
+                             updateInProgress = true
+-                            val available = AppUpdater.checkForUpdate()
++                            val available = AppUpdater.checkForUpdate(skipBetas = context.dataStore.get(SkipBetaUpdatesKey, false))
+                             if (available == null) {
+                                 updateStatus = context.getString(R.string.update_up_to_date)
+                                 updateInProgress = false
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+index d2837f4..4722e10 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+@@ -237,6 +237,7 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_keep_count, R.string.backup_restore),
+     SettingsIndexEntry("settings/updater", R.string.update_auto_check, R.string.updater),
+     SettingsIndexEntry("settings/updater", R.string.update_auto_download, R.string.updater),
++    SettingsIndexEntry("settings/updater", R.string.update_skip_betas, R.string.updater),
+     SettingsIndexEntry("settings/updater", R.string.updater, R.string.updater),
+     SettingsIndexEntry("settings/about", R.string.check_for_updates, R.string.about),
+     SettingsIndexEntry("settings/about", R.string.attribution_title, R.string.about),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+index 719d0b5..588615d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/UpdaterSettings.kt
+@@ -40,6 +40,7 @@ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.AutoCheckUpdatesKey
+ import com.dd3boh.outertune.constants.AutoDownloadUpdatesKey
+ import com.dd3boh.outertune.constants.BackupBeforeUpdateKey
++import com.dd3boh.outertune.constants.SkipBetaUpdatesKey
+ import com.dd3boh.outertune.LocalDatabase
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.constants.UpdateAvailableKey
+@@ -75,6 +76,7 @@ fun UpdaterSettings(
+     var autoCheck by rememberPreference(AutoCheckUpdatesKey, defaultValue = true)
+     var autoDownload by rememberPreference(AutoDownloadUpdatesKey, defaultValue = false)
+     var backupBeforeUpdate by rememberPreference(BackupBeforeUpdateKey, defaultValue = true)
++    var skipBetas by rememberPreference(SkipBetaUpdatesKey, defaultValue = false)
+     val database = LocalDatabase.current
+ 
+     // Already read by the search bar and the settings list, but until now nothing ever wrote it,
+@@ -85,10 +87,10 @@ fun UpdaterSettings(
+     var available by remember { mutableStateOf<AppUpdater.Update?>(null) }
+     var status by remember { mutableStateOf<String?>(null) }
+ 
+-    suspend fun check(thenDownload: Boolean) {
++    suspend fun check(thenDownload: Boolean, betasSkipped: Boolean = skipBetas) {
+         checking = true
+         status = context.getString(R.string.update_checking)
+-        val found = AppUpdater.checkForUpdate()
++        val found = AppUpdater.checkForUpdate(skipBetas = betasSkipped)
+         available = found
+         updateAvailable = found != null
+         status = if (found == null) {
+@@ -177,6 +179,19 @@ fun UpdaterSettings(
+             checked = backupBeforeUpdate,
+             onCheckedChange = { backupBeforeUpdate = it }
+         )
++        SwitchPreference(
++            title = { Text(stringResource(R.string.update_skip_betas)) },
++            description = stringResource(R.string.update_skip_betas_desc),
++            checked = skipBetas,
++            onCheckedChange = {
++                skipBetas = it
++                // A beta already offered should go (or one passed over appear) straight away.
++                available = null
++                updateAvailable = false
++                status = null
++                if (autoCheck) coroutineScope.launch { check(thenDownload = false, betasSkipped = it) }
++            }
++        )
+ 
+         Spacer(modifier = Modifier.height(16.dp))
+         InfoLabel(stringResource(R.string.update_install_tooltip))
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt b/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt
+index c37047c..e88ffb6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/AppUpdater.kt
+@@ -70,6 +70,15 @@ object AppUpdater {
+      */
+     private val ASSET_NAME = Regex("""^OuterTune-.*-(\d+)\.apk$""")
+ 
++    /**
++     * A beta's tag: a "b" (or "beta") straight after the version number - v0.23.0b, 0.23.0b2,
++     * v0.23.0-beta. Only right after a digit, so "Core-v0.22.2" or a "build" in the name is not
++     * mistaken for one.
++     */
++    private val BETA_TAG = Regex("""(?i)\d[-.]?(?:b|beta)\d*(?![a-z])""")
++
++    fun isBeta(tagOrName: String): Boolean = BETA_TAG.containsMatchIn(tagOrName)
++
+     private val httpClient by lazy {
+         OkHttpClient.Builder().proxy(YouTube.proxy).build()
+     }
+@@ -93,7 +102,11 @@ object AppUpdater {
+      *   always what is wanted; it is settable so someone on core can move to full (or back) by
+      *   taking the next update, rather than having to find and sideload an apk by hand.
+      */
+-    suspend fun checkForUpdate(flavor: String = BuildConfig.FLAVOR): Update? = withContext(Dispatchers.IO) {
++    suspend fun checkForUpdate(
++        flavor: String = BuildConfig.FLAVOR,
++        /** Pass over releases tagged as betas - see [isBeta]. */
++        skipBetas: Boolean = false,
++    ): Update? = withContext(Dispatchers.IO) {
+         runCatching {
+             val request = Request.Builder()
+                 .url(RELEASES_API)
+@@ -128,6 +141,7 @@ object AppUpdater {
+                     // directly: this is the ordinary update channel, and a draft or a pre-release is
+                     // neither something to offer unasked nor something every install should take.
+                     if (release.optBoolean("draft") || release.optBoolean("prerelease")) continue
++                    if (skipBetas && (isBeta(release.optString("tag_name")) || isBeta(release.optString("name")))) continue
+ 
+                     // The release's own name first, its tag second. This repo tags releases by
+                     // flavour (Core-v0.18.2) while naming them by version (v0.18.2), and the tag is
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 8299755..ef21600 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -154,6 +154,8 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="update_auto_download_desc">Downloads updates as soon as they\'re found</string>
+     <string name="update_backup_first">Back up before installing</string>
+     <string name="update_backup_first_desc">Saves your library and settings to Downloads/OuterTune Backup just before an update installs, so a bad update can be undone. Keeps the last three.</string>
++    <string name="update_skip_betas">Skip beta releases</string>
++    <string name="update_skip_betas_desc">Don\'t offer releases tagged as betas, with a b after the version (v0.23.0b)</string>
+     <string name="update_install_tooltip">Android does the installing, not OuterTune. You will be asked to allow installing unknown apps once, and to confirm every update after that.</string>
+ 
+ <!-- Appearance settings -->
+-- 
+2.56.0.windows.4
+
