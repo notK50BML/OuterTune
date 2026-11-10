@@ -857,7 +857,10 @@ class RemoteLyricsAggregator(
             // not evidence of lyrics, so judging the raw text could adopt a "lyric sheet" that is
             // nothing but [Music] over and over.
             is LyricsFetchResult.Found -> {
-                val cleaned = cleanLyrics(result.raw)
+                // Not TTML (QQ Music's, BetterLyrics'): it is markup, and the line-by-line cleanup
+                // can trim the spaces between word spans on wrapped lines - see parseLyricsResilient,
+                // which cleans it after converting it to LRC instead.
+                val cleaned = if (TTMLParser.looksLikeTtml(result.raw)) result.raw else cleanLyrics(result.raw)
                 val kind = classifyFound(cleaned)
                 if (kind == FoundKind.UNPARSEABLE) {
                     // Not a usable result, but not an absence either.

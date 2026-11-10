@@ -76,6 +76,18 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## QQ Music word-by-word on Android
+
+- QQ's word-timed lyrics come as TTML without a `<head>`, which the strict reader rejects; the
+  player recovers them through the forgiving reader, word timings included. Two places skipped it:
+  - **Picking lyrics by hand** (search results, or saving an edit) showed the choice through the
+    strict reader, so a QQ result appeared without word timing, or as "Unable to parse", until the
+    song was reopened. It now uses the same reader as the player.
+  - **Fetching** cleaned every result line by line before judging and storing it, TTML included,
+    which can trim the spaces between words on wrapped lines. TTML is now left as it came.
+- Songs whose QQ lyrics were stored line-timed before still show them that way: refetch the song's
+  lyrics (or Refetch all) to get the word-timed version.
+
 ## Widget editor and lyrics fixes (after build 188)
 
 - **Widget lyrics now appear.** The widget read lyrics with the strict parser alone, which rejects

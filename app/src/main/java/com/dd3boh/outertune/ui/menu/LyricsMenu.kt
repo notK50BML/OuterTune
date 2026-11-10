@@ -71,6 +71,7 @@ import com.dd3boh.outertune.ui.screens.settings.fragments.LyricSourceFrag
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.viewmodels.LyricsMenuViewModel
 import kotlinx.coroutines.flow.map
+import com.dd3boh.outertune.lyrics.parseLyricsResilient
 import org.akanework.gramophone.logic.utils.LrcUtils
 import org.akanework.gramophone.logic.utils.SemanticLyrics
 
@@ -131,7 +132,7 @@ fun LyricsMenu(
                         )
                     )
                 }
-                onRefreshRequest(LrcUtils.parseLyrics(it, null, parserOptions, null))
+                onRefreshRequest(parseLyricsResilient(it, parserOptions))
             }
         )
     }
@@ -254,7 +255,7 @@ fun LyricsMenu(
                                 )
                             }
 
-                            onRefreshRequest(LrcUtils.parseLyrics(result.lyrics, null, parserOptions, null))
+                            onRefreshRequest(parseLyricsResilient(result.lyrics, parserOptions))
                         }
                         .padding(12.dp)
                         .animateContentSize()
