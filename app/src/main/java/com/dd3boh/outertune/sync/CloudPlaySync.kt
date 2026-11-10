@@ -53,7 +53,7 @@ import javax.crypto.spec.SecretKeySpec
 
 /** Where the cloud is. Empty until the project's database exists - then cloud sync is offered. */
 object CloudSyncConfig {
-    const val DATABASE_URL = ""
+    const val DATABASE_URL = "https://outertune-sync-database-default-rtdb.asia-southeast1.firebasedatabase.app"
 
     val configured: Boolean get() = DATABASE_URL.isNotBlank()
 }
