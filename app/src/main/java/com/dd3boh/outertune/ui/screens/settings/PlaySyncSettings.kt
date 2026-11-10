@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.Sync
@@ -48,10 +49,13 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.PlaySyncCloudKey
 import com.dd3boh.outertune.constants.PlaySyncCodeKey
 import com.dd3boh.outertune.constants.PlaySyncWifiKey
 import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
 import com.dd3boh.outertune.constants.TopBarInsets
+import com.dd3boh.outertune.sync.CloudSync
+import com.dd3boh.outertune.sync.CloudSyncConfig
 import com.dd3boh.outertune.sync.PlaySync
 import com.dd3boh.outertune.sync.SyncCode
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
@@ -78,6 +82,9 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
     val status by (PlaySync.manager?.status ?: PlaySync.idle).collectAsStateWithLifecycle()
     var entering by remember { mutableStateOf(false) }
     var confirmUnlink by remember { mutableStateOf(false) }
+    var cloud by rememberPreference(PlaySyncCloudKey, false)
+    val cloudStatus by (CloudSync.runner?.status ?: CloudSync.idle).collectAsStateWithLifecycle()
+    var confirmCloudDelete by remember { mutableStateOf(false) }
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -156,6 +163,53 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
             }
             Spacer(Modifier.height(16.dp))
             ElevatedCard(Modifier.fillMaxWidth()) {
+                SwitchPreference(
+                    title = { Text(stringResource(R.string.sync_cloud_title)) },
+                    description = stringResource(
+                        if (CloudSyncConfig.configured) R.string.sync_cloud_desc else R.string.sync_cloud_unavailable
+                    ),
+                    icon = { Icon(Icons.Rounded.CloudSync, null) },
+                    isEnabled = CloudSyncConfig.configured,
+                    checked = cloud && CloudSyncConfig.configured,
+                    onCheckedChange = { cloud = it },
+                )
+                if (cloud && CloudSyncConfig.configured) {
+                    val last = cloudStatus.last
+                    val lastAt = cloudStatus.lastAt
+                    PreferenceEntry(
+                        title = {
+                            Text(
+                                stringResource(
+                                    if (cloudStatus.syncing) R.string.sync_status_syncing else R.string.sync_cloud_now
+                                )
+                            )
+                        },
+                        description = when {
+                            cloudStatus.error != null -> stringResource(R.string.sync_status_failed, cloudStatus.error.orEmpty())
+                            last != null && lastAt != null -> stringResource(
+                                R.string.sync_cloud_status_last,
+                                DateUtils.getRelativeTimeSpanString(lastAt).toString(),
+                                last.received,
+                                last.sent,
+                            )
+                            else -> stringResource(R.string.sync_status_never)
+                        },
+                        descriptionIsExplanation = false,
+                        icon = { Icon(Icons.Rounded.Sync, null) },
+                        onClick = { CloudSync.runner?.syncNow() },
+                    )
+                }
+                if (CloudSyncConfig.configured) {
+                    PreferenceEntry(
+                        title = { Text(stringResource(R.string.sync_cloud_delete)) },
+                        description = stringResource(R.string.sync_cloud_delete_desc),
+                        icon = { Icon(Icons.Rounded.DeleteForever, null) },
+                        onClick = { confirmCloudDelete = true },
+                    )
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            ElevatedCard(Modifier.fillMaxWidth()) {
                 PreferenceEntry(
                     title = { Text(stringResource(R.string.sync_unlink)) },
                     description = stringResource(R.string.sync_unlink_desc),
@@ -208,6 +262,38 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
             },
             dismissButton = {
                 TextButton(onClick = { entering = false }) { Text(stringResource(android.R.string.cancel)) }
+            },
+        )
+    }
+
+    if (confirmCloudDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmCloudDelete = false },
+            title = { Text(stringResource(R.string.sync_cloud_delete)) },
+            text = { Text(stringResource(R.string.sync_cloud_delete_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmCloudDelete = false
+                    cloud = false
+                    val runner = CloudSync.runner
+                    if (runner == null) {
+                        Toast.makeText(context, R.string.sync_cloud_delete_failed, Toast.LENGTH_SHORT).show()
+                    } else {
+                        val main = android.os.Handler(android.os.Looper.getMainLooper())
+                        runner.deleteCloudData(code) { ok ->
+                            main.post {
+                                Toast.makeText(
+                                    context,
+                                    if (ok) R.string.sync_cloud_deleted else R.string.sync_cloud_delete_failed,
+                                    Toast.LENGTH_SHORT,
+                                ).show()
+                            }
+                        }
+                    }
+                }) { Text(stringResource(R.string.sync_cloud_delete)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmCloudDelete = false }) { Text(stringResource(android.R.string.cancel)) }
             },
         )
     }

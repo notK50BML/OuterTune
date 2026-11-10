@@ -677,6 +677,13 @@ val PlaySyncCodeKey = stringPreferencesKey("playSyncCode")
 /** Whether plays are synced over WiFi with the devices sharing [PlaySyncCodeKey]. */
 val PlaySyncWifiKey = booleanPreferencesKey("playSyncWifi")
 
+/** Whether plays are synced through the cloud (CloudPlaySync) with the devices sharing [PlaySyncCodeKey]. */
+val PlaySyncCloudKey = booleanPreferencesKey("playSyncCloud")
+
+/** What cloud sync remembers between runs - see CloudSyncMemory. */
+val CloudSyncRevKey = stringPreferencesKey("cloudSyncRev")
+val CloudSyncFingerprintKey = stringPreferencesKey("cloudSyncFingerprint")
+
 /**
  * The Stats screen's chips, so it opens as it was left rather than on a week of time listened every
  * time: the period, what the chart ranks by (StatMetric), and how many songs it shows

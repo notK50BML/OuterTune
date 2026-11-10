@@ -214,6 +214,7 @@ val SETTINGS_INDEX = listOf(
     SettingsIndexEntry("settings/privacy", R.string.clear_listen_history, R.string.privacy_and_history),
     SettingsIndexEntry("settings/sync", R.string.sync_title, R.string.privacy_and_history),
     SettingsIndexEntry("settings/sync", R.string.sync_wifi_title, R.string.sync_title),
+    SettingsIndexEntry("settings/sync", R.string.sync_cloud_title, R.string.sync_title),
     SettingsIndexEntry("settings/sync", R.string.stats_include_remote_title, R.string.sync_title),
     SettingsIndexEntry("settings/privacy", R.string.history, R.string.privacy_and_history),
     SettingsIndexEntry("settings/experimental", R.string.download_all_thumbnails_title, R.string.experimental_settings_title),

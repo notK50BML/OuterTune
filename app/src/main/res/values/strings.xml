@@ -446,6 +446,16 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="sync_status_last">Synced %1$s with %2$s: %3$d new plays here. Tap to sync now</string>
     <string name="sync_status_never">Tap to sync now</string>
     <string name="sync_status_failed">Last try failed (%1$s). Tap to try again</string>
+    <string name="sync_cloud_title">Cloud sync</string>
+    <string name="sync_cloud_desc">Keeps your plays in an encrypted store online, so your devices sync from anywhere, not just on the same WiFi. They\'re encrypted with your sync code before they leave this device, so only your devices can find or read them. No account needed.</string>
+    <string name="sync_cloud_unavailable">Not available in this version yet</string>
+    <string name="sync_cloud_now">Tap to sync now</string>
+    <string name="sync_cloud_status_last">Synced %1$s: %2$d new plays here, %3$d sent</string>
+    <string name="sync_cloud_delete">Delete my plays from the cloud</string>
+    <string name="sync_cloud_delete_desc">Removes everything stored online for this sync code. Plays on your devices stay</string>
+    <string name="sync_cloud_delete_confirm">This removes all your plays stored online for this sync code, for every linked device, and turns cloud sync off here. Plays on your devices stay. A device that still has cloud sync on will upload its plays again.</string>
+    <string name="sync_cloud_deleted">Cloud data deleted</string>
+    <string name="sync_cloud_delete_failed">Couldn\'t delete the cloud data</string>
     <string name="sync_unlink">Unlink this device</string>
     <string name="sync_unlink_desc">Stops syncing and forgets the code. Plays already here stay</string>
     <string name="sync_unlink_confirm">This device stops syncing and forgets the code. Plays already synced stay, and you can link it again with the code from another device.</string>

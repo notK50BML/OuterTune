@@ -76,6 +76,22 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Cloud sync (framework, waiting for its database)
+
+- **Cloud sync** on the Cross-device sync screen, in both apps: plays synced through an online store
+  from anywhere, not just on the same WiFi. No account: the sync code is the link.
+  - Each user's plays live at a path made from their sync code (64 hex characters nobody can guess),
+    and every value there is encrypted (AES-GCM) with a key also made from the code, which never
+    leaves their devices. The database only allows reads and writes at paths that long, and nothing
+    can list what is stored.
+  - A play is stored under a keyed hash of its song and exact time, so uploading the same play twice,
+    from any device, lands on the same entry: still never counted twice.
+  - Syncs on start, every 30 minutes and on Sync now. An unchanged cloud and library cost one tiny
+    request; otherwise it uploads the plays the cloud lacks and downloads the ones this device lacks.
+  - **Delete my plays from the cloud** removes everything stored for the code.
+- Shows "Not available in this version yet" until the project's Firebase Realtime Database address
+  is set (CloudSyncConfig.DATABASE_URL in both apps).
+
 ## Cross-device sync over WiFi
 
 - **Settings → Privacy and history → Cross-device sync**, where "Count plays from other devices" was.

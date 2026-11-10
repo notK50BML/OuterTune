@@ -143,6 +143,10 @@ import com.dd3boh.outertune.listentogether.LanDiscovery
 import com.dd3boh.outertune.sync.PlaySync
 import com.dd3boh.outertune.sync.PlaySyncManager
 import com.dd3boh.outertune.sync.RoomPlaySyncStore
+import com.dd3boh.outertune.sync.CloudSync
+import com.dd3boh.outertune.sync.CloudSyncRunner
+import com.dd3boh.outertune.sync.DataStoreCloudMemory
+import com.dd3boh.outertune.constants.PlaySyncCloudKey
 import com.dd3boh.outertune.constants.PlaySyncCodeKey
 import com.dd3boh.outertune.constants.PlaySyncWifiKey
 import com.dd3boh.outertune.listentogether.MediaPlaybackBridge
@@ -221,6 +225,7 @@ class MusicService : MediaLibraryService(),
     lateinit var listenTogether: ListenTogetherManager
 
     private var playSync: PlaySyncManager? = null
+    private var cloudSync: CloudSyncRunner? = null
 
     // Parent of every service coroutine scope. Cancelled once in onDestroy() so no scope outlives the
     // service. Each scope owns a SupervisorJob child of this so a failure in one coroutine neither
@@ -528,6 +533,15 @@ class MusicService : MediaLibraryService(),
                 .map { prefs -> prefs[PlaySyncCodeKey]?.takeIf { it.isNotBlank() && prefs[PlaySyncWifiKey] == true } }
                 .distinctUntilChanged()
                 .collect { code -> if (code != null) playSync?.start(code) else playSync?.stop() }
+        }
+        // And through the cloud, from anywhere - see CloudPlaySync. Only once the project's
+        // database is configured; until then the switch is not offered.
+        cloudSync = CloudSyncRunner(RoomPlaySyncStore(database), DataStoreCloudMemory(this)).also { CloudSync.runner = it }
+        scope.launch {
+            dataStore.data
+                .map { prefs -> prefs[PlaySyncCodeKey]?.takeIf { it.isNotBlank() && prefs[PlaySyncCloudKey] == true } }
+                .distinctUntilChanged()
+                .collect { code -> if (code != null) cloudSync?.start(code) else cloudSync?.stop() }
         }
 
         // The player is the one thing a listen-together session cannot do without, so the bridge is
@@ -2137,6 +2151,9 @@ class MusicService : MediaLibraryService(),
         listenTogether.attachPlayer(null)
         playSync?.stop()
         PlaySync.manager = null
+        cloudSync?.stop()
+        CloudSync.runner = null
+        cloudSync = null
         playSync = null
 
         mediaSession.player.stop()
