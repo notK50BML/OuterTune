@@ -6,35 +6,68 @@
 
 package com.dd3boh.outertune.widget
 
+import com.dd3boh.outertune.ui.utils.withEstimatedWordSync
+import org.akanework.gramophone.logic.utils.LrcUtils
+import org.akanework.gramophone.logic.utils.SemanticLyrics
+
 /**
- * The widget's lyrics line: just enough LRC reading to say which line is being sung.
+ * The widget's lyrics: the line being sung, with the words sung so far lit, and the lines either
+ * side of it - the Windows mini player's look.
  *
- * Deliberately not the app's full lyrics parser. The widget shows one line of plain text, refreshed
- * every couple of seconds, so word timings, translations and singer markup have nothing to drive;
- * what it needs is the line timestamps, and the text with any inline word marks taken out.
+ * Read with the app's own parser, so LRC, enhanced LRC and TTML all carry their word timings here
+ * as they do in the player, and lines without them are estimated the same way when the player
+ * estimates them.
  */
 object WidgetLyrics {
-    private val LINE = Regex("""^\s*\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?]\s*(.*)$""")
-    private val WORD_MARK = Regex("""<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>""")
+
+    /** One line: when it starts, its text, and for each word when it starts and where it ends. */
+    class Line(val start: Long, val text: String, val words: List<Pair<Long, Int>>)
+
+    /** What the widget shows: [sungChars] of [current] are lit, the rest dimmed. */
+    data class Frame(val previous: String?, val current: String, val sungChars: Int, val next: String?)
+
+    /**
+     * How far ahead the lit words run. The widget is redrawn about once a second, so lighting what
+     * is sung half a second from now puts each word, on average, on time.
+     */
+    private const val LEAD_MS = 500L
 
     /** Timed lines, in order. Empty for unsynced lyrics - there is no "current line" to show then. */
-    fun parse(raw: String?): List<Pair<Long, String>> {
+    fun parse(raw: String?, estimate: Boolean): List<Line> {
         if (raw.isNullOrBlank()) return emptyList()
-        return raw.lineSequence().mapNotNull { line ->
-            val match = LINE.find(line) ?: return@mapNotNull null
-            val (min, sec, frac, text) = match.destructured
-            val fracMs = when (frac.length) {
-                0 -> 0L
-                1 -> frac.toLong() * 100
-                2 -> frac.toLong() * 10
-                else -> frac.take(3).toLong()
+        val parsed = runCatching {
+            LrcUtils.parseLyrics(raw, null, LrcUtils.LrcParserOptions(trim = true, multiLine = true, errorText = null), null)
+        }.getOrNull() as? SemanticLyrics.SyncedLyrics ?: return emptyList()
+        val lyrics = if (estimate) runCatching { parsed.withEstimatedWordSync() }.getOrDefault(parsed) else parsed
+        return lyrics.text
+            // Translations are shown under their line in the player; on a widget there is no room.
+            .filter { !it.isTranslated && it.text.isNotBlank() }
+            .map { line ->
+                Line(
+                    start = line.start.toLong(),
+                    text = line.text,
+                    words = line.words.orEmpty()
+                        .map { it.timeRange.first.toLong() to (it.charRange.last + 1).coerceAtMost(line.text.length) }
+                        .sortedBy { it.first },
+                )
             }
-            val cleaned = text.replace(WORD_MARK, "").trim()
-            (min.toLong() * 60_000 + sec.toLong() * 1_000 + fracMs) to cleaned
-        }.filter { it.second.isNotEmpty() }.sortedBy { it.first }.toList()
+            .sortedBy { it.start }
     }
 
-    /** The line being sung at [positionMs], or null before the first one. */
-    fun lineAt(lines: List<Pair<Long, String>>, positionMs: Long): String? =
-        lines.lastOrNull { it.first <= positionMs }?.second
+    /** The lines around [positionMs]; before the first line, that line coming up. Null for none. */
+    fun frameAt(lines: List<Line>, positionMs: Long): Frame? {
+        if (lines.isEmpty()) return null
+        val index = lines.indexOfLast { it.start <= positionMs }
+        if (index < 0) return Frame(null, lines[0].text, 0, lines.getOrNull(1)?.text)
+        val line = lines[index]
+        val sung = if (line.words.isEmpty()) {
+            line.text.length
+        } else {
+            line.words.lastOrNull { it.first <= positionMs + LEAD_MS }?.second ?: 0
+        }
+        return Frame(lines.getOrNull(index - 1)?.text, line.text, sung, lines.getOrNull(index + 1)?.text)
+    }
+
+    /** Whether any line carries word timings, so the widget is worth redrawing more often. */
+    fun hasWords(lines: List<Line>) = lines.any { it.words.isNotEmpty() }
 }

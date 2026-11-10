@@ -108,7 +108,7 @@ class HostSession(
                 link.send(Protocol.Frame.Welcome(Protocol.VERSION, hostName))
                 greeted[link] = frame.deviceName
                 publishListeners()
-                if (stereoSplit) link.send(Protocol.Frame.Stereo(true))
+                if (stereoSplit) link.send(Protocol.Frame.Stereo(followerSide()))
                 applySplit()
                 // Immediately, rather than at the next tick. A follower that joins just after a
                 // broadcast would otherwise sit silent for a full second wondering if it worked.
@@ -124,6 +124,16 @@ class HostSession(
 
             is Protocol.Frame.Bye -> link.close(null)
 
+            // A follower tapping its L/R badge: it asks for the side it wants, and everyone swaps.
+            is Protocol.Frame.Stereo -> {
+                if (!stereoSplit || frame.followerSide == ChannelSplit.NONE) return
+                val wantSwapped = frame.followerSide == ChannelSplit.RIGHT
+                if (wantSwapped != swapped) {
+                    swapped = wantSwapped
+                    shareSplit()
+                }
+            }
+
             // A host has no use for the rest. Ignored rather than treated as an error, so a future
             // follower that sends something extra does not get disconnected by an older host.
             else -> Unit
@@ -131,20 +141,49 @@ class HostSession(
     }
 
     /**
-     * Stereo split: this device plays the right channel, every follower the left. Only in force
-     * while someone is actually listening - a host on its own playing half a song is just broken.
+     * Stereo split: this device plays one channel and every follower the other - the host right
+     * and followers left to begin with, until someone swaps them. Only in force while someone is
+     * actually listening: a host on its own playing half a song is just broken.
      */
     @Volatile
     var stereoSplit: Boolean = false
         set(value) {
             if (field == value) return
             field = value
-            greeted.keys.forEach { it.send(Protocol.Frame.Stereo(value)) }
-            applySplit()
+            shareSplit()
         }
 
+    /** Whether the sides have been swapped: the host left, followers right. */
+    @Volatile
+    private var swapped = false
+
+    private fun followerSide() = when {
+        !stereoSplit -> ChannelSplit.NONE
+        swapped -> ChannelSplit.RIGHT
+        else -> ChannelSplit.LEFT
+    }
+
+    /** Swaps which side the host and the followers play. Nothing while the split is off. */
+    fun swapSides() {
+        if (!stereoSplit) return
+        swapped = !swapped
+        shareSplit()
+    }
+
+    /** Tells every follower its side, and takes the other here. */
+    private fun shareSplit() {
+        val side = followerSide()
+        greeted.keys.forEach { it.send(Protocol.Frame.Stereo(side)) }
+        applySplit()
+    }
+
     private fun applySplit() {
-        bridge.setChannelSplit(if (stereoSplit && greeted.isNotEmpty()) ChannelSplit.RIGHT else ChannelSplit.NONE)
+        val host = when (followerSide()) {
+            ChannelSplit.LEFT -> ChannelSplit.RIGHT
+            ChannelSplit.RIGHT -> ChannelSplit.LEFT
+            else -> ChannelSplit.NONE
+        }
+        bridge.setChannelSplit(if (greeted.isNotEmpty()) host else ChannelSplit.NONE)
     }
 
     private fun linkFor(listener: Listener): PeerLink? =

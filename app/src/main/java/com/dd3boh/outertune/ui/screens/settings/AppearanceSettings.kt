@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AppShortcut
 import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -133,10 +134,15 @@ fun AppearanceSettings(
                 onClick = { navController.navigate("settings/appearance/layout") }
             )
             SeekBarFrag()
+        }
+
+        // Its own group: the widget is arranged separately from the player, and filing it under the
+        // player's look made it read as part of the player layout.
+        SettingsGroup(title = stringResource(R.string.grp_widget)) {
             PreferenceEntry(
                 title = { Text(stringResource(R.string.widget_layout_title)) },
                 description = stringResource(R.string.widget_layout_summary),
-                icon = { Icon(Icons.Rounded.Dashboard, null) },
+                icon = { Icon(Icons.Rounded.Widgets, null) },
                 onClick = { navController.navigate("settings/appearance/widget") }
             )
         }

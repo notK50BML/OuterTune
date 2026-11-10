@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import com.dd3boh.outertune.audio.ChannelSplit
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -122,7 +123,16 @@ class ListenTogetherManager @Inject constructor(
      * has been destroyed.
      */
     fun attachPlayer(bridge: PlaybackBridge?) {
-        this.bridge = bridge
+        // Watched on the way through, so the player can show which side this device plays.
+        this.bridge = bridge?.let { real ->
+            object : PlaybackBridge by real {
+                override fun setChannelSplit(split: Int) {
+                    real.setChannelSplit(split)
+                    _channelSide.value = split
+                }
+            }
+        }
+        if (bridge == null) _channelSide.value = ChannelSplit.NONE
         if (bridge == null && _mode.value != ListenTogetherMode.OFF) {
             // Playback stopped underneath a running session. Ending it is the honest response;
             // leaving followers connected to a device that can no longer play anything would show
@@ -158,6 +168,17 @@ class ListenTogetherManager @Inject constructor(
             field = value
             hostSession?.stereoSplit = value
         }
+
+    private val _channelSide = MutableStateFlow(ChannelSplit.NONE)
+
+    /** The channel this device plays in a stereo split - ChannelSplit.NONE when it plays both. */
+    val channelSide: StateFlow<Int> = _channelSide.asStateFlow()
+
+    /** Swaps the two sides, from either end: the host swaps directly, a listener asks the host. */
+    fun swapSides() {
+        val host = hostSession
+        if (host != null) host.swapSides() else followerSession?.requestSwap()
+    }
 
     /**
      * Hosts on the network so other devices can find and follow.

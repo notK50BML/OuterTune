@@ -112,6 +112,9 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.foundation.border
+import androidx.compose.ui.unit.sp
+import com.dd3boh.outertune.audio.ChannelSplit
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -506,13 +509,19 @@ fun PortraitPlayer(
 /**
  * A pull-down affordance above the cover art that opens the full-screen equalizer, mirroring the
  * queue's swipe-up handle at the bottom - tap, or drag down past a small threshold.
+ *
+ * During a listen-together stereo split it also carries an L or R badge on the side this phone
+ * plays, so two phones side by side say which is which. Tapping the badge swaps the sides on both;
+ * it sits on top of the handle, so a tap there swaps rather than opening the equaliser.
  */
 @Composable
 private fun EqualizerHandle() {
     val showEqualizerHandle by rememberPreference(ShowEqualizerHandleKey, defaultValue = true)
-    if (!showEqualizerHandle) return
-
     val playerConnection = LocalPlayerConnection.current ?: return
+    val listenTogether = playerConnection.service.listenTogether
+    val side by listenTogether.channelSide.collectAsState()
+    if (!showEqualizerHandle && side == ChannelSplit.NONE) return
+
     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
     // The same colour the lyrics/queue handle already use - measured from the cover itself, so it
     // stays legible against whichever background style and cover is currently showing instead of
@@ -538,27 +547,61 @@ private fun EqualizerHandle() {
             // status bar/clock/battery instead of below them.
             .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
             .height(64.dp)
-            .clickable { equalizerPanelState.visible = true }
-            // Drives the sheet directly, frame by frame - the queue's own behaviour.
-            //
-            // This used to add up how far the finger had moved and, once that passed 40dp, fire a
-            // canned open animation. So the panel never followed the finger at all; a quick flick
-            // often ended before it had added up to 40dp, and was ignored; and once it did start
-            // it was a pre-baked slide rather than a drawer. Now each frame of the drag moves the
-            // sheet by exactly that much, and on release its speed and position decide where it
-            // settles - fast or past halfway opens it, otherwise it falls back - with the same
-            // spring the queue uses, because it is the same state and the same fling. Shared with
-            // the panel's own closing handle - see equalizerSheetDrag, which also builds the
-            // panel on touch-down so the drag's first frames are not spent composing it.
-            .equalizerSheetDrag(sheet, warmState = equalizerPanelState)
+            .then(
+                if (showEqualizerHandle) {
+                    Modifier
+                        .clickable { equalizerPanelState.visible = true }
+                        // Drives the sheet directly, frame by frame - the queue's own behaviour.
+                        //
+                        // This used to add up how far the finger had moved and, once that passed 40dp, fire a
+                        // canned open animation. So the panel never followed the finger at all; a quick flick
+                        // often ended before it had added up to 40dp, and was ignored; and once it did start
+                        // it was a pre-baked slide rather than a drawer. Now each frame of the drag moves the
+                        // sheet by exactly that much, and on release its speed and position decide where it
+                        // settles - fast or past halfway opens it, otherwise it falls back - with the same
+                        // spring the queue uses, because it is the same state and the same fling. Shared with
+                        // the panel's own closing handle - see equalizerSheetDrag, which also builds the
+                        // panel on touch-down so the drag's first frames are not spent composing it.
+                        .equalizerSheetDrag(sheet, warmState = equalizerPanelState)
+                } else Modifier
+            )
     ) {
-        Box(
-            modifier = Modifier
-                .width(64.dp)
-                .height(8.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(handleColor.copy(alpha = 0.6f))
-        )
+        if (showEqualizerHandle) {
+            Box(
+                modifier = Modifier
+                    .width(64.dp)
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(handleColor.copy(alpha = 0.6f))
+            )
+        }
+        if (side != ChannelSplit.NONE) {
+            val left = side == ChannelSplit.LEFT
+            val description = stringResource(
+                R.string.lt_side_description,
+                stringResource(if (left) R.string.lt_side_left_word else R.string.lt_side_right_word),
+            )
+            // Drawn after the handle, so it is on top and takes the tap first.
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .align(if (left) Alignment.CenterStart else Alignment.CenterEnd)
+                    .padding(horizontal = 20.dp)
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(handleColor.copy(alpha = 0.15f))
+                    .border(1.5.dp, handleColor.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
+                    .clickable(onClickLabel = description) { listenTogether.swapSides() }
+                    .semantics { contentDescription = description },
+            ) {
+                Text(
+                    text = if (left) "L" else "R",
+                    color = handleColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                )
+            }
+        }
     }
 }
 

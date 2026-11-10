@@ -117,11 +117,13 @@ object Protocol {
         data class Calibrated(val offsetMs: Int) : Frame
 
         /**
-         * The host's stereo split, host to follower: when [enabled], the host plays the right channel
-         * and followers the left. Sent on joining and whenever it changes; an older follower ignores
+         * The stereo split. Host to follower: [followerSide] is the channel followers play (a
+         * ChannelSplit value - NONE when the split is off), the host playing the other. Follower to
+         * host: a request to swap, naming the side the follower would like. Sent on joining and
+         * whenever it changes; an older peer ignores
          * it and simply keeps playing both.
          */
-        data class Stereo(val enabled: Boolean) : Frame
+        data class Stereo(val followerSide: Int) : Frame
     }
 
     /**
@@ -165,7 +167,7 @@ object Protocol {
         is Frame.Bye -> buffer(Type.BYE) { put(frame.reason) }
         is Frame.Click -> buffer(Type.CLICK) { putLong(frame.atHostClockUs) }
         is Frame.Calibrated -> buffer(Type.CALIBRATED) { putInt(frame.offsetMs) }
-        is Frame.Stereo -> buffer(Type.STEREO) { put(if (frame.enabled) 1 else 0) }
+        is Frame.Stereo -> buffer(Type.STEREO) { put(frame.followerSide.toByte()) }
     }
 
     /**
@@ -199,7 +201,7 @@ object Protocol {
             Type.BYE -> Frame.Bye(b.get())
             Type.CLICK -> Frame.Click(b.long)
             Type.CALIBRATED -> Frame.Calibrated(b.int)
-            Type.STEREO -> Frame.Stereo(b.get() != 0.toByte())
+            Type.STEREO -> Frame.Stereo(b.get().toInt())
             else -> null
         }
     }.getOrNull()

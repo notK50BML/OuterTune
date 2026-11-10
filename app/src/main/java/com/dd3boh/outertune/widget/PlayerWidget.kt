@@ -13,6 +13,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.style.ForegroundColorSpan
+import android.view.View
 import android.graphics.Bitmap
 import android.graphics.BitmapShader
 import android.graphics.Canvas
@@ -214,16 +218,16 @@ object PlayerWidget {
     /** Arrangements set for the smaller sizes in the editor, or null to cut them from [lastLayout]. */
     @Volatile private var lastSmall: WidgetLayout? = null
     @Volatile private var lastMedium: WidgetLayout? = null
-    @Volatile private var lastLyricLine: String? = null
+    @Volatile private var lastLyrics: WidgetLyrics.Frame? = null
 
     /** Whether any placed widget's arrangement shows lyrics - the service only works them out if so. */
     val wantsLyrics: Boolean get() = allLayouts().any { WidgetElement.LYRICS in it }
 
     private fun allLayouts() = listOfNotNull(lastLayout, lastSmall, lastMedium)
 
-    /** The lyric line now being sung, or null for none. Shown at the next update. */
-    fun setLyricLine(line: String?) {
-        lastLyricLine = line
+    /** The lyrics around the line now being sung, or null for none. Shown at the next update. */
+    fun setLyrics(frame: WidgetLyrics.Frame?) {
+        lastLyrics = frame
     }
 
     /** The drawn background, kept until the song, the look or light/dark changes. */
@@ -365,10 +369,10 @@ object PlayerWidget {
                 // rows they leave empty.
                 val drop = buildSet {
                     if (heightDp < 260) { add(WidgetElement.LYRICS); add(WidgetElement.UP_NEXT) }
-                    if (lastLyricLine.isNullOrBlank()) add(WidgetElement.LYRICS)
+                    if (lastLyrics == null) add(WidgetElement.LYRICS)
                 }
                 val kept = lastLayout.placements.filter { it.element !in drop }
-                if (kept.isEmpty()) lastLayout else WidgetLayout(kept).normalised()
+                if (kept.isEmpty()) lastLayout else lastLayout.copy(placements = kept).normalised()
             }
         }
     }
@@ -424,7 +428,7 @@ object PlayerWidget {
 
             removeAllViews(R.id.widget_rows)
             // Each grid row as a line of cells: a gap cell up to the next piece, the piece in a cell
-            // as wide as its span, and a gap to the end - all twelve columns accounted for, so the
+            // as wide as its span, and a gap to the end - every column accounted for, so the
             // widths come out exactly as placed in the editor.
             layout.placements.groupBy { it.row }.toSortedMap().values.forEach { rowPlacements ->
                 val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
@@ -434,12 +438,12 @@ object PlayerWidget {
                     val cellViews = cell(context, placement.span)
                     cellViews.addView(
                         R.id.el_cell,
-                        elementView(context, placement.element, colours, look, widthDp * placement.span / WidgetLayout.COLUMNS, small, coverDp),
+                        elementView(context, placement.element, colours, look, widthDp * placement.span / layout.columns, small, coverDp),
                     )
                     rowViews.addView(R.id.widget_row_container, cellViews)
                     col = placement.end
                 }
-                if (col < WidgetLayout.COLUMNS) rowViews.addView(R.id.widget_row_container, cell(context, WidgetLayout.COLUMNS - col))
+                if (col < layout.columns) rowViews.addView(R.id.widget_row_container, cell(context, layout.columns - col))
                 addView(R.id.widget_rows, rowViews)
             }
         }
@@ -458,13 +462,15 @@ object PlayerWidget {
     ): RemoteViews {
         // The app's own rounded Material icons, drawn to bitmaps, so the widget's buttons are the
         // player's buttons rather than look-alikes from a different icon set.
+        // A fine grid can give a button a narrow cell; the smaller button fits one.
+        val narrow = small || widthDp < 52
         fun button(icon: ImageVector, action: String, requestCode: Int, tint: Int, big: Boolean = false) =
             RemoteViews(
                 context.packageName,
                 when {
-                    big && small -> R.layout.widget_el_play_small
+                    big && narrow -> R.layout.widget_el_play_small
                     big -> R.layout.widget_el_play
-                    small -> R.layout.widget_el_button_small
+                    narrow -> R.layout.widget_el_button_small
                     else -> R.layout.widget_el_button
                 },
             ).apply {
@@ -521,8 +527,23 @@ object PlayerWidget {
             }
 
             WidgetElement.LYRICS -> RemoteViews(context.packageName, R.layout.widget_el_lyrics).apply {
-                setTextViewText(R.id.el_text, lastLyricLine.orEmpty())
+                val frame = lastLyrics
+                val faint = ColorUtils.setAlphaComponent(colours.text, 0x73)
+                // The words sung so far in the text colour, the rest of the line dimmed - spans travel
+                // with the text through RemoteViews, so this needs no picture.
+                val current = SpannableString(frame?.current.orEmpty()).apply {
+                    val sung = (frame?.sungChars ?: 0).coerceIn(0, length)
+                    if (sung > 0) setSpan(ForegroundColorSpan(colours.text), 0, sung, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                    if (sung < length) setSpan(ForegroundColorSpan(faint), sung, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
+                }
+                setTextViewText(R.id.el_text, current)
                 setTextColor(R.id.el_text, colours.text)
+                setTextViewText(R.id.el_prev, frame?.previous.orEmpty())
+                setTextViewText(R.id.el_next, frame?.next.orEmpty())
+                setTextColor(R.id.el_prev, faint)
+                setTextColor(R.id.el_next, faint)
+                setViewVisibility(R.id.el_prev, if (frame?.previous.isNullOrBlank()) View.GONE else View.VISIBLE)
+                setViewVisibility(R.id.el_next, if (frame?.next.isNullOrBlank()) View.GONE else View.VISIBLE)
             }
 
             WidgetElement.PREVIOUS -> button(Icons.Rounded.SkipPrevious, ACTION_PREVIOUS, 1, colours.text)
@@ -548,11 +569,12 @@ object PlayerWidget {
         R.layout.widget_cell_1, R.layout.widget_cell_2, R.layout.widget_cell_3, R.layout.widget_cell_4,
         R.layout.widget_cell_5, R.layout.widget_cell_6, R.layout.widget_cell_7, R.layout.widget_cell_8,
         R.layout.widget_cell_9, R.layout.widget_cell_10, R.layout.widget_cell_11, R.layout.widget_cell_12,
+        R.layout.widget_cell_13, R.layout.widget_cell_14, R.layout.widget_cell_15, R.layout.widget_cell_16,
     )
 
     /** A grid cell [span] columns wide - see the widget_cell_* layouts. */
     private fun cell(context: Context, span: Int) =
-        RemoteViews(context.packageName, CELL_LAYOUTS[span.coerceIn(1, WidgetLayout.COLUMNS) - 1])
+        RemoteViews(context.packageName, CELL_LAYOUTS[span.coerceIn(1, WidgetLayout.MAX_COLUMNS) - 1])
 
     /** Drawn icons, kept per icon and colour - the same few are redrawn on every update otherwise. */
     private val iconCache = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
@@ -611,8 +633,8 @@ object PlayerWidget {
      * Applies a new arrangement from the widget editor straight away, without waiting for the next
      * song or play-state change to redraw.
      */
-    fun applyLayout(context: Context, layout: WidgetLayout) {
-        when (layout.maxRows) {
+    fun applyLayout(context: Context, layout: WidgetLayout, baseRows: Int) {
+        when (baseRows) {
             WidgetLayout.SMALL_ROWS -> lastSmall = layout
             WidgetLayout.MEDIUM_ROWS -> lastMedium = layout
             else -> lastLayout = layout

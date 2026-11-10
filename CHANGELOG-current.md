@@ -76,6 +76,42 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Widget editor, round four
+
+- **Fixed: moving a piece could put the others back.** Each piece's drag handler kept the
+  arrangement from when it was first drawn, so after moving Next and Pause, dragging Previous saved
+  the old positions of the other two. Every drag now works on the latest arrangement.
+- **Swap and push.** Drop a piece mostly on top of another and the two swap places. Drop it partly
+  over its neighbours and they are pushed along the row if there's room. While dragging, the
+  other pieces move to show what the drop will do, and the outline turns red only when there's no
+  way to make room.
+- **Empty cells are shown** as faint rounded tiles, so it's clear where there's space.
+- **Pieces look like what they are:** the cover as a picture, the title as "Title" and
+  "Artist(s)", the lyrics as three lines, the seek bar in your seek bar style, and the real buttons.
+- **Undo and redo** in the top bar, separately for each size.
+- **Grid size** per widget size: Big cells (8 columns), Normal (12) or Small cells (16 columns and
+  one more row). Changing it keeps the arrangement as close as it can.
+- **Its own place in Settings:** Appearance → Home-screen widget → Widget editor, rather than
+  sitting under the player's look.
+
+## Widget lyrics: word by word, with the lines around them
+
+- The widget's lyrics piece shows the previous line, the line being sung with the words sung so
+  far lit, and the next line, like the Windows mini player.
+- Read with the app's own lyrics parser, so word timings from enhanced LRC and TTML are used, and
+  lines without them are estimated when the player estimates them.
+- While word-timed lyrics are on a widget it's redrawn about once a second instead of every two,
+  and lights each word half a second early so it's right on average. Done with coloured text,
+  not pictures, so updates stay small.
+
+## Listen together: L / R badge, shorter explanations
+
+- **L / R badge.** During a stereo split, the top of the player shows an L or R badge on the side
+  that phone plays, level with the equaliser handle. Tap it on either phone to swap sides on both.
+  It sits on top of the handle, so a tap there swaps instead of opening the equaliser.
+- **Shorter screen.** The timing offset and stereo split show a one-line summary, with the full
+  explanation behind an ⓘ button.
+
 ## Widget seek bar matches the player
 
 - The widget's seek bar is now drawn by the player's own seek bar code rather than an

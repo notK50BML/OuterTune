@@ -230,7 +230,7 @@ class FollowerSession(
             // fast for the rest of the day.
             bridge.setPlaybackSpeed(1f)
             // Likewise a split: leaving must put both channels back on this device.
-            bridge.setChannelSplit(ChannelSplit.NONE)
+            applySide(ChannelSplit.NONE)
             // Closed here as well as by leave(). Reaching this point by cancellation rather than by
             // the host hanging up leaves a socket whose reader lives in the manager's scope, not in
             // this coroutine - so nothing else would ever shut it down. Closing twice is harmless;
@@ -239,6 +239,28 @@ class FollowerSession(
             this.link = null
             _state.update { it.copy(connected = false) }
         }
+    }
+
+    /** The channel this device plays in the host's stereo split - ChannelSplit.NONE when off. */
+    @Volatile
+    private var side = ChannelSplit.NONE
+
+    private fun applySide(value: Int) {
+        side = if (value == ChannelSplit.LEFT || value == ChannelSplit.RIGHT) value else ChannelSplit.NONE
+        bridge.setChannelSplit(side)
+    }
+
+    /**
+     * Asks the host to swap sides. The host decides and tells everyone, so this device changes side
+     * when its answer arrives rather than now - the two phones never end up on the same side.
+     */
+    fun requestSwap() {
+        val wanted = when (side) {
+            ChannelSplit.LEFT -> ChannelSplit.RIGHT
+            ChannelSplit.RIGHT -> ChannelSplit.LEFT
+            else -> return
+        }
+        link?.send(Protocol.Frame.Stereo(wanted))
     }
 
     fun leave() {
@@ -294,9 +316,9 @@ class FollowerSession(
 
             is Protocol.Frame.Calibrated -> onCalibrated?.invoke(frame.offsetMs)
 
-            // The host's stereo split: it takes the right channel, so this device takes the left.
+            // The host's stereo split: the side this device plays, the host taking the other.
             is Protocol.Frame.Stereo ->
-                bridge.setChannelSplit(if (frame.enabled) ChannelSplit.LEFT else ChannelSplit.NONE)
+                applySide(frame.followerSide)
 
             // HELLO and PING are a host's business. Ignored rather than refused, so a newer host
             // sending something extra does not break an older follower.

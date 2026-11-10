@@ -100,6 +100,7 @@ import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
 import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
 import com.dd3boh.outertune.constants.KeepAliveKey
 import com.dd3boh.outertune.constants.LyricsPrefetchCountKey
+import com.dd3boh.outertune.constants.LyricEstimatedWordSync
 import com.dd3boh.outertune.constants.MAX_PLAYER_CONSECUTIVE_ERR
 import com.dd3boh.outertune.constants.MaxQueuesKey
 import com.dd3boh.outertune.constants.MediaSessionConstants.CommandToggleLike
@@ -623,11 +624,16 @@ class MusicService : MediaLibraryService(),
                 // shows one. Read again while empty: lyrics are often fetched after the song starts.
                 suspend fun readLyrics() = if (PlayerWidget.wantsLyrics && metadata != null) {
                     runCatching {
-                        withContext(Dispatchers.IO) { WidgetLyrics.parse(database.lyrics(metadata.id).first()?.lyrics) }
+                        withContext(Dispatchers.IO) {
+                            WidgetLyrics.parse(
+                                database.lyrics(metadata.id).first()?.lyrics,
+                                estimate = dataStore.get(LyricEstimatedWordSync, true),
+                            )
+                        }
                     }.getOrDefault(emptyList())
                 } else emptyList()
                 var lyricLines = readLyrics()
-                PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
+                PlayerWidget.setLyrics(WidgetLyrics.frameAt(lyricLines, player.currentPosition))
                 runCatching {
                     PlayerWidget.update(
                         this@MusicService, metadata, playing, fraction(),
@@ -643,9 +649,14 @@ class MusicService : MediaLibraryService(),
                 // pause, since collectLatest cancels this block when either changes.
                 var ticks = 0
                 while (playing) {
-                    delay(WIDGET_PROGRESS_INTERVAL_MS)
+                    // About once a second while word-timed lyrics are on a widget, so the lit words
+                    // keep up with the singing; every couple of seconds otherwise.
+                    delay(
+                        if (PlayerWidget.wantsLyrics && WidgetLyrics.hasWords(lyricLines)) WIDGET_LYRICS_INTERVAL_MS
+                        else WIDGET_PROGRESS_INTERVAL_MS
+                    )
                     if (lyricLines.isEmpty() && ++ticks % 5 == 0) lyricLines = readLyrics()
-                    PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
+                    PlayerWidget.setLyrics(WidgetLyrics.frameAt(lyricLines, player.currentPosition))
                     runCatching { PlayerWidget.updateProgress(this@MusicService, fraction()) }
                 }
             }
@@ -2136,6 +2147,7 @@ class MusicService : MediaLibraryService(),
 
         /** How often the home-screen widget's seek bar moves while playing. */
         private const val WIDGET_PROGRESS_INTERVAL_MS = 2_000L
+        private const val WIDGET_LYRICS_INTERVAL_MS = 1_000L
 
         /**
          * How often to force-reconnect the Discord RPC socket while a song is actively playing,

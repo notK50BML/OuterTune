@@ -330,8 +330,8 @@ fun ListenTogetherSettings(
             // a session, and being able to set it before joining beats discovering mid-song that it
             // is needed.
             PreferenceEntry(
-                title = { Text(stringResource(R.string.lt_offset_title)) },
-                description = stringResource(R.string.lt_offset_description, offsetMs),
+                title = { InfoTitle(stringResource(R.string.lt_offset_title), stringResource(R.string.lt_offset_description)) },
+                description = stringResource(R.string.lt_offset_value, offsetMs),
                 icon = { Icon(Icons.Rounded.Timer, null) },
                 onClick = { showOffsetDialog = true },
             )
@@ -340,8 +340,8 @@ fun ListenTogetherSettings(
         Spacer(modifier = Modifier.height(16.dp))
         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
             SwitchPreference(
-                title = { Text(stringResource(R.string.lt_stereo_title)) },
-                description = stringResource(R.string.lt_stereo_description),
+                title = { InfoTitle(stringResource(R.string.lt_stereo_title), stringResource(R.string.lt_stereo_description)) },
+                description = stringResource(R.string.lt_stereo_summary),
                 icon = { Icon(Icons.Rounded.Speaker, null) },
                 checked = stereoSplit,
                 onCheckedChange = onStereoSplitChange,
@@ -389,4 +389,35 @@ private fun Hint(text: String) {
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 20.dp),
     )
+}
+
+/**
+ * A setting's title with a small info button after it. The explanation behind it is too long to
+ * sit under the title every time the screen is opened, so it opens in a dialog on demand instead.
+ */
+@Composable
+private fun InfoTitle(title: String, explanation: String) {
+    var open by remember { mutableStateOf(false) }
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(title, modifier = Modifier.weight(1f, fill = false))
+        // Its own click, so tapping it opens the explanation rather than the setting.
+        androidx.compose.material3.IconButton(onClick = { open = true }, modifier = Modifier.size(32.dp)) {
+            Icon(
+                Icons.Rounded.Info,
+                contentDescription = stringResource(R.string.lt_more_info),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp),
+            )
+        }
+    }
+    if (open) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(title) },
+            text = { Text(explanation) },
+            confirmButton = {
+                androidx.compose.material3.TextButton(onClick = { open = false }) { Text(stringResource(R.string.dismiss)) }
+            },
+        )
+    }
 }

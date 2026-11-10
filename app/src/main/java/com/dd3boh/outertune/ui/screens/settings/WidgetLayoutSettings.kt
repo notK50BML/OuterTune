@@ -6,6 +6,10 @@
 
 package com.dd3boh.outertune.ui.screens.settings
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -33,6 +37,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.QueueMusic
+import androidx.compose.material.icons.automirrored.rounded.Redo
+import androidx.compose.material.icons.automirrored.rounded.Undo
 import androidx.compose.material.icons.rounded.AddCircleOutline
 import androidx.compose.material.icons.rounded.Album
 import androidx.compose.material.icons.rounded.Delete
@@ -61,35 +67,52 @@ import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
 import com.dd3boh.outertune.R
+import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
+import com.dd3boh.outertune.constants.SliderStyleKey
+import com.dd3boh.outertune.constants.SliderWeight
+import com.dd3boh.outertune.constants.SliderWeightKey
 import com.dd3boh.outertune.constants.TopBarInsets
 import com.dd3boh.outertune.constants.WidgetLayoutKey
 import com.dd3boh.outertune.constants.WidgetLayoutMediumKey
 import com.dd3boh.outertune.constants.WidgetLayoutSmallKey
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.button.IconButton
+import com.dd3boh.outertune.ui.component.drawPlayerSliderStill
 import com.dd3boh.outertune.ui.utils.backToMain
+import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
 import com.dd3boh.outertune.widget.PlayerWidget
 import com.dd3boh.outertune.widget.WidgetElement
 import com.dd3boh.outertune.widget.WidgetLayout
 import com.dd3boh.outertune.widget.WidgetMetrics
+import com.dd3boh.outertune.widget.WidgetPlacement
 import kotlin.math.roundToInt
 import androidx.compose.material3.IconButton as M3IconButton
 
@@ -100,10 +123,16 @@ import androidx.compose.material3.IconButton as M3IconButton
  */
 private val PREVIEW = listOf(340 to 100, 340 to 210, 340 to 320)
 
+/** Each size's usual rows - a finer grid adds one (WidgetLayout.rowsFor). */
+private val BASE_ROWS = listOf(WidgetLayout.SMALL_ROWS, WidgetLayout.MEDIUM_ROWS, WidgetLayout.MAX_ROWS)
+
+/** How far back undo goes, per size. */
+private const val MAX_UNDO = 50
+
 /**
- * Arranges the home-screen widget: drag a piece and it snaps into the grid's columns and rows. A
- * drop that would cover another piece is refused - the outline turns red - so nothing overlaps.
- * Tap a piece to resize or remove it. One arrangement per widget size.
+ * The widget editor: drag a piece and it snaps into the grid. Dropped on another piece, the two
+ * swap; dropped partly over its neighbours, they are pushed along the row. Tap a piece to resize or
+ * remove it. One arrangement per widget size, each on its own grid, with undo and redo.
  */
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -113,22 +142,42 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
     var small by rememberPreference(WidgetLayoutSmallKey, "")
     var medium by rememberPreference(WidgetLayoutMediumKey, "")
     var large by rememberPreference(WidgetLayoutKey, "")
-    val layout = remember(tab, small, medium, large) {
-        when (tab) {
-            0 -> WidgetLayout.parse(small, WidgetLayout.SMALL_ROWS)
-            1 -> WidgetLayout.parse(medium, WidgetLayout.MEDIUM_ROWS)
-            else -> WidgetLayout.parse(large)
-        }
-    }
+
+    // Every arrangement this visit, per size, and which one is showing - the undo history. Held
+    // here rather than read back from the stored preference, which is written asynchronously: a
+    // second drag straight after the first would otherwise start from the arrangement before it.
+    val history = remember { mutableStateMapOf<Int, List<String>>() }
+    val position = remember { mutableStateMapOf<Int, Int>() }
+    val entries = history[tab] ?: listOf(WidgetLayout.parse(listOf(small, medium, large)[tab], BASE_ROWS[tab]).encode())
+    val pos = (position[tab] ?: 0).coerceIn(0, entries.lastIndex)
+    val layout = remember(tab, entries, pos) { WidgetLayout.parse(entries[pos], BASE_ROWS[tab]) }
     var selected by remember { mutableStateOf<WidgetElement?>(null) }
 
-    fun save(new: WidgetLayout) {
+    fun write(new: WidgetLayout) {
+        val text = new.encode()
         when (tab) {
-            0 -> small = new.encode()
-            1 -> medium = new.encode()
-            else -> large = new.encode()
+            0 -> small = text
+            1 -> medium = text
+            else -> large = text
         }
-        PlayerWidget.applyLayout(context, new)
+        PlayerWidget.applyLayout(context, new, BASE_ROWS[tab])
+    }
+
+    fun save(new: WidgetLayout?) {
+        if (new == null || new == layout) return
+        val kept = (entries.take(pos + 1) + new.encode()).takeLast(MAX_UNDO)
+        history[tab] = kept
+        position[tab] = kept.lastIndex
+        write(new)
+    }
+
+    fun step(by: Int) {
+        val to = (pos + by).coerceIn(0, entries.lastIndex)
+        if (to == pos) return
+        history[tab] = entries
+        position[tab] = to
+        selected = null
+        write(WidgetLayout.parse(entries[to], BASE_ROWS[tab]))
     }
 
     ColumnWithContentPadding(
@@ -150,10 +199,23 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
                 ) { Text(stringResource(label)) }
             }
         }
+        Spacer(Modifier.height(8.dp))
+        Text(stringResource(R.string.widget_grid_title), style = MaterialTheme.typography.labelLarge)
+        Spacer(Modifier.height(4.dp))
+        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+            val labels = listOf(R.string.widget_grid_coarse, R.string.widget_grid_normal, R.string.widget_grid_fine)
+            WidgetLayout.GRIDS.forEachIndexed { i, columns ->
+                SegmentedButton(
+                    selected = layout.columns == columns,
+                    onClick = { save(layout.regridded(columns, WidgetLayout.rowsFor(BASE_ROWS[tab], columns))) },
+                    shape = SegmentedButtonDefaults.itemShape(i, WidgetLayout.GRIDS.size),
+                ) { Text(stringResource(labels[i])) }
+            }
+        }
         Spacer(Modifier.height(12.dp))
 
         WidgetCanvas(layout, PREVIEW[tab], selected, { selected = if (selected == it) null else it }) { element, col, row ->
-            save(layout.move(element, col, row))
+            save(layout.drop(element, col, row))
         }
 
         selected?.takeIf { it in layout }?.let { current ->
@@ -182,7 +244,7 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
             }
         }
 
-        TextButton(onClick = { save(WidgetLayout.defaultFor(layout.maxRows)); selected = null }) {
+        TextButton(onClick = { save(WidgetLayout.defaultFor(layout.maxRows, layout.columns)); selected = null }) {
             Icon(Icons.Rounded.Restore, null)
             Spacer(Modifier.width(8.dp))
             Text(stringResource(R.string.widget_layout_reset))
@@ -197,6 +259,14 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, null)
             }
         },
+        actions = {
+            M3IconButton(onClick = { step(-1) }, enabled = pos > 0) {
+                Icon(Icons.AutoMirrored.Rounded.Undo, stringResource(R.string.widget_undo))
+            }
+            M3IconButton(onClick = { step(1) }, enabled = pos < entries.lastIndex) {
+                Icon(Icons.AutoMirrored.Rounded.Redo, stringResource(R.string.widget_redo))
+            }
+        },
         windowInsets = TopBarInsets,
         scrollBehavior = scrollBehavior,
     )
@@ -204,8 +274,9 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
 
 /**
  * The widget, drawn to scale: its shape, its padding, its rows at the heights they have on the home
- * screen, and each piece as a small version of itself. Dragging snaps to the 12 columns and to the
- * rows, plus one empty row below while there is room for another.
+ * screen, every empty cell as a faint rounded tile, and each piece as a labelled preview of itself.
+ * While a piece is dragged the others move to where the drop would put them - pushed aside or
+ * swapped - and the outline shows where it lands, red if there is no room.
  */
 @Composable
 private fun WidgetCanvas(
@@ -223,84 +294,200 @@ private fun WidgetCanvas(
     val pad = WidgetMetrics.padding(hDp)
     // Rows sit in the middle, as on the widget; an extra 40dp row is offered below for dropping into.
     val top = maxOf(pad, (hDp - heights.sum()) / 2)
-    val tops = heights.runningFold(top) { acc, h -> acc + h }
     val slots = if (heights.size < layout.maxRows) heights + 40 else heights
-    var target by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) } // col, row, span
+    val tops = slots.runningFold(top) { acc, h -> acc + h }
+
+    // The gesture handlers outlive recompositions, so they read these rather than what they were
+    // created with - reading a stale arrangement is what made a drop put everything else back.
+    val latestLayout by rememberUpdatedState(layout)
+    val drop by rememberUpdatedState(onDrop)
+    val select by rememberUpdatedState(onSelect)
+    val currentSelected by rememberUpdatedState(selected)
+
+    var dragging by remember { mutableStateOf<WidgetElement?>(null) }
+    var target by remember { mutableStateOf<Pair<Int, Int>?>(null) } // col, row
+    val preview = remember(layout, dragging, target) {
+        val e = dragging
+        val t = target
+        if (e != null && t != null) layout.drop(e, t.first, t.second) else null
+    }
+    val shown = preview ?: layout
 
     BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .aspectRatio(wDp.toFloat() / maxOf(hDp, tops.last() + 40))
+            .aspectRatio(wDp.toFloat() / maxOf(hDp, tops.last() + pad))
             .clip(RoundedCornerShape(24.dp))
             .background(colours.secondaryContainer)
     ) {
         val scale = maxWidth.value / wDp
         fun d(v: Number): Dp = (v.toFloat() * scale).dp
-        val colW = (wDp - 2 * pad) / WidgetLayout.COLUMNS.toFloat()
+        val colW = (wDp - 2 * pad) / layout.columns.toFloat()
         val pxPerDp = with(density) { 1.dp.toPx() } * scale
 
         fun rowAt(yDp: Float): Int {
-            slots.indices.forEach { r -> if (yDp < tops[0] + slots.take(r + 1).sum()) return r }
+            slots.indices.forEach { r -> if (yDp < tops[r + 1]) return r }
             return slots.lastIndex
         }
 
-        target?.let { (c, r, span) ->
-            val fits = r < layout.maxRows && c >= 0 && c + span <= WidgetLayout.COLUMNS &&
-                layout.placements.none { it.row == r && it.col < c + span && c < it.end && it.element != selected }
+        // The grid itself: every cell a faint rounded tile, so the free spaces are plain to see.
+        val tile = colours.onSecondaryContainer.copy(alpha = 0.08f)
+        slots.indices.forEach { r ->
+            repeat(layout.columns) { c ->
+                Box(
+                    Modifier
+                        .offset(d(pad + c * colW + 1.5f), d(tops[r] + 1.5f))
+                        .size(d(colW - 3), d(slots[r] - 3))
+                        .background(tile, RoundedCornerShape(d(6)))
+                )
+            }
+        }
+
+        // Where the dragged piece will land.
+        val e = dragging
+        val t = target
+        if (e != null && t != null) {
+            val landing = preview?.placements?.find { it.element == e }
+            val span = latestLayout.placements.find { it.element == e }?.span ?: 1
+            val (c, r, s) = landing?.let { Triple(it.col, it.row, it.span) } ?: Triple(t.first, t.second, span)
             Box(
                 Modifier
-                    .offset(d(pad + c * colW), d(tops[0] + slots.take(r).sum()))
-                    .size(d(span * colW), d(slots.getOrElse(r) { 40 }))
-                    .border(2.dp, if (fits) colours.primary else colours.error, RoundedCornerShape(10.dp))
+                    .offset(d(pad + c * colW), d(tops.getOrElse(r) { tops.last() }))
+                    .size(d(s * colW), d(slots.getOrElse(r) { 40 }))
+                    .border(2.dp, if (landing != null) colours.primary else colours.error, RoundedCornerShape(d(8)))
             )
         }
 
-        layout.placements.forEach { p ->
+        shown.placements.forEach { p ->
             key(p.element) {
                 var drag by remember { mutableStateOf(Offset.Zero) }
-                fun snap() = Triple(
-                    ((p.col * colW + drag.x / pxPerDp) / colW).roundToInt(),
-                    rowAt(tops[p.row] + heights[p.row] / 2f + drag.y / pxPerDp),
-                    p.span,
+                val isDragged = p.element == dragging
+                // A dragged piece follows the finger from where it started; the rest glide to where
+                // the drop would put them, and the dragged one glides from the finger into its spot.
+                val origin = if (isDragged) latestLayout.placements.find { it.element == p.element } ?: p else p
+                val xDp = pad + origin.col * colW + if (isDragged) drag.x / pxPerDp else 0f
+                val yDp = tops.getOrElse(origin.row) { tops.last() } + if (isDragged) drag.y / pxPerDp else 0f
+                val x by animateFloatAsState(xDp, if (isDragged) snap<Float>() else spring<Float>(), label = "x")
+                val y by animateFloatAsState(yDp, if (isDragged) snap<Float>() else spring<Float>(), label = "y")
+
+                fun snapTo(start: WidgetPlacement) = Pair(
+                    ((start.col * colW + drag.x / pxPerDp) / colW).roundToInt(),
+                    rowAt(tops[start.row] + slots[start.row] / 2f + drag.y / pxPerDp),
                 )
+
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .offset { IntOffset(((pad + p.col * colW) * pxPerDp + drag.x).roundToInt(), (tops[p.row] * pxPerDp + drag.y).roundToInt()) }
-                        .size(d(p.span * colW), d(heights[p.row]))
-                        .then(if (p.element == selected) Modifier.border(2.dp, colours.primary, RoundedCornerShape(10.dp)) else Modifier)
-                        .pointerInput(p) {
+                        .offset { IntOffset((x * pxPerDp).roundToInt(), (y * pxPerDp).roundToInt()) }
+                        .size(d(p.span * colW), d(slots.getOrElse(p.row) { 40 }))
+                        .padding(d(1.5f))
+                        .background(colours.surface.copy(alpha = if (isDragged) 0.95f else 0.8f), RoundedCornerShape(d(8)))
+                        .then(if (p.element == selected) Modifier.border(2.dp, colours.primary, RoundedCornerShape(d(8))) else Modifier)
+                        .pointerInput(p.element, colW, slots) {
+                            var start: WidgetPlacement? = null
                             detectDragGestures(
-                                onDragStart = { onSelect(p.element) },
-                                onDrag = { change, amount -> change.consume(); drag += amount; target = snap() },
-                                onDragEnd = { val (c, r, _) = snap(); drag = Offset.Zero; target = null; onDrop(p.element, c, r) },
-                                onDragCancel = { drag = Offset.Zero; target = null },
+                                onDragStart = {
+                                    start = latestLayout.placements.find { it.element == p.element }
+                                    dragging = p.element
+                                    if (currentSelected != p.element) select(p.element)
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    drag += amount
+                                    start?.let { target = snapTo(it) }
+                                },
+                                onDragEnd = {
+                                    val landed = start?.let { snapTo(it) }
+                                    drag = Offset.Zero
+                                    dragging = null
+                                    target = null
+                                    if (landed != null) drop(p.element, landed.first, landed.second)
+                                },
+                                onDragCancel = { drag = Offset.Zero; dragging = null; target = null },
                             )
                         }
-                        .pointerInput(p) { detectTapGestures { onSelect(p.element) } }
-                ) { Piece(p.element, cover, scale, colours.onSecondaryContainer) }
+                        .pointerInput(p.element) { detectTapGestures { select(p.element) } }
+                ) { Piece(p.element, cover, scale, colours.onSurface) }
             }
         }
     }
 }
 
-/** A piece as it looks on the widget, in miniature. */
+/** A piece as it looks on the widget, in miniature: the cover as a picture, the text as words. */
 @Composable
-private fun Piece(element: WidgetElement, cover: Int, scale: Float, ink: androidx.compose.ui.graphics.Color) {
+private fun Piece(element: WidgetElement, cover: Int, scale: Float, ink: Color) {
+    val density = LocalDensity.current
+    val colours = MaterialTheme.colorScheme
     fun d(v: Number): Dp = (v.toFloat() * scale).dp
-    val faint = ink.copy(alpha = 0.3f)
+    fun sp(v: Number): TextUnit = with(density) { d(v).toSp() }
+    val faint = ink.copy(alpha = 0.45f)
+
+    @Composable
+    fun Line(text: String, size: Number, colour: Color, bold: Boolean = false) = Text(
+        text,
+        fontSize = sp(size),
+        lineHeight = sp(size.toFloat() * 1.2f),
+        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
+        color = colour,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
+
     when (element) {
-        WidgetElement.COVER -> Box(Modifier.size(d(cover)).background(faint, RoundedCornerShape(d(10))))
-        WidgetElement.ARTIST -> Box(Modifier.size(d(cover * 2 / 3)).background(faint, CircleShape))
-        WidgetElement.INFO -> Column(Modifier.fillMaxWidth().padding(horizontal = d(8))) {
-            Box(Modifier.fillMaxWidth(0.85f).height(d(12)).background(ink.copy(alpha = 0.7f), CircleShape))
-            Spacer(Modifier.height(d(6)))
-            Box(Modifier.fillMaxWidth(0.55f).height(d(9)).background(ink.copy(alpha = 0.4f), CircleShape))
+        WidgetElement.COVER -> Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(d(cover)).background(colours.primaryContainer, RoundedCornerShape(d(10))),
+        ) { Icon(Icons.Rounded.Album, null, tint = colours.onPrimaryContainer, modifier = Modifier.size(d(cover * 0.55f))) }
+
+        WidgetElement.ARTIST -> Box(
+            contentAlignment = Alignment.Center,
+            modifier = Modifier.size(d(cover * 2 / 3)).background(colours.tertiaryContainer, CircleShape),
+        ) { Icon(Icons.Rounded.Person, null, tint = colours.onTertiaryContainer, modifier = Modifier.size(d(cover * 0.4f))) }
+
+        WidgetElement.INFO -> Column(Modifier.fillMaxWidth().padding(horizontal = d(6))) {
+            Text(
+                stringResource(R.string.widget_preview_title), fontSize = sp(15), fontWeight = FontWeight.Bold,
+                color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                stringResource(R.string.widget_preview_artists), fontSize = sp(12),
+                color = ink.copy(alpha = 0.65f), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
-        WidgetElement.LYRICS -> Box(Modifier.fillMaxWidth(0.8f).height(d(12)).background(ink.copy(alpha = 0.6f), CircleShape))
-        WidgetElement.UP_NEXT -> Box(Modifier.fillMaxWidth(0.7f).height(d(8)).background(faint, CircleShape))
-        WidgetElement.SEEK_BAR -> Box(Modifier.fillMaxWidth().padding(horizontal = d(4)).height(d(3)).background(ink.copy(alpha = 0.6f), CircleShape))
-        else -> Icon(element.icon, null, tint = ink, modifier = Modifier.size(d(if (element == WidgetElement.PLAY_PAUSE) 36 else 28)))
+
+        WidgetElement.LYRICS -> Column(Modifier.fillMaxWidth().padding(horizontal = d(4))) {
+            Line(stringResource(R.string.widget_preview_lyric_previous), 10, faint)
+            Text(
+                buildAnnotatedString {
+                    withStyle(SpanStyle(color = ink)) { append(stringResource(R.string.widget_preview_lyric_sung)) }
+                    withStyle(SpanStyle(color = faint)) { append(stringResource(R.string.widget_preview_lyric_rest)) }
+                },
+                fontSize = sp(13), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
+            )
+            Line(stringResource(R.string.widget_preview_lyric_next), 10, faint)
+        }
+
+        WidgetElement.UP_NEXT -> Line(
+            stringResource(R.string.widget_up_next, stringResource(R.string.widget_preview_song)), 11, ink.copy(alpha = 0.7f),
+        )
+
+        WidgetElement.SEEK_BAR -> {
+            val style by rememberEnumPreference(SliderStyleKey, DEFAULT_SLIDER_STYLE)
+            val weight by rememberEnumPreference(SliderWeightKey, SliderWeight.THINNER)
+            val accent = colours.primary
+            Canvas(Modifier.fillMaxWidth().padding(horizontal = d(4)).height(d(24))) {
+                drawPlayerSliderStill(style, 0.4f, accent, accent.copy(alpha = 0.25f), weight.scale, dot = false, playing = true)
+            }
+        }
+
+        else -> Icon(
+            element.icon, null,
+            tint = if (element == WidgetElement.PLAY_PAUSE) colours.primary else ink,
+            modifier = Modifier.size(d(if (element == WidgetElement.PLAY_PAUSE) 34 else 26)),
+        )
     }
 }
 
@@ -319,7 +506,6 @@ private val WidgetElement.label: Int
         WidgetElement.REPEAT -> R.string.widget_el_repeat
     }
 
-// Icons the app already uses elsewhere, so the editor adds none of its own to the app.
 private val WidgetElement.icon: ImageVector
     get() = when (this) {
         WidgetElement.COVER -> Icons.Rounded.Album

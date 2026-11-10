@@ -6,8 +6,13 @@
 
 package com.dd3boh.outertune.widget
 
+import kotlin.math.abs
+import kotlin.math.ceil
+import kotlin.math.roundToInt
+
 /**
- * One piece of the home-screen widget, and how many grid columns it may span.
+ * One piece of the home-screen widget, and how many columns it may span - in a 12-column grid; a
+ * coarser or finer grid scales these (see [WidgetLayout.minSpan] and friends).
  *
  * [flexible] pieces stretch to fill their cells; the rest are their own fixed size, centred in theirs.
  */
@@ -15,7 +20,7 @@ enum class WidgetElement(val flexible: Boolean, val defaultSpan: Int, val minSpa
     COVER(false, 3, 2, 4),
     ARTIST(false, 2, 2, 3),
     INFO(true, 9, 4, 12),
-    /** The line of the lyrics being sung, when the song has synced lyrics. */
+    /** The lyrics being sung, with the lines either side, when the song has synced lyrics. */
     LYRICS(true, 12, 4, 12),
     UP_NEXT(true, 6, 3, 12),
     SEEK_BAR(true, 12, 4, 12),
@@ -42,7 +47,8 @@ object WidgetMetrics {
         WidgetElement.COVER -> coverDp
         WidgetElement.ARTIST -> (coverDp * 2 / 3).coerceAtLeast(COVER_MIN)
         WidgetElement.INFO -> 46
-        WidgetElement.LYRICS -> 44
+        // Three lines: the one before, the one being sung, the one after.
+        WidgetElement.LYRICS -> 64
         WidgetElement.UP_NEXT -> 20
         WidgetElement.SEEK_BAR -> 24
         WidgetElement.PLAY_PAUSE -> if (small) 46 else 56
@@ -61,7 +67,7 @@ object WidgetMetrics {
      */
     fun coverSize(layout: WidgetLayout, widthDp: Int, heightDp: Int, small: Boolean): Int {
         val cell = layout.placements.find { it.element == WidgetElement.COVER }
-            ?.let { (widthDp - 2 * padding(heightDp)) * it.span / WidgetLayout.COLUMNS - 6 }
+            ?.let { (widthDp - 2 * padding(heightDp)) * it.span / layout.columns - 6 }
             ?: COVER_MAX
         var size = minOf(COVER_MAX, cell).coerceAtLeast(COVER_MIN)
         while (size > COVER_MIN && contentHeight(layout, small, size, heightDp) > heightDp) size -= 2
@@ -76,22 +82,24 @@ data class WidgetPlacement(val element: WidgetElement, val col: Int, val row: In
 }
 
 /**
- * The widget's arrangement: a grid of [COLUMNS] columns and up to [MAX_ROWS] rows, each piece one row
- * tall and some columns wide.
+ * The widget's arrangement: a grid of [columns] columns and up to [maxRows] rows, each piece one
+ * row tall and some columns wide.
  *
  * Pieces snap to cells and may never overlap - that is the whole of the placement rules, and
  * [normalised] enforces it however a layout was produced. Free placement on a grid is also exactly
  * what a home-screen widget can draw: each row becomes a line of cells whose widths are the spans,
  * so what the editor shows is what lands on the home screen.
  *
- * Stored as text, "COVER@0,0,3;INFO@3,0,9;...": element@col,row,span, separated by ';'. The older
- * rows-only format ("COVER,INFO|SEEK_BAR") still reads, laid out left to right, so an arrangement
- * saved by the previous editor carries over. Unknown names are dropped.
+ * Stored as text, "grid=16x3;COVER@0,0,3;INFO@3,0,9;...": the grid, then element@col,row,span,
+ * separated by ';'. Without a grid it is the original 12 columns; the older rows-only format
+ * ("COVER,INFO|SEEK_BAR") still reads too, laid out left to right. Unknown names are dropped.
  */
 data class WidgetLayout(
     val placements: List<WidgetPlacement>,
-    /** Rows this arrangement may use: 1 for a small widget, 2 for a medium one, [MAX_ROWS] for large. */
+    /** Rows this arrangement may use. */
     val maxRows: Int = MAX_ROWS,
+    /** Columns across: [COLUMNS], or one of the other [GRIDS]. */
+    val columns: Int = COLUMNS,
 ) {
 
     /** Rows top to bottom, each left to right - the order the compact sizes and the widget read. */
@@ -104,41 +112,118 @@ data class WidgetLayout(
 
     val unused: List<WidgetElement> get() = WidgetElement.entries.filter { it !in this }
 
-    fun encode(): String = placements.joinToString(";") { "${it.element.name}@${it.col},${it.row},${it.span}" }
+    // A piece's limits, scaled from the 12-column figures. The minimum rounds up so a button never
+    // gets a cell too narrow to hold it.
+    fun minSpan(e: WidgetElement) = ceil(e.minSpan * columns / COLUMNS.toFloat()).toInt().coerceIn(1, columns)
+    fun maxSpan(e: WidgetElement) = (e.maxSpan * columns / COLUMNS).coerceIn(minSpan(e), columns)
+    fun defaultSpan(e: WidgetElement) = (e.defaultSpan * columns / COLUMNS.toFloat()).roundToInt().coerceIn(minSpan(e), maxSpan(e))
+
+    fun encode(): String {
+        val items = placements.joinToString(";") { "${it.element.name}@${it.col},${it.row},${it.span}" }
+        return "grid=${columns}x$maxRows;$items"
+    }
 
     /** Drops duplicates, out-of-grid pieces and anything overlapping a piece placed before it. */
     fun normalised(): WidgetLayout {
         val kept = mutableListOf<WidgetPlacement>()
         for (p in placements) {
-            val span = p.span.coerceIn(p.element.minSpan, p.element.maxSpan)
-            val fixed = p.copy(span = span, col = p.col.coerceIn(0, COLUMNS - span))
+            val span = p.span.coerceIn(minSpan(p.element), maxSpan(p.element))
+            val fixed = p.copy(span = span, col = p.col.coerceIn(0, columns - span))
             if (fixed.row !in 0 until maxRows) continue
             if (kept.any { it.element == fixed.element || it.overlaps(fixed) }) continue
             kept += fixed
         }
-        if (kept.isEmpty()) return defaultFor(maxRows)
+        if (kept.isEmpty()) return defaultFor(maxRows, columns)
         // Close up empty rows, so a layout never has a blank band in the middle.
         val usedRows = kept.map { it.row }.distinct().sorted()
-        return WidgetLayout(kept.map { p -> p.copy(row = usedRows.indexOf(p.row)) }, maxRows)
+        return copy(placements = kept.map { p -> p.copy(row = usedRows.indexOf(p.row)) })
     }
+
+    private fun with(list: List<WidgetPlacement>) = copy(placements = list).normalised()
 
     /** True if [placement] fits the grid without covering any other piece. */
     fun fits(placement: WidgetPlacement): Boolean =
-        placement.col >= 0 && placement.end <= COLUMNS && placement.row in 0 until maxRows &&
+        placement.col >= 0 && placement.end <= columns && placement.row in 0 until maxRows &&
             placements.none { it.element != placement.element && it.overlaps(placement) }
 
-    /** [element] moved to ([col], [row]); unchanged if that would leave the grid or cover something. */
-    fun move(element: WidgetElement, col: Int, row: Int): WidgetLayout {
-        val current = placements.find { it.element == element } ?: return this
-        val moved = current.copy(col = col, row = row)
-        if (!fits(moved)) return this
-        return copy(placements = placements.map { if (it.element == element) moved else it }).normalised()
+    /**
+     * [element] dropped at ([col], [row]), or null if there is no way to make room.
+     *
+     * - An empty spot: it moves there.
+     * - Mostly on top of one other piece: the two swap places.
+     * - Partly over its neighbours: they are pushed along the row, if the row has the room. That is
+     *   what makes nudging a row of buttons along one at a time work in any order.
+     */
+    fun drop(element: WidgetElement, col: Int, row: Int): WidgetLayout? {
+        val current = placements.find { it.element == element } ?: return null
+        if (row !in 0 until maxRows) return null
+        val moved = current.copy(col = col.coerceIn(0, columns - current.span), row = row)
+        if (moved == current) return this
+        val others = placements.filter { it.element != element }
+        val hit = others.filter { it.overlaps(moved) }
+        if (hit.isEmpty()) return with(others + moved)
+        if (hit.size == 1) {
+            val other = hit.single()
+            val overlap = minOf(moved.end, other.end) - maxOf(moved.col, other.col)
+            if (overlap * 2 > moved.span) swap(current, other)?.let { return it }
+        }
+        return push(others, moved)
+    }
+
+    /** [a] and [b] in each other's places, or null if their widths will not allow it. */
+    private fun swap(a: WidgetPlacement, b: WidgetPlacement): WidgetLayout? {
+        val rest = placements.filter { it.element != a.element && it.element != b.element }
+        fun ok(x: WidgetPlacement, y: WidgetPlacement) =
+            x.col >= 0 && x.end <= columns && y.col >= 0 && y.end <= columns && !x.overlaps(y) &&
+                rest.none { it.overlaps(x) || it.overlaps(y) }
+
+        // Each in the other's spot, kept inside the grid.
+        val a1 = a.copy(col = b.col.coerceIn(0, columns - a.span), row = b.row)
+        val b1 = b.copy(col = a.col.coerceIn(0, columns - b.span), row = a.row)
+        if (ok(a1, b1)) return with(rest + a1 + b1)
+
+        // Side by side in one row but of different widths: swap their order within the space the
+        // two of them cover.
+        if (a.row == b.row) {
+            val left = minOf(a.col, b.col)
+            val right = maxOf(a.end, b.end)
+            val (a2, b2) = if (a.col < b.col) {
+                a.copy(col = right - a.span) to b.copy(col = left)
+            } else {
+                a.copy(col = left) to b.copy(col = right - b.span)
+            }
+            if (ok(a2, b2)) return with(rest + a2 + b2)
+        }
+        return null
+    }
+
+    /** [moved] placed, the pieces it lands on pushed aside along its row; null if they run out of room. */
+    private fun push(others: List<WidgetPlacement>, moved: WidgetPlacement): WidgetLayout? {
+        val inRow = others.filter { it.row == moved.row }
+        val centre = moved.col + moved.span / 2f
+        val result = others.filter { it.row != moved.row }.toMutableList()
+
+        var cursor = moved.end
+        for (p in inRow.filter { it.col + it.span / 2f >= centre }.sortedBy { it.col }) {
+            val col = maxOf(p.col, cursor)
+            if (col + p.span > columns) return null
+            result += p.copy(col = col)
+            cursor = col + p.span
+        }
+        cursor = moved.col
+        for (p in inRow.filter { it.col + it.span / 2f < centre }.sortedByDescending { it.col }) {
+            val end = minOf(p.end, cursor)
+            if (end - p.span < 0) return null
+            result += p.copy(col = end - p.span)
+            cursor = end - p.span
+        }
+        return with(result + moved)
     }
 
     /** [element] made [by] columns wider (or narrower), growing to the right, then to the left. */
     fun resize(element: WidgetElement, by: Int): WidgetLayout {
         val current = placements.find { it.element == element } ?: return this
-        val span = (current.span + by).coerceIn(element.minSpan, element.maxSpan)
+        val span = (current.span + by).coerceIn(minSpan(element), maxSpan(element))
         if (span == current.span) return this
         val candidates = listOf(current.copy(span = span), current.copy(span = span, col = current.col - (span - current.span)))
         val resized = candidates.firstOrNull { fits(it) } ?: return this
@@ -156,8 +241,8 @@ data class WidgetLayout(
         if (element in this) return this
         val rowsInUse = (placements.maxOfOrNull { it.row } ?: -1) + 1
         for (row in 0 until minOf(rowsInUse + 1, maxRows)) {
-            for (span in element.defaultSpan downTo element.minSpan) {
-                for (col in 0..(COLUMNS - span)) {
+            for (span in defaultSpan(element) downTo minSpan(element)) {
+                for (col in 0..(columns - span)) {
                     val candidate = WidgetPlacement(element, col, row, span)
                     if (fits(candidate)) return copy(placements = placements + candidate).normalised()
                 }
@@ -166,93 +251,126 @@ data class WidgetLayout(
         return this
     }
 
+    /**
+     * The same arrangement on another grid: each piece keeps its place and its share of the width,
+     * as near as the new columns allow. A piece that no longer fits where it was goes to the
+     * nearest free spot in its row, narrower if need be, and is left out only if there is none.
+     */
+    fun regridded(newColumns: Int, newRows: Int): WidgetLayout {
+        if (newColumns == columns && newRows == maxRows) return this
+        val target = WidgetLayout(emptyList(), newRows, newColumns)
+        val kept = mutableListOf<WidgetPlacement>()
+        for (p in placements.sortedWith(compareBy({ it.row }, { it.col }))) {
+            if (p.row >= newRows) continue
+            val wanted = (p.span * newColumns / columns.toFloat()).roundToInt()
+                .coerceIn(target.minSpan(p.element), target.maxSpan(p.element))
+            val start = (p.col * newColumns / columns.toFloat()).roundToInt()
+            val spot = (wanted downTo target.minSpan(p.element)).asSequence().flatMap { span ->
+                (0..(newColumns - span)).sortedBy { abs(it - start) }.asSequence()
+                    .map { WidgetPlacement(p.element, it, p.row, span) }
+            }.firstOrNull { c -> kept.none { it.overlaps(c) } }
+            if (spot != null) kept += spot
+        }
+        return target.copy(placements = kept).normalised()
+    }
+
     companion object {
         const val COLUMNS = 12
         const val MAX_ROWS = 4
+
+        /** The grids on offer: big cells, the usual, and small cells (with a row more). */
+        val GRIDS = listOf(8, COLUMNS, 16)
+
+        /** The most columns any grid has - see the widget_cell_* layouts. */
+        const val MAX_COLUMNS = 16
+
+        /** Rows for each editable widget size, on the usual grid. */
+        const val SMALL_ROWS = 1
+        const val MEDIUM_ROWS = 2
+
+        /** Rows a size gets on a grid: the finest grid fits one more row. */
+        fun rowsFor(baseRows: Int, columns: Int) = if (columns > COLUMNS) baseRows + 1 else baseRows
 
         /**
          * Rows of pieces laid out at their default widths, each row centred - the controls sit in the
          * middle the way the player's do. Used for the defaults and the small widget sizes.
          */
-        fun fromRows(rows: List<List<WidgetElement>>, maxRows: Int = MAX_ROWS): WidgetLayout {
+        fun fromRows(rows: List<List<WidgetElement>>, maxRows: Int = MAX_ROWS, columns: Int = COLUMNS): WidgetLayout {
+            val grid = WidgetLayout(emptyList(), maxRows, columns)
             val placements = mutableListOf<WidgetPlacement>()
             rows.filter { it.isNotEmpty() }.take(maxRows).forEachIndexed { r, row ->
-                var spans = row.map { it.defaultSpan }
+                var spans = row.map { grid.defaultSpan(it) }
                 // Shrink the widest pieces until the row fits.
-                while (spans.sum() > COLUMNS) {
-                    val i = spans.indices.filter { spans[it] > row[it].minSpan }.maxByOrNull { spans[it] } ?: break
+                while (spans.sum() > columns) {
+                    val i = spans.indices.filter { spans[it] > grid.minSpan(row[it]) }.maxByOrNull { spans[it] } ?: break
                     spans = spans.toMutableList().also { it[i]-- }
                 }
-                var col = ((COLUMNS - spans.sum()) / 2).coerceAtLeast(0)
+                var col = ((columns - spans.sum()) / 2).coerceAtLeast(0)
                 row.forEachIndexed { i, element ->
                     placements += WidgetPlacement(element, col, r, spans[i])
                     col += spans[i]
                 }
             }
-            return WidgetLayout(placements, maxRows).normalised()
+            return grid.copy(placements = placements).normalised()
         }
 
-        /** Rows for each editable widget size. */
-        const val SMALL_ROWS = 1
-        const val MEDIUM_ROWS = 2
+        private val SMALL_PIECES = listOf(listOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT))
+        private val CONTROLS = listOf(
+            WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT, WidgetElement.REPEAT,
+        )
+        private val MEDIUM_PIECES = listOf(listOf(WidgetElement.COVER, WidgetElement.INFO), CONTROLS)
+        private val LARGE_PIECES = listOf(
+            listOf(WidgetElement.COVER, WidgetElement.INFO),
+            listOf(WidgetElement.LYRICS),
+            listOf(WidgetElement.SEEK_BAR),
+            CONTROLS,
+        )
 
         /** One cell tall: the controls. */
-        val DEFAULT_SMALL: WidgetLayout by lazy {
-            fromRows(listOf(listOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT)), SMALL_ROWS)
-        }
+        val DEFAULT_SMALL: WidgetLayout by lazy { fromRows(SMALL_PIECES, SMALL_ROWS) }
 
         /** Two cells tall: cover and title above the controls. */
-        val DEFAULT_MEDIUM: WidgetLayout by lazy {
-            fromRows(
-                listOf(
-                    listOf(WidgetElement.COVER, WidgetElement.INFO),
-                    listOf(
-                        WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE,
-                        WidgetElement.NEXT, WidgetElement.REPEAT,
-                    ),
-                ),
-                MEDIUM_ROWS,
-            )
-        }
-
-        fun defaultFor(maxRows: Int): WidgetLayout = when {
-            maxRows <= SMALL_ROWS -> DEFAULT_SMALL
-            maxRows <= MEDIUM_ROWS -> DEFAULT_MEDIUM
-            else -> DEFAULT
-        }
+        val DEFAULT_MEDIUM: WidgetLayout by lazy { fromRows(MEDIUM_PIECES, MEDIUM_ROWS) }
 
         /** The full widget: the player's own order - cover and title, lyrics, seek bar, controls. */
-        val DEFAULT: WidgetLayout by lazy {
-            fromRows(
-                listOf(
-                    listOf(WidgetElement.COVER, WidgetElement.INFO),
-                    listOf(WidgetElement.LYRICS),
-                    listOf(WidgetElement.SEEK_BAR),
-                    listOf(
-                        WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE,
-                        WidgetElement.NEXT, WidgetElement.REPEAT,
-                    ),
-                )
-            )
+        val DEFAULT: WidgetLayout by lazy { fromRows(LARGE_PIECES) }
+
+        /** The default arrangement for a size of [maxRows] rows on a grid of [columns]. */
+        fun defaultFor(maxRows: Int, columns: Int = COLUMNS): WidgetLayout {
+            // The size's usual row count: the finest grid has one row more than it.
+            val baseRows = if (columns > COLUMNS) maxRows - 1 else maxRows
+            val pieces = when {
+                baseRows <= SMALL_ROWS -> SMALL_PIECES
+                baseRows <= MEDIUM_ROWS -> MEDIUM_PIECES
+                else -> LARGE_PIECES
+            }
+            return fromRows(pieces, maxRows, columns)
         }
 
-        fun parse(text: String?, maxRows: Int = MAX_ROWS): WidgetLayout {
-            if (text.isNullOrBlank()) return defaultFor(maxRows)
+        /**
+         * Reads a stored arrangement for a size whose usual row count is [baseRows]. The grid stored
+         * with it decides its columns, and so its rows; without one it is the usual 12 columns.
+         */
+        fun parse(text: String?, baseRows: Int = MAX_ROWS): WidgetLayout {
+            if (text.isNullOrBlank()) return defaultFor(baseRows)
             if ('@' !in text) {
-                // The previous editor's rows-only format.
+                // The first editor's rows-only format.
                 val rows = text.split('|').map { row ->
                     row.split(',').mapNotNull { name -> WidgetElement.entries.find { it.name == name.trim() } }
                 }
-                return fromRows(rows, maxRows)
+                return fromRows(rows, baseRows)
             }
-            val placements = text.split(';').mapNotNull { item ->
+            val items = text.split(';')
+            val columns = items.firstOrNull { it.startsWith("grid=") }
+                ?.removePrefix("grid=")?.substringBefore('x')?.toIntOrNull()?.takeIf { it in GRIDS } ?: COLUMNS
+            val placements = items.mapNotNull { item ->
                 val name = item.substringBefore('@').trim()
                 val numbers = item.substringAfter('@', "").split(',').mapNotNull { it.trim().toIntOrNull() }
                 val element = WidgetElement.entries.find { it.name == name } ?: return@mapNotNull null
                 if (numbers.size != 3) return@mapNotNull null
                 WidgetPlacement(element, numbers[0], numbers[1], numbers[2])
             }
-            return WidgetLayout(placements, maxRows).normalised()
+            return WidgetLayout(placements, rowsFor(baseRows, columns), columns).normalised()
         }
     }
 }
