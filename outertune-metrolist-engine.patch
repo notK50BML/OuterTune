@@ -256648,3 +256648,402 @@ index a7fd30e..f6720ac 100644
 -- 
 2.56.0.windows.4
 
+From 26fa66457c7f4c88a214c7f70b2f6d08af3cd931 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 10:49:17 +0800
+Subject: [PATCH] Listen together: experimental stereo split
+
+When the host turns it on, the host plays the right channel and every listener the left,
+applied after the EQ and limiter. Active only while someone is listening; leaving or
+switching off restores both channels. New STEREO frame, ignored by older listeners.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          | 13 ++++++++
+ .../audio/EqualizerAudioProcessor.kt          | 31 ++++++++++++++++++-
+ .../outertune/constants/PreferenceKeys.kt     |  1 +
+ .../listentogether/FollowerSession.kt         |  7 +++++
+ .../outertune/listentogether/HostSession.kt   | 23 ++++++++++++++
+ .../listentogether/ListenTogetherManager.kt   | 11 +++++++
+ .../listentogether/MediaPlaybackBridge.kt     |  3 ++
+ .../listentogether/PlaybackBridge.kt          |  6 ++++
+ .../outertune/listentogether/Protocol.kt      | 10 ++++++
+ .../dd3boh/outertune/playback/MusicService.kt |  7 ++++-
+ .../settings/ListenTogetherSettings.kt        | 16 ++++++++++
+ app/src/main/res/values/strings.xml           |  2 ++
+ 12 files changed, 128 insertions(+), 2 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 1b9de2d..7e7831b 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,19 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Listen together: stereo pair (experimental)
++
++- **Split left / right**, off by default (Settings → Listen together). While you host with
++  someone listening, the host plays the right channel and every listener plays the left, each
++  on all of its speakers.
++  - The split is applied after the EQ and limiter, so they behave exactly as in stereo.
++  - It starts when the first listener joins and stops when the last one leaves; a listener goes
++    back to both channels as soon as it leaves. Switching it off mid-session takes effect at
++    once on every phone.
++  - Set each listener's timing offset first (tap it in the host's list to measure), or the
++    sides sound out of step.
++  - A listener on an older version ignores the request and keeps playing both channels.
++
+ ## Widget, round three
+ 
+ - **Crisp corners.**
+diff --git a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+index 830a536..bdeeb59 100644
+--- a/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
++++ b/app/src/main/java/com/dd3boh/outertune/audio/EqualizerAudioProcessor.kt
+@@ -195,6 +195,14 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
+     @Volatile
+     private var exciterCutoffHz: Float? = null
+ 
++    /**
++     * Which side of a stereo song this device plays, for listen together's stereo split - one of
++     * [ChannelSplit]. NONE is ordinary stereo. Safe to set from any thread; takes effect on the next
++     * buffer.
++     */
++    @Volatile
++    var channelSplit: Int = ChannelSplit.NONE
++
+     /**
+      * How many on-screen consumers currently want [visualizer] fed.
+      *
+@@ -404,7 +412,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
+         // A pending normalisation is a third reason not to take the bulk-copy path: the caller
+         // has stopped applying it at the volume stage and is relying on this processor to, so
+         // copying the buffer through untouched would play the track at full level.
+-        if (bypass && !exciter.isActive() && normalisationDb == 0f) {
++        val split = channelSplit
++        if (bypass && !exciter.isActive() && normalisationDb == 0f && split == ChannelSplit.NONE) {
+             // The visualiser reacts to whatever's actually playing, independent of whether the EQ
+             // itself is doing anything to it - so it still needs a look at the samples even on the
+             // path that otherwise just bulk-copies the buffer through untouched.
+@@ -550,6 +559,15 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
+             // side peaking turns both down together, so the stereo image does not move.
+             limiter.process(frame)
+ 
++            // Listen together's stereo split: this device plays one side of the song, on all of
++            // its speakers. Taken after everything else so the EQ and limiter behave exactly as
++            // they do in stereo; only which channel reaches the output changes.
++            if (split != ChannelSplit.NONE && channelCount >= 2) {
++                val side = if (split == ChannelSplit.LEFT) frame[0] else frame[1]
++                frame[0] = side
++                frame[1] = side
++            }
++
+             for (ch in 0 until channelCount) {
+                 val limited = frame[ch]
+                 when (encoding) {
+@@ -668,3 +686,14 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
+     }
+ 
+ }
++
++/** Values for [EqualizerAudioProcessor.channelSplit]. */
++object ChannelSplit {
++    const val NONE = 0
++
++    /** Only the left channel, on every speaker this device has. */
++    const val LEFT = 1
++
++    /** Only the right channel, on every speaker this device has. */
++    const val RIGHT = 2
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index c53924f..727334f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -275,6 +275,7 @@ val LyricsOffsetDialKey = booleanPreferencesKey("lyricsOffsetDial")
+  * Bluetooth is late.
+  */
+ val ListenTogetherOffsetKey = intPreferencesKey("listenTogetherOffset")
++val ListenTogetherStereoKey = booleanPreferencesKey("listenTogetherStereo")
+ val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
+ val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
+ val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
+index 6f36f96..a8fe45f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
+@@ -6,6 +6,7 @@
+ 
+ package com.dd3boh.outertune.listentogether
+ 
++import com.dd3boh.outertune.audio.ChannelSplit
+ import kotlinx.coroutines.CancellationException
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Job
+@@ -228,6 +229,8 @@ class FollowerSession(
+             // A rate left applied would outlive the session and quietly play everything slightly
+             // fast for the rest of the day.
+             bridge.setPlaybackSpeed(1f)
++            // Likewise a split: leaving must put both channels back on this device.
++            bridge.setChannelSplit(ChannelSplit.NONE)
+             // Closed here as well as by leave(). Reaching this point by cancellation rather than by
+             // the host hanging up leaves a socket whose reader lives in the manager's scope, not in
+             // this coroutine - so nothing else would ever shut it down. Closing twice is harmless;
+@@ -291,6 +294,10 @@ class FollowerSession(
+ 
+             is Protocol.Frame.Calibrated -> onCalibrated?.invoke(frame.offsetMs)
+ 
++            // The host's stereo split: it takes the right channel, so this device takes the left.
++            is Protocol.Frame.Stereo ->
++                bridge.setChannelSplit(if (frame.enabled) ChannelSplit.LEFT else ChannelSplit.NONE)
++
+             // HELLO and PING are a host's business. Ignored rather than refused, so a newer host
+             // sending something extra does not break an older follower.
+             else -> Unit
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
+index af14296..57a6d65 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
+@@ -6,6 +6,7 @@
+ 
+ package com.dd3boh.outertune.listentogether
+ 
++import com.dd3boh.outertune.audio.ChannelSplit
+ import kotlinx.coroutines.CoroutineScope
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.delay
+@@ -76,6 +77,7 @@ class HostSession(
+         links.clear()
+         greeted.clear()
+         _listeners.value = emptyList()
++        bridge.setChannelSplit(ChannelSplit.NONE)
+     }
+ 
+     /** Takes on a newly accepted connection. The handshake happens here, not at the transport. */
+@@ -106,6 +108,8 @@ class HostSession(
+                 link.send(Protocol.Frame.Welcome(Protocol.VERSION, hostName))
+                 greeted[link] = frame.deviceName
+                 publishListeners()
++                if (stereoSplit) link.send(Protocol.Frame.Stereo(true))
++                applySplit()
+                 // Immediately, rather than at the next tick. A follower that joins just after a
+                 // broadcast would otherwise sit silent for a full second wondering if it worked.
+                 sendState(link)
+@@ -126,6 +130,23 @@ class HostSession(
+         }
+     }
+ 
++    /**
++     * Stereo split: this device plays the right channel, every follower the left. Only in force
++     * while someone is actually listening - a host on its own playing half a song is just broken.
++     */
++    @Volatile
++    var stereoSplit: Boolean = false
++        set(value) {
++            if (field == value) return
++            field = value
++            greeted.keys.forEach { it.send(Protocol.Frame.Stereo(value)) }
++            applySplit()
++        }
++
++    private fun applySplit() {
++        bridge.setChannelSplit(if (stereoSplit && greeted.isNotEmpty()) ChannelSplit.RIGHT else ChannelSplit.NONE)
++    }
++
+     private fun linkFor(listener: Listener): PeerLink? =
+         greeted.entries.firstOrNull { it.value == listener.name && it.key.remoteAddress == listener.address }?.key
+ 
+@@ -150,6 +171,8 @@ class HostSession(
+         links.remove(link)
+         greeted.remove(link)
+         publishListeners()
++        // The last listener leaving puts this device back to both channels.
++        applySplit()
+     }
+ 
+     private fun publishListeners() {
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
+index 80afbd1..f9e00fd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
+@@ -149,6 +149,16 @@ class ListenTogetherManager @Inject constructor(
+             followerSession?.offsetMs = value
+         }
+ 
++    /**
++     * Experimental stereo split while hosting: this device plays the right channel, listeners the
++     * left. Takes effect only once a listener has joined, and ends when the last one leaves.
++     */
++    var stereoSplit: Boolean = false
++        set(value) {
++            field = value
++            hostSession?.stereoSplit = value
++        }
++
+     /**
+      * Hosts on the network so other devices can find and follow.
+      *
+@@ -165,6 +175,7 @@ class ListenTogetherManager @Inject constructor(
+         _error.value = null
+ 
+         val session = HostSession(scope, bridge, ::nowUs, deviceName())
++        session.stereoSplit = stereoSplit
+         hostSession = session
+         sessionJobs += scope.launch { session.listeners.collect { _listeners.value = it } }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/MediaPlaybackBridge.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/MediaPlaybackBridge.kt
+index f1ef998..3300346 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/MediaPlaybackBridge.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/MediaPlaybackBridge.kt
+@@ -33,8 +33,11 @@ class MediaPlaybackBridge(
+     private val player: Player,
+     private val database: MusicDatabase,
+     private val playQueue: (Queue) -> Unit,
++    private val applyChannelSplit: (Int) -> Unit = {},
+ ) : PlaybackBridge {
+ 
++    override fun setChannelSplit(split: Int) = applyChannelSplit(split)
++
+     override val currentTrack: SharedTrack?
+         get() = player.currentMetadata?.let {
+             SharedTrack(
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/PlaybackBridge.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/PlaybackBridge.kt
+index 513a6c5..08b549c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/PlaybackBridge.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/PlaybackBridge.kt
+@@ -82,4 +82,10 @@ interface PlaybackBridge {
+      *   should say so rather than silently continuing on the wrong track.
+      */
+     suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean
++
++    /**
++     * Which side of the song this device plays - a [com.dd3boh.outertune.audio.ChannelSplit] value -
++     * for the stereo split. A no-op by default, so fakes need not care.
++     */
++    fun setChannelSplit(split: Int) {}
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
+index 8fe4a7e..a1d0938 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
+@@ -49,6 +49,7 @@ object Protocol {
+         const val BYE: Byte = 7
+         const val CLICK: Byte = 8
+         const val CALIBRATED: Byte = 9
++        const val STEREO: Byte = 10
+     }
+ 
+     /** Why a session ended, carried by [Frame.Bye] so the other end can say something useful. */
+@@ -114,6 +115,13 @@ object Protocol {
+ 
+         /** The measurement's answer, host to follower: how far ahead this follower should play. */
+         data class Calibrated(val offsetMs: Int) : Frame
++
++        /**
++         * The host's stereo split, host to follower: when [enabled], the host plays the right channel
++         * and followers the left. Sent on joining and whenever it changes; an older follower ignores
++         * it and simply keeps playing both.
++         */
++        data class Stereo(val enabled: Boolean) : Frame
+     }
+ 
+     /**
+@@ -157,6 +165,7 @@ object Protocol {
+         is Frame.Bye -> buffer(Type.BYE) { put(frame.reason) }
+         is Frame.Click -> buffer(Type.CLICK) { putLong(frame.atHostClockUs) }
+         is Frame.Calibrated -> buffer(Type.CALIBRATED) { putInt(frame.offsetMs) }
++        is Frame.Stereo -> buffer(Type.STEREO) { put(if (frame.enabled) 1 else 0) }
+     }
+ 
+     /**
+@@ -190,6 +199,7 @@ object Protocol {
+             Type.BYE -> Frame.Bye(b.get())
+             Type.CLICK -> Frame.Click(b.long)
+             Type.CALIBRATED -> Frame.Calibrated(b.int)
++            Type.STEREO -> Frame.Stereo(b.get() != 0.toByte())
+             else -> null
+         }
+     }.getOrNull()
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 5a0026c..f80aacb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -513,7 +513,12 @@ class MusicService : MediaLibraryService(),
+         // still be using after the service is gone.
+         listenTogether.attachPlayer(
+             // Marked as following: the host's songs are theirs to count, not this device's.
+-            MediaPlaybackBridge(player, database) { queue -> playQueue(queue, replace = true, following = true) }
++            MediaPlaybackBridge(
++                player,
++                database,
++                playQueue = { queue -> playQueue(queue, replace = true, following = true) },
++                applyChannelSplit = { equalizerAudioProcessor.channelSplit = it },
++            )
+         )
+ 
+         // Applied before anything can play, so the first track is not briefly equalised by
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
+index 71051b7..aee0cff 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
+@@ -49,6 +49,9 @@ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.setValue
+ import com.dd3boh.outertune.constants.ListenTogetherOffsetKey
++import com.dd3boh.outertune.constants.ListenTogetherStereoKey
++import com.dd3boh.outertune.ui.component.SwitchPreference
++import androidx.compose.material.icons.rounded.Speaker
+ import com.dd3boh.outertune.ui.dialog.CounterDialog
+ import com.dd3boh.outertune.utils.rememberPreference
+ import androidx.compose.runtime.remember
+@@ -104,6 +107,7 @@ fun ListenTogetherSettings(
+ 
+     val (offsetMs, onOffsetChange) = rememberPreference(ListenTogetherOffsetKey, 0)
+     var showOffsetDialog by remember { mutableStateOf(false) }
++    val (stereoSplit, onStereoSplitChange) = rememberPreference(ListenTogetherStereoKey, false)
+ 
+     val measuring by manager.measuring.collectAsStateWithLifecycle()
+     val calibrationMessage by manager.calibrationMessage.collectAsStateWithLifecycle()
+@@ -123,6 +127,7 @@ fun ListenTogetherSettings(
+     // practical way to tune it: the right number depends on the audio route and can only be found
+     // by listening.
+     LaunchedEffect(offsetMs) { manager.offsetMs = offsetMs.toLong() }
++    LaunchedEffect(stereoSplit) { manager.stereoSplit = stereoSplit }
+ 
+     if (showOffsetDialog) {
+         CounterDialog(
+@@ -331,6 +336,17 @@ fun ListenTogetherSettings(
+                 onClick = { showOffsetDialog = true },
+             )
+         }
++
++        Spacer(modifier = Modifier.height(16.dp))
++        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
++            SwitchPreference(
++                title = { Text(stringResource(R.string.lt_stereo_title)) },
++                description = stringResource(R.string.lt_stereo_description),
++                icon = { Icon(Icons.Rounded.Speaker, null) },
++                checked = stereoSplit,
++                onCheckedChange = onStereoSplitChange,
++            )
++        }
+     }
+ 
+     TopAppBar(
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 1a75ff6..2adc8f9 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -470,6 +470,8 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="lt_measure_applied">The host measured this device\'s speaker delay. Timing offset set to %1$d ms.</string>
+     <string name="lt_measure_failed">Couldn\'t hear both test clicks. Move the devices closer, turn the volume up or pause the music, and try again.</string>
+     <string name="lt_measure_no_mic">The microphone isn\'t available, so the delay can\'t be measured</string>
++    <string name="lt_stereo_title">Split left / right (experimental)</string>
++    <string name="lt_stereo_description">Use two phones as a stereo pair. While you host with someone listening, this phone plays the right channel and every listener plays the left. Put the phones apart and set each listener\'s timing offset first, or the two sides will sound out of step. Listeners on an older version keep playing both channels.</string>
+     <string name="eq_song_profile">Apply only to current song</string>
+     <string name="eq_song_profile_on">Saved for \"%1$s\" and used instead of the global curve while it plays</string>
+     <string name="eq_song_profile_off">Changes apply to every song</string>
+-- 
+2.56.0.windows.4
+
