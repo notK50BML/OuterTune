@@ -260232,3 +260232,1148 @@ index 813f91e..8debe87 100644
 -- 
 2.56.0.windows.4
 
+From 479f618e69440147254f3b5c722c661c6bc41e9c Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 19:25:52 +0800
+Subject: [PATCH] Cross-device play sync over WiFi
+
+A sync code pairs the user's devices with no account. While Sync over WiFi is on, the app
+advertises its own DNS-SD service, finds devices with the same code, authenticates both ways
+with an HMAC of the code's key, compares play fingerprints and, when they differ, exchanges plays
+keyed by song and exact timestamp so nothing is counted twice. New Cross-device sync screen
+replaces Count plays from other devices under Privacy; the YouTube Music history switch moves there.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          |  20 ++
+ .../java/com/dd3boh/outertune/MainActivity.kt |   3 +
+ .../outertune/constants/PreferenceKeys.kt     |   6 +
+ .../outertune/listentogether/LanDiscovery.kt  |  18 +-
+ .../dd3boh/outertune/playback/MusicService.kt |  25 ++
+ .../com/dd3boh/outertune/sync/PlaySyncCore.kt | 288 ++++++++++++++++++
+ .../dd3boh/outertune/sync/PlaySyncManager.kt  | 185 +++++++++++
+ .../outertune/sync/RoomPlaySyncStore.kt       |  85 ++++++
+ .../ui/screens/settings/PlaySyncSettings.kt   | 243 +++++++++++++++
+ .../ui/screens/settings/PrivacySettings.kt    |  14 +-
+ .../ui/screens/settings/SettingsIndex.kt      |   4 +-
+ app/src/main/res/values/strings-ot.xml        |   2 +-
+ app/src/main/res/values/strings.xml           |  24 ++
+ 13 files changed, 900 insertions(+), 17 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/sync/PlaySyncManager.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index ed1258e..aca46b2 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,26 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Cross-device sync over WiFi
++
++- **Settings → Privacy and history → Cross-device sync**, where "Count plays from other devices" was.
++  The same in OuterTune for Windows, under Privacy.
++- **Pairing by sync code.** Set up sync on one device and it makes a code like K7QD-M2XP-9RFA; enter
++  it on your other devices. No account. The code is the pairing: devices with a different code are
++  refused, and it will also be what links devices for cloud sync later.
++- **Sync over WiFi.** While on, each device advertises itself (under its own network service, not
++  Listen together's), looks for devices with the same code, and swaps plays with each one it finds,
++  then every 10 minutes, or straight away with Sync now. Both apps need to be open.
++  - Each device proves it holds the code without sending it, before anything is exchanged.
++  - Each first sends a fingerprint of all its plays; if they match there's nothing to do. Otherwise
++    both send their plays (compressed) with the songs behind them, and each adds what it lacks.
++  - **Never counts a play twice**: same rule as the backup merge, a play is its song plus its exact
++    recorded time, never re-dated.
++  - Local files aren't synced.
++- The screen shows the code (tap to copy), which devices are in reach, when it last synced and how
++  many plays arrived, Sync now, and Unlink. The YouTube Music history switch moved here, as the
++  rough extra for devices that don't sync.
++
+ ## Stats: real plays from your other devices
+ 
+ - **Add plays from another device** (Settings → Backup and restore). Pick another phone's backup or
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 0daaaa9..998d580 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -873,6 +873,9 @@ class MainActivity : ComponentActivity() {
+                                     composable("settings/appearance") {
+                                         AppearanceSettings(navController, scrollBehavior)
+                                     }
++                                    composable("settings/sync") {
++                                        com.dd3boh.outertune.ui.screens.settings.PlaySyncSettings(navController, scrollBehavior)
++                                    }
+                                     composable("settings/appearance/widget") {
+                                         com.dd3boh.outertune.ui.screens.settings.WidgetLayoutSettings(navController, scrollBehavior)
+                                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 9f1b553..95da26e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -671,6 +671,12 @@ val SkipBetaUpdatesKey = booleanPreferencesKey("skipBetaUpdates")
+ /** Whether Stats counts plays from this account's other devices, read from YouTube's own history. */
+ val StatsIncludeRemoteKey = booleanPreferencesKey("statsIncludeRemote")
+ 
++/** The sync code linking this device to the user's others (SyncCode), or unset when not linked. */
++val PlaySyncCodeKey = stringPreferencesKey("playSyncCode")
++
++/** Whether plays are synced over WiFi with the devices sharing [PlaySyncCodeKey]. */
++val PlaySyncWifiKey = booleanPreferencesKey("playSyncWifi")
++
+ /**
+  * The Stats screen's chips, so it opens as it was left rather than on a week of time listened every
+  * time: the period, what the chart ranks by (StatMetric), and how many songs it shows
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/LanDiscovery.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/LanDiscovery.kt
+index 34a1d19..0547efa 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/LanDiscovery.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/LanDiscovery.kt
+@@ -59,7 +59,11 @@ data class DiscoveredHost(
+  * retrying helps - which is why [discover] surfaces an empty list rather than a spinner that never
+  * resolves.
+  */
+-class LanDiscovery(private val context: Context) {
++class LanDiscovery(
++    private val context: Context,
++    /** The DNS-SD type to advertise and browse - Listen together's by default; play sync has its own. */
++    private val serviceType: String = SERVICE_TYPE,
++) {
+ 
+     private val nsd: NsdManager?
+         get() = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
+@@ -86,7 +90,7 @@ class LanDiscovery(private val context: Context) {
+         val manager = nsd ?: return NoopAdvertisement
+         val info = NsdServiceInfo().apply {
+             serviceName = displayName
+-            serviceType = SERVICE_TYPE
++            serviceType = this@LanDiscovery.serviceType
+             setPort(port)
+         }
+         val listener = object : NsdManager.RegistrationListener {
+@@ -178,7 +182,7 @@ class LanDiscovery(private val context: Context) {
+ 
+         val listener = object : NsdManager.DiscoveryListener {
+             override fun onServiceFound(service: NsdServiceInfo) {
+-                if (service.serviceType?.trimEnd('.') != SERVICE_TYPE.trimEnd('.')) return
++                if (service.serviceType?.trimEnd('.') != serviceType.trimEnd('.')) return
+                 if (service.serviceName == excluding) return
+                 events.trySend(DiscoveryEvent.Found(service))
+             }
+@@ -202,7 +206,7 @@ class LanDiscovery(private val context: Context) {
+         }
+ 
+         try {
+-            manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
++            manager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
+         } catch (e: Exception) {
+             Log.e(TAG, "discoverServices threw", e)
+             close()
+@@ -287,7 +291,7 @@ class LanDiscovery(private val context: Context) {
+         override fun close() = Unit
+     }
+ 
+-    private companion object {
++    companion object {
+         /**
+          * The DNS-SD type. Changing this breaks discovery between versions, which is a legitimate
+          * way to retire an incompatible protocol - but [Protocol.VERSION] is the cheaper lever, and
+@@ -296,7 +300,7 @@ class LanDiscovery(private val context: Context) {
+         const val SERVICE_TYPE = "_outertune._tcp"
+ 
+         /** Longest a single resolve may take before the queue moves on without it. */
+-        const val RESOLVE_TIMEOUT_MS = 6_000L
+-        const val TAG = "LanDiscovery"
++        private const val RESOLVE_TIMEOUT_MS = 6_000L
++        private const val TAG = "LanDiscovery"
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 356d135..13a5e6d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -139,6 +139,12 @@ import com.dd3boh.outertune.models.MultiQueueObject
+ import com.dd3boh.outertune.models.toMediaMetadata
+ import com.dd3boh.outertune.playback.queues.ListQueue
+ import com.dd3boh.outertune.listentogether.ListenTogetherManager
++import com.dd3boh.outertune.listentogether.LanDiscovery
++import com.dd3boh.outertune.sync.PlaySync
++import com.dd3boh.outertune.sync.PlaySyncManager
++import com.dd3boh.outertune.sync.RoomPlaySyncStore
++import com.dd3boh.outertune.constants.PlaySyncCodeKey
++import com.dd3boh.outertune.constants.PlaySyncWifiKey
+ import com.dd3boh.outertune.listentogether.MediaPlaybackBridge
+ import com.dd3boh.outertune.playback.queues.Queue
+ import com.dd3boh.outertune.playback.queues.YouTubeQueue
+@@ -214,6 +220,8 @@ class MusicService : MediaLibraryService(),
+     @Inject
+     lateinit var listenTogether: ListenTogetherManager
+ 
++    private var playSync: PlaySyncManager? = null
++
+     // Parent of every service coroutine scope. Cancelled once in onDestroy() so no scope outlives the
+     // service. Each scope owns a SupervisorJob child of this so a failure in one coroutine neither
+     // cancels its siblings nor the whole service.
+@@ -508,6 +516,20 @@ class MusicService : MediaLibraryService(),
+                 setOffloadEnabled(dataStore.get(AudioOffloadKey, false))
+             }
+ 
++        // Play sync over WiFi with the user's other devices - on while it is switched on and linked,
++        // for as long as the player service runs. See PlaySyncManager.
++        playSync = PlaySyncManager(
++            LanDiscovery(this, PlaySyncManager.SERVICE_TYPE),
++            RoomPlaySyncStore(database),
++            deviceName = { listenTogether.deviceName() },
++        ).also { PlaySync.manager = it }
++        scope.launch {
++            dataStore.data
++                .map { prefs -> prefs[PlaySyncCodeKey]?.takeIf { it.isNotBlank() && prefs[PlaySyncWifiKey] == true } }
++                .distinctUntilChanged()
++                .collect { code -> if (code != null) playSync?.start(code) else playSync?.stop() }
++        }
++
+         // The player is the one thing a listen-together session cannot do without, so the bridge is
+         // handed over here and withdrawn in onDestroy. The manager is a singleton and outlives this
+         // service, which is why it holds a nullable bridge rather than a player it might otherwise
+@@ -2113,6 +2135,9 @@ class MusicService : MediaLibraryService(),
+         // Before the player is released, not after: a session still ticking against a released
+         // player would crash on its next poll.
+         listenTogether.attachPlayer(null)
++        playSync?.stop()
++        PlaySync.manager = null
++        playSync = null
+ 
+         mediaSession.player.stop()
+         mediaSession.release()
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
+new file mode 100644
+index 0000000..8f0b252
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
+@@ -0,0 +1,288 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.sync
++
++import java.io.ByteArrayInputStream
++import java.io.ByteArrayOutputStream
++import java.io.DataInputStream
++import java.io.DataOutputStream
++import java.io.IOException
++import java.net.Socket
++import java.security.MessageDigest
++import java.security.SecureRandom
++import java.util.zip.DeflaterOutputStream
++import java.util.zip.InflaterInputStream
++import javax.crypto.Mac
++import javax.crypto.spec.SecretKeySpec
++
++/*
++ * Play sync between this user's own devices - the core both apps share. Written without Android so
++ * the phone and OuterTune for Windows run the same file (the desktop's copy differs only in its
++ * package); keep the two in step, as with Listen together's Protocol.
++ */
++
++/** A song, as much as another device needs to show it and count its listening time. */
++data class SyncSong(
++    val id: String,
++    val title: String,
++    val thumbnail: String,
++    /** Seconds; 0 or less when unknown. */
++    val durationSec: Int,
++    val artists: List<SyncArtist>,
++)
++
++/** A credit: [id] is the artist's YouTube channel, or null for a credit with none. */
++data class SyncArtist(val id: String?, val name: String)
++
++/**
++ * One play: its song and the exact instant it was recorded, as the device that recorded it stored
++ * it. That pair is the play's identity everywhere - it is never re-dated, so the same play arriving
++ * twice, by any route, is recognised and added once.
++ */
++data class SyncPlay(val songId: String, val at: Long, val playTimeMs: Long)
++
++/** What an app's library gives the sync and takes from it. Called off the main thread. */
++interface PlaySyncStore {
++    /** Every play worth syncing - not those of local files, whose ids mean nothing elsewhere. */
++    fun plays(): List<SyncPlay>
++
++    /** The songs with these ids, with their credits. */
++    fun songs(ids: Collection<String>): List<SyncSong>
++
++    /** Adds the plays not already here (and the songs for them it lacks); returns how many were new. */
++    fun merge(songs: List<SyncSong>, plays: List<SyncPlay>): Int
++}
++
++/**
++ * The sync code: twelve characters, e.g. K7QD-M2XP-9RFA, made on one device and typed on the
++ * others. It is the whole of the pairing - devices with the same code sync, others are refused - so
++ * it is random (60 bits) rather than chosen, and from an alphabet without 0/O or 1/I to misread.
++ */
++object SyncCode {
++    private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
++    private const val LENGTH = 12
++
++    fun generate(): String {
++        val random = SecureRandom()
++        return format(String(CharArray(LENGTH) { ALPHABET[random.nextInt(ALPHABET.length)] }))
++    }
++
++    /** [input] as a code, however it was typed (case, spaces, dashes), or null if it is not one. */
++    fun normalize(input: String): String? {
++        val chars = input.uppercase().filter { it.isLetterOrDigit() }
++        if (chars.length != LENGTH || chars.any { it !in ALPHABET }) return null
++        return format(chars)
++    }
++
++    private fun format(chars: String) = chars.chunked(4).joinToString("-")
++
++    /** The secret both ends prove they hold. Never sent. */
++    fun key(code: String): ByteArray = sha256("outertune-sync-key-v1:$code")
++
++    /**
++     * A short tag in the device's advertised name, so devices only connect to others with the same
++     * code. Derived separately from [key], and too short to recover the code from.
++     */
++    fun tag(code: String): String = sha256("outertune-sync-tag-v1:$code").joinToString("") { "%02x".format(it) }.take(8)
++
++    internal fun sha256(text: String): ByteArray =
++        MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
++}
++
++/**
++ * A fingerprint of a set of plays: how many, and the XOR of each play's 64-bit hash. Order does
++ * not matter, so two devices holding the same plays agree without sending them - and a sync between
++ * devices already in step costs two numbers.
++ */
++internal fun playsFingerprint(plays: List<SyncPlay>): Pair<Int, Long> {
++    var hash = 0L
++    plays.forEach { play ->
++        // FNV-1a over "songId|at" - the play's identity, nothing else.
++        var h = -0x340d631b7bdddcdbL
++        "${play.songId}|${play.at}".forEach { c ->
++            h = h xor c.code.toLong()
++            h *= 0x100000001b3L
++        }
++        hash = hash xor h
++    }
++    return plays.size to hash
++}
++
++/** The outcome of one exchange, for the status line. */
++data class SyncOutcome(val peer: String, val received: Int, val sent: Int)
++
++/**
++ * One exchange over a connected socket. Blocking - run it on an IO thread.
++ *
++ * The connecting side opens with HELLO (its tag, a random nonce, its name); the other answers with
++ * its own nonce and an HMAC over both nonces, and the first replies with its own HMAC. Each proves
++ * it holds the code's key without sending it, so a device with a different code - or no code - gets
++ * nothing. Then each sends its fingerprint; if they agree there is nothing to do. Otherwise each
++ * sends every play it has, compressed, with the songs behind them, and adds what it lacks.
++ *
++ * Both sides read their own plays before taking in the other's, so nothing is sent back to where it
++ * came from in the same exchange.
++ */
++class PlaySyncSession(
++    private val store: PlaySyncStore,
++    code: String,
++    private val deviceName: String,
++) {
++    private val key = SyncCode.key(code)
++    private val tag = SyncCode.tag(code)
++
++    fun runAsClient(socket: Socket): SyncOutcome = socket.use {
++        it.soTimeout = TIMEOUT_MS
++        val input = DataInputStream(it.getInputStream().buffered())
++        val output = DataOutputStream(it.getOutputStream().buffered())
++
++        val myNonce = nonce()
++        output.frame(HELLO) { writeUTF(tag); write(myNonce); writeUTF(deviceName) }
++        val reply = input.readFrame(HELLO_REPLY)
++        val theirNonce = ByteArray(NONCE).also(reply::readFully)
++        val peer = reply.readUTF()
++        val proof = ByteArray(MAC).also(reply::readFully)
++        if (!MessageDigest.isEqual(proof, mac("server", myNonce, theirNonce))) throw IOException("peer does not hold this sync code")
++        output.frame(AUTH) { write(mac("client", theirNonce, myNonce)) }
++
++        exchange(input, output, peer, sendFirst = true)
++    }
++
++    fun runAsServer(socket: Socket): SyncOutcome = socket.use {
++        it.soTimeout = TIMEOUT_MS
++        val input = DataInputStream(it.getInputStream().buffered())
++        val output = DataOutputStream(it.getOutputStream().buffered())
++
++        val hello = input.readFrame(HELLO)
++        if (hello.readUTF() != tag) throw IOException("different sync code")
++        val theirNonce = ByteArray(NONCE).also(hello::readFully)
++        val peer = hello.readUTF()
++        val myNonce = nonce()
++        output.frame(HELLO_REPLY) { write(myNonce); writeUTF(deviceName); write(mac("server", theirNonce, myNonce)) }
++        val auth = input.readFrame(AUTH)
++        val proof = ByteArray(MAC).also(auth::readFully)
++        if (!MessageDigest.isEqual(proof, mac("client", myNonce, theirNonce))) throw IOException("peer does not hold this sync code")
++
++        exchange(input, output, peer, sendFirst = false)
++    }
++
++    private fun exchange(input: DataInputStream, output: DataOutputStream, peer: String, sendFirst: Boolean): SyncOutcome {
++        // Read before anything arrives - see the class doc.
++        val mine = store.plays()
++        val (count, hash) = playsFingerprint(mine)
++        val theirs: Pair<Int, Long>
++        if (sendFirst) {
++            output.frame(SUMMARY) { writeInt(count); writeLong(hash) }
++            theirs = input.readFrame(SUMMARY).let { it.readInt() to it.readLong() }
++        } else {
++            theirs = input.readFrame(SUMMARY).let { it.readInt() to it.readLong() }
++            output.frame(SUMMARY) { writeInt(count); writeLong(hash) }
++        }
++        if (theirs == count to hash) return SyncOutcome(peer, received = 0, sent = 0)
++
++        val songs = store.songs(mine.mapTo(HashSet()) { it.songId })
++        val received: Pair<List<SyncSong>, List<SyncPlay>>
++        if (sendFirst) {
++            output.writeData(songs, mine)
++            received = input.readData()
++        } else {
++            received = input.readData()
++            output.writeData(songs, mine)
++        }
++        val added = store.merge(received.first, received.second)
++        return SyncOutcome(peer, received = added, sent = mine.size)
++    }
++
++    private fun mac(role: String, first: ByteArray, second: ByteArray): ByteArray =
++        Mac.getInstance("HmacSHA256").run {
++            init(SecretKeySpec(key, "HmacSHA256"))
++            update(role.toByteArray(Charsets.UTF_8))
++            update(first)
++            update(second)
++            doFinal()
++        }
++
++    private fun nonce() = ByteArray(NONCE).also { SecureRandom().nextBytes(it) }
++
++    private fun DataOutputStream.frame(type: Int, body: DataOutputStream.() -> Unit) {
++        val bytes = ByteArrayOutputStream().also { DataOutputStream(it).apply(body).flush() }.toByteArray()
++        writeByte(type)
++        writeInt(bytes.size)
++        write(bytes)
++        flush()
++    }
++
++    private fun DataInputStream.readFrame(expected: Int): DataInputStream {
++        val type = readUnsignedByte()
++        val length = readInt()
++        if (type != expected) throw IOException("expected frame $expected, got $type")
++        if (length !in 0..MAX_FRAME) throw IOException("bad frame length $length")
++        val bytes = ByteArray(length).also(::readFully)
++        return DataInputStream(ByteArrayInputStream(bytes))
++    }
++
++    private fun DataOutputStream.writeData(songs: List<SyncSong>, plays: List<SyncPlay>) {
++        val packed = ByteArrayOutputStream()
++        DataOutputStream(DeflaterOutputStream(packed)).use { out ->
++            out.writeInt(songs.size)
++            songs.forEach { song ->
++                out.writeUTF(song.id)
++                out.writeUTF(song.title.take(MAX_TEXT))
++                out.writeUTF(song.thumbnail.take(MAX_TEXT))
++                out.writeInt(song.durationSec)
++                out.writeInt(song.artists.size)
++                song.artists.forEach { artist ->
++                    out.writeUTF(artist.id.orEmpty())
++                    out.writeUTF(artist.name.take(MAX_TEXT))
++                }
++            }
++            out.writeInt(plays.size)
++            plays.forEach { play ->
++                out.writeUTF(play.songId)
++                out.writeLong(play.at)
++                out.writeLong(play.playTimeMs)
++            }
++        }
++        frame(DATA) { write(packed.toByteArray()) }
++    }
++
++    private fun DataInputStream.readData(): Pair<List<SyncSong>, List<SyncPlay>> {
++        val frame = readFrame(DATA)
++        DataInputStream(InflaterInputStream(frame)).use { input ->
++            val songs = List(input.readInt().coerceIn(0, MAX_ITEMS)) {
++                SyncSong(
++                    id = input.readUTF(),
++                    title = input.readUTF(),
++                    thumbnail = input.readUTF(),
++                    durationSec = input.readInt(),
++                    artists = List(input.readInt().coerceIn(0, 64)) {
++                        SyncArtist(input.readUTF().ifEmpty { null }, input.readUTF())
++                    },
++                )
++            }
++            val plays = List(input.readInt().coerceIn(0, MAX_ITEMS)) {
++                SyncPlay(input.readUTF(), input.readLong(), input.readLong())
++            }
++            return songs to plays
++        }
++    }
++
++    private companion object {
++        const val HELLO = 1
++        const val HELLO_REPLY = 2
++        const val AUTH = 3
++        const val SUMMARY = 4
++        const val DATA = 5
++
++        const val NONCE = 16
++        const val MAC = 32
++        const val TIMEOUT_MS = 30_000
++        const val MAX_FRAME = 64 * 1024 * 1024
++        const val MAX_ITEMS = 5_000_000
++        const val MAX_TEXT = 2_000
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncManager.kt b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncManager.kt
+new file mode 100644
+index 0000000..0e40cff
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncManager.kt
+@@ -0,0 +1,185 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.sync
++
++import com.dd3boh.outertune.listentogether.DiscoveredHost
++import com.dd3boh.outertune.listentogether.LanDiscovery
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.SupervisorJob
++import kotlinx.coroutines.channels.Channel
++import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.flow.asStateFlow
++import kotlinx.coroutines.flow.update
++import kotlinx.coroutines.isActive
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.sync.Mutex
++import kotlinx.coroutines.sync.withLock
++import kotlinx.coroutines.withTimeoutOrNull
++import java.net.InetSocketAddress
++import java.net.ServerSocket
++import java.net.Socket
++import java.util.concurrent.ConcurrentHashMap
++
++/**
++ * Sync over WiFi: while on, this device listens for and looks for the user's other devices with the
++ * same sync code on the local network, and swaps plays with each - when one is found, then every
++ * [ROUND_MS], or at once on [syncNow]. No account and no server: the code is the pairing.
++ *
++ * Its own DNS-SD type, so sync devices never appear in Listen together's list. The advertised name
++ * starts with the code's tag (SyncCode.tag), so only devices with the same code are connected to;
++ * the handshake (PlaySyncSession) is what actually keeps everyone else out.
++ *
++ * The desktop's copy differs only in its package and imports; keep the two in step.
++ */
++class PlaySyncManager(
++    private val discovery: LanDiscovery,
++    private val store: PlaySyncStore,
++    private val deviceName: () -> String,
++) {
++    data class Status(
++        /** Listening and looking. */
++        val running: Boolean = false,
++        /** The user's devices seen on this network, by name. */
++        val peers: List<String> = emptyList(),
++        val syncing: Boolean = false,
++        /** The last exchange that finished, and when. */
++        val last: SyncOutcome? = null,
++        val lastAt: Long? = null,
++        /** Why the last attempt failed, if it did. */
++        val error: String? = null,
++    )
++
++    private val _status = MutableStateFlow(Status())
++    val status: StateFlow<Status> = _status.asStateFlow()
++
++    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
++    private var job: Job? = null
++    private var code: String? = null
++    private val wake = Channel<Unit>(Channel.CONFLATED)
++    private val lastTried = ConcurrentHashMap<String, Long>()
++
++    /** One outgoing exchange at a time. Incoming ones are not held to it - see [run]. */
++    private val outgoing = Mutex()
++
++    @Synchronized
++    fun start(code: String) {
++        if (this.code == code && job?.isActive == true) return
++        stop()
++        this.code = code
++        job = scope.launch { run(code) }
++    }
++
++    @Synchronized
++    fun stop() {
++        job?.cancel()
++        job = null
++        code = null
++        lastTried.clear()
++        _status.update { it.copy(running = false, peers = emptyList(), syncing = false) }
++    }
++
++    /** Syncs with every device in reach now, rather than at the next round. */
++    fun syncNow() {
++        lastTried.clear()
++        wake.trySend(Unit)
++    }
++
++    private suspend fun run(code: String) = coroutineScope {
++        val outer = this
++        val tag = SyncCode.tag(code)
++        val server = ServerSocket(0)
++        val advertisement = discovery.advertise(server.localPort, "$tag ${deviceName()}".take(60))
++        _status.update { it.copy(running = true, error = null) }
++
++        // Incoming exchanges run alongside an outgoing one rather than waiting for it: two devices
++        // that find each other at the same moment each connect to the other, and with one lock for
++        // both directions each would wait on the other until the socket timed out. Merging is
++        // idempotent, so two at once costs nothing but the work.
++        val accepting = launch {
++            while (isActive) {
++                val socket = runCatching { server.accept() }.getOrNull() ?: break
++                launch { exchange { PlaySyncSession(store, code, deviceName()).runAsServer(socket) } }
++            }
++        }
++
++        try {
++            while (isActive) {
++                withTimeoutOrNull(BROWSE_MS) {
++                    discovery.discover(excluding = advertisement.registeredName).collect { hosts ->
++                        val own = advertisement.registeredName
++                        val peers = hosts.filter { it.name.startsWith("$tag ") && it.name != own && it.port != server.localPort }
++                        _status.update { s -> s.copy(peers = peers.map { it.name.removePrefix("$tag ") }) }
++                        val now = System.currentTimeMillis()
++                        peers.forEach { host ->
++                            if (now - (lastTried[host.name] ?: 0L) < ROUND_MS) return@forEach
++                            lastTried[host.name] = now
++                            // On the outer scope: the browse window closing must not cancel an
++                            // exchange that is under way.
++                            outer.launch { outgoing.withLock { exchange { connect(host, code) } } }
++                        }
++                    }
++                }
++                withTimeoutOrNull(ROUND_MS) { wake.receive() }
++            }
++        } finally {
++            advertisement.close()
++            runCatching { server.close() }
++            accepting.cancel()
++        }
++    }
++
++    private fun connect(host: DiscoveredHost, code: String): SyncOutcome {
++        val socket = Socket()
++        try {
++            socket.connect(InetSocketAddress(host.address, host.port), CONNECT_TIMEOUT_MS)
++        } catch (e: Exception) {
++            runCatching { socket.close() }
++            throw e
++        }
++        return PlaySyncSession(store, code, deviceName()).runAsClient(socket)
++    }
++
++    private inline fun exchange(block: () -> SyncOutcome) {
++        _status.update { it.copy(syncing = true) }
++        try {
++            val outcome = block()
++            _status.update { it.copy(last = outcome, lastAt = System.currentTimeMillis(), error = null) }
++        } catch (e: CancellationException) {
++            throw e
++        } catch (e: Exception) {
++            _status.update { it.copy(error = e.message ?: e.javaClass.simpleName) }
++        } finally {
++            _status.update { it.copy(syncing = false) }
++        }
++    }
++
++    companion object {
++        /** Not Listen together's type - see the class doc. At most 15 characters, as DNS-SD requires. */
++        const val SERVICE_TYPE = "_otsync._tcp"
++
++        /** How long each look around the network lasts. */
++        private const val BROWSE_MS = 30_000L
++
++        /** Between looks, and the least time between two exchanges with one device. */
++        private const val ROUND_MS = 10 * 60_000L
++
++        private const val CONNECT_TIMEOUT_MS = 5_000
++    }
++}
++
++/** The running WiFi sync, for the settings screen. Set while the player service runs. */
++object PlaySync {
++    @Volatile
++    var manager: PlaySyncManager? = null
++
++    val idle: StateFlow<PlaySyncManager.Status> = MutableStateFlow(PlaySyncManager.Status())
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt b/app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt
+new file mode 100644
+index 0000000..40d6662
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt
+@@ -0,0 +1,85 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.sync
++
++import com.dd3boh.outertune.db.MusicDatabase
++import com.dd3boh.outertune.models.MediaMetadata
++
++/**
++ * The phone's plays, for play sync: its event table, read and added to directly. A play is its song
++ * and its timestamp exactly as stored, never converted, so a play that comes back from another
++ * device is recognised (see SyncPlay).
++ */
++class RoomPlaySyncStore(private val database: MusicDatabase) : PlaySyncStore {
++
++    override fun plays(): List<SyncPlay> =
++        database.openHelper.readableDatabase.query(
++            "SELECT e.songId, e.timestamp, e.playTime FROM event e JOIN song s ON s.id = e.songId WHERE s.isLocal = 0"
++        ).use { c ->
++            buildList { while (c.moveToNext()) add(SyncPlay(c.getString(0), c.getLong(1), c.getLong(2))) }
++        }
++
++    override fun songs(ids: Collection<String>): List<SyncSong> {
++        val db = database.openHelper.readableDatabase
++        val out = ArrayList<SyncSong>(ids.size)
++        ids.chunked(500).forEach { chunk ->
++            val marks = chunk.joinToString(",") { "?" }
++            val args = chunk.toTypedArray<Any>()
++            val credits = HashMap<String, MutableList<SyncArtist>>()
++            db.query(
++                "SELECT m.songId, a.id, a.name, a.isLocal FROM song_artist_map m JOIN artist a ON a.id = m.artistId " +
++                    "WHERE m.songId IN ($marks) ORDER BY m.songId, m.position",
++                args,
++            ).use { c ->
++                while (c.moveToNext()) {
++                    val id = c.getString(1)
++                    // This phone's own ids for artists with no channel mean nothing elsewhere.
++                    val channel = id?.takeIf { c.getInt(3) == 0 && !it.startsWith("LA") }
++                    credits.getOrPut(c.getString(0)) { mutableListOf() } += SyncArtist(channel, c.getString(2))
++                }
++            }
++            db.query("SELECT id, title, thumbnailUrl, duration FROM song WHERE id IN ($marks)", args).use { c ->
++                while (c.moveToNext()) {
++                    val id = c.getString(0)
++                    out += SyncSong(id, c.getString(1), c.getString(2).orEmpty(), c.getInt(3), credits[id].orEmpty())
++                }
++            }
++        }
++        return out
++    }
++
++    override fun merge(songs: List<SyncSong>, plays: List<SyncPlay>): Int = database.runInTransaction {
++        val db = database.openHelper.writableDatabase
++        val known = HashSet<String>()
++        db.query("SELECT id FROM song").use { c -> while (c.moveToNext()) known += c.getString(0) }
++        songs.forEach { song ->
++            if (!known.add(song.id)) return@forEach
++            database.insert(
++                MediaMetadata(
++                    id = song.id,
++                    title = song.title,
++                    artists = song.artists.map { MediaMetadata.Artist(it.id, it.name) },
++                    duration = song.durationSec.takeIf { it > 0 } ?: -1,
++                    thumbnailUrl = song.thumbnail.ifBlank { null },
++                    genre = null,
++                )
++            )
++        }
++        val seen = HashSet<String>()
++        db.query("SELECT songId, timestamp FROM event").use { c -> while (c.moveToNext()) seen += "${c.getString(0)}|${c.getLong(1)}" }
++        var added = 0
++        plays.forEach { play ->
++            if (play.songId !in known || !seen.add("${play.songId}|${play.at}")) return@forEach
++            db.execSQL(
++                "INSERT INTO event (songId, timestamp, playTime) VALUES (?, ?, ?)",
++                arrayOf<Any>(play.songId, play.at, play.playTimeMs),
++            )
++            added++
++        }
++        added
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
+new file mode 100644
+index 0000000..a532e6b
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
+@@ -0,0 +1,243 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.screens.settings
++
++import android.text.format.DateUtils
++import android.widget.Toast
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxHeight
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.rememberScrollState
++import androidx.compose.foundation.verticalScroll
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.ArrowBack
++import androidx.compose.material.icons.rounded.Add
++import androidx.compose.material.icons.rounded.CloudSync
++import androidx.compose.material.icons.rounded.Key
++import androidx.compose.material.icons.rounded.LinkOff
++import androidx.compose.material.icons.rounded.Sync
++import androidx.compose.material.icons.rounded.Wifi
++import androidx.compose.material3.AlertDialog
++import androidx.compose.material3.ElevatedCard
++import androidx.compose.material3.ExperimentalMaterial3Api
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.material3.TopAppBar
++import androidx.compose.material3.TopAppBarScrollBehavior
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalClipboardManager
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.AnnotatedString
++import androidx.compose.ui.text.font.FontFamily
++import androidx.compose.ui.unit.dp
++import androidx.lifecycle.compose.collectAsStateWithLifecycle
++import androidx.navigation.NavController
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.PlaySyncCodeKey
++import com.dd3boh.outertune.constants.PlaySyncWifiKey
++import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
++import com.dd3boh.outertune.constants.TopBarInsets
++import com.dd3boh.outertune.sync.PlaySync
++import com.dd3boh.outertune.sync.SyncCode
++import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
++import com.dd3boh.outertune.ui.component.PreferenceEntry
++import com.dd3boh.outertune.ui.component.SwitchPreference
++import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.ui.dialog.InfoLabel
++import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.rememberPreference
++
++/**
++ * Cross-device sync: linking this device to the user's others with a sync code, and syncing plays
++ * with them - over WiFi for now. Where "Count plays from other devices" used to be, since this is
++ * what actually counts them; the YouTube Music history switch is kept here as the rough fallback.
++ */
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScrollBehavior) {
++    val context = LocalContext.current
++    val clipboard = LocalClipboardManager.current
++    var code by rememberPreference(PlaySyncCodeKey, "")
++    var wifi by rememberPreference(PlaySyncWifiKey, false)
++    val (statsIncludeRemote, onStatsIncludeRemoteChange) = rememberPreference(StatsIncludeRemoteKey, false)
++    val status by (PlaySync.manager?.status ?: PlaySync.idle).collectAsStateWithLifecycle()
++    var entering by remember { mutableStateOf(false) }
++    var confirmUnlink by remember { mutableStateOf(false) }
++
++    ColumnWithContentPadding(
++        modifier = Modifier.fillMaxHeight(),
++        columnModifier = Modifier.padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
++    ) {
++        InfoLabel(stringResource(R.string.sync_intro))
++        Spacer(Modifier.height(12.dp))
++
++        if (code.isBlank()) {
++            ElevatedCard(Modifier.fillMaxWidth()) {
++                PreferenceEntry(
++                    title = { Text(stringResource(R.string.sync_set_up)) },
++                    description = stringResource(R.string.sync_set_up_desc),
++                    icon = { Icon(Icons.Rounded.Add, null) },
++                    onClick = {
++                        code = SyncCode.generate()
++                        wifi = true
++                    },
++                )
++                PreferenceEntry(
++                    title = { Text(stringResource(R.string.sync_enter_code)) },
++                    description = stringResource(R.string.sync_enter_code_desc),
++                    icon = { Icon(Icons.Rounded.Key, null) },
++                    onClick = { entering = true },
++                )
++            }
++        } else {
++            ElevatedCard(Modifier.fillMaxWidth()) {
++                PreferenceEntry(
++                    title = { Text(code, style = MaterialTheme.typography.titleLarge, fontFamily = FontFamily.Monospace) },
++                    description = stringResource(R.string.sync_code_desc),
++                    descriptionIsExplanation = false,
++                    icon = { Icon(Icons.Rounded.Key, null) },
++                    onClick = {
++                        clipboard.setText(AnnotatedString(code))
++                        Toast.makeText(context, R.string.sync_code_copied, Toast.LENGTH_SHORT).show()
++                    },
++                )
++            }
++            Spacer(Modifier.height(16.dp))
++            ElevatedCard(Modifier.fillMaxWidth()) {
++                SwitchPreference(
++                    title = { Text(stringResource(R.string.sync_wifi_title)) },
++                    description = stringResource(R.string.sync_wifi_desc),
++                    icon = { Icon(Icons.Rounded.Wifi, null) },
++                    checked = wifi,
++                    onCheckedChange = { wifi = it },
++                )
++                if (wifi) {
++                    val title = when {
++                        !status.running -> stringResource(R.string.sync_status_starting)
++                        status.syncing -> stringResource(R.string.sync_status_syncing)
++                        status.peers.isEmpty() -> stringResource(R.string.sync_status_looking)
++                        else -> stringResource(R.string.sync_status_found, status.peers.joinToString())
++                    }
++                    val last = status.last
++                    val lastAt = status.lastAt
++                    val description = when {
++                        status.error != null -> stringResource(R.string.sync_status_failed, status.error.orEmpty())
++                        last != null && lastAt != null -> stringResource(
++                            R.string.sync_status_last,
++                            DateUtils.getRelativeTimeSpanString(lastAt).toString(),
++                            last.peer,
++                            last.received,
++                        )
++                        else -> stringResource(R.string.sync_status_never)
++                    }
++                    PreferenceEntry(
++                        title = { Text(title) },
++                        description = description,
++                        descriptionIsExplanation = false,
++                        icon = { Icon(Icons.Rounded.Sync, null) },
++                        onClick = { PlaySync.manager?.syncNow() },
++                    )
++                }
++            }
++            Spacer(Modifier.height(16.dp))
++            ElevatedCard(Modifier.fillMaxWidth()) {
++                PreferenceEntry(
++                    title = { Text(stringResource(R.string.sync_unlink)) },
++                    description = stringResource(R.string.sync_unlink_desc),
++                    icon = { Icon(Icons.Rounded.LinkOff, null) },
++                    onClick = { confirmUnlink = true },
++                )
++            }
++        }
++
++        Spacer(Modifier.height(16.dp))
++        ElevatedCard(Modifier.fillMaxWidth()) {
++            SwitchPreference(
++                title = { Text(stringResource(R.string.stats_include_remote_title)) },
++                description = stringResource(R.string.stats_include_remote_description),
++                icon = { Icon(Icons.Rounded.CloudSync, null) },
++                checked = statsIncludeRemote,
++                onCheckedChange = onStatsIncludeRemoteChange,
++            )
++        }
++        Spacer(Modifier.height(24.dp))
++    }
++
++    if (entering) {
++        var typed by remember { mutableStateOf("") }
++        val valid = SyncCode.normalize(typed)
++        AlertDialog(
++            onDismissRequest = { entering = false },
++            title = { Text(stringResource(R.string.sync_enter_code)) },
++            text = {
++                OutlinedTextField(
++                    value = typed,
++                    onValueChange = { typed = it },
++                    singleLine = true,
++                    placeholder = { Text(stringResource(R.string.sync_code_hint)) },
++                    isError = typed.length >= 12 && valid == null,
++                    supportingText = if (typed.length >= 12 && valid == null) {
++                        { Text(stringResource(R.string.sync_code_invalid)) }
++                    } else null,
++                )
++            },
++            confirmButton = {
++                TextButton(
++                    enabled = valid != null,
++                    onClick = {
++                        code = valid.orEmpty()
++                        wifi = true
++                        entering = false
++                    },
++                ) { Text(stringResource(R.string.sync_link)) }
++            },
++            dismissButton = {
++                TextButton(onClick = { entering = false }) { Text(stringResource(android.R.string.cancel)) }
++            },
++        )
++    }
++
++    if (confirmUnlink) {
++        AlertDialog(
++            onDismissRequest = { confirmUnlink = false },
++            title = { Text(stringResource(R.string.sync_unlink)) },
++            text = { Text(stringResource(R.string.sync_unlink_confirm)) },
++            confirmButton = {
++                TextButton(onClick = {
++                    wifi = false
++                    code = ""
++                    confirmUnlink = false
++                }) { Text(stringResource(R.string.sync_unlink)) }
++            },
++            dismissButton = {
++                TextButton(onClick = { confirmUnlink = false }) { Text(stringResource(android.R.string.cancel)) }
++            },
++        )
++    }
++
++    TopAppBar(
++        title = { Text(stringResource(R.string.sync_title)) },
++        navigationIcon = {
++            IconButton(onClick = navController::navigateUp, onLongClick = navController::backToMain) {
++                Icon(Icons.AutoMirrored.Rounded.ArrowBack, null)
++            }
++        },
++        windowInsets = TopBarInsets,
++        scrollBehavior = scrollBehavior,
++    )
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt
+index 8b796b4..620879a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt
+@@ -30,7 +30,6 @@ import androidx.navigation.NavController
+ import com.dd3boh.outertune.R
+ import androidx.compose.material.icons.rounded.CloudSync
+ import androidx.compose.material.icons.rounded.History
+-import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
+ import com.dd3boh.outertune.ui.component.SettingsGroup
+ import com.dd3boh.outertune.constants.ProxyEnabledKey
+@@ -58,7 +57,6 @@ fun PrivacySettings(
+     val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
+     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
+     val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
+-    val (statsIncludeRemote, onStatsIncludeRemoteChange) = rememberPreference(key = StatsIncludeRemoteKey, defaultValue = false)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+@@ -76,13 +74,13 @@ fun PrivacySettings(
+                 onClick = { navController.navigate("history") }
+             )
+             ListenHistoryFrag()
+-            // Came over from Player and audio, where it sat alone under its own heading.
+-            SwitchPreference(
+-                title = { Text(stringResource(R.string.stats_include_remote_title)) },
+-                description = stringResource(R.string.stats_include_remote_description),
++            // Where "Count plays from other devices" was: syncing plays with the user's other devices
++            // is what actually counts them. The YouTube Music history switch lives on that screen.
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.sync_title)) },
++                description = stringResource(R.string.sync_entry_summary),
+                 icon = { Icon(Icons.Rounded.CloudSync, null) },
+-                checked = statsIncludeRemote,
+-                onCheckedChange = onStatsIncludeRemoteChange,
++                onClick = { navController.navigate("settings/sync") },
+             )
+         }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+index 92b0a49..931d8f5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+@@ -212,7 +212,9 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/privacy", R.string.pause_listen_history, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/privacy", R.string.pause_remote_listen_history, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/privacy", R.string.clear_listen_history, R.string.privacy_and_history),
+-    SettingsIndexEntry("settings/privacy", R.string.stats_include_remote_title, R.string.privacy_and_history),
++    SettingsIndexEntry("settings/sync", R.string.sync_title, R.string.privacy_and_history),
++    SettingsIndexEntry("settings/sync", R.string.sync_wifi_title, R.string.sync_title),
++    SettingsIndexEntry("settings/sync", R.string.stats_include_remote_title, R.string.sync_title),
+     SettingsIndexEntry("settings/privacy", R.string.history, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/experimental", R.string.download_all_thumbnails_title, R.string.experimental_settings_title),
+     SettingsIndexEntry("settings/storage", R.string.storage_and_downloads, R.string.storage_and_downloads),
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index e39f977..1bd80ea 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -135,7 +135,7 @@ while also allowing users to translate our app as well. New, specific strings to
+ 
+     <!-- In-app updater -->
+     <string name="stats_include_remote_title">Count plays from other devices</string>
+-    <string name="stats_include_remote_description">Adds songs from your YouTube Music history to Stats. That history keeps each song once, without play counts or times, so it adds about one play per song played elsewhere. For a device\'s real plays and listening time, use Backup and restore → Add plays from another device.</string>
++    <string name="stats_include_remote_description">Adds songs from your YouTube Music history to Stats. That history keeps each song once, without play counts or times, so it adds about one play per song played elsewhere. A rough extra on top of sync, for devices that don\'t sync.</string>
+ 
+     <string name="updater">Updater</string>
+     <string name="check_for_updates">Check for updates</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 8debe87..1f32f58 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -425,6 +425,30 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="backup_restore">Backup and restore</string>
+     <string name="action_backup">Backup</string>
+     <string name="action_restore">Restore</string>
++    <string name="sync_title">Cross-device sync</string>
++    <string name="sync_entry_summary">Count plays from your other devices</string>
++    <string name="sync_intro">Shares plays between your own devices, so Stats counts what you listen to on each of them. Every play is matched by its song and the exact time it was played, so nothing is ever counted twice.</string>
++    <string name="sync_set_up">Set up sync on this device</string>
++    <string name="sync_set_up_desc">Makes a sync code to enter on your other devices</string>
++    <string name="sync_enter_code">Enter a code from another device</string>
++    <string name="sync_enter_code_desc">Links this device to ones already syncing</string>
++    <string name="sync_code_desc">Your sync code. Enter it on your other devices to link them; tap to copy. Keep it to yourself: anyone with it on your network could sync with you.</string>
++    <string name="sync_code_hint">e.g. K7QD-M2XP-9RFA</string>
++    <string name="sync_code_invalid">That isn\'t a sync code. It has 12 letters and numbers, like K7QD-M2XP-9RFA</string>
++    <string name="sync_code_copied">Sync code copied</string>
++    <string name="sync_link">Link</string>
++    <string name="sync_wifi_title">Sync over WiFi</string>
++    <string name="sync_wifi_desc">Swaps plays with your other devices whenever they\'re on the same network with OuterTune open. No account or server needed.</string>
++    <string name="sync_status_starting">Starting…</string>
++    <string name="sync_status_looking">Looking for your other devices…</string>
++    <string name="sync_status_found">Found: %1$s</string>
++    <string name="sync_status_syncing">Syncing…</string>
++    <string name="sync_status_last">Synced %1$s with %2$s: %3$d new plays here. Tap to sync now</string>
++    <string name="sync_status_never">Tap to sync now</string>
++    <string name="sync_status_failed">Last try failed (%1$s). Tap to try again</string>
++    <string name="sync_unlink">Unlink this device</string>
++    <string name="sync_unlink_desc">Stops syncing and forgets the code. Plays already here stay</string>
++    <string name="sync_unlink_confirm">This device stops syncing and forgets the code. Plays already synced stay, and you can link it again with the code from another device.</string>
+     <string name="merge_plays_title">Add plays from another device</string>
+     <string name="merge_plays_desc">Adds the plays in another phone\'s backup, or an OuterTune for Windows backup, to Stats. Plays already here are skipped, so nothing is counted twice. Nothing else is changed.</string>
+     <string name="merge_plays_done">Added %1$d plays (%2$d songs new to this phone)</string>
+-- 
+2.56.0.windows.4
+
