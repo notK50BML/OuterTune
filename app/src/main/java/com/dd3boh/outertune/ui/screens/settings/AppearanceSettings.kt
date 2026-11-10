@@ -21,7 +21,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AppShortcut
 import androidx.compose.material.icons.rounded.Dashboard
-import androidx.compose.material.icons.rounded.Widgets
 import androidx.compose.material.icons.rounded.HighQuality
 import androidx.compose.material.icons.rounded.Image
 import androidx.compose.material.icons.rounded.MoreHoriz
@@ -137,7 +136,7 @@ fun AppearanceSettings(
             PreferenceEntry(
                 title = { Text(stringResource(R.string.widget_layout_title)) },
                 description = stringResource(R.string.widget_layout_summary),
-                icon = { Icon(Icons.Rounded.Widgets, null) },
+                icon = { Icon(Icons.Rounded.Dashboard, null) },
                 onClick = { navController.navigate("settings/appearance/widget") }
             )
         }

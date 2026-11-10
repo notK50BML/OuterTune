@@ -26,6 +26,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.util.TypedValue
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.ColorUtils
@@ -154,17 +155,19 @@ class PlayerWidgetProvider : AppWidgetProvider() {
 object PlayerWidget {
 
     /**
-     * Every update carries its pictures inside it, and Android caps a single update at about 1MB, so
-     * they are kept small: a blurred background loses nothing at 360px, and the cover is drawn at
-     * 64dp at most.
+     * Every update carries its pictures inside it, and Android caps a single update at about 1MB.
+     * The pictures without transparency (cover, background) are stored at 16 bits a pixel, which is
+     * what lets them be sharp and still fit: a 224px cover for a 64dp slot, and a background 480px
+     * on its long side, drawn in the widget's own shape so nothing in it is stretched.
      */
-    private const val ART_PX = 160
-    private const val BG_W = 360
-    private const val BG_H = 150
-    private const val ICON_PX = 64
+    private const val ART_PX = 224
+    private const val BG_LONG_PX = 480
+    private const val ICON_PX = 80
 
-    /** How round the background's corners are, in background pixels - about the launcher's own. */
-    private const val CORNER_PX = 22f
+    /** Corner radius, before Android 12, where the corners have to be drawn into the pictures. */
+    private const val CORNER_DP = 24f
+
+    private val roundsItself = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
 
     /** How much of what the widget can show fits, from its size - see [sizeOf]. */
     private enum class WidgetSize { CONTROLS, COMPACT, FULL }
@@ -367,16 +370,38 @@ object PlayerWidget {
         ids.forEach { id -> pushTo(context, manager, id) }
     }
 
+    /** Pieces given up, in this order, when a widget is too short for everything it was given. */
+    private val DROP_ORDER = listOf(
+        WidgetElement.UP_NEXT, WidgetElement.LYRICS, WidgetElement.ARTIST, WidgetElement.SEEK_BAR,
+        WidgetElement.SHUFFLE, WidgetElement.REPEAT,
+    )
+
     private fun pushTo(context: Context, manager: AppWidgetManager, id: Int) {
         val art = lastArt
         val look = lastLook
         val colours = colours(context, look.background, art != null)
         val (size, widthDp, heightDp) = sizeOf(manager, id)
-        val layout = layoutFor(size, widthDp, heightDp)
-        // Small buttons on a narrow widget, so three of them fit two cells.
-        val small = widthDp < 200
+        var layout = layoutFor(size, widthDp, heightDp)
+
+        // Fit the height: smaller buttons first, then a smaller cover (coverSize), then - only if it
+        // still does not fit - the least important pieces go. Nothing is left to be cut off by the
+        // launcher, which is what was hiding the cover.
+        var small = widthDp < 200 || heightDp < 90
+        var coverDp = WidgetMetrics.coverSize(layout, widthDp, heightDp, small)
+        if (!small && WidgetMetrics.contentHeight(layout, false, coverDp, heightDp) > heightDp) {
+            small = true
+            coverDp = WidgetMetrics.coverSize(layout, widthDp, heightDp, true)
+        }
+        for (element in DROP_ORDER) {
+            if (WidgetMetrics.contentHeight(layout, small, coverDp, heightDp) <= heightDp) break
+            if (element in layout && layout.placements.size > 1) {
+                layout = layout.remove(element)
+                coverDp = WidgetMetrics.coverSize(layout, widthDp, heightDp, small)
+            }
+        }
+
         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
-            val drawn = art?.let { background(context, it, look.background) }
+            val drawn = art?.let { background(context, it, look.background, widthDp, heightDp) }
             if (drawn != null) {
                 setImageViewBitmap(R.id.widget_background, drawn)
                 // A transparent filter, SRC_ATOP: leaves the picture exactly as drawn.
@@ -385,7 +410,9 @@ object PlayerWidget {
                 setImageViewResource(R.id.widget_background, R.drawable.widget_background)
                 setInt(R.id.widget_background, "setColorFilter", colours.background)
             }
-            setOnClickPendingIntent(R.id.widget_root, openAppIntent(context))
+            setOnClickPendingIntent(android.R.id.background, openAppIntent(context))
+            val pad = (WidgetMetrics.padding(heightDp) * context.resources.displayMetrics.density).roundToInt()
+            setViewPadding(R.id.widget_rows, pad, pad, pad, pad)
 
             removeAllViews(R.id.widget_rows)
             // Each grid row as a line of cells: a gap cell up to the next piece, the piece in a cell
@@ -399,7 +426,7 @@ object PlayerWidget {
                     val cellViews = cell(context, placement.span)
                     cellViews.addView(
                         R.id.el_cell,
-                        elementView(context, placement.element, colours, look, widthDp * placement.span / WidgetLayout.COLUMNS, small),
+                        elementView(context, placement.element, colours, look, widthDp * placement.span / WidgetLayout.COLUMNS, small, coverDp),
                     )
                     rowViews.addView(R.id.widget_row_container, cellViews)
                     col = placement.end
@@ -419,6 +446,7 @@ object PlayerWidget {
         look: Look,
         widthDp: Int,
         small: Boolean,
+        coverDp: Int,
     ): RemoteViews {
         // The app's own rounded Material icons, drawn to bitmaps, so the widget's buttons are the
         // player's buttons rather than look-alikes from a different icon set.
@@ -436,13 +464,27 @@ object PlayerWidget {
                 setOnClickPendingIntent(R.id.el_button, commandIntent(context, action, requestCode))
             }
         return when (element) {
-            WidgetElement.COVER -> RemoteViews(context.packageName, R.layout.widget_el_cover).apply {
-                lastArt?.let { setImageViewBitmap(R.id.el_image, rounded(it, 0.16f)) }
+            // Sized to fit (see WidgetMetrics.coverSize). Android 12+ sizes the view exactly and rounds
+            // it with its outline; before that there are two fixed sizes and the corners are drawn in.
+            WidgetElement.COVER -> RemoteViews(
+                context.packageName,
+                if (roundsItself || coverDp >= 56) R.layout.widget_el_cover else R.layout.widget_el_cover_small,
+            ).apply {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setViewLayoutWidth(R.id.el_image, coverDp.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+                    setViewLayoutHeight(R.id.el_image, coverDp.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+                }
+                lastArt?.let { setImageViewBitmap(R.id.el_image, if (roundsItself) opaque(it) else rounded(it, 0.16f)) }
                 setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
             }
 
             WidgetElement.ARTIST -> RemoteViews(context.packageName, R.layout.widget_el_artist).apply {
-                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, rounded(it, 0.5f)) }
+                val size = WidgetMetrics.heightOf(WidgetElement.ARTIST, small, coverDp).toFloat()
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    setViewLayoutWidth(R.id.el_image, size, TypedValue.COMPLEX_UNIT_DIP)
+                    setViewLayoutHeight(R.id.el_image, size, TypedValue.COMPLEX_UNIT_DIP)
+                }
+                (lastArtistArt ?: lastArt)?.let { setImageViewBitmap(R.id.el_image, if (roundsItself) opaque(it) else rounded(it, 0.5f)) }
                 setOnClickPendingIntent(R.id.el_image, openAppIntent(context))
             }
 
@@ -540,6 +582,12 @@ object PlayerWidget {
         return bitmap
     }
 
+    /** [source] at 16 bits a pixel - half the size in an update, for pictures with no transparency. */
+    private val opaqueCache = java.util.WeakHashMap<Bitmap, Bitmap>()
+    private fun opaque(source: Bitmap): Bitmap = synchronized(opaqueCache) {
+        opaqueCache.getOrPut(source) { source.copy(Bitmap.Config.RGB_565, false) ?: source }
+    }
+
     /** [source] with its corners rounded by [fraction] of its shorter side; 0.5 is a circle. */
     private fun rounded(source: Bitmap, fraction: Float): Bitmap {
         val out = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
@@ -606,28 +654,41 @@ object PlayerWidget {
         )
     }
 
-    /** The background picture for [style], or null when it is the plain theme colour. */
-    private fun background(context: Context, art: Bitmap, style: PlayerBackgroundStyle): Bitmap? {
+    /**
+     * The background picture for [style], or null when it is the plain theme colour.
+     *
+     * Drawn in the widget's own shape - [widthDp] by [heightDp], scaled so its long side is
+     * [BG_LONG_PX] - rather than one fixed wide strip the image view then stretched: on a square or
+     * tall widget that pulled a Liquid shape or a gradient out of shape and blurred every edge.
+     */
+    @Suppress("LocalVariableName")
+    private fun background(context: Context, art: Bitmap, style: PlayerBackgroundStyle, widthDp: Int, heightDp: Int): Bitmap? {
         if (style == PlayerBackgroundStyle.FOLLOW_THEME) return null
-        val key = "${lastArtSongId}|$style|${lastLook.liquidShape}|${lastLook.liquidBackdrop}|${isNight(context)}"
+        val aspect = widthDp.toFloat() / heightDp.coerceAtLeast(1)
+        val BG_W = if (aspect >= 1f) BG_LONG_PX else (BG_LONG_PX * aspect).roundToInt().coerceAtLeast(60)
+        val BG_H = if (aspect >= 1f) (BG_LONG_PX / aspect).roundToInt().coerceAtLeast(60) else BG_LONG_PX
+        val key = "${lastArtSongId}|$style|${lastLook.liquidShape}|${lastLook.liquidBackdrop}|${isNight(context)}|${BG_W}x$BG_H"
         if (key == lastBackgroundKey) lastBackground?.let { return it }
 
         val fill = Bitmap.createBitmap(BG_W, BG_H, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(fill)
         when (style) {
             PlayerBackgroundStyle.FROSTED, PlayerBackgroundStyle.BLUR -> {
-                // A blur without RenderScript: the middle band of the cover shrunk to a handful of
-                // pixels and stretched back up with filtering, twice so it comes out smooth.
-                val band = Bitmap.createBitmap(art, 0, art.height / 3, art.width, art.height / 3)
-                val tiny = Bitmap.createScaledBitmap(band, 24, 10, true)
-                val mid = Bitmap.createScaledBitmap(tiny, 96, 40, true)
+                // A blur without RenderScript: a band of the cover in the widget's shape, shrunk to a
+                // handful of pixels and stretched back up with filtering, twice so it comes out smooth.
+                val bandH = (art.width * BG_H / BG_W).coerceIn(1, art.height)
+                val band = Bitmap.createBitmap(art, 0, (art.height - bandH) / 2, art.width, bandH)
+                val tinyW = 24
+                val tinyH = (tinyW * BG_H / BG_W).coerceAtLeast(4)
+                val tiny = Bitmap.createScaledBitmap(band, tinyW, tinyH, true)
+                val mid = Bitmap.createScaledBitmap(tiny, tinyW * 4, tinyH * 4, true)
                 canvas.drawBitmap(Bitmap.createScaledBitmap(mid, BG_W, BG_H, true), 0f, 0f, null)
                 // Frosted is the pale pane of glass over the blur; plain blur is just darkened.
                 if (style == PlayerBackgroundStyle.FROSTED) canvas.drawColor(0x26FFFFFF)
                 canvas.drawColor(if (style == PlayerBackgroundStyle.FROSTED) 0x73000000 else 0x80000000.toInt())
             }
 
-            PlayerBackgroundStyle.LIQUID -> drawLiquid(context, canvas, art)
+            PlayerBackgroundStyle.LIQUID -> drawLiquid(context, canvas, art, BG_W, BG_H)
 
             else -> {
                 // Gradient: the cover's two sides, as a sweep, darkened enough for text.
@@ -641,15 +702,23 @@ object PlayerWidget {
             }
         }
 
-        // Rounded here, since a RemoteViews ImageView cannot clip itself before Android 12.
-        val rounded = Bitmap.createBitmap(BG_W, BG_H, Bitmap.Config.ARGB_8888)
-        Canvas(rounded).drawRoundRect(
-            RectF(0f, 0f, BG_W.toFloat(), BG_H.toFloat()), CORNER_PX, CORNER_PX,
-            Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(fill, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) },
-        )
-        lastBackground = rounded
+        val result = if (roundsItself) {
+            // Android 12+: the widget's outline cuts the corners at screen resolution (see
+            // widget_player), so the picture stays square and opaque - and 16-bit, at half the size.
+            fill.copy(Bitmap.Config.RGB_565, false) ?: fill
+        } else {
+            // Before that, the corners are drawn in: the widget's radius in this picture's pixels.
+            val radius = CORNER_DP * BG_W / widthDp.coerceAtLeast(1)
+            Bitmap.createBitmap(BG_W, BG_H, Bitmap.Config.ARGB_8888).also { rounded ->
+                Canvas(rounded).drawRoundRect(
+                    RectF(0f, 0f, BG_W.toFloat(), BG_H.toFloat()), radius, radius,
+                    Paint(Paint.ANTI_ALIAS_FLAG).apply { shader = BitmapShader(fill, Shader.TileMode.CLAMP, Shader.TileMode.CLAMP) },
+                )
+            }
+        }
+        lastBackground = result
         lastBackgroundKey = key
-        return rounded
+        return result
     }
 
     /**
@@ -658,7 +727,8 @@ object PlayerWidget {
      * no place for an animation running all day. Drawn off to the right, behind the buttons, so the
      * cover and the title stay readable.
      */
-    private fun drawLiquid(context: Context, canvas: Canvas, art: Bitmap) {
+    @Suppress("LocalVariableName")
+    private fun drawLiquid(context: Context, canvas: Canvas, art: Bitmap, BG_W: Int, BG_H: Int) {
         val night = isNight(context)
         val dynamic = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
         fun sys(dark: Int, light: Int) = context.getColor(if (night) dark else light)

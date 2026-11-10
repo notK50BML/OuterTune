@@ -1,9 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 64dp here; PlayerWidget resizes it to what fits (Android 12+) or uses widget_el_cover_small. -->
 <ImageView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/el_image"
     android:layout_width="64dp"
     android:layout_height="64dp"
-    android:layout_marginEnd="12dp"
+    android:background="@drawable/widget_cover_shape"
+    android:clipToOutline="true"
     android:contentDescription="@null"
     android:scaleType="centerCrop"
     android:src="@drawable/placeholder_icon" />

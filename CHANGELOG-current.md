@@ -76,6 +76,30 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Widget, round three
+
+- **Crisp corners.**
+  - On Android 12+ the launcher now rounds the widget itself, at its own radius and at full
+    screen resolution, and the cover cuts its own rounded corners. Before, corners were drawn
+    into small pictures that were then stretched, which made them blurry and jagged.
+  - The background is drawn in the widget's actual shape, so a Liquid shape or gradient is no
+    longer stretched out of shape.
+  - Pictures are stored at 16 bits a pixel where they have no transparency, so they can be
+    sharper and still fit in one update. Older Android versions keep drawn corners at the
+    widget's real radius.
+- **The cover no longer disappears.** It was a fixed 64dp, larger than its cell on narrow or
+  short widgets. It's now sized to its cell and to the widget's height. If a widget is still too
+  short for everything, the buttons shrink first, then the least important pieces are left out
+  (up next, lyrics, artist picture, seek bar, then shuffle and repeat), so nothing is cut off.
+- **The editor shows the real space.**
+  - Each size is drawn in a typical widget's shape (about 4×1, 4×2 and 4×3 cells), with its
+    padding.
+  - Rows are drawn at their real heights, using the same sizing as the widget, so a tall cover
+    row and a thin seek-bar row look the way they do on the home screen.
+  - Pieces are drawn as small versions of themselves, and dropping snaps to columns and rows.
+- **The editor is smaller:** rewritten more compactly, and it uses icons the app already
+  includes.
+
 ## Widget editor: a snapping grid, one arrangement per size
 
 - **Drag pieces around a grid** (12 columns; 1, 2 or 4 rows) and they snap into the cells.

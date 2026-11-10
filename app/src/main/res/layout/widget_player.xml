@@ -1,19 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- The home-screen player. A background image and an empty column: PlayerWidget fills the column
-     with rows (widget_row) of elements (widget_el_*) in whatever arrangement the widget editor
-     saved. RemoteViews cannot place views freely, but it can add them to a container, which is
-     what makes the arrangement editable at all. -->
+     with rows (widget_row) of cells (widget_cell_N) holding elements (widget_el_*), as arranged in
+     the widget editor.
+     The root is @android:id/background with clipToOutline, which on Android 12+ makes the launcher
+     round the whole widget - background picture included - at its own corner radius and at full
+     screen resolution. -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:id="@+id/widget_root"
+    android:id="@android:id/background"
     android:layout_width="match_parent"
-    android:layout_height="match_parent">
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_root_shape"
+    android:clipToOutline="true">
 
     <ImageView
         android:id="@+id/widget_background"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:contentDescription="@null"
-        android:scaleType="fitXY"
+        android:scaleType="centerCrop"
         android:src="@drawable/widget_background" />
 
     <LinearLayout

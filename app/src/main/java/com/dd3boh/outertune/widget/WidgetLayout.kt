@@ -26,6 +26,49 @@ enum class WidgetElement(val flexible: Boolean, val defaultSpan: Int, val minSpa
     REPEAT(false, 2, 1, 3),
 }
 
+/**
+ * How tall things are on the widget, in dp - shared by the widget and its editor, so the editor's
+ * picture of the space is the widget's own rather than a uniform grid that looks nothing like it.
+ */
+object WidgetMetrics {
+    const val COVER_MAX = 64
+    private const val COVER_MIN = 28
+    private const val ROW_GAP = 6
+
+    /** Space around the content: less on a widget only a cell tall, where every dp counts. */
+    fun padding(heightDp: Int) = if (heightDp < 110) 6 else 12
+
+    fun heightOf(element: WidgetElement, small: Boolean, coverDp: Int): Int = when (element) {
+        WidgetElement.COVER -> coverDp
+        WidgetElement.ARTIST -> (coverDp * 2 / 3).coerceAtLeast(COVER_MIN)
+        WidgetElement.INFO -> 46
+        WidgetElement.LYRICS -> 44
+        WidgetElement.UP_NEXT -> 20
+        WidgetElement.SEEK_BAR -> 24
+        WidgetElement.PLAY_PAUSE -> if (small) 46 else 56
+        else -> if (small) 38 else 46
+    }
+
+    fun rowHeights(layout: WidgetLayout, small: Boolean, coverDp: Int): List<Int> =
+        layout.rows.map { row -> row.maxOf { heightOf(it, small, coverDp) } + ROW_GAP }
+
+    fun contentHeight(layout: WidgetLayout, small: Boolean, coverDp: Int, heightDp: Int) =
+        rowHeights(layout, small, coverDp).sum() + 2 * padding(heightDp)
+
+    /**
+     * The biggest cover that fits: no wider than its cell, and small enough that every row still
+     * fits the widget's height. A fixed 64dp cover was simply cut off on a narrow or short widget.
+     */
+    fun coverSize(layout: WidgetLayout, widthDp: Int, heightDp: Int, small: Boolean): Int {
+        val cell = layout.placements.find { it.element == WidgetElement.COVER }
+            ?.let { (widthDp - 2 * padding(heightDp)) * it.span / WidgetLayout.COLUMNS - 6 }
+            ?: COVER_MAX
+        var size = minOf(COVER_MAX, cell).coerceAtLeast(COVER_MIN)
+        while (size > COVER_MIN && contentHeight(layout, small, size, heightDp) > heightDp) size -= 2
+        return size
+    }
+}
+
 /** Where one piece sits: its left column, its row, and how many columns it spans. */
 data class WidgetPlacement(val element: WidgetElement, val col: Int, val row: Int, val span: Int) {
     val end: Int get() = col + span
