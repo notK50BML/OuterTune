@@ -259222,3 +259222,355 @@ index 2adc8f9..813f91e 100644
 -- 
 2.56.0.windows.4
 
+From d3bb71259f1b922ba9510b5cab6ffdf32249dd8e Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 12:13:18 +0800
+Subject: [PATCH] Widget: lyrics via the resilient parser, grid switching that
+ keeps the arrangement
+
+Widget lyrics used the strict parser, which rejects headless BetterLyrics TTML; it now shares
+LyricsHelper's resilient parse. Lyrics are no longer dropped below 260dp, only when they do not
+fit. Regridding works per row, keeping order and gap proportions; default widths stay default.
+Centred rows are kept exactly centred. Medium gains a seek bar row. Thinner editor outlines.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          | 17 ++++
+ .../dd3boh/outertune/lyrics/LyricsHelper.kt   | 83 ++++++++++---------
+ .../screens/settings/WidgetLayoutSettings.kt  |  4 +-
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 11 ++-
+ .../dd3boh/outertune/widget/WidgetLayout.kt   | 81 ++++++++++++++----
+ .../dd3boh/outertune/widget/WidgetLyrics.kt   |  3 +-
+ 6 files changed, 134 insertions(+), 65 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 54d0a38..50d34bf 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,23 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Widget editor and lyrics fixes (after build 188)
++
++- **Widget lyrics now appear.** The widget read lyrics with the strict parser alone, which rejects
++  the TTML BetterLyrics often sends (no head element), so with BetterLyrics first there was
++  nothing to show. It now uses the same forgiving reader as the player. Large widgets also no
++  longer drop the lyrics below 260dp tall; they go only when the widget genuinely can't fit them,
++  after Up next and the artist picture.
++- **Switching grids keeps your arrangement.** It used to place pieces one at a time in the nearest
++  free spot, which could move Repeat to the start of the row, drop Next, and creep widths wider on
++  every switch. Each row now keeps its order and its spacing, a piece at its default width stays at
++  the default, and switching back and forth returns to where it started. Tested with a model of
++  every switch between the three grids for every size.
++- **No more half-cell gaps.** A centred row whose leftover space was odd sat half a cell off;
++  the middle piece now takes the extra column instead.
++- **Medium widget gets a thin seek bar** between the title and the controls (three rows).
++- Thinner outlines in the editor.
++
+ ## Widget editor, round four
+ 
+ - **Fixed: moving a piece could put the others back.** Each piece's drag handler kept the
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 8fffc5e..0f086bf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -242,44 +242,8 @@ class LyricsHelper @Inject constructor(
+      * document only this parser can read still renders word by word rather than dropping to
+      * line-level.
+      */
+-    private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
+-        val strictOptions = parserOptions.copy(errorText = null)
+-        val isTtml = TTMLParser.looksLikeTtml(raw)
+-
+-        // Cleaned on the way to the parser, not only on the way to the database.
+-        //
+-        // The fetch path already cleans what it stores, which covers everything fetched from now
+-        // on and nothing else: a row written before that existed keeps its `[Music]` and its `>>`
+-        // forever, and a local .lrc file never went through the fetch path at all. Both of those
+-        // are what someone actually looking at the screen sees. Doing it here instead covers every
+-        // source and every vintage, and costs nothing twice over - the cleanup is idempotent, so
+-        // running it again on an already-clean row changes nothing.
+-        //
+-        // Not on TTML, though. It is markup, and the cleanup works on lines of text - the
+-        // `>`-at-the-start rule in particular would eat the start of any wrapped tag. The lenient
+-        // path below converts it to LRC first, and that is where it gets cleaned.
+-        val text = if (isTtml) raw else cleanLyrics(raw)
+-
+-        runCatching { LrcUtils.parseLyrics(text, null, strictOptions, null) }
+-            .getOrNull()
+-            ?.let { return it }
+-
+-        if (isTtml) {
+-            TTMLParser.ttmlToLrc(raw)?.let { lrc ->
+-                val cleanedLrc = cleanLyrics(lrc)
+-                runCatching {
+-                    LrcUtils.parseLyrics(cleanedLrc, null, strictOptions, LrcUtils.LyricFormat.LRC)
+-                }.getOrNull()?.let {
+-                    Log.d(TAG, "recovered TTML via lenient parser (${cleanedLrc.count { c -> c == '\n' } + 1} lines)")
+-                    return it
+-                }
+-            }
+-        }
+-
+-        // Nothing could read it. Fall back to the original call so callers that asked for an error
+-        // placeholder still get one.
+-        return runCatching { LrcUtils.parseLyrics(text, null, parserOptions, null) }.getOrNull()
+-    }
++    private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? =
++        parseLyricsResilient(raw, parserOptions)
+ 
+     /**
+      * Resolve a stored lyrics row for display via [parseResilient] - the same lenient recovery a
+@@ -943,3 +907,46 @@ class RemoteLyricsAggregator(
+         else -> RemoteLyricsResult.Indeterminate
+     }
+ }
++
++/**
++ * [raw] parsed as LyricsHelper does for display - see its parseResilient. Shared so the widget reads
++ * lyrics exactly as the player does, BetterLyrics TTML without a head element included.
++ */
++fun parseLyricsResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
++    val strictOptions = parserOptions.copy(errorText = null)
++    val isTtml = TTMLParser.looksLikeTtml(raw)
++
++    // Cleaned on the way to the parser, not only on the way to the database.
++    //
++    // The fetch path already cleans what it stores, which covers everything fetched from now
++    // on and nothing else: a row written before that existed keeps its `[Music]` and its `>>`
++    // forever, and a local .lrc file never went through the fetch path at all. Both of those
++    // are what someone actually looking at the screen sees. Doing it here instead covers every
++    // source and every vintage, and costs nothing twice over - the cleanup is idempotent, so
++    // running it again on an already-clean row changes nothing.
++    //
++    // Not on TTML, though. It is markup, and the cleanup works on lines of text - the
++    // `>`-at-the-start rule in particular would eat the start of any wrapped tag. The lenient
++    // path below converts it to LRC first, and that is where it gets cleaned.
++    val text = if (isTtml) raw else cleanLyrics(raw)
++
++    runCatching { LrcUtils.parseLyrics(text, null, strictOptions, null) }
++        .getOrNull()
++        ?.let { return it }
++
++    if (isTtml) {
++        TTMLParser.ttmlToLrc(raw)?.let { lrc ->
++            val cleanedLrc = cleanLyrics(lrc)
++            runCatching {
++                LrcUtils.parseLyrics(cleanedLrc, null, strictOptions, LrcUtils.LyricFormat.LRC)
++            }.getOrNull()?.let {
++                Log.d("LyricsHelper", "recovered TTML via lenient parser (${cleanedLrc.count { c -> c == '\n' } + 1} lines)")
++                return it
++            }
++        }
++    }
++
++    // Nothing could read it. Fall back to the original call so callers that asked for an error
++    // placeholder still get one.
++    return runCatching { LrcUtils.parseLyrics(text, null, parserOptions, null) }.getOrNull()
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+index 716252e..edf8eab 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+@@ -354,7 +354,7 @@ private fun WidgetCanvas(
+                 Modifier
+                     .offset(d(pad + c * colW), d(tops.getOrElse(r) { tops.last() }))
+                     .size(d(s * colW), d(slots.getOrElse(r) { 40 }))
+-                    .border(2.dp, if (landing != null) colours.primary else colours.error, RoundedCornerShape(d(8)))
++                    .border(1.dp, if (landing != null) colours.primary else colours.error, RoundedCornerShape(d(8)))
+             )
+         }
+ 
+@@ -382,7 +382,7 @@ private fun WidgetCanvas(
+                         .size(d(p.span * colW), d(slots.getOrElse(p.row) { 40 }))
+                         .padding(d(1.5f))
+                         .background(colours.surface.copy(alpha = if (isDragged) 0.95f else 0.8f), RoundedCornerShape(d(8)))
+-                        .then(if (p.element == selected) Modifier.border(2.dp, colours.primary, RoundedCornerShape(d(8))) else Modifier)
++                        .then(if (p.element == selected) Modifier.border(1.dp, colours.primary, RoundedCornerShape(d(8))) else Modifier)
+                         .pointerInput(p.element, colW, slots) {
+                             var start: WidgetPlacement? = null
+                             detectDragGestures(
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index f41c8ab..7f2c1c4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -359,16 +359,15 @@ object PlayerWidget {
+             // Set in the editor's Small / Medium tabs if they were; otherwise cut from the large one.
+             WidgetSize.CONTROLS -> lastSmall ?: WidgetLayout.fromRows(listOf(controls), WidgetLayout.SMALL_ROWS)
+             WidgetSize.COMPACT -> lastMedium ?: WidgetLayout.fromRows(
+-                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), controls),
++                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), listOf(WidgetElement.SEEK_BAR), controls),
+                 WidgetLayout.MEDIUM_ROWS,
+             )
+             WidgetSize.FULL -> {
+-                // The line-of-text pieces go first when the arrangement is taller than the widget:
+-                // a three-cell widget holds cover, seek bar and controls, a four-cell one the lot.
+-                // Lyrics also step aside while the song has no line to show. The grid closes up the
++                // Lyrics step aside while the song has no line to show; anything taller than the
++                // widget is shed in DROP_ORDER below, so lyrics stay whenever they fit.
++                // The grid closes up the
+                 // rows they leave empty.
+                 val drop = buildSet {
+-                    if (heightDp < 260) { add(WidgetElement.LYRICS); add(WidgetElement.UP_NEXT) }
+                     if (lastLyrics == null) add(WidgetElement.LYRICS)
+                 }
+                 val kept = lastLayout.placements.filter { it.element !in drop }
+@@ -384,7 +383,7 @@ object PlayerWidget {
+ 
+     /** Pieces given up, in this order, when a widget is too short for everything it was given. */
+     private val DROP_ORDER = listOf(
+-        WidgetElement.UP_NEXT, WidgetElement.LYRICS, WidgetElement.ARTIST, WidgetElement.SEEK_BAR,
++        WidgetElement.UP_NEXT, WidgetElement.ARTIST, WidgetElement.LYRICS, WidgetElement.SEEK_BAR,
+         WidgetElement.SHUFFLE, WidgetElement.REPEAT,
+     )
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+index c55e134..393b89b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+@@ -252,26 +252,69 @@ data class WidgetLayout(
+     }
+ 
+     /**
+-     * The same arrangement on another grid: each piece keeps its place and its share of the width,
+-     * as near as the new columns allow. A piece that no longer fits where it was goes to the
+-     * nearest free spot in its row, narrower if need be, and is left out only if there is none.
++     * The same arrangement on another grid, row by row. Each row keeps its pieces in their order and
++     * the empty space between them in the same proportions, so pieces side by side stay side by
++     * side and a centred row stays centred. A piece at (or one off) its default width takes the new
++     * grid's default, so switching back and forth does not creep; other widths scale. A row that no
++     * longer fits gives up width from its widest pieces, and only then its last pieces.
+      */
+     fun regridded(newColumns: Int, newRows: Int): WidgetLayout {
+         if (newColumns == columns && newRows == maxRows) return this
+         val target = WidgetLayout(emptyList(), newRows, newColumns)
+-        val kept = mutableListOf<WidgetPlacement>()
+-        for (p in placements.sortedWith(compareBy({ it.row }, { it.col }))) {
+-            if (p.row >= newRows) continue
+-            val wanted = (p.span * newColumns / columns.toFloat()).roundToInt()
+-                .coerceIn(target.minSpan(p.element), target.maxSpan(p.element))
+-            val start = (p.col * newColumns / columns.toFloat()).roundToInt()
+-            val spot = (wanted downTo target.minSpan(p.element)).asSequence().flatMap { span ->
+-                (0..(newColumns - span)).sortedBy { abs(it - start) }.asSequence()
+-                    .map { WidgetPlacement(p.element, it, p.row, span) }
+-            }.firstOrNull { c -> kept.none { it.overlaps(c) } }
+-            if (spot != null) kept += spot
++        val ratio = newColumns / columns.toDouble()
++        val result = mutableListOf<WidgetPlacement>()
++        placements.filter { it.row < newRows }.groupBy { it.row }.forEach { (_, rowPieces) ->
++            val pieces = rowPieces.sortedBy { it.col }.toMutableList()
++            // The gap before each piece, and after the last.
++            val gaps = mutableListOf<Int>()
++            var previousEnd = 0
++            pieces.forEach { gaps += it.col - previousEnd; previousEnd = it.end }
++            gaps += columns - previousEnd
++
++            val spans = pieces.map { p ->
++                if (abs(p.span - defaultSpan(p.element)) <= 1) target.defaultSpan(p.element)
++                else ceil(p.span * ratio - 0.5).toInt().coerceIn(target.minSpan(p.element), target.maxSpan(p.element))
++            }.toMutableList()
++            while (spans.sum() > newColumns) {
++                val widest = spans.indices.filter { spans[it] > target.minSpan(pieces[it].element) }.maxByOrNull { spans[it] }
++                if (widest == null) {
++                    pieces.removeAt(pieces.lastIndex); spans.removeAt(spans.lastIndex); gaps.removeAt(gaps.lastIndex)
++                } else spans[widest]--
++            }
++            if (pieces.isEmpty()) return@forEach
++            if (gaps.first() == gaps.last()) target.evenOut(spans, pieces.map { it.element })
++
++            // The new empty space, shared out in the old proportions; leftovers by largest remainder.
++            val free = newColumns - spans.sum()
++            val oldFree = gaps.sum()
++            val exact = DoubleArray(gaps.size)
++            if (oldFree > 0) gaps.forEachIndexed { i, g -> exact[i] = g * free / oldFree.toDouble() }
++            else { exact[0] += free / 2.0; exact[gaps.lastIndex] += free / 2.0 }
++            val share = IntArray(gaps.size) { kotlin.math.floor(exact[it] + 1e-9).toInt() }
++            var given = share.sum()
++            val byRemainder = gaps.indices.sortedByDescending { exact[it] - share[it] }
++            var k = 0
++            while (given < free) { share[byRemainder[k % gaps.size]]++; given++; k++ }
++
++            var col = 0
++            pieces.forEachIndexed { i, p ->
++                col += share[i]
++                result += p.copy(col = col, span = spans[i])
++                col += spans[i]
++            }
+         }
+-        return target.copy(placements = kept).normalised()
++        return target.copy(placements = result).normalised()
++    }
++
++    /**
++     * Makes the space [spans] leave in a row even, so a centred row sits exactly in the middle rather
++     * than half a cell off: the middle-most piece that can grows by a column, or else one shrinks.
++     */
++    private fun evenOut(spans: MutableList<Int>, elements: List<WidgetElement>) {
++        if ((columns - spans.sum()) % 2 == 0) return
++        val middleFirst = spans.indices.sortedBy { abs(it - (spans.size - 1) / 2f) }
++        middleFirst.firstOrNull { spans[it] < maxSpan(elements[it]) && spans.sum() < columns }?.let { spans[it]++; return }
++        middleFirst.firstOrNull { spans[it] > minSpan(elements[it]) }?.let { spans[it]-- }
+     }
+ 
+     companion object {
+@@ -286,7 +329,7 @@ data class WidgetLayout(
+ 
+         /** Rows for each editable widget size, on the usual grid. */
+         const val SMALL_ROWS = 1
+-        const val MEDIUM_ROWS = 2
++        const val MEDIUM_ROWS = 3
+ 
+         /** Rows a size gets on a grid: the finest grid fits one more row. */
+         fun rowsFor(baseRows: Int, columns: Int) = if (columns > COLUMNS) baseRows + 1 else baseRows
+@@ -305,6 +348,8 @@ data class WidgetLayout(
+                     val i = spans.indices.filter { spans[it] > grid.minSpan(row[it]) }.maxByOrNull { spans[it] } ?: break
+                     spans = spans.toMutableList().also { it[i]-- }
+                 }
++                // An odd leftover would leave a centred row half a cell off.
++                grid.evenOut(spans.toMutableList().also { spans = it }, row)
+                 var col = ((columns - spans.sum()) / 2).coerceAtLeast(0)
+                 row.forEachIndexed { i, element ->
+                     placements += WidgetPlacement(element, col, r, spans[i])
+@@ -318,7 +363,7 @@ data class WidgetLayout(
+         private val CONTROLS = listOf(
+             WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT, WidgetElement.REPEAT,
+         )
+-        private val MEDIUM_PIECES = listOf(listOf(WidgetElement.COVER, WidgetElement.INFO), CONTROLS)
++        private val MEDIUM_PIECES = listOf(listOf(WidgetElement.COVER, WidgetElement.INFO), listOf(WidgetElement.SEEK_BAR), CONTROLS)
+         private val LARGE_PIECES = listOf(
+             listOf(WidgetElement.COVER, WidgetElement.INFO),
+             listOf(WidgetElement.LYRICS),
+@@ -329,7 +374,7 @@ data class WidgetLayout(
+         /** One cell tall: the controls. */
+         val DEFAULT_SMALL: WidgetLayout by lazy { fromRows(SMALL_PIECES, SMALL_ROWS) }
+ 
+-        /** Two cells tall: cover and title above the controls. */
++        /** Two cells tall: cover and title, a thin seek bar, and the controls. */
+         val DEFAULT_MEDIUM: WidgetLayout by lazy { fromRows(MEDIUM_PIECES, MEDIUM_ROWS) }
+ 
+         /** The full widget: the player's own order - cover and title, lyrics, seek bar, controls. */
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+index d1ca6a7..305c846 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+@@ -6,6 +6,7 @@
+ 
+ package com.dd3boh.outertune.widget
+ 
++import com.dd3boh.outertune.lyrics.parseLyricsResilient
+ import com.dd3boh.outertune.ui.utils.withEstimatedWordSync
+ import org.akanework.gramophone.logic.utils.LrcUtils
+ import org.akanework.gramophone.logic.utils.SemanticLyrics
+@@ -36,7 +37,7 @@ object WidgetLyrics {
+     fun parse(raw: String?, estimate: Boolean): List<Line> {
+         if (raw.isNullOrBlank()) return emptyList()
+         val parsed = runCatching {
+-            LrcUtils.parseLyrics(raw, null, LrcUtils.LrcParserOptions(trim = true, multiLine = true, errorText = null), null)
++            parseLyricsResilient(raw, LrcUtils.LrcParserOptions(trim = false, multiLine = true, errorText = null))
+         }.getOrNull() as? SemanticLyrics.SyncedLyrics ?: return emptyList()
+         val lyrics = if (estimate) runCatching { parsed.withEstimatedWordSync() }.getOrDefault(parsed) else parsed
+         return lyrics.text
+-- 
+2.56.0.windows.4
+
