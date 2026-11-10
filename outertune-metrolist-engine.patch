@@ -262066,3 +262066,29 @@ index 1f32f58..f97d2e9 100644
 -- 
 2.56.0.windows.4
 
+From def0c2ca2fd682abbdba656729d8b38ce0c06766 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 22:43:31 +0800
+Subject: [PATCH] Cloud sync: point at the project's Firebase Realtime Database
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt b/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
+index 3a1f119..01a9db7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
++++ b/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
+@@ -53,7 +53,7 @@ import javax.crypto.spec.SecretKeySpec
+ 
+ /** Where the cloud is. Empty until the project's database exists - then cloud sync is offered. */
+ object CloudSyncConfig {
+-    const val DATABASE_URL = ""
++    const val DATABASE_URL = "https://outertune-sync-database-default-rtdb.asia-southeast1.firebasedatabase.app"
+ 
+     val configured: Boolean get() = DATABASE_URL.isNotBlank()
+ }
+-- 
+2.56.0.windows.4
+
