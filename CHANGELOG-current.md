@@ -76,6 +76,14 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Widget seek bar matches the player
+
+- The widget's seek bar is now drawn by the player's own seek bar code rather than an
+  imitation of it: the same thickness, the same three tinted waves fading in at both ends, the
+  same squiggle, and the dot if the player shows one. The waves rise while playing and settle
+  flat when paused, as in the player. The bar's row is a little taller so the waves have room,
+  as they do above the player's bar.
+
 ## Listen together: stereo pair (experimental)
 
 - **Split left / right**, off by default (Settings → Listen together). While you host with

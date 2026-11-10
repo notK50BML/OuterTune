@@ -159,28 +159,14 @@ fun PlayerSliderTrack(
                     .fillMaxWidth()
                     .height(trackHeight)
             ) {
-                val isRtl = layoutDirection == LayoutDirection.Rtl
-                val y = center.y
-                val end = size.width * fraction
                 // Breathing a little on their own, so the waves never settle into a pattern. They
                 // rise above the track's own box, into the space over it - no higher than
                 // AccentWaveHeight, so they never reach the title above the bar.
                 val breath = 0.75f + 0.25f * sin(time * 0.7f)
-                withTransform({ if (isRtl) scale(-1f, 1f, pivot = center) }) {
-                    if (style == SliderStyle.WAVES) {
-                        // The bar itself: flat bottom, wavy top - no separate line under it.
-                        val thickness = WavesBandThickness.toPx() * weight
-                        drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), thickness / 2, StrokeCap.Round)
-                        drawWaveBand(end, y, thickness, AccentWaveHeight.toPx(), activeTrackColor, time, breath * swell)
-                        if (dot && end > 0f) drawCircle(activeTrackColor, thickness * 0.9f, Offset(end, y))
-                    } else {
-                        val stroke = WaveLinesTrackHeight.toPx() * weight
-                        drawAccentWaves(end, y, AccentWaveHeight.toPx(), activeTrackColor, time, breath * swell)
-                        drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), stroke, StrokeCap.Round)
-                        drawLine(activeTrackColor, Offset(0f, y), Offset(end, y), stroke, StrokeCap.Round)
-                        if (dot && end > 0f) drawCircle(activeTrackColor, stroke * 1.1f, Offset(end, y))
-                    }
-                }
+                drawWaveStyle(
+                    style, fraction, activeTrackColor, inactiveTrackColor, weight, dot,
+                    center.y, AccentWaveHeight.toPx(), time, breath * swell,
+                )
             }
         }
 
@@ -205,6 +191,85 @@ fun PlayerSliderTrack(
                     val x = size.width * (if (layoutDirection == LayoutDirection.Rtl) 1 - fraction else fraction)
                     drawCircle(activeTrackColor, resolvedHeight.toPx() * 1.1f, Offset(x, center.y))
                 }
+            }
+        }
+    }
+}
+
+/** WAVES and WAVE_LINES at one moment, with the line along [y] and the waves at most [rise] above it. */
+private fun DrawScope.drawWaveStyle(
+    style: SliderStyle,
+    fraction: Float,
+    active: Color,
+    inactive: Color,
+    weight: Float,
+    dot: Boolean,
+    y: Float,
+    rise: Float,
+    time: Float,
+    energy: Float,
+) {
+    val isRtl = layoutDirection == LayoutDirection.Rtl
+    val end = size.width * fraction
+    withTransform({ if (isRtl) scale(-1f, 1f, pivot = center) }) {
+        if (style == SliderStyle.WAVES) {
+            // The bar itself: flat bottom, wavy top - no separate line under it.
+            val thickness = WavesBandThickness.toPx() * weight
+            drawLine(inactive, Offset(end, y), Offset(size.width, y), thickness / 2, StrokeCap.Round)
+            drawWaveBand(end, y, thickness, rise, active, time, energy)
+            if (dot && end > 0f) drawCircle(active, thickness * 0.9f, Offset(end, y))
+        } else {
+            val stroke = WaveLinesTrackHeight.toPx() * weight
+            drawAccentWaves(end, y, rise, active, time, energy)
+            drawLine(inactive, Offset(end, y), Offset(size.width, y), stroke, StrokeCap.Round)
+            drawLine(active, Offset(0f, y), Offset(end, y), stroke, StrokeCap.Round)
+            if (dot && end > 0f) drawCircle(active, stroke * 1.1f, Offset(end, y))
+        }
+    }
+}
+
+/**
+ * The player's seek bar as a still picture, for the home-screen widget: the same drawing as
+ * [PlayerSliderTrack] - same sizes, waves and colours - frozen at one moment. [playing] raises the
+ * waves and the squiggle as the player does; paused, they settle flat. The wave styles' line runs
+ * near the bottom so the waves have the picture's height to rise into; the others are centred.
+ */
+fun DrawScope.drawPlayerSliderStill(
+    style: SliderStyle,
+    fraction: Float,
+    active: Color,
+    inactive: Color,
+    weight: Float,
+    dot: Boolean,
+    playing: Boolean,
+) {
+    val f = fraction.coerceIn(0f, 1f)
+    when (style) {
+        SliderStyle.WAVES, SliderStyle.WAVE_LINES -> {
+            val below = maxOf(WavesBandThickness.toPx() * weight / 2, WaveLinesTrackHeight.toPx() * weight) + 1.dp.toPx()
+            val y = size.height - below
+            val rise = minOf(AccentWaveHeight.toPx(), y - 2.dp.toPx()).coerceAtLeast(0f)
+            // The player's waves at rest on their first frame: breath 0.75, swollen while playing.
+            drawWaveStyle(style, f, active, inactive, weight, dot, y, rise, 0f, if (playing) 0.75f else 0f)
+        }
+
+        SliderStyle.SQUIGGLY -> drawSquigglyTrack(
+            activeRangeEnd = f,
+            inactiveTrackColor = inactive,
+            activeTrackColor = active,
+            trackStrokeWidth = SquigglyStrokeWidth.toPx() * weight,
+            amplitude = if (playing) SquigglyAmplitude.toPx() else 0f,
+            wavelength = SquigglyWavelength.toPx(),
+            phase = 0f,
+            trackGap = SquigglyTrackGap.toPx(),
+        )
+
+        SliderStyle.DEFAULT, SliderStyle.SLIM -> {
+            val height = (if (style == SliderStyle.SLIM) SlimTrackHeight else 10.dp) * weight
+            drawTrack(floatArrayOf(), 0f, f, inactive, active, inactive, active, height)
+            if (dot && f > 0f) {
+                val x = size.width * (if (layoutDirection == LayoutDirection.Rtl) 1 - f else f)
+                drawCircle(active, height.toPx() * 1.1f, Offset(x, center.y))
             }
         }
     }

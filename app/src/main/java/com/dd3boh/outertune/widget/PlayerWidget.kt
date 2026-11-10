@@ -56,6 +56,12 @@ import com.dd3boh.outertune.constants.SliderStyle
 import com.dd3boh.outertune.constants.SliderStyleKey
 import com.dd3boh.outertune.constants.SliderWeight
 import com.dd3boh.outertune.constants.SliderWeightKey
+import com.dd3boh.outertune.constants.SliderDotKey
+import com.dd3boh.outertune.ui.component.drawPlayerSliderStill
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
+import androidx.compose.ui.unit.Density
+import androidx.compose.ui.unit.LayoutDirection
 import com.dd3boh.outertune.models.MediaMetadata
 import com.dd3boh.outertune.playback.MusicService
 import com.dd3boh.outertune.utils.dataStore
@@ -184,6 +190,7 @@ object PlayerWidget {
         val weight: SliderWeight,
         val liquidShape: LiquidShapeStyle = LiquidShapeStyle.PETAL,
         val liquidBackdrop: LiquidColorScheme = LiquidColorScheme.SURFACE,
+        val dot: Boolean = false,
     )
 
     /** The colours one look resolves to - see [colours]. */
@@ -264,6 +271,7 @@ object PlayerWidget {
                 ?.let { stored -> PlayerBackgroundStyle.entries.find { it.name == stored } } ?: DEFAULT_PLAYER_BACKGROUND,
             slider = prefs[SliderStyleKey]?.let { stored -> SliderStyle.entries.find { it.name == stored } } ?: DEFAULT_SLIDER_STYLE,
             weight = prefs[SliderWeightKey]?.let { stored -> SliderWeight.entries.find { it.name == stored } } ?: SliderWeight.THINNER,
+            dot = prefs[SliderDotKey] ?: false,
             liquidShape = prefs[LiquidShapeStyleKey]?.let { stored -> LiquidShapeStyle.entries.find { it.name == stored } }
                 ?: LiquidShapeStyle.PETAL,
             liquidBackdrop = prefs[LiquidColorSchemeKey]?.let { stored -> LiquidColorScheme.entries.find { it.name == stored } }
@@ -508,7 +516,7 @@ object PlayerWidget {
                 // the waves are not stretched or squashed into shape by the image view.
                 val density = context.resources.displayMetrics.density
                 val widthPx = ((widthDp - 24).coerceAtLeast(80) * density).roundToInt()
-                val heightPx = (16 * density).roundToInt()
+                val heightPx = (24 * density).roundToInt()
                 setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours, widthPx, heightPx))
             }
 
@@ -833,78 +841,28 @@ object PlayerWidget {
     }
 
     /**
-     * The seek bar, drawn in the player's own style and thickness: the played part in the accent,
-     * the rest a faint track. The waves are drawn still - a home screen is not the place for
-     * something animating all day.
+     * The seek bar, drawn by the player's own code - [drawPlayerSliderStill] - so it is the same
+     * style, thickness, waves and dot as the player's, not an imitation of them. Drawn still: a
+     * home screen is not the place for something animating all day.
      */
-    @Suppress("LocalVariableName")
     private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours, widthPx: Int, heightPx: Int): Bitmap {
-        val SEEK_W = widthPx
-        val SEEK_H = heightPx
-        val bitmap = Bitmap.createBitmap(SEEK_W, SEEK_H, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(bitmap)
-        val cy = SEEK_H / 2f
-        val played = SEEK_W * fraction.coerceIn(0f, 1f)
-        val weight = look.weight.scale
-        val minStroke = context.resources.displayMetrics.density
-        fun stroke(color: Int, width: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            this.color = color
-            style = Paint.Style.STROKE
-            strokeWidth = maxOf(width, minStroke)
-            strokeCap = Paint.Cap.ROUND
-        }
-        fun wave(amplitude: Float, wavelength: Float, phase: Float, until: Float): Path = Path().apply {
-            var x = 0f
-            moveTo(0f, cy)
-            while (x <= until) {
-                lineTo(x, cy + amplitude * sin(2 * PI * x / wavelength + phase).toFloat())
-                x += 3f
-            }
-        }
-
-        val trackPaint = stroke(colours.track, SEEK_H * 0.12f * weight)
-        val inset = trackPaint.strokeWidth
-        if (played < SEEK_W - inset) canvas.drawLine(maxOf(played, inset), cy, SEEK_W - inset, cy, trackPaint)
-
-        when (look.slider) {
-            SliderStyle.DEFAULT -> {
-                val active = stroke(colours.accent, SEEK_H * 0.28f * weight)
-                if (played > inset) canvas.drawLine(inset, cy, played, cy, active)
-                canvas.drawCircle(played.coerceIn(SEEK_H * 0.35f, SEEK_W - SEEK_H * 0.35f), cy, SEEK_H * 0.32f,
-                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colours.accent })
-            }
-
-            SliderStyle.SLIM -> {
-                val active = stroke(colours.accent, SEEK_H * 0.14f * weight)
-                if (played > inset) canvas.drawLine(inset, cy, played, cy, active)
-            }
-
-            SliderStyle.SQUIGGLY -> {
-                canvas.drawPath(wave(SEEK_H * 0.22f, SEEK_H * 1.6f, 0f, played), stroke(colours.accent, SEEK_H * 0.16f * weight))
-            }
-
-            SliderStyle.WAVES -> {
-                // Soft overlapping waves above the line, filled.
-                for ((i, alpha) in listOf(0x66, 0x44, 0x2A).withIndex()) {
-                    val path = wave(SEEK_H * (0.30f - i * 0.06f), SEEK_H * (2.2f + i * 0.7f), i * 1.3f, played)
-                    path.lineTo(played, cy); path.lineTo(0f, cy); path.close()
-                    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                        color = ColorUtils.setAlphaComponent(colours.accent, alpha)
-                        style = Paint.Style.FILL
-                    })
-                }
-                if (played > inset) canvas.drawLine(inset, cy, played, cy, stroke(colours.accent, SEEK_H * 0.08f * weight))
-            }
-
-            SliderStyle.WAVE_LINES -> {
-                // The same three waves, as fine lines a shade apart.
-                for ((i, alpha) in listOf(0xFF, 0xAA, 0x70).withIndex()) {
-                    canvas.drawPath(
-                        wave(SEEK_H * (0.30f - i * 0.06f), SEEK_H * (2.2f + i * 0.7f), i * 1.3f, played),
-                        stroke(ColorUtils.setAlphaComponent(colours.accent, alpha), SEEK_H * 0.07f * weight),
-                    )
-                }
-            }
+        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+        val rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
+        CanvasDrawScope().draw(
+            Density(context),
+            if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
+            androidx.compose.ui.graphics.Canvas(Canvas(bitmap)),
+            Size(widthPx.toFloat(), heightPx.toFloat()),
+        ) {
+            drawPlayerSliderStill(
+                style = look.slider,
+                fraction = fraction,
+                active = androidx.compose.ui.graphics.Color(colours.accent),
+                inactive = androidx.compose.ui.graphics.Color(colours.track),
+                weight = look.weight.scale,
+                dot = look.dot,
+                playing = lastPlaying,
+            )
         }
         return bitmap
     }

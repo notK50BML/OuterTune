@@ -2,8 +2,7 @@
 <ImageView xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/el_seekbar"
     android:layout_width="0dp"
-    android:layout_height="14dp"
-    android:layout_marginVertical="4dp"
+    android:layout_height="24dp"
     android:layout_weight="1"
     android:contentDescription="@null"
     android:scaleType="fitXY" />
