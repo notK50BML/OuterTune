@@ -30,7 +30,6 @@ This fork builds on [yuuichi-s/AsterTune](https://github.com/yuuichi-s/OuterTune
 - Simple and intuitive UI which lets you quickly export the current configuration
 - Added ability to group and ungroup elements
 - Improved presets
-- Note: As mentioned above, this project is still a work-in-progress, with known bugs and issues. This feature is working, but it is definitely nowhere near an alpha release.
 
 ### Listen Together
 - Added ability to listen along to another person's device, as long as that device is still on the same network
@@ -159,7 +158,7 @@ OuterTune is a supercharged fork of [InnerTune](https://github.com/z-huang/Inner
 > [!NOTE]
 > Android 8 (Oreo) and higher is supported. While the app may work on Android 7.x (Nougat), we do not officially support this version
 >
-> Version naming right now is a bit confusing. In order to clear up any questions, the naming convention is as follows: v0.xx is a stable alpha release, and v0.xx.x is a stable alpha fix. These fix releases usually fix bugs or layout problems, and add small features. A new alpha release typically comprises one or more major feature changes, or large overhauls of the user interface. A v0.xx.xb release is a beta release, featuring the cutting edge of the app's development, though this release may have bugs. Though these beta releases are absolutely usable as your default player, some features may not feel as polished as they should be.
+> Version naming right now is a bit confusing. In order to clear up any questions, the naming convention is as follows: v0.xx is a stable release, and v0.xx.x is a stable fix. These fix releases usually fix bugs or layout problems, and add small features. A new alpha release typically comprises one or more major feature changes, or large overhauls of the user interface. A v0.xx.xb release is a beta release, featuring the cutting edge of the app's development, though this release may have bugs. Though these beta releases are absolutely usable as your default player, some features may not feel as polished as they should be.
 
 ## Progress on Windows application
 - Finished core framework and backend, so songs play properly
