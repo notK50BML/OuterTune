@@ -139,6 +139,12 @@ import com.dd3boh.outertune.models.MultiQueueObject
 import com.dd3boh.outertune.models.toMediaMetadata
 import com.dd3boh.outertune.playback.queues.ListQueue
 import com.dd3boh.outertune.listentogether.ListenTogetherManager
+import com.dd3boh.outertune.listentogether.LanDiscovery
+import com.dd3boh.outertune.sync.PlaySync
+import com.dd3boh.outertune.sync.PlaySyncManager
+import com.dd3boh.outertune.sync.RoomPlaySyncStore
+import com.dd3boh.outertune.constants.PlaySyncCodeKey
+import com.dd3boh.outertune.constants.PlaySyncWifiKey
 import com.dd3boh.outertune.listentogether.MediaPlaybackBridge
 import com.dd3boh.outertune.playback.queues.Queue
 import com.dd3boh.outertune.playback.queues.YouTubeQueue
@@ -213,6 +219,8 @@ class MusicService : MediaLibraryService(),
 
     @Inject
     lateinit var listenTogether: ListenTogetherManager
+
+    private var playSync: PlaySyncManager? = null
 
     // Parent of every service coroutine scope. Cancelled once in onDestroy() so no scope outlives the
     // service. Each scope owns a SupervisorJob child of this so a failure in one coroutine neither
@@ -507,6 +515,20 @@ class MusicService : MediaLibraryService(),
                 // misc
                 setOffloadEnabled(dataStore.get(AudioOffloadKey, false))
             }
+
+        // Play sync over WiFi with the user's other devices - on while it is switched on and linked,
+        // for as long as the player service runs. See PlaySyncManager.
+        playSync = PlaySyncManager(
+            LanDiscovery(this, PlaySyncManager.SERVICE_TYPE),
+            RoomPlaySyncStore(database),
+            deviceName = { listenTogether.deviceName() },
+        ).also { PlaySync.manager = it }
+        scope.launch {
+            dataStore.data
+                .map { prefs -> prefs[PlaySyncCodeKey]?.takeIf { it.isNotBlank() && prefs[PlaySyncWifiKey] == true } }
+                .distinctUntilChanged()
+                .collect { code -> if (code != null) playSync?.start(code) else playSync?.stop() }
+        }
 
         // The player is the one thing a listen-together session cannot do without, so the bridge is
         // handed over here and withdrawn in onDestroy. The manager is a singleton and outlives this
@@ -2113,6 +2135,9 @@ class MusicService : MediaLibraryService(),
         // Before the player is released, not after: a session still ticking against a released
         // player would crash on its next poll.
         listenTogether.attachPlayer(null)
+        playSync?.stop()
+        PlaySync.manager = null
+        playSync = null
 
         mediaSession.player.stop()
         mediaSession.release()

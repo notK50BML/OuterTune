@@ -76,6 +76,26 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Cross-device sync over WiFi
+
+- **Settings → Privacy and history → Cross-device sync**, where "Count plays from other devices" was.
+  The same in OuterTune for Windows, under Privacy.
+- **Pairing by sync code.** Set up sync on one device and it makes a code like K7QD-M2XP-9RFA; enter
+  it on your other devices. No account. The code is the pairing: devices with a different code are
+  refused, and it will also be what links devices for cloud sync later.
+- **Sync over WiFi.** While on, each device advertises itself (under its own network service, not
+  Listen together's), looks for devices with the same code, and swaps plays with each one it finds,
+  then every 10 minutes, or straight away with Sync now. Both apps need to be open.
+  - Each device proves it holds the code without sending it, before anything is exchanged.
+  - Each first sends a fingerprint of all its plays; if they match there's nothing to do. Otherwise
+    both send their plays (compressed) with the songs behind them, and each adds what it lacks.
+  - **Never counts a play twice**: same rule as the backup merge, a play is its song plus its exact
+    recorded time, never re-dated.
+  - Local files aren't synced.
+- The screen shows the code (tap to copy), which devices are in reach, when it last synced and how
+  many plays arrived, Sync now, and Unlink. The YouTube Music history switch moved here, as the
+  rough extra for devices that don't sync.
+
 ## Stats: real plays from your other devices
 
 - **Add plays from another device** (Settings → Backup and restore). Pick another phone's backup or

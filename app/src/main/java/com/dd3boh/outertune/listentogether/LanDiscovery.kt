@@ -59,7 +59,11 @@ data class DiscoveredHost(
  * retrying helps - which is why [discover] surfaces an empty list rather than a spinner that never
  * resolves.
  */
-class LanDiscovery(private val context: Context) {
+class LanDiscovery(
+    private val context: Context,
+    /** The DNS-SD type to advertise and browse - Listen together's by default; play sync has its own. */
+    private val serviceType: String = SERVICE_TYPE,
+) {
 
     private val nsd: NsdManager?
         get() = context.getSystemService(Context.NSD_SERVICE) as? NsdManager
@@ -86,7 +90,7 @@ class LanDiscovery(private val context: Context) {
         val manager = nsd ?: return NoopAdvertisement
         val info = NsdServiceInfo().apply {
             serviceName = displayName
-            serviceType = SERVICE_TYPE
+            serviceType = this@LanDiscovery.serviceType
             setPort(port)
         }
         val listener = object : NsdManager.RegistrationListener {
@@ -178,7 +182,7 @@ class LanDiscovery(private val context: Context) {
 
         val listener = object : NsdManager.DiscoveryListener {
             override fun onServiceFound(service: NsdServiceInfo) {
-                if (service.serviceType?.trimEnd('.') != SERVICE_TYPE.trimEnd('.')) return
+                if (service.serviceType?.trimEnd('.') != serviceType.trimEnd('.')) return
                 if (service.serviceName == excluding) return
                 events.trySend(DiscoveryEvent.Found(service))
             }
@@ -202,7 +206,7 @@ class LanDiscovery(private val context: Context) {
         }
 
         try {
-            manager.discoverServices(SERVICE_TYPE, NsdManager.PROTOCOL_DNS_SD, listener)
+            manager.discoverServices(serviceType, NsdManager.PROTOCOL_DNS_SD, listener)
         } catch (e: Exception) {
             Log.e(TAG, "discoverServices threw", e)
             close()
@@ -287,7 +291,7 @@ class LanDiscovery(private val context: Context) {
         override fun close() = Unit
     }
 
-    private companion object {
+    companion object {
         /**
          * The DNS-SD type. Changing this breaks discovery between versions, which is a legitimate
          * way to retire an incompatible protocol - but [Protocol.VERSION] is the cheaper lever, and
@@ -296,7 +300,7 @@ class LanDiscovery(private val context: Context) {
         const val SERVICE_TYPE = "_outertune._tcp"
 
         /** Longest a single resolve may take before the queue moves on without it. */
-        const val RESOLVE_TIMEOUT_MS = 6_000L
-        const val TAG = "LanDiscovery"
+        private const val RESOLVE_TIMEOUT_MS = 6_000L
+        private const val TAG = "LanDiscovery"
     }
 }

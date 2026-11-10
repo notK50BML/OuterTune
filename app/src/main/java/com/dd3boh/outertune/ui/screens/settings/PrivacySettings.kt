@@ -30,7 +30,6 @@ import androidx.navigation.NavController
 import com.dd3boh.outertune.R
 import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.History
-import com.dd3boh.outertune.constants.StatsIncludeRemoteKey
 import com.dd3boh.outertune.ui.component.PreferenceEntry
 import com.dd3boh.outertune.ui.component.SettingsGroup
 import com.dd3boh.outertune.constants.ProxyEnabledKey
@@ -58,7 +57,6 @@ fun PrivacySettings(
     val (proxyEnabled, onProxyEnabledChange) = rememberPreference(key = ProxyEnabledKey, defaultValue = false)
     val (proxyType, onProxyTypeChange) = rememberEnumPreference(key = ProxyTypeKey, defaultValue = Proxy.Type.HTTP)
     val (proxyUrl, onProxyUrlChange) = rememberPreference(key = ProxyUrlKey, defaultValue = "host:port")
-    val (statsIncludeRemote, onStatsIncludeRemoteChange) = rememberPreference(key = StatsIncludeRemoteKey, defaultValue = false)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -76,13 +74,13 @@ fun PrivacySettings(
                 onClick = { navController.navigate("history") }
             )
             ListenHistoryFrag()
-            // Came over from Player and audio, where it sat alone under its own heading.
-            SwitchPreference(
-                title = { Text(stringResource(R.string.stats_include_remote_title)) },
-                description = stringResource(R.string.stats_include_remote_description),
+            // Where "Count plays from other devices" was: syncing plays with the user's other devices
+            // is what actually counts them. The YouTube Music history switch lives on that screen.
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.sync_title)) },
+                description = stringResource(R.string.sync_entry_summary),
                 icon = { Icon(Icons.Rounded.CloudSync, null) },
-                checked = statsIncludeRemote,
-                onCheckedChange = onStatsIncludeRemoteChange,
+                onClick = { navController.navigate("settings/sync") },
             )
         }
 

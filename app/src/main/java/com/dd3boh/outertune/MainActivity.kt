@@ -873,6 +873,9 @@ class MainActivity : ComponentActivity() {
                                     composable("settings/appearance") {
                                         AppearanceSettings(navController, scrollBehavior)
                                     }
+                                    composable("settings/sync") {
+                                        com.dd3boh.outertune.ui.screens.settings.PlaySyncSettings(navController, scrollBehavior)
+                                    }
                                     composable("settings/appearance/widget") {
                                         com.dd3boh.outertune.ui.screens.settings.WidgetLayoutSettings(navController, scrollBehavior)
                                     }
