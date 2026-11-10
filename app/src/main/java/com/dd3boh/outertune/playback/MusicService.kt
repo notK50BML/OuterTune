@@ -513,7 +513,12 @@ class MusicService : MediaLibraryService(),
         // still be using after the service is gone.
         listenTogether.attachPlayer(
             // Marked as following: the host's songs are theirs to count, not this device's.
-            MediaPlaybackBridge(player, database) { queue -> playQueue(queue, replace = true, following = true) }
+            MediaPlaybackBridge(
+                player,
+                database,
+                playQueue = { queue -> playQueue(queue, replace = true, following = true) },
+                applyChannelSplit = { equalizerAudioProcessor.channelSplit = it },
+            )
         )
 
         // Applied before anything can play, so the first track is not briefly equalised by

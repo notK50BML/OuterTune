@@ -275,6 +275,7 @@ val LyricsOffsetDialKey = booleanPreferencesKey("lyricsOffsetDial")
  * Bluetooth is late.
  */
 val ListenTogetherOffsetKey = intPreferencesKey("listenTogetherOffset")
+val ListenTogetherStereoKey = booleanPreferencesKey("listenTogetherStereo")
 val LyricUpdateSpeed = stringPreferencesKey("lyricUpdateSpeed")
 val EnableLyricsPrefetchKey = booleanPreferencesKey("enableLyricsPrefetch")
 val LyricsPrefetchCountKey = intPreferencesKey("lyricsPrefetchCount")

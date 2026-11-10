@@ -49,6 +49,7 @@ object Protocol {
         const val BYE: Byte = 7
         const val CLICK: Byte = 8
         const val CALIBRATED: Byte = 9
+        const val STEREO: Byte = 10
     }
 
     /** Why a session ended, carried by [Frame.Bye] so the other end can say something useful. */
@@ -114,6 +115,13 @@ object Protocol {
 
         /** The measurement's answer, host to follower: how far ahead this follower should play. */
         data class Calibrated(val offsetMs: Int) : Frame
+
+        /**
+         * The host's stereo split, host to follower: when [enabled], the host plays the right channel
+         * and followers the left. Sent on joining and whenever it changes; an older follower ignores
+         * it and simply keeps playing both.
+         */
+        data class Stereo(val enabled: Boolean) : Frame
     }
 
     /**
@@ -157,6 +165,7 @@ object Protocol {
         is Frame.Bye -> buffer(Type.BYE) { put(frame.reason) }
         is Frame.Click -> buffer(Type.CLICK) { putLong(frame.atHostClockUs) }
         is Frame.Calibrated -> buffer(Type.CALIBRATED) { putInt(frame.offsetMs) }
+        is Frame.Stereo -> buffer(Type.STEREO) { put(if (frame.enabled) 1 else 0) }
     }
 
     /**
@@ -190,6 +199,7 @@ object Protocol {
             Type.BYE -> Frame.Bye(b.get())
             Type.CLICK -> Frame.Click(b.long)
             Type.CALIBRATED -> Frame.Calibrated(b.int)
+            Type.STEREO -> Frame.Stereo(b.get() != 0.toByte())
             else -> null
         }
     }.getOrNull()

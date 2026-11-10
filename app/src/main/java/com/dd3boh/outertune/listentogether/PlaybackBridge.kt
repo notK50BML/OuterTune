@@ -82,4 +82,10 @@ interface PlaybackBridge {
      *   should say so rather than silently continuing on the wrong track.
      */
     suspend fun playTrack(videoId: String, positionMs: () -> Long): Boolean
+
+    /**
+     * Which side of the song this device plays - a [com.dd3boh.outertune.audio.ChannelSplit] value -
+     * for the stereo split. A no-op by default, so fakes need not care.
+     */
+    fun setChannelSplit(split: Int) {}
 }

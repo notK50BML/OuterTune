@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.listentogether
 
+import com.dd3boh.outertune.audio.ChannelSplit
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -76,6 +77,7 @@ class HostSession(
         links.clear()
         greeted.clear()
         _listeners.value = emptyList()
+        bridge.setChannelSplit(ChannelSplit.NONE)
     }
 
     /** Takes on a newly accepted connection. The handshake happens here, not at the transport. */
@@ -106,6 +108,8 @@ class HostSession(
                 link.send(Protocol.Frame.Welcome(Protocol.VERSION, hostName))
                 greeted[link] = frame.deviceName
                 publishListeners()
+                if (stereoSplit) link.send(Protocol.Frame.Stereo(true))
+                applySplit()
                 // Immediately, rather than at the next tick. A follower that joins just after a
                 // broadcast would otherwise sit silent for a full second wondering if it worked.
                 sendState(link)
@@ -124,6 +128,23 @@ class HostSession(
             // follower that sends something extra does not get disconnected by an older host.
             else -> Unit
         }
+    }
+
+    /**
+     * Stereo split: this device plays the right channel, every follower the left. Only in force
+     * while someone is actually listening - a host on its own playing half a song is just broken.
+     */
+    @Volatile
+    var stereoSplit: Boolean = false
+        set(value) {
+            if (field == value) return
+            field = value
+            greeted.keys.forEach { it.send(Protocol.Frame.Stereo(value)) }
+            applySplit()
+        }
+
+    private fun applySplit() {
+        bridge.setChannelSplit(if (stereoSplit && greeted.isNotEmpty()) ChannelSplit.RIGHT else ChannelSplit.NONE)
     }
 
     private fun linkFor(listener: Listener): PeerLink? =
@@ -150,6 +171,8 @@ class HostSession(
         links.remove(link)
         greeted.remove(link)
         publishListeners()
+        // The last listener leaving puts this device back to both channels.
+        applySplit()
     }
 
     private fun publishListeners() {

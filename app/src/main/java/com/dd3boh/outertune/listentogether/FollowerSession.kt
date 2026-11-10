@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.listentogether
 
+import com.dd3boh.outertune.audio.ChannelSplit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -228,6 +229,8 @@ class FollowerSession(
             // A rate left applied would outlive the session and quietly play everything slightly
             // fast for the rest of the day.
             bridge.setPlaybackSpeed(1f)
+            // Likewise a split: leaving must put both channels back on this device.
+            bridge.setChannelSplit(ChannelSplit.NONE)
             // Closed here as well as by leave(). Reaching this point by cancellation rather than by
             // the host hanging up leaves a socket whose reader lives in the manager's scope, not in
             // this coroutine - so nothing else would ever shut it down. Closing twice is harmless;
@@ -290,6 +293,10 @@ class FollowerSession(
             }
 
             is Protocol.Frame.Calibrated -> onCalibrated?.invoke(frame.offsetMs)
+
+            // The host's stereo split: it takes the right channel, so this device takes the left.
+            is Protocol.Frame.Stereo ->
+                bridge.setChannelSplit(if (frame.enabled) ChannelSplit.LEFT else ChannelSplit.NONE)
 
             // HELLO and PING are a host's business. Ignored rather than refused, so a newer host
             // sending something extra does not break an older follower.

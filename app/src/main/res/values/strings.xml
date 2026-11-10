@@ -470,6 +470,8 @@ We recycle translations from upstream, they are pulled periodically. -->
     <string name="lt_measure_applied">The host measured this device\'s speaker delay. Timing offset set to %1$d ms.</string>
     <string name="lt_measure_failed">Couldn\'t hear both test clicks. Move the devices closer, turn the volume up or pause the music, and try again.</string>
     <string name="lt_measure_no_mic">The microphone isn\'t available, so the delay can\'t be measured</string>
+    <string name="lt_stereo_title">Split left / right (experimental)</string>
+    <string name="lt_stereo_description">Use two phones as a stereo pair. While you host with someone listening, this phone plays the right channel and every listener plays the left. Put the phones apart and set each listener\'s timing offset first, or the two sides will sound out of step. Listeners on an older version keep playing both channels.</string>
     <string name="eq_song_profile">Apply only to current song</string>
     <string name="eq_song_profile_on">Saved for \"%1$s\" and used instead of the global curve while it plays</string>
     <string name="eq_song_profile_off">Changes apply to every song</string>

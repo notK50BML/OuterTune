@@ -150,6 +150,16 @@ class ListenTogetherManager @Inject constructor(
         }
 
     /**
+     * Experimental stereo split while hosting: this device plays the right channel, listeners the
+     * left. Takes effect only once a listener has joined, and ends when the last one leaves.
+     */
+    var stereoSplit: Boolean = false
+        set(value) {
+            field = value
+            hostSession?.stereoSplit = value
+        }
+
+    /**
      * Hosts on the network so other devices can find and follow.
      *
      * The port is chosen by the OS and then advertised, rather than fixed. A hard-coded port that
@@ -165,6 +175,7 @@ class ListenTogetherManager @Inject constructor(
         _error.value = null
 
         val session = HostSession(scope, bridge, ::nowUs, deviceName())
+        session.stereoSplit = stereoSplit
         hostSession = session
         sessionJobs += scope.launch { session.listeners.collect { _listeners.value = it } }
 

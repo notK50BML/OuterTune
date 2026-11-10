@@ -49,6 +49,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.dd3boh.outertune.constants.ListenTogetherOffsetKey
+import com.dd3boh.outertune.constants.ListenTogetherStereoKey
+import com.dd3boh.outertune.ui.component.SwitchPreference
+import androidx.compose.material.icons.rounded.Speaker
 import com.dd3boh.outertune.ui.dialog.CounterDialog
 import com.dd3boh.outertune.utils.rememberPreference
 import androidx.compose.runtime.remember
@@ -104,6 +107,7 @@ fun ListenTogetherSettings(
 
     val (offsetMs, onOffsetChange) = rememberPreference(ListenTogetherOffsetKey, 0)
     var showOffsetDialog by remember { mutableStateOf(false) }
+    val (stereoSplit, onStereoSplitChange) = rememberPreference(ListenTogetherStereoKey, false)
 
     val measuring by manager.measuring.collectAsStateWithLifecycle()
     val calibrationMessage by manager.calibrationMessage.collectAsStateWithLifecycle()
@@ -123,6 +127,7 @@ fun ListenTogetherSettings(
     // practical way to tune it: the right number depends on the audio route and can only be found
     // by listening.
     LaunchedEffect(offsetMs) { manager.offsetMs = offsetMs.toLong() }
+    LaunchedEffect(stereoSplit) { manager.stereoSplit = stereoSplit }
 
     if (showOffsetDialog) {
         CounterDialog(
@@ -329,6 +334,17 @@ fun ListenTogetherSettings(
                 description = stringResource(R.string.lt_offset_description, offsetMs),
                 icon = { Icon(Icons.Rounded.Timer, null) },
                 onClick = { showOffsetDialog = true },
+            )
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+        ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+            SwitchPreference(
+                title = { Text(stringResource(R.string.lt_stereo_title)) },
+                description = stringResource(R.string.lt_stereo_description),
+                icon = { Icon(Icons.Rounded.Speaker, null) },
+                checked = stereoSplit,
+                onCheckedChange = onStereoSplitChange,
             )
         }
     }

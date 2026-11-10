@@ -196,6 +196,14 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
     private var exciterCutoffHz: Float? = null
 
     /**
+     * Which side of a stereo song this device plays, for listen together's stereo split - one of
+     * [ChannelSplit]. NONE is ordinary stereo. Safe to set from any thread; takes effect on the next
+     * buffer.
+     */
+    @Volatile
+    var channelSplit: Int = ChannelSplit.NONE
+
+    /**
      * How many on-screen consumers currently want [visualizer] fed.
      *
      * A count, not a boolean. The player background is drawn in several places at once - the
@@ -404,7 +412,8 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         // A pending normalisation is a third reason not to take the bulk-copy path: the caller
         // has stopped applying it at the volume stage and is relying on this processor to, so
         // copying the buffer through untouched would play the track at full level.
-        if (bypass && !exciter.isActive() && normalisationDb == 0f) {
+        val split = channelSplit
+        if (bypass && !exciter.isActive() && normalisationDb == 0f && split == ChannelSplit.NONE) {
             // The visualiser reacts to whatever's actually playing, independent of whether the EQ
             // itself is doing anything to it - so it still needs a look at the samples even on the
             // path that otherwise just bulk-copies the buffer through untouched.
@@ -550,6 +559,15 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
             // side peaking turns both down together, so the stereo image does not move.
             limiter.process(frame)
 
+            // Listen together's stereo split: this device plays one side of the song, on all of
+            // its speakers. Taken after everything else so the EQ and limiter behave exactly as
+            // they do in stereo; only which channel reaches the output changes.
+            if (split != ChannelSplit.NONE && channelCount >= 2) {
+                val side = if (split == ChannelSplit.LEFT) frame[0] else frame[1]
+                frame[0] = side
+                frame[1] = side
+            }
+
             for (ch in 0 until channelCount) {
                 val limited = frame[ch]
                 when (encoding) {
@@ -667,4 +685,15 @@ class EqualizerAudioProcessor : BaseAudioProcessor() {
         const val RAMP_MS = 20
     }
 
+}
+
+/** Values for [EqualizerAudioProcessor.channelSplit]. */
+object ChannelSplit {
+    const val NONE = 0
+
+    /** Only the left channel, on every speaker this device has. */
+    const val LEFT = 1
+
+    /** Only the right channel, on every speaker this device has. */
+    const val RIGHT = 2
 }

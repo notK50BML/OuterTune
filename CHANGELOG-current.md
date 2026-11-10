@@ -76,6 +76,19 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Listen together: stereo pair (experimental)
+
+- **Split left / right**, off by default (Settings → Listen together). While you host with
+  someone listening, the host plays the right channel and every listener plays the left, each
+  on all of its speakers.
+  - The split is applied after the EQ and limiter, so they behave exactly as in stereo.
+  - It starts when the first listener joins and stops when the last one leaves; a listener goes
+    back to both channels as soon as it leaves. Switching it off mid-session takes effect at
+    once on every phone.
+  - Set each listener's timing offset first (tap it in the host's list to measure), or the
+    sides sound out of step.
+  - A listener on an older version ignores the request and keeps playing both channels.
+
 ## Widget, round three
 
 - **Crisp corners.**

@@ -33,7 +33,10 @@ class MediaPlaybackBridge(
     private val player: Player,
     private val database: MusicDatabase,
     private val playQueue: (Queue) -> Unit,
+    private val applyChannelSplit: (Int) -> Unit = {},
 ) : PlaybackBridge {
+
+    override fun setChannelSplit(split: Int) = applyChannelSplit(split)
 
     override val currentTrack: SharedTrack?
         get() = player.currentMetadata?.let {
