@@ -262092,3 +262092,69 @@ index 3a1f119..01a9db7 100644
 -- 
 2.56.0.windows.4
 
+From 60bb3ba3453b72d7cf681aeee3a085827f7af5eb Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 23:12:46 +0800
+Subject: [PATCH] Sync code box: capitals and dashes put in as you type
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../java/com/dd3boh/outertune/sync/PlaySyncCore.kt   |  3 +++
+ .../ui/screens/settings/PlaySyncSettings.kt          | 12 +++++++-----
+ 2 files changed, 10 insertions(+), 5 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
+index 8f0b252..e3d68e1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
++++ b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
+@@ -80,6 +80,9 @@ object SyncCode {
+ 
+     private fun format(chars: String) = chars.chunked(4).joinToString("-")
+ 
++    /** What has been typed so far, as a code is written: capitals, dashes put in every four. */
++    fun asTyped(input: String): String = format(input.uppercase().filter { it.isLetterOrDigit() }.take(LENGTH))
++
+     /** The secret both ends prove they hold. Never sent. */
+     fun key(code: String): ByteArray = sha256("outertune-sync-key-v1:$code")
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
+index 27ca0e8..7b621cf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
+@@ -44,6 +44,8 @@ import androidx.compose.ui.platform.LocalClipboardManager
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.text.AnnotatedString
++import androidx.compose.ui.text.TextRange
++import androidx.compose.ui.text.input.TextFieldValue
+ import androidx.compose.ui.text.font.FontFamily
+ import androidx.compose.ui.unit.dp
+ import androidx.lifecycle.compose.collectAsStateWithLifecycle
+@@ -233,19 +235,19 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
+     }
+ 
+     if (entering) {
+-        var typed by remember { mutableStateOf("") }
+-        val valid = SyncCode.normalize(typed)
++        var typed by remember { mutableStateOf(TextFieldValue("")) }
++        val valid = SyncCode.normalize(typed.text)
+         AlertDialog(
+             onDismissRequest = { entering = false },
+             title = { Text(stringResource(R.string.sync_enter_code)) },
+             text = {
+                 OutlinedTextField(
+                     value = typed,
+-                    onValueChange = { typed = it },
++                    onValueChange = { v -> SyncCode.asTyped(v.text).let { typed = TextFieldValue(it, TextRange(it.length)) } },
+                     singleLine = true,
+                     placeholder = { Text(stringResource(R.string.sync_code_hint)) },
+-                    isError = typed.length >= 12 && valid == null,
+-                    supportingText = if (typed.length >= 12 && valid == null) {
++                    isError = typed.text.length >= 14 && valid == null,
++                    supportingText = if (typed.text.length >= 14 && valid == null) {
+                         { Text(stringResource(R.string.sync_code_invalid)) }
+                     } else null,
+                 )
+-- 
+2.56.0.windows.4
+
