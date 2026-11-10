@@ -259858,3 +259858,377 @@ index 8299755..ef21600 100644
 -- 
 2.56.0.windows.4
 
+From 4778308f505b6e9f9a7b3522c565d5fb0949ef23 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 18:15:42 +0800
+Subject: [PATCH] Stats: merge plays from another device's backup
+
+Adds Add plays from another device under Backup and restore: reads another phone's backup or an
+OuterTune for Windows backup and inserts every play not already here, keyed by song and exact
+timestamp so repeated or round-trip merges never double count. New songs get their credits and
+length; local files are skipped. The YouTube Music history switch now explains its limits.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          |  17 ++
+ .../ui/screens/settings/SettingsIndex.kt      |   1 +
+ .../screens/settings/fragments/StorageFrag.kt |  18 ++
+ .../com/dd3boh/outertune/utils/PlayMerge.kt   | 200 ++++++++++++++++++
+ .../viewmodels/BackupRestoreViewModel.kt      |  20 ++
+ app/src/main/res/values/strings-ot.xml        |   2 +-
+ app/src/main/res/values/strings.xml           |   5 +
+ 7 files changed, 262 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index e046a3f..ed1258e 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,23 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Stats: real plays from your other devices
++
++- **Add plays from another device** (Settings → Backup and restore). Pick another phone's backup or
++  an OuterTune for Windows backup, and its plays are added to this phone's Stats, with their dates
++  and listening time. Nothing else is changed: no likes, playlists or settings, and nothing is
++  replaced.
++  - **Never counts a play twice.** A play is its song plus the exact moment it was recorded, and
++    one already here is skipped. Both apps keep that moment exactly as first written, so merging
++    the same backup again, or a PC backup that holds plays it took from this phone, adds only
++    what's new. Merge as often as you like, in either direction.
++  - Songs this phone already has keep their details; songs new to it are added with their artists
++    and length. Local files are left out, since their ids mean nothing on another device.
++- **Why the YouTube Music way couldn't do this:** its history keeps each song once, moved to the
++  top when replayed, with no play count and no listening time. "Count plays from other devices"
++  can only ever add about one play per song played elsewhere, and its description now says so.
++  Sending plays to YouTube Music wouldn't help either: it can't record counts or past dates.
++
+ ## Updater: skip betas
+ 
+ - **Skip beta releases** (Settings → Updater), off by default. When on, a release whose tag or name
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+index 4722e10..92b0a49 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+@@ -230,6 +230,7 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/backup_restore", R.string.backup_restore, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.action_backup, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.action_restore, R.string.backup_restore),
++    SettingsIndexEntry("settings/backup_restore", R.string.merge_plays_title, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.profiles_title, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_title, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_frequency, R.string.backup_restore),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+index c8bc66a..c109e23 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Close
+ import androidx.compose.material.icons.rounded.Downloading
+ import androidx.compose.material.icons.rounded.FolderCopy
+ import androidx.compose.material.icons.rounded.Restore
++import androidx.compose.material.icons.rounded.MergeType
+ import androidx.compose.material.icons.rounded.Sync
+ import androidx.compose.material.icons.rounded.Wifi
+ import androidx.compose.material3.Button
+@@ -159,6 +160,23 @@ fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
+     }
+     Spacer(modifier = Modifier.height(16.dp))
+ 
++    // Another device's plays added to this one's for Stats - see PlayMerge. Any file type: the
++    // desktop's backups and older ones from here come with different extensions and mime types.
++    val mergeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
++        if (uri != null) viewModel.mergePlays(uri)
++    }
++    ElevatedCard(
++        modifier = Modifier.fillMaxWidth()
++    ) {
++        PreferenceEntry(
++            title = { Text(stringResource(R.string.merge_plays_title)) },
++            description = stringResource(R.string.merge_plays_desc),
++            icon = { Icon(Icons.Rounded.MergeType, null) },
++            onClick = { mergeLauncher.launch(arrayOf("*/*")) }
++        )
++    }
++    Spacer(modifier = Modifier.height(16.dp))
++
+     AutomaticBackupFrag()
+ }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt b/app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt
+new file mode 100644
+index 0000000..8789287
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt
+@@ -0,0 +1,200 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.utils
++
++import android.content.Context
++import android.database.sqlite.SQLiteDatabase
++import android.net.Uri
++import com.dd3boh.outertune.db.MusicDatabase
++import com.dd3boh.outertune.models.MediaMetadata
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
++import java.io.File
++import java.util.zip.ZipInputStream
++
++/**
++ * Adds another device's plays to this phone's - another phone's backup, or a backup from
++ * OuterTune for Windows - and nothing else: no like, playlist or setting is touched, and nothing
++ * here is replaced. This is how Stats gets the plays made elsewhere: the account's YouTube Music
++ * history keeps each song once, with no count and no listening time, so it can never carry them.
++ *
++ * **Never counts a play twice.** A play is its song and the exact instant it was recorded, and one
++ * already here is skipped. Both apps keep that instant exactly as it was first written, through any
++ * number of merges in either direction, so merging the same backup again - or a computer's backup
++ * holding plays it merged from this phone - adds only what is new.
++ *
++ * Songs this phone already has keep their own details; only songs new to it are added, with their
++ * credits and length. Local files are left out: their ids mean nothing on another device.
++ */
++object PlayMerge {
++
++    data class Result(val plays: Int, val newSongs: Int)
++
++    private class Song(val id: String, val title: String, val thumbnail: String?, val durationSec: Int, val artists: List<MediaMetadata.Artist>)
++
++    private class Play(val songId: String, val at: Long, val playTimeMs: Long)
++
++    suspend fun mergeFrom(context: Context, database: MusicDatabase, uri: Uri): Result = withContext(Dispatchers.IO) {
++        val temp = File.createTempFile("merge", ".db", context.cacheDir)
++        try {
++            var found = false
++            context.contentResolver.openInputStream(uri)?.use { input ->
++                ZipInputStream(input.buffered()).use { zip ->
++                    var entry = zip.nextEntry
++                    while (entry != null) {
++                        // This phone's song.db, or the desktop's library.db.
++                        if (!entry.isDirectory && entry.name.endsWith(".db")) {
++                            temp.outputStream().use { zip.copyTo(it) }
++                            found = true
++                            break
++                        }
++                        entry = zip.nextEntry
++                    }
++                }
++            }
++            if (!found) error("not an OuterTune backup")
++
++            val (songs, plays) = SQLiteDatabase.openDatabase(temp.path, null, SQLiteDatabase.OPEN_READONLY).use { source ->
++                if (hasTable(source, "play_event")) readDesktop(source) else readPhone(source)
++            }
++            merge(database, songs, plays)
++        } finally {
++            temp.delete()
++            File(temp.path + "-journal").delete()
++        }
++    }
++
++    private fun hasTable(db: SQLiteDatabase, name: String): Boolean =
++        db.rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(name)).use { it.moveToFirst() }
++
++    private fun columns(db: SQLiteDatabase, table: String): Set<String> =
++        db.rawQuery("PRAGMA table_info($table)", null).use { c ->
++            buildSet { while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name"))) }
++        }
++
++    /** Another phone's backup: its played songs, their credits, and every play with its listening time. */
++    private fun readPhone(db: SQLiteDatabase): Pair<Map<String, Song>, List<Play>> {
++        val credits = HashMap<String, MutableList<MediaMetadata.Artist>>()
++        runCatching {
++            db.rawQuery(
++                "SELECT m.songId, a.id, a.name FROM song_artist_map m JOIN artist a ON a.id = m.artistId ORDER BY m.songId, m.position",
++                null,
++            ).use { c ->
++                while (c.moveToNext()) {
++                    val artistId = c.getString(1)
++                    // The other phone's own ids for artists with no channel mean nothing here.
++                    val id = artistId?.takeUnless { it.startsWith("LA") }
++                    credits.getOrPut(c.getString(0)) { mutableListOf() } += MediaMetadata.Artist(id, c.getString(2))
++                }
++            }
++        }
++        val songCols = columns(db, "song")
++        val duration = if ("duration" in songCols) "duration" else "-1"
++        val songs = HashMap<String, Song>()
++        db.rawQuery(
++            "SELECT id, title, thumbnailUrl, $duration, isLocal FROM song WHERE id IN (SELECT DISTINCT songId FROM event)",
++            null,
++        ).use { c ->
++            while (c.moveToNext()) {
++                if (c.getInt(4) != 0) continue
++                val id = c.getString(0) ?: continue
++                songs[id] = Song(id, c.getString(1) ?: continue, c.getString(2), c.getInt(3), credits[id].orEmpty())
++            }
++        }
++        val plays = db.rawQuery("SELECT songId, timestamp, playTime FROM event", null).use { c ->
++            buildList {
++                while (c.moveToNext()) {
++                    val songId = c.getString(0)?.takeIf { it in songs } ?: continue
++                    add(Play(songId, c.getLong(1), c.getLong(2)))
++                }
++            }
++        }
++        return songs to plays
++    }
++
++    /**
++     * A computer's library: its played songs (not its local files) and its plays. The desktop keeps
++     * no listening time per play, only the song's length, so that is what each play counts as - the
++     * same thing the desktop's own Stats count.
++     */
++    private fun readDesktop(db: SQLiteDatabase): Pair<Map<String, Song>, List<Play>> {
++        val credits = HashMap<String, MutableList<MediaMetadata.Artist>>()
++        db.rawQuery(
++            "SELECT sa.songId, a.id, a.name FROM song_artist sa JOIN artist a ON a.id = sa.artistId ORDER BY sa.songId, sa.position",
++            null,
++        ).use { c ->
++            while (c.moveToNext()) {
++                // "local:name" is the desktop's credit with no channel behind it.
++                val id = c.getString(1)?.takeUnless { it.startsWith("local:") }
++                credits.getOrPut(c.getString(0)) { mutableListOf() } += MediaMetadata.Artist(id, c.getString(2))
++            }
++        }
++        val local = if (hasTable(db, "local_file")) {
++            db.rawQuery("SELECT songId FROM local_file", null).use { c -> buildSet { while (c.moveToNext()) add(c.getString(0)) } }
++        } else emptySet()
++        val songs = HashMap<String, Song>()
++        db.rawQuery(
++            "SELECT id, title, thumbnail, durationMs FROM song WHERE id IN (SELECT DISTINCT songId FROM play_event)",
++            null,
++        ).use { c ->
++            while (c.moveToNext()) {
++                val id = c.getString(0) ?: continue
++                if (id in local) continue
++                songs[id] = Song(
++                    id, c.getString(1) ?: continue, c.getString(2)?.takeIf { it.isNotBlank() },
++                    (c.getLong(3) / 1000).toInt().takeIf { it > 0 } ?: -1, credits[id].orEmpty(),
++                )
++            }
++        }
++        val plays = db.rawQuery("SELECT songId, playedAt FROM play_event", null).use { c ->
++            buildList {
++                while (c.moveToNext()) {
++                    val song = c.getString(0)?.let(songs::get) ?: continue
++                    add(Play(song.id, c.getLong(1), song.durationSec.coerceAtLeast(0) * 1000L))
++                }
++            }
++        }
++        return songs to plays
++    }
++
++    /** One transaction: new songs, then every play not already here. */
++    private fun merge(database: MusicDatabase, songs: Map<String, Song>, plays: List<Play>): Result =
++        database.runInTransaction {
++            val db = database.openHelper.writableDatabase
++            var newSongs = 0
++            songs.values.forEach { song ->
++                val known = db.query("SELECT 1 FROM song WHERE id = ?", arrayOf<Any>(song.id)).use { it.moveToFirst() }
++                if (known) return@forEach
++                database.insert(
++                    MediaMetadata(
++                        id = song.id,
++                        title = song.title,
++                        artists = song.artists,
++                        duration = song.durationSec,
++                        thumbnailUrl = song.thumbnail,
++                        genre = null,
++                    )
++                )
++                newSongs++
++            }
++            var added = 0
++            plays.forEach { play ->
++                // The play's identity: its song and its exact instant, as stored.
++                val seen = db.query(
++                    "SELECT 1 FROM event WHERE songId = ? AND timestamp = ?",
++                    arrayOf<Any>(play.songId, play.at),
++                ).use { it.moveToFirst() }
++                if (seen) return@forEach
++                db.execSQL(
++                    "INSERT INTO event (songId, timestamp, playTime) VALUES (?, ?, ?)",
++                    arrayOf<Any>(play.songId, play.at, play.playTimeMs),
++                )
++                added++
++            }
++            Result(plays = added, newSongs = newSongs)
++        }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+index 73ca607..d50a531 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+@@ -14,6 +14,7 @@ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.extensions.div
+ import com.dd3boh.outertune.extensions.zipInputStream
+ import com.dd3boh.outertune.playback.MusicService
++import com.dd3boh.outertune.utils.PlayMerge
+ import com.dd3boh.outertune.utils.BACKUP_SETTINGS_FILENAME
+ import com.dd3boh.outertune.utils.reportException
+ import com.dd3boh.outertune.utils.writeBackup
+@@ -53,6 +54,25 @@ class BackupRestoreViewModel @Inject constructor(
+         }
+     }
+ 
++    /** Merges another device's plays into this one's - see [PlayMerge]. Nothing is replaced. */
++    fun mergePlays(uri: Uri) {
++        viewModelScope.launch {
++            runCatching { PlayMerge.mergeFrom(context, database, uri) }
++                .onSuccess { result ->
++                    val message = if (result.plays == 0) {
++                        context.getString(R.string.merge_plays_none)
++                    } else {
++                        context.getString(R.string.merge_plays_done, result.plays, result.newSongs)
++                    }
++                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
++                }
++                .onFailure {
++                    reportException(it)
++                    Toast.makeText(context, R.string.merge_plays_failed, Toast.LENGTH_SHORT).show()
++                }
++        }
++    }
++
+     fun restore(uri: Uri) {
+         // The file work runs on IO - copying a database of any size on the main thread froze the
+         // screen long enough to trip an ANR. The Toasts and the restart come back to the main thread.
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index ef21600..e39f977 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -135,7 +135,7 @@ while also allowing users to translate our app as well. New, specific strings to
+ 
+     <!-- In-app updater -->
+     <string name="stats_include_remote_title">Count plays from other devices</string>
+-    <string name="stats_include_remote_description">Adds plays from your YouTube Music history to Stats</string>
++    <string name="stats_include_remote_description">Adds songs from your YouTube Music history to Stats. That history keeps each song once, without play counts or times, so it adds about one play per song played elsewhere. For a device\'s real plays and listening time, use Backup and restore → Add plays from another device.</string>
+ 
+     <string name="updater">Updater</string>
+     <string name="check_for_updates">Check for updates</string>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 813f91e..8debe87 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -425,6 +425,11 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="backup_restore">Backup and restore</string>
+     <string name="action_backup">Backup</string>
+     <string name="action_restore">Restore</string>
++    <string name="merge_plays_title">Add plays from another device</string>
++    <string name="merge_plays_desc">Adds the plays in another phone\'s backup, or an OuterTune for Windows backup, to Stats. Plays already here are skipped, so nothing is counted twice. Nothing else is changed.</string>
++    <string name="merge_plays_done">Added %1$d plays (%2$d songs new to this phone)</string>
++    <string name="merge_plays_none">Nothing new: every play in that backup is already here</string>
++    <string name="merge_plays_failed">Couldn\'t read that backup</string>
+     <string name="imported_playlist">Imported playlist</string>
+     <string name="backup_create_success">Backup created successfully</string>
+     <string name="backup_create_failed">Couldn\'t create backup</string>
+-- 
+2.56.0.windows.4
+
