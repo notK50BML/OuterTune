@@ -257364,3 +257364,1861 @@ index ae97523..4a25e52 100644
 -- 
 2.56.0.windows.4
 
+From 1e439fa10aeea9fff7a00791d9a70c85dafaf14b Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 11:39:27 +0800
+Subject: [PATCH] Widget editor round four, word-synced widget lyrics, listen
+ together L/R badge
+
+Editor: drag handlers read the latest arrangement (a stale copy put other pieces back);
+dropping on a piece swaps, partly over neighbours pushes them; empty cells drawn as tiles;
+labelled previews; undo/redo; 8/12/16-column grids; own Appearance group as Widget editor.
+Widget lyrics: previous, current with sung words lit, and next line, from the app parser,
+redrawn about once a second. Listen together: L/R badge on the EQ handle swaps sides from
+either phone (STEREO frame now carries the follower side); long explanations behind info.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          |  36 +++
+ .../listentogether/FollowerSession.kt         |  28 +-
+ .../outertune/listentogether/HostSession.kt   |  51 ++-
+ .../listentogether/ListenTogetherManager.kt   |  23 +-
+ .../outertune/listentogether/Protocol.kt      |  12 +-
+ .../dd3boh/outertune/playback/MusicService.kt |  20 +-
+ .../com/dd3boh/outertune/ui/player/Player.kt  |  87 +++--
+ .../ui/screens/settings/AppearanceSettings.kt |   8 +-
+ .../settings/ListenTogetherSettings.kt        |  39 ++-
+ .../screens/settings/WidgetLayoutSettings.kt  | 304 ++++++++++++++----
+ .../dd3boh/outertune/widget/PlayerWidget.kt   |  52 ++-
+ .../dd3boh/outertune/widget/WidgetLayout.kt   | 264 ++++++++++-----
+ .../dd3boh/outertune/widget/WidgetLyrics.kt   |  75 +++--
+ app/src/main/res/layout/widget_cell_13.xml    |  10 +
+ app/src/main/res/layout/widget_cell_14.xml    |  10 +
+ app/src/main/res/layout/widget_cell_15.xml    |  10 +
+ app/src/main/res/layout/widget_cell_16.xml    |  10 +
+ app/src/main/res/layout/widget_el_lyrics.xml  |  44 ++-
+ app/src/main/res/values/strings.xml           |  30 +-
+ 19 files changed, 887 insertions(+), 226 deletions(-)
+ create mode 100644 app/src/main/res/layout/widget_cell_13.xml
+ create mode 100644 app/src/main/res/layout/widget_cell_14.xml
+ create mode 100644 app/src/main/res/layout/widget_cell_15.xml
+ create mode 100644 app/src/main/res/layout/widget_cell_16.xml
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 64f4fd5..54d0a38 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,42 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Widget editor, round four
++
++- **Fixed: moving a piece could put the others back.** Each piece's drag handler kept the
++  arrangement from when it was first drawn, so after moving Next and Pause, dragging Previous saved
++  the old positions of the other two. Every drag now works on the latest arrangement.
++- **Swap and push.** Drop a piece mostly on top of another and the two swap places. Drop it partly
++  over its neighbours and they are pushed along the row if there's room. While dragging, the
++  other pieces move to show what the drop will do, and the outline turns red only when there's no
++  way to make room.
++- **Empty cells are shown** as faint rounded tiles, so it's clear where there's space.
++- **Pieces look like what they are:** the cover as a picture, the title as "Title" and
++  "Artist(s)", the lyrics as three lines, the seek bar in your seek bar style, and the real buttons.
++- **Undo and redo** in the top bar, separately for each size.
++- **Grid size** per widget size: Big cells (8 columns), Normal (12) or Small cells (16 columns and
++  one more row). Changing it keeps the arrangement as close as it can.
++- **Its own place in Settings:** Appearance → Home-screen widget → Widget editor, rather than
++  sitting under the player's look.
++
++## Widget lyrics: word by word, with the lines around them
++
++- The widget's lyrics piece shows the previous line, the line being sung with the words sung so
++  far lit, and the next line, like the Windows mini player.
++- Read with the app's own lyrics parser, so word timings from enhanced LRC and TTML are used, and
++  lines without them are estimated when the player estimates them.
++- While word-timed lyrics are on a widget it's redrawn about once a second instead of every two,
++  and lights each word half a second early so it's right on average. Done with coloured text,
++  not pictures, so updates stay small.
++
++## Listen together: L / R badge, shorter explanations
++
++- **L / R badge.** During a stereo split, the top of the player shows an L or R badge on the side
++  that phone plays, level with the equaliser handle. Tap it on either phone to swap sides on both.
++  It sits on top of the handle, so a tap there swaps instead of opening the equaliser.
++- **Shorter screen.** The timing offset and stereo split show a one-line summary, with the full
++  explanation behind an ⓘ button.
++
+ ## Widget seek bar matches the player
+ 
+ - The widget's seek bar is now drawn by the player's own seek bar code rather than an
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
+index a8fe45f..69b621a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/FollowerSession.kt
+@@ -230,7 +230,7 @@ class FollowerSession(
+             // fast for the rest of the day.
+             bridge.setPlaybackSpeed(1f)
+             // Likewise a split: leaving must put both channels back on this device.
+-            bridge.setChannelSplit(ChannelSplit.NONE)
++            applySide(ChannelSplit.NONE)
+             // Closed here as well as by leave(). Reaching this point by cancellation rather than by
+             // the host hanging up leaves a socket whose reader lives in the manager's scope, not in
+             // this coroutine - so nothing else would ever shut it down. Closing twice is harmless;
+@@ -241,6 +241,28 @@ class FollowerSession(
+         }
+     }
+ 
++    /** The channel this device plays in the host's stereo split - ChannelSplit.NONE when off. */
++    @Volatile
++    private var side = ChannelSplit.NONE
++
++    private fun applySide(value: Int) {
++        side = if (value == ChannelSplit.LEFT || value == ChannelSplit.RIGHT) value else ChannelSplit.NONE
++        bridge.setChannelSplit(side)
++    }
++
++    /**
++     * Asks the host to swap sides. The host decides and tells everyone, so this device changes side
++     * when its answer arrives rather than now - the two phones never end up on the same side.
++     */
++    fun requestSwap() {
++        val wanted = when (side) {
++            ChannelSplit.LEFT -> ChannelSplit.RIGHT
++            ChannelSplit.RIGHT -> ChannelSplit.LEFT
++            else -> return
++        }
++        link?.send(Protocol.Frame.Stereo(wanted))
++    }
++
+     fun leave() {
+         link?.close(Protocol.ByeReason.NORMAL)
+     }
+@@ -294,9 +316,9 @@ class FollowerSession(
+ 
+             is Protocol.Frame.Calibrated -> onCalibrated?.invoke(frame.offsetMs)
+ 
+-            // The host's stereo split: it takes the right channel, so this device takes the left.
++            // The host's stereo split: the side this device plays, the host taking the other.
+             is Protocol.Frame.Stereo ->
+-                bridge.setChannelSplit(if (frame.enabled) ChannelSplit.LEFT else ChannelSplit.NONE)
++                applySide(frame.followerSide)
+ 
+             // HELLO and PING are a host's business. Ignored rather than refused, so a newer host
+             // sending something extra does not break an older follower.
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
+index 57a6d65..36e63d9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/HostSession.kt
+@@ -108,7 +108,7 @@ class HostSession(
+                 link.send(Protocol.Frame.Welcome(Protocol.VERSION, hostName))
+                 greeted[link] = frame.deviceName
+                 publishListeners()
+-                if (stereoSplit) link.send(Protocol.Frame.Stereo(true))
++                if (stereoSplit) link.send(Protocol.Frame.Stereo(followerSide()))
+                 applySplit()
+                 // Immediately, rather than at the next tick. A follower that joins just after a
+                 // broadcast would otherwise sit silent for a full second wondering if it worked.
+@@ -124,6 +124,16 @@ class HostSession(
+ 
+             is Protocol.Frame.Bye -> link.close(null)
+ 
++            // A follower tapping its L/R badge: it asks for the side it wants, and everyone swaps.
++            is Protocol.Frame.Stereo -> {
++                if (!stereoSplit || frame.followerSide == ChannelSplit.NONE) return
++                val wantSwapped = frame.followerSide == ChannelSplit.RIGHT
++                if (wantSwapped != swapped) {
++                    swapped = wantSwapped
++                    shareSplit()
++                }
++            }
++
+             // A host has no use for the rest. Ignored rather than treated as an error, so a future
+             // follower that sends something extra does not get disconnected by an older host.
+             else -> Unit
+@@ -131,20 +141,49 @@ class HostSession(
+     }
+ 
+     /**
+-     * Stereo split: this device plays the right channel, every follower the left. Only in force
+-     * while someone is actually listening - a host on its own playing half a song is just broken.
++     * Stereo split: this device plays one channel and every follower the other - the host right
++     * and followers left to begin with, until someone swaps them. Only in force while someone is
++     * actually listening: a host on its own playing half a song is just broken.
+      */
+     @Volatile
+     var stereoSplit: Boolean = false
+         set(value) {
+             if (field == value) return
+             field = value
+-            greeted.keys.forEach { it.send(Protocol.Frame.Stereo(value)) }
+-            applySplit()
++            shareSplit()
+         }
+ 
++    /** Whether the sides have been swapped: the host left, followers right. */
++    @Volatile
++    private var swapped = false
++
++    private fun followerSide() = when {
++        !stereoSplit -> ChannelSplit.NONE
++        swapped -> ChannelSplit.RIGHT
++        else -> ChannelSplit.LEFT
++    }
++
++    /** Swaps which side the host and the followers play. Nothing while the split is off. */
++    fun swapSides() {
++        if (!stereoSplit) return
++        swapped = !swapped
++        shareSplit()
++    }
++
++    /** Tells every follower its side, and takes the other here. */
++    private fun shareSplit() {
++        val side = followerSide()
++        greeted.keys.forEach { it.send(Protocol.Frame.Stereo(side)) }
++        applySplit()
++    }
++
+     private fun applySplit() {
+-        bridge.setChannelSplit(if (stereoSplit && greeted.isNotEmpty()) ChannelSplit.RIGHT else ChannelSplit.NONE)
++        val host = when (followerSide()) {
++            ChannelSplit.LEFT -> ChannelSplit.RIGHT
++            ChannelSplit.RIGHT -> ChannelSplit.LEFT
++            else -> ChannelSplit.NONE
++        }
++        bridge.setChannelSplit(if (greeted.isNotEmpty()) host else ChannelSplit.NONE)
+     }
+ 
+     private fun linkFor(listener: Listener): PeerLink? =
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
+index f9e00fd..f486241 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/ListenTogetherManager.kt
+@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.Job
+ import kotlinx.coroutines.SupervisorJob
++import com.dd3boh.outertune.audio.ChannelSplit
+ import kotlinx.coroutines.flow.Flow
+ import kotlinx.coroutines.flow.MutableStateFlow
+ import kotlinx.coroutines.flow.StateFlow
+@@ -122,7 +123,16 @@ class ListenTogetherManager @Inject constructor(
+      * has been destroyed.
+      */
+     fun attachPlayer(bridge: PlaybackBridge?) {
+-        this.bridge = bridge
++        // Watched on the way through, so the player can show which side this device plays.
++        this.bridge = bridge?.let { real ->
++            object : PlaybackBridge by real {
++                override fun setChannelSplit(split: Int) {
++                    real.setChannelSplit(split)
++                    _channelSide.value = split
++                }
++            }
++        }
++        if (bridge == null) _channelSide.value = ChannelSplit.NONE
+         if (bridge == null && _mode.value != ListenTogetherMode.OFF) {
+             // Playback stopped underneath a running session. Ending it is the honest response;
+             // leaving followers connected to a device that can no longer play anything would show
+@@ -159,6 +169,17 @@ class ListenTogetherManager @Inject constructor(
+             hostSession?.stereoSplit = value
+         }
+ 
++    private val _channelSide = MutableStateFlow(ChannelSplit.NONE)
++
++    /** The channel this device plays in a stereo split - ChannelSplit.NONE when it plays both. */
++    val channelSide: StateFlow<Int> = _channelSide.asStateFlow()
++
++    /** Swaps the two sides, from either end: the host swaps directly, a listener asks the host. */
++    fun swapSides() {
++        val host = hostSession
++        if (host != null) host.swapSides() else followerSession?.requestSwap()
++    }
++
+     /**
+      * Hosts on the network so other devices can find and follow.
+      *
+diff --git a/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt b/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
+index a1d0938..c54031c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
++++ b/app/src/main/java/com/dd3boh/outertune/listentogether/Protocol.kt
+@@ -117,11 +117,13 @@ object Protocol {
+         data class Calibrated(val offsetMs: Int) : Frame
+ 
+         /**
+-         * The host's stereo split, host to follower: when [enabled], the host plays the right channel
+-         * and followers the left. Sent on joining and whenever it changes; an older follower ignores
++         * The stereo split. Host to follower: [followerSide] is the channel followers play (a
++         * ChannelSplit value - NONE when the split is off), the host playing the other. Follower to
++         * host: a request to swap, naming the side the follower would like. Sent on joining and
++         * whenever it changes; an older peer ignores
+          * it and simply keeps playing both.
+          */
+-        data class Stereo(val enabled: Boolean) : Frame
++        data class Stereo(val followerSide: Int) : Frame
+     }
+ 
+     /**
+@@ -165,7 +167,7 @@ object Protocol {
+         is Frame.Bye -> buffer(Type.BYE) { put(frame.reason) }
+         is Frame.Click -> buffer(Type.CLICK) { putLong(frame.atHostClockUs) }
+         is Frame.Calibrated -> buffer(Type.CALIBRATED) { putInt(frame.offsetMs) }
+-        is Frame.Stereo -> buffer(Type.STEREO) { put(if (frame.enabled) 1 else 0) }
++        is Frame.Stereo -> buffer(Type.STEREO) { put(frame.followerSide.toByte()) }
+     }
+ 
+     /**
+@@ -199,7 +201,7 @@ object Protocol {
+             Type.BYE -> Frame.Bye(b.get())
+             Type.CLICK -> Frame.Click(b.long)
+             Type.CALIBRATED -> Frame.Calibrated(b.int)
+-            Type.STEREO -> Frame.Stereo(b.get() != 0.toByte())
++            Type.STEREO -> Frame.Stereo(b.get().toInt())
+             else -> null
+         }
+     }.getOrNull()
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index f80aacb..356d135 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -100,6 +100,7 @@ import com.dd3boh.outertune.constants.EnableStreamPrecacheKey
+ import com.dd3boh.outertune.constants.IgnoreAudioFocusKey
+ import com.dd3boh.outertune.constants.KeepAliveKey
+ import com.dd3boh.outertune.constants.LyricsPrefetchCountKey
++import com.dd3boh.outertune.constants.LyricEstimatedWordSync
+ import com.dd3boh.outertune.constants.MAX_PLAYER_CONSECUTIVE_ERR
+ import com.dd3boh.outertune.constants.MaxQueuesKey
+ import com.dd3boh.outertune.constants.MediaSessionConstants.CommandToggleLike
+@@ -623,11 +624,16 @@ class MusicService : MediaLibraryService(),
+                 // shows one. Read again while empty: lyrics are often fetched after the song starts.
+                 suspend fun readLyrics() = if (PlayerWidget.wantsLyrics && metadata != null) {
+                     runCatching {
+-                        withContext(Dispatchers.IO) { WidgetLyrics.parse(database.lyrics(metadata.id).first()?.lyrics) }
++                        withContext(Dispatchers.IO) {
++                            WidgetLyrics.parse(
++                                database.lyrics(metadata.id).first()?.lyrics,
++                                estimate = dataStore.get(LyricEstimatedWordSync, true),
++                            )
++                        }
+                     }.getOrDefault(emptyList())
+                 } else emptyList()
+                 var lyricLines = readLyrics()
+-                PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
++                PlayerWidget.setLyrics(WidgetLyrics.frameAt(lyricLines, player.currentPosition))
+                 runCatching {
+                     PlayerWidget.update(
+                         this@MusicService, metadata, playing, fraction(),
+@@ -643,9 +649,14 @@ class MusicService : MediaLibraryService(),
+                 // pause, since collectLatest cancels this block when either changes.
+                 var ticks = 0
+                 while (playing) {
+-                    delay(WIDGET_PROGRESS_INTERVAL_MS)
++                    // About once a second while word-timed lyrics are on a widget, so the lit words
++                    // keep up with the singing; every couple of seconds otherwise.
++                    delay(
++                        if (PlayerWidget.wantsLyrics && WidgetLyrics.hasWords(lyricLines)) WIDGET_LYRICS_INTERVAL_MS
++                        else WIDGET_PROGRESS_INTERVAL_MS
++                    )
+                     if (lyricLines.isEmpty() && ++ticks % 5 == 0) lyricLines = readLyrics()
+-                    PlayerWidget.setLyricLine(WidgetLyrics.lineAt(lyricLines, player.currentPosition))
++                    PlayerWidget.setLyrics(WidgetLyrics.frameAt(lyricLines, player.currentPosition))
+                     runCatching { PlayerWidget.updateProgress(this@MusicService, fraction()) }
+                 }
+             }
+@@ -2136,6 +2147,7 @@ class MusicService : MediaLibraryService(),
+ 
+         /** How often the home-screen widget's seek bar moves while playing. */
+         private const val WIDGET_PROGRESS_INTERVAL_MS = 2_000L
++        private const val WIDGET_LYRICS_INTERVAL_MS = 1_000L
+ 
+         /**
+          * How often to force-reconnect the Discord RPC socket while a song is actively playing,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index b9cbe47..344cb10 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -112,6 +112,9 @@ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.semantics.Role
+ import androidx.compose.ui.semantics.contentDescription
+ import androidx.compose.ui.semantics.semantics
++import androidx.compose.foundation.border
++import androidx.compose.ui.unit.sp
++import com.dd3boh.outertune.audio.ChannelSplit
+ import androidx.compose.ui.text.font.FontWeight
+ import androidx.compose.ui.text.style.TextOverflow
+ import androidx.compose.ui.unit.dp
+@@ -506,13 +509,19 @@ fun PortraitPlayer(
+ /**
+  * A pull-down affordance above the cover art that opens the full-screen equalizer, mirroring the
+  * queue's swipe-up handle at the bottom - tap, or drag down past a small threshold.
++ *
++ * During a listen-together stereo split it also carries an L or R badge on the side this phone
++ * plays, so two phones side by side say which is which. Tapping the badge swaps the sides on both;
++ * it sits on top of the handle, so a tap there swaps rather than opening the equaliser.
+  */
+ @Composable
+ private fun EqualizerHandle() {
+     val showEqualizerHandle by rememberPreference(ShowEqualizerHandleKey, defaultValue = true)
+-    if (!showEqualizerHandle) return
+-
+     val playerConnection = LocalPlayerConnection.current ?: return
++    val listenTogether = playerConnection.service.listenTogether
++    val side by listenTogether.channelSide.collectAsState()
++    if (!showEqualizerHandle && side == ChannelSplit.NONE) return
++
+     val mediaMetadata by playerConnection.mediaMetadata.collectAsState()
+     // The same colour the lyrics/queue handle already use - measured from the cover itself, so it
+     // stays legible against whichever background style and cover is currently showing instead of
+@@ -538,27 +547,61 @@ private fun EqualizerHandle() {
+             // status bar/clock/battery instead of below them.
+             .windowInsetsPadding(WindowInsets.statusBars.only(WindowInsetsSides.Top))
+             .height(64.dp)
+-            .clickable { equalizerPanelState.visible = true }
+-            // Drives the sheet directly, frame by frame - the queue's own behaviour.
+-            //
+-            // This used to add up how far the finger had moved and, once that passed 40dp, fire a
+-            // canned open animation. So the panel never followed the finger at all; a quick flick
+-            // often ended before it had added up to 40dp, and was ignored; and once it did start
+-            // it was a pre-baked slide rather than a drawer. Now each frame of the drag moves the
+-            // sheet by exactly that much, and on release its speed and position decide where it
+-            // settles - fast or past halfway opens it, otherwise it falls back - with the same
+-            // spring the queue uses, because it is the same state and the same fling. Shared with
+-            // the panel's own closing handle - see equalizerSheetDrag, which also builds the
+-            // panel on touch-down so the drag's first frames are not spent composing it.
+-            .equalizerSheetDrag(sheet, warmState = equalizerPanelState)
++            .then(
++                if (showEqualizerHandle) {
++                    Modifier
++                        .clickable { equalizerPanelState.visible = true }
++                        // Drives the sheet directly, frame by frame - the queue's own behaviour.
++                        //
++                        // This used to add up how far the finger had moved and, once that passed 40dp, fire a
++                        // canned open animation. So the panel never followed the finger at all; a quick flick
++                        // often ended before it had added up to 40dp, and was ignored; and once it did start
++                        // it was a pre-baked slide rather than a drawer. Now each frame of the drag moves the
++                        // sheet by exactly that much, and on release its speed and position decide where it
++                        // settles - fast or past halfway opens it, otherwise it falls back - with the same
++                        // spring the queue uses, because it is the same state and the same fling. Shared with
++                        // the panel's own closing handle - see equalizerSheetDrag, which also builds the
++                        // panel on touch-down so the drag's first frames are not spent composing it.
++                        .equalizerSheetDrag(sheet, warmState = equalizerPanelState)
++                } else Modifier
++            )
+     ) {
+-        Box(
+-            modifier = Modifier
+-                .width(64.dp)
+-                .height(8.dp)
+-                .clip(RoundedCornerShape(4.dp))
+-                .background(handleColor.copy(alpha = 0.6f))
+-        )
++        if (showEqualizerHandle) {
++            Box(
++                modifier = Modifier
++                    .width(64.dp)
++                    .height(8.dp)
++                    .clip(RoundedCornerShape(4.dp))
++                    .background(handleColor.copy(alpha = 0.6f))
++            )
++        }
++        if (side != ChannelSplit.NONE) {
++            val left = side == ChannelSplit.LEFT
++            val description = stringResource(
++                R.string.lt_side_description,
++                stringResource(if (left) R.string.lt_side_left_word else R.string.lt_side_right_word),
++            )
++            // Drawn after the handle, so it is on top and takes the tap first.
++            Box(
++                contentAlignment = Alignment.Center,
++                modifier = Modifier
++                    .align(if (left) Alignment.CenterStart else Alignment.CenterEnd)
++                    .padding(horizontal = 20.dp)
++                    .size(34.dp)
++                    .clip(RoundedCornerShape(10.dp))
++                    .background(handleColor.copy(alpha = 0.15f))
++                    .border(1.5.dp, handleColor.copy(alpha = 0.7f), RoundedCornerShape(10.dp))
++                    .clickable(onClickLabel = description) { listenTogether.swapSides() }
++                    .semantics { contentDescription = description },
++            ) {
++                Text(
++                    text = if (left) "L" else "R",
++                    color = handleColor,
++                    fontWeight = FontWeight.Bold,
++                    fontSize = 16.sp,
++                )
++            }
++        }
+     }
+ }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+index 6b2e0bc..a625979 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AppearanceSettings.kt
+@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.AppShortcut
+ import androidx.compose.material.icons.rounded.Dashboard
++import androidx.compose.material.icons.rounded.Widgets
+ import androidx.compose.material.icons.rounded.HighQuality
+ import androidx.compose.material.icons.rounded.Image
+ import androidx.compose.material.icons.rounded.MoreHoriz
+@@ -133,10 +134,15 @@ fun AppearanceSettings(
+                 onClick = { navController.navigate("settings/appearance/layout") }
+             )
+             SeekBarFrag()
++        }
++
++        // Its own group: the widget is arranged separately from the player, and filing it under the
++        // player's look made it read as part of the player layout.
++        SettingsGroup(title = stringResource(R.string.grp_widget)) {
+             PreferenceEntry(
+                 title = { Text(stringResource(R.string.widget_layout_title)) },
+                 description = stringResource(R.string.widget_layout_summary),
+-                icon = { Icon(Icons.Rounded.Dashboard, null) },
++                icon = { Icon(Icons.Rounded.Widgets, null) },
+                 onClick = { navController.navigate("settings/appearance/widget") }
+             )
+         }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
+index aee0cff..8046baf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/ListenTogetherSettings.kt
+@@ -330,8 +330,8 @@ fun ListenTogetherSettings(
+             // a session, and being able to set it before joining beats discovering mid-song that it
+             // is needed.
+             PreferenceEntry(
+-                title = { Text(stringResource(R.string.lt_offset_title)) },
+-                description = stringResource(R.string.lt_offset_description, offsetMs),
++                title = { InfoTitle(stringResource(R.string.lt_offset_title), stringResource(R.string.lt_offset_description)) },
++                description = stringResource(R.string.lt_offset_value, offsetMs),
+                 icon = { Icon(Icons.Rounded.Timer, null) },
+                 onClick = { showOffsetDialog = true },
+             )
+@@ -340,8 +340,8 @@ fun ListenTogetherSettings(
+         Spacer(modifier = Modifier.height(16.dp))
+         ElevatedCard(modifier = Modifier.fillMaxWidth()) {
+             SwitchPreference(
+-                title = { Text(stringResource(R.string.lt_stereo_title)) },
+-                description = stringResource(R.string.lt_stereo_description),
++                title = { InfoTitle(stringResource(R.string.lt_stereo_title), stringResource(R.string.lt_stereo_description)) },
++                description = stringResource(R.string.lt_stereo_summary),
+                 icon = { Icon(Icons.Rounded.Speaker, null) },
+                 checked = stereoSplit,
+                 onCheckedChange = onStereoSplitChange,
+@@ -390,3 +390,34 @@ private fun Hint(text: String) {
+             .padding(horizontal = 16.dp, vertical = 20.dp),
+     )
+ }
++
++/**
++ * A setting's title with a small info button after it. The explanation behind it is too long to
++ * sit under the title every time the screen is opened, so it opens in a dialog on demand instead.
++ */
++@Composable
++private fun InfoTitle(title: String, explanation: String) {
++    var open by remember { mutableStateOf(false) }
++    Row(verticalAlignment = Alignment.CenterVertically) {
++        Text(title, modifier = Modifier.weight(1f, fill = false))
++        // Its own click, so tapping it opens the explanation rather than the setting.
++        androidx.compose.material3.IconButton(onClick = { open = true }, modifier = Modifier.size(32.dp)) {
++            Icon(
++                Icons.Rounded.Info,
++                contentDescription = stringResource(R.string.lt_more_info),
++                tint = MaterialTheme.colorScheme.onSurfaceVariant,
++                modifier = Modifier.size(18.dp),
++            )
++        }
++    }
++    if (open) {
++        androidx.compose.material3.AlertDialog(
++            onDismissRequest = { open = false },
++            title = { Text(title) },
++            text = { Text(explanation) },
++            confirmButton = {
++                androidx.compose.material3.TextButton(onClick = { open = false }) { Text(stringResource(R.string.dismiss)) }
++            },
++        )
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+index 40cd3de..716252e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/WidgetLayoutSettings.kt
+@@ -6,6 +6,10 @@
+ 
+ package com.dd3boh.outertune.ui.screens.settings
+ 
++import androidx.compose.animation.core.animateFloatAsState
++import androidx.compose.animation.core.snap
++import androidx.compose.animation.core.spring
++import androidx.compose.foundation.Canvas
+ import androidx.compose.foundation.background
+ import androidx.compose.foundation.border
+ import androidx.compose.foundation.gestures.detectDragGestures
+@@ -33,6 +37,8 @@ import androidx.compose.foundation.verticalScroll
+ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.automirrored.rounded.QueueMusic
++import androidx.compose.material.icons.automirrored.rounded.Redo
++import androidx.compose.material.icons.automirrored.rounded.Undo
+ import androidx.compose.material.icons.rounded.AddCircleOutline
+ import androidx.compose.material.icons.rounded.Album
+ import androidx.compose.material.icons.rounded.Delete
+@@ -61,35 +67,52 @@ import androidx.compose.material3.TopAppBarScrollBehavior
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.key
++import androidx.compose.runtime.mutableStateMapOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberUpdatedState
+ import androidx.compose.runtime.setValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+ import androidx.compose.ui.geometry.Offset
++import androidx.compose.ui.graphics.Color
+ import androidx.compose.ui.graphics.vector.ImageVector
+ import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
+ import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.SpanStyle
++import androidx.compose.ui.text.buildAnnotatedString
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.text.withStyle
+ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.IntOffset
++import androidx.compose.ui.unit.TextUnit
+ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.DEFAULT_SLIDER_STYLE
++import com.dd3boh.outertune.constants.SliderStyleKey
++import com.dd3boh.outertune.constants.SliderWeight
++import com.dd3boh.outertune.constants.SliderWeightKey
+ import com.dd3boh.outertune.constants.TopBarInsets
+ import com.dd3boh.outertune.constants.WidgetLayoutKey
+ import com.dd3boh.outertune.constants.WidgetLayoutMediumKey
+ import com.dd3boh.outertune.constants.WidgetLayoutSmallKey
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+ import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.ui.component.drawPlayerSliderStill
+ import com.dd3boh.outertune.ui.utils.backToMain
++import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
+ import com.dd3boh.outertune.widget.PlayerWidget
+ import com.dd3boh.outertune.widget.WidgetElement
+ import com.dd3boh.outertune.widget.WidgetLayout
+ import com.dd3boh.outertune.widget.WidgetMetrics
++import com.dd3boh.outertune.widget.WidgetPlacement
+ import kotlin.math.roundToInt
+ import androidx.compose.material3.IconButton as M3IconButton
+ 
+@@ -100,10 +123,16 @@ import androidx.compose.material3.IconButton as M3IconButton
+  */
+ private val PREVIEW = listOf(340 to 100, 340 to 210, 340 to 320)
+ 
++/** Each size's usual rows - a finer grid adds one (WidgetLayout.rowsFor). */
++private val BASE_ROWS = listOf(WidgetLayout.SMALL_ROWS, WidgetLayout.MEDIUM_ROWS, WidgetLayout.MAX_ROWS)
++
++/** How far back undo goes, per size. */
++private const val MAX_UNDO = 50
++
+ /**
+- * Arranges the home-screen widget: drag a piece and it snaps into the grid's columns and rows. A
+- * drop that would cover another piece is refused - the outline turns red - so nothing overlaps.
+- * Tap a piece to resize or remove it. One arrangement per widget size.
++ * The widget editor: drag a piece and it snaps into the grid. Dropped on another piece, the two
++ * swap; dropped partly over its neighbours, they are pushed along the row. Tap a piece to resize or
++ * remove it. One arrangement per widget size, each on its own grid, with undo and redo.
+  */
+ @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+ @Composable
+@@ -113,22 +142,42 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
+     var small by rememberPreference(WidgetLayoutSmallKey, "")
+     var medium by rememberPreference(WidgetLayoutMediumKey, "")
+     var large by rememberPreference(WidgetLayoutKey, "")
+-    val layout = remember(tab, small, medium, large) {
+-        when (tab) {
+-            0 -> WidgetLayout.parse(small, WidgetLayout.SMALL_ROWS)
+-            1 -> WidgetLayout.parse(medium, WidgetLayout.MEDIUM_ROWS)
+-            else -> WidgetLayout.parse(large)
+-        }
+-    }
++
++    // Every arrangement this visit, per size, and which one is showing - the undo history. Held
++    // here rather than read back from the stored preference, which is written asynchronously: a
++    // second drag straight after the first would otherwise start from the arrangement before it.
++    val history = remember { mutableStateMapOf<Int, List<String>>() }
++    val position = remember { mutableStateMapOf<Int, Int>() }
++    val entries = history[tab] ?: listOf(WidgetLayout.parse(listOf(small, medium, large)[tab], BASE_ROWS[tab]).encode())
++    val pos = (position[tab] ?: 0).coerceIn(0, entries.lastIndex)
++    val layout = remember(tab, entries, pos) { WidgetLayout.parse(entries[pos], BASE_ROWS[tab]) }
+     var selected by remember { mutableStateOf<WidgetElement?>(null) }
+ 
+-    fun save(new: WidgetLayout) {
++    fun write(new: WidgetLayout) {
++        val text = new.encode()
+         when (tab) {
+-            0 -> small = new.encode()
+-            1 -> medium = new.encode()
+-            else -> large = new.encode()
++            0 -> small = text
++            1 -> medium = text
++            else -> large = text
+         }
+-        PlayerWidget.applyLayout(context, new)
++        PlayerWidget.applyLayout(context, new, BASE_ROWS[tab])
++    }
++
++    fun save(new: WidgetLayout?) {
++        if (new == null || new == layout) return
++        val kept = (entries.take(pos + 1) + new.encode()).takeLast(MAX_UNDO)
++        history[tab] = kept
++        position[tab] = kept.lastIndex
++        write(new)
++    }
++
++    fun step(by: Int) {
++        val to = (pos + by).coerceIn(0, entries.lastIndex)
++        if (to == pos) return
++        history[tab] = entries
++        position[tab] = to
++        selected = null
++        write(WidgetLayout.parse(entries[to], BASE_ROWS[tab]))
+     }
+ 
+     ColumnWithContentPadding(
+@@ -150,10 +199,23 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
+                 ) { Text(stringResource(label)) }
+             }
+         }
++        Spacer(Modifier.height(8.dp))
++        Text(stringResource(R.string.widget_grid_title), style = MaterialTheme.typography.labelLarge)
++        Spacer(Modifier.height(4.dp))
++        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
++            val labels = listOf(R.string.widget_grid_coarse, R.string.widget_grid_normal, R.string.widget_grid_fine)
++            WidgetLayout.GRIDS.forEachIndexed { i, columns ->
++                SegmentedButton(
++                    selected = layout.columns == columns,
++                    onClick = { save(layout.regridded(columns, WidgetLayout.rowsFor(BASE_ROWS[tab], columns))) },
++                    shape = SegmentedButtonDefaults.itemShape(i, WidgetLayout.GRIDS.size),
++                ) { Text(stringResource(labels[i])) }
++            }
++        }
+         Spacer(Modifier.height(12.dp))
+ 
+         WidgetCanvas(layout, PREVIEW[tab], selected, { selected = if (selected == it) null else it }) { element, col, row ->
+-            save(layout.move(element, col, row))
++            save(layout.drop(element, col, row))
+         }
+ 
+         selected?.takeIf { it in layout }?.let { current ->
+@@ -182,7 +244,7 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
+             }
+         }
+ 
+-        TextButton(onClick = { save(WidgetLayout.defaultFor(layout.maxRows)); selected = null }) {
++        TextButton(onClick = { save(WidgetLayout.defaultFor(layout.maxRows, layout.columns)); selected = null }) {
+             Icon(Icons.Rounded.Restore, null)
+             Spacer(Modifier.width(8.dp))
+             Text(stringResource(R.string.widget_layout_reset))
+@@ -197,6 +259,14 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
+                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, null)
+             }
+         },
++        actions = {
++            M3IconButton(onClick = { step(-1) }, enabled = pos > 0) {
++                Icon(Icons.AutoMirrored.Rounded.Undo, stringResource(R.string.widget_undo))
++            }
++            M3IconButton(onClick = { step(1) }, enabled = pos < entries.lastIndex) {
++                Icon(Icons.AutoMirrored.Rounded.Redo, stringResource(R.string.widget_redo))
++            }
++        },
+         windowInsets = TopBarInsets,
+         scrollBehavior = scrollBehavior,
+     )
+@@ -204,8 +274,9 @@ fun WidgetLayoutSettings(navController: NavController, scrollBehavior: TopAppBar
+ 
+ /**
+  * The widget, drawn to scale: its shape, its padding, its rows at the heights they have on the home
+- * screen, and each piece as a small version of itself. Dragging snaps to the 12 columns and to the
+- * rows, plus one empty row below while there is room for another.
++ * screen, every empty cell as a faint rounded tile, and each piece as a labelled preview of itself.
++ * While a piece is dragged the others move to where the drop would put them - pushed aside or
++ * swapped - and the outline shows where it lands, red if there is no room.
+  */
+ @Composable
+ private fun WidgetCanvas(
+@@ -223,84 +294,200 @@ private fun WidgetCanvas(
+     val pad = WidgetMetrics.padding(hDp)
+     // Rows sit in the middle, as on the widget; an extra 40dp row is offered below for dropping into.
+     val top = maxOf(pad, (hDp - heights.sum()) / 2)
+-    val tops = heights.runningFold(top) { acc, h -> acc + h }
+     val slots = if (heights.size < layout.maxRows) heights + 40 else heights
+-    var target by remember { mutableStateOf<Triple<Int, Int, Int>?>(null) } // col, row, span
++    val tops = slots.runningFold(top) { acc, h -> acc + h }
++
++    // The gesture handlers outlive recompositions, so they read these rather than what they were
++    // created with - reading a stale arrangement is what made a drop put everything else back.
++    val latestLayout by rememberUpdatedState(layout)
++    val drop by rememberUpdatedState(onDrop)
++    val select by rememberUpdatedState(onSelect)
++    val currentSelected by rememberUpdatedState(selected)
++
++    var dragging by remember { mutableStateOf<WidgetElement?>(null) }
++    var target by remember { mutableStateOf<Pair<Int, Int>?>(null) } // col, row
++    val preview = remember(layout, dragging, target) {
++        val e = dragging
++        val t = target
++        if (e != null && t != null) layout.drop(e, t.first, t.second) else null
++    }
++    val shown = preview ?: layout
+ 
+     BoxWithConstraints(
+         Modifier
+             .fillMaxWidth()
+-            .aspectRatio(wDp.toFloat() / maxOf(hDp, tops.last() + 40))
++            .aspectRatio(wDp.toFloat() / maxOf(hDp, tops.last() + pad))
+             .clip(RoundedCornerShape(24.dp))
+             .background(colours.secondaryContainer)
+     ) {
+         val scale = maxWidth.value / wDp
+         fun d(v: Number): Dp = (v.toFloat() * scale).dp
+-        val colW = (wDp - 2 * pad) / WidgetLayout.COLUMNS.toFloat()
++        val colW = (wDp - 2 * pad) / layout.columns.toFloat()
+         val pxPerDp = with(density) { 1.dp.toPx() } * scale
+ 
+         fun rowAt(yDp: Float): Int {
+-            slots.indices.forEach { r -> if (yDp < tops[0] + slots.take(r + 1).sum()) return r }
++            slots.indices.forEach { r -> if (yDp < tops[r + 1]) return r }
+             return slots.lastIndex
+         }
+ 
+-        target?.let { (c, r, span) ->
+-            val fits = r < layout.maxRows && c >= 0 && c + span <= WidgetLayout.COLUMNS &&
+-                layout.placements.none { it.row == r && it.col < c + span && c < it.end && it.element != selected }
++        // The grid itself: every cell a faint rounded tile, so the free spaces are plain to see.
++        val tile = colours.onSecondaryContainer.copy(alpha = 0.08f)
++        slots.indices.forEach { r ->
++            repeat(layout.columns) { c ->
++                Box(
++                    Modifier
++                        .offset(d(pad + c * colW + 1.5f), d(tops[r] + 1.5f))
++                        .size(d(colW - 3), d(slots[r] - 3))
++                        .background(tile, RoundedCornerShape(d(6)))
++                )
++            }
++        }
++
++        // Where the dragged piece will land.
++        val e = dragging
++        val t = target
++        if (e != null && t != null) {
++            val landing = preview?.placements?.find { it.element == e }
++            val span = latestLayout.placements.find { it.element == e }?.span ?: 1
++            val (c, r, s) = landing?.let { Triple(it.col, it.row, it.span) } ?: Triple(t.first, t.second, span)
+             Box(
+                 Modifier
+-                    .offset(d(pad + c * colW), d(tops[0] + slots.take(r).sum()))
+-                    .size(d(span * colW), d(slots.getOrElse(r) { 40 }))
+-                    .border(2.dp, if (fits) colours.primary else colours.error, RoundedCornerShape(10.dp))
++                    .offset(d(pad + c * colW), d(tops.getOrElse(r) { tops.last() }))
++                    .size(d(s * colW), d(slots.getOrElse(r) { 40 }))
++                    .border(2.dp, if (landing != null) colours.primary else colours.error, RoundedCornerShape(d(8)))
+             )
+         }
+ 
+-        layout.placements.forEach { p ->
++        shown.placements.forEach { p ->
+             key(p.element) {
+                 var drag by remember { mutableStateOf(Offset.Zero) }
+-                fun snap() = Triple(
+-                    ((p.col * colW + drag.x / pxPerDp) / colW).roundToInt(),
+-                    rowAt(tops[p.row] + heights[p.row] / 2f + drag.y / pxPerDp),
+-                    p.span,
++                val isDragged = p.element == dragging
++                // A dragged piece follows the finger from where it started; the rest glide to where
++                // the drop would put them, and the dragged one glides from the finger into its spot.
++                val origin = if (isDragged) latestLayout.placements.find { it.element == p.element } ?: p else p
++                val xDp = pad + origin.col * colW + if (isDragged) drag.x / pxPerDp else 0f
++                val yDp = tops.getOrElse(origin.row) { tops.last() } + if (isDragged) drag.y / pxPerDp else 0f
++                val x by animateFloatAsState(xDp, if (isDragged) snap<Float>() else spring<Float>(), label = "x")
++                val y by animateFloatAsState(yDp, if (isDragged) snap<Float>() else spring<Float>(), label = "y")
++
++                fun snapTo(start: WidgetPlacement) = Pair(
++                    ((start.col * colW + drag.x / pxPerDp) / colW).roundToInt(),
++                    rowAt(tops[start.row] + slots[start.row] / 2f + drag.y / pxPerDp),
+                 )
++
+                 Box(
+                     contentAlignment = Alignment.Center,
+                     modifier = Modifier
+-                        .offset { IntOffset(((pad + p.col * colW) * pxPerDp + drag.x).roundToInt(), (tops[p.row] * pxPerDp + drag.y).roundToInt()) }
+-                        .size(d(p.span * colW), d(heights[p.row]))
+-                        .then(if (p.element == selected) Modifier.border(2.dp, colours.primary, RoundedCornerShape(10.dp)) else Modifier)
+-                        .pointerInput(p) {
++                        .offset { IntOffset((x * pxPerDp).roundToInt(), (y * pxPerDp).roundToInt()) }
++                        .size(d(p.span * colW), d(slots.getOrElse(p.row) { 40 }))
++                        .padding(d(1.5f))
++                        .background(colours.surface.copy(alpha = if (isDragged) 0.95f else 0.8f), RoundedCornerShape(d(8)))
++                        .then(if (p.element == selected) Modifier.border(2.dp, colours.primary, RoundedCornerShape(d(8))) else Modifier)
++                        .pointerInput(p.element, colW, slots) {
++                            var start: WidgetPlacement? = null
+                             detectDragGestures(
+-                                onDragStart = { onSelect(p.element) },
+-                                onDrag = { change, amount -> change.consume(); drag += amount; target = snap() },
+-                                onDragEnd = { val (c, r, _) = snap(); drag = Offset.Zero; target = null; onDrop(p.element, c, r) },
+-                                onDragCancel = { drag = Offset.Zero; target = null },
++                                onDragStart = {
++                                    start = latestLayout.placements.find { it.element == p.element }
++                                    dragging = p.element
++                                    if (currentSelected != p.element) select(p.element)
++                                },
++                                onDrag = { change, amount ->
++                                    change.consume()
++                                    drag += amount
++                                    start?.let { target = snapTo(it) }
++                                },
++                                onDragEnd = {
++                                    val landed = start?.let { snapTo(it) }
++                                    drag = Offset.Zero
++                                    dragging = null
++                                    target = null
++                                    if (landed != null) drop(p.element, landed.first, landed.second)
++                                },
++                                onDragCancel = { drag = Offset.Zero; dragging = null; target = null },
+                             )
+                         }
+-                        .pointerInput(p) { detectTapGestures { onSelect(p.element) } }
+-                ) { Piece(p.element, cover, scale, colours.onSecondaryContainer) }
++                        .pointerInput(p.element) { detectTapGestures { select(p.element) } }
++                ) { Piece(p.element, cover, scale, colours.onSurface) }
+             }
+         }
+     }
+ }
+ 
+-/** A piece as it looks on the widget, in miniature. */
++/** A piece as it looks on the widget, in miniature: the cover as a picture, the text as words. */
+ @Composable
+-private fun Piece(element: WidgetElement, cover: Int, scale: Float, ink: androidx.compose.ui.graphics.Color) {
++private fun Piece(element: WidgetElement, cover: Int, scale: Float, ink: Color) {
++    val density = LocalDensity.current
++    val colours = MaterialTheme.colorScheme
+     fun d(v: Number): Dp = (v.toFloat() * scale).dp
+-    val faint = ink.copy(alpha = 0.3f)
++    fun sp(v: Number): TextUnit = with(density) { d(v).toSp() }
++    val faint = ink.copy(alpha = 0.45f)
++
++    @Composable
++    fun Line(text: String, size: Number, colour: Color, bold: Boolean = false) = Text(
++        text,
++        fontSize = sp(size),
++        lineHeight = sp(size.toFloat() * 1.2f),
++        fontWeight = if (bold) FontWeight.Bold else FontWeight.Normal,
++        color = colour,
++        maxLines = 1,
++        overflow = TextOverflow.Ellipsis,
++        textAlign = TextAlign.Center,
++        modifier = Modifier.fillMaxWidth(),
++    )
++
+     when (element) {
+-        WidgetElement.COVER -> Box(Modifier.size(d(cover)).background(faint, RoundedCornerShape(d(10))))
+-        WidgetElement.ARTIST -> Box(Modifier.size(d(cover * 2 / 3)).background(faint, CircleShape))
+-        WidgetElement.INFO -> Column(Modifier.fillMaxWidth().padding(horizontal = d(8))) {
+-            Box(Modifier.fillMaxWidth(0.85f).height(d(12)).background(ink.copy(alpha = 0.7f), CircleShape))
+-            Spacer(Modifier.height(d(6)))
+-            Box(Modifier.fillMaxWidth(0.55f).height(d(9)).background(ink.copy(alpha = 0.4f), CircleShape))
++        WidgetElement.COVER -> Box(
++            contentAlignment = Alignment.Center,
++            modifier = Modifier.size(d(cover)).background(colours.primaryContainer, RoundedCornerShape(d(10))),
++        ) { Icon(Icons.Rounded.Album, null, tint = colours.onPrimaryContainer, modifier = Modifier.size(d(cover * 0.55f))) }
++
++        WidgetElement.ARTIST -> Box(
++            contentAlignment = Alignment.Center,
++            modifier = Modifier.size(d(cover * 2 / 3)).background(colours.tertiaryContainer, CircleShape),
++        ) { Icon(Icons.Rounded.Person, null, tint = colours.onTertiaryContainer, modifier = Modifier.size(d(cover * 0.4f))) }
++
++        WidgetElement.INFO -> Column(Modifier.fillMaxWidth().padding(horizontal = d(6))) {
++            Text(
++                stringResource(R.string.widget_preview_title), fontSize = sp(15), fontWeight = FontWeight.Bold,
++                color = ink, maxLines = 1, overflow = TextOverflow.Ellipsis,
++            )
++            Text(
++                stringResource(R.string.widget_preview_artists), fontSize = sp(12),
++                color = ink.copy(alpha = 0.65f), maxLines = 1, overflow = TextOverflow.Ellipsis,
++            )
++        }
++
++        WidgetElement.LYRICS -> Column(Modifier.fillMaxWidth().padding(horizontal = d(4))) {
++            Line(stringResource(R.string.widget_preview_lyric_previous), 10, faint)
++            Text(
++                buildAnnotatedString {
++                    withStyle(SpanStyle(color = ink)) { append(stringResource(R.string.widget_preview_lyric_sung)) }
++                    withStyle(SpanStyle(color = faint)) { append(stringResource(R.string.widget_preview_lyric_rest)) }
++                },
++                fontSize = sp(13), fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis,
++                textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth(),
++            )
++            Line(stringResource(R.string.widget_preview_lyric_next), 10, faint)
+         }
+-        WidgetElement.LYRICS -> Box(Modifier.fillMaxWidth(0.8f).height(d(12)).background(ink.copy(alpha = 0.6f), CircleShape))
+-        WidgetElement.UP_NEXT -> Box(Modifier.fillMaxWidth(0.7f).height(d(8)).background(faint, CircleShape))
+-        WidgetElement.SEEK_BAR -> Box(Modifier.fillMaxWidth().padding(horizontal = d(4)).height(d(3)).background(ink.copy(alpha = 0.6f), CircleShape))
+-        else -> Icon(element.icon, null, tint = ink, modifier = Modifier.size(d(if (element == WidgetElement.PLAY_PAUSE) 36 else 28)))
++
++        WidgetElement.UP_NEXT -> Line(
++            stringResource(R.string.widget_up_next, stringResource(R.string.widget_preview_song)), 11, ink.copy(alpha = 0.7f),
++        )
++
++        WidgetElement.SEEK_BAR -> {
++            val style by rememberEnumPreference(SliderStyleKey, DEFAULT_SLIDER_STYLE)
++            val weight by rememberEnumPreference(SliderWeightKey, SliderWeight.THINNER)
++            val accent = colours.primary
++            Canvas(Modifier.fillMaxWidth().padding(horizontal = d(4)).height(d(24))) {
++                drawPlayerSliderStill(style, 0.4f, accent, accent.copy(alpha = 0.25f), weight.scale, dot = false, playing = true)
++            }
++        }
++
++        else -> Icon(
++            element.icon, null,
++            tint = if (element == WidgetElement.PLAY_PAUSE) colours.primary else ink,
++            modifier = Modifier.size(d(if (element == WidgetElement.PLAY_PAUSE) 34 else 26)),
++        )
+     }
+ }
+ 
+@@ -319,7 +506,6 @@ private val WidgetElement.label: Int
+         WidgetElement.REPEAT -> R.string.widget_el_repeat
+     }
+ 
+-// Icons the app already uses elsewhere, so the editor adds none of its own to the app.
+ private val WidgetElement.icon: ImageVector
+     get() = when (this) {
+         WidgetElement.COVER -> Icons.Rounded.Album
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index 546af3d..f41c8ab 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -13,6 +13,10 @@ import android.content.ComponentName
+ import android.content.Context
+ import android.content.Intent
+ import android.content.res.Configuration
++import android.text.SpannableString
++import android.text.Spanned
++import android.text.style.ForegroundColorSpan
++import android.view.View
+ import android.graphics.Bitmap
+ import android.graphics.BitmapShader
+ import android.graphics.Canvas
+@@ -214,16 +218,16 @@ object PlayerWidget {
+     /** Arrangements set for the smaller sizes in the editor, or null to cut them from [lastLayout]. */
+     @Volatile private var lastSmall: WidgetLayout? = null
+     @Volatile private var lastMedium: WidgetLayout? = null
+-    @Volatile private var lastLyricLine: String? = null
++    @Volatile private var lastLyrics: WidgetLyrics.Frame? = null
+ 
+     /** Whether any placed widget's arrangement shows lyrics - the service only works them out if so. */
+     val wantsLyrics: Boolean get() = allLayouts().any { WidgetElement.LYRICS in it }
+ 
+     private fun allLayouts() = listOfNotNull(lastLayout, lastSmall, lastMedium)
+ 
+-    /** The lyric line now being sung, or null for none. Shown at the next update. */
+-    fun setLyricLine(line: String?) {
+-        lastLyricLine = line
++    /** The lyrics around the line now being sung, or null for none. Shown at the next update. */
++    fun setLyrics(frame: WidgetLyrics.Frame?) {
++        lastLyrics = frame
+     }
+ 
+     /** The drawn background, kept until the song, the look or light/dark changes. */
+@@ -365,10 +369,10 @@ object PlayerWidget {
+                 // rows they leave empty.
+                 val drop = buildSet {
+                     if (heightDp < 260) { add(WidgetElement.LYRICS); add(WidgetElement.UP_NEXT) }
+-                    if (lastLyricLine.isNullOrBlank()) add(WidgetElement.LYRICS)
++                    if (lastLyrics == null) add(WidgetElement.LYRICS)
+                 }
+                 val kept = lastLayout.placements.filter { it.element !in drop }
+-                if (kept.isEmpty()) lastLayout else WidgetLayout(kept).normalised()
++                if (kept.isEmpty()) lastLayout else lastLayout.copy(placements = kept).normalised()
+             }
+         }
+     }
+@@ -424,7 +428,7 @@ object PlayerWidget {
+ 
+             removeAllViews(R.id.widget_rows)
+             // Each grid row as a line of cells: a gap cell up to the next piece, the piece in a cell
+-            // as wide as its span, and a gap to the end - all twelve columns accounted for, so the
++            // as wide as its span, and a gap to the end - every column accounted for, so the
+             // widths come out exactly as placed in the editor.
+             layout.placements.groupBy { it.row }.toSortedMap().values.forEach { rowPlacements ->
+                 val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
+@@ -434,12 +438,12 @@ object PlayerWidget {
+                     val cellViews = cell(context, placement.span)
+                     cellViews.addView(
+                         R.id.el_cell,
+-                        elementView(context, placement.element, colours, look, widthDp * placement.span / WidgetLayout.COLUMNS, small, coverDp),
++                        elementView(context, placement.element, colours, look, widthDp * placement.span / layout.columns, small, coverDp),
+                     )
+                     rowViews.addView(R.id.widget_row_container, cellViews)
+                     col = placement.end
+                 }
+-                if (col < WidgetLayout.COLUMNS) rowViews.addView(R.id.widget_row_container, cell(context, WidgetLayout.COLUMNS - col))
++                if (col < layout.columns) rowViews.addView(R.id.widget_row_container, cell(context, layout.columns - col))
+                 addView(R.id.widget_rows, rowViews)
+             }
+         }
+@@ -458,13 +462,15 @@ object PlayerWidget {
+     ): RemoteViews {
+         // The app's own rounded Material icons, drawn to bitmaps, so the widget's buttons are the
+         // player's buttons rather than look-alikes from a different icon set.
++        // A fine grid can give a button a narrow cell; the smaller button fits one.
++        val narrow = small || widthDp < 52
+         fun button(icon: ImageVector, action: String, requestCode: Int, tint: Int, big: Boolean = false) =
+             RemoteViews(
+                 context.packageName,
+                 when {
+-                    big && small -> R.layout.widget_el_play_small
++                    big && narrow -> R.layout.widget_el_play_small
+                     big -> R.layout.widget_el_play
+-                    small -> R.layout.widget_el_button_small
++                    narrow -> R.layout.widget_el_button_small
+                     else -> R.layout.widget_el_button
+                 },
+             ).apply {
+@@ -521,8 +527,23 @@ object PlayerWidget {
+             }
+ 
+             WidgetElement.LYRICS -> RemoteViews(context.packageName, R.layout.widget_el_lyrics).apply {
+-                setTextViewText(R.id.el_text, lastLyricLine.orEmpty())
++                val frame = lastLyrics
++                val faint = ColorUtils.setAlphaComponent(colours.text, 0x73)
++                // The words sung so far in the text colour, the rest of the line dimmed - spans travel
++                // with the text through RemoteViews, so this needs no picture.
++                val current = SpannableString(frame?.current.orEmpty()).apply {
++                    val sung = (frame?.sungChars ?: 0).coerceIn(0, length)
++                    if (sung > 0) setSpan(ForegroundColorSpan(colours.text), 0, sung, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
++                    if (sung < length) setSpan(ForegroundColorSpan(faint), sung, length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE)
++                }
++                setTextViewText(R.id.el_text, current)
+                 setTextColor(R.id.el_text, colours.text)
++                setTextViewText(R.id.el_prev, frame?.previous.orEmpty())
++                setTextViewText(R.id.el_next, frame?.next.orEmpty())
++                setTextColor(R.id.el_prev, faint)
++                setTextColor(R.id.el_next, faint)
++                setViewVisibility(R.id.el_prev, if (frame?.previous.isNullOrBlank()) View.GONE else View.VISIBLE)
++                setViewVisibility(R.id.el_next, if (frame?.next.isNullOrBlank()) View.GONE else View.VISIBLE)
+             }
+ 
+             WidgetElement.PREVIOUS -> button(Icons.Rounded.SkipPrevious, ACTION_PREVIOUS, 1, colours.text)
+@@ -548,11 +569,12 @@ object PlayerWidget {
+         R.layout.widget_cell_1, R.layout.widget_cell_2, R.layout.widget_cell_3, R.layout.widget_cell_4,
+         R.layout.widget_cell_5, R.layout.widget_cell_6, R.layout.widget_cell_7, R.layout.widget_cell_8,
+         R.layout.widget_cell_9, R.layout.widget_cell_10, R.layout.widget_cell_11, R.layout.widget_cell_12,
++        R.layout.widget_cell_13, R.layout.widget_cell_14, R.layout.widget_cell_15, R.layout.widget_cell_16,
+     )
+ 
+     /** A grid cell [span] columns wide - see the widget_cell_* layouts. */
+     private fun cell(context: Context, span: Int) =
+-        RemoteViews(context.packageName, CELL_LAYOUTS[span.coerceIn(1, WidgetLayout.COLUMNS) - 1])
++        RemoteViews(context.packageName, CELL_LAYOUTS[span.coerceIn(1, WidgetLayout.MAX_COLUMNS) - 1])
+ 
+     /** Drawn icons, kept per icon and colour - the same few are redrawn on every update otherwise. */
+     private val iconCache = java.util.concurrent.ConcurrentHashMap<String, Bitmap>()
+@@ -611,8 +633,8 @@ object PlayerWidget {
+      * Applies a new arrangement from the widget editor straight away, without waiting for the next
+      * song or play-state change to redraw.
+      */
+-    fun applyLayout(context: Context, layout: WidgetLayout) {
+-        when (layout.maxRows) {
++    fun applyLayout(context: Context, layout: WidgetLayout, baseRows: Int) {
++        when (baseRows) {
+             WidgetLayout.SMALL_ROWS -> lastSmall = layout
+             WidgetLayout.MEDIUM_ROWS -> lastMedium = layout
+             else -> lastLayout = layout
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+index 34ed603..c55e134 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLayout.kt
+@@ -6,8 +6,13 @@
+ 
+ package com.dd3boh.outertune.widget
+ 
++import kotlin.math.abs
++import kotlin.math.ceil
++import kotlin.math.roundToInt
++
+ /**
+- * One piece of the home-screen widget, and how many grid columns it may span.
++ * One piece of the home-screen widget, and how many columns it may span - in a 12-column grid; a
++ * coarser or finer grid scales these (see [WidgetLayout.minSpan] and friends).
+  *
+  * [flexible] pieces stretch to fill their cells; the rest are their own fixed size, centred in theirs.
+  */
+@@ -15,7 +20,7 @@ enum class WidgetElement(val flexible: Boolean, val defaultSpan: Int, val minSpa
+     COVER(false, 3, 2, 4),
+     ARTIST(false, 2, 2, 3),
+     INFO(true, 9, 4, 12),
+-    /** The line of the lyrics being sung, when the song has synced lyrics. */
++    /** The lyrics being sung, with the lines either side, when the song has synced lyrics. */
+     LYRICS(true, 12, 4, 12),
+     UP_NEXT(true, 6, 3, 12),
+     SEEK_BAR(true, 12, 4, 12),
+@@ -42,7 +47,8 @@ object WidgetMetrics {
+         WidgetElement.COVER -> coverDp
+         WidgetElement.ARTIST -> (coverDp * 2 / 3).coerceAtLeast(COVER_MIN)
+         WidgetElement.INFO -> 46
+-        WidgetElement.LYRICS -> 44
++        // Three lines: the one before, the one being sung, the one after.
++        WidgetElement.LYRICS -> 64
+         WidgetElement.UP_NEXT -> 20
+         WidgetElement.SEEK_BAR -> 24
+         WidgetElement.PLAY_PAUSE -> if (small) 46 else 56
+@@ -61,7 +67,7 @@ object WidgetMetrics {
+      */
+     fun coverSize(layout: WidgetLayout, widthDp: Int, heightDp: Int, small: Boolean): Int {
+         val cell = layout.placements.find { it.element == WidgetElement.COVER }
+-            ?.let { (widthDp - 2 * padding(heightDp)) * it.span / WidgetLayout.COLUMNS - 6 }
++            ?.let { (widthDp - 2 * padding(heightDp)) * it.span / layout.columns - 6 }
+             ?: COVER_MAX
+         var size = minOf(COVER_MAX, cell).coerceAtLeast(COVER_MIN)
+         while (size > COVER_MIN && contentHeight(layout, small, size, heightDp) > heightDp) size -= 2
+@@ -76,22 +82,24 @@ data class WidgetPlacement(val element: WidgetElement, val col: Int, val row: In
+ }
+ 
+ /**
+- * The widget's arrangement: a grid of [COLUMNS] columns and up to [MAX_ROWS] rows, each piece one row
+- * tall and some columns wide.
++ * The widget's arrangement: a grid of [columns] columns and up to [maxRows] rows, each piece one
++ * row tall and some columns wide.
+  *
+  * Pieces snap to cells and may never overlap - that is the whole of the placement rules, and
+  * [normalised] enforces it however a layout was produced. Free placement on a grid is also exactly
+  * what a home-screen widget can draw: each row becomes a line of cells whose widths are the spans,
+  * so what the editor shows is what lands on the home screen.
+  *
+- * Stored as text, "COVER@0,0,3;INFO@3,0,9;...": element@col,row,span, separated by ';'. The older
+- * rows-only format ("COVER,INFO|SEEK_BAR") still reads, laid out left to right, so an arrangement
+- * saved by the previous editor carries over. Unknown names are dropped.
++ * Stored as text, "grid=16x3;COVER@0,0,3;INFO@3,0,9;...": the grid, then element@col,row,span,
++ * separated by ';'. Without a grid it is the original 12 columns; the older rows-only format
++ * ("COVER,INFO|SEEK_BAR") still reads too, laid out left to right. Unknown names are dropped.
+  */
+ data class WidgetLayout(
+     val placements: List<WidgetPlacement>,
+-    /** Rows this arrangement may use: 1 for a small widget, 2 for a medium one, [MAX_ROWS] for large. */
++    /** Rows this arrangement may use. */
+     val maxRows: Int = MAX_ROWS,
++    /** Columns across: [COLUMNS], or one of the other [GRIDS]. */
++    val columns: Int = COLUMNS,
+ ) {
+ 
+     /** Rows top to bottom, each left to right - the order the compact sizes and the widget read. */
+@@ -104,41 +112,118 @@ data class WidgetLayout(
+ 
+     val unused: List<WidgetElement> get() = WidgetElement.entries.filter { it !in this }
+ 
+-    fun encode(): String = placements.joinToString(";") { "${it.element.name}@${it.col},${it.row},${it.span}" }
++    // A piece's limits, scaled from the 12-column figures. The minimum rounds up so a button never
++    // gets a cell too narrow to hold it.
++    fun minSpan(e: WidgetElement) = ceil(e.minSpan * columns / COLUMNS.toFloat()).toInt().coerceIn(1, columns)
++    fun maxSpan(e: WidgetElement) = (e.maxSpan * columns / COLUMNS).coerceIn(minSpan(e), columns)
++    fun defaultSpan(e: WidgetElement) = (e.defaultSpan * columns / COLUMNS.toFloat()).roundToInt().coerceIn(minSpan(e), maxSpan(e))
++
++    fun encode(): String {
++        val items = placements.joinToString(";") { "${it.element.name}@${it.col},${it.row},${it.span}" }
++        return "grid=${columns}x$maxRows;$items"
++    }
+ 
+     /** Drops duplicates, out-of-grid pieces and anything overlapping a piece placed before it. */
+     fun normalised(): WidgetLayout {
+         val kept = mutableListOf<WidgetPlacement>()
+         for (p in placements) {
+-            val span = p.span.coerceIn(p.element.minSpan, p.element.maxSpan)
+-            val fixed = p.copy(span = span, col = p.col.coerceIn(0, COLUMNS - span))
++            val span = p.span.coerceIn(minSpan(p.element), maxSpan(p.element))
++            val fixed = p.copy(span = span, col = p.col.coerceIn(0, columns - span))
+             if (fixed.row !in 0 until maxRows) continue
+             if (kept.any { it.element == fixed.element || it.overlaps(fixed) }) continue
+             kept += fixed
+         }
+-        if (kept.isEmpty()) return defaultFor(maxRows)
++        if (kept.isEmpty()) return defaultFor(maxRows, columns)
+         // Close up empty rows, so a layout never has a blank band in the middle.
+         val usedRows = kept.map { it.row }.distinct().sorted()
+-        return WidgetLayout(kept.map { p -> p.copy(row = usedRows.indexOf(p.row)) }, maxRows)
++        return copy(placements = kept.map { p -> p.copy(row = usedRows.indexOf(p.row)) })
+     }
+ 
++    private fun with(list: List<WidgetPlacement>) = copy(placements = list).normalised()
++
+     /** True if [placement] fits the grid without covering any other piece. */
+     fun fits(placement: WidgetPlacement): Boolean =
+-        placement.col >= 0 && placement.end <= COLUMNS && placement.row in 0 until maxRows &&
++        placement.col >= 0 && placement.end <= columns && placement.row in 0 until maxRows &&
+             placements.none { it.element != placement.element && it.overlaps(placement) }
+ 
+-    /** [element] moved to ([col], [row]); unchanged if that would leave the grid or cover something. */
+-    fun move(element: WidgetElement, col: Int, row: Int): WidgetLayout {
+-        val current = placements.find { it.element == element } ?: return this
+-        val moved = current.copy(col = col, row = row)
+-        if (!fits(moved)) return this
+-        return copy(placements = placements.map { if (it.element == element) moved else it }).normalised()
++    /**
++     * [element] dropped at ([col], [row]), or null if there is no way to make room.
++     *
++     * - An empty spot: it moves there.
++     * - Mostly on top of one other piece: the two swap places.
++     * - Partly over its neighbours: they are pushed along the row, if the row has the room. That is
++     *   what makes nudging a row of buttons along one at a time work in any order.
++     */
++    fun drop(element: WidgetElement, col: Int, row: Int): WidgetLayout? {
++        val current = placements.find { it.element == element } ?: return null
++        if (row !in 0 until maxRows) return null
++        val moved = current.copy(col = col.coerceIn(0, columns - current.span), row = row)
++        if (moved == current) return this
++        val others = placements.filter { it.element != element }
++        val hit = others.filter { it.overlaps(moved) }
++        if (hit.isEmpty()) return with(others + moved)
++        if (hit.size == 1) {
++            val other = hit.single()
++            val overlap = minOf(moved.end, other.end) - maxOf(moved.col, other.col)
++            if (overlap * 2 > moved.span) swap(current, other)?.let { return it }
++        }
++        return push(others, moved)
++    }
++
++    /** [a] and [b] in each other's places, or null if their widths will not allow it. */
++    private fun swap(a: WidgetPlacement, b: WidgetPlacement): WidgetLayout? {
++        val rest = placements.filter { it.element != a.element && it.element != b.element }
++        fun ok(x: WidgetPlacement, y: WidgetPlacement) =
++            x.col >= 0 && x.end <= columns && y.col >= 0 && y.end <= columns && !x.overlaps(y) &&
++                rest.none { it.overlaps(x) || it.overlaps(y) }
++
++        // Each in the other's spot, kept inside the grid.
++        val a1 = a.copy(col = b.col.coerceIn(0, columns - a.span), row = b.row)
++        val b1 = b.copy(col = a.col.coerceIn(0, columns - b.span), row = a.row)
++        if (ok(a1, b1)) return with(rest + a1 + b1)
++
++        // Side by side in one row but of different widths: swap their order within the space the
++        // two of them cover.
++        if (a.row == b.row) {
++            val left = minOf(a.col, b.col)
++            val right = maxOf(a.end, b.end)
++            val (a2, b2) = if (a.col < b.col) {
++                a.copy(col = right - a.span) to b.copy(col = left)
++            } else {
++                a.copy(col = left) to b.copy(col = right - b.span)
++            }
++            if (ok(a2, b2)) return with(rest + a2 + b2)
++        }
++        return null
++    }
++
++    /** [moved] placed, the pieces it lands on pushed aside along its row; null if they run out of room. */
++    private fun push(others: List<WidgetPlacement>, moved: WidgetPlacement): WidgetLayout? {
++        val inRow = others.filter { it.row == moved.row }
++        val centre = moved.col + moved.span / 2f
++        val result = others.filter { it.row != moved.row }.toMutableList()
++
++        var cursor = moved.end
++        for (p in inRow.filter { it.col + it.span / 2f >= centre }.sortedBy { it.col }) {
++            val col = maxOf(p.col, cursor)
++            if (col + p.span > columns) return null
++            result += p.copy(col = col)
++            cursor = col + p.span
++        }
++        cursor = moved.col
++        for (p in inRow.filter { it.col + it.span / 2f < centre }.sortedByDescending { it.col }) {
++            val end = minOf(p.end, cursor)
++            if (end - p.span < 0) return null
++            result += p.copy(col = end - p.span)
++            cursor = end - p.span
++        }
++        return with(result + moved)
+     }
+ 
+     /** [element] made [by] columns wider (or narrower), growing to the right, then to the left. */
+     fun resize(element: WidgetElement, by: Int): WidgetLayout {
+         val current = placements.find { it.element == element } ?: return this
+-        val span = (current.span + by).coerceIn(element.minSpan, element.maxSpan)
++        val span = (current.span + by).coerceIn(minSpan(element), maxSpan(element))
+         if (span == current.span) return this
+         val candidates = listOf(current.copy(span = span), current.copy(span = span, col = current.col - (span - current.span)))
+         val resized = candidates.firstOrNull { fits(it) } ?: return this
+@@ -156,8 +241,8 @@ data class WidgetLayout(
+         if (element in this) return this
+         val rowsInUse = (placements.maxOfOrNull { it.row } ?: -1) + 1
+         for (row in 0 until minOf(rowsInUse + 1, maxRows)) {
+-            for (span in element.defaultSpan downTo element.minSpan) {
+-                for (col in 0..(COLUMNS - span)) {
++            for (span in defaultSpan(element) downTo minSpan(element)) {
++                for (col in 0..(columns - span)) {
+                     val candidate = WidgetPlacement(element, col, row, span)
+                     if (fits(candidate)) return copy(placements = placements + candidate).normalised()
+                 }
+@@ -166,93 +251,126 @@ data class WidgetLayout(
+         return this
+     }
+ 
++    /**
++     * The same arrangement on another grid: each piece keeps its place and its share of the width,
++     * as near as the new columns allow. A piece that no longer fits where it was goes to the
++     * nearest free spot in its row, narrower if need be, and is left out only if there is none.
++     */
++    fun regridded(newColumns: Int, newRows: Int): WidgetLayout {
++        if (newColumns == columns && newRows == maxRows) return this
++        val target = WidgetLayout(emptyList(), newRows, newColumns)
++        val kept = mutableListOf<WidgetPlacement>()
++        for (p in placements.sortedWith(compareBy({ it.row }, { it.col }))) {
++            if (p.row >= newRows) continue
++            val wanted = (p.span * newColumns / columns.toFloat()).roundToInt()
++                .coerceIn(target.minSpan(p.element), target.maxSpan(p.element))
++            val start = (p.col * newColumns / columns.toFloat()).roundToInt()
++            val spot = (wanted downTo target.minSpan(p.element)).asSequence().flatMap { span ->
++                (0..(newColumns - span)).sortedBy { abs(it - start) }.asSequence()
++                    .map { WidgetPlacement(p.element, it, p.row, span) }
++            }.firstOrNull { c -> kept.none { it.overlaps(c) } }
++            if (spot != null) kept += spot
++        }
++        return target.copy(placements = kept).normalised()
++    }
++
+     companion object {
+         const val COLUMNS = 12
+         const val MAX_ROWS = 4
+ 
++        /** The grids on offer: big cells, the usual, and small cells (with a row more). */
++        val GRIDS = listOf(8, COLUMNS, 16)
++
++        /** The most columns any grid has - see the widget_cell_* layouts. */
++        const val MAX_COLUMNS = 16
++
++        /** Rows for each editable widget size, on the usual grid. */
++        const val SMALL_ROWS = 1
++        const val MEDIUM_ROWS = 2
++
++        /** Rows a size gets on a grid: the finest grid fits one more row. */
++        fun rowsFor(baseRows: Int, columns: Int) = if (columns > COLUMNS) baseRows + 1 else baseRows
++
+         /**
+          * Rows of pieces laid out at their default widths, each row centred - the controls sit in the
+          * middle the way the player's do. Used for the defaults and the small widget sizes.
+          */
+-        fun fromRows(rows: List<List<WidgetElement>>, maxRows: Int = MAX_ROWS): WidgetLayout {
++        fun fromRows(rows: List<List<WidgetElement>>, maxRows: Int = MAX_ROWS, columns: Int = COLUMNS): WidgetLayout {
++            val grid = WidgetLayout(emptyList(), maxRows, columns)
+             val placements = mutableListOf<WidgetPlacement>()
+             rows.filter { it.isNotEmpty() }.take(maxRows).forEachIndexed { r, row ->
+-                var spans = row.map { it.defaultSpan }
++                var spans = row.map { grid.defaultSpan(it) }
+                 // Shrink the widest pieces until the row fits.
+-                while (spans.sum() > COLUMNS) {
+-                    val i = spans.indices.filter { spans[it] > row[it].minSpan }.maxByOrNull { spans[it] } ?: break
++                while (spans.sum() > columns) {
++                    val i = spans.indices.filter { spans[it] > grid.minSpan(row[it]) }.maxByOrNull { spans[it] } ?: break
+                     spans = spans.toMutableList().also { it[i]-- }
+                 }
+-                var col = ((COLUMNS - spans.sum()) / 2).coerceAtLeast(0)
++                var col = ((columns - spans.sum()) / 2).coerceAtLeast(0)
+                 row.forEachIndexed { i, element ->
+                     placements += WidgetPlacement(element, col, r, spans[i])
+                     col += spans[i]
+                 }
+             }
+-            return WidgetLayout(placements, maxRows).normalised()
++            return grid.copy(placements = placements).normalised()
+         }
+ 
+-        /** Rows for each editable widget size. */
+-        const val SMALL_ROWS = 1
+-        const val MEDIUM_ROWS = 2
++        private val SMALL_PIECES = listOf(listOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT))
++        private val CONTROLS = listOf(
++            WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT, WidgetElement.REPEAT,
++        )
++        private val MEDIUM_PIECES = listOf(listOf(WidgetElement.COVER, WidgetElement.INFO), CONTROLS)
++        private val LARGE_PIECES = listOf(
++            listOf(WidgetElement.COVER, WidgetElement.INFO),
++            listOf(WidgetElement.LYRICS),
++            listOf(WidgetElement.SEEK_BAR),
++            CONTROLS,
++        )
+ 
+         /** One cell tall: the controls. */
+-        val DEFAULT_SMALL: WidgetLayout by lazy {
+-            fromRows(listOf(listOf(WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT)), SMALL_ROWS)
+-        }
++        val DEFAULT_SMALL: WidgetLayout by lazy { fromRows(SMALL_PIECES, SMALL_ROWS) }
+ 
+         /** Two cells tall: cover and title above the controls. */
+-        val DEFAULT_MEDIUM: WidgetLayout by lazy {
+-            fromRows(
+-                listOf(
+-                    listOf(WidgetElement.COVER, WidgetElement.INFO),
+-                    listOf(
+-                        WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE,
+-                        WidgetElement.NEXT, WidgetElement.REPEAT,
+-                    ),
+-                ),
+-                MEDIUM_ROWS,
+-            )
+-        }
+-
+-        fun defaultFor(maxRows: Int): WidgetLayout = when {
+-            maxRows <= SMALL_ROWS -> DEFAULT_SMALL
+-            maxRows <= MEDIUM_ROWS -> DEFAULT_MEDIUM
+-            else -> DEFAULT
+-        }
++        val DEFAULT_MEDIUM: WidgetLayout by lazy { fromRows(MEDIUM_PIECES, MEDIUM_ROWS) }
+ 
+         /** The full widget: the player's own order - cover and title, lyrics, seek bar, controls. */
+-        val DEFAULT: WidgetLayout by lazy {
+-            fromRows(
+-                listOf(
+-                    listOf(WidgetElement.COVER, WidgetElement.INFO),
+-                    listOf(WidgetElement.LYRICS),
+-                    listOf(WidgetElement.SEEK_BAR),
+-                    listOf(
+-                        WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE,
+-                        WidgetElement.NEXT, WidgetElement.REPEAT,
+-                    ),
+-                )
+-            )
++        val DEFAULT: WidgetLayout by lazy { fromRows(LARGE_PIECES) }
++
++        /** The default arrangement for a size of [maxRows] rows on a grid of [columns]. */
++        fun defaultFor(maxRows: Int, columns: Int = COLUMNS): WidgetLayout {
++            // The size's usual row count: the finest grid has one row more than it.
++            val baseRows = if (columns > COLUMNS) maxRows - 1 else maxRows
++            val pieces = when {
++                baseRows <= SMALL_ROWS -> SMALL_PIECES
++                baseRows <= MEDIUM_ROWS -> MEDIUM_PIECES
++                else -> LARGE_PIECES
++            }
++            return fromRows(pieces, maxRows, columns)
+         }
+ 
+-        fun parse(text: String?, maxRows: Int = MAX_ROWS): WidgetLayout {
+-            if (text.isNullOrBlank()) return defaultFor(maxRows)
++        /**
++         * Reads a stored arrangement for a size whose usual row count is [baseRows]. The grid stored
++         * with it decides its columns, and so its rows; without one it is the usual 12 columns.
++         */
++        fun parse(text: String?, baseRows: Int = MAX_ROWS): WidgetLayout {
++            if (text.isNullOrBlank()) return defaultFor(baseRows)
+             if ('@' !in text) {
+-                // The previous editor's rows-only format.
++                // The first editor's rows-only format.
+                 val rows = text.split('|').map { row ->
+                     row.split(',').mapNotNull { name -> WidgetElement.entries.find { it.name == name.trim() } }
+                 }
+-                return fromRows(rows, maxRows)
++                return fromRows(rows, baseRows)
+             }
+-            val placements = text.split(';').mapNotNull { item ->
++            val items = text.split(';')
++            val columns = items.firstOrNull { it.startsWith("grid=") }
++                ?.removePrefix("grid=")?.substringBefore('x')?.toIntOrNull()?.takeIf { it in GRIDS } ?: COLUMNS
++            val placements = items.mapNotNull { item ->
+                 val name = item.substringBefore('@').trim()
+                 val numbers = item.substringAfter('@', "").split(',').mapNotNull { it.trim().toIntOrNull() }
+                 val element = WidgetElement.entries.find { it.name == name } ?: return@mapNotNull null
+                 if (numbers.size != 3) return@mapNotNull null
+                 WidgetPlacement(element, numbers[0], numbers[1], numbers[2])
+             }
+-            return WidgetLayout(placements, maxRows).normalised()
++            return WidgetLayout(placements, rowsFor(baseRows, columns), columns).normalised()
+         }
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+index 496335f..d1ca6a7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+@@ -6,35 +6,68 @@
+ 
+ package com.dd3boh.outertune.widget
+ 
++import com.dd3boh.outertune.ui.utils.withEstimatedWordSync
++import org.akanework.gramophone.logic.utils.LrcUtils
++import org.akanework.gramophone.logic.utils.SemanticLyrics
++
+ /**
+- * The widget's lyrics line: just enough LRC reading to say which line is being sung.
++ * The widget's lyrics: the line being sung, with the words sung so far lit, and the lines either
++ * side of it - the Windows mini player's look.
+  *
+- * Deliberately not the app's full lyrics parser. The widget shows one line of plain text, refreshed
+- * every couple of seconds, so word timings, translations and singer markup have nothing to drive;
+- * what it needs is the line timestamps, and the text with any inline word marks taken out.
++ * Read with the app's own parser, so LRC, enhanced LRC and TTML all carry their word timings here
++ * as they do in the player, and lines without them are estimated the same way when the player
++ * estimates them.
+  */
+ object WidgetLyrics {
+-    private val LINE = Regex("""^\s*\[(\d{1,2}):(\d{2})(?:[.:](\d{1,3}))?]\s*(.*)$""")
+-    private val WORD_MARK = Regex("""<\d{1,2}:\d{2}(?:[.:]\d{1,3})?>""")
++
++    /** One line: when it starts, its text, and for each word when it starts and where it ends. */
++    class Line(val start: Long, val text: String, val words: List<Pair<Long, Int>>)
++
++    /** What the widget shows: [sungChars] of [current] are lit, the rest dimmed. */
++    data class Frame(val previous: String?, val current: String, val sungChars: Int, val next: String?)
++
++    /**
++     * How far ahead the lit words run. The widget is redrawn about once a second, so lighting what
++     * is sung half a second from now puts each word, on average, on time.
++     */
++    private const val LEAD_MS = 500L
+ 
+     /** Timed lines, in order. Empty for unsynced lyrics - there is no "current line" to show then. */
+-    fun parse(raw: String?): List<Pair<Long, String>> {
++    fun parse(raw: String?, estimate: Boolean): List<Line> {
+         if (raw.isNullOrBlank()) return emptyList()
+-        return raw.lineSequence().mapNotNull { line ->
+-            val match = LINE.find(line) ?: return@mapNotNull null
+-            val (min, sec, frac, text) = match.destructured
+-            val fracMs = when (frac.length) {
+-                0 -> 0L
+-                1 -> frac.toLong() * 100
+-                2 -> frac.toLong() * 10
+-                else -> frac.take(3).toLong()
++        val parsed = runCatching {
++            LrcUtils.parseLyrics(raw, null, LrcUtils.LrcParserOptions(trim = true, multiLine = true, errorText = null), null)
++        }.getOrNull() as? SemanticLyrics.SyncedLyrics ?: return emptyList()
++        val lyrics = if (estimate) runCatching { parsed.withEstimatedWordSync() }.getOrDefault(parsed) else parsed
++        return lyrics.text
++            // Translations are shown under their line in the player; on a widget there is no room.
++            .filter { !it.isTranslated && it.text.isNotBlank() }
++            .map { line ->
++                Line(
++                    start = line.start.toLong(),
++                    text = line.text,
++                    words = line.words.orEmpty()
++                        .map { it.timeRange.first.toLong() to (it.charRange.last + 1).coerceAtMost(line.text.length) }
++                        .sortedBy { it.first },
++                )
+             }
+-            val cleaned = text.replace(WORD_MARK, "").trim()
+-            (min.toLong() * 60_000 + sec.toLong() * 1_000 + fracMs) to cleaned
+-        }.filter { it.second.isNotEmpty() }.sortedBy { it.first }.toList()
++            .sortedBy { it.start }
++    }
++
++    /** The lines around [positionMs]; before the first line, that line coming up. Null for none. */
++    fun frameAt(lines: List<Line>, positionMs: Long): Frame? {
++        if (lines.isEmpty()) return null
++        val index = lines.indexOfLast { it.start <= positionMs }
++        if (index < 0) return Frame(null, lines[0].text, 0, lines.getOrNull(1)?.text)
++        val line = lines[index]
++        val sung = if (line.words.isEmpty()) {
++            line.text.length
++        } else {
++            line.words.lastOrNull { it.first <= positionMs + LEAD_MS }?.second ?: 0
++        }
++        return Frame(lines.getOrNull(index - 1)?.text, line.text, sung, lines.getOrNull(index + 1)?.text)
+     }
+ 
+-    /** The line being sung at [positionMs], or null before the first one. */
+-    fun lineAt(lines: List<Pair<Long, String>>, positionMs: Long): String? =
+-        lines.lastOrNull { it.first <= positionMs }?.second
++    /** Whether any line carries word timings, so the widget is worth redrawing more often. */
++    fun hasWords(lines: List<Line>) = lines.any { it.words.isNotEmpty() }
+ }
+diff --git a/app/src/main/res/layout/widget_cell_13.xml b/app/src/main/res/layout/widget_cell_13.xml
+new file mode 100644
+index 0000000..7636a45
+--- /dev/null
++++ b/app/src/main/res/layout/widget_cell_13.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- A grid cell 13 column(s) wide (of up to 16) - see WidgetLayout. Holds one element, centred; empty, it
++     is the gap before the next one. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_cell"
++    android:layout_width="0dp"
++    android:layout_height="wrap_content"
++    android:layout_weight="13"
++    android:gravity="center"
++    android:orientation="horizontal" />
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/widget_cell_14.xml b/app/src/main/res/layout/widget_cell_14.xml
+new file mode 100644
+index 0000000..f8e021f
+--- /dev/null
++++ b/app/src/main/res/layout/widget_cell_14.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- A grid cell 14 column(s) wide (of up to 16) - see WidgetLayout. Holds one element, centred; empty, it
++     is the gap before the next one. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_cell"
++    android:layout_width="0dp"
++    android:layout_height="wrap_content"
++    android:layout_weight="14"
++    android:gravity="center"
++    android:orientation="horizontal" />
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/widget_cell_15.xml b/app/src/main/res/layout/widget_cell_15.xml
+new file mode 100644
+index 0000000..216a9a3
+--- /dev/null
++++ b/app/src/main/res/layout/widget_cell_15.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- A grid cell 15 column(s) wide (of up to 16) - see WidgetLayout. Holds one element, centred; empty, it
++     is the gap before the next one. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_cell"
++    android:layout_width="0dp"
++    android:layout_height="wrap_content"
++    android:layout_weight="15"
++    android:gravity="center"
++    android:orientation="horizontal" />
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/widget_cell_16.xml b/app/src/main/res/layout/widget_cell_16.xml
+new file mode 100644
+index 0000000..3627814
+--- /dev/null
++++ b/app/src/main/res/layout/widget_cell_16.xml
+@@ -0,0 +1,10 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- A grid cell 16 column(s) wide (of up to 16) - see WidgetLayout. Holds one element, centred; empty, it
++     is the gap before the next one. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/el_cell"
++    android:layout_width="0dp"
++    android:layout_height="wrap_content"
++    android:layout_weight="16"
++    android:gravity="center"
++    android:orientation="horizontal" />
+\ No newline at end of file
+diff --git a/app/src/main/res/layout/widget_el_lyrics.xml b/app/src/main/res/layout/widget_el_lyrics.xml
+index aab85fe..cd8c958 100644
+--- a/app/src/main/res/layout/widget_el_lyrics.xml
++++ b/app/src/main/res/layout/widget_el_lyrics.xml
+@@ -1,13 +1,43 @@
+ <?xml version="1.0" encoding="utf-8"?>
+-<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+-    android:id="@+id/el_text"
++<!-- The lyrics piece: the line before, the line being sung (its sung words lit), the line after -
++     the Windows mini player's look. Filled in by PlayerWidget from WidgetLyrics.Frame. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+     android:layout_width="0dp"
+     android:layout_height="wrap_content"
+     android:layout_marginVertical="2dp"
+     android:layout_weight="1"
+-    android:ellipsize="end"
+     android:gravity="center"
+-    android:maxLines="2"
+-    android:textColor="#FFFFFFFF"
+-    android:textSize="16sp"
+-    android:textStyle="bold" />
++    android:orientation="vertical">
++
++    <TextView
++        android:id="@+id/el_prev"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:ellipsize="end"
++        android:gravity="center"
++        android:maxLines="1"
++        android:textColor="#80FFFFFF"
++        android:textSize="12sp" />
++
++    <TextView
++        android:id="@+id/el_text"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:layout_marginVertical="1dp"
++        android:ellipsize="end"
++        android:gravity="center"
++        android:maxLines="2"
++        android:textColor="#FFFFFFFF"
++        android:textSize="16sp"
++        android:textStyle="bold" />
++
++    <TextView
++        android:id="@+id/el_next"
++        android:layout_width="match_parent"
++        android:layout_height="wrap_content"
++        android:ellipsize="end"
++        android:gravity="center"
++        android:maxLines="1"
++        android:textColor="#80FFFFFF"
++        android:textSize="12sp" />
++</LinearLayout>
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 2adc8f9..813f91e 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -286,17 +286,31 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="widget_play_pause">Play or pause</string>
+     <string name="widget_next">Next</string>
+     <string name="widget_up_next">Next: %1$s</string>
+-    <string name="widget_layout_title">Home-screen widget</string>
++    <string name="widget_layout_title">Widget editor</string>
++    <string name="grp_widget">Home-screen widget</string>
+     <string name="widget_layout_summary">Choose what the widget shows, and where</string>
+     <string name="widget_layout_row">Row %1$d</string>
+     <string name="widget_layout_add">Add to the widget</string>
+-    <string name="widget_layout_hint">Drag pieces around the grid; they snap into the cells. Pieces can\'t overlap - a red outline means that spot is taken. Tap a piece to make it wider, narrower or remove it. Small widgets show just the controls, or the cover, title and controls.</string>
++    <string name="widget_layout_hint">Drag pieces around the grid; they snap into the cells. Drop one on another to swap them, or partly over its neighbours to push them along. Tap a piece to make it wider, narrower or remove it.</string>
+     <string name="widget_layout_reset">Reset to default</string>
++    <string name="widget_grid_title">Grid</string>
++    <string name="widget_grid_coarse">Big cells</string>
++    <string name="widget_grid_normal">Normal</string>
++    <string name="widget_grid_fine">Small cells</string>
++    <string name="widget_undo">Undo</string>
++    <string name="widget_redo">Redo</string>
++    <string name="widget_preview_title">Title</string>
++    <string name="widget_preview_artists">Artist(s)</string>
++    <string name="widget_preview_song">Next song</string>
++    <string name="widget_preview_lyric_previous">Previous line</string>
++    <string name="widget_preview_lyric_sung">"Words being "</string>
++    <string name="widget_preview_lyric_rest">sung now</string>
++    <string name="widget_preview_lyric_next">Next line</string>
+     <string name="widget_el_cover">Cover</string>
+     <string name="widget_el_artist">Artist picture</string>
+     <string name="widget_el_info">Title and artist</string>
+     <string name="widget_el_up_next">Up next</string>
+-    <string name="widget_el_lyrics">Lyrics line</string>
++    <string name="widget_el_lyrics">Lyrics</string>
+     <string name="widget_size_small">Small</string>
+     <string name="widget_size_medium">Medium</string>
+     <string name="widget_size_large">Large</string>
+@@ -463,7 +477,8 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="lt_ended_version">That device is running a different version of OuterTune</string>
+     <string name="lt_ended_rejected">The host declined the connection</string>
+     <string name="lt_offset_title">Timing offset</string>
+-    <string name="lt_offset_description">Plays %1$d ms ahead of the host. Every device takes a while to get sound out of its speakers after the player says so: built-in speakers and wired headphones a few ms, Bluetooth headphones and speakers usually 150–300 ms, TVs and soundbars sometimes more. The players can agree perfectly and still be heard apart by that much, so this device plays early by its extra delay. The host can measure it for you: tap this device in the host\'s list of listeners.</string>
++    <string name="lt_offset_value">Plays %1$d ms ahead of the host</string>
++    <string name="lt_offset_description">Every device takes a while to get sound out of its speakers after the player says so: built-in speakers and wired headphones a few ms, Bluetooth headphones and speakers usually 150–300 ms, TVs and soundbars sometimes more. The players can agree perfectly and still be heard apart by that much, so this device plays early by its extra delay. The host can measure it for you: tap this device in the host\'s list of listeners.</string>
+     <string name="lt_measure_hint">Tap to measure this device\'s speaker delay</string>
+     <string name="lt_measuring_delay">Measuring… keep the two devices near this phone and the room quiet</string>
+     <string name="lt_measure_result">%1$s plays %2$d ms late, and has been set to make up for it</string>
+@@ -471,7 +486,12 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="lt_measure_failed">Couldn\'t hear both test clicks. Move the devices closer, turn the volume up or pause the music, and try again.</string>
+     <string name="lt_measure_no_mic">The microphone isn\'t available, so the delay can\'t be measured</string>
+     <string name="lt_stereo_title">Split left / right (experimental)</string>
+-    <string name="lt_stereo_description">Use two phones as a stereo pair. While you host with someone listening, this phone plays the right channel and every listener plays the left. Put the phones apart and set each listener\'s timing offset first, or the two sides will sound out of step. Listeners on an older version keep playing both channels.</string>
++    <string name="lt_stereo_summary">Two phones as a stereo pair, one plays left and one right</string>
++    <string name="lt_stereo_description">While you host with someone listening, this phone plays the right channel and every listener plays the left. An L or R badge at the top of the player shows each phone\'s side; tap it on either phone to swap. Put the phones apart and set each listener\'s timing offset first, or the two sides will sound out of step. Listeners on an older version keep playing both channels.</string>
++    <string name="lt_side_description">Playing the %1$s channel. Tap to swap sides</string>
++    <string name="lt_side_left_word">left</string>
++    <string name="lt_side_right_word">right</string>
++    <string name="lt_more_info">More about this</string>
+     <string name="eq_song_profile">Apply only to current song</string>
+     <string name="eq_song_profile_on">Saved for \"%1$s\" and used instead of the global curve while it plays</string>
+     <string name="eq_song_profile_off">Changes apply to every song</string>
+-- 
+2.56.0.windows.4
+
