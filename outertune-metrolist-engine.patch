@@ -257047,3 +257047,320 @@ index 1a75ff6..2adc8f9 100644
 -- 
 2.56.0.windows.4
 
+From f92eb55796906e7b95a8edbe0ba1c22e2e150037 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 11:10:19 +0800
+Subject: [PATCH] Widget seek bar drawn by the player's own slider code
+
+The widget reimplemented each slider style approximately. It now draws through
+drawPlayerSliderStill via CanvasDrawScope, so the waves, squiggle, thickness and dot are the
+player's own; the row is 24dp so the waves have room to rise.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          |   8 ++
+ .../outertune/ui/component/PlayerSlider.kt    | 101 ++++++++++++++----
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 100 +++++------------
+ app/src/main/res/layout/widget_el_seekbar.xml |   3 +-
+ 4 files changed, 121 insertions(+), 91 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 7e7831b..64f4fd5 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,14 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Widget seek bar matches the player
++
++- The widget's seek bar is now drawn by the player's own seek bar code rather than an
++  imitation of it: the same thickness, the same three tinted waves fading in at both ends, the
++  same squiggle, and the dot if the player shows one. The waves rise while playing and settle
++  flat when paused, as in the player. The bar's row is a little taller so the waves have room,
++  as they do above the player's bar.
++
+ ## Listen together: stereo pair (experimental)
+ 
+ - **Split left / right**, off by default (Settings → Listen together). While you host with
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/PlayerSlider.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/PlayerSlider.kt
+index 83a5ce6..7709201 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/PlayerSlider.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/PlayerSlider.kt
+@@ -159,28 +159,14 @@ fun PlayerSliderTrack(
+                     .fillMaxWidth()
+                     .height(trackHeight)
+             ) {
+-                val isRtl = layoutDirection == LayoutDirection.Rtl
+-                val y = center.y
+-                val end = size.width * fraction
+                 // Breathing a little on their own, so the waves never settle into a pattern. They
+                 // rise above the track's own box, into the space over it - no higher than
+                 // AccentWaveHeight, so they never reach the title above the bar.
+                 val breath = 0.75f + 0.25f * sin(time * 0.7f)
+-                withTransform({ if (isRtl) scale(-1f, 1f, pivot = center) }) {
+-                    if (style == SliderStyle.WAVES) {
+-                        // The bar itself: flat bottom, wavy top - no separate line under it.
+-                        val thickness = WavesBandThickness.toPx() * weight
+-                        drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), thickness / 2, StrokeCap.Round)
+-                        drawWaveBand(end, y, thickness, AccentWaveHeight.toPx(), activeTrackColor, time, breath * swell)
+-                        if (dot && end > 0f) drawCircle(activeTrackColor, thickness * 0.9f, Offset(end, y))
+-                    } else {
+-                        val stroke = WaveLinesTrackHeight.toPx() * weight
+-                        drawAccentWaves(end, y, AccentWaveHeight.toPx(), activeTrackColor, time, breath * swell)
+-                        drawLine(inactiveTrackColor, Offset(end, y), Offset(size.width, y), stroke, StrokeCap.Round)
+-                        drawLine(activeTrackColor, Offset(0f, y), Offset(end, y), stroke, StrokeCap.Round)
+-                        if (dot && end > 0f) drawCircle(activeTrackColor, stroke * 1.1f, Offset(end, y))
+-                    }
+-                }
++                drawWaveStyle(
++                    style, fraction, activeTrackColor, inactiveTrackColor, weight, dot,
++                    center.y, AccentWaveHeight.toPx(), time, breath * swell,
++                )
+             }
+         }
+ 
+@@ -210,6 +196,85 @@ fun PlayerSliderTrack(
+     }
+ }
+ 
++/** WAVES and WAVE_LINES at one moment, with the line along [y] and the waves at most [rise] above it. */
++private fun DrawScope.drawWaveStyle(
++    style: SliderStyle,
++    fraction: Float,
++    active: Color,
++    inactive: Color,
++    weight: Float,
++    dot: Boolean,
++    y: Float,
++    rise: Float,
++    time: Float,
++    energy: Float,
++) {
++    val isRtl = layoutDirection == LayoutDirection.Rtl
++    val end = size.width * fraction
++    withTransform({ if (isRtl) scale(-1f, 1f, pivot = center) }) {
++        if (style == SliderStyle.WAVES) {
++            // The bar itself: flat bottom, wavy top - no separate line under it.
++            val thickness = WavesBandThickness.toPx() * weight
++            drawLine(inactive, Offset(end, y), Offset(size.width, y), thickness / 2, StrokeCap.Round)
++            drawWaveBand(end, y, thickness, rise, active, time, energy)
++            if (dot && end > 0f) drawCircle(active, thickness * 0.9f, Offset(end, y))
++        } else {
++            val stroke = WaveLinesTrackHeight.toPx() * weight
++            drawAccentWaves(end, y, rise, active, time, energy)
++            drawLine(inactive, Offset(end, y), Offset(size.width, y), stroke, StrokeCap.Round)
++            drawLine(active, Offset(0f, y), Offset(end, y), stroke, StrokeCap.Round)
++            if (dot && end > 0f) drawCircle(active, stroke * 1.1f, Offset(end, y))
++        }
++    }
++}
++
++/**
++ * The player's seek bar as a still picture, for the home-screen widget: the same drawing as
++ * [PlayerSliderTrack] - same sizes, waves and colours - frozen at one moment. [playing] raises the
++ * waves and the squiggle as the player does; paused, they settle flat. The wave styles' line runs
++ * near the bottom so the waves have the picture's height to rise into; the others are centred.
++ */
++fun DrawScope.drawPlayerSliderStill(
++    style: SliderStyle,
++    fraction: Float,
++    active: Color,
++    inactive: Color,
++    weight: Float,
++    dot: Boolean,
++    playing: Boolean,
++) {
++    val f = fraction.coerceIn(0f, 1f)
++    when (style) {
++        SliderStyle.WAVES, SliderStyle.WAVE_LINES -> {
++            val below = maxOf(WavesBandThickness.toPx() * weight / 2, WaveLinesTrackHeight.toPx() * weight) + 1.dp.toPx()
++            val y = size.height - below
++            val rise = minOf(AccentWaveHeight.toPx(), y - 2.dp.toPx()).coerceAtLeast(0f)
++            // The player's waves at rest on their first frame: breath 0.75, swollen while playing.
++            drawWaveStyle(style, f, active, inactive, weight, dot, y, rise, 0f, if (playing) 0.75f else 0f)
++        }
++
++        SliderStyle.SQUIGGLY -> drawSquigglyTrack(
++            activeRangeEnd = f,
++            inactiveTrackColor = inactive,
++            activeTrackColor = active,
++            trackStrokeWidth = SquigglyStrokeWidth.toPx() * weight,
++            amplitude = if (playing) SquigglyAmplitude.toPx() else 0f,
++            wavelength = SquigglyWavelength.toPx(),
++            phase = 0f,
++            trackGap = SquigglyTrackGap.toPx(),
++        )
++
++        SliderStyle.DEFAULT, SliderStyle.SLIM -> {
++            val height = (if (style == SliderStyle.SLIM) SlimTrackHeight else 10.dp) * weight
++            drawTrack(floatArrayOf(), 0f, f, inactive, active, inactive, active, height)
++            if (dot && f > 0f) {
++                val x = size.width * (if (layoutDirection == LayoutDirection.Rtl) 1 - f else f)
++                drawCircle(active, height.toPx() * 1.1f, Offset(x, center.y))
++            }
++        }
++    }
++}
++
+ /** How high the accent waves rise above the line at their fullest. */
+ private val AccentWaveHeight = 18.dp
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index a18a82f..546af3d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -56,6 +56,12 @@ import com.dd3boh.outertune.constants.SliderStyle
+ import com.dd3boh.outertune.constants.SliderStyleKey
+ import com.dd3boh.outertune.constants.SliderWeight
+ import com.dd3boh.outertune.constants.SliderWeightKey
++import com.dd3boh.outertune.constants.SliderDotKey
++import com.dd3boh.outertune.ui.component.drawPlayerSliderStill
++import androidx.compose.ui.geometry.Size
++import androidx.compose.ui.graphics.drawscope.CanvasDrawScope
++import androidx.compose.ui.unit.Density
++import androidx.compose.ui.unit.LayoutDirection
+ import com.dd3boh.outertune.models.MediaMetadata
+ import com.dd3boh.outertune.playback.MusicService
+ import com.dd3boh.outertune.utils.dataStore
+@@ -184,6 +190,7 @@ object PlayerWidget {
+         val weight: SliderWeight,
+         val liquidShape: LiquidShapeStyle = LiquidShapeStyle.PETAL,
+         val liquidBackdrop: LiquidColorScheme = LiquidColorScheme.SURFACE,
++        val dot: Boolean = false,
+     )
+ 
+     /** The colours one look resolves to - see [colours]. */
+@@ -264,6 +271,7 @@ object PlayerWidget {
+                 ?.let { stored -> PlayerBackgroundStyle.entries.find { it.name == stored } } ?: DEFAULT_PLAYER_BACKGROUND,
+             slider = prefs[SliderStyleKey]?.let { stored -> SliderStyle.entries.find { it.name == stored } } ?: DEFAULT_SLIDER_STYLE,
+             weight = prefs[SliderWeightKey]?.let { stored -> SliderWeight.entries.find { it.name == stored } } ?: SliderWeight.THINNER,
++            dot = prefs[SliderDotKey] ?: false,
+             liquidShape = prefs[LiquidShapeStyleKey]?.let { stored -> LiquidShapeStyle.entries.find { it.name == stored } }
+                 ?: LiquidShapeStyle.PETAL,
+             liquidBackdrop = prefs[LiquidColorSchemeKey]?.let { stored -> LiquidColorScheme.entries.find { it.name == stored } }
+@@ -508,7 +516,7 @@ object PlayerWidget {
+                 // the waves are not stretched or squashed into shape by the image view.
+                 val density = context.resources.displayMetrics.density
+                 val widthPx = ((widthDp - 24).coerceAtLeast(80) * density).roundToInt()
+-                val heightPx = (16 * density).roundToInt()
++                val heightPx = (24 * density).roundToInt()
+                 setImageViewBitmap(R.id.el_seekbar, seekBar(context, lastFraction, look, colours, widthPx, heightPx))
+             }
+ 
+@@ -833,78 +841,28 @@ object PlayerWidget {
+     }
+ 
+     /**
+-     * The seek bar, drawn in the player's own style and thickness: the played part in the accent,
+-     * the rest a faint track. The waves are drawn still - a home screen is not the place for
+-     * something animating all day.
++     * The seek bar, drawn by the player's own code - [drawPlayerSliderStill] - so it is the same
++     * style, thickness, waves and dot as the player's, not an imitation of them. Drawn still: a
++     * home screen is not the place for something animating all day.
+      */
+-    @Suppress("LocalVariableName")
+     private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours, widthPx: Int, heightPx: Int): Bitmap {
+-        val SEEK_W = widthPx
+-        val SEEK_H = heightPx
+-        val bitmap = Bitmap.createBitmap(SEEK_W, SEEK_H, Bitmap.Config.ARGB_8888)
+-        val canvas = Canvas(bitmap)
+-        val cy = SEEK_H / 2f
+-        val played = SEEK_W * fraction.coerceIn(0f, 1f)
+-        val weight = look.weight.scale
+-        val minStroke = context.resources.displayMetrics.density
+-        fun stroke(color: Int, width: Float) = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+-            this.color = color
+-            style = Paint.Style.STROKE
+-            strokeWidth = maxOf(width, minStroke)
+-            strokeCap = Paint.Cap.ROUND
+-        }
+-        fun wave(amplitude: Float, wavelength: Float, phase: Float, until: Float): Path = Path().apply {
+-            var x = 0f
+-            moveTo(0f, cy)
+-            while (x <= until) {
+-                lineTo(x, cy + amplitude * sin(2 * PI * x / wavelength + phase).toFloat())
+-                x += 3f
+-            }
+-        }
+-
+-        val trackPaint = stroke(colours.track, SEEK_H * 0.12f * weight)
+-        val inset = trackPaint.strokeWidth
+-        if (played < SEEK_W - inset) canvas.drawLine(maxOf(played, inset), cy, SEEK_W - inset, cy, trackPaint)
+-
+-        when (look.slider) {
+-            SliderStyle.DEFAULT -> {
+-                val active = stroke(colours.accent, SEEK_H * 0.28f * weight)
+-                if (played > inset) canvas.drawLine(inset, cy, played, cy, active)
+-                canvas.drawCircle(played.coerceIn(SEEK_H * 0.35f, SEEK_W - SEEK_H * 0.35f), cy, SEEK_H * 0.32f,
+-                    Paint(Paint.ANTI_ALIAS_FLAG).apply { color = colours.accent })
+-            }
+-
+-            SliderStyle.SLIM -> {
+-                val active = stroke(colours.accent, SEEK_H * 0.14f * weight)
+-                if (played > inset) canvas.drawLine(inset, cy, played, cy, active)
+-            }
+-
+-            SliderStyle.SQUIGGLY -> {
+-                canvas.drawPath(wave(SEEK_H * 0.22f, SEEK_H * 1.6f, 0f, played), stroke(colours.accent, SEEK_H * 0.16f * weight))
+-            }
+-
+-            SliderStyle.WAVES -> {
+-                // Soft overlapping waves above the line, filled.
+-                for ((i, alpha) in listOf(0x66, 0x44, 0x2A).withIndex()) {
+-                    val path = wave(SEEK_H * (0.30f - i * 0.06f), SEEK_H * (2.2f + i * 0.7f), i * 1.3f, played)
+-                    path.lineTo(played, cy); path.lineTo(0f, cy); path.close()
+-                    canvas.drawPath(path, Paint(Paint.ANTI_ALIAS_FLAG).apply {
+-                        color = ColorUtils.setAlphaComponent(colours.accent, alpha)
+-                        style = Paint.Style.FILL
+-                    })
+-                }
+-                if (played > inset) canvas.drawLine(inset, cy, played, cy, stroke(colours.accent, SEEK_H * 0.08f * weight))
+-            }
+-
+-            SliderStyle.WAVE_LINES -> {
+-                // The same three waves, as fine lines a shade apart.
+-                for ((i, alpha) in listOf(0xFF, 0xAA, 0x70).withIndex()) {
+-                    canvas.drawPath(
+-                        wave(SEEK_H * (0.30f - i * 0.06f), SEEK_H * (2.2f + i * 0.7f), i * 1.3f, played),
+-                        stroke(ColorUtils.setAlphaComponent(colours.accent, alpha), SEEK_H * 0.07f * weight),
+-                    )
+-                }
+-            }
++        val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
++        val rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
++        CanvasDrawScope().draw(
++            Density(context),
++            if (rtl) LayoutDirection.Rtl else LayoutDirection.Ltr,
++            androidx.compose.ui.graphics.Canvas(Canvas(bitmap)),
++            Size(widthPx.toFloat(), heightPx.toFloat()),
++        ) {
++            drawPlayerSliderStill(
++                style = look.slider,
++                fraction = fraction,
++                active = androidx.compose.ui.graphics.Color(colours.accent),
++                inactive = androidx.compose.ui.graphics.Color(colours.track),
++                weight = look.weight.scale,
++                dot = look.dot,
++                playing = lastPlaying,
++            )
+         }
+         return bitmap
+     }
+diff --git a/app/src/main/res/layout/widget_el_seekbar.xml b/app/src/main/res/layout/widget_el_seekbar.xml
+index ae97523..4a25e52 100644
+--- a/app/src/main/res/layout/widget_el_seekbar.xml
++++ b/app/src/main/res/layout/widget_el_seekbar.xml
+@@ -2,8 +2,7 @@
+ <ImageView xmlns:android="http://schemas.android.com/apk/res/android"
+     android:id="@+id/el_seekbar"
+     android:layout_width="0dp"
+-    android:layout_height="14dp"
+-    android:layout_marginVertical="4dp"
++    android:layout_height="24dp"
+     android:layout_weight="1"
+     android:contentDescription="@null"
+     android:scaleType="fitXY" />
+-- 
+2.56.0.windows.4
+
