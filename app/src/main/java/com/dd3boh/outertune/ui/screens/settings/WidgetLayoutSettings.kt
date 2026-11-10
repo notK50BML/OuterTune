@@ -354,7 +354,7 @@ private fun WidgetCanvas(
                 Modifier
                     .offset(d(pad + c * colW), d(tops.getOrElse(r) { tops.last() }))
                     .size(d(s * colW), d(slots.getOrElse(r) { 40 }))
-                    .border(2.dp, if (landing != null) colours.primary else colours.error, RoundedCornerShape(d(8)))
+                    .border(1.dp, if (landing != null) colours.primary else colours.error, RoundedCornerShape(d(8)))
             )
         }
 
@@ -382,7 +382,7 @@ private fun WidgetCanvas(
                         .size(d(p.span * colW), d(slots.getOrElse(p.row) { 40 }))
                         .padding(d(1.5f))
                         .background(colours.surface.copy(alpha = if (isDragged) 0.95f else 0.8f), RoundedCornerShape(d(8)))
-                        .then(if (p.element == selected) Modifier.border(2.dp, colours.primary, RoundedCornerShape(d(8))) else Modifier)
+                        .then(if (p.element == selected) Modifier.border(1.dp, colours.primary, RoundedCornerShape(d(8))) else Modifier)
                         .pointerInput(p.element, colW, slots) {
                             var start: WidgetPlacement? = null
                             detectDragGestures(

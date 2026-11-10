@@ -242,44 +242,8 @@ class LyricsHelper @Inject constructor(
      * document only this parser can read still renders word by word rather than dropping to
      * line-level.
      */
-    private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
-        val strictOptions = parserOptions.copy(errorText = null)
-        val isTtml = TTMLParser.looksLikeTtml(raw)
-
-        // Cleaned on the way to the parser, not only on the way to the database.
-        //
-        // The fetch path already cleans what it stores, which covers everything fetched from now
-        // on and nothing else: a row written before that existed keeps its `[Music]` and its `>>`
-        // forever, and a local .lrc file never went through the fetch path at all. Both of those
-        // are what someone actually looking at the screen sees. Doing it here instead covers every
-        // source and every vintage, and costs nothing twice over - the cleanup is idempotent, so
-        // running it again on an already-clean row changes nothing.
-        //
-        // Not on TTML, though. It is markup, and the cleanup works on lines of text - the
-        // `>`-at-the-start rule in particular would eat the start of any wrapped tag. The lenient
-        // path below converts it to LRC first, and that is where it gets cleaned.
-        val text = if (isTtml) raw else cleanLyrics(raw)
-
-        runCatching { LrcUtils.parseLyrics(text, null, strictOptions, null) }
-            .getOrNull()
-            ?.let { return it }
-
-        if (isTtml) {
-            TTMLParser.ttmlToLrc(raw)?.let { lrc ->
-                val cleanedLrc = cleanLyrics(lrc)
-                runCatching {
-                    LrcUtils.parseLyrics(cleanedLrc, null, strictOptions, LrcUtils.LyricFormat.LRC)
-                }.getOrNull()?.let {
-                    Log.d(TAG, "recovered TTML via lenient parser (${cleanedLrc.count { c -> c == '\n' } + 1} lines)")
-                    return it
-                }
-            }
-        }
-
-        // Nothing could read it. Fall back to the original call so callers that asked for an error
-        // placeholder still get one.
-        return runCatching { LrcUtils.parseLyrics(text, null, parserOptions, null) }.getOrNull()
-    }
+    private fun parseResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? =
+        parseLyricsResilient(raw, parserOptions)
 
     /**
      * Resolve a stored lyrics row for display via [parseResilient] - the same lenient recovery a
@@ -942,4 +906,47 @@ class RemoteLyricsAggregator(
         nonNotFoundCount == 0 && notFoundCount == enabledCount -> RemoteLyricsResult.DefinitiveNotFound
         else -> RemoteLyricsResult.Indeterminate
     }
+}
+
+/**
+ * [raw] parsed as LyricsHelper does for display - see its parseResilient. Shared so the widget reads
+ * lyrics exactly as the player does, BetterLyrics TTML without a head element included.
+ */
+fun parseLyricsResilient(raw: String, parserOptions: LrcUtils.LrcParserOptions): SemanticLyrics? {
+    val strictOptions = parserOptions.copy(errorText = null)
+    val isTtml = TTMLParser.looksLikeTtml(raw)
+
+    // Cleaned on the way to the parser, not only on the way to the database.
+    //
+    // The fetch path already cleans what it stores, which covers everything fetched from now
+    // on and nothing else: a row written before that existed keeps its `[Music]` and its `>>`
+    // forever, and a local .lrc file never went through the fetch path at all. Both of those
+    // are what someone actually looking at the screen sees. Doing it here instead covers every
+    // source and every vintage, and costs nothing twice over - the cleanup is idempotent, so
+    // running it again on an already-clean row changes nothing.
+    //
+    // Not on TTML, though. It is markup, and the cleanup works on lines of text - the
+    // `>`-at-the-start rule in particular would eat the start of any wrapped tag. The lenient
+    // path below converts it to LRC first, and that is where it gets cleaned.
+    val text = if (isTtml) raw else cleanLyrics(raw)
+
+    runCatching { LrcUtils.parseLyrics(text, null, strictOptions, null) }
+        .getOrNull()
+        ?.let { return it }
+
+    if (isTtml) {
+        TTMLParser.ttmlToLrc(raw)?.let { lrc ->
+            val cleanedLrc = cleanLyrics(lrc)
+            runCatching {
+                LrcUtils.parseLyrics(cleanedLrc, null, strictOptions, LrcUtils.LyricFormat.LRC)
+            }.getOrNull()?.let {
+                Log.d("LyricsHelper", "recovered TTML via lenient parser (${cleanedLrc.count { c -> c == '\n' } + 1} lines)")
+                return it
+            }
+        }
+    }
+
+    // Nothing could read it. Fall back to the original call so callers that asked for an error
+    // placeholder still get one.
+    return runCatching { LrcUtils.parseLyrics(text, null, parserOptions, null) }.getOrNull()
 }

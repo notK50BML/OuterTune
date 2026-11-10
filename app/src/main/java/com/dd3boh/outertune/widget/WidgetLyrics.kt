@@ -6,6 +6,7 @@
 
 package com.dd3boh.outertune.widget
 
+import com.dd3boh.outertune.lyrics.parseLyricsResilient
 import com.dd3boh.outertune.ui.utils.withEstimatedWordSync
 import org.akanework.gramophone.logic.utils.LrcUtils
 import org.akanework.gramophone.logic.utils.SemanticLyrics
@@ -36,7 +37,7 @@ object WidgetLyrics {
     fun parse(raw: String?, estimate: Boolean): List<Line> {
         if (raw.isNullOrBlank()) return emptyList()
         val parsed = runCatching {
-            LrcUtils.parseLyrics(raw, null, LrcUtils.LrcParserOptions(trim = true, multiLine = true, errorText = null), null)
+            parseLyricsResilient(raw, LrcUtils.LrcParserOptions(trim = false, multiLine = true, errorText = null))
         }.getOrNull() as? SemanticLyrics.SyncedLyrics ?: return emptyList()
         val lyrics = if (estimate) runCatching { parsed.withEstimatedWordSync() }.getOrDefault(parsed) else parsed
         return lyrics.text

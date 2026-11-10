@@ -252,26 +252,69 @@ data class WidgetLayout(
     }
 
     /**
-     * The same arrangement on another grid: each piece keeps its place and its share of the width,
-     * as near as the new columns allow. A piece that no longer fits where it was goes to the
-     * nearest free spot in its row, narrower if need be, and is left out only if there is none.
+     * The same arrangement on another grid, row by row. Each row keeps its pieces in their order and
+     * the empty space between them in the same proportions, so pieces side by side stay side by
+     * side and a centred row stays centred. A piece at (or one off) its default width takes the new
+     * grid's default, so switching back and forth does not creep; other widths scale. A row that no
+     * longer fits gives up width from its widest pieces, and only then its last pieces.
      */
     fun regridded(newColumns: Int, newRows: Int): WidgetLayout {
         if (newColumns == columns && newRows == maxRows) return this
         val target = WidgetLayout(emptyList(), newRows, newColumns)
-        val kept = mutableListOf<WidgetPlacement>()
-        for (p in placements.sortedWith(compareBy({ it.row }, { it.col }))) {
-            if (p.row >= newRows) continue
-            val wanted = (p.span * newColumns / columns.toFloat()).roundToInt()
-                .coerceIn(target.minSpan(p.element), target.maxSpan(p.element))
-            val start = (p.col * newColumns / columns.toFloat()).roundToInt()
-            val spot = (wanted downTo target.minSpan(p.element)).asSequence().flatMap { span ->
-                (0..(newColumns - span)).sortedBy { abs(it - start) }.asSequence()
-                    .map { WidgetPlacement(p.element, it, p.row, span) }
-            }.firstOrNull { c -> kept.none { it.overlaps(c) } }
-            if (spot != null) kept += spot
+        val ratio = newColumns / columns.toDouble()
+        val result = mutableListOf<WidgetPlacement>()
+        placements.filter { it.row < newRows }.groupBy { it.row }.forEach { (_, rowPieces) ->
+            val pieces = rowPieces.sortedBy { it.col }.toMutableList()
+            // The gap before each piece, and after the last.
+            val gaps = mutableListOf<Int>()
+            var previousEnd = 0
+            pieces.forEach { gaps += it.col - previousEnd; previousEnd = it.end }
+            gaps += columns - previousEnd
+
+            val spans = pieces.map { p ->
+                if (abs(p.span - defaultSpan(p.element)) <= 1) target.defaultSpan(p.element)
+                else ceil(p.span * ratio - 0.5).toInt().coerceIn(target.minSpan(p.element), target.maxSpan(p.element))
+            }.toMutableList()
+            while (spans.sum() > newColumns) {
+                val widest = spans.indices.filter { spans[it] > target.minSpan(pieces[it].element) }.maxByOrNull { spans[it] }
+                if (widest == null) {
+                    pieces.removeAt(pieces.lastIndex); spans.removeAt(spans.lastIndex); gaps.removeAt(gaps.lastIndex)
+                } else spans[widest]--
+            }
+            if (pieces.isEmpty()) return@forEach
+            if (gaps.first() == gaps.last()) target.evenOut(spans, pieces.map { it.element })
+
+            // The new empty space, shared out in the old proportions; leftovers by largest remainder.
+            val free = newColumns - spans.sum()
+            val oldFree = gaps.sum()
+            val exact = DoubleArray(gaps.size)
+            if (oldFree > 0) gaps.forEachIndexed { i, g -> exact[i] = g * free / oldFree.toDouble() }
+            else { exact[0] += free / 2.0; exact[gaps.lastIndex] += free / 2.0 }
+            val share = IntArray(gaps.size) { kotlin.math.floor(exact[it] + 1e-9).toInt() }
+            var given = share.sum()
+            val byRemainder = gaps.indices.sortedByDescending { exact[it] - share[it] }
+            var k = 0
+            while (given < free) { share[byRemainder[k % gaps.size]]++; given++; k++ }
+
+            var col = 0
+            pieces.forEachIndexed { i, p ->
+                col += share[i]
+                result += p.copy(col = col, span = spans[i])
+                col += spans[i]
+            }
         }
-        return target.copy(placements = kept).normalised()
+        return target.copy(placements = result).normalised()
+    }
+
+    /**
+     * Makes the space [spans] leave in a row even, so a centred row sits exactly in the middle rather
+     * than half a cell off: the middle-most piece that can grows by a column, or else one shrinks.
+     */
+    private fun evenOut(spans: MutableList<Int>, elements: List<WidgetElement>) {
+        if ((columns - spans.sum()) % 2 == 0) return
+        val middleFirst = spans.indices.sortedBy { abs(it - (spans.size - 1) / 2f) }
+        middleFirst.firstOrNull { spans[it] < maxSpan(elements[it]) && spans.sum() < columns }?.let { spans[it]++; return }
+        middleFirst.firstOrNull { spans[it] > minSpan(elements[it]) }?.let { spans[it]-- }
     }
 
     companion object {
@@ -286,7 +329,7 @@ data class WidgetLayout(
 
         /** Rows for each editable widget size, on the usual grid. */
         const val SMALL_ROWS = 1
-        const val MEDIUM_ROWS = 2
+        const val MEDIUM_ROWS = 3
 
         /** Rows a size gets on a grid: the finest grid fits one more row. */
         fun rowsFor(baseRows: Int, columns: Int) = if (columns > COLUMNS) baseRows + 1 else baseRows
@@ -305,6 +348,8 @@ data class WidgetLayout(
                     val i = spans.indices.filter { spans[it] > grid.minSpan(row[it]) }.maxByOrNull { spans[it] } ?: break
                     spans = spans.toMutableList().also { it[i]-- }
                 }
+                // An odd leftover would leave a centred row half a cell off.
+                grid.evenOut(spans.toMutableList().also { spans = it }, row)
                 var col = ((columns - spans.sum()) / 2).coerceAtLeast(0)
                 row.forEachIndexed { i, element ->
                     placements += WidgetPlacement(element, col, r, spans[i])
@@ -318,7 +363,7 @@ data class WidgetLayout(
         private val CONTROLS = listOf(
             WidgetElement.SHUFFLE, WidgetElement.PREVIOUS, WidgetElement.PLAY_PAUSE, WidgetElement.NEXT, WidgetElement.REPEAT,
         )
-        private val MEDIUM_PIECES = listOf(listOf(WidgetElement.COVER, WidgetElement.INFO), CONTROLS)
+        private val MEDIUM_PIECES = listOf(listOf(WidgetElement.COVER, WidgetElement.INFO), listOf(WidgetElement.SEEK_BAR), CONTROLS)
         private val LARGE_PIECES = listOf(
             listOf(WidgetElement.COVER, WidgetElement.INFO),
             listOf(WidgetElement.LYRICS),
@@ -329,7 +374,7 @@ data class WidgetLayout(
         /** One cell tall: the controls. */
         val DEFAULT_SMALL: WidgetLayout by lazy { fromRows(SMALL_PIECES, SMALL_ROWS) }
 
-        /** Two cells tall: cover and title above the controls. */
+        /** Two cells tall: cover and title, a thin seek bar, and the controls. */
         val DEFAULT_MEDIUM: WidgetLayout by lazy { fromRows(MEDIUM_PIECES, MEDIUM_ROWS) }
 
         /** The full widget: the player's own order - cover and title, lyrics, seek bar, controls. */

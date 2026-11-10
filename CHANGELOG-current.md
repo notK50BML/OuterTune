@@ -76,6 +76,23 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Widget editor and lyrics fixes (after build 188)
+
+- **Widget lyrics now appear.** The widget read lyrics with the strict parser alone, which rejects
+  the TTML BetterLyrics often sends (no head element), so with BetterLyrics first there was
+  nothing to show. It now uses the same forgiving reader as the player. Large widgets also no
+  longer drop the lyrics below 260dp tall; they go only when the widget genuinely can't fit them,
+  after Up next and the artist picture.
+- **Switching grids keeps your arrangement.** It used to place pieces one at a time in the nearest
+  free spot, which could move Repeat to the start of the row, drop Next, and creep widths wider on
+  every switch. Each row now keeps its order and its spacing, a piece at its default width stays at
+  the default, and switching back and forth returns to where it started. Tested with a model of
+  every switch between the three grids for every size.
+- **No more half-cell gaps.** A centred row whose leftover space was odd sat half a cell off;
+  the middle piece now takes the extra column instead.
+- **Medium widget gets a thin seek bar** between the title and the controls (three rows).
+- Thinner outlines in the editor.
+
 ## Widget editor, round four
 
 - **Fixed: moving a piece could put the others back.** Each piece's drag handler kept the

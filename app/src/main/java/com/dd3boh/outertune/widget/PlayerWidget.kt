@@ -359,16 +359,15 @@ object PlayerWidget {
             // Set in the editor's Small / Medium tabs if they were; otherwise cut from the large one.
             WidgetSize.CONTROLS -> lastSmall ?: WidgetLayout.fromRows(listOf(controls), WidgetLayout.SMALL_ROWS)
             WidgetSize.COMPACT -> lastMedium ?: WidgetLayout.fromRows(
-                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), controls),
+                listOf(listOfNotNull(WidgetElement.COVER.takeIf { it in all }, WidgetElement.INFO), listOf(WidgetElement.SEEK_BAR), controls),
                 WidgetLayout.MEDIUM_ROWS,
             )
             WidgetSize.FULL -> {
-                // The line-of-text pieces go first when the arrangement is taller than the widget:
-                // a three-cell widget holds cover, seek bar and controls, a four-cell one the lot.
-                // Lyrics also step aside while the song has no line to show. The grid closes up the
+                // Lyrics step aside while the song has no line to show; anything taller than the
+                // widget is shed in DROP_ORDER below, so lyrics stay whenever they fit.
+                // The grid closes up the
                 // rows they leave empty.
                 val drop = buildSet {
-                    if (heightDp < 260) { add(WidgetElement.LYRICS); add(WidgetElement.UP_NEXT) }
                     if (lastLyrics == null) add(WidgetElement.LYRICS)
                 }
                 val kept = lastLayout.placements.filter { it.element !in drop }
@@ -384,7 +383,7 @@ object PlayerWidget {
 
     /** Pieces given up, in this order, when a widget is too short for everything it was given. */
     private val DROP_ORDER = listOf(
-        WidgetElement.UP_NEXT, WidgetElement.LYRICS, WidgetElement.ARTIST, WidgetElement.SEEK_BAR,
+        WidgetElement.UP_NEXT, WidgetElement.ARTIST, WidgetElement.LYRICS, WidgetElement.SEEK_BAR,
         WidgetElement.SHUFFLE, WidgetElement.REPEAT,
     )
 
