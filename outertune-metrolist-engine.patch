@@ -259574,3 +259574,91 @@ index d1ca6a7..305c846 100644
 -- 
 2.56.0.windows.4
 
+From fcbaf710660f6dbbeded296e7566370f62669eef Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Tue, 10 Nov 2026 12:17:34 +0800
+Subject: [PATCH] QQ Music lyrics: keep word timing on Android
+
+The lyrics menu showed a hand-picked result through the strict parser, which rejects QQ's
+headless TTML; it now uses the shared resilient parser. The fetch aggregator no longer runs the
+line-based caption cleanup over TTML, which the resilient parser already avoids.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                                 | 12 ++++++++++++
+ .../java/com/dd3boh/outertune/lyrics/LyricsHelper.kt |  5 ++++-
+ .../java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt  |  5 +++--
+ 3 files changed, 19 insertions(+), 3 deletions(-)
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index 50d34bf..e8ee102 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,18 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## QQ Music word-by-word on Android
++
++- QQ's word-timed lyrics come as TTML without a `<head>`, which the strict reader rejects; the
++  player recovers them through the forgiving reader, word timings included. Two places skipped it:
++  - **Picking lyrics by hand** (search results, or saving an edit) showed the choice through the
++    strict reader, so a QQ result appeared without word timing, or as "Unable to parse", until the
++    song was reopened. It now uses the same reader as the player.
++  - **Fetching** cleaned every result line by line before judging and storing it, TTML included,
++    which can trim the spaces between words on wrapped lines. TTML is now left as it came.
++- Songs whose QQ lyrics were stored line-timed before still show them that way: refetch the song's
++  lyrics (or Refetch all) to get the word-timed version.
++
+ ## Widget editor and lyrics fixes (after build 188)
+ 
+ - **Widget lyrics now appear.** The widget read lyrics with the strict parser alone, which rejects
+diff --git a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+index 0f086bf..dbcb914 100644
+--- a/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
++++ b/app/src/main/java/com/dd3boh/outertune/lyrics/LyricsHelper.kt
+@@ -857,7 +857,10 @@ class RemoteLyricsAggregator(
+             // not evidence of lyrics, so judging the raw text could adopt a "lyric sheet" that is
+             // nothing but [Music] over and over.
+             is LyricsFetchResult.Found -> {
+-                val cleaned = cleanLyrics(result.raw)
++                // Not TTML (QQ Music's, BetterLyrics'): it is markup, and the line-by-line cleanup
++                // can trim the spaces between word spans on wrapped lines - see parseLyricsResilient,
++                // which cleans it after converting it to LRC instead.
++                val cleaned = if (TTMLParser.looksLikeTtml(result.raw)) result.raw else cleanLyrics(result.raw)
+                 val kind = classifyFound(cleaned)
+                 if (kind == FoundKind.UNPARSEABLE) {
+                     // Not a usable result, but not an absence either.
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
+index 2c637f1..56cd9a4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/LyricsMenu.kt
+@@ -71,6 +71,7 @@ import com.dd3boh.outertune.ui.screens.settings.fragments.LyricSourceFrag
+ import com.dd3boh.outertune.utils.rememberPreference
+ import com.dd3boh.outertune.viewmodels.LyricsMenuViewModel
+ import kotlinx.coroutines.flow.map
++import com.dd3boh.outertune.lyrics.parseLyricsResilient
+ import org.akanework.gramophone.logic.utils.LrcUtils
+ import org.akanework.gramophone.logic.utils.SemanticLyrics
+ 
+@@ -131,7 +132,7 @@ fun LyricsMenu(
+                         )
+                     )
+                 }
+-                onRefreshRequest(LrcUtils.parseLyrics(it, null, parserOptions, null))
++                onRefreshRequest(parseLyricsResilient(it, parserOptions))
+             }
+         )
+     }
+@@ -254,7 +255,7 @@ fun LyricsMenu(
+                                 )
+                             }
+ 
+-                            onRefreshRequest(LrcUtils.parseLyrics(result.lyrics, null, parserOptions, null))
++                            onRefreshRequest(parseLyricsResilient(result.lyrics, parserOptions))
+                         }
+                         .padding(12.dp)
+                         .animateContentSize()
+-- 
+2.56.0.windows.4
+
