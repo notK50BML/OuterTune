@@ -265801,3 +265801,61 @@ index f2c09f6..dda3531 100644
 -- 
 2.56.0.windows.4
 
+From ec6b75eaa90733c758aa4fce954f4a19d5a727c5 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Wed, 11 Nov 2026 18:10:07 +0800
+Subject: [PATCH] Cloud relay: say what went wrong in words
+
+A failed lookup reported only the server's host name, which read as nonsense under Last try
+failed. Lookup failures, unreachable servers and TLS failures are now described plainly.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../com/dd3boh/outertune/sync/CloudPlaySync.kt  | 17 +++++++++++++++--
+ 1 file changed, 15 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt b/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
+index d0ec38c..1c02433 100644
+--- a/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
++++ b/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
+@@ -479,7 +479,7 @@ class CloudSyncRunner(
+     fun resendAll(code: String) {
+         scope.launch {
+             runCatching { CloudPlaySync(store, code, memory).resendAll() }
+-                .onFailure { e -> _status.update { it.copy(error = e.message ?: e.javaClass.simpleName) } }
++                .onFailure { e -> _status.update { it.copy(error = describe(e)) } }
+             syncNow()
+         }
+     }
+@@ -501,7 +501,7 @@ class CloudSyncRunner(
+         } catch (e: CancellationException) {
+             throw e
+         } catch (e: Exception) {
+-            _status.update { it.copy(error = e.message ?: e.javaClass.simpleName) }
++            _status.update { it.copy(error = describe(e)) }
+         } finally {
+             _status.update { it.copy(syncing = false) }
+         }
+@@ -510,6 +510,19 @@ class CloudSyncRunner(
+     companion object {
+         /** Between syncs while running. */
+         private const val ROUND_MS = 30 * 60_000L
++
++        /**
++         * What went wrong, in words. The exceptions' own messages are often just the server's
++         * address - a failed lookup reports the host name and nothing else - which says nothing.
++         */
++        fun describe(e: Throwable): String = when (e) {
++            is java.net.UnknownHostException ->
++                "can't find the sync server - no internet, or a DNS or ad blocker is blocking firebasedatabase.app"
++            is java.net.SocketTimeoutException, is java.net.ConnectException, is java.net.NoRouteToHostException ->
++                "couldn't reach the sync server - check the connection"
++            is javax.net.ssl.SSLException -> "secure connection to the sync server failed (${e.message})"
++            else -> "${e.javaClass.simpleName}: ${e.message.orEmpty()}".trimEnd(':', ' ')
++        }
+     }
+ }
+ 
+-- 
+2.56.0.windows.4
+
