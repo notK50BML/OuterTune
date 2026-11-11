@@ -266046,3 +266046,59 @@ index 79583ab..75a87f3 100644
 -- 
 2.56.0.windows.4
 
+From d98b04d632251e5ed661611d9e8f1e03a643b52b Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Wed, 11 Nov 2026 22:40:22 +0800
+Subject: [PATCH] Live radio: ask the clients that can play it
+
+A 24/7 radio carries no music video type, so the "LIVE" check never fired
+and the live client list was never used; the default clients answered
+"This live stream recording is not available" and nothing played. The
+metadata response's own isLive now counts, and IOS - the one client YouTube
+served a live stream to in testing, with AAC-in-MP4 audio that
+LiveStreamDataSource reads - is asked first.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt  | 7 ++++++-
+ .../innertube/strategy/ContentAwareFallbackStrategy.kt     | 4 ++++
+ 2 files changed, 10 insertions(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+index e5ef4ab..7cd23e2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/YTPlayerUtils.kt
+@@ -248,8 +248,13 @@ object YTPlayerUtils {
+             isExplicit = contentHints.isExplicit == true || isAgeRestrictedFromResponse,
+             isKidsContent = contentHints.isKidsContent
+                 ?: musicVideoType.contains("KIDS", ignoreCase = true).takeIf { it },
++            // From the metadata response's own isLive too: a 24/7 radio carries no music video type
++            // at all, so the "LIVE" check alone never fired, the live clients were never asked, and
++            // the default ones answered every radio with "This live stream recording is not
++            // available" - no sound at all.
+             isLive = contentHints.isLive
+-                ?: musicVideoType.contains("LIVE", ignoreCase = true).takeIf { it },
++                ?: (mainPlayerResponse?.videoDetails?.isLive == true ||
++                    musicVideoType.contains("LIVE", ignoreCase = true)).takeIf { it },
+             isUploaded = isUploadedTrack,
+         )
+         val streamClients = fallbackStrategy.resolveClients(effectiveHints)
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt b/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt
+index 588044b..9fa09c8 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt
+@@ -56,7 +56,11 @@ class ContentAwareFallbackStrategy {
+             YouTubeClient.WEB_CREATOR,
+         )
+ 
++        // IOS first: tested against a live radio, it was the one client YouTube served - VISIONOS,
++        // ANDROID_VR and TVHTML5 were refused - and its AAC-in-MP4 audio (itags 139, 140) is what
++        // LiveStreamDataSource reads. The desktop app plays live streams through it too.
+         val liveClients = listOf(
++            YouTubeClient.IOS,
+             YouTubeClient.TVHTML5,
+             YouTubeClient.WEB_REMIX,
+             YouTubeClient.WEB_CREATOR,
+-- 
+2.56.0.windows.4
+
