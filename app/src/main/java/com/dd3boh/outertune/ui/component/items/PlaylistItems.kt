@@ -140,7 +140,9 @@ fun PlaylistListItem(
         // parameter defaults to false and not one of the fourteen call sites passes true, so a
         // fully downloaded playlist never showed the pin anywhere in the app. The edit and local
         // icons below genuinely are per-screen decoration and stay gated.
-        if (playlist.downloadCount > 0) {
+        // Only once every song is downloaded, as the playlist's own page shows it; how many are is in
+        // the subtitle.
+        if (playlist.songCount > 0 && playlist.downloadCount >= playlist.songCount) {
             Icon(
                 imageVector = Icons.Rounded.OfflinePin,
                 contentDescription = null,
@@ -194,7 +196,9 @@ fun PlaylistGridItem(
     badges = {
         PlaylistIcon(playlist.playlist)
         SavedPlaylistBadge(playlist.playlist)
-        if (playlist.downloadCount > 0) {
+        // Only once every song is downloaded, as the playlist's own page shows it; how many are is in
+        // the subtitle.
+        if (playlist.songCount > 0 && playlist.downloadCount >= playlist.songCount) {
             Icon(
                 imageVector = Icons.Rounded.OfflinePin,
                 contentDescription = null,
