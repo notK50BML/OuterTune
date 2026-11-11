@@ -248,8 +248,13 @@ object YTPlayerUtils {
             isExplicit = contentHints.isExplicit == true || isAgeRestrictedFromResponse,
             isKidsContent = contentHints.isKidsContent
                 ?: musicVideoType.contains("KIDS", ignoreCase = true).takeIf { it },
+            // From the metadata response's own isLive too: a 24/7 radio carries no music video type
+            // at all, so the "LIVE" check alone never fired, the live clients were never asked, and
+            // the default ones answered every radio with "This live stream recording is not
+            // available" - no sound at all.
             isLive = contentHints.isLive
-                ?: musicVideoType.contains("LIVE", ignoreCase = true).takeIf { it },
+                ?: (mainPlayerResponse?.videoDetails?.isLive == true ||
+                    musicVideoType.contains("LIVE", ignoreCase = true)).takeIf { it },
             isUploaded = isUploadedTrack,
         )
         val streamClients = fallbackStrategy.resolveClients(effectiveHints)

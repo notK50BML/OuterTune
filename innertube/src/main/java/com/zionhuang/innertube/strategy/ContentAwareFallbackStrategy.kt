@@ -56,7 +56,11 @@ class ContentAwareFallbackStrategy {
             YouTubeClient.WEB_CREATOR,
         )
 
+        // IOS first: tested against a live radio, it was the one client YouTube served - VISIONOS,
+        // ANDROID_VR and TVHTML5 were refused - and its AAC-in-MP4 audio (itags 139, 140) is what
+        // LiveStreamDataSource reads. The desktop app plays live streams through it too.
         val liveClients = listOf(
+            YouTubeClient.IOS,
             YouTubeClient.TVHTML5,
             YouTubeClient.WEB_REMIX,
             YouTubeClient.WEB_CREATOR,
