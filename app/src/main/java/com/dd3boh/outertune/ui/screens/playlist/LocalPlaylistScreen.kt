@@ -129,11 +129,18 @@ import com.dd3boh.outertune.ui.component.SelectHeader
 import com.dd3boh.outertune.ui.component.SortHeader
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.items.PlaylistThumbnail
+import com.dd3boh.outertune.ui.component.items.SavedPlaylistBadge
 import com.dd3boh.outertune.ui.component.items.SongListItem
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
 import com.dd3boh.outertune.ui.dialog.TextFieldDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.ui.utils.getNSongsString
+import com.dd3boh.outertune.ui.utils.m3uFileName
+import com.dd3boh.outertune.ui.utils.rememberM3uExportLauncher
+import com.dd3boh.outertune.utils.getDownloadState
+import androidx.compose.material.icons.rounded.LibraryAdd
+import androidx.compose.material.icons.rounded.LibraryAddCheck
 import com.dd3boh.outertune.utils.makeTimeString
 import com.dd3boh.outertune.utils.rememberEnumPreference
 import com.dd3boh.outertune.utils.rememberPreference
@@ -272,37 +279,16 @@ fun LocalPlaylistScreen(
     }
 
     if (showRemoveDownloadDialog) {
-        DefaultDialog(
+        RemoveDownloadsDialog(
+            songIds = playlistWithSongs.second.map { it.song.id },
             onDismiss = { showRemoveDownloadDialog = false },
-            content = {
-                Text(
-                    text = stringResource(R.string.remove_download_playlist_confirm, playlistWithSongs.first?.playlist!!.name),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 18.dp)
-                )
-            },
-            buttons = {
-                TextButton(
-                    onClick = { showRemoveDownloadDialog = false }
-                ) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
-
-                TextButton(
-                    onClick = {
-                        showRemoveDownloadDialog = false
-                        if (!editable) {
-                            database.transaction {
-                                playlistWithSongs.first?.id?.let { clearPlaylist(it) }
-                            }
-                        }
-
-                        playlistWithSongs.second.forEach { song ->
-                            removeDownloadKeepingCache(song.song.id)
-                        }
+            onConfirm = {
+                // Unchanged from before the dialog: a playlist this account cannot edit keeps its
+                // songs here only as a copy to download from, so the copy goes with the downloads.
+                if (!editable) {
+                    database.transaction {
+                        playlistWithSongs.first?.id?.let { clearPlaylist(it) }
                     }
-                ) {
-                    Text(text = stringResource(android.R.string.ok))
                 }
             }
         )
@@ -458,6 +444,7 @@ fun LocalPlaylistScreen(
                             LocalPlaylistHeader(
                                 playlist = playlist,
                                 songs =  playlistWithSongs.second,
+                                canEdit = playlist.playlist.isLocal || playlist.playlist.isEditable,
                                 onShowEditDialog = { showEditDialog = true },
                                 onShowRemoveDownloadDialog = { showRemoveDownloadDialog = true },
                                 snackbarHostState = snackbarHostState,
@@ -665,6 +652,7 @@ fun LocalPlaylistScreen(
 fun LocalPlaylistHeader(
     playlist: Playlist,
     songs: List<PlaylistSong>,
+    canEdit: Boolean,
     onShowEditDialog: () -> Unit,
     onShowRemoveDownloadDialog: () -> Unit,
     snackbarHostState: SnackbarHostState,
@@ -678,6 +666,8 @@ fun LocalPlaylistHeader(
     val isNetworkConnected = LocalNetworkConnected.current
     val scope = rememberCoroutineScope()
     val syncUtils = LocalSyncUtils.current
+    val buttons = rememberPlaylistHeaderButtons()
+    val m3uLauncher = rememberM3uExportLauncher { songs.map { it.song } }
 
     val playlistLength = remember(songs) {
         songs.fastSumBy { it.song.song.duration }
@@ -688,22 +678,35 @@ fun LocalPlaylistHeader(
         mutableIntStateOf(Download.STATE_STOPPED)
     }
 
-//    LaunchedEffect(songs) {
-//        val songs = songs.filterNot { it.song.song.isLocal }
-//        if (songs.isEmpty()) return@LaunchedEffect
-//        downloadUtil.downloads.collect { downloads ->
-//            downloadState = getDownloadState(songs.map { downloads[it.song.id] })
-//        }
-//    }
+    // Back on. With this commented out the state never left STATE_STOPPED, so a playlist whose
+    // every song was on the device still offered "Download" where Liked songs, an album or an
+    // online playlist showed the downloaded pin - and the pin, being the way into removing the
+    // downloads, was never there either. Same as the other screens: all non-local songs downloaded
+    // is "downloaded", any of them in flight is "downloading". Reset first, so emptying the
+    // playlist does not leave the last list's state behind.
+    LaunchedEffect(songs) {
+        downloadState = Download.STATE_STOPPED
+        val songs = songs.filterNot { it.song.song.isLocal }
+        if (songs.isEmpty()) return@LaunchedEffect
+        downloadUtil.downloads.collect { downloads ->
+            downloadState = getDownloadState(songs.map { downloads[it.song.id] })
+        }
+    }
 
     Column(
         verticalArrangement = Arrangement.spacedBy(12.dp),
         modifier = modifier.padding(12.dp)
     ) {
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            itemVerticalAlignment = Alignment.CenterVertically
+        // A Row, as on the album, Liked songs and online playlist pages - not the FlowRow this was.
+        // The FlowRow had no width of its own and centred each line it made, so as soon as the
+        // title column wanted more width than was left beside the cover (a long name, which saved
+        // playlists from YouTube Music nearly always have, or the extra buttons they carry), the
+        // column wrapped below and the cover was left alone on its line, centred: pushed right,
+        // away from the edge every other page draws it against. In a Row the column takes the
+        // remaining width and the title ellipsises instead.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             PlaylistThumbnail(
                 playlist = playlist.playlist,
@@ -716,6 +719,7 @@ fun LocalPlaylistHeader(
 
             Column(
                 verticalArrangement = Arrangement.Center,
+                modifier = Modifier.weight(1f)
             ) {
                 AutoResizeText(
                     text = playlist.playlist.name,
@@ -724,6 +728,9 @@ fun LocalPlaylistHeader(
                     overflow = TextOverflow.Ellipsis,
                     fontSizeRange = FontSizeRange(16.sp, 22.sp)
                 )
+
+                // Mark saved playlists: someone else's playlist says so on its own page too.
+                SavedPlaylistBadge(playlist.playlist)
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (playlist.downloadCount > 0) {
@@ -749,90 +756,81 @@ fun LocalPlaylistHeader(
                     fontWeight = FontWeight.Normal
                 )
 
-                Row {
-                    IconButton(
-                        onClick = onShowEditDialog
-                    ) {
-                        Icon(
-                            imageVector = Icons.Rounded.Edit,
-                            contentDescription = null
-                        )
-                    }
-
-                    if (playlist.playlist.browseId != null) {
+                // The buttons chosen in Settings > Library and content > Playlist buttons, each where
+                // it applies. A FlowRow here, so that choosing many wraps them under each other
+                // instead of pushing the last ones out of sight.
+                FlowRow {
+                    // A saved playlist is someone else's: it cannot be edited, but it can be taken
+                    // off the library - first, where Edit would be. Toggling rather than leaving the
+                    // page, so a mistaken tap is undone with the same button.
+                    if (playlist.playlist.isSaved) {
+                        val inLibrary = playlist.playlist.bookmarkedAt != null
                         IconButton(
                             onClick = {
-                                scope.launch {
-                                    val playlistSyncedMessage = resources.getString(R.string.playlist_synced)
-                                    syncUtils.syncPlaylist(playlist.playlist.browseId, playlist.id)
-                                    snackbarHostState.showSnackbar(
-                                        message = playlistSyncedMessage,
-                                        withDismissAction = true
-                                    )
+                                database.query {
+                                    update(playlist.playlist.toggleLike())
                                 }
-                            },
-                            enabled = isNetworkConnected
+                            }
                         ) {
                             Icon(
-                                imageVector = Icons.Rounded.Sync,
-                                contentDescription = null
+                                imageVector = if (inLibrary) Icons.Rounded.LibraryAddCheck else Icons.Rounded.LibraryAdd,
+                                contentDescription = stringResource(
+                                    if (inLibrary) R.string.remove_from_library else R.string.add_to_library
+                                )
                             )
                         }
                     }
 
-                    if (songs.any { !it.song.song.isLocal }) {
-                        when (downloadState) {
-                            Download.STATE_COMPLETED -> {
-                                IconButton(
-                                    onClick = onShowRemoveDownloadDialog
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.OfflinePin,
-                                        contentDescription = null
-                                    )
-                                }
+                    for (button in buttons) {
+                        when (button) {
+                            PlaylistHeaderButton.EDIT -> if (canEdit) {
+                                PlaylistHeaderIconButton(button, onClick = onShowEditDialog)
                             }
 
-                            Download.STATE_DOWNLOADING -> {
-                                IconButton(
-                                    onClick = {
-                                        songs.forEach { song ->
-                                            removeDownloadKeepingCache(song.song.id)
-                                        }
+                            PlaylistHeaderButton.SYNC -> playlist.playlist.browseId?.let { browseId ->
+                                PlaylistHeaderIconButton(button, enabled = isNetworkConnected) {
+                                    scope.launch {
+                                        val playlistSyncedMessage = resources.getString(R.string.playlist_synced)
+                                        syncUtils.syncPlaylist(browseId, playlist.id)
+                                        snackbarHostState.showSnackbar(
+                                            message = playlistSyncedMessage,
+                                            withDismissAction = true
+                                        )
                                     }
-                                ) {
-                                    CircularProgressIndicator(
-                                        strokeWidth = 2.dp,
-                                        modifier = Modifier.size(24.dp)
-                                    )
                                 }
                             }
 
-                            else -> {
-                                IconButton(
-                                    onClick = {
-                                        downloadUtil.download(songs.map { it.song.toMediaMetadata() })
-                                    }
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Download,
-                                        contentDescription = null
-                                    )
-                                }
-                            }
-                        }
-
-                        IconButton(
-                            onClick = {
-                                playerConnection.enqueueEnd(
-                                    items = songs.map { it.song.toMediaItem() }
+                            PlaylistHeaderButton.DOWNLOAD -> if (songs.any { !it.song.song.isLocal }) {
+                                PlaylistDownloadButton(
+                                    state = downloadState,
+                                    onDownload = {
+                                        downloadUtil.download(
+                                            songs.filterNot { it.song.song.isLocal }.map { it.song.toMediaMetadata() }
+                                        )
+                                    },
+                                    onRemoveDownload = onShowRemoveDownloadDialog
                                 )
                             }
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
-                                contentDescription = null
-                            )
+
+                            PlaylistHeaderButton.QUEUE -> if (songs.isNotEmpty()) {
+                                PlaylistHeaderIconButton(button) {
+                                    playerConnection.enqueueEnd(
+                                        items = songs.map { it.song.toMediaItem() }
+                                    )
+                                }
+                            }
+
+                            PlaylistHeaderButton.PLAY_NEXT -> if (songs.isNotEmpty()) {
+                                PlaylistHeaderIconButton(button) {
+                                    playerConnection.enqueueNext(songs.map { it.song.toMediaItem() })
+                                }
+                            }
+
+                            PlaylistHeaderButton.EXPORT -> if (songs.isNotEmpty()) {
+                                PlaylistHeaderIconButton(button) {
+                                    m3uLauncher.launch(m3uFileName(playlist.playlist.name))
+                                }
+                            }
                         }
                     }
                 }

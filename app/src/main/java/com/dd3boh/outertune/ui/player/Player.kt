@@ -106,6 +106,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -567,8 +568,18 @@ private fun EqualizerHandle() {
             )
     ) {
         if (showEqualizerHandle) {
+            val travel = with(LocalDensity.current) { 24.dp.toPx() }
             Box(
                 modifier = Modifier
+                    // As the queue's handle does: as the panel is pulled open the bar goes with the
+                    // finger a little way and fades out by a quarter of the way, rather than sitting
+                    // still under the sheet sliding over it. Read in the layer, so a drag redraws
+                    // only this and recomposes nothing.
+                    .graphicsLayer {
+                        val pulled = ((sheet?.progress ?: 0f) * 4f).coerceIn(0f, 1f)
+                        alpha = 1f - pulled
+                        translationY = pulled * travel
+                    }
                     .width(64.dp)
                     .height(8.dp)
                     .clip(RoundedCornerShape(4.dp))

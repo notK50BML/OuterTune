@@ -207,6 +207,17 @@ val ShowHomeChipsKey = booleanPreferencesKey("showHomeChips")
  * [com.dd3boh.outertune.ui.component.items.SongDetail]. Empty until first set, which is its DEFAULT.
  */
 val SongDetailsKey = stringPreferencesKey("songDetails")
+/**
+ * Settings > Library and content: the buttons under a playlist's title on its page, in order - see
+ * [com.dd3boh.outertune.ui.screens.playlist.PlaylistHeaderButton]. Empty until first set, which is
+ * its DEFAULT (Edit, Sync, Download, Add to queue).
+ */
+val PlaylistHeaderButtonsKey = stringPreferencesKey("playlistHeaderButtons")
+/**
+ * Settings > Library and content: a "Saved" label on playlists someone else made that are in the
+ * library because they were saved, not created. Off by default.
+ */
+val MarkSavedPlaylistsKey = booleanPreferencesKey("markSavedPlaylists")
 
 
 /**
@@ -680,9 +691,10 @@ val PlaySyncWifiKey = booleanPreferencesKey("playSyncWifi")
 /** Whether plays are synced through the cloud (CloudPlaySync) with the devices sharing [PlaySyncCodeKey]. */
 val PlaySyncCloudKey = booleanPreferencesKey("playSyncCloud")
 
-/** What cloud sync remembers between runs - see CloudSyncMemory. */
-val CloudSyncRevKey = stringPreferencesKey("cloudSyncRev")
-val CloudSyncFingerprintKey = stringPreferencesKey("cloudSyncFingerprint")
+/** What Cloud relay remembers on this device - see CloudSyncMemory. */
+val CloudRelayDeviceKey = stringPreferencesKey("cloudRelayDevice")
+val CloudRelaySentKey = longPreferencesKey("cloudRelaySent")
+val CloudRelayTakenKey = stringPreferencesKey("cloudRelayTaken")
 
 /**
  * The Stats screen's chips, so it opens as it was left rather than on a week of time listened every

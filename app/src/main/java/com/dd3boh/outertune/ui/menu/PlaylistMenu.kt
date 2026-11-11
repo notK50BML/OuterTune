@@ -65,7 +65,10 @@ import com.dd3boh.outertune.ui.component.items.PlaylistListItem
 import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
 import com.dd3boh.outertune.ui.dialog.TextFieldDialog
+import com.dd3boh.outertune.ui.utils.m3uFileName
+import com.dd3boh.outertune.ui.utils.rememberM3uExportLauncher
 import com.dd3boh.outertune.utils.getDownloadState
 import com.dd3boh.outertune.utils.lmScannerCoroutine
 import com.dd3boh.outertune.utils.reportException
@@ -94,28 +97,9 @@ fun PlaylistMenu(
         mutableStateOf(emptyList<Song>())
     }
 
-    val m3uLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
-    ) { uri: Uri? ->
-        uri?.let {
-            CoroutineScope(lmScannerCoroutine).launch {
-                try {
-                    var result = "#EXTM3U\n"
-                    songs.forEach { s ->
-                        val se = s.song
-                        result += "#EXTINF:${se.duration},${s.artists.joinToString(";") { it.name }} - ${s.title}\n"
-                        result += if (se.isLocal) "${se.id}, ${se.localPath}" else "https://youtube.com/watch?v=${se.id}"
-                        result += "\n"
-                    }
-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
-                        outputStream.write(result.toByteArray(Charsets.UTF_8))
-                    }
-                } catch (e: IOException) {
-                    reportException(e)
-                }
-            }
-        }
-    }
+    // The writing itself lives in ui/utils/M3uExport.kt now, shared with Liked songs and Downloaded
+    // songs, so every playlist exports the same file.
+    val m3uLauncher = rememberM3uExportLauncher { songs }
 
     LaunchedEffect(Unit) {
         database.playlistSongs(playlist.id).collect {
@@ -306,7 +290,7 @@ fun PlaylistMenu(
             icon = Icons.Rounded.Output,
             title = R.string.m3u_export
         ) {
-            m3uLauncher.launch("playlist.m3u")
+            m3uLauncher.launch(m3uFileName(playlist.playlist.name))
         }
     }
 
@@ -339,35 +323,9 @@ fun PlaylistMenu(
      */
 
     if (showRemoveDownloadDialog) {
-        DefaultDialog(
+        RemoveDownloadsDialog(
+            songIds = songs.filterNot { it.song.isLocal }.map { it.id },
             onDismiss = { showRemoveDownloadDialog = false },
-            content = {
-                Text(
-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist.playlist.name),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 18.dp)
-                )
-            },
-            buttons = {
-                TextButton(
-                    onClick = {
-                        showRemoveDownloadDialog = false
-                    }
-                ) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
-
-                TextButton(
-                    onClick = {
-                        showRemoveDownloadDialog = false
-                        songs.forEach { song ->
-                            removeDownloadKeepingCache(song.song.id)
-                        }
-                    }
-                ) {
-                    Text(text = stringResource(android.R.string.ok))
-                }
-            }
         )
     }
 

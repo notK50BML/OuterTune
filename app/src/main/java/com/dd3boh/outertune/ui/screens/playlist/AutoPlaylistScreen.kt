@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.asPaddingValues
@@ -118,8 +119,11 @@ import com.dd3boh.outertune.ui.component.SelectHeader
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.component.items.SongListItem
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.ui.utils.getNSongsString
+import com.dd3boh.outertune.ui.utils.m3uFileName
+import com.dd3boh.outertune.ui.utils.rememberM3uExportLauncher
 import com.dd3boh.outertune.utils.getDownloadState
 import com.dd3boh.outertune.utils.makeTimeString
 import com.dd3boh.outertune.utils.rememberEnumPreference
@@ -274,39 +278,31 @@ fun AutoPlaylistScreen(
         mutableStateOf(false)
     }
 
+    // Only Liked songs can get here: Downloaded songs has no button that removes its downloads
+    // in bulk (see the header). The clearPlaylist this used to run went with it - "liked" and
+    // "downloaded" are not playlists in the database, so it cleared nothing.
     if (showRemoveDownloadDialog) {
-        DefaultDialog(
+        RemoveDownloadsDialog(
+            songIds = songs.filterNot { it.song.isLocal }.map { it.id },
             onDismiss = { showRemoveDownloadDialog = false },
-            content = {
-                Text(
-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist.name),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 18.dp)
-                )
-            },
-            buttons = {
-                TextButton(
-                    onClick = { showRemoveDownloadDialog = false }
-                ) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
-
-                TextButton(
-                    onClick = {
-                        showRemoveDownloadDialog = false
-                        database.transaction {
-                            clearPlaylist(playlist.id)
-                        }
-
-                        songs.forEach { song ->
-                            removeDownloadKeepingCache(song.song.id)
-                        }
-                    }
-                ) {
-                    Text(text = stringResource(android.R.string.ok))
-                }
-            }
         )
+    }
+
+    val buttons = rememberPlaylistHeaderButtons()
+    val m3uLauncher = rememberM3uExportLauncher { songs }
+
+    // Liked songs' Sync, and pull to refresh, do the same thing.
+    val syncLikedSongs: () -> Unit = {
+        coroutineScope.launch {
+            syncUtils.syncRemoteLikedSongs(true)
+            // Report the outcome. A liked-songs sync can decline to run or fail
+            // against YouTube without anything visible changing on screen, which
+            // makes "refreshing did nothing" impossible to tell apart from
+            // "refreshing worked and the order is still wrong".
+            syncUtils.syncState.value.lastLikedSongsResult
+                .takeIf { it.isNotEmpty() }
+                ?.let { snackbarHostState.showSnackbar(it, withDismissAction = true) }
+        }
     }
 
     val showTopBarTitle by remember {
@@ -321,18 +317,7 @@ fun AutoPlaylistScreen(
             .pullToRefresh(
                 state = pullRefreshState,
                 isRefreshing = isSyncingRemoteLikedSongs,
-                onRefresh = {
-                    coroutineScope.launch {
-                        syncUtils.syncRemoteLikedSongs(true)
-                        // Report the outcome. A liked-songs sync can decline to run or fail
-                        // against YouTube without anything visible changing on screen, which
-                        // makes "refreshing did nothing" impossible to tell apart from
-                        // "refreshing worked and the order is still wrong".
-                        syncUtils.syncState.value.lastLikedSongsResult
-                            .takeIf { it.isNotEmpty() }
-                            ?.let { snackbarHostState.showSnackbar(it, withDismissAction = true) }
-                    }
-                }
+                onRefresh = syncLikedSongs
             ),
     ) {
         ScrollToTopManager(navController, lazyListState)
@@ -370,6 +355,7 @@ fun AutoPlaylistScreen(
 
                         Column(
                             verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.weight(1f)
                         ) {
                             AutoResizeText(
                                 text = playlist.name,
@@ -414,62 +400,55 @@ fun AutoPlaylistScreen(
                                 fontWeight = FontWeight.Normal
                             )
 
-                            Row {
+                            // The buttons chosen in Settings > Library and content > Playlist
+                            // buttons, each where it applies. Nothing here is editable, so never
+                            // Edit. Sync and Download are Liked songs' only: Downloaded songs is
+                            // made of downloads, so there is nothing to sync and nothing left to
+                            // download - and no button to remove them all at once either, which
+                            // is what its pin used to do. Its songs' downloads still go one by one,
+                            // from each song's own menu.
+                            FlowRow {
                                 if (songs.isNotEmpty()) {
-                                    when (downloadState) {
-                                        Download.STATE_COMPLETED -> {
-                                            IconButton(
-                                                onClick = {
-                                                    showRemoveDownloadDialog = true
-                                                }
-                                            ) {
-                                                Icon(
-                                                    Icons.Rounded.OfflinePin,
-                                                    contentDescription = null
+                                    for (button in buttons) {
+                                        when (button) {
+                                            PlaylistHeaderButton.EDIT -> Unit
+
+                                            PlaylistHeaderButton.SYNC -> if (playlistType == PlaylistType.LIKE) {
+                                                PlaylistHeaderIconButton(
+                                                    button,
+                                                    enabled = !isSyncingRemoteLikedSongs,
+                                                    onClick = syncLikedSongs
                                                 )
                                             }
-                                        }
 
-                                        Download.STATE_DOWNLOADING -> {
-                                            IconButton(
-                                                onClick = {
-                                                    songs.forEach { song ->
-                                                        removeDownloadKeepingCache(song.song.id)
-                                                    }
-                                                }
+                                            PlaylistHeaderButton.DOWNLOAD -> if (
+                                                playlistType == PlaylistType.LIKE && songs.any { !it.song.isLocal }
                                             ) {
-                                                CircularProgressIndicator(
-                                                    strokeWidth = 2.dp,
-                                                    modifier = Modifier.size(24.dp)
+                                                PlaylistDownloadButton(
+                                                    state = downloadState,
+                                                    onDownload = {
+                                                        downloadUtil.download(
+                                                            songs.filterNot { it.song.isLocal }.map { it.toMediaMetadata() }
+                                                        )
+                                                    },
+                                                    onRemoveDownload = { showRemoveDownloadDialog = true }
                                                 )
                                             }
-                                        }
 
-                                        else -> {
-                                            IconButton(
-                                                onClick = {
-                                                    downloadUtil.download(songs.map { it.toMediaMetadata() })
-                                                }
-                                            ) {
-                                                Icon(
-                                                    Icons.Rounded.Download,
-                                                    contentDescription = null
+                                            PlaylistHeaderButton.QUEUE -> PlaylistHeaderIconButton(button) {
+                                                playerConnection.enqueueEnd(
+                                                    items = songs.map { it.toMediaItem() }
                                                 )
                                             }
-                                        }
-                                    }
 
-                                    IconButton(
-                                        onClick = {
-                                            playerConnection.enqueueEnd(
-                                                items = songs.map { it.toMediaItem() }
-                                            )
+                                            PlaylistHeaderButton.PLAY_NEXT -> PlaylistHeaderIconButton(button) {
+                                                playerConnection.enqueueNext(songs.map { it.toMediaItem() })
+                                            }
+
+                                            PlaylistHeaderButton.EXPORT -> PlaylistHeaderIconButton(button) {
+                                                m3uLauncher.launch(m3uFileName(playlist.name))
+                                            }
                                         }
-                                    ) {
-                                        Icon(
-                                            Icons.AutoMirrored.Rounded.QueueMusic,
-                                            contentDescription = null
-                                        )
                                     }
                                 }
                             }

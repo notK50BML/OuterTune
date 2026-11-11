@@ -60,6 +60,7 @@ import com.dd3boh.outertune.ui.component.items.AlbumListItem
 import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.ArtistDialog
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
 import com.dd3boh.outertune.utils.getDownloadState
 import com.zionhuang.innertube.YouTube
 import kotlinx.coroutines.Dispatchers
@@ -148,6 +149,10 @@ fun AlbumMenu(
     }
 
     var showChooseQueueDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+
+    var showRemoveDownloadDialog by remember {
         mutableStateOf(false)
     }
 
@@ -277,9 +282,7 @@ fun AlbumMenu(
                     downloadUtil.download(_songs)
                 },
                 onRemoveDownload = {
-                    songs.forEach { song ->
-                        removeDownloadKeepingCache(song.id)
-                    }
+                    showRemoveDownloadDialog = true
                 }
             )
         }
@@ -369,6 +372,14 @@ fun AlbumMenu(
             navController = navController,
             artists = linkableArtists,
             onDismiss = { showSelectArtistDialog = false }
+        )
+    }
+
+    if (showRemoveDownloadDialog) {
+        RemoveDownloadsDialog(
+            songIds = songs.filterNot { it.song.isLocal }.map { it.id },
+            onDismiss = { showRemoveDownloadDialog = false },
+            onConfirm = onDismiss
         )
     }
 

@@ -55,6 +55,7 @@ import com.dd3boh.outertune.ui.component.items.YouTubeListItem
 import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
 import com.dd3boh.outertune.utils.getDownloadState
 import com.zionhuang.innertube.YouTube
 import com.zionhuang.innertube.models.PlaylistItem
@@ -337,35 +338,9 @@ fun YouTubePlaylistMenu(
     }
 
     if (showRemoveDownloadDialog) {
-        DefaultDialog(
+        RemoveDownloadsDialog(
+            songIds = songs.map { it.id },
             onDismiss = { showRemoveDownloadDialog = false },
-            content = {
-                Text(
-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist.title),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 18.dp)
-                )
-            },
-            buttons = {
-                TextButton(
-                    onClick = {
-                        showRemoveDownloadDialog = false
-                    }
-                ) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
-
-                TextButton(
-                    onClick = {
-                        showRemoveDownloadDialog = false
-                        songs.forEach { song ->
-                            removeDownloadKeepingCache(song.id)
-                        }
-                    }
-                ) {
-                    Text(text = stringResource(android.R.string.ok))
-                }
-            }
         )
     }
 

@@ -47,6 +47,9 @@ import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.screens.settings.fragments.LocalizationFrag
 import com.dd3boh.outertune.ui.screens.settings.fragments.SongDetailsArrangement
+import com.dd3boh.outertune.ui.screens.settings.fragments.PlaylistHeaderButtonsArrangement
+import com.dd3boh.outertune.constants.MarkSavedPlaylistsKey
+import androidx.compose.material.icons.rounded.Bookmark
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.utils.rememberPreference
 
@@ -67,6 +70,7 @@ fun LibrarySettings(
     )
     val (artistEnrichment, onArtistEnrichmentChange) = rememberPreference(ArtistCreditEnrichmentKey, defaultValue = true)
     val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = false)
+    val (markSavedPlaylists, onMarkSavedPlaylistsChange) = rememberPreference(MarkSavedPlaylistsKey, defaultValue = false)
 
     ColumnWithContentPadding(
         modifier = Modifier.fillMaxHeight(),
@@ -90,6 +94,16 @@ fun LibrarySettings(
                 icon = { Icon(Icons.AutoMirrored.Rounded.PlaylistPlay, null) },
                 checked = showLikedAndDownloadedPlaylist,
                 onCheckedChange = onShowLikedAndDownloadedPlaylistChange
+            )
+            // Beside the other playlist settings: the buttons on a playlist's page, then the tag
+            // that tells someone else's saved playlist from the user's own.
+            PlaylistHeaderButtonsArrangement()
+            SwitchPreference(
+                title = { Text(stringResource(R.string.mark_saved_playlists_title)) },
+                description = stringResource(R.string.mark_saved_playlists_description),
+                icon = { Icon(Icons.Rounded.Bookmark, null) },
+                checked = markSavedPlaylists,
+                onCheckedChange = onMarkSavedPlaylistsChange
             )
             SwitchPreference(
                 title = { Text(stringResource(R.string.show_artist_videos_as_songs_title)) },

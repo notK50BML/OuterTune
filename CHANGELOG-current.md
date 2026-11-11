@@ -76,6 +76,28 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
 - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
   it's in the settings search.
 
+## Cloud relay, sync settings, playlists
+
+- **Cloud relay** replaces cloud sync's store. Each sync sends one encrypted bundle with the plays
+  added since the last one; devices mark bundles they've taken, and a bundle every active device has
+  taken is deleted (or after 30 days), so the cloud holds almost nothing. A new device, or **Send
+  everything again**, gets everything once from each other device. Still never counted twice.
+- **Cross-device sync** has its own entry in Settings (not under Privacy and history): Cloud relay
+  first, then WiFi sync. Linking a device turns both on. "Add plays from another device" under
+  Backup and restore is gone - sync does it.
+- **EQ handle:** pulling the equaliser open moves the bar a little with the finger and fades it out
+  quickly, as the queue's handle does.
+- **Liked and Downloaded songs** get a playlist menu (play, shuffle, play next, add to queue, add to
+  playlist, export .m3u; Liked also download, remove download and sync). No edit, delete or share;
+  Downloaded songs has no download actions, though its songs can still be removed one by one.
+- **Removing many downloads at once** (playlists, albums, menus, top buttons) always asks first.
+- **Playlist buttons:** Edit, Sync, Download and Add to queue by default, each only where it
+  applies; choose and order them in Library and content → Playlist buttons.
+- **Saved playlists** (someone else's) get Remove from library, an optional "Saved" tag (Library and
+  content → Mark saved playlists), and their cover no longer sits off to the right when the name is
+  long.
+- **Playlists show the downloaded mark** once every song is downloaded.
+
 ## Cloud sync (framework, waiting for its database)
 
 - **Cloud sync** on the Cross-device sync screen, in both apps: plays synced through an online store

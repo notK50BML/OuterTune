@@ -14,7 +14,6 @@ import com.dd3boh.outertune.db.MusicDatabase
 import com.dd3boh.outertune.extensions.div
 import com.dd3boh.outertune.extensions.zipInputStream
 import com.dd3boh.outertune.playback.MusicService
-import com.dd3boh.outertune.utils.PlayMerge
 import com.dd3boh.outertune.utils.BACKUP_SETTINGS_FILENAME
 import com.dd3boh.outertune.utils.reportException
 import com.dd3boh.outertune.utils.writeBackup
@@ -51,25 +50,6 @@ class BackupRestoreViewModel @Inject constructor(
                 reportException(it)
                 Toast.makeText(context, R.string.backup_create_failed, Toast.LENGTH_SHORT).show()
             }
-        }
-    }
-
-    /** Merges another device's plays into this one's - see [PlayMerge]. Nothing is replaced. */
-    fun mergePlays(uri: Uri) {
-        viewModelScope.launch {
-            runCatching { PlayMerge.mergeFrom(context, database, uri) }
-                .onSuccess { result ->
-                    val message = if (result.plays == 0) {
-                        context.getString(R.string.merge_plays_none)
-                    } else {
-                        context.getString(R.string.merge_plays_done, result.plays, result.newSongs)
-                    }
-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                }
-                .onFailure {
-                    reportException(it)
-                    Toast.makeText(context, R.string.merge_plays_failed, Toast.LENGTH_SHORT).show()
-                }
         }
     }
 

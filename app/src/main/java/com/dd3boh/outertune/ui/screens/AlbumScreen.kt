@@ -109,6 +109,7 @@ import com.dd3boh.outertune.ui.component.shimmer.ListItemPlaceHolder
 import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
 import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
 import com.dd3boh.outertune.ui.menu.AlbumMenu
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
 import com.dd3boh.outertune.ui.menu.YouTubeAlbumMenu
 import com.dd3boh.outertune.ui.utils.backToMain
 import com.dd3boh.outertune.ui.utils.getNSongsString
@@ -167,6 +168,17 @@ fun AlbumScreen(
     val downloadUtil = LocalDownloadUtil.current
     var downloadState by remember {
         mutableIntStateOf(Download.STATE_STOPPED)
+    }
+
+    // Removing the album's downloads, from the pin (or the spinner) at the top, asks first.
+    var showRemoveDownloadDialog by remember {
+        mutableStateOf(false)
+    }
+    if (showRemoveDownloadDialog) {
+        RemoveDownloadsDialog(
+            songIds = albumWithSongs?.songs?.map { it.id }.orEmpty(),
+            onDismiss = { showRemoveDownloadDialog = false },
+        )
     }
 
     LaunchedEffect(albumWithSongs) {
@@ -291,9 +303,7 @@ fun AlbumScreen(
                                         Download.STATE_COMPLETED -> {
                                             IconButton(
                                                 onClick = {
-                                                    albumWithSongsLocal.songs.forEach { song ->
-                                                        removeDownloadKeepingCache(song.id)
-                                                    }
+                                                    showRemoveDownloadDialog = true
                                                 }
                                             ) {
                                                 Icon(
@@ -304,11 +314,11 @@ fun AlbumScreen(
                                         }
 
                                         Download.STATE_DOWNLOADING -> {
+                                            // Stopping takes the songs already done with it, so it
+                                            // asks first, like the pin.
                                             IconButton(
                                                 onClick = {
-                                                    albumWithSongsLocal.songs.forEach { song ->
-                                                        removeDownloadKeepingCache(song.id)
-                                                    }
+                                                    showRemoveDownloadDialog = true
                                                 }
                                             ) {
                                                 CircularProgressIndicator(

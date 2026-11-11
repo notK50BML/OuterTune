@@ -45,6 +45,7 @@ import com.dd3boh.outertune.ui.component.items.YouTubeListItem
 import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
 import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
 import com.dd3boh.outertune.ui.dialog.ArtistDialog
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
 import com.dd3boh.outertune.utils.getDownloadState
 import com.dd3boh.outertune.utils.reportException
 import com.zionhuang.innertube.YouTube
@@ -72,6 +73,9 @@ fun YouTubeAlbumMenu(
         mutableStateOf(false)
     }
     var showSelectArtistDialog by rememberSaveable {
+        mutableStateOf(false)
+    }
+    var showRemoveDownloadDialog by rememberSaveable {
         mutableStateOf(false)
     }
 
@@ -167,9 +171,7 @@ fun YouTubeAlbumMenu(
                 downloadUtil.download(_songs)
             },
             onRemoveDownload = {
-                album?.songs?.forEach { song ->
-                    removeDownloadKeepingCache(song.id)
-                }
+                showRemoveDownloadDialog = true
             }
         )
         albumItem.artists?.let { artists ->
@@ -240,6 +242,14 @@ fun YouTubeAlbumMenu(
             navController = navController,
             artists = album?.artists.orEmpty(),
             onDismiss = { showSelectArtistDialog = false }
+        )
+    }
+
+    if (showRemoveDownloadDialog) {
+        RemoveDownloadsDialog(
+            songIds = album?.songs?.map { it.id }.orEmpty(),
+            onDismiss = { showRemoveDownloadDialog = false },
+            onConfirm = onDismiss
         )
     }
 }

@@ -126,6 +126,8 @@ import com.dd3boh.outertune.ui.component.shimmer.ListItemPlaceHolder
 import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
 import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
 import com.dd3boh.outertune.ui.dialog.DefaultDialog
+import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+import com.dd3boh.outertune.ui.component.items.SavedPlaylistBadge
 import com.dd3boh.outertune.ui.menu.YouTubePlaylistMenu
 import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
 import com.dd3boh.outertune.ui.utils.backToMain
@@ -250,35 +252,12 @@ fun OnlinePlaylistScreen(
     }
 
     if (showRemoveDownloadDialog) {
-        DefaultDialog(
+        RemoveDownloadsDialog(
+            songIds = songs.map { it.id },
             onDismiss = { showRemoveDownloadDialog = false },
-            content = {
-                Text(
-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist?.title!!),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(horizontal = 18.dp)
-                )
-            },
-            buttons = {
-                TextButton(
-                    onClick = { showRemoveDownloadDialog = false }
-                ) {
-                    Text(text = stringResource(android.R.string.cancel))
-                }
-
-                TextButton(
-                    onClick = {
-                        showRemoveDownloadDialog = false
-                        database.transaction {
-                            dbPlaylist?.id?.let { clearPlaylist(it) }
-                        }
-
-                        songs.forEach { song ->
-                            removeDownloadKeepingCache(song.id)
-                        }
-                    }
-                ) {
-                    Text(text = stringResource(android.R.string.ok))
+            onConfirm = {
+                database.transaction {
+                    dbPlaylist?.id?.let { clearPlaylist(it) }
                 }
             }
         )
@@ -333,6 +312,12 @@ fun OnlinePlaylistScreen(
                                             overflow = TextOverflow.Ellipsis,
                                             fontSizeRange = FontSizeRange(16.sp, 22.sp)
                                         )
+
+                                        // Mark saved playlists, for one in the library: this page is
+                                        // where a saved playlist with no songs stored opens.
+                                        dbPlaylist?.playlist
+                                            ?.takeIf { it.bookmarkedAt != null }
+                                            ?.let { SavedPlaylistBadge(it) }
 
                                         playlist.author?.let { artist ->
                                             val annotatedString = buildAnnotatedString {
@@ -423,11 +408,11 @@ fun OnlinePlaylistScreen(
                                                     }
 
                                                     Download.STATE_DOWNLOADING -> {
+                                                        // Stopping takes the songs already done with
+                                                        // it, so it asks first, like the pin.
                                                         IconButton(
                                                             onClick = {
-                                                                songs.forEach { song ->
-                                                                    removeDownloadKeepingCache(song.id)
-                                                                }
+                                                                showRemoveDownloadDialog = true
                                                             }
                                                         ) {
                                                             CircularProgressIndicator(

@@ -47,6 +47,12 @@ data class SyncPlay(val songId: String, val at: Long, val playTimeMs: Long)
 
 /** What an app's library gives the sync and takes from it. Called off the main thread. */
 interface PlaySyncStore {
+    /**
+     * The plays worth syncing recorded or added here after local row [afterRow], and the newest row
+     * - for Cloud relay, which sends only what is new since it last sent. Same rule as [plays].
+     */
+    fun playsSince(afterRow: Long): Pair<List<SyncPlay>, Long>
+
     /** Every play worth syncing - not those of local files, whose ids mean nothing elsewhere. */
     fun plays(): List<SyncPlay>
 

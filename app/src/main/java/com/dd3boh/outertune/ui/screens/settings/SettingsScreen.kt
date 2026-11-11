@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Palette
 import androidx.compose.material.icons.rounded.Cast
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PrivacyTip
+import androidx.compose.material.icons.rounded.CloudSync
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Storage
 import androidx.compose.material.icons.rounded.WarningAmber
@@ -155,6 +156,13 @@ fun SettingsScreen(
                 description = stringResource(R.string.lt_summary),
                 icon = { Icon(Icons.Rounded.Cast, null) },
                 onClick = { navController.navigate("settings/listen_together") }
+            )
+            // Its own entry rather than one inside Privacy and history, where it was easy to miss.
+            PreferenceEntry(
+                title = { Text(stringResource(R.string.sync_title)) },
+                description = stringResource(R.string.sync_entry_summary),
+                icon = { Icon(Icons.Rounded.CloudSync, null) },
+                onClick = { navController.navigate("settings/sync") }
             )
             PreferenceEntry(
                 title = { Text(stringResource(R.string.privacy_and_history)) },

@@ -23,6 +23,17 @@ class RoomPlaySyncStore(private val database: MusicDatabase) : PlaySyncStore {
             buildList { while (c.moveToNext()) add(SyncPlay(c.getString(0), c.getLong(1), c.getLong(2))) }
         }
 
+    override fun playsSince(afterRow: Long): Pair<List<SyncPlay>, Long> {
+        val db = database.openHelper.readableDatabase
+        val plays = db.query(
+            "SELECT e.songId, e.timestamp, e.playTime FROM event e JOIN song s ON s.id = e.songId " +
+                "WHERE e.id > ? AND s.isLocal = 0",
+            arrayOf<Any>(afterRow),
+        ).use { c -> buildList { while (c.moveToNext()) add(SyncPlay(c.getString(0), c.getLong(1), c.getLong(2))) } }
+        val newest = db.query("SELECT COALESCE(MAX(id), 0) FROM event").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
+        return plays to maxOf(newest, afterRow)
+    }
+
     override fun songs(ids: Collection<String>): List<SyncSong> {
         val db = database.openHelper.readableDatabase
         val out = ArrayList<SyncSong>(ids.size)

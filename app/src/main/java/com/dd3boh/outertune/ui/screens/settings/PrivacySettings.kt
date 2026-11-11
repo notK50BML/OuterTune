@@ -74,14 +74,6 @@ fun PrivacySettings(
                 onClick = { navController.navigate("history") }
             )
             ListenHistoryFrag()
-            // Where "Count plays from other devices" was: syncing plays with the user's other devices
-            // is what actually counts them. The YouTube Music history switch lives on that screen.
-            PreferenceEntry(
-                title = { Text(stringResource(R.string.sync_title)) },
-                description = stringResource(R.string.sync_entry_summary),
-                icon = { Icon(Icons.Rounded.CloudSync, null) },
-                onClick = { navController.navigate("settings/sync") },
-            )
         }
 
         SettingsGroup(title = stringResource(R.string.search_history)) {

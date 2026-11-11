@@ -25,6 +25,12 @@ import androidx.navigation.NavController
 import com.dd3boh.outertune.db.entities.Album
 import com.dd3boh.outertune.db.entities.Artist
 import com.dd3boh.outertune.db.entities.Playlist
+import com.dd3boh.outertune.db.entities.PlaylistEntity
+import com.dd3boh.outertune.ui.component.items.AutoPlaylistGridItem
+import com.dd3boh.outertune.ui.component.items.AutoPlaylistListItem
+import com.dd3boh.outertune.ui.menu.AutoPlaylistMenu
+import com.dd3boh.outertune.ui.screens.playlist.PlaylistType
+import androidx.compose.ui.graphics.vector.ImageVector
 import com.dd3boh.outertune.ui.component.items.AlbumGridItem
 import com.dd3boh.outertune.ui.component.items.AlbumListItem
 import com.dd3boh.outertune.ui.component.items.ArtistGridItem
@@ -177,6 +183,85 @@ fun LibraryAlbumGridItem(
             }
         )
 )
+
+/**
+ * Liked songs or Downloaded songs in a library list, with the ⋮ every other playlist row has - it
+ * opens [AutoPlaylistMenu]. [playlist]'s id is "liked" or "downloaded", the auto_playlist route's.
+ */
+@Composable
+fun LibraryAutoPlaylistListItem(
+    navController: NavController,
+    menuState: MenuState,
+    coroutineScope: CoroutineScope,
+    playlist: PlaylistEntity,
+    thumbnail: ImageVector,
+    modifier: Modifier = Modifier
+) = AutoPlaylistListItem(
+    playlist = playlist,
+    thumbnail = thumbnail,
+    trailingContent = {
+        val haptic = LocalHapticFeedback.current
+        IconButton(
+            onClick = {
+                menuState.show {
+                    AutoPlaylistMenu(
+                        navController = navController,
+                        playlistType = autoPlaylistType(playlist.id),
+                        coroutineScope = coroutineScope,
+                        onDismiss = menuState::dismiss
+                    )
+                }
+                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+            }
+        ) {
+            Icon(
+                Icons.Rounded.MoreVert,
+                contentDescription = null
+            )
+        }
+    },
+    modifier = modifier
+        .fillMaxWidth()
+        .clickable {
+            navController.navigate("auto_playlist/${playlist.id}")
+        }
+)
+
+/** The grid form of [LibraryAutoPlaylistListItem]: a long press opens [AutoPlaylistMenu]. */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+fun LibraryAutoPlaylistGridItem(
+    navController: NavController,
+    menuState: MenuState,
+    coroutineScope: CoroutineScope,
+    playlist: PlaylistEntity,
+    thumbnail: ImageVector,
+    modifier: Modifier = Modifier
+) = AutoPlaylistGridItem(
+    playlist = playlist,
+    thumbnail = thumbnail,
+    fillMaxWidth = true,
+    modifier = modifier
+        .fillMaxWidth()
+        .combinedClickable(
+            onClick = {
+                navController.navigate("auto_playlist/${playlist.id}")
+            },
+            onLongClick = {
+                menuState.show {
+                    AutoPlaylistMenu(
+                        navController = navController,
+                        playlistType = autoPlaylistType(playlist.id),
+                        coroutineScope = coroutineScope,
+                        onDismiss = menuState::dismiss
+                    )
+                }
+            }
+        )
+)
+
+private fun autoPlaylistType(id: String): PlaylistType =
+    if (id == "liked") PlaylistType.LIKE else PlaylistType.DOWNLOAD
 
 @Composable
 fun LibraryPlaylistListItem(

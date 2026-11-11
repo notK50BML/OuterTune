@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CloudSync
+import androidx.compose.material.icons.rounded.CloudUpload
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Key
 import androidx.compose.material.icons.rounded.LinkOff
@@ -62,6 +63,7 @@ import com.dd3boh.outertune.sync.PlaySync
 import com.dd3boh.outertune.sync.SyncCode
 import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
 import com.dd3boh.outertune.ui.component.PreferenceEntry
+import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
 import com.dd3boh.outertune.ui.component.SwitchPreference
 import com.dd3boh.outertune.ui.component.button.IconButton
 import com.dd3boh.outertune.ui.dialog.InfoLabel
@@ -104,6 +106,7 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
                     onClick = {
                         code = SyncCode.generate()
                         wifi = true
+                        cloud = CloudSyncConfig.configured
                     },
                 )
                 PreferenceEntry(
@@ -126,44 +129,10 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
                     },
                 )
             }
-            Spacer(Modifier.height(16.dp))
-            ElevatedCard(Modifier.fillMaxWidth()) {
-                SwitchPreference(
-                    title = { Text(stringResource(R.string.sync_wifi_title)) },
-                    description = stringResource(R.string.sync_wifi_desc),
-                    icon = { Icon(Icons.Rounded.Wifi, null) },
-                    checked = wifi,
-                    onCheckedChange = { wifi = it },
-                )
-                if (wifi) {
-                    val title = when {
-                        !status.running -> stringResource(R.string.sync_status_starting)
-                        status.syncing -> stringResource(R.string.sync_status_syncing)
-                        status.peers.isEmpty() -> stringResource(R.string.sync_status_looking)
-                        else -> stringResource(R.string.sync_status_found, status.peers.joinToString())
-                    }
-                    val last = status.last
-                    val lastAt = status.lastAt
-                    val description = when {
-                        status.error != null -> stringResource(R.string.sync_status_failed, status.error.orEmpty())
-                        last != null && lastAt != null -> stringResource(
-                            R.string.sync_status_last,
-                            DateUtils.getRelativeTimeSpanString(lastAt).toString(),
-                            last.peer,
-                            last.received,
-                        )
-                        else -> stringResource(R.string.sync_status_never)
-                    }
-                    PreferenceEntry(
-                        title = { Text(title) },
-                        description = description,
-                        descriptionIsExplanation = false,
-                        icon = { Icon(Icons.Rounded.Sync, null) },
-                        onClick = { PlaySync.manager?.syncNow() },
-                    )
-                }
-            }
-            Spacer(Modifier.height(16.dp))
+            // Cloud relay first: it works from anywhere, so it is the one most people want. WiFi sync
+            // below is the no-internet alternative.
+            Spacer(Modifier.height(8.dp))
+            PreferenceGroupTitle(title = stringResource(R.string.sync_cloud_title))
             ElevatedCard(Modifier.fillMaxWidth()) {
                 SwitchPreference(
                     title = { Text(stringResource(R.string.sync_cloud_title)) },
@@ -200,6 +169,15 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
                         icon = { Icon(Icons.Rounded.Sync, null) },
                         onClick = { CloudSync.runner?.syncNow() },
                     )
+                    PreferenceEntry(
+                        title = { Text(stringResource(R.string.sync_cloud_resend)) },
+                        description = stringResource(R.string.sync_cloud_resend_desc),
+                        icon = { Icon(Icons.Rounded.CloudUpload, null) },
+                        onClick = {
+                            CloudSync.runner?.resendAll(code)
+                            Toast.makeText(context, R.string.sync_cloud_resend_started, Toast.LENGTH_SHORT).show()
+                        },
+                    )
                 }
                 if (CloudSyncConfig.configured) {
                     PreferenceEntry(
@@ -207,6 +185,45 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
                         description = stringResource(R.string.sync_cloud_delete_desc),
                         icon = { Icon(Icons.Rounded.DeleteForever, null) },
                         onClick = { confirmCloudDelete = true },
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(8.dp))
+            PreferenceGroupTitle(title = stringResource(R.string.sync_wifi_group))
+            ElevatedCard(Modifier.fillMaxWidth()) {
+                SwitchPreference(
+                    title = { Text(stringResource(R.string.sync_wifi_title)) },
+                    description = stringResource(R.string.sync_wifi_desc),
+                    icon = { Icon(Icons.Rounded.Wifi, null) },
+                    checked = wifi,
+                    onCheckedChange = { wifi = it },
+                )
+                if (wifi) {
+                    val title = when {
+                        !status.running -> stringResource(R.string.sync_status_starting)
+                        status.syncing -> stringResource(R.string.sync_status_syncing)
+                        status.peers.isEmpty() -> stringResource(R.string.sync_status_looking)
+                        else -> stringResource(R.string.sync_status_found, status.peers.joinToString())
+                    }
+                    val last = status.last
+                    val lastAt = status.lastAt
+                    val description = when {
+                        status.error != null -> stringResource(R.string.sync_status_failed, status.error.orEmpty())
+                        last != null && lastAt != null -> stringResource(
+                            R.string.sync_status_last,
+                            DateUtils.getRelativeTimeSpanString(lastAt).toString(),
+                            last.peer,
+                            last.received,
+                        )
+                        else -> stringResource(R.string.sync_status_never)
+                    }
+                    PreferenceEntry(
+                        title = { Text(title) },
+                        description = description,
+                        descriptionIsExplanation = false,
+                        icon = { Icon(Icons.Rounded.Sync, null) },
+                        onClick = { PlaySync.manager?.syncNow() },
                     )
                 }
             }
@@ -258,6 +275,7 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
                     onClick = {
                         code = valid.orEmpty()
                         wifi = true
+                        cloud = CloudSyncConfig.configured
                         entering = false
                     },
                 ) { Text(stringResource(R.string.sync_link)) }

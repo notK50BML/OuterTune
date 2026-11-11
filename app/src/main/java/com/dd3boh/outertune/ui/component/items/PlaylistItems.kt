@@ -26,8 +26,10 @@ import androidx.compose.material.icons.rounded.SdCard
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.surfaceColorAtElevation
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -42,12 +44,14 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.dd3boh.outertune.R
 import com.dd3boh.outertune.constants.ListThumbnailSize
+import com.dd3boh.outertune.constants.MarkSavedPlaylistsKey
 import com.dd3boh.outertune.constants.ThumbnailCornerRadius
 import com.dd3boh.outertune.db.entities.Playlist
 import com.dd3boh.outertune.db.entities.PlaylistEntity
 import com.dd3boh.outertune.ui.component.items.Icon.PlaylistIcon
 import com.dd3boh.outertune.ui.utils.getNSongsString
 import com.dd3boh.outertune.utils.getThumbnailModel
+import com.dd3boh.outertune.utils.rememberPreference
 import kotlin.math.roundToInt
 
 @Composable
@@ -129,6 +133,7 @@ fun PlaylistListItem(
             getNSongsString(playlist.songCount, playlist.downloadCount),
     badges = {
         PlaylistIcon(playlist.playlist) // always show
+        SavedPlaylistBadge(playlist.playlist)
 
         // Downloaded is a fact about the playlist, not a detail of the screen showing it, so it
         // belongs above the showBadges gate rather than below it. Below, it was unreachable: the
@@ -188,6 +193,7 @@ fun PlaylistGridItem(
             getNSongsString(playlist.songCount, playlist.downloadCount),
     badges = {
         PlaylistIcon(playlist.playlist)
+        SavedPlaylistBadge(playlist.playlist)
         if (playlist.downloadCount > 0) {
             Icon(
                 imageVector = Icons.Rounded.OfflinePin,
@@ -211,6 +217,37 @@ fun PlaylistGridItem(
     fillMaxWidth = fillMaxWidth,
     modifier = modifier
 )
+
+/**
+ * Settings > Library and content > Mark saved playlists: a small "Saved" tag on a playlist someone
+ * else made, so it reads apart from the user's own at a glance - in the library lists and grids
+ * and on the playlist's page. Off by default, and draws nothing for any other playlist.
+ *
+ * The setting is read here, and only for a saved playlist, rather than passed down from every one
+ * of the screens that list playlists: most rows are the user's own and never pay for the read.
+ */
+@Composable
+fun SavedPlaylistBadge(playlist: PlaylistEntity, modifier: Modifier = Modifier) {
+    if (!playlist.isSaved) return
+    val markSaved by rememberPreference(MarkSavedPlaylistsKey, defaultValue = false)
+    if (!markSaved) return
+    SavedPlaylistLabel(modifier = modifier.padding(end = 4.dp))
+}
+
+/** The tag itself: "Saved", small, in a tinted pill. */
+@Composable
+fun SavedPlaylistLabel(modifier: Modifier = Modifier) {
+    Text(
+        text = stringResource(R.string.saved_playlist_label),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        maxLines = 1,
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer)
+            .padding(horizontal = 4.dp, vertical = 1.dp)
+    )
+}
 
 @Composable
 fun PlaylistThumbnail(

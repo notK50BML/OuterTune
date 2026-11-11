@@ -28,7 +28,6 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Downloading
 import androidx.compose.material.icons.rounded.FolderCopy
 import androidx.compose.material.icons.rounded.Restore
-import androidx.compose.material.icons.rounded.MergeType
 import androidx.compose.material.icons.rounded.Sync
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.material3.Button
@@ -160,22 +159,6 @@ fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
     }
     Spacer(modifier = Modifier.height(16.dp))
 
-    // Another device's plays added to this one's for Stats - see PlayMerge. Any file type: the
-    // desktop's backups and older ones from here come with different extensions and mime types.
-    val mergeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) viewModel.mergePlays(uri)
-    }
-    ElevatedCard(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        PreferenceEntry(
-            title = { Text(stringResource(R.string.merge_plays_title)) },
-            description = stringResource(R.string.merge_plays_desc),
-            icon = { Icon(Icons.Rounded.MergeType, null) },
-            onClick = { mergeLauncher.launch(arrayOf("*/*")) }
-        )
-    }
-    Spacer(modifier = Modifier.height(16.dp))
 
     AutomaticBackupFrag()
 }

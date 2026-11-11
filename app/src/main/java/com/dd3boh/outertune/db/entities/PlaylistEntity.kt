@@ -43,6 +43,15 @@ data class PlaylistEntity(
             else null
         }
 
+    /**
+     * Someone else's playlist, in the library because it was saved rather than made here: it lives
+     * on YouTube Music, and the account cannot edit it. A local playlist, or one of the user's own
+     * (editable) YouTube Music playlists, is not. A getter rather than a column, like [shareLink],
+     * so Room leaves it alone.
+     */
+    val isSaved: Boolean
+        get() = !isLocal && !isEditable && browseId != null
+
     fun localToggleLike() = copy(
         bookmarkedAt = if (bookmarkedAt != null) null else LocalDateTime.now()
     )

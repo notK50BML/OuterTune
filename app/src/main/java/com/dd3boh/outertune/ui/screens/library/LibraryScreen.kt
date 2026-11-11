@@ -81,6 +81,8 @@ import com.dd3boh.outertune.ui.component.LibraryArtistGridItem
 import com.dd3boh.outertune.ui.component.LibraryArtistListItem
 import com.dd3boh.outertune.ui.component.LibraryPlaylistGridItem
 import com.dd3boh.outertune.ui.component.LibraryPlaylistListItem
+import com.dd3boh.outertune.ui.component.LibraryAutoPlaylistListItem
+import com.dd3boh.outertune.ui.component.LibraryAutoPlaylistGridItem
 import com.dd3boh.outertune.ui.component.ScrollToTopManager
 import com.dd3boh.outertune.ui.component.SortHeader
 import com.dd3boh.outertune.ui.component.button.IconButton
@@ -330,15 +332,13 @@ fun LibraryScreen(
                                     key = likedPlaylist.id,
                                     contentType = { CONTENT_TYPE_PLAYLIST }
                                 ) {
-                                    AutoPlaylistListItem(
+                                    LibraryAutoPlaylistListItem(
+                                        navController = navController,
+                                        menuState = menuState,
+                                        coroutineScope = coroutineScope,
                                         playlist = likedPlaylist,
                                         thumbnail = Icons.Rounded.Favorite,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                navController.navigate("auto_playlist/${likedPlaylist.id}")
-                                            }
-                                            .animateItem()
+                                        modifier = Modifier.animateItem()
                                     )
                                 }
 
@@ -346,15 +346,13 @@ fun LibraryScreen(
                                     key = downloadedPlaylist.id,
                                     contentType = { CONTENT_TYPE_PLAYLIST }
                                 ) {
-                                    AutoPlaylistListItem(
+                                    LibraryAutoPlaylistListItem(
+                                        navController = navController,
+                                        menuState = menuState,
+                                        coroutineScope = coroutineScope,
                                         playlist = downloadedPlaylist,
                                         thumbnail = Icons.Rounded.CloudDownload,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                navController.navigate("auto_playlist/${downloadedPlaylist.id}")
-                                            }
-                                            .animateItem()
+                                        modifier = Modifier.animateItem()
                                     )
                                 }
                             }
@@ -444,16 +442,13 @@ fun LibraryScreen(
                                     key = likedPlaylist.id,
                                     contentType = { CONTENT_TYPE_PLAYLIST }
                                 ) {
-                                    AutoPlaylistGridItem(
+                                    LibraryAutoPlaylistGridItem(
+                                        navController = navController,
+                                        menuState = menuState,
+                                        coroutineScope = coroutineScope,
                                         playlist = likedPlaylist,
                                         thumbnail = Icons.Rounded.Favorite,
-                                        fillMaxWidth = true,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                navController.navigate("auto_playlist/${likedPlaylist.id}")
-                                            }
-                                            .animateItem()
+                                        modifier = Modifier.animateItem()
                                     )
                                 }
 
@@ -461,16 +456,13 @@ fun LibraryScreen(
                                     key = downloadedPlaylist.id,
                                     contentType = { CONTENT_TYPE_PLAYLIST }
                                 ) {
-                                    AutoPlaylistGridItem(
+                                    LibraryAutoPlaylistGridItem(
+                                        navController = navController,
+                                        menuState = menuState,
+                                        coroutineScope = coroutineScope,
                                         playlist = downloadedPlaylist,
                                         thumbnail = Icons.Rounded.CloudDownload,
-                                        fillMaxWidth = true,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                navController.navigate("auto_playlist/${downloadedPlaylist.id}")
-                                            }
-                                            .animateItem()
+                                        modifier = Modifier.animateItem()
                                     )
                                 }
                             }
