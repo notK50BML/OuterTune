@@ -262158,3 +262158,3484 @@ index 27ca0e8..7b621cf 100644
 -- 
 2.56.0.windows.4
 
+From 64af30d43d5f71c590b468c76dab015b86e9a769 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Wed, 11 Nov 2026 16:15:01 +0800
+Subject: [PATCH] Cloud relay, sync settings tab, EQ handle motion, playlist
+ menus and buttons
+
+Cloud relay: per-sync encrypted bundles of new plays, taken marks per device, deletion once every
+active device has a bundle or after 30 days, full resend for new devices. Cross-device sync gets
+its own settings entry, Cloud relay first; the backup play merge is removed. The EQ handle follows
+the pull and fades like the queue handle. Liked and Downloaded songs get playlist menus; mass
+download removal always confirms; configurable playlist header buttons; saved playlists get
+Remove from library, an optional Saved tag and a header layout fix; playlists show the downloaded
+mark when complete.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ CHANGELOG-current.md                          |  22 +
+ .../outertune/constants/PreferenceKeys.kt     |  18 +-
+ .../outertune/db/entities/PlaylistEntity.kt   |   9 +
+ .../dd3boh/outertune/sync/CloudPlaySync.kt    | 377 +++++++++++++-----
+ .../outertune/sync/DataStoreCloudMemory.kt    |  26 +-
+ .../com/dd3boh/outertune/sync/PlaySyncCore.kt |   6 +
+ .../outertune/sync/RoomPlaySyncStore.kt       |  11 +
+ .../dd3boh/outertune/ui/component/Library.kt  |  85 ++++
+ .../ui/component/items/PlaylistItems.kt       |  37 ++
+ .../ui/dialog/RemoveDownloadsDialog.kt        |  86 ++++
+ .../com/dd3boh/outertune/ui/menu/AlbumMenu.kt |  17 +-
+ .../outertune/ui/menu/AutoPlaylistMenu.kt     | 294 ++++++++++++++
+ .../dd3boh/outertune/ui/menu/PlaylistMenu.kt  |  60 +--
+ .../outertune/ui/menu/SelectionSongsMenu.kt   |  33 +-
+ .../outertune/ui/menu/YouTubeAlbumMenu.kt     |  16 +-
+ .../outertune/ui/menu/YouTubePlaylistMenu.kt  |  31 +-
+ .../com/dd3boh/outertune/ui/player/Player.kt  |  11 +
+ .../outertune/ui/screens/AlbumScreen.kt       |  22 +-
+ .../screens/library/LibraryPlaylistsScreen.kt |  52 +--
+ .../ui/screens/library/LibraryScreen.kt       |  52 +--
+ .../ui/screens/playlist/AutoPlaylistScreen.kt | 151 +++----
+ .../screens/playlist/LocalPlaylistScreen.kt   | 206 +++++-----
+ .../screens/playlist/OnlinePlaylistScreen.kt  |  47 +--
+ .../screens/playlist/PlaylistHeaderButtons.kt | 133 ++++++
+ .../ui/screens/settings/LibrarySettings.kt    |  14 +
+ .../ui/screens/settings/PlaySyncSettings.kt   |  94 +++--
+ .../ui/screens/settings/PrivacySettings.kt    |   8 -
+ .../ui/screens/settings/SettingsIndex.kt      |   5 +-
+ .../ui/screens/settings/SettingsScreen.kt     |   8 +
+ .../PlaylistHeaderButtonsArrangement.kt       | 194 +++++++++
+ .../screens/settings/fragments/StorageFrag.kt |  17 -
+ .../dd3boh/outertune/ui/utils/M3uExport.kt    |  68 ++++
+ .../com/dd3boh/outertune/utils/PlayMerge.kt   | 200 ----------
+ .../viewmodels/BackupRestoreViewModel.kt      |  20 -
+ app/src/main/res/values/strings.xml           |  28 +-
+ 35 files changed, 1643 insertions(+), 815 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/dialog/RemoveDownloadsDialog.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/menu/AutoPlaylistMenu.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/PlaylistHeaderButtons.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlaylistHeaderButtonsArrangement.kt
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/utils/M3uExport.kt
+ delete mode 100644 app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt
+
+diff --git a/CHANGELOG-current.md b/CHANGELOG-current.md
+index ad3e098..ee6eade 100644
+--- a/CHANGELOG-current.md
++++ b/CHANGELOG-current.md
+@@ -76,6 +76,28 @@ Patch fingerprint: `cb3a789a…`, 278 commits, 4,306,818 bytes.
+ - **Finding the editor:** the launcher's Edit / Customise option on the widget now opens it, and
+   it's in the settings search.
+ 
++## Cloud relay, sync settings, playlists
++
++- **Cloud relay** replaces cloud sync's store. Each sync sends one encrypted bundle with the plays
++  added since the last one; devices mark bundles they've taken, and a bundle every active device has
++  taken is deleted (or after 30 days), so the cloud holds almost nothing. A new device, or **Send
++  everything again**, gets everything once from each other device. Still never counted twice.
++- **Cross-device sync** has its own entry in Settings (not under Privacy and history): Cloud relay
++  first, then WiFi sync. Linking a device turns both on. "Add plays from another device" under
++  Backup and restore is gone - sync does it.
++- **EQ handle:** pulling the equaliser open moves the bar a little with the finger and fades it out
++  quickly, as the queue's handle does.
++- **Liked and Downloaded songs** get a playlist menu (play, shuffle, play next, add to queue, add to
++  playlist, export .m3u; Liked also download, remove download and sync). No edit, delete or share;
++  Downloaded songs has no download actions, though its songs can still be removed one by one.
++- **Removing many downloads at once** (playlists, albums, menus, top buttons) always asks first.
++- **Playlist buttons:** Edit, Sync, Download and Add to queue by default, each only where it
++  applies; choose and order them in Library and content → Playlist buttons.
++- **Saved playlists** (someone else's) get Remove from library, an optional "Saved" tag (Library and
++  content → Mark saved playlists), and their cover no longer sits off to the right when the name is
++  long.
++- **Playlists show the downloaded mark** once every song is downloaded.
++
+ ## Cloud sync (framework, waiting for its database)
+ 
+ - **Cloud sync** on the Cross-device sync screen, in both apps: plays synced through an online store
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index 9993e9b..0aba7ab 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -207,6 +207,17 @@ val ShowHomeChipsKey = booleanPreferencesKey("showHomeChips")
+  * [com.dd3boh.outertune.ui.component.items.SongDetail]. Empty until first set, which is its DEFAULT.
+  */
+ val SongDetailsKey = stringPreferencesKey("songDetails")
++/**
++ * Settings > Library and content: the buttons under a playlist's title on its page, in order - see
++ * [com.dd3boh.outertune.ui.screens.playlist.PlaylistHeaderButton]. Empty until first set, which is
++ * its DEFAULT (Edit, Sync, Download, Add to queue).
++ */
++val PlaylistHeaderButtonsKey = stringPreferencesKey("playlistHeaderButtons")
++/**
++ * Settings > Library and content: a "Saved" label on playlists someone else made that are in the
++ * library because they were saved, not created. Off by default.
++ */
++val MarkSavedPlaylistsKey = booleanPreferencesKey("markSavedPlaylists")
+ 
+ 
+ /**
+@@ -680,9 +691,10 @@ val PlaySyncWifiKey = booleanPreferencesKey("playSyncWifi")
+ /** Whether plays are synced through the cloud (CloudPlaySync) with the devices sharing [PlaySyncCodeKey]. */
+ val PlaySyncCloudKey = booleanPreferencesKey("playSyncCloud")
+ 
+-/** What cloud sync remembers between runs - see CloudSyncMemory. */
+-val CloudSyncRevKey = stringPreferencesKey("cloudSyncRev")
+-val CloudSyncFingerprintKey = stringPreferencesKey("cloudSyncFingerprint")
++/** What Cloud relay remembers on this device - see CloudSyncMemory. */
++val CloudRelayDeviceKey = stringPreferencesKey("cloudRelayDevice")
++val CloudRelaySentKey = longPreferencesKey("cloudRelaySent")
++val CloudRelayTakenKey = stringPreferencesKey("cloudRelayTaken")
+ 
+ /**
+  * The Stats screen's chips, so it opens as it was left rather than on a week of time listened every
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/entities/PlaylistEntity.kt b/app/src/main/java/com/dd3boh/outertune/db/entities/PlaylistEntity.kt
+index 961fbde..39e5e04 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/entities/PlaylistEntity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/entities/PlaylistEntity.kt
+@@ -43,6 +43,15 @@ data class PlaylistEntity(
+             else null
+         }
+ 
++    /**
++     * Someone else's playlist, in the library because it was saved rather than made here: it lives
++     * on YouTube Music, and the account cannot edit it. A local playlist, or one of the user's own
++     * (editable) YouTube Music playlists, is not. A getter rather than a column, like [shareLink],
++     * so Room leaves it alone.
++     */
++    val isSaved: Boolean
++        get() = !isLocal && !isEditable && browseId != null
++
+     fun localToggleLike() = copy(
+         bookmarkedAt = if (bookmarkedAt != null) null else LocalDateTime.now()
+     )
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt b/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
+index 01a9db7..d0ec38c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
++++ b/app/src/main/java/com/dd3boh/outertune/sync/CloudPlaySync.kt
+@@ -27,46 +27,56 @@ import java.io.IOException
+ import java.net.HttpURLConnection
+ import java.net.URL
+ import java.security.SecureRandom
++import java.util.zip.DeflaterOutputStream
++import java.util.zip.InflaterInputStream
+ import javax.crypto.Cipher
+-import javax.crypto.Mac
+ import javax.crypto.spec.GCMParameterSpec
+ import javax.crypto.spec.SecretKeySpec
+ 
+ /*
+- * Cloud play sync - the core both apps share, like PlaySyncCore (the desktop's copy differs only in
+- * its package; keep the two in step).
++ * Cloud relay - plays passed between the user's devices through the cloud, which keeps nothing once
++ * every device has them. The core both apps share, like PlaySyncCore (the desktop's copy differs
++ * only in its package; keep the two in step).
+  *
+- * The cloud is a Firebase Realtime Database the project owns, used as a plain key-value store over
+- * its REST API. Nobody using the app signs in to anything: each user's data lives under a path made
+- * from their sync code - 64 hex characters nobody can guess - and every value there is encrypted
+- * with a key also made from the code, which never leaves their devices. The database's rules allow
+- * reads and writes only at paths that long, and nothing can list what is stored, so without the code
+- * the data can neither be found nor read.
++ * The cloud is a Firebase Realtime Database the project owns, used over its REST API. Nobody signs
++ * in: each user's data lives under a path made from their sync code (64 hex characters nobody can
++ * guess), and every bundle is encrypted with a key also made from the code, which never leaves
++ * their devices. The database allows reads and writes only at paths that long.
+  *
+- *   /sync/<bucket>/plays/<id>  = sealed(songId, at, playTimeMs)   one per play
+- *   /sync/<bucket>/songs/<id>  = sealed(song)                     one per song played
+- *   /sync/<bucket>/rev         = random token, changed on every upload
++ *   /sync/<bucket>/devices/<device>        {seen: ms, full: true?, fullFrom: {<device>: true}}
++ *   /sync/<bucket>/meta/<bundle>           {f: from device, t: ms, to: device or ""}
++ *   /sync/<bucket>/data/<bundle>           sealed, compressed songs + plays
++ *   /sync/<bucket>/got/<bundle>/<device>   true once that device has taken the bundle
+  *
+- * A play's id is a keyed hash of its song and exact instant, so the same play always lands on the
+- * same id: uploading it twice, from any device, overwrites it with itself and never adds a copy.
++ * Each sync a device sends one bundle with the plays it has added since it last sent, takes every
++ * bundle it has not seen, and marks them taken. A bundle every active device has taken is deleted,
++ * and so is any bundle after [EXPIRY_MS]. A device that is new - or asks to start again - is marked
++ * "full", and each of the others sends it everything it has, once. Plays keep their identity (song
++ * and exact time) through all of it, so whatever arrives twice is still added once.
+  */
+ 
+-/** Where the cloud is. Empty until the project's database exists - then cloud sync is offered. */
++/** Where the cloud is. */
+ object CloudSyncConfig {
+     const val DATABASE_URL = "https://outertune-sync-database-default-rtdb.asia-southeast1.firebasedatabase.app"
+ 
+     val configured: Boolean get() = DATABASE_URL.isNotBlank()
+ }
+ 
+-/** What cloud sync remembers between runs, so an unchanged cloud and library cost one tiny request. */
++/** What the relay remembers on this device between syncs. */
+ interface CloudSyncMemory {
+-    var lastRev: String?
+-    var lastFingerprint: String?
++    /** This device's id in the relay, made on its first sync. */
++    var deviceId: String?
++
++    /** The newest local play row already sent. */
++    var sentUpTo: Long
++
++    /** Bundles already taken, so they are not taken again while they wait for other devices. */
++    var taken: Set<String>
+ }
+ 
+ data class CloudOutcome(val received: Int, val sent: Int)
+ 
+-/** One sync against the cloud. Blocking - run it on an IO thread. */
++/** One sync with the relay. Blocking - run it on an IO thread. */
+ class CloudPlaySync(
+     private val store: PlaySyncStore,
+     code: String,
+@@ -75,68 +85,130 @@ class CloudPlaySync(
+ ) {
+     private val bucket = hex(SyncCode.sha256("outertune-cloud-bucket-v1:$code"))
+     private val sealKey = SecretKeySpec(SyncCode.sha256("outertune-cloud-seal-v1:$code"), "AES")
+-    private val idKey = SyncCode.sha256("outertune-cloud-id-v1:$code")
+     private val random = SecureRandom()
+ 
+     fun sync(): CloudOutcome {
+-        val local = store.plays()
+-        val fingerprint = playsFingerprint(local).let { "${it.first}:${it.second}" }
+-        val remoteRev = get("rev")?.trim('"')?.takeIf { it != "null" }
+-        if (remoteRev == memory.lastRev && fingerprint == memory.lastFingerprint) return CloudOutcome(0, 0)
+-
+-        // What the cloud holds, by id.
+-        val remote = HashMap<String, SyncPlay>()
+-        entries(get("plays")).forEach { (id, sealed) -> open(sealed)?.let(::readPlay)?.let { remote[id] = it } }
+-
+-        // Up: every play here the cloud lacks, with its song.
+-        val mine = local.associateBy(::playId)
+-        val missingThere = mine.filterKeys { it !in remote }.values.toList()
+-        var rev = remoteRev
+-        if (missingThere.isNotEmpty()) {
+-            store.songs(missingThere.mapTo(HashSet()) { it.songId }).chunked(BATCH).forEach { songs ->
+-                patch("songs", songs.associate { songId(it.id) to seal(writeSong(it)) })
+-            }
+-            missingThere.chunked(BATCH).forEach { plays ->
+-                patch("plays", plays.associate { playId(it) to seal(writePlay(it)) })
++        val now = System.currentTimeMillis()
++        val firstRun = memory.deviceId == null
++        val me = memory.deviceId ?: token().also {
++            memory.deviceId = it
++            memory.sentUpTo = 0L
++            memory.taken = emptySet()
++        }
++        val updates = LinkedHashMap<String, String>()
++        if (firstRun) {
++            // The first cloud sync's store, which kept every play: replaced by the relay.
++            listOf("plays", "songs", "rev").forEach { updates[it] = "null" }
++            // And this device starts with everything the others have.
++            updates["devices/$me/full"] = "true"
++        }
++        updates["devices/$me/seen"] = "$now"
++        patch(updates)
++        updates.clear()
++
++        val devices = (Json.parse(get("devices")) as? Map<*, *>).orEmpty()
++        fun seen(id: String) = ((devices[id] as? Map<*, *>)?.get("seen") as? Number)?.toLong() ?: 0L
++        val active = devices.keys.map { it.toString() }.filter { now - seen(it) < EXPIRY_MS }.toSet()
++        val meta = (Json.parse(get("meta")) as? Map<*, *>).orEmpty()
++            .mapNotNull { (id, value) -> (value as? Map<*, *>)?.let { id.toString() to Meta(it["f"].toString(), (it["t"] as? Number)?.toLong() ?: 0L, it["to"]?.toString().orEmpty()) } }
++            .toMap()
++        val got = (Json.parse(get("got")) as? Map<*, *>).orEmpty()
++            .mapValues { (_, v) -> (v as? Map<*, *>)?.keys?.map { it.toString() }?.toSet().orEmpty() }
++            .mapKeys { it.key.toString() }
++
++        // In: every bundle meant for this device that it has not taken yet, oldest first.
++        val taken = memory.taken.filter { it in meta }.toMutableSet()
++        val receivedIds = HashSet<String>()
++        var received = 0
++        meta.toSortedMap().forEach { (id, m) ->
++            if (m.from == me || id in taken || (m.to.isNotEmpty() && m.to != me)) return@forEach
++            val sealed = Json.parse(get("data/$id")) as? String
++            val bundle = sealed?.let(::open)?.let(::readBundle)
++            if (bundle != null) {
++                received += store.merge(bundle.first, bundle.second)
++                bundle.second.forEach { receivedIds += key(it) }
+             }
+-            rev = token()
+-            put("rev", "\"$rev\"")
++            taken += id
++        }
++        val takenNow = taken - memory.taken
++
++        // Out: the plays added here since the last send - not the ones that just arrived, which would
++        // only travel straight back.
++        val (fresh, newest) = store.playsSince(memory.sentUpTo)
++        val outgoing = fresh.filter { key(it) !in receivedIds }
++        if (outgoing.isNotEmpty()) addBundle(updates, me, "", outgoing, now)
++
++        // Everything, once, to each device that asked for it and has not had it from this one.
++        devices.forEach { (idAny, value) ->
++            val id = idAny.toString()
++            val info = value as? Map<*, *> ?: return@forEach
++            if (id == me || id !in active || info["full"] != true) return@forEach
++            if ((info["fullFrom"] as? Map<*, *>)?.containsKey(me) == true) return@forEach
++            val all = store.plays()
++            if (all.isNotEmpty()) addBundle(updates, me, id, all, now)
++            updates["devices/$id/fullFrom/$me"] = "true"
+         }
+ 
+-        // Down: every play there this device lacks, with the songs it does not know yet.
+-        val missingHere = remote.filterKeys { it !in mine }.values.toList()
+-        var received = 0
+-        if (missingHere.isNotEmpty()) {
+-            val wanted = missingHere.mapTo(HashSet()) { songId(it.songId) }
+-            val songs = entries(get("songs")).mapNotNull { (id, sealed) ->
+-                if (id in wanted) open(sealed)?.let(::readSong) else null
++        // This device's own request for everything is met once every other active device answered.
++        val mine = devices[me] as? Map<*, *>
++        if (mine?.get("full") == true) {
++            val answered = (mine["fullFrom"] as? Map<*, *>)?.keys?.map { it.toString() }?.toSet().orEmpty()
++            if ((active - me).all { it in answered }) {
++                updates["devices/$me/full"] = "null"
++                updates["devices/$me/fullFrom"] = "null"
+             }
+-            received = store.merge(songs, missingHere)
+         }
+ 
+-        memory.lastRev = rev
+-        memory.lastFingerprint = playsFingerprint(store.plays()).let { "${it.first}:${it.second}" }
+-        return CloudOutcome(received = received, sent = missingThere.size)
++        // Clean-up: a bundle every device it was for has taken goes, as does any past its expiry.
++        val gone = HashSet<String>()
++        meta.forEach { (id, m) ->
++            val holders = got[id].orEmpty() + (if (id in takenNow) setOf(me) else emptySet())
++            val delivered = if (m.to.isNotEmpty()) m.to in holders else (active - m.from).all { it in holders }
++            if (delivered || now - m.time > EXPIRY_MS) gone += id
++        }
++        gone.forEach { id -> listOf("data", "meta", "got").forEach { updates["$it/$id"] = "null" } }
++        takenNow.filter { it !in gone }.forEach { updates["got/$it/$me"] = "true" }
++        // Devices not seen for twice the expiry are forgotten.
++        devices.keys.map { it.toString() }.filter { now - seen(it) > 2 * EXPIRY_MS }.forEach { updates["devices/$it"] = "null" }
++
++        patch(updates)
++        memory.sentUpTo = newest
++        memory.taken = taken - gone
++        return CloudOutcome(received = received, sent = outgoing.size)
++    }
++
++    /**
++     * Marks this device as wanting everything again, and sends everything it has - for a device that
++     * lost its plays, or when the user wants a clean resend.
++     */
++    fun resendAll() {
++        memory.sentUpTo = 0L
++        val me = memory.deviceId ?: return
++        patch(linkedMapOf("devices/$me/full" to "true", "devices/$me/fullFrom" to "null"))
+     }
+ 
+     /** Removes everything this code has in the cloud. This device's own plays are not touched. */
+     fun deleteAll() {
+         request("DELETE", "", null)
+-        memory.lastRev = null
+-        memory.lastFingerprint = null
++        memory.deviceId = null
++        memory.sentUpTo = 0L
++        memory.taken = emptySet()
+     }
+ 
+-    // ---- ids and sealing ----
+-
+-    private fun playId(play: SyncPlay) = keyedId("play|${play.songId}|${play.at}")
+-    private fun songId(id: String) = keyedId("song|$id")
++    private class Meta(val from: String, val time: Long, val to: String)
+ 
+-    /** 20 hex characters of an HMAC - unique for a user's plays, and saying nothing about them. */
+-    private fun keyedId(text: String): String = Mac.getInstance("HmacSHA256").run {
+-        init(SecretKeySpec(idKey, "HmacSHA256"))
+-        hex(doFinal(text.toByteArray(Charsets.UTF_8))).take(20)
++    private fun addBundle(updates: MutableMap<String, String>, me: String, to: String, plays: List<SyncPlay>, now: Long) {
++        val id = "%011x".format(now) + "-" + token().take(6)
++        val songs = store.songs(plays.mapTo(HashSet()) { it.songId })
++        updates["data/$id"] = "\"${seal(writeBundle(songs, plays))}\""
++        updates["meta/$id"] = "{\"f\":\"$me\",\"t\":$now,\"to\":\"$to\"}"
++        updates["got/$id/$me"] = "true"
+     }
+ 
++    private fun key(play: SyncPlay) = "${play.songId}|${play.at}"
++
++    // ---- sealing ----
++
+     private fun seal(plain: ByteArray): String {
+         val nonce = ByteArray(12).also(random::nextBytes)
+         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+@@ -154,52 +226,50 @@ class CloudPlaySync(
+ 
+     private fun token(): String = hex(ByteArray(8).also(random::nextBytes))
+ 
+-    // ---- payloads ----
+-
+-    private fun writePlay(play: SyncPlay): ByteArray = bytes {
+-        writeUTF(play.songId)
+-        writeLong(play.at)
+-        writeLong(play.playTimeMs)
+-    }
+-
+-    private fun readPlay(bytes: ByteArray): SyncPlay? = runCatching {
+-        DataInputStream(ByteArrayInputStream(bytes)).run { SyncPlay(readUTF(), readLong(), readLong()) }
+-    }.getOrNull()
+-
+-    private fun writeSong(song: SyncSong): ByteArray = bytes {
+-        writeUTF(song.id)
+-        writeUTF(song.title.take(2_000))
+-        writeUTF(song.thumbnail.take(2_000))
+-        writeInt(song.durationSec)
+-        writeInt(song.artists.size)
+-        song.artists.forEach { writeUTF(it.id.orEmpty()); writeUTF(it.name.take(2_000)) }
++    // ---- bundles ----
++
++    private fun writeBundle(songs: List<SyncSong>, plays: List<SyncPlay>): ByteArray {
++        val out = ByteArrayOutputStream()
++        DataOutputStream(DeflaterOutputStream(out)).use { data ->
++            data.writeInt(songs.size)
++            songs.forEach { song ->
++                data.writeUTF(song.id)
++                data.writeUTF(song.title.take(2_000))
++                data.writeUTF(song.thumbnail.take(2_000))
++                data.writeInt(song.durationSec)
++                data.writeInt(song.artists.size)
++                song.artists.forEach { data.writeUTF(it.id.orEmpty()); data.writeUTF(it.name.take(2_000)) }
++            }
++            data.writeInt(plays.size)
++            plays.forEach { data.writeUTF(it.songId); data.writeLong(it.at); data.writeLong(it.playTimeMs) }
++        }
++        return out.toByteArray()
+     }
+ 
+-    private fun readSong(bytes: ByteArray): SyncSong? = runCatching {
+-        DataInputStream(ByteArrayInputStream(bytes)).run {
+-            SyncSong(
+-                id = readUTF(),
+-                title = readUTF(),
+-                thumbnail = readUTF(),
+-                durationSec = readInt(),
+-                artists = List(readInt().coerceIn(0, 64)) { SyncArtist(readUTF().ifEmpty { null }, readUTF()) },
+-            )
++    private fun readBundle(bytes: ByteArray): Pair<List<SyncSong>, List<SyncPlay>>? = runCatching {
++        DataInputStream(InflaterInputStream(ByteArrayInputStream(bytes))).use { data ->
++            val songs = List(data.readInt().coerceIn(0, 5_000_000)) {
++                SyncSong(
++                    id = data.readUTF(),
++                    title = data.readUTF(),
++                    thumbnail = data.readUTF(),
++                    durationSec = data.readInt(),
++                    artists = List(data.readInt().coerceIn(0, 64)) { SyncArtist(data.readUTF().ifEmpty { null }, data.readUTF()) },
++                )
++            }
++            val plays = List(data.readInt().coerceIn(0, 5_000_000)) { SyncPlay(data.readUTF(), data.readLong(), data.readLong()) }
++            songs to plays
+         }
+     }.getOrNull()
+ 
+-    private inline fun bytes(block: DataOutputStream.() -> Unit): ByteArray =
+-        ByteArrayOutputStream().also { DataOutputStream(it).apply(block).flush() }.toByteArray()
+-
+     // ---- the REST API ----
+ 
+     private fun get(path: String): String? = request("GET", path, null)
+-    private fun put(path: String, json: String) { request("PUT", path, json) }
+ 
+-    /** Adds or replaces children of [path], leaving the others alone. */
+-    private fun patch(path: String, values: Map<String, String>) {
++    /** Several paths under this code's node at once, as raw JSON values ("null" deletes). */
++    private fun patch(values: Map<String, String>) {
+         if (values.isEmpty()) return
+-        // Ids are hex and values base64, so neither needs escaping.
+-        request("PATCH", path, values.entries.joinToString(",", "{", "}") { "\"${it.key}\":\"${it.value}\"" })
++        request("PATCH", "", values.entries.joinToString(",", "{", "}") { "\"${it.key}\":${it.value}" })
+     }
+ 
+     private fun request(method: String, path: String, body: String?): String? {
+@@ -224,16 +294,96 @@ class CloudPlaySync(
+         }
+     }
+ 
+-    /** The children of a flat JSON object of "id": "value" strings - all this store ever holds. */
+-    private fun entries(json: String?): List<Pair<String, String>> =
+-        if (json == null || json == "null") emptyList()
+-        else ENTRY.findAll(json).map { it.groupValues[1] to it.groupValues[2] }.toList()
++    companion object {
++        /** How long a bundle waits for a device that never comes back, and how long a device counts as active. */
++        const val EXPIRY_MS = 30L * 24 * 60 * 60 * 1000
++
++        private fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
++    }
++}
++
++/**
++ * Just enough JSON to read what the relay stores - objects, strings, numbers, true/false/null.
++ * The two apps share no JSON library, and this is all the relay needs.
++ */
++internal object Json {
++    fun parse(text: String?): Any? {
++        if (text.isNullOrBlank()) return null
++        return runCatching { Reader(text).run { value().also { skip() } } }.getOrNull()
++    }
+ 
+-    private companion object {
+-        val ENTRY = Regex(""""([0-9a-f]{20})"\s*:\s*"([A-Za-z0-9+/=]+)"""")
+-        const val BATCH = 1_000
++    private class Reader(val s: String) {
++        var i = 0
++
++        fun skip() { while (i < s.length && s[i].isWhitespace()) i++ }
++
++        fun value(): Any? {
++            skip()
++            return when (s[i]) {
++                '{' -> obj()
++                '[' -> arr()
++                '"' -> str()
++                't' -> { i += 4; true }
++                'f' -> { i += 5; false }
++                'n' -> { i += 4; null }
++                else -> num()
++            }
++        }
+ 
+-        fun hex(bytes: ByteArray) = bytes.joinToString("") { "%02x".format(it) }
++        fun obj(): Map<String, Any?> {
++            val out = LinkedHashMap<String, Any?>()
++            i++
++            skip()
++            if (s[i] == '}') { i++; return out }
++            while (true) {
++                skip()
++                val k = str()
++                skip()
++                i++ // ':'
++                out[k] = value()
++                skip()
++                if (s[i++] == '}') return out
++            }
++        }
++
++        fun arr(): List<Any?> {
++            val out = ArrayList<Any?>()
++            i++
++            skip()
++            if (s[i] == ']') { i++; return out }
++            while (true) {
++                out += value()
++                skip()
++                if (s[i++] == ']') return out
++            }
++        }
++
++        fun str(): String {
++            val out = StringBuilder()
++            i++ // opening quote
++            while (s[i] != '"') {
++                val c = s[i++]
++                if (c != '\\') { out.append(c); continue }
++                when (val e = s[i++]) {
++                    'n' -> out.append('\n')
++                    't' -> out.append('\t')
++                    'r' -> out.append('\r')
++                    'b' -> out.append('\b')
++                    'f' -> out.append('\u000C')
++                    'u' -> { out.append(s.substring(i, i + 4).toInt(16).toChar()); i += 4 }
++                    else -> out.append(e)
++                }
++            }
++            i++
++            return out.toString()
++        }
++
++        fun num(): Number {
++            val start = i
++            while (i < s.length && (s[i].isDigit() || s[i] in "+-.eE")) i++
++            val text = s.substring(start, i)
++            return text.toLongOrNull() ?: text.toDouble()
++        }
+     }
+ }
+ 
+@@ -275,8 +425,8 @@ internal object Base64Lite {
+ }
+ 
+ /**
+- * Keeps cloud sync running: a sync when started, then every [ROUND_MS], or at once on [syncNow].
+- * Each sync that finds nothing changed costs one tiny request (see CloudPlaySync.sync).
++ * Keeps the relay running: a sync when started, then every [ROUND_MS], or at once on [syncNow].
++ * A sync with nothing new costs a heartbeat and three small reads.
+  */
+ class CloudSyncRunner(
+     private val store: PlaySyncStore,
+@@ -325,6 +475,15 @@ class CloudSyncRunner(
+         wake.trySend(Unit)
+     }
+ 
++    /** Sends everything again and asks the other devices for everything - see CloudPlaySync.resendAll. */
++    fun resendAll(code: String) {
++        scope.launch {
++            runCatching { CloudPlaySync(store, code, memory).resendAll() }
++                .onFailure { e -> _status.update { it.copy(error = e.message ?: e.javaClass.simpleName) } }
++            syncNow()
++        }
++    }
++
+     /** Deletes this code's cloud data, then stops. */
+     fun deleteCloudData(code: String, onDone: (Boolean) -> Unit) {
+         stop()
+@@ -354,7 +513,7 @@ class CloudSyncRunner(
+     }
+ }
+ 
+-/** The running cloud sync, for the settings screen. */
++/** The running relay, for the settings screen. */
+ object CloudSync {
+     @Volatile
+     var runner: CloudSyncRunner? = null
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/DataStoreCloudMemory.kt b/app/src/main/java/com/dd3boh/outertune/sync/DataStoreCloudMemory.kt
+index c821129..b97b512 100644
+--- a/app/src/main/java/com/dd3boh/outertune/sync/DataStoreCloudMemory.kt
++++ b/app/src/main/java/com/dd3boh/outertune/sync/DataStoreCloudMemory.kt
+@@ -7,24 +7,30 @@
+ package com.dd3boh.outertune.sync
+ 
+ import android.content.Context
++import androidx.datastore.preferences.core.MutablePreferences
+ import androidx.datastore.preferences.core.edit
+-import com.dd3boh.outertune.constants.CloudSyncFingerprintKey
+-import com.dd3boh.outertune.constants.CloudSyncRevKey
++import com.dd3boh.outertune.constants.CloudRelayDeviceKey
++import com.dd3boh.outertune.constants.CloudRelaySentKey
++import com.dd3boh.outertune.constants.CloudRelayTakenKey
+ import com.dd3boh.outertune.utils.dataStore
+ import com.dd3boh.outertune.utils.get
+ import kotlinx.coroutines.runBlocking
+ 
+-/** Cloud sync's memory in the app's settings. Read and written from the sync's IO thread only. */
++/** Cloud relay's memory in the app's settings. Read and written from the relay's IO thread only. */
+ class DataStoreCloudMemory(private val context: Context) : CloudSyncMemory {
+-    override var lastRev: String?
+-        get() = context.dataStore[CloudSyncRevKey]
+-        set(value) = write { if (value == null) it.remove(CloudSyncRevKey) else it[CloudSyncRevKey] = value }
++    override var deviceId: String?
++        get() = context.dataStore[CloudRelayDeviceKey]?.ifBlank { null }
++        set(value) = write { if (value == null) it.remove(CloudRelayDeviceKey) else it[CloudRelayDeviceKey] = value }
+ 
+-    override var lastFingerprint: String?
+-        get() = context.dataStore[CloudSyncFingerprintKey]
+-        set(value) = write { if (value == null) it.remove(CloudSyncFingerprintKey) else it[CloudSyncFingerprintKey] = value }
++    override var sentUpTo: Long
++        get() = context.dataStore[CloudRelaySentKey] ?: 0L
++        set(value) = write { it[CloudRelaySentKey] = value }
+ 
+-    private fun write(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
++    override var taken: Set<String>
++        get() = context.dataStore[CloudRelayTakenKey].orEmpty().split(',').filter { it.isNotBlank() }.toSet()
++        set(value) = write { it[CloudRelayTakenKey] = value.joinToString(",") }
++
++    private fun write(block: (MutablePreferences) -> Unit) {
+         runBlocking { context.dataStore.edit { block(it) } }
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
+index e3d68e1..57770fb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
++++ b/app/src/main/java/com/dd3boh/outertune/sync/PlaySyncCore.kt
+@@ -47,6 +47,12 @@ data class SyncPlay(val songId: String, val at: Long, val playTimeMs: Long)
+ 
+ /** What an app's library gives the sync and takes from it. Called off the main thread. */
+ interface PlaySyncStore {
++    /**
++     * The plays worth syncing recorded or added here after local row [afterRow], and the newest row
++     * - for Cloud relay, which sends only what is new since it last sent. Same rule as [plays].
++     */
++    fun playsSince(afterRow: Long): Pair<List<SyncPlay>, Long>
++
+     /** Every play worth syncing - not those of local files, whose ids mean nothing elsewhere. */
+     fun plays(): List<SyncPlay>
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt b/app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt
+index 40d6662..3bc21a2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt
++++ b/app/src/main/java/com/dd3boh/outertune/sync/RoomPlaySyncStore.kt
+@@ -23,6 +23,17 @@ class RoomPlaySyncStore(private val database: MusicDatabase) : PlaySyncStore {
+             buildList { while (c.moveToNext()) add(SyncPlay(c.getString(0), c.getLong(1), c.getLong(2))) }
+         }
+ 
++    override fun playsSince(afterRow: Long): Pair<List<SyncPlay>, Long> {
++        val db = database.openHelper.readableDatabase
++        val plays = db.query(
++            "SELECT e.songId, e.timestamp, e.playTime FROM event e JOIN song s ON s.id = e.songId " +
++                "WHERE e.id > ? AND s.isLocal = 0",
++            arrayOf<Any>(afterRow),
++        ).use { c -> buildList { while (c.moveToNext()) add(SyncPlay(c.getString(0), c.getLong(1), c.getLong(2))) } }
++        val newest = db.query("SELECT COALESCE(MAX(id), 0) FROM event").use { c -> if (c.moveToFirst()) c.getLong(0) else 0L }
++        return plays to maxOf(newest, afterRow)
++    }
++
+     override fun songs(ids: Collection<String>): List<SyncSong> {
+         val db = database.openHelper.readableDatabase
+         val out = ArrayList<SyncSong>(ids.size)
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/Library.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/Library.kt
+index 5275c15..d53aa30 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/Library.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/Library.kt
+@@ -25,6 +25,12 @@ import androidx.navigation.NavController
+ import com.dd3boh.outertune.db.entities.Album
+ import com.dd3boh.outertune.db.entities.Artist
+ import com.dd3boh.outertune.db.entities.Playlist
++import com.dd3boh.outertune.db.entities.PlaylistEntity
++import com.dd3boh.outertune.ui.component.items.AutoPlaylistGridItem
++import com.dd3boh.outertune.ui.component.items.AutoPlaylistListItem
++import com.dd3boh.outertune.ui.menu.AutoPlaylistMenu
++import com.dd3boh.outertune.ui.screens.playlist.PlaylistType
++import androidx.compose.ui.graphics.vector.ImageVector
+ import com.dd3boh.outertune.ui.component.items.AlbumGridItem
+ import com.dd3boh.outertune.ui.component.items.AlbumListItem
+ import com.dd3boh.outertune.ui.component.items.ArtistGridItem
+@@ -178,6 +184,85 @@ fun LibraryAlbumGridItem(
+         )
+ )
+ 
++/**
++ * Liked songs or Downloaded songs in a library list, with the ⋮ every other playlist row has - it
++ * opens [AutoPlaylistMenu]. [playlist]'s id is "liked" or "downloaded", the auto_playlist route's.
++ */
++@Composable
++fun LibraryAutoPlaylistListItem(
++    navController: NavController,
++    menuState: MenuState,
++    coroutineScope: CoroutineScope,
++    playlist: PlaylistEntity,
++    thumbnail: ImageVector,
++    modifier: Modifier = Modifier
++) = AutoPlaylistListItem(
++    playlist = playlist,
++    thumbnail = thumbnail,
++    trailingContent = {
++        val haptic = LocalHapticFeedback.current
++        IconButton(
++            onClick = {
++                menuState.show {
++                    AutoPlaylistMenu(
++                        navController = navController,
++                        playlistType = autoPlaylistType(playlist.id),
++                        coroutineScope = coroutineScope,
++                        onDismiss = menuState::dismiss
++                    )
++                }
++                haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
++            }
++        ) {
++            Icon(
++                Icons.Rounded.MoreVert,
++                contentDescription = null
++            )
++        }
++    },
++    modifier = modifier
++        .fillMaxWidth()
++        .clickable {
++            navController.navigate("auto_playlist/${playlist.id}")
++        }
++)
++
++/** The grid form of [LibraryAutoPlaylistListItem]: a long press opens [AutoPlaylistMenu]. */
++@OptIn(ExperimentalFoundationApi::class)
++@Composable
++fun LibraryAutoPlaylistGridItem(
++    navController: NavController,
++    menuState: MenuState,
++    coroutineScope: CoroutineScope,
++    playlist: PlaylistEntity,
++    thumbnail: ImageVector,
++    modifier: Modifier = Modifier
++) = AutoPlaylistGridItem(
++    playlist = playlist,
++    thumbnail = thumbnail,
++    fillMaxWidth = true,
++    modifier = modifier
++        .fillMaxWidth()
++        .combinedClickable(
++            onClick = {
++                navController.navigate("auto_playlist/${playlist.id}")
++            },
++            onLongClick = {
++                menuState.show {
++                    AutoPlaylistMenu(
++                        navController = navController,
++                        playlistType = autoPlaylistType(playlist.id),
++                        coroutineScope = coroutineScope,
++                        onDismiss = menuState::dismiss
++                    )
++                }
++            }
++        )
++)
++
++private fun autoPlaylistType(id: String): PlaylistType =
++    if (id == "liked") PlaylistType.LIKE else PlaylistType.DOWNLOAD
++
+ @Composable
+ fun LibraryPlaylistListItem(
+     navController: NavController,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt
+index 094400b..f2c09f6 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt
+@@ -26,8 +26,10 @@ import androidx.compose.material.icons.rounded.SdCard
+ import androidx.compose.material3.Icon
+ import androidx.compose.material3.LocalContentColor
+ import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
+ import androidx.compose.material3.surfaceColorAtElevation
+ import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+ import androidx.compose.ui.draw.clip
+@@ -42,12 +44,14 @@ import androidx.compose.ui.unit.dp
+ import coil3.compose.AsyncImage
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.constants.ListThumbnailSize
++import com.dd3boh.outertune.constants.MarkSavedPlaylistsKey
+ import com.dd3boh.outertune.constants.ThumbnailCornerRadius
+ import com.dd3boh.outertune.db.entities.Playlist
+ import com.dd3boh.outertune.db.entities.PlaylistEntity
+ import com.dd3boh.outertune.ui.component.items.Icon.PlaylistIcon
+ import com.dd3boh.outertune.ui.utils.getNSongsString
+ import com.dd3boh.outertune.utils.getThumbnailModel
++import com.dd3boh.outertune.utils.rememberPreference
+ import kotlin.math.roundToInt
+ 
+ @Composable
+@@ -129,6 +133,7 @@ fun PlaylistListItem(
+             getNSongsString(playlist.songCount, playlist.downloadCount),
+     badges = {
+         PlaylistIcon(playlist.playlist) // always show
++        SavedPlaylistBadge(playlist.playlist)
+ 
+         // Downloaded is a fact about the playlist, not a detail of the screen showing it, so it
+         // belongs above the showBadges gate rather than below it. Below, it was unreachable: the
+@@ -188,6 +193,7 @@ fun PlaylistGridItem(
+             getNSongsString(playlist.songCount, playlist.downloadCount),
+     badges = {
+         PlaylistIcon(playlist.playlist)
++        SavedPlaylistBadge(playlist.playlist)
+         if (playlist.downloadCount > 0) {
+             Icon(
+                 imageVector = Icons.Rounded.OfflinePin,
+@@ -212,6 +218,37 @@ fun PlaylistGridItem(
+     modifier = modifier
+ )
+ 
++/**
++ * Settings > Library and content > Mark saved playlists: a small "Saved" tag on a playlist someone
++ * else made, so it reads apart from the user's own at a glance - in the library lists and grids
++ * and on the playlist's page. Off by default, and draws nothing for any other playlist.
++ *
++ * The setting is read here, and only for a saved playlist, rather than passed down from every one
++ * of the screens that list playlists: most rows are the user's own and never pay for the read.
++ */
++@Composable
++fun SavedPlaylistBadge(playlist: PlaylistEntity, modifier: Modifier = Modifier) {
++    if (!playlist.isSaved) return
++    val markSaved by rememberPreference(MarkSavedPlaylistsKey, defaultValue = false)
++    if (!markSaved) return
++    SavedPlaylistLabel(modifier = modifier.padding(end = 4.dp))
++}
++
++/** The tag itself: "Saved", small, in a tinted pill. */
++@Composable
++fun SavedPlaylistLabel(modifier: Modifier = Modifier) {
++    Text(
++        text = stringResource(R.string.saved_playlist_label),
++        style = MaterialTheme.typography.labelSmall,
++        color = MaterialTheme.colorScheme.onSecondaryContainer,
++        maxLines = 1,
++        modifier = modifier
++            .clip(RoundedCornerShape(4.dp))
++            .background(MaterialTheme.colorScheme.secondaryContainer)
++            .padding(horizontal = 4.dp, vertical = 1.dp)
++    )
++}
++
+ @Composable
+ fun PlaylistThumbnail(
+     playlist: PlaylistEntity,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/dialog/RemoveDownloadsDialog.kt b/app/src/main/java/com/dd3boh/outertune/ui/dialog/RemoveDownloadsDialog.kt
+new file mode 100644
+index 0000000..febaee6
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/dialog/RemoveDownloadsDialog.kt
+@@ -0,0 +1,86 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.dialog
++
++import androidx.compose.foundation.layout.padding
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.rounded.OfflinePin
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.pluralStringResource
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.media3.exoplayer.offline.Download
++import com.dd3boh.outertune.LocalDownloadUtil
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.playback.removeDownloadKeepingCache
++import com.dd3boh.outertune.utils.getDownloadState
++
++/**
++ * The one question asked before a whole list's downloads go: a playlist's or an album's, from its
++ * menu or from the buttons at the top of its page.
++ *
++ * Removing a list's downloads used to happen on the first tap. The button that does it is the same
++ * icon, in the same place, as the one that shows the list is downloaded, so a tap meant to check
++ * the state could wipe gigabytes that then had to be fetched again over the network. One song's
++ * download is still removed straight away, since that is cheap to undo and asked for song by song.
++ *
++ * The count is of the songs that actually have a download (finished or in progress), not of the
++ * list: "Remove 3 downloaded songs" on a 200-song playlist with three downloaded says what will
++ * happen. It falls back to the list's size when nothing is known yet, rather than claiming zero.
++ *
++ * Confirming removes every one of [songIds] (removing a song that has no download is a no-op), then
++ * runs [onConfirm] for whatever else the caller does at that point.
++ */
++@Composable
++fun RemoveDownloadsDialog(
++    songIds: List<String>,
++    onDismiss: () -> Unit,
++    onConfirm: () -> Unit = {},
++) {
++    val downloads by LocalDownloadUtil.current.downloads.collectAsState()
++    val count = remember(songIds, downloads) {
++        songIds.distinct()
++            .count { getDownloadState(downloads[it]) != Download.STATE_STOPPED }
++            .takeIf { it > 0 } ?: songIds.distinct().size
++    }
++
++    DefaultDialog(
++        onDismiss = onDismiss,
++        icon = { Icon(Icons.Rounded.OfflinePin, contentDescription = null) },
++        title = { Text(stringResource(R.string.remove_downloads_title)) },
++        content = {
++            Text(
++                text = pluralStringResource(R.plurals.remove_n_downloads_confirm, count, count),
++                style = MaterialTheme.typography.bodyLarge,
++                modifier = Modifier.padding(horizontal = 18.dp)
++            )
++        },
++        buttons = {
++            TextButton(onClick = onDismiss) {
++                Text(text = stringResource(android.R.string.cancel))
++            }
++
++            TextButton(
++                onClick = {
++                    onDismiss()
++                    songIds.forEach { removeDownloadKeepingCache(it) }
++                    onConfirm()
++                }
++            ) {
++                Text(text = stringResource(R.string.action_remove))
++            }
++        }
++    )
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/AlbumMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/AlbumMenu.kt
+index bb1c04d..a9dfb03 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/AlbumMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/AlbumMenu.kt
+@@ -60,6 +60,7 @@ import com.dd3boh.outertune.ui.component.items.AlbumListItem
+ import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
+ import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
+ import com.dd3boh.outertune.ui.dialog.ArtistDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.utils.getDownloadState
+ import com.zionhuang.innertube.YouTube
+ import kotlinx.coroutines.Dispatchers
+@@ -151,6 +152,10 @@ fun AlbumMenu(
+         mutableStateOf(false)
+     }
+ 
++    var showRemoveDownloadDialog by remember {
++        mutableStateOf(false)
++    }
++
+     AlbumListItem(
+         album = album,
+         showLikedIcon = false,
+@@ -277,9 +282,7 @@ fun AlbumMenu(
+                     downloadUtil.download(_songs)
+                 },
+                 onRemoveDownload = {
+-                    songs.forEach { song ->
+-                        removeDownloadKeepingCache(song.id)
+-                    }
++                    showRemoveDownloadDialog = true
+                 }
+             )
+         }
+@@ -372,4 +375,12 @@ fun AlbumMenu(
+         )
+     }
+ 
++    if (showRemoveDownloadDialog) {
++        RemoveDownloadsDialog(
++            songIds = songs.filterNot { it.song.isLocal }.map { it.id },
++            onDismiss = { showRemoveDownloadDialog = false },
++            onConfirm = onDismiss
++        )
++    }
++
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/AutoPlaylistMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/AutoPlaylistMenu.kt
+new file mode 100644
+index 0000000..a15f9b0
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/AutoPlaylistMenu.kt
+@@ -0,0 +1,294 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.menu
++
++import androidx.compose.foundation.layout.PaddingValues
++import androidx.compose.foundation.layout.WindowInsets
++import androidx.compose.foundation.layout.asPaddingValues
++import androidx.compose.foundation.layout.systemBars
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.PlaylistAdd
++import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
++import androidx.compose.material.icons.automirrored.rounded.QueueMusic
++import androidx.compose.material.icons.rounded.CloudDownload
++import androidx.compose.material.icons.rounded.Favorite
++import androidx.compose.material.icons.rounded.OfflinePin
++import androidx.compose.material.icons.rounded.Output
++import androidx.compose.material.icons.rounded.PlayArrow
++import androidx.compose.material.icons.rounded.Shuffle
++import androidx.compose.material.icons.rounded.Sync
++import androidx.compose.material3.HorizontalDivider
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.collectAsState
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableIntStateOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.media3.exoplayer.offline.Download
++import androidx.navigation.NavController
++import com.dd3boh.outertune.LocalDatabase
++import com.dd3boh.outertune.LocalDownloadUtil
++import com.dd3boh.outertune.LocalNetworkConnected
++import com.dd3boh.outertune.LocalPlayerConnection
++import com.dd3boh.outertune.LocalSyncUtils
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.SongSortDescendingKey
++import com.dd3boh.outertune.constants.SongSortType
++import com.dd3boh.outertune.constants.SongSortTypeKey
++import com.dd3boh.outertune.db.entities.PlaylistEntity
++import com.dd3boh.outertune.db.entities.Song
++import com.dd3boh.outertune.extensions.toMediaItem
++import com.dd3boh.outertune.models.toMediaMetadata
++import com.dd3boh.outertune.playback.queues.ListQueue
++import com.dd3boh.outertune.ui.component.items.AutoPlaylistListItem
++import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
++import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
++import com.dd3boh.outertune.ui.screens.playlist.PlaylistType
++import com.dd3boh.outertune.ui.utils.m3uFileName
++import com.dd3boh.outertune.ui.utils.rememberM3uExportLauncher
++import com.dd3boh.outertune.utils.getDownloadState
++import com.dd3boh.outertune.utils.rememberEnumPreference
++import com.dd3boh.outertune.utils.rememberPreference
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.launch
++
++/**
++ * The menu for Liked songs and Downloaded songs: the library's automatic playlists. They had none,
++ * so a long press on either did nothing, where every other playlist has Play, Download, Export and
++ * the rest.
++ *
++ * It is a normal playlist's menu less what cannot apply. Neither is a playlist in the database, so
++ * there is nothing to rename or delete, and no link to share (Liked songs is YouTube Music's "LM",
++ * which only its owner can open). Downloaded songs is made of downloads, so it has nothing to
++ * download and - deliberately - no "Remove download": one tap there would empty it, and its songs
++ * can still be removed one by one. Resync is Liked songs' only, since it is the one synced from
++ * YouTube Music.
++ *
++ * The songs are in the order the playlist page shows them (Library > Songs' sort), so Play here
++ * plays what Play on the page plays.
++ */
++@Composable
++fun AutoPlaylistMenu(
++    navController: NavController,
++    playlistType: PlaylistType,
++    coroutineScope: CoroutineScope,
++    onDismiss: () -> Unit,
++) {
++    val database = LocalDatabase.current
++    val downloadUtil = LocalDownloadUtil.current
++    val syncUtils = LocalSyncUtils.current
++    val playerConnection = LocalPlayerConnection.current ?: return
++    val queueBoard by playerConnection.queueBoard.collectAsState()
++    val isNetworkConnected = LocalNetworkConnected.current
++
++    val sortType by rememberEnumPreference(SongSortTypeKey, SongSortType.CREATE_DATE)
++    val sortDescending by rememberPreference(SongSortDescendingKey, true)
++
++    val isLiked = playlistType == PlaylistType.LIKE
++    val playlist = PlaylistEntity(
++        id = if (isLiked) "liked" else "downloaded",
++        name = stringResource(if (isLiked) R.string.liked_songs else R.string.downloaded_songs),
++        browseId = if (isLiked) "LM" else null,
++    )
++
++    val songs by remember(isLiked, sortType, sortDescending) {
++        if (isLiked) database.likedSongs(sortType, sortDescending)
++        else database.downloadSongs(sortType, sortDescending)
++    }.collectAsState(initial = emptyList<Song>())
++
++    var downloadState by remember {
++        mutableIntStateOf(Download.STATE_STOPPED)
++    }
++    // Some, but not all, of the songs downloaded. Liked songs is rarely downloaded whole - songs are
++    // liked faster than anyone downloads them - so with only the all-or-nothing Download item the
++    // menu would almost never offer to remove the downloads it does have.
++    var someDownloaded by remember {
++        mutableStateOf(false)
++    }
++    LaunchedEffect(songs) {
++        if (!isLiked) return@LaunchedEffect
++        val remote = songs.filterNot { it.song.isLocal }
++        if (remote.isEmpty()) return@LaunchedEffect
++        downloadUtil.downloads.collect { downloads ->
++            downloadState = getDownloadState(remote.map { downloads[it.id] })
++            someDownloaded = remote.any { getDownloadState(downloads[it.id]) == Download.STATE_COMPLETED }
++        }
++    }
++
++    val m3uLauncher = rememberM3uExportLauncher { songs }
++
++    var showChooseQueueDialog by rememberSaveable {
++        mutableStateOf(false)
++    }
++    var showChoosePlaylistDialog by rememberSaveable {
++        mutableStateOf(false)
++    }
++    var showRemoveDownloadDialog by remember {
++        mutableStateOf(false)
++    }
++
++    AutoPlaylistListItem(
++        playlist = playlist,
++        thumbnail = if (isLiked) Icons.Rounded.Favorite else Icons.Rounded.CloudDownload,
++    )
++
++    HorizontalDivider()
++
++    GridMenu(
++        contentPadding = PaddingValues(
++            start = 8.dp,
++            top = 8.dp,
++            end = 8.dp,
++            bottom = 8.dp + WindowInsets.systemBars.asPaddingValues().calculateBottomPadding()
++        )
++    ) {
++        GridMenuItem(
++            icon = Icons.Rounded.PlayArrow,
++            title = R.string.play,
++            enabled = songs.isNotEmpty()
++        ) {
++            onDismiss()
++            playerConnection.playQueue(
++                ListQueue(
++                    title = playlist.name,
++                    items = songs.map { it.toMediaMetadata() },
++                    playlistId = playlist.browseId
++                )
++            )
++        }
++
++        GridMenuItem(
++            icon = Icons.Rounded.Shuffle,
++            title = R.string.shuffle,
++            enabled = songs.isNotEmpty()
++        ) {
++            onDismiss()
++            playerConnection.playQueue(
++                ListQueue(
++                    title = playlist.name,
++                    items = songs.map { it.toMediaMetadata() },
++                    startShuffled = true,
++                    playlistId = playlist.browseId
++                )
++            )
++        }
++
++        GridMenuItem(
++            icon = Icons.AutoMirrored.Rounded.PlaylistPlay,
++            title = R.string.play_next,
++            enabled = songs.isNotEmpty()
++        ) {
++            onDismiss()
++            playerConnection.enqueueNext(songs.map { it.toMediaItem() })
++        }
++
++        GridMenuItem(
++            icon = Icons.AutoMirrored.Rounded.QueueMusic,
++            title = R.string.add_to_queue,
++            enabled = songs.isNotEmpty()
++        ) {
++            showChooseQueueDialog = true
++        }
++
++        GridMenuItem(
++            icon = Icons.AutoMirrored.Rounded.PlaylistAdd,
++            title = R.string.add_to_playlist,
++            enabled = songs.isNotEmpty()
++        ) {
++            showChoosePlaylistDialog = true
++        }
++
++        if (isLiked && songs.any { !it.song.isLocal }) {
++            DownloadGridMenu(
++                state = downloadState,
++                onDownload = {
++                    downloadUtil.download(songs.filterNot { it.song.isLocal }.map { it.toMediaMetadata() })
++                },
++                onRemoveDownload = {
++                    showRemoveDownloadDialog = true
++                }
++            )
++            // DownloadGridMenu already offers removal once everything is downloaded or while it
++            // downloads; this is the partly downloaded case it leaves out.
++            if (downloadState == Download.STATE_STOPPED && someDownloaded) {
++                GridMenuItem(
++                    icon = Icons.Rounded.OfflinePin,
++                    title = R.string.remove_download
++                ) {
++                    showRemoveDownloadDialog = true
++                }
++            }
++        }
++
++        if (isLiked) {
++            GridMenuItem(
++                icon = Icons.Rounded.Sync,
++                title = R.string.action_sync,
++                enabled = isNetworkConnected
++            ) {
++                onDismiss()
++                // The screen's scope, not the menu's: the sync outlives the menu closing.
++                coroutineScope.launch {
++                    syncUtils.syncRemoteLikedSongs(true)
++                }
++            }
++        }
++
++        GridMenuItem(
++            icon = Icons.Rounded.Output,
++            title = R.string.m3u_export,
++            enabled = songs.isNotEmpty()
++        ) {
++            m3uLauncher.launch(m3uFileName(playlist.name))
++        }
++    }
++
++    /**
++     * ---------------------------
++     * Dialogs
++     * ---------------------------
++     */
++
++    if (showChooseQueueDialog) {
++        AddToQueueDialog(
++            onAdd = { queueName ->
++                val q = queueBoard.addQueue(
++                    queueName, songs.map { it.toMediaMetadata() },
++                    forceInsert = true, delta = false
++                )
++                q?.let {
++                    queueBoard.setCurrQueue(it)
++                }
++            },
++            onDismiss = {
++                showChooseQueueDialog = false
++            }
++        )
++    }
++
++    if (showChoosePlaylistDialog) {
++        AddToPlaylistDialog(
++            navController = navController,
++            songIds = songs.map { it.id },
++            onDismiss = { showChoosePlaylistDialog = false }
++        )
++    }
++
++    if (showRemoveDownloadDialog) {
++        RemoveDownloadsDialog(
++            songIds = songs.filterNot { it.song.isLocal }.map { it.id },
++            onDismiss = { showRemoveDownloadDialog = false },
++            onConfirm = onDismiss
++        )
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlaylistMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlaylistMenu.kt
+index 98dad9c..8349c81 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/PlaylistMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/PlaylistMenu.kt
+@@ -65,7 +65,10 @@ import com.dd3boh.outertune.ui.component.items.PlaylistListItem
+ import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
+ import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.ui.dialog.TextFieldDialog
++import com.dd3boh.outertune.ui.utils.m3uFileName
++import com.dd3boh.outertune.ui.utils.rememberM3uExportLauncher
+ import com.dd3boh.outertune.utils.getDownloadState
+ import com.dd3boh.outertune.utils.lmScannerCoroutine
+ import com.dd3boh.outertune.utils.reportException
+@@ -94,28 +97,9 @@ fun PlaylistMenu(
+         mutableStateOf(emptyList<Song>())
+     }
+ 
+-    val m3uLauncher = rememberLauncherForActivityResult(
+-        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
+-    ) { uri: Uri? ->
+-        uri?.let {
+-            CoroutineScope(lmScannerCoroutine).launch {
+-                try {
+-                    var result = "#EXTM3U\n"
+-                    songs.forEach { s ->
+-                        val se = s.song
+-                        result += "#EXTINF:${se.duration},${s.artists.joinToString(";") { it.name }} - ${s.title}\n"
+-                        result += if (se.isLocal) "${se.id}, ${se.localPath}" else "https://youtube.com/watch?v=${se.id}"
+-                        result += "\n"
+-                    }
+-                    context.contentResolver.openOutputStream(uri)?.use { outputStream ->
+-                        outputStream.write(result.toByteArray(Charsets.UTF_8))
+-                    }
+-                } catch (e: IOException) {
+-                    reportException(e)
+-                }
+-            }
+-        }
+-    }
++    // The writing itself lives in ui/utils/M3uExport.kt now, shared with Liked songs and Downloaded
++    // songs, so every playlist exports the same file.
++    val m3uLauncher = rememberM3uExportLauncher { songs }
+ 
+     LaunchedEffect(Unit) {
+         database.playlistSongs(playlist.id).collect {
+@@ -306,7 +290,7 @@ fun PlaylistMenu(
+             icon = Icons.Rounded.Output,
+             title = R.string.m3u_export
+         ) {
+-            m3uLauncher.launch("playlist.m3u")
++            m3uLauncher.launch(m3uFileName(playlist.playlist.name))
+         }
+     }
+ 
+@@ -339,35 +323,9 @@ fun PlaylistMenu(
+      */
+ 
+     if (showRemoveDownloadDialog) {
+-        DefaultDialog(
++        RemoveDownloadsDialog(
++            songIds = songs.filterNot { it.song.isLocal }.map { it.id },
+             onDismiss = { showRemoveDownloadDialog = false },
+-            content = {
+-                Text(
+-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist.playlist.name),
+-                    style = MaterialTheme.typography.bodyLarge,
+-                    modifier = Modifier.padding(horizontal = 18.dp)
+-                )
+-            },
+-            buttons = {
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.cancel))
+-                }
+-
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                        songs.forEach { song ->
+-                            removeDownloadKeepingCache(song.song.id)
+-                        }
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.ok))
+-                }
+-            }
+         )
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/SelectionSongsMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/SelectionSongsMenu.kt
+index 380f18e..b05da11 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/SelectionSongsMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/SelectionSongsMenu.kt
+@@ -49,6 +49,7 @@ import com.dd3boh.outertune.playback.queues.ListQueue
+ import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
+ import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.utils.getDownloadState
+ import java.time.LocalDateTime
+ 
+@@ -279,36 +280,12 @@ fun SelectionMediaMetadataMenu(
+         )
+     }
+ 
++    // The same dialog as a playlist's or an album's, saying how many songs, instead of one that
++    // asked about removing the playlist "selection".
+     if (showRemoveDownloadDialog) {
+-        DefaultDialog(
++        RemoveDownloadsDialog(
++            songIds = selection.map { it.id },
+             onDismiss = { showRemoveDownloadDialog = false },
+-            content = {
+-                Text(
+-                    text = stringResource(R.string.remove_download_playlist_confirm, "selection"),
+-                    style = MaterialTheme.typography.bodyLarge,
+-                    modifier = Modifier.padding(horizontal = 18.dp)
+-                )
+-            },
+-            buttons = {
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.cancel))
+-                }
+-
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                        selection.forEach { song ->
+-                            removeDownloadKeepingCache(song.id)
+-                        }
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.ok))
+-                }
+-            }
+         )
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubeAlbumMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubeAlbumMenu.kt
+index 4876505..a656834 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubeAlbumMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubeAlbumMenu.kt
+@@ -45,6 +45,7 @@ import com.dd3boh.outertune.ui.component.items.YouTubeListItem
+ import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
+ import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
+ import com.dd3boh.outertune.ui.dialog.ArtistDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.utils.getDownloadState
+ import com.dd3boh.outertune.utils.reportException
+ import com.zionhuang.innertube.YouTube
+@@ -74,6 +75,9 @@ fun YouTubeAlbumMenu(
+     var showSelectArtistDialog by rememberSaveable {
+         mutableStateOf(false)
+     }
++    var showRemoveDownloadDialog by rememberSaveable {
++        mutableStateOf(false)
++    }
+ 
+     LaunchedEffect(Unit) {
+         database.album(albumItem.id).collect { album ->
+@@ -167,9 +171,7 @@ fun YouTubeAlbumMenu(
+                 downloadUtil.download(_songs)
+             },
+             onRemoveDownload = {
+-                album?.songs?.forEach { song ->
+-                    removeDownloadKeepingCache(song.id)
+-                }
++                showRemoveDownloadDialog = true
+             }
+         )
+         albumItem.artists?.let { artists ->
+@@ -242,4 +244,12 @@ fun YouTubeAlbumMenu(
+             onDismiss = { showSelectArtistDialog = false }
+         )
+     }
++
++    if (showRemoveDownloadDialog) {
++        RemoveDownloadsDialog(
++            songIds = album?.songs?.map { it.id }.orEmpty(),
++            onDismiss = { showRemoveDownloadDialog = false },
++            onConfirm = onDismiss
++        )
++    }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubePlaylistMenu.kt b/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubePlaylistMenu.kt
+index ad046bd..a99784f 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubePlaylistMenu.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/menu/YouTubePlaylistMenu.kt
+@@ -55,6 +55,7 @@ import com.dd3boh.outertune.ui.component.items.YouTubeListItem
+ import com.dd3boh.outertune.ui.dialog.AddToPlaylistDialog
+ import com.dd3boh.outertune.ui.dialog.AddToQueueDialog
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.utils.getDownloadState
+ import com.zionhuang.innertube.YouTube
+ import com.zionhuang.innertube.models.PlaylistItem
+@@ -337,35 +338,9 @@ fun YouTubePlaylistMenu(
+     }
+ 
+     if (showRemoveDownloadDialog) {
+-        DefaultDialog(
++        RemoveDownloadsDialog(
++            songIds = songs.map { it.id },
+             onDismiss = { showRemoveDownloadDialog = false },
+-            content = {
+-                Text(
+-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist.title),
+-                    style = MaterialTheme.typography.bodyLarge,
+-                    modifier = Modifier.padding(horizontal = 18.dp)
+-                )
+-            },
+-            buttons = {
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.cancel))
+-                }
+-
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                        songs.forEach { song ->
+-                            removeDownloadKeepingCache(song.id)
+-                        }
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.ok))
+-                }
+-            }
+         )
+     }
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index 344cb10..e128a67 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -106,6 +106,7 @@ import androidx.compose.ui.layout.ContentScale
+ import androidx.compose.ui.platform.LocalConfiguration
+ import androidx.compose.ui.platform.LocalContext
+ import androidx.compose.ui.platform.LocalDensity
++import androidx.compose.ui.graphics.graphicsLayer
+ import androidx.compose.ui.platform.LocalHapticFeedback
+ import androidx.compose.ui.res.pluralStringResource
+ import androidx.compose.ui.res.stringResource
+@@ -567,8 +568,18 @@ private fun EqualizerHandle() {
+             )
+     ) {
+         if (showEqualizerHandle) {
++            val travel = with(LocalDensity.current) { 24.dp.toPx() }
+             Box(
+                 modifier = Modifier
++                    // As the queue's handle does: as the panel is pulled open the bar goes with the
++                    // finger a little way and fades out by a quarter of the way, rather than sitting
++                    // still under the sheet sliding over it. Read in the layer, so a drag redraws
++                    // only this and recomposes nothing.
++                    .graphicsLayer {
++                        val pulled = ((sheet?.progress ?: 0f) * 4f).coerceIn(0f, 1f)
++                        alpha = 1f - pulled
++                        translationY = pulled * travel
++                    }
+                     .width(64.dp)
+                     .height(8.dp)
+                     .clip(RoundedCornerShape(4.dp))
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
+index 683f0f6..578705a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/AlbumScreen.kt
+@@ -109,6 +109,7 @@ import com.dd3boh.outertune.ui.component.shimmer.ListItemPlaceHolder
+ import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
+ import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
+ import com.dd3boh.outertune.ui.menu.AlbumMenu
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.ui.menu.YouTubeAlbumMenu
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.ui.utils.getNSongsString
+@@ -169,6 +170,17 @@ fun AlbumScreen(
+         mutableIntStateOf(Download.STATE_STOPPED)
+     }
+ 
++    // Removing the album's downloads, from the pin (or the spinner) at the top, asks first.
++    var showRemoveDownloadDialog by remember {
++        mutableStateOf(false)
++    }
++    if (showRemoveDownloadDialog) {
++        RemoveDownloadsDialog(
++            songIds = albumWithSongs?.songs?.map { it.id }.orEmpty(),
++            onDismiss = { showRemoveDownloadDialog = false },
++        )
++    }
++
+     LaunchedEffect(albumWithSongs) {
+         if (albumWithSongs?.album?.isLocal != false) return@LaunchedEffect
+         val songs = albumWithSongs?.songs?.filterNot { it.song.isLocal }?.map { it.id }
+@@ -291,9 +303,7 @@ fun AlbumScreen(
+                                         Download.STATE_COMPLETED -> {
+                                             IconButton(
+                                                 onClick = {
+-                                                    albumWithSongsLocal.songs.forEach { song ->
+-                                                        removeDownloadKeepingCache(song.id)
+-                                                    }
++                                                    showRemoveDownloadDialog = true
+                                                 }
+                                             ) {
+                                                 Icon(
+@@ -304,11 +314,11 @@ fun AlbumScreen(
+                                         }
+ 
+                                         Download.STATE_DOWNLOADING -> {
++                                            // Stopping takes the songs already done with it, so it
++                                            // asks first, like the pin.
+                                             IconButton(
+                                                 onClick = {
+-                                                    albumWithSongsLocal.songs.forEach { song ->
+-                                                        removeDownloadKeepingCache(song.id)
+-                                                    }
++                                                    showRemoveDownloadDialog = true
+                                                 }
+                                             ) {
+                                                 CircularProgressIndicator(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryPlaylistsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryPlaylistsScreen.kt
+index 594fe33..52aa22a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryPlaylistsScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryPlaylistsScreen.kt
+@@ -78,6 +78,8 @@ import com.dd3boh.outertune.ui.component.LazyColumnScrollbar
+ import com.dd3boh.outertune.ui.component.LazyVerticalGridScrollbar
+ import com.dd3boh.outertune.ui.component.LibraryPlaylistGridItem
+ import com.dd3boh.outertune.ui.component.LibraryPlaylistListItem
++import com.dd3boh.outertune.ui.component.LibraryAutoPlaylistListItem
++import com.dd3boh.outertune.ui.component.LibraryAutoPlaylistGridItem
+ import com.dd3boh.outertune.ui.component.ScrollToTopManager
+ import com.dd3boh.outertune.ui.component.SortHeader
+ import com.dd3boh.outertune.ui.component.items.AutoPlaylistGridItem
+@@ -265,15 +267,13 @@ fun LibraryPlaylistsScreen(
+                             key = likedPlaylist.id,
+                             contentType = { CONTENT_TYPE_PLAYLIST }
+                         ) {
+-                            AutoPlaylistListItem(
++                            LibraryAutoPlaylistListItem(
++                                navController = navController,
++                                menuState = menuState,
++                                coroutineScope = coroutineScope,
+                                 playlist = likedPlaylist,
+                                 thumbnail = Icons.Rounded.Favorite,
+-                                modifier = Modifier
+-                                    .fillMaxWidth()
+-                                    .clickable {
+-                                        navController.navigate("auto_playlist/${likedPlaylist.id}")
+-                                    }
+-                                    .animateItem()
++                                modifier = Modifier.animateItem()
+                             )
+                         }
+ 
+@@ -281,15 +281,13 @@ fun LibraryPlaylistsScreen(
+                             key = downloadedPlaylist.id,
+                             contentType = { CONTENT_TYPE_PLAYLIST }
+                         ) {
+-                            AutoPlaylistListItem(
++                            LibraryAutoPlaylistListItem(
++                                navController = navController,
++                                menuState = menuState,
++                                coroutineScope = coroutineScope,
+                                 playlist = downloadedPlaylist,
+                                 thumbnail = Icons.Rounded.CloudDownload,
+-                                modifier = Modifier
+-                                    .fillMaxWidth()
+-                                    .clickable {
+-                                        navController.navigate("auto_playlist/${downloadedPlaylist.id}")
+-                                    }
+-                                    .animateItem()
++                                modifier = Modifier.animateItem()
+                             )
+                         }
+                     }
+@@ -351,16 +349,13 @@ fun LibraryPlaylistsScreen(
+                             key = likedPlaylist.id,
+                             contentType = { CONTENT_TYPE_PLAYLIST }
+                         ) {
+-                            AutoPlaylistGridItem(
++                            LibraryAutoPlaylistGridItem(
++                                navController = navController,
++                                menuState = menuState,
++                                coroutineScope = coroutineScope,
+                                 playlist = likedPlaylist,
+                                 thumbnail = Icons.Rounded.Favorite,
+-                                fillMaxWidth = true,
+-                                modifier = Modifier
+-                                    .fillMaxWidth()
+-                                    .clickable {
+-                                        navController.navigate("auto_playlist/${likedPlaylist.id}")
+-                                    }
+-                                    .animateItem()
++                                modifier = Modifier.animateItem()
+                             )
+                         }
+ 
+@@ -368,16 +363,13 @@ fun LibraryPlaylistsScreen(
+                             key = downloadedPlaylist.id,
+                             contentType = { CONTENT_TYPE_PLAYLIST }
+                         ) {
+-                            AutoPlaylistGridItem(
++                            LibraryAutoPlaylistGridItem(
++                                navController = navController,
++                                menuState = menuState,
++                                coroutineScope = coroutineScope,
+                                 playlist = downloadedPlaylist,
+                                 thumbnail = Icons.Rounded.CloudDownload,
+-                                fillMaxWidth = true,
+-                                modifier = Modifier
+-                                    .fillMaxWidth()
+-                                    .clickable {
+-                                        navController.navigate("auto_playlist/${downloadedPlaylist.id}")
+-                                    }
+-                                    .animateItem()
++                                modifier = Modifier.animateItem()
+                             )
+                         }
+                     }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryScreen.kt
+index 8e4b11f..52ee058 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LibraryScreen.kt
+@@ -81,6 +81,8 @@ import com.dd3boh.outertune.ui.component.LibraryArtistGridItem
+ import com.dd3boh.outertune.ui.component.LibraryArtistListItem
+ import com.dd3boh.outertune.ui.component.LibraryPlaylistGridItem
+ import com.dd3boh.outertune.ui.component.LibraryPlaylistListItem
++import com.dd3boh.outertune.ui.component.LibraryAutoPlaylistListItem
++import com.dd3boh.outertune.ui.component.LibraryAutoPlaylistGridItem
+ import com.dd3boh.outertune.ui.component.ScrollToTopManager
+ import com.dd3boh.outertune.ui.component.SortHeader
+ import com.dd3boh.outertune.ui.component.button.IconButton
+@@ -330,15 +332,13 @@ fun LibraryScreen(
+                                     key = likedPlaylist.id,
+                                     contentType = { CONTENT_TYPE_PLAYLIST }
+                                 ) {
+-                                    AutoPlaylistListItem(
++                                    LibraryAutoPlaylistListItem(
++                                        navController = navController,
++                                        menuState = menuState,
++                                        coroutineScope = coroutineScope,
+                                         playlist = likedPlaylist,
+                                         thumbnail = Icons.Rounded.Favorite,
+-                                        modifier = Modifier
+-                                            .fillMaxWidth()
+-                                            .clickable {
+-                                                navController.navigate("auto_playlist/${likedPlaylist.id}")
+-                                            }
+-                                            .animateItem()
++                                        modifier = Modifier.animateItem()
+                                     )
+                                 }
+ 
+@@ -346,15 +346,13 @@ fun LibraryScreen(
+                                     key = downloadedPlaylist.id,
+                                     contentType = { CONTENT_TYPE_PLAYLIST }
+                                 ) {
+-                                    AutoPlaylistListItem(
++                                    LibraryAutoPlaylistListItem(
++                                        navController = navController,
++                                        menuState = menuState,
++                                        coroutineScope = coroutineScope,
+                                         playlist = downloadedPlaylist,
+                                         thumbnail = Icons.Rounded.CloudDownload,
+-                                        modifier = Modifier
+-                                            .fillMaxWidth()
+-                                            .clickable {
+-                                                navController.navigate("auto_playlist/${downloadedPlaylist.id}")
+-                                            }
+-                                            .animateItem()
++                                        modifier = Modifier.animateItem()
+                                     )
+                                 }
+                             }
+@@ -444,16 +442,13 @@ fun LibraryScreen(
+                                     key = likedPlaylist.id,
+                                     contentType = { CONTENT_TYPE_PLAYLIST }
+                                 ) {
+-                                    AutoPlaylistGridItem(
++                                    LibraryAutoPlaylistGridItem(
++                                        navController = navController,
++                                        menuState = menuState,
++                                        coroutineScope = coroutineScope,
+                                         playlist = likedPlaylist,
+                                         thumbnail = Icons.Rounded.Favorite,
+-                                        fillMaxWidth = true,
+-                                        modifier = Modifier
+-                                            .fillMaxWidth()
+-                                            .clickable {
+-                                                navController.navigate("auto_playlist/${likedPlaylist.id}")
+-                                            }
+-                                            .animateItem()
++                                        modifier = Modifier.animateItem()
+                                     )
+                                 }
+ 
+@@ -461,16 +456,13 @@ fun LibraryScreen(
+                                     key = downloadedPlaylist.id,
+                                     contentType = { CONTENT_TYPE_PLAYLIST }
+                                 ) {
+-                                    AutoPlaylistGridItem(
++                                    LibraryAutoPlaylistGridItem(
++                                        navController = navController,
++                                        menuState = menuState,
++                                        coroutineScope = coroutineScope,
+                                         playlist = downloadedPlaylist,
+                                         thumbnail = Icons.Rounded.CloudDownload,
+-                                        fillMaxWidth = true,
+-                                        modifier = Modifier
+-                                            .fillMaxWidth()
+-                                            .clickable {
+-                                                navController.navigate("auto_playlist/${downloadedPlaylist.id}")
+-                                            }
+-                                            .animateItem()
++                                        modifier = Modifier.animateItem()
+                                     )
+                                 }
+                             }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
+index 8bf5858..0acbb28 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/AutoPlaylistScreen.kt
+@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.FlowRow
+ import androidx.compose.foundation.layout.Row
+ import androidx.compose.foundation.layout.Spacer
+ import androidx.compose.foundation.layout.asPaddingValues
+@@ -118,8 +119,11 @@ import com.dd3boh.outertune.ui.component.SelectHeader
+ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.component.items.SongListItem
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.ui.utils.getNSongsString
++import com.dd3boh.outertune.ui.utils.m3uFileName
++import com.dd3boh.outertune.ui.utils.rememberM3uExportLauncher
+ import com.dd3boh.outertune.utils.getDownloadState
+ import com.dd3boh.outertune.utils.makeTimeString
+ import com.dd3boh.outertune.utils.rememberEnumPreference
+@@ -274,41 +278,33 @@ fun AutoPlaylistScreen(
+         mutableStateOf(false)
+     }
+ 
++    // Only Liked songs can get here: Downloaded songs has no button that removes its downloads
++    // in bulk (see the header). The clearPlaylist this used to run went with it - "liked" and
++    // "downloaded" are not playlists in the database, so it cleared nothing.
+     if (showRemoveDownloadDialog) {
+-        DefaultDialog(
++        RemoveDownloadsDialog(
++            songIds = songs.filterNot { it.song.isLocal }.map { it.id },
+             onDismiss = { showRemoveDownloadDialog = false },
+-            content = {
+-                Text(
+-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist.name),
+-                    style = MaterialTheme.typography.bodyLarge,
+-                    modifier = Modifier.padding(horizontal = 18.dp)
+-                )
+-            },
+-            buttons = {
+-                TextButton(
+-                    onClick = { showRemoveDownloadDialog = false }
+-                ) {
+-                    Text(text = stringResource(android.R.string.cancel))
+-                }
+-
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                        database.transaction {
+-                            clearPlaylist(playlist.id)
+-                        }
+-
+-                        songs.forEach { song ->
+-                            removeDownloadKeepingCache(song.song.id)
+-                        }
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.ok))
+-                }
+-            }
+         )
+     }
+ 
++    val buttons = rememberPlaylistHeaderButtons()
++    val m3uLauncher = rememberM3uExportLauncher { songs }
++
++    // Liked songs' Sync, and pull to refresh, do the same thing.
++    val syncLikedSongs: () -> Unit = {
++        coroutineScope.launch {
++            syncUtils.syncRemoteLikedSongs(true)
++            // Report the outcome. A liked-songs sync can decline to run or fail
++            // against YouTube without anything visible changing on screen, which
++            // makes "refreshing did nothing" impossible to tell apart from
++            // "refreshing worked and the order is still wrong".
++            syncUtils.syncState.value.lastLikedSongsResult
++                .takeIf { it.isNotEmpty() }
++                ?.let { snackbarHostState.showSnackbar(it, withDismissAction = true) }
++        }
++    }
++
+     val showTopBarTitle by remember {
+         derivedStateOf {
+             lazyListState.firstVisibleItemIndex > 0
+@@ -321,18 +317,7 @@ fun AutoPlaylistScreen(
+             .pullToRefresh(
+                 state = pullRefreshState,
+                 isRefreshing = isSyncingRemoteLikedSongs,
+-                onRefresh = {
+-                    coroutineScope.launch {
+-                        syncUtils.syncRemoteLikedSongs(true)
+-                        // Report the outcome. A liked-songs sync can decline to run or fail
+-                        // against YouTube without anything visible changing on screen, which
+-                        // makes "refreshing did nothing" impossible to tell apart from
+-                        // "refreshing worked and the order is still wrong".
+-                        syncUtils.syncState.value.lastLikedSongsResult
+-                            .takeIf { it.isNotEmpty() }
+-                            ?.let { snackbarHostState.showSnackbar(it, withDismissAction = true) }
+-                    }
+-                }
++                onRefresh = syncLikedSongs
+             ),
+     ) {
+         ScrollToTopManager(navController, lazyListState)
+@@ -370,6 +355,7 @@ fun AutoPlaylistScreen(
+ 
+                         Column(
+                             verticalArrangement = Arrangement.Center,
++                            modifier = Modifier.weight(1f)
+                         ) {
+                             AutoResizeText(
+                                 text = playlist.name,
+@@ -414,62 +400,55 @@ fun AutoPlaylistScreen(
+                                 fontWeight = FontWeight.Normal
+                             )
+ 
+-                            Row {
++                            // The buttons chosen in Settings > Library and content > Playlist
++                            // buttons, each where it applies. Nothing here is editable, so never
++                            // Edit. Sync and Download are Liked songs' only: Downloaded songs is
++                            // made of downloads, so there is nothing to sync and nothing left to
++                            // download - and no button to remove them all at once either, which
++                            // is what its pin used to do. Its songs' downloads still go one by one,
++                            // from each song's own menu.
++                            FlowRow {
+                                 if (songs.isNotEmpty()) {
+-                                    when (downloadState) {
+-                                        Download.STATE_COMPLETED -> {
+-                                            IconButton(
+-                                                onClick = {
+-                                                    showRemoveDownloadDialog = true
+-                                                }
+-                                            ) {
+-                                                Icon(
+-                                                    Icons.Rounded.OfflinePin,
+-                                                    contentDescription = null
++                                    for (button in buttons) {
++                                        when (button) {
++                                            PlaylistHeaderButton.EDIT -> Unit
++
++                                            PlaylistHeaderButton.SYNC -> if (playlistType == PlaylistType.LIKE) {
++                                                PlaylistHeaderIconButton(
++                                                    button,
++                                                    enabled = !isSyncingRemoteLikedSongs,
++                                                    onClick = syncLikedSongs
+                                                 )
+                                             }
+-                                        }
+ 
+-                                        Download.STATE_DOWNLOADING -> {
+-                                            IconButton(
+-                                                onClick = {
+-                                                    songs.forEach { song ->
+-                                                        removeDownloadKeepingCache(song.song.id)
+-                                                    }
+-                                                }
++                                            PlaylistHeaderButton.DOWNLOAD -> if (
++                                                playlistType == PlaylistType.LIKE && songs.any { !it.song.isLocal }
+                                             ) {
+-                                                CircularProgressIndicator(
+-                                                    strokeWidth = 2.dp,
+-                                                    modifier = Modifier.size(24.dp)
++                                                PlaylistDownloadButton(
++                                                    state = downloadState,
++                                                    onDownload = {
++                                                        downloadUtil.download(
++                                                            songs.filterNot { it.song.isLocal }.map { it.toMediaMetadata() }
++                                                        )
++                                                    },
++                                                    onRemoveDownload = { showRemoveDownloadDialog = true }
+                                                 )
+                                             }
+-                                        }
+ 
+-                                        else -> {
+-                                            IconButton(
+-                                                onClick = {
+-                                                    downloadUtil.download(songs.map { it.toMediaMetadata() })
+-                                                }
+-                                            ) {
+-                                                Icon(
+-                                                    Icons.Rounded.Download,
+-                                                    contentDescription = null
++                                            PlaylistHeaderButton.QUEUE -> PlaylistHeaderIconButton(button) {
++                                                playerConnection.enqueueEnd(
++                                                    items = songs.map { it.toMediaItem() }
+                                                 )
+                                             }
+-                                        }
+-                                    }
+ 
+-                                    IconButton(
+-                                        onClick = {
+-                                            playerConnection.enqueueEnd(
+-                                                items = songs.map { it.toMediaItem() }
+-                                            )
++                                            PlaylistHeaderButton.PLAY_NEXT -> PlaylistHeaderIconButton(button) {
++                                                playerConnection.enqueueNext(songs.map { it.toMediaItem() })
++                                            }
++
++                                            PlaylistHeaderButton.EXPORT -> PlaylistHeaderIconButton(button) {
++                                                m3uLauncher.launch(m3uFileName(playlist.name))
++                                            }
+                                         }
+-                                    ) {
+-                                        Icon(
+-                                            Icons.AutoMirrored.Rounded.QueueMusic,
+-                                            contentDescription = null
+-                                        )
+                                     }
+                                 }
+                             }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/LocalPlaylistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/LocalPlaylistScreen.kt
+index fbf451d..0cf26f2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/LocalPlaylistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/LocalPlaylistScreen.kt
+@@ -129,11 +129,18 @@ import com.dd3boh.outertune.ui.component.SelectHeader
+ import com.dd3boh.outertune.ui.component.SortHeader
+ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.component.items.PlaylistThumbnail
++import com.dd3boh.outertune.ui.component.items.SavedPlaylistBadge
+ import com.dd3boh.outertune.ui.component.items.SongListItem
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
+ import com.dd3boh.outertune.ui.dialog.TextFieldDialog
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.ui.utils.getNSongsString
++import com.dd3boh.outertune.ui.utils.m3uFileName
++import com.dd3boh.outertune.ui.utils.rememberM3uExportLauncher
++import com.dd3boh.outertune.utils.getDownloadState
++import androidx.compose.material.icons.rounded.LibraryAdd
++import androidx.compose.material.icons.rounded.LibraryAddCheck
+ import com.dd3boh.outertune.utils.makeTimeString
+ import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
+@@ -272,37 +279,16 @@ fun LocalPlaylistScreen(
+     }
+ 
+     if (showRemoveDownloadDialog) {
+-        DefaultDialog(
++        RemoveDownloadsDialog(
++            songIds = playlistWithSongs.second.map { it.song.id },
+             onDismiss = { showRemoveDownloadDialog = false },
+-            content = {
+-                Text(
+-                    text = stringResource(R.string.remove_download_playlist_confirm, playlistWithSongs.first?.playlist!!.name),
+-                    style = MaterialTheme.typography.bodyLarge,
+-                    modifier = Modifier.padding(horizontal = 18.dp)
+-                )
+-            },
+-            buttons = {
+-                TextButton(
+-                    onClick = { showRemoveDownloadDialog = false }
+-                ) {
+-                    Text(text = stringResource(android.R.string.cancel))
+-                }
+-
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                        if (!editable) {
+-                            database.transaction {
+-                                playlistWithSongs.first?.id?.let { clearPlaylist(it) }
+-                            }
+-                        }
+-
+-                        playlistWithSongs.second.forEach { song ->
+-                            removeDownloadKeepingCache(song.song.id)
+-                        }
++            onConfirm = {
++                // Unchanged from before the dialog: a playlist this account cannot edit keeps its
++                // songs here only as a copy to download from, so the copy goes with the downloads.
++                if (!editable) {
++                    database.transaction {
++                        playlistWithSongs.first?.id?.let { clearPlaylist(it) }
+                     }
+-                ) {
+-                    Text(text = stringResource(android.R.string.ok))
+                 }
+             }
+         )
+@@ -458,6 +444,7 @@ fun LocalPlaylistScreen(
+                             LocalPlaylistHeader(
+                                 playlist = playlist,
+                                 songs =  playlistWithSongs.second,
++                                canEdit = playlist.playlist.isLocal || playlist.playlist.isEditable,
+                                 onShowEditDialog = { showEditDialog = true },
+                                 onShowRemoveDownloadDialog = { showRemoveDownloadDialog = true },
+                                 snackbarHostState = snackbarHostState,
+@@ -665,6 +652,7 @@ fun LocalPlaylistScreen(
+ fun LocalPlaylistHeader(
+     playlist: Playlist,
+     songs: List<PlaylistSong>,
++    canEdit: Boolean,
+     onShowEditDialog: () -> Unit,
+     onShowRemoveDownloadDialog: () -> Unit,
+     snackbarHostState: SnackbarHostState,
+@@ -678,6 +666,8 @@ fun LocalPlaylistHeader(
+     val isNetworkConnected = LocalNetworkConnected.current
+     val scope = rememberCoroutineScope()
+     val syncUtils = LocalSyncUtils.current
++    val buttons = rememberPlaylistHeaderButtons()
++    val m3uLauncher = rememberM3uExportLauncher { songs.map { it.song } }
+ 
+     val playlistLength = remember(songs) {
+         songs.fastSumBy { it.song.song.duration }
+@@ -688,22 +678,35 @@ fun LocalPlaylistHeader(
+         mutableIntStateOf(Download.STATE_STOPPED)
+     }
+ 
+-//    LaunchedEffect(songs) {
+-//        val songs = songs.filterNot { it.song.song.isLocal }
+-//        if (songs.isEmpty()) return@LaunchedEffect
+-//        downloadUtil.downloads.collect { downloads ->
+-//            downloadState = getDownloadState(songs.map { downloads[it.song.id] })
+-//        }
+-//    }
++    // Back on. With this commented out the state never left STATE_STOPPED, so a playlist whose
++    // every song was on the device still offered "Download" where Liked songs, an album or an
++    // online playlist showed the downloaded pin - and the pin, being the way into removing the
++    // downloads, was never there either. Same as the other screens: all non-local songs downloaded
++    // is "downloaded", any of them in flight is "downloading". Reset first, so emptying the
++    // playlist does not leave the last list's state behind.
++    LaunchedEffect(songs) {
++        downloadState = Download.STATE_STOPPED
++        val songs = songs.filterNot { it.song.song.isLocal }
++        if (songs.isEmpty()) return@LaunchedEffect
++        downloadUtil.downloads.collect { downloads ->
++            downloadState = getDownloadState(songs.map { downloads[it.song.id] })
++        }
++    }
+ 
+     Column(
+         verticalArrangement = Arrangement.spacedBy(12.dp),
+         modifier = modifier.padding(12.dp)
+     ) {
+-        FlowRow(
+-            horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+-            verticalArrangement = Arrangement.spacedBy(12.dp),
+-            itemVerticalAlignment = Alignment.CenterVertically
++        // A Row, as on the album, Liked songs and online playlist pages - not the FlowRow this was.
++        // The FlowRow had no width of its own and centred each line it made, so as soon as the
++        // title column wanted more width than was left beside the cover (a long name, which saved
++        // playlists from YouTube Music nearly always have, or the extra buttons they carry), the
++        // column wrapped below and the cover was left alone on its line, centred: pushed right,
++        // away from the edge every other page draws it against. In a Row the column takes the
++        // remaining width and the title ellipsises instead.
++        Row(
++            horizontalArrangement = Arrangement.spacedBy(12.dp),
++            verticalAlignment = Alignment.CenterVertically
+         ) {
+             PlaylistThumbnail(
+                 playlist = playlist.playlist,
+@@ -716,6 +719,7 @@ fun LocalPlaylistHeader(
+ 
+             Column(
+                 verticalArrangement = Arrangement.Center,
++                modifier = Modifier.weight(1f)
+             ) {
+                 AutoResizeText(
+                     text = playlist.playlist.name,
+@@ -725,6 +729,9 @@ fun LocalPlaylistHeader(
+                     fontSizeRange = FontSizeRange(16.sp, 22.sp)
+                 )
+ 
++                // Mark saved playlists: someone else's playlist says so on its own page too.
++                SavedPlaylistBadge(playlist.playlist)
++
+                 Row(verticalAlignment = Alignment.CenterVertically) {
+                     if (playlist.downloadCount > 0) {
+                         Icon(
+@@ -749,90 +756,81 @@ fun LocalPlaylistHeader(
+                     fontWeight = FontWeight.Normal
+                 )
+ 
+-                Row {
+-                    IconButton(
+-                        onClick = onShowEditDialog
+-                    ) {
+-                        Icon(
+-                            imageVector = Icons.Rounded.Edit,
+-                            contentDescription = null
+-                        )
+-                    }
+-
+-                    if (playlist.playlist.browseId != null) {
++                // The buttons chosen in Settings > Library and content > Playlist buttons, each where
++                // it applies. A FlowRow here, so that choosing many wraps them under each other
++                // instead of pushing the last ones out of sight.
++                FlowRow {
++                    // A saved playlist is someone else's: it cannot be edited, but it can be taken
++                    // off the library - first, where Edit would be. Toggling rather than leaving the
++                    // page, so a mistaken tap is undone with the same button.
++                    if (playlist.playlist.isSaved) {
++                        val inLibrary = playlist.playlist.bookmarkedAt != null
+                         IconButton(
+                             onClick = {
+-                                scope.launch {
+-                                    val playlistSyncedMessage = resources.getString(R.string.playlist_synced)
+-                                    syncUtils.syncPlaylist(playlist.playlist.browseId, playlist.id)
+-                                    snackbarHostState.showSnackbar(
+-                                        message = playlistSyncedMessage,
+-                                        withDismissAction = true
+-                                    )
++                                database.query {
++                                    update(playlist.playlist.toggleLike())
+                                 }
+-                            },
+-                            enabled = isNetworkConnected
++                            }
+                         ) {
+                             Icon(
+-                                imageVector = Icons.Rounded.Sync,
+-                                contentDescription = null
++                                imageVector = if (inLibrary) Icons.Rounded.LibraryAddCheck else Icons.Rounded.LibraryAdd,
++                                contentDescription = stringResource(
++                                    if (inLibrary) R.string.remove_from_library else R.string.add_to_library
++                                )
+                             )
+                         }
+                     }
+ 
+-                    if (songs.any { !it.song.song.isLocal }) {
+-                        when (downloadState) {
+-                            Download.STATE_COMPLETED -> {
+-                                IconButton(
+-                                    onClick = onShowRemoveDownloadDialog
+-                                ) {
+-                                    Icon(
+-                                        imageVector = Icons.Rounded.OfflinePin,
+-                                        contentDescription = null
+-                                    )
+-                                }
++                    for (button in buttons) {
++                        when (button) {
++                            PlaylistHeaderButton.EDIT -> if (canEdit) {
++                                PlaylistHeaderIconButton(button, onClick = onShowEditDialog)
+                             }
+ 
+-                            Download.STATE_DOWNLOADING -> {
+-                                IconButton(
+-                                    onClick = {
+-                                        songs.forEach { song ->
+-                                            removeDownloadKeepingCache(song.song.id)
+-                                        }
++                            PlaylistHeaderButton.SYNC -> playlist.playlist.browseId?.let { browseId ->
++                                PlaylistHeaderIconButton(button, enabled = isNetworkConnected) {
++                                    scope.launch {
++                                        val playlistSyncedMessage = resources.getString(R.string.playlist_synced)
++                                        syncUtils.syncPlaylist(browseId, playlist.id)
++                                        snackbarHostState.showSnackbar(
++                                            message = playlistSyncedMessage,
++                                            withDismissAction = true
++                                        )
+                                     }
+-                                ) {
+-                                    CircularProgressIndicator(
+-                                        strokeWidth = 2.dp,
+-                                        modifier = Modifier.size(24.dp)
+-                                    )
+                                 }
+                             }
+ 
+-                            else -> {
+-                                IconButton(
+-                                    onClick = {
+-                                        downloadUtil.download(songs.map { it.song.toMediaMetadata() })
+-                                    }
+-                                ) {
+-                                    Icon(
+-                                        imageVector = Icons.Rounded.Download,
+-                                        contentDescription = null
++                            PlaylistHeaderButton.DOWNLOAD -> if (songs.any { !it.song.song.isLocal }) {
++                                PlaylistDownloadButton(
++                                    state = downloadState,
++                                    onDownload = {
++                                        downloadUtil.download(
++                                            songs.filterNot { it.song.song.isLocal }.map { it.song.toMediaMetadata() }
++                                        )
++                                    },
++                                    onRemoveDownload = onShowRemoveDownloadDialog
++                                )
++                            }
++
++                            PlaylistHeaderButton.QUEUE -> if (songs.isNotEmpty()) {
++                                PlaylistHeaderIconButton(button) {
++                                    playerConnection.enqueueEnd(
++                                        items = songs.map { it.song.toMediaItem() }
+                                     )
+                                 }
+                             }
+-                        }
+ 
+-                        IconButton(
+-                            onClick = {
+-                                playerConnection.enqueueEnd(
+-                                    items = songs.map { it.song.toMediaItem() }
+-                                )
++                            PlaylistHeaderButton.PLAY_NEXT -> if (songs.isNotEmpty()) {
++                                PlaylistHeaderIconButton(button) {
++                                    playerConnection.enqueueNext(songs.map { it.song.toMediaItem() })
++                                }
++                            }
++
++                            PlaylistHeaderButton.EXPORT -> if (songs.isNotEmpty()) {
++                                PlaylistHeaderIconButton(button) {
++                                    m3uLauncher.launch(m3uFileName(playlist.playlist.name))
++                                }
+                             }
+-                        ) {
+-                            Icon(
+-                                imageVector = Icons.AutoMirrored.Rounded.QueueMusic,
+-                                contentDescription = null
+-                            )
+                         }
+                     }
+                 }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/OnlinePlaylistScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/OnlinePlaylistScreen.kt
+index 67f2023..bbc3363 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/OnlinePlaylistScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/OnlinePlaylistScreen.kt
+@@ -126,6 +126,8 @@ import com.dd3boh.outertune.ui.component.shimmer.ListItemPlaceHolder
+ import com.dd3boh.outertune.ui.component.shimmer.ShimmerHost
+ import com.dd3boh.outertune.ui.component.shimmer.TextPlaceholder
+ import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.ui.dialog.RemoveDownloadsDialog
++import com.dd3boh.outertune.ui.component.items.SavedPlaylistBadge
+ import com.dd3boh.outertune.ui.menu.YouTubePlaylistMenu
+ import com.dd3boh.outertune.ui.menu.YouTubeSongMenu
+ import com.dd3boh.outertune.ui.utils.backToMain
+@@ -250,35 +252,12 @@ fun OnlinePlaylistScreen(
+     }
+ 
+     if (showRemoveDownloadDialog) {
+-        DefaultDialog(
++        RemoveDownloadsDialog(
++            songIds = songs.map { it.id },
+             onDismiss = { showRemoveDownloadDialog = false },
+-            content = {
+-                Text(
+-                    text = stringResource(R.string.remove_download_playlist_confirm, playlist?.title!!),
+-                    style = MaterialTheme.typography.bodyLarge,
+-                    modifier = Modifier.padding(horizontal = 18.dp)
+-                )
+-            },
+-            buttons = {
+-                TextButton(
+-                    onClick = { showRemoveDownloadDialog = false }
+-                ) {
+-                    Text(text = stringResource(android.R.string.cancel))
+-                }
+-
+-                TextButton(
+-                    onClick = {
+-                        showRemoveDownloadDialog = false
+-                        database.transaction {
+-                            dbPlaylist?.id?.let { clearPlaylist(it) }
+-                        }
+-
+-                        songs.forEach { song ->
+-                            removeDownloadKeepingCache(song.id)
+-                        }
+-                    }
+-                ) {
+-                    Text(text = stringResource(android.R.string.ok))
++            onConfirm = {
++                database.transaction {
++                    dbPlaylist?.id?.let { clearPlaylist(it) }
+                 }
+             }
+         )
+@@ -334,6 +313,12 @@ fun OnlinePlaylistScreen(
+                                             fontSizeRange = FontSizeRange(16.sp, 22.sp)
+                                         )
+ 
++                                        // Mark saved playlists, for one in the library: this page is
++                                        // where a saved playlist with no songs stored opens.
++                                        dbPlaylist?.playlist
++                                            ?.takeIf { it.bookmarkedAt != null }
++                                            ?.let { SavedPlaylistBadge(it) }
++
+                                         playlist.author?.let { artist ->
+                                             val annotatedString = buildAnnotatedString {
+                                                 withStyle(
+@@ -423,11 +408,11 @@ fun OnlinePlaylistScreen(
+                                                     }
+ 
+                                                     Download.STATE_DOWNLOADING -> {
++                                                        // Stopping takes the songs already done with
++                                                        // it, so it asks first, like the pin.
+                                                         IconButton(
+                                                             onClick = {
+-                                                                songs.forEach { song ->
+-                                                                    removeDownloadKeepingCache(song.id)
+-                                                                }
++                                                                showRemoveDownloadDialog = true
+                                                             }
+                                                         ) {
+                                                             CircularProgressIndicator(
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/PlaylistHeaderButtons.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/PlaylistHeaderButtons.kt
+new file mode 100644
+index 0000000..4a4ddf6
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/playlist/PlaylistHeaderButtons.kt
+@@ -0,0 +1,133 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.screens.playlist
++
++import androidx.annotation.StringRes
++import androidx.compose.foundation.layout.size
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.automirrored.rounded.PlaylistPlay
++import androidx.compose.material.icons.automirrored.rounded.QueueMusic
++import androidx.compose.material.icons.rounded.Download
++import androidx.compose.material.icons.rounded.Edit
++import androidx.compose.material.icons.rounded.OfflinePin
++import androidx.compose.material.icons.rounded.Output
++import androidx.compose.material.icons.rounded.Sync
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.Icon
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.remember
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.graphics.vector.ImageVector
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.unit.dp
++import androidx.media3.exoplayer.offline.Download
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.PlaylistHeaderButtonsKey
++import com.dd3boh.outertune.ui.component.button.IconButton
++import com.dd3boh.outertune.utils.rememberPreference
++
++/**
++ * The buttons under a playlist's title on its page, as Settings > Library and content > Playlist
++ * buttons has them. Stored as one character each, in order, like Song details.
++ *
++ * A chosen button still shows only where it means something: Edit on a playlist that can be
++ * renamed, Sync on one that lives on YouTube Music (or Liked songs, which is synced from it),
++ * Download where there is something left to download. So the one setting serves every playlist
++ * page, and choosing Sync does not put a dead button on a local playlist.
++ *
++ * Remove from library is not here. It is what a saved playlist (someone else's, kept in the
++ * library) has instead of Edit, and is always shown there - a saved playlist with no way off the
++ * library from its own page would be a trap.
++ */
++enum class PlaylistHeaderButton(val code: Char, @StringRes val title: Int, val icon: ImageVector) {
++    EDIT('E', R.string.edit, Icons.Rounded.Edit),
++    SYNC('S', R.string.action_sync, Icons.Rounded.Sync),
++    DOWNLOAD('D', R.string.action_download, Icons.Rounded.Download),
++    QUEUE('Q', R.string.add_to_queue, Icons.AutoMirrored.Rounded.QueueMusic),
++    PLAY_NEXT('N', R.string.play_next, Icons.AutoMirrored.Rounded.PlaylistPlay),
++    EXPORT('X', R.string.m3u_export, Icons.Rounded.Output),
++    ;
++
++    companion object {
++        /** Edit, Sync, Download, Add to queue - what the playlist page showed before it had a choice. */
++        const val DEFAULT = "ESDQ"
++
++        /** Stored for "none at all" - an empty string is "never chosen", which means [DEFAULT]. */
++        const val NONE = "-"
++
++        /** The stored string as buttons, in order. Unknown or repeated characters are skipped. */
++        fun decode(stored: String): List<PlaylistHeaderButton> =
++            stored.ifEmpty { DEFAULT }.mapNotNull { c -> entries.firstOrNull { it.code == c } }.distinct()
++
++        fun encode(buttons: List<PlaylistHeaderButton>): String =
++            buttons.distinct().joinToString("") { it.code.toString() }.ifEmpty { NONE }
++    }
++}
++
++/** The chosen playlist buttons, in order. */
++@Composable
++fun rememberPlaylistHeaderButtons(): List<PlaylistHeaderButton> {
++    val stored by rememberPreference(PlaylistHeaderButtonsKey, defaultValue = "")
++    return remember(stored) { PlaylistHeaderButton.decode(stored) }
++}
++
++/**
++ * A list's download button: Download, a spinner while it downloads, the downloaded pin once every
++ * song is on the device. The pin and the spinner both lead to [onRemoveDownload] - which every
++ * caller routes through RemoveDownloadsDialog, since it takes the whole list's downloads with it.
++ */
++@Composable
++fun PlaylistDownloadButton(
++    @Download.State state: Int,
++    onDownload: () -> Unit,
++    onRemoveDownload: () -> Unit,
++) {
++    when (state) {
++        Download.STATE_COMPLETED -> {
++            IconButton(onClick = onRemoveDownload) {
++                Icon(
++                    imageVector = Icons.Rounded.OfflinePin,
++                    contentDescription = stringResource(R.string.remove_download)
++                )
++            }
++        }
++
++        Download.STATE_QUEUED, Download.STATE_DOWNLOADING -> {
++            IconButton(onClick = onRemoveDownload) {
++                CircularProgressIndicator(
++                    strokeWidth = 2.dp,
++                    modifier = Modifier.size(24.dp)
++                )
++            }
++        }
++
++        else -> {
++            IconButton(onClick = onDownload) {
++                Icon(
++                    imageVector = Icons.Rounded.Download,
++                    contentDescription = stringResource(R.string.action_download)
++                )
++            }
++        }
++    }
++}
++
++/** One of the plain chosen buttons: its icon, with its name for TalkBack. */
++@Composable
++fun PlaylistHeaderIconButton(
++    button: PlaylistHeaderButton,
++    enabled: Boolean = true,
++    onClick: () -> Unit,
++) {
++    IconButton(onClick = onClick, enabled = enabled) {
++        Icon(
++            imageVector = button.icon,
++            contentDescription = stringResource(button.title)
++        )
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
+index f46f3d8..2019237 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/LibrarySettings.kt
+@@ -47,6 +47,9 @@ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.screens.settings.fragments.LocalizationFrag
+ import com.dd3boh.outertune.ui.screens.settings.fragments.SongDetailsArrangement
++import com.dd3boh.outertune.ui.screens.settings.fragments.PlaylistHeaderButtonsArrangement
++import com.dd3boh.outertune.constants.MarkSavedPlaylistsKey
++import androidx.compose.material.icons.rounded.Bookmark
+ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.utils.rememberPreference
+ 
+@@ -67,6 +70,7 @@ fun LibrarySettings(
+     )
+     val (artistEnrichment, onArtistEnrichmentChange) = rememberPreference(ArtistCreditEnrichmentKey, defaultValue = true)
+     val (showHomeChips, onShowHomeChipsChange) = rememberPreference(ShowHomeChipsKey, defaultValue = false)
++    val (markSavedPlaylists, onMarkSavedPlaylistsChange) = rememberPreference(MarkSavedPlaylistsKey, defaultValue = false)
+ 
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+@@ -91,6 +95,16 @@ fun LibrarySettings(
+                 checked = showLikedAndDownloadedPlaylist,
+                 onCheckedChange = onShowLikedAndDownloadedPlaylistChange
+             )
++            // Beside the other playlist settings: the buttons on a playlist's page, then the tag
++            // that tells someone else's saved playlist from the user's own.
++            PlaylistHeaderButtonsArrangement()
++            SwitchPreference(
++                title = { Text(stringResource(R.string.mark_saved_playlists_title)) },
++                description = stringResource(R.string.mark_saved_playlists_description),
++                icon = { Icon(Icons.Rounded.Bookmark, null) },
++                checked = markSavedPlaylists,
++                onCheckedChange = onMarkSavedPlaylistsChange
++            )
+             SwitchPreference(
+                 title = { Text(stringResource(R.string.show_artist_videos_as_songs_title)) },
+                 description = stringResource(R.string.show_artist_videos_as_songs_description),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
+index 7b621cf..431e647 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlaySyncSettings.kt
+@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.Add
+ import androidx.compose.material.icons.rounded.CloudSync
++import androidx.compose.material.icons.rounded.CloudUpload
+ import androidx.compose.material.icons.rounded.DeleteForever
+ import androidx.compose.material.icons.rounded.Key
+ import androidx.compose.material.icons.rounded.LinkOff
+@@ -62,6 +63,7 @@ import com.dd3boh.outertune.sync.PlaySync
+ import com.dd3boh.outertune.sync.SyncCode
+ import com.dd3boh.outertune.ui.component.ColumnWithContentPadding
+ import com.dd3boh.outertune.ui.component.PreferenceEntry
++import com.dd3boh.outertune.ui.component.PreferenceGroupTitle
+ import com.dd3boh.outertune.ui.component.SwitchPreference
+ import com.dd3boh.outertune.ui.component.button.IconButton
+ import com.dd3boh.outertune.ui.dialog.InfoLabel
+@@ -104,6 +106,7 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
+                     onClick = {
+                         code = SyncCode.generate()
+                         wifi = true
++                        cloud = CloudSyncConfig.configured
+                     },
+                 )
+                 PreferenceEntry(
+@@ -126,44 +129,10 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
+                     },
+                 )
+             }
+-            Spacer(Modifier.height(16.dp))
+-            ElevatedCard(Modifier.fillMaxWidth()) {
+-                SwitchPreference(
+-                    title = { Text(stringResource(R.string.sync_wifi_title)) },
+-                    description = stringResource(R.string.sync_wifi_desc),
+-                    icon = { Icon(Icons.Rounded.Wifi, null) },
+-                    checked = wifi,
+-                    onCheckedChange = { wifi = it },
+-                )
+-                if (wifi) {
+-                    val title = when {
+-                        !status.running -> stringResource(R.string.sync_status_starting)
+-                        status.syncing -> stringResource(R.string.sync_status_syncing)
+-                        status.peers.isEmpty() -> stringResource(R.string.sync_status_looking)
+-                        else -> stringResource(R.string.sync_status_found, status.peers.joinToString())
+-                    }
+-                    val last = status.last
+-                    val lastAt = status.lastAt
+-                    val description = when {
+-                        status.error != null -> stringResource(R.string.sync_status_failed, status.error.orEmpty())
+-                        last != null && lastAt != null -> stringResource(
+-                            R.string.sync_status_last,
+-                            DateUtils.getRelativeTimeSpanString(lastAt).toString(),
+-                            last.peer,
+-                            last.received,
+-                        )
+-                        else -> stringResource(R.string.sync_status_never)
+-                    }
+-                    PreferenceEntry(
+-                        title = { Text(title) },
+-                        description = description,
+-                        descriptionIsExplanation = false,
+-                        icon = { Icon(Icons.Rounded.Sync, null) },
+-                        onClick = { PlaySync.manager?.syncNow() },
+-                    )
+-                }
+-            }
+-            Spacer(Modifier.height(16.dp))
++            // Cloud relay first: it works from anywhere, so it is the one most people want. WiFi sync
++            // below is the no-internet alternative.
++            Spacer(Modifier.height(8.dp))
++            PreferenceGroupTitle(title = stringResource(R.string.sync_cloud_title))
+             ElevatedCard(Modifier.fillMaxWidth()) {
+                 SwitchPreference(
+                     title = { Text(stringResource(R.string.sync_cloud_title)) },
+@@ -200,6 +169,15 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
+                         icon = { Icon(Icons.Rounded.Sync, null) },
+                         onClick = { CloudSync.runner?.syncNow() },
+                     )
++                    PreferenceEntry(
++                        title = { Text(stringResource(R.string.sync_cloud_resend)) },
++                        description = stringResource(R.string.sync_cloud_resend_desc),
++                        icon = { Icon(Icons.Rounded.CloudUpload, null) },
++                        onClick = {
++                            CloudSync.runner?.resendAll(code)
++                            Toast.makeText(context, R.string.sync_cloud_resend_started, Toast.LENGTH_SHORT).show()
++                        },
++                    )
+                 }
+                 if (CloudSyncConfig.configured) {
+                     PreferenceEntry(
+@@ -210,6 +188,45 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
+                     )
+                 }
+             }
++
++            Spacer(Modifier.height(8.dp))
++            PreferenceGroupTitle(title = stringResource(R.string.sync_wifi_group))
++            ElevatedCard(Modifier.fillMaxWidth()) {
++                SwitchPreference(
++                    title = { Text(stringResource(R.string.sync_wifi_title)) },
++                    description = stringResource(R.string.sync_wifi_desc),
++                    icon = { Icon(Icons.Rounded.Wifi, null) },
++                    checked = wifi,
++                    onCheckedChange = { wifi = it },
++                )
++                if (wifi) {
++                    val title = when {
++                        !status.running -> stringResource(R.string.sync_status_starting)
++                        status.syncing -> stringResource(R.string.sync_status_syncing)
++                        status.peers.isEmpty() -> stringResource(R.string.sync_status_looking)
++                        else -> stringResource(R.string.sync_status_found, status.peers.joinToString())
++                    }
++                    val last = status.last
++                    val lastAt = status.lastAt
++                    val description = when {
++                        status.error != null -> stringResource(R.string.sync_status_failed, status.error.orEmpty())
++                        last != null && lastAt != null -> stringResource(
++                            R.string.sync_status_last,
++                            DateUtils.getRelativeTimeSpanString(lastAt).toString(),
++                            last.peer,
++                            last.received,
++                        )
++                        else -> stringResource(R.string.sync_status_never)
++                    }
++                    PreferenceEntry(
++                        title = { Text(title) },
++                        description = description,
++                        descriptionIsExplanation = false,
++                        icon = { Icon(Icons.Rounded.Sync, null) },
++                        onClick = { PlaySync.manager?.syncNow() },
++                    )
++                }
++            }
+             Spacer(Modifier.height(16.dp))
+             ElevatedCard(Modifier.fillMaxWidth()) {
+                 PreferenceEntry(
+@@ -258,6 +275,7 @@ fun PlaySyncSettings(navController: NavController, scrollBehavior: TopAppBarScro
+                     onClick = {
+                         code = valid.orEmpty()
+                         wifi = true
++                        cloud = CloudSyncConfig.configured
+                         entering = false
+                     },
+                 ) { Text(stringResource(R.string.sync_link)) }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt
+index 620879a..5400c83 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PrivacySettings.kt
+@@ -74,14 +74,6 @@ fun PrivacySettings(
+                 onClick = { navController.navigate("history") }
+             )
+             ListenHistoryFrag()
+-            // Where "Count plays from other devices" was: syncing plays with the user's other devices
+-            // is what actually counts them. The YouTube Music history switch lives on that screen.
+-            PreferenceEntry(
+-                title = { Text(stringResource(R.string.sync_title)) },
+-                description = stringResource(R.string.sync_entry_summary),
+-                icon = { Icon(Icons.Rounded.CloudSync, null) },
+-                onClick = { navController.navigate("settings/sync") },
+-            )
+         }
+ 
+         SettingsGroup(title = stringResource(R.string.search_history)) {
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+index ea43c42..b7dccbc 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsIndex.kt
+@@ -179,6 +179,8 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/lyrics", R.string.lyrics_show_type_title, R.string.lyrics_settings_title),
+     SettingsIndexEntry("settings/library", R.string.grp_library_and_content, R.string.grp_library_and_content),
+     SettingsIndexEntry("settings/library", R.string.show_liked_and_downloaded_playlist, R.string.grp_library_and_content),
++    SettingsIndexEntry("settings/library", R.string.playlist_header_buttons, R.string.grp_library_and_content),
++    SettingsIndexEntry("settings/library", R.string.mark_saved_playlists_title, R.string.grp_library_and_content),
+     SettingsIndexEntry("settings/library", R.string.flat_subfolders_title, R.string.grp_library_and_content),
+     SettingsIndexEntry("settings/library", R.string.show_artist_videos_as_songs_title, R.string.grp_library_and_content),
+     SettingsIndexEntry("settings/library", R.string.artist_credit_enrichment_title, R.string.grp_library_and_content),
+@@ -212,7 +214,7 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/privacy", R.string.pause_listen_history, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/privacy", R.string.pause_remote_listen_history, R.string.privacy_and_history),
+     SettingsIndexEntry("settings/privacy", R.string.clear_listen_history, R.string.privacy_and_history),
+-    SettingsIndexEntry("settings/sync", R.string.sync_title, R.string.privacy_and_history),
++    SettingsIndexEntry("settings/sync", R.string.sync_title, R.string.sync_title),
+     SettingsIndexEntry("settings/sync", R.string.sync_wifi_title, R.string.sync_title),
+     SettingsIndexEntry("settings/sync", R.string.sync_cloud_title, R.string.sync_title),
+     SettingsIndexEntry("settings/sync", R.string.stats_include_remote_title, R.string.sync_title),
+@@ -233,7 +235,6 @@ val SETTINGS_INDEX = listOf(
+     SettingsIndexEntry("settings/backup_restore", R.string.backup_restore, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.action_backup, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.action_restore, R.string.backup_restore),
+-    SettingsIndexEntry("settings/backup_restore", R.string.merge_plays_title, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.profiles_title, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_title, R.string.backup_restore),
+     SettingsIndexEntry("settings/backup_restore", R.string.auto_backup_frequency, R.string.backup_restore),
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
+index a50dfd8..30b57f0 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/SettingsScreen.kt
+@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.Palette
+ import androidx.compose.material.icons.rounded.Cast
+ import androidx.compose.material.icons.rounded.PlayArrow
+ import androidx.compose.material.icons.rounded.PrivacyTip
++import androidx.compose.material.icons.rounded.CloudSync
+ import androidx.compose.material.icons.rounded.Restore
+ import androidx.compose.material.icons.rounded.Storage
+ import androidx.compose.material.icons.rounded.WarningAmber
+@@ -156,6 +157,13 @@ fun SettingsScreen(
+                 icon = { Icon(Icons.Rounded.Cast, null) },
+                 onClick = { navController.navigate("settings/listen_together") }
+             )
++            // Its own entry rather than one inside Privacy and history, where it was easy to miss.
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.sync_title)) },
++                description = stringResource(R.string.sync_entry_summary),
++                icon = { Icon(Icons.Rounded.CloudSync, null) },
++                onClick = { navController.navigate("settings/sync") }
++            )
+             PreferenceEntry(
+                 title = { Text(stringResource(R.string.privacy_and_history)) },
+                 icon = { Icon(Icons.Rounded.PrivacyTip, null) },
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlaylistHeaderButtonsArrangement.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlaylistHeaderButtonsArrangement.kt
+new file mode 100644
+index 0000000..9acdd77
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/PlaylistHeaderButtonsArrangement.kt
+@@ -0,0 +1,194 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.screens.settings.fragments
++
++import androidx.compose.foundation.background
++import androidx.compose.foundation.border
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.itemsIndexed
++import androidx.compose.foundation.lazy.rememberLazyListState
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.rounded.DragHandle
++import androidx.compose.material.icons.rounded.SmartButton
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateListOf
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.saveable.rememberSaveable
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.dp
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.constants.PlaylistHeaderButtonsKey
++import com.dd3boh.outertune.ui.component.PreferenceEntry
++import com.dd3boh.outertune.ui.dialog.ActionPromptDialog
++import com.dd3boh.outertune.ui.dialog.InfoLabel
++import com.dd3boh.outertune.ui.screens.playlist.PlaylistHeaderButton
++import com.dd3boh.outertune.utils.rememberPreference
++import sh.calvin.reorderable.ReorderableItem
++import sh.calvin.reorderable.rememberReorderableLazyListState
++
++/**
++ * "Playlist buttons": which buttons sit under a playlist's title on its page, and in what order.
++ *
++ * The same dialog as Player buttons and Song details - drag to order, tap to switch on or off, a
++ * number on each switched-on item giving its place - with the row of icons as the preview. Top of
++ * the list is leftmost. There is no upper limit: the buttons wrap onto a second line rather than
++ * run off the edge, so choosing all six costs space, not buttons.
++ */
++@Composable
++fun PlaylistHeaderButtonsArrangement() {
++    var stored by rememberPreference(PlaylistHeaderButtonsKey, defaultValue = "")
++    var open by rememberSaveable { mutableStateOf(false) }
++    val current = PlaylistHeaderButton.decode(stored)
++
++    PreferenceEntry(
++        title = { Text(stringResource(R.string.playlist_header_buttons)) },
++        description = current.map { stringResource(it.title) }.joinToString()
++            .ifEmpty { stringResource(R.string.playlist_header_buttons_none) },
++        icon = { Icon(Icons.Rounded.SmartButton, null) },
++        onClick = { open = true },
++    )
++    if (!open) return
++
++    // Every button, the chosen ones first in their order, then the rest switched off.
++    val items = remember { mutableStateListOf<Pair<PlaylistHeaderButton, Boolean>>() }
++    fun load(chosen: List<PlaylistHeaderButton>) {
++        items.clear()
++        items += chosen.map { it to true }
++        items += PlaylistHeaderButton.entries.filterNot { it in chosen }.map { it to false }
++    }
++    LaunchedEffect(Unit) { load(current) }
++
++    val listState = rememberLazyListState()
++    val reorderState = rememberReorderableLazyListState(listState) { from, to ->
++        items.add(to.index, items.removeAt(from.index))
++    }
++    val chosen = items.filter { it.second }.map { it.first }
++
++    ActionPromptDialog(
++        title = stringResource(R.string.playlist_header_buttons),
++        onDismiss = { open = false },
++        onConfirm = {
++            stored = PlaylistHeaderButton.encode(chosen)
++            open = false
++        },
++        onReset = { load(PlaylistHeaderButton.decode(PlaylistHeaderButton.DEFAULT)) },
++        onCancel = { open = false },
++    ) {
++        // The row as it will look, left to right.
++        Text(
++            stringResource(R.string.player_buttons_preview),
++            style = MaterialTheme.typography.labelMedium,
++            color = MaterialTheme.colorScheme.onSurfaceVariant,
++        )
++        Row(
++            verticalAlignment = Alignment.CenterVertically,
++            horizontalArrangement = Arrangement.spacedBy(12.dp),
++            modifier = Modifier
++                .fillMaxWidth()
++                .padding(vertical = 8.dp)
++                .heightIn(min = 44.dp)
++                .clip(RoundedCornerShape(12.dp))
++                .background(MaterialTheme.colorScheme.surfaceContainerHigh)
++                .padding(horizontal = 12.dp, vertical = 6.dp),
++        ) {
++            if (chosen.isEmpty()) {
++                Text(
++                    stringResource(R.string.playlist_header_buttons_none),
++                    style = MaterialTheme.typography.bodyMedium,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant,
++                )
++            }
++            chosen.forEach { Icon(it.icon, contentDescription = stringResource(it.title)) }
++        }
++
++        InfoLabel(stringResource(R.string.playlist_header_buttons_order_hint))
++        InfoLabel(stringResource(R.string.playlist_header_buttons_saved_hint))
++
++        LazyColumn(
++            state = listState,
++            modifier = Modifier
++                .padding(vertical = 12.dp)
++                .heightIn(max = 360.dp)
++                .border(2.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f), RoundedCornerShape(12.dp)),
++        ) {
++            itemsIndexed(items, key = { _, item -> item.first.name }) { _, item ->
++                ReorderableItem(state = reorderState, key = item.first.name) {
++                    val (button, on) = item
++                    val position = chosen.indexOf(button)
++                    Row(
++                        verticalAlignment = Alignment.CenterVertically,
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .background(MaterialTheme.colorScheme.surface)
++                            .clickable { items[items.indexOf(item)] = button to !on }
++                            .padding(start = 12.dp, end = 16.dp, top = 12.dp, bottom = 12.dp),
++                    ) {
++                        // Its place in the row, counted from the left - or nothing while it is off.
++                        Box(
++                            contentAlignment = Alignment.Center,
++                            modifier = Modifier
++                                .size(24.dp)
++                                .clip(CircleShape)
++                                .background(if (on) MaterialTheme.colorScheme.primary else Color.Transparent)
++                                .border(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = if (on) 0f else 0.6f), CircleShape),
++                        ) {
++                            if (on) {
++                                Text(
++                                    "${position + 1}",
++                                    color = MaterialTheme.colorScheme.onPrimary,
++                                    style = MaterialTheme.typography.labelMedium,
++                                    fontWeight = FontWeight.Bold,
++                                )
++                            }
++                        }
++                        Spacer(modifier = Modifier.width(12.dp))
++                        Icon(
++                            button.icon,
++                            contentDescription = null,
++                            tint = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
++                        )
++                        Spacer(modifier = Modifier.width(12.dp))
++                        Text(
++                            stringResource(button.title),
++                            color = if (on) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
++                            modifier = Modifier.weight(1f),
++                        )
++                        Icon(
++                            Icons.Rounded.DragHandle,
++                            contentDescription = null,
++                            modifier = Modifier.draggableHandle(),
++                        )
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+index c109e23..a7e579c 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/StorageFrag.kt
+@@ -28,7 +28,6 @@ import androidx.compose.material.icons.rounded.Close
+ import androidx.compose.material.icons.rounded.Downloading
+ import androidx.compose.material.icons.rounded.FolderCopy
+ import androidx.compose.material.icons.rounded.Restore
+-import androidx.compose.material.icons.rounded.MergeType
+ import androidx.compose.material.icons.rounded.Sync
+ import androidx.compose.material.icons.rounded.Wifi
+ import androidx.compose.material3.Button
+@@ -160,22 +159,6 @@ fun ColumnScope.BackupAndRestoreFrag(viewModel: BackupRestoreViewModel) {
+     }
+     Spacer(modifier = Modifier.height(16.dp))
+ 
+-    // Another device's plays added to this one's for Stats - see PlayMerge. Any file type: the
+-    // desktop's backups and older ones from here come with different extensions and mime types.
+-    val mergeLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+-        if (uri != null) viewModel.mergePlays(uri)
+-    }
+-    ElevatedCard(
+-        modifier = Modifier.fillMaxWidth()
+-    ) {
+-        PreferenceEntry(
+-            title = { Text(stringResource(R.string.merge_plays_title)) },
+-            description = stringResource(R.string.merge_plays_desc),
+-            icon = { Icon(Icons.Rounded.MergeType, null) },
+-            onClick = { mergeLauncher.launch(arrayOf("*/*")) }
+-        )
+-    }
+-    Spacer(modifier = Modifier.height(16.dp))
+ 
+     AutomaticBackupFrag()
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/utils/M3uExport.kt b/app/src/main/java/com/dd3boh/outertune/ui/utils/M3uExport.kt
+new file mode 100644
+index 0000000..0ac0c2f
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/utils/M3uExport.kt
+@@ -0,0 +1,68 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.utils
++
++import android.net.Uri
++import androidx.activity.compose.ManagedActivityResultLauncher
++import androidx.activity.compose.rememberLauncherForActivityResult
++import androidx.activity.result.contract.ActivityResultContracts
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.platform.LocalContext
++import com.dd3boh.outertune.db.entities.Song
++import com.dd3boh.outertune.utils.lmScannerCoroutine
++import com.dd3boh.outertune.utils.reportException
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.launch
++import java.io.IOException
++
++/**
++ * The .m3u a playlist exports as. Lifted out of PlaylistMenu unchanged so that Liked songs and
++ * Downloaded songs - which are not playlists in the database, and so never had the menu - write
++ * exactly the same file as every other playlist: a local song by its id and path, anything else by
++ * its YouTube link.
++ */
++fun buildM3u(songs: List<Song>): String {
++    val result = StringBuilder("#EXTM3U\n")
++    songs.forEach { s ->
++        val se = s.song
++        result.append("#EXTINF:${se.duration},${s.artists.joinToString(";") { it.name }} - ${s.title}\n")
++        result.append(if (se.isLocal) "${se.id}, ${se.localPath}" else "https://youtube.com/watch?v=${se.id}")
++        result.append("\n")
++    }
++    return result.toString()
++}
++
++/**
++ * A launcher that asks where to save the .m3u and writes [songs] there. Launch it with the file
++ * name to suggest, e.g. `launcher.launch("playlist.m3u")`.
++ *
++ * [songs] is read when the user has picked the file, not when the launcher is made, so a list that
++ * was still loading when the menu opened is exported in full.
++ */
++@Composable
++fun rememberM3uExportLauncher(songs: () -> List<Song>): ManagedActivityResultLauncher<String, Uri?> {
++    val context = LocalContext.current
++    return rememberLauncherForActivityResult(
++        contract = ActivityResultContracts.CreateDocument("audio/x-mpegurl")
++    ) { uri: Uri? ->
++        uri ?: return@rememberLauncherForActivityResult
++        val toExport = songs()
++        CoroutineScope(lmScannerCoroutine).launch {
++            try {
++                context.contentResolver.openOutputStream(uri)?.use { outputStream ->
++                    outputStream.write(buildM3u(toExport).toByteArray(Charsets.UTF_8))
++                }
++            } catch (e: IOException) {
++                reportException(e)
++            }
++        }
++    }
++}
++
++/** A file name for [name]'s export: the characters a file system refuses swapped for "_". */
++fun m3uFileName(name: String): String =
++    name.replace(Regex("""[\\/:*?"<>|]"""), "_").trim().ifEmpty { "playlist" } + ".m3u"
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt b/app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt
+deleted file mode 100644
+index 8789287..0000000
+--- a/app/src/main/java/com/dd3boh/outertune/utils/PlayMerge.kt
++++ /dev/null
+@@ -1,200 +0,0 @@
+-/*
+- * Copyright (C) 2026 OuterTune Project
+- *
+- * SPDX-License-Identifier: GPL-3.0
+- */
+-
+-package com.dd3boh.outertune.utils
+-
+-import android.content.Context
+-import android.database.sqlite.SQLiteDatabase
+-import android.net.Uri
+-import com.dd3boh.outertune.db.MusicDatabase
+-import com.dd3boh.outertune.models.MediaMetadata
+-import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.withContext
+-import java.io.File
+-import java.util.zip.ZipInputStream
+-
+-/**
+- * Adds another device's plays to this phone's - another phone's backup, or a backup from
+- * OuterTune for Windows - and nothing else: no like, playlist or setting is touched, and nothing
+- * here is replaced. This is how Stats gets the plays made elsewhere: the account's YouTube Music
+- * history keeps each song once, with no count and no listening time, so it can never carry them.
+- *
+- * **Never counts a play twice.** A play is its song and the exact instant it was recorded, and one
+- * already here is skipped. Both apps keep that instant exactly as it was first written, through any
+- * number of merges in either direction, so merging the same backup again - or a computer's backup
+- * holding plays it merged from this phone - adds only what is new.
+- *
+- * Songs this phone already has keep their own details; only songs new to it are added, with their
+- * credits and length. Local files are left out: their ids mean nothing on another device.
+- */
+-object PlayMerge {
+-
+-    data class Result(val plays: Int, val newSongs: Int)
+-
+-    private class Song(val id: String, val title: String, val thumbnail: String?, val durationSec: Int, val artists: List<MediaMetadata.Artist>)
+-
+-    private class Play(val songId: String, val at: Long, val playTimeMs: Long)
+-
+-    suspend fun mergeFrom(context: Context, database: MusicDatabase, uri: Uri): Result = withContext(Dispatchers.IO) {
+-        val temp = File.createTempFile("merge", ".db", context.cacheDir)
+-        try {
+-            var found = false
+-            context.contentResolver.openInputStream(uri)?.use { input ->
+-                ZipInputStream(input.buffered()).use { zip ->
+-                    var entry = zip.nextEntry
+-                    while (entry != null) {
+-                        // This phone's song.db, or the desktop's library.db.
+-                        if (!entry.isDirectory && entry.name.endsWith(".db")) {
+-                            temp.outputStream().use { zip.copyTo(it) }
+-                            found = true
+-                            break
+-                        }
+-                        entry = zip.nextEntry
+-                    }
+-                }
+-            }
+-            if (!found) error("not an OuterTune backup")
+-
+-            val (songs, plays) = SQLiteDatabase.openDatabase(temp.path, null, SQLiteDatabase.OPEN_READONLY).use { source ->
+-                if (hasTable(source, "play_event")) readDesktop(source) else readPhone(source)
+-            }
+-            merge(database, songs, plays)
+-        } finally {
+-            temp.delete()
+-            File(temp.path + "-journal").delete()
+-        }
+-    }
+-
+-    private fun hasTable(db: SQLiteDatabase, name: String): Boolean =
+-        db.rawQuery("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", arrayOf(name)).use { it.moveToFirst() }
+-
+-    private fun columns(db: SQLiteDatabase, table: String): Set<String> =
+-        db.rawQuery("PRAGMA table_info($table)", null).use { c ->
+-            buildSet { while (c.moveToNext()) add(c.getString(c.getColumnIndexOrThrow("name"))) }
+-        }
+-
+-    /** Another phone's backup: its played songs, their credits, and every play with its listening time. */
+-    private fun readPhone(db: SQLiteDatabase): Pair<Map<String, Song>, List<Play>> {
+-        val credits = HashMap<String, MutableList<MediaMetadata.Artist>>()
+-        runCatching {
+-            db.rawQuery(
+-                "SELECT m.songId, a.id, a.name FROM song_artist_map m JOIN artist a ON a.id = m.artistId ORDER BY m.songId, m.position",
+-                null,
+-            ).use { c ->
+-                while (c.moveToNext()) {
+-                    val artistId = c.getString(1)
+-                    // The other phone's own ids for artists with no channel mean nothing here.
+-                    val id = artistId?.takeUnless { it.startsWith("LA") }
+-                    credits.getOrPut(c.getString(0)) { mutableListOf() } += MediaMetadata.Artist(id, c.getString(2))
+-                }
+-            }
+-        }
+-        val songCols = columns(db, "song")
+-        val duration = if ("duration" in songCols) "duration" else "-1"
+-        val songs = HashMap<String, Song>()
+-        db.rawQuery(
+-            "SELECT id, title, thumbnailUrl, $duration, isLocal FROM song WHERE id IN (SELECT DISTINCT songId FROM event)",
+-            null,
+-        ).use { c ->
+-            while (c.moveToNext()) {
+-                if (c.getInt(4) != 0) continue
+-                val id = c.getString(0) ?: continue
+-                songs[id] = Song(id, c.getString(1) ?: continue, c.getString(2), c.getInt(3), credits[id].orEmpty())
+-            }
+-        }
+-        val plays = db.rawQuery("SELECT songId, timestamp, playTime FROM event", null).use { c ->
+-            buildList {
+-                while (c.moveToNext()) {
+-                    val songId = c.getString(0)?.takeIf { it in songs } ?: continue
+-                    add(Play(songId, c.getLong(1), c.getLong(2)))
+-                }
+-            }
+-        }
+-        return songs to plays
+-    }
+-
+-    /**
+-     * A computer's library: its played songs (not its local files) and its plays. The desktop keeps
+-     * no listening time per play, only the song's length, so that is what each play counts as - the
+-     * same thing the desktop's own Stats count.
+-     */
+-    private fun readDesktop(db: SQLiteDatabase): Pair<Map<String, Song>, List<Play>> {
+-        val credits = HashMap<String, MutableList<MediaMetadata.Artist>>()
+-        db.rawQuery(
+-            "SELECT sa.songId, a.id, a.name FROM song_artist sa JOIN artist a ON a.id = sa.artistId ORDER BY sa.songId, sa.position",
+-            null,
+-        ).use { c ->
+-            while (c.moveToNext()) {
+-                // "local:name" is the desktop's credit with no channel behind it.
+-                val id = c.getString(1)?.takeUnless { it.startsWith("local:") }
+-                credits.getOrPut(c.getString(0)) { mutableListOf() } += MediaMetadata.Artist(id, c.getString(2))
+-            }
+-        }
+-        val local = if (hasTable(db, "local_file")) {
+-            db.rawQuery("SELECT songId FROM local_file", null).use { c -> buildSet { while (c.moveToNext()) add(c.getString(0)) } }
+-        } else emptySet()
+-        val songs = HashMap<String, Song>()
+-        db.rawQuery(
+-            "SELECT id, title, thumbnail, durationMs FROM song WHERE id IN (SELECT DISTINCT songId FROM play_event)",
+-            null,
+-        ).use { c ->
+-            while (c.moveToNext()) {
+-                val id = c.getString(0) ?: continue
+-                if (id in local) continue
+-                songs[id] = Song(
+-                    id, c.getString(1) ?: continue, c.getString(2)?.takeIf { it.isNotBlank() },
+-                    (c.getLong(3) / 1000).toInt().takeIf { it > 0 } ?: -1, credits[id].orEmpty(),
+-                )
+-            }
+-        }
+-        val plays = db.rawQuery("SELECT songId, playedAt FROM play_event", null).use { c ->
+-            buildList {
+-                while (c.moveToNext()) {
+-                    val song = c.getString(0)?.let(songs::get) ?: continue
+-                    add(Play(song.id, c.getLong(1), song.durationSec.coerceAtLeast(0) * 1000L))
+-                }
+-            }
+-        }
+-        return songs to plays
+-    }
+-
+-    /** One transaction: new songs, then every play not already here. */
+-    private fun merge(database: MusicDatabase, songs: Map<String, Song>, plays: List<Play>): Result =
+-        database.runInTransaction {
+-            val db = database.openHelper.writableDatabase
+-            var newSongs = 0
+-            songs.values.forEach { song ->
+-                val known = db.query("SELECT 1 FROM song WHERE id = ?", arrayOf<Any>(song.id)).use { it.moveToFirst() }
+-                if (known) return@forEach
+-                database.insert(
+-                    MediaMetadata(
+-                        id = song.id,
+-                        title = song.title,
+-                        artists = song.artists,
+-                        duration = song.durationSec,
+-                        thumbnailUrl = song.thumbnail,
+-                        genre = null,
+-                    )
+-                )
+-                newSongs++
+-            }
+-            var added = 0
+-            plays.forEach { play ->
+-                // The play's identity: its song and its exact instant, as stored.
+-                val seen = db.query(
+-                    "SELECT 1 FROM event WHERE songId = ? AND timestamp = ?",
+-                    arrayOf<Any>(play.songId, play.at),
+-                ).use { it.moveToFirst() }
+-                if (seen) return@forEach
+-                db.execSQL(
+-                    "INSERT INTO event (songId, timestamp, playTime) VALUES (?, ?, ?)",
+-                    arrayOf<Any>(play.songId, play.at, play.playTimeMs),
+-                )
+-                added++
+-            }
+-            Result(plays = added, newSongs = newSongs)
+-        }
+-}
+diff --git a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+index d50a531..73ca607 100644
+--- a/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
++++ b/app/src/main/java/com/dd3boh/outertune/viewmodels/BackupRestoreViewModel.kt
+@@ -14,7 +14,6 @@ import com.dd3boh.outertune.db.MusicDatabase
+ import com.dd3boh.outertune.extensions.div
+ import com.dd3boh.outertune.extensions.zipInputStream
+ import com.dd3boh.outertune.playback.MusicService
+-import com.dd3boh.outertune.utils.PlayMerge
+ import com.dd3boh.outertune.utils.BACKUP_SETTINGS_FILENAME
+ import com.dd3boh.outertune.utils.reportException
+ import com.dd3boh.outertune.utils.writeBackup
+@@ -54,25 +53,6 @@ class BackupRestoreViewModel @Inject constructor(
+         }
+     }
+ 
+-    /** Merges another device's plays into this one's - see [PlayMerge]. Nothing is replaced. */
+-    fun mergePlays(uri: Uri) {
+-        viewModelScope.launch {
+-            runCatching { PlayMerge.mergeFrom(context, database, uri) }
+-                .onSuccess { result ->
+-                    val message = if (result.plays == 0) {
+-                        context.getString(R.string.merge_plays_none)
+-                    } else {
+-                        context.getString(R.string.merge_plays_done, result.plays, result.newSongs)
+-                    }
+-                    Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+-                }
+-                .onFailure {
+-                    reportException(it)
+-                    Toast.makeText(context, R.string.merge_plays_failed, Toast.LENGTH_SHORT).show()
+-                }
+-        }
+-    }
+-
+     fun restore(uri: Uri) {
+         // The file work runs on IO - copying a database of any size on the main thread froze the
+         // screen long enough to trip an ANR. The Toasts and the restart come back to the main thread.
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index f97d2e9..4a08bf5 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -446,24 +446,23 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="sync_status_last">Synced %1$s with %2$s: %3$d new plays here. Tap to sync now</string>
+     <string name="sync_status_never">Tap to sync now</string>
+     <string name="sync_status_failed">Last try failed (%1$s). Tap to try again</string>
+-    <string name="sync_cloud_title">Cloud sync</string>
+-    <string name="sync_cloud_desc">Keeps your plays in an encrypted store online, so your devices sync from anywhere, not just on the same WiFi. They\'re encrypted with your sync code before they leave this device, so only your devices can find or read them. No account needed.</string>
++    <string name="sync_cloud_title">Cloud relay</string>
++    <string name="sync_cloud_desc">Passes new plays between your devices through the cloud, from anywhere. Each batch waits online only until all your devices have it (30 days at most), then it\'s deleted. Encrypted with your sync code before it leaves this device, so only your devices can read it. No account needed.</string>
++    <string name="sync_cloud_resend">Send everything again</string>
++    <string name="sync_cloud_resend_desc">Sends all of this device\'s plays and asks your other devices for all of theirs, e.g. after reinstalling. Nothing is counted twice</string>
++    <string name="sync_cloud_resend_started">Sending everything again</string>
++    <string name="sync_wifi_group">WiFi sync</string>
+     <string name="sync_cloud_unavailable">Not available in this version yet</string>
+     <string name="sync_cloud_now">Tap to sync now</string>
+     <string name="sync_cloud_status_last">Synced %1$s: %2$d new plays here, %3$d sent</string>
+     <string name="sync_cloud_delete">Delete my plays from the cloud</string>
+     <string name="sync_cloud_delete_desc">Removes everything stored online for this sync code. Plays on your devices stay</string>
+-    <string name="sync_cloud_delete_confirm">This removes all your plays stored online for this sync code, for every linked device, and turns cloud sync off here. Plays on your devices stay. A device that still has cloud sync on will upload its plays again.</string>
++    <string name="sync_cloud_delete_confirm">This removes everything waiting online for this sync code, for every linked device, and turns Cloud relay off here. Plays on your devices stay.</string>
+     <string name="sync_cloud_deleted">Cloud data deleted</string>
+     <string name="sync_cloud_delete_failed">Couldn\'t delete the cloud data</string>
+     <string name="sync_unlink">Unlink this device</string>
+     <string name="sync_unlink_desc">Stops syncing and forgets the code. Plays already here stay</string>
+     <string name="sync_unlink_confirm">This device stops syncing and forgets the code. Plays already synced stay, and you can link it again with the code from another device.</string>
+-    <string name="merge_plays_title">Add plays from another device</string>
+-    <string name="merge_plays_desc">Adds the plays in another phone\'s backup, or an OuterTune for Windows backup, to Stats. Plays already here are skipped, so nothing is counted twice. Nothing else is changed.</string>
+-    <string name="merge_plays_done">Added %1$d plays (%2$d songs new to this phone)</string>
+-    <string name="merge_plays_none">Nothing new: every play in that backup is already here</string>
+-    <string name="merge_plays_failed">Couldn\'t read that backup</string>
+     <string name="imported_playlist">Imported playlist</string>
+     <string name="backup_create_success">Backup created successfully</string>
+     <string name="backup_create_failed">Couldn\'t create backup</string>
+@@ -600,4 +599,17 @@ We recycle translations from upstream, they are pulled periodically. -->
+     <string name="hide_settings_descriptions">Hide setting descriptions</string>
+     <string name="hide_settings_descriptions_desc">Hide the text under settings. Values and errors still show.</string>
+     <string name="eq_headroom_smart">Smart - only as much as each song needs</string>
++    <string name="remove_downloads_title">Remove downloads</string>
++    <plurals name="remove_n_downloads_confirm">
++        <item quantity="one">Remove %d downloaded song from this device?</item>
++        <item quantity="other">Remove %d downloaded songs from this device?</item>
++    </plurals>
++    <string name="action_remove">Remove</string>
++    <string name="playlist_header_buttons">Playlist buttons</string>
++    <string name="playlist_header_buttons_none">No buttons</string>
++    <string name="playlist_header_buttons_order_hint">Top of the list is the leftmost button. Drag to reorder, tap to turn on or off. A button shows only where it applies: Edit on playlists you can rename, Sync on playlists from YouTube Music, Download where there is something to download.</string>
++    <string name="playlist_header_buttons_saved_hint">Playlists you saved from someone else also get Remove from library, in place of Edit.</string>
++    <string name="mark_saved_playlists_title">Mark saved playlists</string>
++    <string name="mark_saved_playlists_description">Show a \"Saved\" label on playlists someone else made that you saved to your library</string>
++    <string name="saved_playlist_label">Saved</string>
+ </resources>
+-- 
+2.56.0.windows.4
+
