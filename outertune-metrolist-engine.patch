@@ -265761,3 +265761,43 @@ index 5f0f93e..a524695 100644
 -- 
 2.56.0.windows.4
 
+From dd397db611c73f0cbfcb8d541caa50bf9b8176d2 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Wed, 11 Nov 2026 16:23:52 +0800
+Subject: [PATCH] Playlist rows: downloaded pin only once every song is
+ downloaded
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/ui/component/items/PlaylistItems.kt  | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt
+index f2c09f6..dda3531 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/items/PlaylistItems.kt
+@@ -140,7 +140,9 @@ fun PlaylistListItem(
+         // parameter defaults to false and not one of the fourteen call sites passes true, so a
+         // fully downloaded playlist never showed the pin anywhere in the app. The edit and local
+         // icons below genuinely are per-screen decoration and stay gated.
+-        if (playlist.downloadCount > 0) {
++        // Only once every song is downloaded, as the playlist's own page shows it; how many are is in
++        // the subtitle.
++        if (playlist.songCount > 0 && playlist.downloadCount >= playlist.songCount) {
+             Icon(
+                 imageVector = Icons.Rounded.OfflinePin,
+                 contentDescription = null,
+@@ -194,7 +196,9 @@ fun PlaylistGridItem(
+     badges = {
+         PlaylistIcon(playlist.playlist)
+         SavedPlaylistBadge(playlist.playlist)
+-        if (playlist.downloadCount > 0) {
++        // Only once every song is downloaded, as the playlist's own page shows it; how many are is in
++        // the subtitle.
++        if (playlist.songCount > 0 && playlist.downloadCount >= playlist.songCount) {
+             Icon(
+                 imageVector = Icons.Rounded.OfflinePin,
+                 contentDescription = null,
+-- 
+2.56.0.windows.4
+
