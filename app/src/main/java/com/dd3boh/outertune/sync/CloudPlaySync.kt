@@ -479,7 +479,7 @@ class CloudSyncRunner(
     fun resendAll(code: String) {
         scope.launch {
             runCatching { CloudPlaySync(store, code, memory).resendAll() }
-                .onFailure { e -> _status.update { it.copy(error = e.message ?: e.javaClass.simpleName) } }
+                .onFailure { e -> _status.update { it.copy(error = describe(e)) } }
             syncNow()
         }
     }
@@ -501,7 +501,7 @@ class CloudSyncRunner(
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            _status.update { it.copy(error = e.message ?: e.javaClass.simpleName) }
+            _status.update { it.copy(error = describe(e)) }
         } finally {
             _status.update { it.copy(syncing = false) }
         }
@@ -510,6 +510,19 @@ class CloudSyncRunner(
     companion object {
         /** Between syncs while running. */
         private const val ROUND_MS = 30 * 60_000L
+
+        /**
+         * What went wrong, in words. The exceptions' own messages are often just the server's
+         * address - a failed lookup reports the host name and nothing else - which says nothing.
+         */
+        fun describe(e: Throwable): String = when (e) {
+            is java.net.UnknownHostException ->
+                "can't find the sync server - no internet, or a DNS or ad blocker is blocking firebasedatabase.app"
+            is java.net.SocketTimeoutException, is java.net.ConnectException, is java.net.NoRouteToHostException ->
+                "couldn't reach the sync server - check the connection"
+            is javax.net.ssl.SSLException -> "secure connection to the sync server failed (${e.message})"
+            else -> "${e.javaClass.simpleName}: ${e.message.orEmpty()}".trimEnd(':', ' ')
+        }
     }
 }
 
