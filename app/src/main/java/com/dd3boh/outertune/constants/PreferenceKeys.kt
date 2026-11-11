@@ -691,10 +691,6 @@ val PlaySyncWifiKey = booleanPreferencesKey("playSyncWifi")
 /** Whether plays are synced through the cloud (CloudPlaySync) with the devices sharing [PlaySyncCodeKey]. */
 val PlaySyncCloudKey = booleanPreferencesKey("playSyncCloud")
 
-/** What Cloud relay remembers on this device - see CloudSyncMemory. */
-val CloudRelayDeviceKey = stringPreferencesKey("cloudRelayDevice")
-val CloudRelaySentKey = longPreferencesKey("cloudRelaySent")
-val CloudRelayTakenKey = stringPreferencesKey("cloudRelayTaken")
 
 /**
  * The Stats screen's chips, so it opens as it was left rather than on a week of time listened every

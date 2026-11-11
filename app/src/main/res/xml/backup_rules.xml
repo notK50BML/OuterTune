@@ -9,4 +9,6 @@
     <exclude
         domain="database"
         path="exoplayer_internal.db" />
+        <!-- Cloud relay's record of this device: restored elsewhere it would make two devices one. -->
+        <exclude domain="sharedpref" path="cloud_relay.xml" />
 </full-backup-content>

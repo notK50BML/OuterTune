@@ -7,30 +7,28 @@
 package com.dd3boh.outertune.sync
 
 import android.content.Context
-import androidx.datastore.preferences.core.MutablePreferences
-import androidx.datastore.preferences.core.edit
-import com.dd3boh.outertune.constants.CloudRelayDeviceKey
-import com.dd3boh.outertune.constants.CloudRelaySentKey
-import com.dd3boh.outertune.constants.CloudRelayTakenKey
-import com.dd3boh.outertune.utils.dataStore
-import com.dd3boh.outertune.utils.get
-import kotlinx.coroutines.runBlocking
 
-/** Cloud relay's memory in the app's settings. Read and written from the relay's IO thread only. */
-class DataStoreCloudMemory(private val context: Context) : CloudSyncMemory {
+/**
+ * Cloud relay's memory of this device: its id in the relay, what it last sent, which bundles it has
+ * taken.
+ *
+ * Deliberately not in the app's settings, which a backup carries whole: restored onto a second
+ * phone, the same id would make two devices one in the relay's eyes, and bundles one of them took
+ * would count as taken by both. Kept apart, a restored device starts as a new one - it gets a new
+ * id and asks the others for everything once, which the play identity makes harmless.
+ */
+class DataStoreCloudMemory(context: Context) : CloudSyncMemory {
+    private val prefs = context.getSharedPreferences("cloud_relay", Context.MODE_PRIVATE)
+
     override var deviceId: String?
-        get() = context.dataStore[CloudRelayDeviceKey]?.ifBlank { null }
-        set(value) = write { if (value == null) it.remove(CloudRelayDeviceKey) else it[CloudRelayDeviceKey] = value }
+        get() = prefs.getString("device", null)?.ifBlank { null }
+        set(value) = prefs.edit().putString("device", value).apply()
 
     override var sentUpTo: Long
-        get() = context.dataStore[CloudRelaySentKey] ?: 0L
-        set(value) = write { it[CloudRelaySentKey] = value }
+        get() = prefs.getLong("sent", 0L)
+        set(value) = prefs.edit().putLong("sent", value).apply()
 
     override var taken: Set<String>
-        get() = context.dataStore[CloudRelayTakenKey].orEmpty().split(',').filter { it.isNotBlank() }.toSet()
-        set(value) = write { it[CloudRelayTakenKey] = value.joinToString(",") }
-
-    private fun write(block: (MutablePreferences) -> Unit) {
-        runBlocking { context.dataStore.edit { block(it) } }
-    }
+        get() = prefs.getString("taken", "").orEmpty().split(',').filter { it.isNotBlank() }.toSet()
+        set(value) = prefs.edit().putString("taken", value.joinToString(",")).apply()
 }
