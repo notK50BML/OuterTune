@@ -265859,3 +265859,190 @@ index d0ec38c..1c02433 100644
 -- 
 2.56.0.windows.4
 
+From 6054d46ca88f40c6bf61757d99333af7b28b77d6 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Wed, 11 Nov 2026 22:16:40 +0800
+Subject: [PATCH] Artists: count playlist songs; link unlinked credits to the
+ real channel
+
+A song only in a playlist now counts toward Artists and the artist's page,
+played or not.
+
+A credit YouTube names without linking (the "EJAE" of "LE SSERAFIM & EJAE")
+was stored as a page-less placeholder that nothing ever resolved. It is now
+pointed at the library's channel of that name, or failing that a search's,
+and the offline relink sweep fixes such songs without playing them.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/db/daos/ArtistsDao.kt    | 14 ++++---
+ .../com/dd3boh/outertune/db/daos/SongsDao.kt  |  7 +++-
+ .../outertune/utils/ArtistCreditEnricher.kt   | 42 ++++++++++++++++++-
+ 3 files changed, 55 insertions(+), 8 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+index f0f53a5..d4aa10e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/ArtistsDao.kt
+@@ -18,6 +18,7 @@ import com.dd3boh.outertune.constants.ArtistSortType
+ import com.dd3boh.outertune.db.entities.Artist
+ import com.dd3boh.outertune.db.entities.ArtistEntity
+ import com.dd3boh.outertune.db.entities.LocalArtistThumbnail
++import com.dd3boh.outertune.db.entities.PlaylistSongMap
+ import com.dd3boh.outertune.db.entities.Song
+ import com.dd3boh.outertune.db.entities.SongArtistMap
+ import com.dd3boh.outertune.db.TOPIC_SUFFIX
+@@ -45,7 +46,7 @@ interface ArtistsDao {
+             SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
+         FROM artist
+             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
+-            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
++            LEFT JOIN song ON sam.songId = song.id AND (song.inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map))
+         WHERE artist.id = :id
+         GROUP BY artist.id
+     """)
+@@ -316,7 +317,7 @@ interface ArtistsDao {
+     // Every table the query reads, not only artist: the LIBRARY and DOWNLOADED filters and the
+     // counts come from song through song_artist_map, so observing artist alone left these lists stale
+     // when a song was added to the library or downloaded.
+-    @RawQuery(observedEntities = [ArtistEntity::class, SongArtistMap::class, SongEntity::class])
++    @RawQuery(observedEntities = [ArtistEntity::class, SongArtistMap::class, SongEntity::class, PlaylistSongMap::class])
+     fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>
+ 
+     fun artists(filter: ArtistFilter, sortType: ArtistSortType, descending: Boolean, localOnly: Boolean? = null): Flow<List<Artist>> {
+@@ -328,7 +329,10 @@ interface ArtistsDao {
+ 
+         val where = when (filter) {
+             ArtistFilter.DOWNLOADED -> "song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0"
+-            ArtistFilter.LIBRARY -> "song.inLibrary IS NOT NULL"
++            // A song in any of the user's playlists counts as theirs too, played or not: its artists
++            // were missing from Artists until the song was first played, though it was right there in
++            // a playlist. The playlist already links the song to its credits, so nothing is fetched.
++            ArtistFilter.LIBRARY -> "(song.inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map))"
+             ArtistFilter.LIKED -> "artist.bookmarkedAt IS NOT NULL"
+         } + if (localOnly == null) {
+             ""
+@@ -404,11 +408,11 @@ interface ArtistsDao {
+ 
+     // region Artist Songs Sort
+     @Transaction
+-    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND inLibrary IS NOT NULL ORDER BY inLibrary")
++    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND (inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map)) ORDER BY inLibrary")
+     fun artistSongsByCreateDateAsc(artistId: String): Flow<List<Song>>
+ 
+     @Transaction
+-    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND inLibrary IS NOT NULL ORDER BY title COLLATE NOCASE ASC")
++    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND (inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map)) ORDER BY title COLLATE NOCASE ASC")
+     fun artistSongsByNameAsc(artistId: String): Flow<List<Song>>
+ 
+     fun artistSongs(artistId: String, sortType: ArtistSongSortType, descending: Boolean) =
+diff --git a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
+index 46c90d0..e1a4b36 100644
+--- a/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
++++ b/app/src/main/java/com/dd3boh/outertune/db/daos/SongsDao.kt
+@@ -339,7 +339,9 @@ interface SongsDao {
+ 
+     /**
+      * Songs whose credits are repairable without asking YouTube anything: one carrying an artist
+-     * under the MPLA spelling of a channel id, or one credited to an artist with no name.
++     * under the MPLA spelling of a channel id, one credited to an artist with no name, or one
++     * credited to a placeholder (no channel behind it) named like a real channel the library
++     * already links other songs to - which the sweep can point at that channel with no search.
+      *
+      * Deliberately not "every song". The repair itself is cheap, but running it over a whole
+      * library to find the handful that need it is not, and the two faults it fixes are both
+@@ -350,6 +352,9 @@ interface SongsDao {
+         FROM song_artist_map sam
+             JOIN artist a ON a.id = sam.artistId
+         WHERE a.id LIKE 'MPLAUC%' OR TRIM(a.name) = ''
++            OR (a.isLocal = 0 AND a.id NOT LIKE 'UC%' AND a.id NOT LIKE 'FEmusic%'
++                AND EXISTS (SELECT 1 FROM artist r JOIN song_artist_map rm ON rm.artistId = r.id JOIN song rs ON rs.id = rm.songId
++                            WHERE r.name = a.name COLLATE NOCASE AND r.id LIKE 'UC%' AND rs.inLibrary IS NOT NULL))
+     """)
+     fun songIdsWithRepairableArtists(): List<String>
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+index 79583ab..75a87f3 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/ArtistCreditEnricher.kt
+@@ -146,6 +146,9 @@ object ArtistCreditEnricher {
+     /** Combined names already found not to split into real artists, so playback does not ask again. */
+     private val unsplittable: MutableSet<String> = ConcurrentHashMap.newKeySet()
+ 
++    /** Placeholder names a search found no channel for this session - see enrich. */
++    private val unresolvable: MutableSet<String> = ConcurrentHashMap.newKeySet()
++
+     /** Channels [repointDeadTopicChannel] has already looked at this run of the app. */
+     private val checkedChannels: MutableSet<String> = ConcurrentHashMap.newKeySet()
+ 
+@@ -409,6 +412,24 @@ object ArtistCreditEnricher {
+             // split either: its tags are the user's, and linking it is LocalArtistLinker's job.
+             val candidates = if (allowNetwork && !artist.isLocal) splitAmpersandCandidates(artist.name) else null
+             if (candidates == null || creditKey(artist.name) in unsplittable) {
++                // A single name YouTube credited without linking it - "LE SSERAFIM & EJAE" links only
++                // the first - so the app had to invent a page-less placeholder for it, and tapping it
++                // opened a generic page with just the name. Nothing ever looked these up: only "&"
++                // credits were, and the feat. step skips a name the song already carries. So it is
++                // resolved here, to the channel the name stands for; a failed search keeps it as is.
++                if (candidates == null && !artist.isLocal && creditKey(artist.name) !in unresolvable) {
++                    val lookup = resolveName(database, artist.name, search)
++                    // No channel by that name: remembered for the session, so each play does not ask again.
++                    if (lookup == Lookup.NotFound) unresolvable += creditKey(artist.name)
++                    val resolved = lookup as? Lookup.Found
++                    if (resolved != null) {
++                        val real = creditFor(database, resolved.item, placeholders)
++                        Timber.tag(TAG).d("[$songId] placeholder \"${artist.name}\" ${artist.id} -> ${real.id}")
++                        finalArtists += real
++                        changed = true
++                        continue
++                    }
++                }
+                 finalArtists += artist
+                 continue
+             }
+@@ -643,8 +664,9 @@ object ArtistCreditEnricher {
+             keys += creditKey(artist.name)
+             out += artist
+         }
++        suspend fun find(name: String) = resolveName(database, name, search)
+         for (group in featuredGroups(title, credited.map { it.name })) {
+-            when (val whole = search(group.whole)) {
++            when (val whole = find(group.whole)) {
+                 is Lookup.Found -> {
+                     take(whole.item)
+                     continue
+@@ -653,7 +675,7 @@ object ArtistCreditEnricher {
+                 Lookup.NotFound -> Unit
+             }
+             if (group.parts.size < 2) continue
+-            group.parts.forEach { part -> (search(part) as? Lookup.Found)?.let { take(it.item) } }
++            group.parts.forEach { part -> (find(part) as? Lookup.Found)?.let { take(it.item) } }
+         }
+         return out
+     }
+@@ -1026,6 +1048,22 @@ object ArtistCreditEnricher {
+             answers.getOrPut(name.trim().lowercase()) { ArtistCreditEnricher.lookUpArtist(name, allowNetwork) }
+     }
+ 
++    /**
++     * The channel a bare artist name stands for: a real channel already in the library under that
++     * name with songs to its credit, and failing that a search. The library goes first because it
++     * costs nothing and is already what the user's other songs by that artist link to.
++     */
++    private suspend fun resolveName(database: MusicDatabase, name: String, search: Searches): Lookup {
++        database.artistWithSongsByNameIgnoreCase(name.trim(), excludingId = "")
++            ?.takeIf { it.isYouTubeArtist }
++            ?.let {
++                return Lookup.Found(
++                    ArtistItem(id = it.id, title = it.name, thumbnail = it.thumbnailUrl, shuffleEndpoint = null, radioEndpoint = null)
++                )
++            }
++        return search(name)
++    }
++
+     /**
+      * The real artist channel [name] resolves to, if search finds a matching one. An artist with no
+      * official channel is only findable under YouTube's auto-generated "X - Topic" channel, so the
+-- 
+2.56.0.windows.4
+
