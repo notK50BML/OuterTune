@@ -339,7 +339,9 @@ interface SongsDao {
 
     /**
      * Songs whose credits are repairable without asking YouTube anything: one carrying an artist
-     * under the MPLA spelling of a channel id, or one credited to an artist with no name.
+     * under the MPLA spelling of a channel id, one credited to an artist with no name, or one
+     * credited to a placeholder (no channel behind it) named like a real channel the library
+     * already links other songs to - which the sweep can point at that channel with no search.
      *
      * Deliberately not "every song". The repair itself is cheap, but running it over a whole
      * library to find the handful that need it is not, and the two faults it fixes are both
@@ -350,6 +352,9 @@ interface SongsDao {
         FROM song_artist_map sam
             JOIN artist a ON a.id = sam.artistId
         WHERE a.id LIKE 'MPLAUC%' OR TRIM(a.name) = ''
+            OR (a.isLocal = 0 AND a.id NOT LIKE 'UC%' AND a.id NOT LIKE 'FEmusic%'
+                AND EXISTS (SELECT 1 FROM artist r JOIN song_artist_map rm ON rm.artistId = r.id JOIN song rs ON rs.id = rm.songId
+                            WHERE r.name = a.name COLLATE NOCASE AND r.id LIKE 'UC%' AND rs.inLibrary IS NOT NULL))
     """)
     fun songIdsWithRepairableArtists(): List<String>
 

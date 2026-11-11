@@ -18,6 +18,7 @@ import com.dd3boh.outertune.constants.ArtistSortType
 import com.dd3boh.outertune.db.entities.Artist
 import com.dd3boh.outertune.db.entities.ArtistEntity
 import com.dd3boh.outertune.db.entities.LocalArtistThumbnail
+import com.dd3boh.outertune.db.entities.PlaylistSongMap
 import com.dd3boh.outertune.db.entities.Song
 import com.dd3boh.outertune.db.entities.SongArtistMap
 import com.dd3boh.outertune.db.TOPIC_SUFFIX
@@ -45,7 +46,7 @@ interface ArtistsDao {
             SUM(CASE WHEN song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0 THEN 1 ELSE 0 END) AS downloadCount
         FROM artist
             LEFT JOIN song_artist_map sam ON artist.id = sam.artistId
-            LEFT JOIN song ON sam.songId = song.id AND song.inLibrary IS NOT NULL
+            LEFT JOIN song ON sam.songId = song.id AND (song.inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map))
         WHERE artist.id = :id
         GROUP BY artist.id
     """)
@@ -316,7 +317,7 @@ interface ArtistsDao {
     // Every table the query reads, not only artist: the LIBRARY and DOWNLOADED filters and the
     // counts come from song through song_artist_map, so observing artist alone left these lists stale
     // when a song was added to the library or downloaded.
-    @RawQuery(observedEntities = [ArtistEntity::class, SongArtistMap::class, SongEntity::class])
+    @RawQuery(observedEntities = [ArtistEntity::class, SongArtistMap::class, SongEntity::class, PlaylistSongMap::class])
     fun _getArtists(query: SupportSQLiteQuery): Flow<List<Artist>>
 
     fun artists(filter: ArtistFilter, sortType: ArtistSortType, descending: Boolean, localOnly: Boolean? = null): Flow<List<Artist>> {
@@ -328,7 +329,10 @@ interface ArtistsDao {
 
         val where = when (filter) {
             ArtistFilter.DOWNLOADED -> "song.dateDownload IS NOT NULL AND song.dateDownload IS NOT 0"
-            ArtistFilter.LIBRARY -> "song.inLibrary IS NOT NULL"
+            // A song in any of the user's playlists counts as theirs too, played or not: its artists
+            // were missing from Artists until the song was first played, though it was right there in
+            // a playlist. The playlist already links the song to its credits, so nothing is fetched.
+            ArtistFilter.LIBRARY -> "(song.inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map))"
             ArtistFilter.LIKED -> "artist.bookmarkedAt IS NOT NULL"
         } + if (localOnly == null) {
             ""
@@ -404,11 +408,11 @@ interface ArtistsDao {
 
     // region Artist Songs Sort
     @Transaction
-    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND inLibrary IS NOT NULL ORDER BY inLibrary")
+    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND (inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map)) ORDER BY inLibrary")
     fun artistSongsByCreateDateAsc(artistId: String): Flow<List<Song>>
 
     @Transaction
-    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND inLibrary IS NOT NULL ORDER BY title COLLATE NOCASE ASC")
+    @Query("SELECT song.* FROM song_artist_map JOIN song ON song_artist_map.songId = song.id WHERE artistId = :artistId AND (inLibrary IS NOT NULL OR song.id IN (SELECT songId FROM playlist_song_map)) ORDER BY title COLLATE NOCASE ASC")
     fun artistSongsByNameAsc(artistId: String): Flow<List<Song>>
 
     fun artistSongs(artistId: String, sortType: ArtistSongSortType, descending: Boolean) =

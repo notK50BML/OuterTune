@@ -146,6 +146,9 @@ object ArtistCreditEnricher {
     /** Combined names already found not to split into real artists, so playback does not ask again. */
     private val unsplittable: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
+    /** Placeholder names a search found no channel for this session - see enrich. */
+    private val unresolvable: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
     /** Channels [repointDeadTopicChannel] has already looked at this run of the app. */
     private val checkedChannels: MutableSet<String> = ConcurrentHashMap.newKeySet()
 
@@ -409,6 +412,24 @@ object ArtistCreditEnricher {
             // split either: its tags are the user's, and linking it is LocalArtistLinker's job.
             val candidates = if (allowNetwork && !artist.isLocal) splitAmpersandCandidates(artist.name) else null
             if (candidates == null || creditKey(artist.name) in unsplittable) {
+                // A single name YouTube credited without linking it - "LE SSERAFIM & EJAE" links only
+                // the first - so the app had to invent a page-less placeholder for it, and tapping it
+                // opened a generic page with just the name. Nothing ever looked these up: only "&"
+                // credits were, and the feat. step skips a name the song already carries. So it is
+                // resolved here, to the channel the name stands for; a failed search keeps it as is.
+                if (candidates == null && !artist.isLocal && creditKey(artist.name) !in unresolvable) {
+                    val lookup = resolveName(database, artist.name, search)
+                    // No channel by that name: remembered for the session, so each play does not ask again.
+                    if (lookup == Lookup.NotFound) unresolvable += creditKey(artist.name)
+                    val resolved = lookup as? Lookup.Found
+                    if (resolved != null) {
+                        val real = creditFor(database, resolved.item, placeholders)
+                        Timber.tag(TAG).d("[$songId] placeholder \"${artist.name}\" ${artist.id} -> ${real.id}")
+                        finalArtists += real
+                        changed = true
+                        continue
+                    }
+                }
                 finalArtists += artist
                 continue
             }
@@ -643,8 +664,9 @@ object ArtistCreditEnricher {
             keys += creditKey(artist.name)
             out += artist
         }
+        suspend fun find(name: String) = resolveName(database, name, search)
         for (group in featuredGroups(title, credited.map { it.name })) {
-            when (val whole = search(group.whole)) {
+            when (val whole = find(group.whole)) {
                 is Lookup.Found -> {
                     take(whole.item)
                     continue
@@ -653,7 +675,7 @@ object ArtistCreditEnricher {
                 Lookup.NotFound -> Unit
             }
             if (group.parts.size < 2) continue
-            group.parts.forEach { part -> (search(part) as? Lookup.Found)?.let { take(it.item) } }
+            group.parts.forEach { part -> (find(part) as? Lookup.Found)?.let { take(it.item) } }
         }
         return out
     }
@@ -1024,6 +1046,22 @@ object ArtistCreditEnricher {
         private val answers = HashMap<String, Lookup>()
         suspend operator fun invoke(name: String): Lookup =
             answers.getOrPut(name.trim().lowercase()) { ArtistCreditEnricher.lookUpArtist(name, allowNetwork) }
+    }
+
+    /**
+     * The channel a bare artist name stands for: a real channel already in the library under that
+     * name with songs to its credit, and failing that a search. The library goes first because it
+     * costs nothing and is already what the user's other songs by that artist link to.
+     */
+    private suspend fun resolveName(database: MusicDatabase, name: String, search: Searches): Lookup {
+        database.artistWithSongsByNameIgnoreCase(name.trim(), excludingId = "")
+            ?.takeIf { it.isYouTubeArtist }
+            ?.let {
+                return Lookup.Found(
+                    ArtistItem(id = it.id, title = it.name, thumbnail = it.thumbnailUrl, shuffleEndpoint = null, radioEndpoint = null)
+                )
+            }
+        return search(name)
     }
 
     /**
