@@ -440,6 +440,9 @@ class MusicService : MediaLibraryService(),
      */
     private val songUrlCache = HashMap<String, CachedStreamUrl>()
 
+    /** Songs found to be live streams this run: never played from the song cache - see the resolver. */
+    private val liveMediaIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
     /**
      * Per-song count of automatic retries - cache entry dropped, player re-prepared - already given
      * after a source/HTTP error this process lifetime. A bad HTTP status (ExoPlayer's 2004, almost
@@ -1476,7 +1479,13 @@ class MusicService : MediaLibraryService(),
 
             val isDownload =
                 downloadCache.isCached(mediaId, dataSpec.position, if (dataSpec.length >= 0) dataSpec.length else 1)
-            val isCache = playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)
+            // Not for anything that may be a live stream - one already found live, or one with no
+            // length. A radio once played as an ordinary file left a few seconds of raw segment in
+            // this cache, and taking this shortcut played those - timestamps months in - then had
+            // no stream URL to go on with, so the radio sat at 0:00 for good. Resolved instead, it
+            // is read as live (and its stale bytes dropped, below).
+            val mayBeLive = mediaId in liveMediaIds || (song?.duration ?: 0) <= 0
+            val isCache = !mayBeLive && playerCache.isCached(mediaId, dataSpec.position, CHUNK_LENGTH)
             if (isDownload || isCache) {
                 if (SERVICE_DEBUG) Log.d(TAG, "PLAYING: remote song (cache = ${isCache}, download = ${isDownload})")
                 offloadScope.launch { recoverSong(mediaId) }
@@ -1566,6 +1575,13 @@ class MusicService : MediaLibraryService(),
             // fragmented MP4, which is what YouTube serves live audio as; anything else is left to
             // play as before rather than risk the songs that work.
             val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
+            if (isLive) {
+                liveMediaIds += mediaId
+                // The cache is keyed by the song, not the URL, so bytes left from a time this radio
+                // was read as an ordinary file would be played ahead of the live stream - and they
+                // are a few seconds from some other day. Nothing live is cached (see the sink).
+                runCatching { playerCache.removeResource(mediaId) }
+            }
             val streamUrl = if (isLive) {
                 LiveStreamDataSource.mark(
                     playbackData.streamUrl,
