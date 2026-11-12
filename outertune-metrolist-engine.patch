@@ -266102,3 +266102,492 @@ index 588044b..9fa09c8 100644
 -- 
 2.56.0.windows.4
 
+From 062e00d182701e92ab0e897fd0b26d5fc0813493 Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Thu, 12 Nov 2026 12:56:40 +0800
+Subject: [PATCH] Live radio: rewind, on a stretched bar
+
+The player cannot seek a live stream, so a rewind restarts it at an earlier
+segment: LiveRewind notes how far back, the player is sought to 0, and
+LiveStreamDataSource reopens that many segments behind the newest (5-second
+segments and a 12-hour rewind, both from the stream's format; the bar spans
+an hour). How far behind follows from the segment it started at, the newest
+reported since, and the position.
+
+The bar is now at its right end, distance back growing as the square of the
+distance along - seconds near now, an hour at the far left - with a red LIVE
+at now, or a grey LIVE and "-1:23" behind it, tapped to go back to now. The
+skip buttons move through the stream too; pausing leaves it behind.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/LiveRewind.kt   | 124 ++++++++++++++++
+ .../playback/LiveStreamDataSource.kt          |  41 +++++-
+ .../dd3boh/outertune/playback/MusicService.kt |  10 +-
+ .../dd3boh/outertune/ui/player/MiniPlayer.kt  |   8 +-
+ .../com/dd3boh/outertune/ui/player/Player.kt  | 132 ++++++++++++++++--
+ .../models/response/PlayerResponse.kt         |   4 +
+ 6 files changed, 301 insertions(+), 18 deletions(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt b/app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt
+new file mode 100644
+index 0000000..e5c8060
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt
+@@ -0,0 +1,124 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.playback
++
++import androidx.media3.common.C
++import androidx.media3.common.Player
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlin.math.sqrt
++
++/**
++ * Rewinding a live stream, as on YouTube - shared by [LiveStreamDataSource], which reads the stream,
++ * and the player screens, which draw it.
++ *
++ * The player itself cannot seek a live stream: to it the stream is one endless file with no index.
++ * So a rewind is a restart at an earlier segment. The screen asks for one with [jumpTo], which
++ * notes how far back and seeks the player to 0; the player then opens the stream afresh, and the
++ * data source starts that many segments behind the newest. The player's position counts from that
++ * first segment, so how far behind live playback is follows from the segment it started at, the
++ * newest the stream has since reported, and the position - see [behindMs].
++ *
++ * Pausing simply stops reading, so playing again carries on from where it was, that far behind.
++ */
++object LiveRewind {
++    /** How far back the bar reaches: an hour, or less if the stream keeps less. */
++    const val WINDOW_MS = 60 * 60_000L
++
++    /** Within this of the newest segment still reads as live: a segment is a few seconds long. */
++    const val EDGE_MS = 15_000L
++
++    private val _live = MutableStateFlow(false)
++
++    /** Whether the stream open in the player is a live one. */
++    val live: StateFlow<Boolean> = _live
++
++    @Volatile private var startSeq = -1L
++    @Volatile private var headSeq = -1L
++    @Volatile private var segmentMs = 5_000L
++    @Volatile private var rewindMs = WINDOW_MS
++    @Volatile private var pendingBehindMs: Long? = null
++
++    /** The bar's span: the hour, or what the stream keeps if that is less. */
++    val windowMs: Long get() = minOf(WINDOW_MS, rewindMs)
++
++    /** How far behind live playback is, given the player's [positionMs]. */
++    fun behindMs(positionMs: Long): Long {
++        if (startSeq < 0 || headSeq < 0) return 0
++        return ((headSeq - startSeq + 1) * segmentMs - positionMs).coerceIn(0, windowMs)
++    }
++
++    /**
++     * Whether [player] is playing a live stream now: one was opened, and the player has no length
++     * for what it is playing. The second half keeps a song played from the cache - which never
++     * reaches the data source, so never says it is not live - from being drawn as one.
++     */
++    fun isLive(player: Player): Boolean = live.value && player.duration == C.TIME_UNSET
++
++    /** How far behind live [player] is now. */
++    fun behindMs(player: Player): Long = behindMs(player.currentPosition)
++
++    /**
++     * Restarts playback [behindMs] before now - or at now, for anything within [EDGE_MS] - by
++     * reopening the stream there. Nothing happens for a move from now to now.
++     */
++    fun jumpTo(player: Player, behindMs: Long) {
++        val target = if (behindMs < EDGE_MS) 0 else behindMs.coerceAtMost(windowMs)
++        if (target == 0L && behindMs(player) < EDGE_MS) return
++        pendingBehindMs = target
++        // To the player an unseekable stream has only its start to seek to, and seeking there
++        // reopens it - at the segment just asked for.
++        player.seekTo(0)
++    }
++
++    // region Called by LiveStreamDataSource
++    internal fun opened(segmentMs: Long, rewindMs: Long?) {
++        this.segmentMs = segmentMs.coerceIn(1_000L, 10_000L)
++        this.rewindMs = rewindMs?.takeIf { it > 0 } ?: WINDOW_MS
++        _live.value = true
++    }
++
++    /** The segment to start at, given the newest: [head] itself unless a rewind was asked for. */
++    internal fun startingSegment(head: Long): Long {
++        val behind = pendingBehindMs ?: 0
++        pendingBehindMs = null
++        return (head - behind / segmentMs).coerceAtLeast(0)
++    }
++
++    internal fun started(seq: Long) {
++        startSeq = seq
++    }
++
++    internal fun sawHead(seq: Long) {
++        if (seq > headSeq) headSeq = seq
++    }
++
++    /** A stream that is not live was opened: nothing here applies to it. */
++    internal fun notLive() {
++        _live.value = false
++        startSeq = -1
++        headSeq = -1
++    }
++    // endregion
++
++    /**
++     * The live bar's stretched scale, as the desktop draws it: now at the right end, and the
++     * distance back growing as the square of the distance along. Near now a small drag moves a few
++     * seconds; the far left still reaches the whole window - halfway is a quarter of it.
++     */
++    fun barFraction(behindMs: Long): Float {
++        val window = windowMs
++        if (window <= 0) return 1f
++        return (1 - sqrt(behindMs.coerceIn(0, window).toDouble() / window)).toFloat()
++    }
++
++    /** How far behind a place on the live bar stands for - the inverse of [barFraction]. */
++    fun behindAt(fraction: Float): Long {
++        val back = 1.0 - fraction.coerceIn(0f, 1f)
++        return (windowMs * back * back).toLong()
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt b/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt
+index c6cca4f..ffad8d5 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt
+@@ -34,6 +34,10 @@ import kotlin.math.min
+  *
+  * Only a URL marked by [mark] is read this way; anything else passes straight to [upstream]. The
+  * desktop's LiveSource reads live streams the same way.
++ *
++ * It starts at the newest segment, or - when [LiveRewind] has been asked to rewind - that far back,
++ * and tells [LiveRewind] where it started and the newest segment each answer reports, which is how
++ * the screens know how far behind live playback is.
+  */
+ @UnstableApi
+ class LiveStreamDataSource(
+@@ -62,14 +66,27 @@ class LiveStreamDataSource(
+     override fun open(dataSpec: DataSpec): Long {
+         if (!isMarked(dataSpec.uri)) {
+             live = false
++            LiveRewind.notLive()
+             return upstream.open(dataSpec)
+         }
+         live = true
+         openedUri = dataSpec.uri
+-        base = unmark(dataSpec.uri.toString())
++        val marked = dataSpec.uri.toString()
++        base = unmark(marked)
+         headers = dataSpec.httpRequestHeaders
+-        val (head, bytes) = fetch(null) ?: throw IOException("The live stream did not answer")
+-        sequence = head
++        LiveRewind.opened(
++            segmentMs = param(marked, SEGMENT) ?: 5_000L,
++            rewindMs = param(marked, REWIND),
++        )
++        // Every open starts the clock again: the first segment read is the player's 0.
++        origin = -1
++        val (head, newest) = fetch(null) ?: throw IOException("The live stream did not answer")
++        // The newest, or as far back as a rewind asked - and the newest after all if YouTube no
++        // longer has that one.
++        val start = LiveRewind.startingSegment(head)
++        val (first, bytes) = if (start < head) fetch(start) ?: (head to newest) else head to newest
++        sequence = first
++        LiveRewind.started(first)
+         buffer = reshape(bytes, first = true)
+         position = 0
+         fetchAhead()
+@@ -122,6 +139,7 @@ class LiveStreamDataSource(
+             .build()
+         client.newCall(request).execute().use { response ->
+             if (response.code != 200) return null
++            response.header("X-Head-Seqnum")?.toLongOrNull()?.let(LiveRewind::sawHead)
+             val number = response.header("X-Sequence-Num")?.toLongOrNull()
+                 ?: sq ?: response.header("X-Head-Seqnum")?.toLongOrNull() ?: return null
+             number to (response.body?.bytes() ?: return null)
+@@ -200,15 +218,26 @@ class LiveStreamDataSource(
+ 
+     companion object {
+         private const val MARKER = "otlive"
++        private const val SEGMENT = "otseg"
++        private const val REWIND = "otdvr"
+         private const val RETRIES = 5
+         private const val RETRY_MS = 1_000L
+ 
+-        /** [url] marked to be read as a live stream - see the class. */
+-        fun mark(url: String): String = "$url&$MARKER=1"
++        /**
++         * [url] marked to be read as a live stream - see the class - with its segment length and
++         * how far back YouTube keeps it, both from the stream's format, for [LiveRewind].
++         */
++        fun mark(url: String, segmentMs: Long, rewindMs: Long?): String =
++            "$url&$MARKER=1&$SEGMENT=$segmentMs" + (rewindMs?.let { "&$REWIND=$it" } ?: "")
+ 
+         fun isMarked(uri: Uri): Boolean = uri.toString().contains("&$MARKER=1")
+ 
+-        private fun unmark(url: String): String = url.replace("&$MARKER=1", "")
++        private val ownParams = Regex("&(?:$MARKER|$SEGMENT|$REWIND)=[0-9]*")
++
++        private fun unmark(url: String): String = url.replace(ownParams, "")
++
++        private fun param(url: String, name: String): Long? =
++            Regex("&$name=([0-9]+)").find(url)?.groupValues?.get(1)?.toLongOrNull()
+ 
+         private fun boxSize(bytes: ByteArray, at: Int): Long = readInt(bytes, at)
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index 333644b..ab9851a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -1566,7 +1566,15 @@ class MusicService : MediaLibraryService(),
+             // fragmented MP4, which is what YouTube serves live audio as; anything else is left to
+             // play as before rather than risk the songs that work.
+             val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
+-            val streamUrl = if (isLive) LiveStreamDataSource.mark(playbackData.streamUrl) else playbackData.streamUrl
++            val streamUrl = if (isLive) {
++                LiveStreamDataSource.mark(
++                    playbackData.streamUrl,
++                    segmentMs = (playbackData.format.targetDurationSec ?: 5) * 1000L,
++                    rewindMs = playbackData.format.maxDvrDurationSec?.times(1000L),
++                )
++            } else {
++                playbackData.streamUrl
++            }
+ 
+             val cachedStreamUrl = CachedStreamUrl(
+                 url = streamUrl,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt
+index f5daa05..5c5816a 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/MiniPlayer.kt
+@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.Dp
+ import androidx.compose.ui.unit.dp
+ import androidx.compose.ui.unit.sp
+ import androidx.media3.common.C
++import com.dd3boh.outertune.playback.LiveRewind
+ import androidx.media3.common.PlaybackException
+ import androidx.media3.common.Player
+ import androidx.media3.common.Player.STATE_READY
+@@ -159,6 +160,7 @@ fun MiniPlayer(
+     var duration by rememberSaveable(playbackState) {
+         mutableLongStateOf(playerConnection.player.duration)
+     }
++    val liveOpen by LiveRewind.live.collectAsState()
+ 
+ 
+     LaunchedEffect(playbackState) {
+@@ -180,7 +182,11 @@ fun MiniPlayer(
+ //            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
+     ) {
+         LinearProgressIndicator(
+-            progress = { (position.toFloat() / duration).coerceIn(0f, 1f) },
++            progress = {
++                // A live stream has no length: its place on the stretched live scale - see LiveRewind.
++                if (liveOpen && duration == C.TIME_UNSET) LiveRewind.barFraction(LiveRewind.behindMs(position))
++                else (position.toFloat() / duration).coerceIn(0f, 1f)
++            },
+             drawStopIndicator = { },
+             modifier = Modifier
+                 .fillMaxWidth()
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+index e128a67..e36ad8d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/player/Player.kt
+@@ -176,6 +176,7 @@ import com.dd3boh.outertune.extensions.metadata
+ import com.dd3boh.outertune.extensions.supportsWideScreen
+ import com.dd3boh.outertune.extensions.togglePlayPause
+ import com.dd3boh.outertune.extensions.toggleRepeatMode
++import com.dd3boh.outertune.playback.LiveRewind
+ import com.dd3boh.outertune.playback.PlayerConnection
+ import com.dd3boh.outertune.playback.QueueBoard
+ import com.dd3boh.outertune.ui.component.BottomSheet
+@@ -905,6 +906,9 @@ fun ControlsContent(
+             }
+         }
+     }
++    // A live stream - no length, and the data source says so - gets its own bar: see LiveProgress.
++    val liveOpen by LiveRewind.live.collectAsState()
++    val liveStream = liveOpen && duration == C.TIME_UNSET
+ 
+ 
+     var sliderPosition by remember {
+@@ -1208,6 +1212,18 @@ fun ControlsContent(
+             // One Column, not three loose children: inside a layout's block (a Box) the times used to
+             // land on top of the slider.
+             val progressBlock: @Composable () -> Unit = { Column(modifier = Modifier.fillMaxWidth()) {
++                if (liveStream) {
++                    LiveProgress(
++                        positionMs = position,
++                        hPad = hPad,
++                        onBackgroundColor = onBackgroundColor,
++                        sliderStyle = sliderStyle,
++                        animate = isPlaying,
++                        sliderWeight = sliderWeight.scale,
++                        sliderDot = sliderDot,
++                    )
++                    return@Column
++                }
+                 Slider(
+                     value = (sliderPosition ?: position).toFloat(),
+                     valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
+@@ -1317,11 +1333,15 @@ fun ControlsContent(
+                     enabled = playerConnection.player.currentMediaItem != null,
+                     contentDescription = pluralStringResource(R.plurals.player_seek_back_seconds, incrementMs / 1000, incrementMs / 1000),
+                     onClick = {
+-                        // Held at the start: a jump back from the first few seconds would otherwise
+-                        // ask the player for a negative position.
+-                        playerConnection.player.seekTo(
+-                            (playerConnection.player.currentPosition - incrementMs).coerceAtLeast(0L)
+-                        )
++                        val player = playerConnection.player
++                        if (LiveRewind.isLive(player)) {
++                            // Live: further behind now, by reopening the stream there.
++                            LiveRewind.jumpTo(player, LiveRewind.behindMs(player) + incrementMs)
++                        } else {
++                            // Held at the start: a jump back from the first few seconds would
++                            // otherwise ask the player for a negative position.
++                            player.seekTo((player.currentPosition - incrementMs).coerceAtLeast(0L))
++                        }
+                     }
+                 )
+             }
+@@ -1380,11 +1400,17 @@ fun ControlsContent(
+                         // Held short of the end when the length is known, so a jump near the end
+                         // lands on the last moment rather than past it. A live stream or a song
+                         // still loading has no length yet, and is left to the player.
+-                        val target = playerConnection.player.currentPosition + incrementMs
+-                        val length = playerConnection.player.duration
+-                        playerConnection.player.seekTo(
+-                            if (length != C.TIME_UNSET && length > 0) target.coerceAtMost(length) else target
+-                        )
++                        val player = playerConnection.player
++                        if (LiveRewind.isLive(player)) {
++                            // Live: closer to now, or now itself once within reach of it.
++                            LiveRewind.jumpTo(player, LiveRewind.behindMs(player) - incrementMs)
++                        } else {
++                            val target = player.currentPosition + incrementMs
++                            val length = player.duration
++                            player.seekTo(
++                                if (length != C.TIME_UNSET && length > 0) target.coerceAtMost(length) else target
++                            )
++                        }
+                     }
+                 )
+             }
+@@ -1790,3 +1816,89 @@ fun PlayerBackground(
+         }
+     }
+ }
++
++/**
++ * A live stream's seek bar and clock, as YouTube draws them: now at the right end, the bar on
++ * [LiveRewind]'s stretched scale - a small drag near now moves seconds, the far left an hour - and
++ * a red LIVE at now, or a grey LIVE and how far behind ("−1:23") once behind it, which goes back
++ * to now when tapped. Pausing and playing again leaves it behind by however long it was paused.
++ */
++@OptIn(ExperimentalMaterial3Api::class)
++@Composable
++private fun LiveProgress(
++    positionMs: Long,
++    hPad: androidx.compose.ui.unit.Dp,
++    onBackgroundColor: Color,
++    sliderStyle: com.dd3boh.outertune.constants.SliderStyle,
++    animate: Boolean,
++    sliderWeight: Float,
++    sliderDot: Boolean,
++) {
++    val playerConnection = LocalPlayerConnection.current ?: return
++    val haptic = LocalHapticFeedback.current
++    val behind = LiveRewind.behindMs(positionMs)
++    var dragFraction by remember { mutableStateOf<Float?>(null) }
++    val shownBehind = dragFraction?.let { LiveRewind.behindAt(it) } ?: behind
++
++    Slider(
++        value = dragFraction ?: LiveRewind.barFraction(behind),
++        valueRange = 0f..1f,
++        onValueChange = { dragFraction = it },
++        onValueChangeFinished = {
++            dragFraction?.let { LiveRewind.jumpTo(playerConnection.player, LiveRewind.behindAt(it)) }
++            dragFraction = null
++            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
++        },
++        thumb = { Spacer(modifier = Modifier.size(0.dp)) },
++        track = { sliderState ->
++            PlayerSliderTrack(
++                sliderState = sliderState,
++                colors = SliderDefaults.colors(),
++                style = sliderStyle,
++                animate = animate && dragFraction == null,
++                weight = sliderWeight,
++                dot = sliderDot,
++            )
++        },
++        modifier = Modifier.padding(horizontal = hPad),
++    )
++
++    Row(
++        verticalAlignment = Alignment.CenterVertically,
++        modifier = Modifier
++            .fillMaxWidth()
++            .padding(horizontal = hPad + 4.dp),
++    ) {
++        val atEdge = shownBehind < LiveRewind.EDGE_MS
++        val colour = if (atEdge) LIVE_RED else onBackgroundColor.copy(alpha = 0.7f)
++        Row(
++            verticalAlignment = Alignment.CenterVertically,
++            modifier = Modifier
++                .clip(RoundedCornerShape(6.dp))
++                .clickable(enabled = !atEdge) { LiveRewind.jumpTo(playerConnection.player, 0) }
++                .padding(horizontal = 4.dp, vertical = 2.dp),
++        ) {
++            Box(modifier = Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(colour))
++            Spacer(modifier = Modifier.width(5.dp))
++            Text(
++                text = "LIVE",
++                style = MaterialTheme.typography.labelMedium,
++                fontWeight = FontWeight.Bold,
++                color = colour,
++            )
++        }
++        if (!atEdge) {
++            Spacer(modifier = Modifier.width(6.dp))
++            Text(
++                text = "−" + makeTimeString(shownBehind),
++                style = MaterialTheme.typography.labelMedium,
++                color = onBackgroundColor,
++            )
++        }
++    }
++
++    Spacer(Modifier.height(12.dp))
++}
++
++/** YouTube's live red. */
++private val LIVE_RED = Color(0xFFFF4E45)
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt b/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt
+index a86451a..018106e 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/response/PlayerResponse.kt
+@@ -87,6 +87,10 @@ data class PlayerResponse(
+              */
+             val cipher: String? = null,
+             val audioTrack: AudioTrack? = null,
++            /** A live stream's segment length, in seconds. */
++            val targetDurationSec: Int? = null,
++            /** How far back a live stream keeps its segments for rewinding, in seconds. */
++            val maxDvrDurationSec: Int? = null,
+         ) {
+             val isAudio: Boolean
+                 get() = width == null
+-- 
+2.56.0.windows.4
+
