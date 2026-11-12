@@ -176,6 +176,7 @@ import com.dd3boh.outertune.extensions.metadata
 import com.dd3boh.outertune.extensions.supportsWideScreen
 import com.dd3boh.outertune.extensions.togglePlayPause
 import com.dd3boh.outertune.extensions.toggleRepeatMode
+import com.dd3boh.outertune.playback.LiveRewind
 import com.dd3boh.outertune.playback.PlayerConnection
 import com.dd3boh.outertune.playback.QueueBoard
 import com.dd3boh.outertune.ui.component.BottomSheet
@@ -905,6 +906,9 @@ fun ControlsContent(
             }
         }
     }
+    // A live stream - no length, and the data source says so - gets its own bar: see LiveProgress.
+    val liveOpen by LiveRewind.live.collectAsState()
+    val liveStream = liveOpen && duration == C.TIME_UNSET
 
 
     var sliderPosition by remember {
@@ -1208,6 +1212,18 @@ fun ControlsContent(
             // One Column, not three loose children: inside a layout's block (a Box) the times used to
             // land on top of the slider.
             val progressBlock: @Composable () -> Unit = { Column(modifier = Modifier.fillMaxWidth()) {
+                if (liveStream) {
+                    LiveProgress(
+                        positionMs = position,
+                        hPad = hPad,
+                        onBackgroundColor = onBackgroundColor,
+                        sliderStyle = sliderStyle,
+                        animate = isPlaying,
+                        sliderWeight = sliderWeight.scale,
+                        sliderDot = sliderDot,
+                    )
+                    return@Column
+                }
                 Slider(
                     value = (sliderPosition ?: position).toFloat(),
                     valueRange = 0f..(if (duration == C.TIME_UNSET) 0f else duration.toFloat()),
@@ -1317,11 +1333,15 @@ fun ControlsContent(
                     enabled = playerConnection.player.currentMediaItem != null,
                     contentDescription = pluralStringResource(R.plurals.player_seek_back_seconds, incrementMs / 1000, incrementMs / 1000),
                     onClick = {
-                        // Held at the start: a jump back from the first few seconds would otherwise
-                        // ask the player for a negative position.
-                        playerConnection.player.seekTo(
-                            (playerConnection.player.currentPosition - incrementMs).coerceAtLeast(0L)
-                        )
+                        val player = playerConnection.player
+                        if (LiveRewind.isLive(player)) {
+                            // Live: further behind now, by reopening the stream there.
+                            LiveRewind.jumpTo(player, LiveRewind.behindMs(player) + incrementMs)
+                        } else {
+                            // Held at the start: a jump back from the first few seconds would
+                            // otherwise ask the player for a negative position.
+                            player.seekTo((player.currentPosition - incrementMs).coerceAtLeast(0L))
+                        }
                     }
                 )
             }
@@ -1380,11 +1400,17 @@ fun ControlsContent(
                         // Held short of the end when the length is known, so a jump near the end
                         // lands on the last moment rather than past it. A live stream or a song
                         // still loading has no length yet, and is left to the player.
-                        val target = playerConnection.player.currentPosition + incrementMs
-                        val length = playerConnection.player.duration
-                        playerConnection.player.seekTo(
-                            if (length != C.TIME_UNSET && length > 0) target.coerceAtMost(length) else target
-                        )
+                        val player = playerConnection.player
+                        if (LiveRewind.isLive(player)) {
+                            // Live: closer to now, or now itself once within reach of it.
+                            LiveRewind.jumpTo(player, LiveRewind.behindMs(player) - incrementMs)
+                        } else {
+                            val target = player.currentPosition + incrementMs
+                            val length = player.duration
+                            player.seekTo(
+                                if (length != C.TIME_UNSET && length > 0) target.coerceAtMost(length) else target
+                            )
+                        }
                     }
                 )
             }
@@ -1790,3 +1816,89 @@ fun PlayerBackground(
         }
     }
 }
+
+/**
+ * A live stream's seek bar and clock, as YouTube draws them: now at the right end, the bar on
+ * [LiveRewind]'s stretched scale - a small drag near now moves seconds, the far left an hour - and
+ * a red LIVE at now, or a grey LIVE and how far behind ("−1:23") once behind it, which goes back
+ * to now when tapped. Pausing and playing again leaves it behind by however long it was paused.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LiveProgress(
+    positionMs: Long,
+    hPad: androidx.compose.ui.unit.Dp,
+    onBackgroundColor: Color,
+    sliderStyle: com.dd3boh.outertune.constants.SliderStyle,
+    animate: Boolean,
+    sliderWeight: Float,
+    sliderDot: Boolean,
+) {
+    val playerConnection = LocalPlayerConnection.current ?: return
+    val haptic = LocalHapticFeedback.current
+    val behind = LiveRewind.behindMs(positionMs)
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val shownBehind = dragFraction?.let { LiveRewind.behindAt(it) } ?: behind
+
+    Slider(
+        value = dragFraction ?: LiveRewind.barFraction(behind),
+        valueRange = 0f..1f,
+        onValueChange = { dragFraction = it },
+        onValueChangeFinished = {
+            dragFraction?.let { LiveRewind.jumpTo(playerConnection.player, LiveRewind.behindAt(it)) }
+            dragFraction = null
+            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+        },
+        thumb = { Spacer(modifier = Modifier.size(0.dp)) },
+        track = { sliderState ->
+            PlayerSliderTrack(
+                sliderState = sliderState,
+                colors = SliderDefaults.colors(),
+                style = sliderStyle,
+                animate = animate && dragFraction == null,
+                weight = sliderWeight,
+                dot = sliderDot,
+            )
+        },
+        modifier = Modifier.padding(horizontal = hPad),
+    )
+
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = hPad + 4.dp),
+    ) {
+        val atEdge = shownBehind < LiveRewind.EDGE_MS
+        val colour = if (atEdge) LIVE_RED else onBackgroundColor.copy(alpha = 0.7f)
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(enabled = !atEdge) { LiveRewind.jumpTo(playerConnection.player, 0) }
+                .padding(horizontal = 4.dp, vertical = 2.dp),
+        ) {
+            Box(modifier = Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(colour))
+            Spacer(modifier = Modifier.width(5.dp))
+            Text(
+                text = "LIVE",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.Bold,
+                color = colour,
+            )
+        }
+        if (!atEdge) {
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = "−" + makeTimeString(shownBehind),
+                style = MaterialTheme.typography.labelMedium,
+                color = onBackgroundColor,
+            )
+        }
+    }
+
+    Spacer(Modifier.height(12.dp))
+}
+
+/** YouTube's live red. */
+private val LIVE_RED = Color(0xFFFF4E45)

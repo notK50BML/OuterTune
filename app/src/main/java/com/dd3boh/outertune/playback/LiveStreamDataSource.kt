@@ -34,6 +34,10 @@ import kotlin.math.min
  *
  * Only a URL marked by [mark] is read this way; anything else passes straight to [upstream]. The
  * desktop's LiveSource reads live streams the same way.
+ *
+ * It starts at the newest segment, or - when [LiveRewind] has been asked to rewind - that far back,
+ * and tells [LiveRewind] where it started and the newest segment each answer reports, which is how
+ * the screens know how far behind live playback is.
  */
 @UnstableApi
 class LiveStreamDataSource(
@@ -62,14 +66,27 @@ class LiveStreamDataSource(
     override fun open(dataSpec: DataSpec): Long {
         if (!isMarked(dataSpec.uri)) {
             live = false
+            LiveRewind.notLive()
             return upstream.open(dataSpec)
         }
         live = true
         openedUri = dataSpec.uri
-        base = unmark(dataSpec.uri.toString())
+        val marked = dataSpec.uri.toString()
+        base = unmark(marked)
         headers = dataSpec.httpRequestHeaders
-        val (head, bytes) = fetch(null) ?: throw IOException("The live stream did not answer")
-        sequence = head
+        LiveRewind.opened(
+            segmentMs = param(marked, SEGMENT) ?: 5_000L,
+            rewindMs = param(marked, REWIND),
+        )
+        // Every open starts the clock again: the first segment read is the player's 0.
+        origin = -1
+        val (head, newest) = fetch(null) ?: throw IOException("The live stream did not answer")
+        // The newest, or as far back as a rewind asked - and the newest after all if YouTube no
+        // longer has that one.
+        val start = LiveRewind.startingSegment(head)
+        val (first, bytes) = if (start < head) fetch(start) ?: (head to newest) else head to newest
+        sequence = first
+        LiveRewind.started(first)
         buffer = reshape(bytes, first = true)
         position = 0
         fetchAhead()
@@ -122,6 +139,7 @@ class LiveStreamDataSource(
             .build()
         client.newCall(request).execute().use { response ->
             if (response.code != 200) return null
+            response.header("X-Head-Seqnum")?.toLongOrNull()?.let(LiveRewind::sawHead)
             val number = response.header("X-Sequence-Num")?.toLongOrNull()
                 ?: sq ?: response.header("X-Head-Seqnum")?.toLongOrNull() ?: return null
             number to (response.body?.bytes() ?: return null)
@@ -200,15 +218,26 @@ class LiveStreamDataSource(
 
     companion object {
         private const val MARKER = "otlive"
+        private const val SEGMENT = "otseg"
+        private const val REWIND = "otdvr"
         private const val RETRIES = 5
         private const val RETRY_MS = 1_000L
 
-        /** [url] marked to be read as a live stream - see the class. */
-        fun mark(url: String): String = "$url&$MARKER=1"
+        /**
+         * [url] marked to be read as a live stream - see the class - with its segment length and
+         * how far back YouTube keeps it, both from the stream's format, for [LiveRewind].
+         */
+        fun mark(url: String, segmentMs: Long, rewindMs: Long?): String =
+            "$url&$MARKER=1&$SEGMENT=$segmentMs" + (rewindMs?.let { "&$REWIND=$it" } ?: "")
 
         fun isMarked(uri: Uri): Boolean = uri.toString().contains("&$MARKER=1")
 
-        private fun unmark(url: String): String = url.replace("&$MARKER=1", "")
+        private val ownParams = Regex("&(?:$MARKER|$SEGMENT|$REWIND)=[0-9]*")
+
+        private fun unmark(url: String): String = url.replace(ownParams, "")
+
+        private fun param(url: String, name: String): Long? =
+            Regex("&$name=([0-9]+)").find(url)?.groupValues?.get(1)?.toLongOrNull()
 
         private fun boxSize(bytes: ByteArray, at: Int): Long = readInt(bytes, at)
 

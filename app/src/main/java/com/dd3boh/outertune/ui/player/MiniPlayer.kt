@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.C
+import com.dd3boh.outertune.playback.LiveRewind
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Player.STATE_READY
@@ -159,6 +160,7 @@ fun MiniPlayer(
     var duration by rememberSaveable(playbackState) {
         mutableLongStateOf(playerConnection.player.duration)
     }
+    val liveOpen by LiveRewind.live.collectAsState()
 
 
     LaunchedEffect(playbackState) {
@@ -180,7 +182,11 @@ fun MiniPlayer(
 //            .background(MaterialTheme.colorScheme.surfaceColorAtElevation(6.dp))
     ) {
         LinearProgressIndicator(
-            progress = { (position.toFloat() / duration).coerceIn(0f, 1f) },
+            progress = {
+                // A live stream has no length: its place on the stretched live scale - see LiveRewind.
+                if (liveOpen && duration == C.TIME_UNSET) LiveRewind.barFraction(LiveRewind.behindMs(position))
+                else (position.toFloat() / duration).coerceIn(0f, 1f)
+            },
             drawStopIndicator = { },
             modifier = Modifier
                 .fillMaxWidth()

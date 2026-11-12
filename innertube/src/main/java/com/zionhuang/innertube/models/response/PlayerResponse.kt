@@ -87,6 +87,10 @@ data class PlayerResponse(
              */
             val cipher: String? = null,
             val audioTrack: AudioTrack? = null,
+            /** A live stream's segment length, in seconds. */
+            val targetDurationSec: Int? = null,
+            /** How far back a live stream keeps its segments for rewinding, in seconds. */
+            val maxDvrDurationSec: Int? = null,
         ) {
             val isAudio: Boolean
                 get() = width == null

@@ -1566,7 +1566,15 @@ class MusicService : MediaLibraryService(),
             // fragmented MP4, which is what YouTube serves live audio as; anything else is left to
             // play as before rather than risk the songs that work.
             val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
-            val streamUrl = if (isLive) LiveStreamDataSource.mark(playbackData.streamUrl) else playbackData.streamUrl
+            val streamUrl = if (isLive) {
+                LiveStreamDataSource.mark(
+                    playbackData.streamUrl,
+                    segmentMs = (playbackData.format.targetDurationSec ?: 5) * 1000L,
+                    rewindMs = playbackData.format.maxDvrDurationSec?.times(1000L),
+                )
+            } else {
+                playbackData.streamUrl
+            }
 
             val cachedStreamUrl = CachedStreamUrl(
                 url = streamUrl,
