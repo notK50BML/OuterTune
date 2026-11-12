@@ -1836,7 +1836,16 @@ private fun LiveProgress(
 ) {
     val playerConnection = LocalPlayerConnection.current ?: return
     val haptic = LocalHapticFeedback.current
-    val behind = LiveRewind.behindMs(positionMs)
+    // Redrawn on a tick of its own: paused, the position stops moving but "now" does not, and the
+    // "−0:05" has to keep counting.
+    var tick by remember { mutableLongStateOf(0L) }
+    LaunchedEffect(Unit) {
+        while (isActive) {
+            delay(500)
+            tick++
+        }
+    }
+    val behind = tick.let { LiveRewind.behindMs(positionMs) }
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val shownBehind = dragFraction?.let { LiveRewind.behindAt(it) } ?: behind
 
@@ -1875,7 +1884,9 @@ private fun LiveProgress(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
-                .clickable(enabled = !atEdge) { LiveRewind.jumpTo(playerConnection.player, 0) }
+                // Always takes the tap, live or not: one it let through reached the cover below,
+                // which shows and hides the lyrics.
+                .clickable { if (!atEdge) LiveRewind.jumpTo(playerConnection.player, 0) }
                 .padding(horizontal = 4.dp, vertical = 2.dp),
         ) {
             Box(modifier = Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(colour))

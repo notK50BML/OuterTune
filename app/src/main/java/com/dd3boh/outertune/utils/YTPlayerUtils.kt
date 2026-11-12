@@ -324,8 +324,11 @@ object YTPlayerUtils {
                 playbackTracking = playbackTracking ?: streamPlayerResponse.playbackTracking
 
                 // Skip NewPipe for age-restricted content (NewPipe doesn't use our auth)
-                val responseToUse = if (wasOriginallyAgeRestricted) {
-                    Timber.tag(logTag).d("Skipping NewPipe for age-restricted content")
+                // Nor for a live stream: NewPipe answers one with addresses of its own, and the client's
+                // own - IOS's, for live - is what was tested to play, segment by segment.
+                val isLiveStream = effectiveHints.isLive == true
+                val responseToUse = if (wasOriginallyAgeRestricted || isLiveStream) {
+                    Timber.tag(logTag).d("Skipping NewPipe for age-restricted or live content")
                     streamPlayerResponse
                 } else {
                     // Try to get streams using newPipePlayer method
@@ -357,7 +360,7 @@ object YTPlayerUtils {
 
                 Timber.tag(logTag).d("Format found: ${format.mimeType}, bitrate: ${format.bitrate}")
 
-                streamUrl = findUrlOrNull(format, videoId, responseToUse, skipNewPipe = wasOriginallyAgeRestricted)
+                streamUrl = findUrlOrNull(format, videoId, responseToUse, skipNewPipe = wasOriginallyAgeRestricted || isLiveStream)
                 if (streamUrl == null) {
                     Timber.tag(logTag).d("Stream URL not found for format")
                     continue

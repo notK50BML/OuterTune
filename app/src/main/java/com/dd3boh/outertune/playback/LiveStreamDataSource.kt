@@ -81,12 +81,12 @@ class LiveStreamDataSource(
         // Every open starts the clock again: the first segment read is the player's 0.
         origin = -1
         val (head, newest) = fetch(null) ?: throw IOException("The live stream did not answer")
-        // The newest, or as far back as a rewind asked - and the newest after all if YouTube no
-        // longer has that one.
+        // The live point - a few segments behind the newest - or as far behind it as a rewind
+        // asked; the newest after all if YouTube no longer has that one.
         val start = LiveRewind.startingSegment(head)
         val (first, bytes) = if (start < head) fetch(start) ?: (head to newest) else head to newest
         sequence = first
-        LiveRewind.started(first)
+        LiveRewind.started(first, head)
         buffer = reshape(bytes, first = true)
         position = 0
         fetchAhead()
