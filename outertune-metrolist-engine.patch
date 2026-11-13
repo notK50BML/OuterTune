@@ -267243,3 +267243,230 @@ index 2ff5efc..61abb34 100644
 -- 
 2.56.0.windows.4
 
+From a10bc3e67264ee11f3065e8fce365b64bf0a1c9f Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Fri, 13 Nov 2026 17:29:33 +0800
+Subject: [PATCH] Live radio: refinements from a review
+
+- The next song's precache marked nothing live, so a radio coming up in a
+  queue was handed to the player as an ordinary file - the path that left
+  stale bytes and silence. Both resolves now go through one function.
+- Segment requests wait up to 30 seconds (YouTube holds a request for a
+  segment not made yet, measured at up to 11s; OkHttp gave up at 10), and
+  ten tries two seconds apart before a stream counts as ended - a network
+  hiccup was skipping the radio to the next song.
+- Between a rewind and the stream reopening, the bar holds the target
+  instead of jumping to a bogus distance and back.
+- Time paused before playback's first sound counts as time behind, so a
+  rewind made while paused reads right once played.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .../dd3boh/outertune/playback/LiveRewind.kt   | 42 ++++++++++++++-
+ .../playback/LiveStreamDataSource.kt          | 18 +++++--
+ .../dd3boh/outertune/playback/MusicService.kt | 51 +++++++++++--------
+ 3 files changed, 84 insertions(+), 27 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt b/app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt
+index 92c442b..4a6c035 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/LiveRewind.kt
+@@ -63,11 +63,17 @@ object LiveRewind {
+      * and counting from the open would have read that as being behind.
+      */
+     fun behindMs(positionMs: Long): Long {
++        // Between a rewind and the stream reopening, the player's position is already back at 0
++        // while the old start still stands, which read as some far-off distance behind: the bar
++        // jumped away and back. Until the reopen, it is where it was sent.
++        reopeningTo?.takeIf { System.currentTimeMillis() - reopeningAt < REOPEN_HOLD_MS }?.let { return it }
+         if (startSeq < 0) return 0
+         val now = System.currentTimeMillis()
+         if (anchorAt < 0) {
+-            if (positionMs <= 0) return ((anchorSeq - startSeq) * segmentMs - startOffsetMs).coerceAtLeast(0)
+-            anchorAt = now - positionMs
++            // Time spent paused before the first sound is time fallen behind, all the same.
++            val paused = pausedBeforeStart + if (pausedSince >= 0) now - pausedSince else 0
++            if (positionMs <= 0) return ((anchorSeq - startSeq) * segmentMs - startOffsetMs + paused).coerceIn(0, windowMs)
++            anchorAt = now - positionMs - paused
+         }
+         // Counted from where playback began: startOffsetMs into the starting segment.
+         val liveEnd = maxOf(
+@@ -95,6 +101,8 @@ object LiveRewind {
+         val target = if (behindMs < EDGE_MS) 0 else behindMs.coerceAtMost(windowMs)
+         if (target == 0L && behindMs(player) < EDGE_MS) return
+         pendingBehindMs = target
++        reopeningTo = target
++        reopeningAt = System.currentTimeMillis()
+         // To the player an unseekable stream has only its start to seek to, and seeking there
+         // reopens it - at the segment just asked for.
+         player.seekTo(0)
+@@ -129,10 +137,38 @@ object LiveRewind {
+         startOffsetMs = offsetMs
+         anchorSeq = (head - OFFSET_SEGMENTS).coerceAtLeast(seq)
+         anchorAt = -1
++        reopeningTo = null
++        pausedBeforeStart = 0
++        pausedSince = if (wantsPlay) -1 else System.currentTimeMillis()
+     }
+ 
+     @Volatile private var startOffsetMs = 0L
+ 
++    @Volatile private var wantsPlay = true
++    /** Paused since when, before playback's first sound - see [behindMs]. -1 when not paused. */
++    @Volatile private var pausedSince = -1L
++    @Volatile private var pausedBeforeStart = 0L
++
++    /** The player's play/pause, from MusicService: needed only until playback has started. */
++    fun playWhenReadyChanged(play: Boolean) {
++        wantsPlay = play
++        if (anchorAt >= 0) return
++        val now = System.currentTimeMillis()
++        if (!play) {
++            if (pausedSince < 0) pausedSince = now
++        } else if (pausedSince >= 0) {
++            pausedBeforeStart += now - pausedSince
++            pausedSince = -1
++        }
++    }
++
++    /** Where a rewind sent playback, until the stream has reopened there - see [behindMs]. */
++    @Volatile private var reopeningTo: Long? = null
++    @Volatile private var reopeningAt = 0L
++
++    /** Held no longer than this, in case a reopen never comes: the bar must not freeze. */
++    private const val REOPEN_HOLD_MS = 15_000L
++
+     /** How long one segment is, for cutting into it - see LiveStreamDataSource. */
+     internal val segmentLengthMs: Long get() = segmentMs
+ 
+@@ -146,6 +182,8 @@ object LiveRewind {
+         startSeq = -1
+         headSeq = -1
+         anchorAt = -1
++        reopeningTo = null
++        pendingBehindMs = null
+     }
+     // endregion
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt b/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt
+index 6ebb1a4..67d37f3 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/LiveStreamDataSource.kt
+@@ -45,8 +45,16 @@ class LiveStreamDataSource(
+     private val client: OkHttpClient,
+ ) : DataSource {
+ 
+-    class Factory(private val upstream: DataSource.Factory, private val client: OkHttpClient) : DataSource.Factory {
+-        override fun createDataSource(): DataSource = LiveStreamDataSource(upstream.createDataSource(), client)
++    class Factory(private val upstream: DataSource.Factory, client: OkHttpClient) : DataSource.Factory {
++        /**
++         * The same client, more patient. A segment not made yet is held by YouTube until it is -
++         * measured at up to 11 seconds - and the player reads ahead to the newest segment, so it
++         * asks for unmade ones routinely. OkHttp's 10-second read timeout counted those as failures,
++         * and enough of them in a row ended the stream: the radio skipped to the next song.
++         */
++        private val segmentClient = client.newBuilder().readTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build()
++
++        override fun createDataSource(): DataSource = LiveStreamDataSource(upstream.createDataSource(), segmentClient)
+     }
+ 
+     private var live = false
+@@ -317,8 +325,10 @@ class LiveStreamDataSource(
+         private const val MARKER = "otlive"
+         private const val SEGMENT = "otseg"
+         private const val REWIND = "otdvr"
+-        private const val RETRIES = 5
+-        private const val RETRY_MS = 1_000L
++        // Ten tries 2 seconds apart, each allowed 30 seconds: a minute or more of a stalled network
++        // before the stream is given up as ended, where five quick tries skipped a radio on a hiccup.
++        private const val RETRIES = 10
++        private const val RETRY_MS = 2_000L
+ 
+         /**
+          * [url] marked to be read as a live stream - see the class - with its segment length and
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index f79bfc2..f240359 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -443,6 +443,29 @@ class MusicService : MediaLibraryService(),
+     /** Songs found to be live streams this run: never played from the song cache - see the resolver. */
+     private val liveMediaIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+ 
++    /**
++     * The URL to hand the player for a resolved stream: as resolved, or - for a live stream -
++     * marked to be read a segment at a time (see LiveStreamDataSource). Every resolve goes through
++     * here, the next song's precache included, so a live one is never read as an ordinary file.
++     *
++     * Only AAC in fragmented MP4, which is what YouTube serves live audio as; anything else is left
++     * to play as before rather than risk the songs that work.
++     */
++    private fun playableStreamUrl(mediaId: String, playbackData: YTPlayerUtils.PlaybackData): String {
++        val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
++        if (!isLive) return playbackData.streamUrl
++        liveMediaIds += mediaId
++        // The cache is keyed by the song, not the URL, so bytes left from a time this radio was
++        // read as an ordinary file would be played ahead of the live stream - and they are a few
++        // seconds from some other day. Nothing live is cached (see the sink).
++        runCatching { playerCache.removeResource(mediaId) }
++        return LiveStreamDataSource.mark(
++            playbackData.streamUrl,
++            segmentMs = (playbackData.format.targetDurationSec ?: 5) * 1000L,
++            rewindMs = playbackData.format.maxDvrDurationSec?.times(1000L),
++        )
++    }
++
+     /**
+      * Per-song count of automatic retries - cache entry dropped, player re-prepared - already given
+      * after a source/HTTP error this process lifetime. A bad HTTP status (ExoPlayer's 2004, almost
+@@ -1045,7 +1068,9 @@ class MusicService : MediaLibraryService(),
+             }
+ 
+             songUrlCache[nextMediaId] = CachedStreamUrl(
+-                url = playbackData.streamUrl,
++                // Marked as live here too: the player takes this URL as it is when the song comes
++                // up, and an unmarked live one was played as an ordinary file - silence.
++                url = playableStreamUrl(nextMediaId, playbackData),
+                 expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
+                 headers = playbackData.streamHeaders,
+                 cpn = playbackData.cpn,
+@@ -1571,26 +1596,7 @@ class MusicService : MediaLibraryService(),
+             }
+             offloadScope.launch { recoverSong(mediaId, playbackData) }
+ 
+-            // A live stream is read a segment at a time - see LiveStreamDataSource. Only AAC in
+-            // fragmented MP4, which is what YouTube serves live audio as; anything else is left to
+-            // play as before rather than risk the songs that work.
+-            val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
+-            if (isLive) {
+-                liveMediaIds += mediaId
+-                // The cache is keyed by the song, not the URL, so bytes left from a time this radio
+-                // was read as an ordinary file would be played ahead of the live stream - and they
+-                // are a few seconds from some other day. Nothing live is cached (see the sink).
+-                runCatching { playerCache.removeResource(mediaId) }
+-            }
+-            val streamUrl = if (isLive) {
+-                LiveStreamDataSource.mark(
+-                    playbackData.streamUrl,
+-                    segmentMs = (playbackData.format.targetDurationSec ?: 5) * 1000L,
+-                    rewindMs = playbackData.format.maxDvrDurationSec?.times(1000L),
+-                )
+-            } else {
+-                playbackData.streamUrl
+-            }
++            val streamUrl = playableStreamUrl(mediaId, playbackData)
+ 
+             val cachedStreamUrl = CachedStreamUrl(
+                 url = streamUrl,
+@@ -2006,6 +2012,9 @@ class MusicService : MediaLibraryService(),
+ 
+ 
+     override fun onEvents(player: Player, events: Player.Events) {
++        if (events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
++            LiveRewind.playWhenReadyChanged(player.playWhenReady)
++        }
+         if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
+             val isBufferingOrReady =
+                 player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY
+-- 
+2.56.0.windows.4
+
