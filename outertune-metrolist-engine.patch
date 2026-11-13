@@ -267146,3 +267146,100 @@ index 4a91e4a..16e6497 100644
 -- 
 2.56.0.windows.4
 
+From 7ad5858401d099efcb7f3bbfe665844117766a9f Mon Sep 17 00:00:00 2001
+From: t <t@t>
+Date: Fri, 13 Nov 2026 16:58:40 +0800
+Subject: [PATCH] Build workflow: arm64 and universal APKs only, one download
+ each
+
+A new "abis" input (default arm64-v8a) narrows the per-chip APKs before the
+build; the universal APK is always built and covers every phone. Each APK
+is uploaded as its own artifact, stored rather than re-zipped, so one APK
+can be fetched on a slow connection instead of the whole set.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+---
+ .github/workflows/build-patched-backlog.yml | 49 +++++++++++++++++++--
+ 1 file changed, 46 insertions(+), 3 deletions(-)
+
+diff --git a/.github/workflows/build-patched-backlog.yml b/.github/workflows/build-patched-backlog.yml
+index 2ff5efc..61abb34 100644
+--- a/.github/workflows/build-patched-backlog.yml
++++ b/.github/workflows/build-patched-backlog.yml
+@@ -56,6 +56,10 @@ on:
+         description: "Languages to keep, comma separated (e.g. en,ja,zh-rCN). Blank keeps all 50, which is about 1.4MB of strings."
+         required: false
+         default: ""
++      abis:
++        description: "Per-chip APKs to build besides the universal one, comma separated (arm64-v8a, armeabi-v7a, x86, x86_64), or 'all'."
++        required: false
++        default: "arm64-v8a"
+ 
+ jobs:
+   build:
+@@ -211,6 +215,21 @@ jobs:
+           echo "Applied commits:"
+           git log --oneline -8
+ 
++      # Fewer per-chip APKs: the universal APK is always built and carries every chip type, so it
++      # covers any phone; the per-chip ones are only smaller downloads. Building all four doubled
++      # the upload for APKs nobody installs. Done on the build file after the patch, so the app's
++      # own code keeps its full list for anyone building it themselves.
++      - name: Choose which per-chip APKs to build
++        if: inputs.abis != 'all'
++        run: |
++          ABIS=$(echo "${{ inputs.abis }}" | tr -d ' ' | sed 's/[^,]*/"&"/g')
++          sed -i "s/include(\"x86_64\", \"x86\", \"armeabi-v7a\", \"arm64-v8a\")/include($ABIS)/" app/build.gradle.kts
++          if ! grep -q "include($ABIS)" app/build.gradle.kts; then
++            echo "::error::Could not find the ABI list in app/build.gradle.kts to narrow it."
++            exit 1
++          fi
++          echo "::notice::Per-chip APKs: ${{ inputs.abis }} (plus the universal APK)"
++
+       # What the last successful run of this workflow called itself. Restored by prefix rather than
+       # by an exact key, so it always finds the most recent one without anybody having to know its
+       # number. A miss is not a failure - the step below falls back to what the patch declares.
+@@ -495,13 +514,37 @@ jobs:
+ 
+       # The version is in the artifact name as well as inside the APKs, so several downloads
+       # sitting in the same folder can still be told apart.
+-      - name: Upload APKs
++      #
++      # One download per APK rather than one bundle of all of them: on a slow connection fetching
++      # just the APK the phone needs is a few MB, not the whole set. Stored rather than zipped -
++      # an APK is already compressed, and zipping it again only costs time.
++      - name: Upload the arm64 APK
+         uses: actions/upload-artifact@v4
+         with:
+-          name: outertune-${{ inputs.variant }}-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
+-          path: app/build/outputs/apk/**/*.apk
++          name: outertune-${{ inputs.variant }}-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}-arm64-v8a
++          path: app/build/outputs/apk/**/*-arm64-v8a-*.apk
++          compression-level: 0
++          if-no-files-found: ignore
++
++      - name: Upload the universal APK
++        uses: actions/upload-artifact@v4
++        with:
++          name: outertune-${{ inputs.variant }}-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}-universal
++          path: app/build/outputs/apk/**/*-universal-*.apk
++          compression-level: 0
+           if-no-files-found: error
+ 
++      - name: Upload any other per-chip APKs
++        uses: actions/upload-artifact@v4
++        with:
++          name: outertune-${{ inputs.variant }}-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}-other-chips
++          path: |
++            app/build/outputs/apk/**/*.apk
++            !app/build/outputs/apk/**/*-arm64-v8a-*.apk
++            !app/build/outputs/apk/**/*-universal-*.apk
++          compression-level: 0
++          if-no-files-found: ignore
++
+       - name: Upload build reports on failure
+         if: failure()
+         uses: actions/upload-artifact@v4
+-- 
+2.56.0.windows.4
+
