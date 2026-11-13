@@ -444,6 +444,29 @@ class MusicService : MediaLibraryService(),
     private val liveMediaIds: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
 
     /**
+     * The URL to hand the player for a resolved stream: as resolved, or - for a live stream -
+     * marked to be read a segment at a time (see LiveStreamDataSource). Every resolve goes through
+     * here, the next song's precache included, so a live one is never read as an ordinary file.
+     *
+     * Only AAC in fragmented MP4, which is what YouTube serves live audio as; anything else is left
+     * to play as before rather than risk the songs that work.
+     */
+    private fun playableStreamUrl(mediaId: String, playbackData: YTPlayerUtils.PlaybackData): String {
+        val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
+        if (!isLive) return playbackData.streamUrl
+        liveMediaIds += mediaId
+        // The cache is keyed by the song, not the URL, so bytes left from a time this radio was
+        // read as an ordinary file would be played ahead of the live stream - and they are a few
+        // seconds from some other day. Nothing live is cached (see the sink).
+        runCatching { playerCache.removeResource(mediaId) }
+        return LiveStreamDataSource.mark(
+            playbackData.streamUrl,
+            segmentMs = (playbackData.format.targetDurationSec ?: 5) * 1000L,
+            rewindMs = playbackData.format.maxDvrDurationSec?.times(1000L),
+        )
+    }
+
+    /**
      * Per-song count of automatic retries - cache entry dropped, player re-prepared - already given
      * after a source/HTTP error this process lifetime. A bad HTTP status (ExoPlayer's 2004, almost
      * always a 403 from an expired or otherwise rejected stream URL) is frequently just a stale
@@ -1045,7 +1068,9 @@ class MusicService : MediaLibraryService(),
             }
 
             songUrlCache[nextMediaId] = CachedStreamUrl(
-                url = playbackData.streamUrl,
+                // Marked as live here too: the player takes this URL as it is when the song comes
+                // up, and an unmarked live one was played as an ordinary file - silence.
+                url = playableStreamUrl(nextMediaId, playbackData),
                 expiresAt = System.currentTimeMillis() + minOf(playbackData.streamExpiresInSeconds * 1000L, STREAM_URL_TRUST_WINDOW_MS),
                 headers = playbackData.streamHeaders,
                 cpn = playbackData.cpn,
@@ -1571,26 +1596,7 @@ class MusicService : MediaLibraryService(),
             }
             offloadScope.launch { recoverSong(mediaId, playbackData) }
 
-            // A live stream is read a segment at a time - see LiveStreamDataSource. Only AAC in
-            // fragmented MP4, which is what YouTube serves live audio as; anything else is left to
-            // play as before rather than risk the songs that work.
-            val isLive = playbackData.videoDetails?.isLive == true && playbackData.format.mimeType.startsWith("audio/mp4")
-            if (isLive) {
-                liveMediaIds += mediaId
-                // The cache is keyed by the song, not the URL, so bytes left from a time this radio
-                // was read as an ordinary file would be played ahead of the live stream - and they
-                // are a few seconds from some other day. Nothing live is cached (see the sink).
-                runCatching { playerCache.removeResource(mediaId) }
-            }
-            val streamUrl = if (isLive) {
-                LiveStreamDataSource.mark(
-                    playbackData.streamUrl,
-                    segmentMs = (playbackData.format.targetDurationSec ?: 5) * 1000L,
-                    rewindMs = playbackData.format.maxDvrDurationSec?.times(1000L),
-                )
-            } else {
-                playbackData.streamUrl
-            }
+            val streamUrl = playableStreamUrl(mediaId, playbackData)
 
             val cachedStreamUrl = CachedStreamUrl(
                 url = streamUrl,
@@ -2006,6 +2012,9 @@ class MusicService : MediaLibraryService(),
 
 
     override fun onEvents(player: Player, events: Player.Events) {
+        if (events.contains(Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
+            LiveRewind.playWhenReadyChanged(player.playWhenReady)
+        }
         if (events.containsAny(Player.EVENT_PLAYBACK_STATE_CHANGED, Player.EVENT_PLAY_WHEN_READY_CHANGED)) {
             val isBufferingOrReady =
                 player.playbackState == Player.STATE_BUFFERING || player.playbackState == Player.STATE_READY

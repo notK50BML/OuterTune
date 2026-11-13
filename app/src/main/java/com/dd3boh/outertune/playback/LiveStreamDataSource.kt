@@ -45,8 +45,16 @@ class LiveStreamDataSource(
     private val client: OkHttpClient,
 ) : DataSource {
 
-    class Factory(private val upstream: DataSource.Factory, private val client: OkHttpClient) : DataSource.Factory {
-        override fun createDataSource(): DataSource = LiveStreamDataSource(upstream.createDataSource(), client)
+    class Factory(private val upstream: DataSource.Factory, client: OkHttpClient) : DataSource.Factory {
+        /**
+         * The same client, more patient. A segment not made yet is held by YouTube until it is -
+         * measured at up to 11 seconds - and the player reads ahead to the newest segment, so it
+         * asks for unmade ones routinely. OkHttp's 10-second read timeout counted those as failures,
+         * and enough of them in a row ended the stream: the radio skipped to the next song.
+         */
+        private val segmentClient = client.newBuilder().readTimeout(30, java.util.concurrent.TimeUnit.SECONDS).build()
+
+        override fun createDataSource(): DataSource = LiveStreamDataSource(upstream.createDataSource(), segmentClient)
     }
 
     private var live = false
@@ -317,8 +325,10 @@ class LiveStreamDataSource(
         private const val MARKER = "otlive"
         private const val SEGMENT = "otseg"
         private const val REWIND = "otdvr"
-        private const val RETRIES = 5
-        private const val RETRY_MS = 1_000L
+        // Ten tries 2 seconds apart, each allowed 30 seconds: a minute or more of a stalled network
+        // before the stream is given up as ended, where five quick tries skipped a radio on a hiccup.
+        private const val RETRIES = 10
+        private const val RETRY_MS = 2_000L
 
         /**
          * [url] marked to be read as a live stream - see the class - with its segment length and

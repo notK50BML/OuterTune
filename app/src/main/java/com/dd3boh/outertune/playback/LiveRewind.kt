@@ -63,11 +63,17 @@ object LiveRewind {
      * and counting from the open would have read that as being behind.
      */
     fun behindMs(positionMs: Long): Long {
+        // Between a rewind and the stream reopening, the player's position is already back at 0
+        // while the old start still stands, which read as some far-off distance behind: the bar
+        // jumped away and back. Until the reopen, it is where it was sent.
+        reopeningTo?.takeIf { System.currentTimeMillis() - reopeningAt < REOPEN_HOLD_MS }?.let { return it }
         if (startSeq < 0) return 0
         val now = System.currentTimeMillis()
         if (anchorAt < 0) {
-            if (positionMs <= 0) return ((anchorSeq - startSeq) * segmentMs - startOffsetMs).coerceAtLeast(0)
-            anchorAt = now - positionMs
+            // Time spent paused before the first sound is time fallen behind, all the same.
+            val paused = pausedBeforeStart + if (pausedSince >= 0) now - pausedSince else 0
+            if (positionMs <= 0) return ((anchorSeq - startSeq) * segmentMs - startOffsetMs + paused).coerceIn(0, windowMs)
+            anchorAt = now - positionMs - paused
         }
         // Counted from where playback began: startOffsetMs into the starting segment.
         val liveEnd = maxOf(
@@ -95,6 +101,8 @@ object LiveRewind {
         val target = if (behindMs < EDGE_MS) 0 else behindMs.coerceAtMost(windowMs)
         if (target == 0L && behindMs(player) < EDGE_MS) return
         pendingBehindMs = target
+        reopeningTo = target
+        reopeningAt = System.currentTimeMillis()
         // To the player an unseekable stream has only its start to seek to, and seeking there
         // reopens it - at the segment just asked for.
         player.seekTo(0)
@@ -129,9 +137,37 @@ object LiveRewind {
         startOffsetMs = offsetMs
         anchorSeq = (head - OFFSET_SEGMENTS).coerceAtLeast(seq)
         anchorAt = -1
+        reopeningTo = null
+        pausedBeforeStart = 0
+        pausedSince = if (wantsPlay) -1 else System.currentTimeMillis()
     }
 
     @Volatile private var startOffsetMs = 0L
+
+    @Volatile private var wantsPlay = true
+    /** Paused since when, before playback's first sound - see [behindMs]. -1 when not paused. */
+    @Volatile private var pausedSince = -1L
+    @Volatile private var pausedBeforeStart = 0L
+
+    /** The player's play/pause, from MusicService: needed only until playback has started. */
+    fun playWhenReadyChanged(play: Boolean) {
+        wantsPlay = play
+        if (anchorAt >= 0) return
+        val now = System.currentTimeMillis()
+        if (!play) {
+            if (pausedSince < 0) pausedSince = now
+        } else if (pausedSince >= 0) {
+            pausedBeforeStart += now - pausedSince
+            pausedSince = -1
+        }
+    }
+
+    /** Where a rewind sent playback, until the stream has reopened there - see [behindMs]. */
+    @Volatile private var reopeningTo: Long? = null
+    @Volatile private var reopeningAt = 0L
+
+    /** Held no longer than this, in case a reopen never comes: the bar must not freeze. */
+    private const val REOPEN_HOLD_MS = 15_000L
 
     /** How long one segment is, for cutting into it - see LiveStreamDataSource. */
     internal val segmentLengthMs: Long get() = segmentMs
@@ -146,6 +182,8 @@ object LiveRewind {
         startSeq = -1
         headSeq = -1
         anchorAt = -1
+        reopeningTo = null
+        pendingBehindMs = null
     }
     // endregion
 
