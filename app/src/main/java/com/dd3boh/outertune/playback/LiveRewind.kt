@@ -66,13 +66,14 @@ object LiveRewind {
         if (startSeq < 0) return 0
         val now = System.currentTimeMillis()
         if (anchorAt < 0) {
-            if (positionMs <= 0) return (anchorSeq - startSeq).coerceAtLeast(0) * segmentMs
+            if (positionMs <= 0) return ((anchorSeq - startSeq) * segmentMs - startOffsetMs).coerceAtLeast(0)
             anchorAt = now - positionMs
         }
+        // Counted from where playback began: startOffsetMs into the starting segment.
         val liveEnd = maxOf(
             (headSeq - OFFSET_SEGMENTS - startSeq) * segmentMs,
             (anchorSeq - startSeq) * segmentMs + (now - anchorAt),
-        )
+        ) - startOffsetMs
         return (liveEnd - positionMs).coerceIn(0, windowMs)
     }
 
@@ -106,18 +107,34 @@ object LiveRewind {
         _live.value = true
     }
 
-    /** The segment to start at, given the newest: the live point, or as far behind it as asked. */
-    internal fun startingSegment(head: Long): Long {
+    /**
+     * Where to start, given the newest segment: the live point, or as far behind it as asked - the
+     * segment that moment is in, and how far into that segment it is.
+     */
+    internal fun startingPoint(head: Long): Pair<Long, Long> {
         val behind = pendingBehindMs ?: 0
         pendingBehindMs = null
-        return (head - OFFSET_SEGMENTS - behind / segmentMs).coerceAtLeast(0)
+        val segmentsBack = (behind + segmentMs - 1) / segmentMs
+        val seq = head - OFFSET_SEGMENTS - segmentsBack
+        if (seq < 0) return 0L to 0L
+        return seq to segmentsBack * segmentMs - behind
     }
 
-    internal fun started(seq: Long, head: Long) {
+    /**
+     * Playback starts at segment [seq], [offsetMs] into it - the player's position 0 is that moment -
+     * with [head] the newest segment when it was opened.
+     */
+    internal fun started(seq: Long, head: Long, offsetMs: Long) {
         startSeq = seq
+        startOffsetMs = offsetMs
         anchorSeq = (head - OFFSET_SEGMENTS).coerceAtLeast(seq)
         anchorAt = -1
     }
+
+    @Volatile private var startOffsetMs = 0L
+
+    /** How long one segment is, for cutting into it - see LiveStreamDataSource. */
+    internal val segmentLengthMs: Long get() = segmentMs
 
     internal fun sawHead(seq: Long) {
         if (seq > headSeq) headSeq = seq

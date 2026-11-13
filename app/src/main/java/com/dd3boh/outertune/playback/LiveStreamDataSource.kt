@@ -83,10 +83,13 @@ class LiveStreamDataSource(
         val (head, newest) = fetch(null) ?: throw IOException("The live stream did not answer")
         // The live point - a few segments behind the newest - or as far behind it as a rewind
         // asked; the newest after all if YouTube no longer has that one.
-        val start = LiveRewind.startingSegment(head)
-        val (first, bytes) = if (start < head) fetch(start) ?: (head to newest) else head to newest
+        val (start, intoMs) = LiveRewind.startingPoint(head)
+        val (first, whole) = if (start < head) fetch(start) ?: (head to newest) else head to newest
+        // Into the segment as far as the rewind asked, not only to its start: the bar then lands
+        // where it was let go, rather than up to a segment earlier.
+        val (bytes, skippedMs) = if (first == start && intoMs > 0) trimStart(whole, intoMs) else whole to 0L
         sequence = first
-        LiveRewind.started(first, head)
+        LiveRewind.started(first, head, skippedMs)
         buffer = reshape(bytes, first = true)
         position = 0
         fetchAhead()
@@ -146,6 +149,100 @@ class LiveStreamDataSource(
         }
     } catch (e: IOException) {
         null
+    }
+
+    /**
+     * [segment] with its first [skipMs] cut off, and how much was cut - so playback starts inside
+     * it. Done on the fragment's sample table: the first samples' entries are dropped from the
+     * `trun`, its data offset moved past their bytes (and back by the bytes the table lost), the
+     * boxes holding it shortened, and the `tfdt` moved on by their duration so the next segment
+     * still follows without a gap. The samples' bytes stay in `mdat`, never read.
+     *
+     * Only for the shape YouTube serves - one `traf`, one `trun` carrying sample sizes, durations
+     * per sample or by default - anything else is returned whole, which only means starting at
+     * the segment's beginning.
+     */
+    private fun trimStart(segment: ByteArray, skipMs: Long): Pair<ByteArray, Long> {
+        val whole = segment to 0L
+        val segmentMs = LiveRewind.segmentLengthMs
+        // The top-level moof, and the one traf inside it.
+        var moof = -1
+        var at = 0
+        while (at + 8 <= segment.size) {
+            val size = boxSize(segment, at)
+            if (size < 8 || at + size > segment.size) return whole
+            if (String(segment, at + 4, 4, Charsets.ISO_8859_1) == "moof") { moof = at; break }
+            at += size.toInt()
+        }
+        if (moof < 0) return whole
+        val moofEnd = moof + boxSize(segment, moof).toInt()
+        var traf = -1; var tfhd = -1; var tfdt = -1; var trun = -1
+        at = moof + 8
+        while (at + 8 <= moofEnd) {
+            val size = boxSize(segment, at).toInt()
+            if (size < 8) return whole
+            if (String(segment, at + 4, 4, Charsets.ISO_8859_1) == "traf") {
+                if (traf >= 0) return whole
+                traf = at
+                var inner = at + 8
+                while (inner + 8 <= at + size) {
+                    val innerSize = boxSize(segment, inner).toInt()
+                    if (innerSize < 8) return whole
+                    when (String(segment, inner + 4, 4, Charsets.ISO_8859_1)) {
+                        "tfhd" -> tfhd = inner
+                        "tfdt" -> tfdt = inner
+                        "trun" -> if (trun >= 0) return whole else trun = inner
+                    }
+                    inner += innerSize
+                }
+            }
+            at += size
+        }
+        if (traf < 0 || tfhd < 0 || tfdt < 0 || trun < 0 || tfdt > trun) return whole
+
+        val trunFlags = readInt(segment, trun + 8) and 0xFFFFFFL
+        if ((trunFlags and 0x200L) == 0L || (trunFlags and 0x001L) == 0L) return whole
+        val count = readInt(segment, trun + 12).toInt()
+        if (count < 2) return whole
+        val hasDuration = (trunFlags and 0x100L) != 0L
+        val entrySize = 4 * listOf(0x100L, 0x200L, 0x400L, 0x800L).count { (trunFlags and it) != 0L }
+        val entries = trun + 20 + if ((trunFlags and 0x004L) != 0L) 4 else 0
+        // Durations from the samples themselves, or the tfhd's default.
+        val tfhdFlags = readInt(segment, tfhd + 8) and 0xFFFFFFL
+        val defaultDuration = if ((tfhdFlags and 0x08L) != 0L) {
+            var field = tfhd + 16
+            if ((tfhdFlags and 0x01L) != 0L) field += 8
+            if ((tfhdFlags and 0x02L) != 0L) field += 4
+            readInt(segment, field)
+        } else if (hasDuration) 0L else return whole
+
+        val skip = (skipMs * count / segmentMs).toInt().coerceIn(0, count - 1)
+        if (skip == 0) return whole
+        var skippedBytes = 0L
+        var skippedTicks = 0L
+        val sizeAt = if (hasDuration) 4 else 0
+        for (i in 0 until skip) {
+            val entry = entries + i * entrySize
+            skippedTicks += if (hasDuration) readInt(segment, entry) else defaultDuration
+            skippedBytes += readInt(segment, entry + sizeAt)
+        }
+
+        // Patched in place first - every field here sits before the entries being removed.
+        val out = segment.copyOf()
+        val removed = (skip * entrySize).toLong()
+        writeInt(out, moof, boxSize(out, moof) - removed)
+        writeInt(out, traf, boxSize(out, traf) - removed)
+        writeInt(out, trun, boxSize(out, trun) - removed)
+        writeInt(out, trun + 12, (count - skip).toLong())
+        writeInt(out, trun + 16, readInt(out, trun + 16) - removed + skippedBytes)
+        val version = out[tfdt + 8].toInt()
+        if (version == 1) writeLong(out, tfdt + 12, readLong(out, tfdt + 12) + skippedTicks)
+        else writeInt(out, tfdt + 12, readInt(out, tfdt + 12) + skippedTicks)
+
+        val cut = java.io.ByteArrayOutputStream(out.size)
+        cut.write(out, 0, entries)
+        cut.write(out, entries + removed.toInt(), out.size - entries - removed.toInt())
+        return cut.toByteArray() to skip * segmentMs / count
     }
 
     /**

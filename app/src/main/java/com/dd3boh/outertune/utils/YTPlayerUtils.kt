@@ -29,14 +29,22 @@ import com.dd3boh.outertune.utils.potoken.PoTokenResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.OkHttpClient
 import timber.log.Timber
 
 object YTPlayerUtils {
     private const val logTag = "YTPlayerUtils"
     private const val TAG = "YTPlayerUtils"
+
+    /** How long the NewPipe STS is waited for when the cipher's own is already known. */
+    private const val NEWPIPE_STS_WAIT_MS = 3_000L
+
+    /** NewPipe's STS lookups: left to finish on their own when not waited for. */
+    private val newPipeScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     private val httpClient = OkHttpClient.Builder()
         .proxy(YouTube.proxy)
@@ -772,7 +780,19 @@ object YTPlayerUtils {
             null
         }
 
-        val result = NewPipeUtils.getSignatureTimestamp(videoId)
+        // With the cipher's own STS in hand, NewPipe is only an early hint that a video is age
+        // restricted - which the main client's response reports anyway - so it is waited on for a
+        // few seconds at most. On a live radio it took 7 to 36 seconds, all of it silence before
+        // the stream was even asked for. Without the cipher STS it is the only source, and waited for.
+        val newPipe = newPipeScope.async { NewPipeUtils.getSignatureTimestamp(videoId) }
+        val result = if (cipherSts != null) {
+            withTimeoutOrNull(NEWPIPE_STS_WAIT_MS) { newPipe.await() } ?: run {
+                Timber.tag(logTag).d("NewPipe STS still pending after ${NEWPIPE_STS_WAIT_MS}ms - using cipher STS")
+                return SignatureTimestampResult(cipherSts, isAgeRestricted = false)
+            }
+        } else {
+            newPipe.await()
+        }
         return result.fold(
             onSuccess = { timestamp ->
                 val chosen = cipherSts ?: timestamp
