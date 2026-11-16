@@ -2,7 +2,9 @@
 
 [![OuterTune app icon](https://github.com/OuterTune/OuterTune/raw/dev/assets/outertune.webp)](https://github.com/OuterTune/OuterTune/blob/dev/assets/outertune.webp)
 
-[![Release](https://img.shields.io/badge/release-v0.18.2-orange)](https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
+Note: This app is currently in maintenance mode. Proper development of this app will continue in 2027, and fixes will be slower, but the app is currently already in a stable state (and all the more recent releases are mainly improvements and minor fixes).
+
+[![Release](https://img.shields.io/github/v/release/notk50bml/outertune?label=version)](https://github.com/notK50BML/Outertune/releases/latest) [![License](https://img.shields.io/github/license/yuuichi-s/OuterTune)](https://www.gnu.org/licenses/gpl-3.0) 
 
 A personalisation-first music player, based on a minimalist application. The app is extremely lightweight, with the universal release around 10MB. Still, this is feature-packed, with settings such as Discord Rich Presence, line-by-line lyrics, a dynamic audio visualiser, a free-position UI editor (still WIP), and much more. This player features extensive Material 3 customisation options and player styles for dynamic theming. 
 
