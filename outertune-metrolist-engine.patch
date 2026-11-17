@@ -267473,7 +267473,7 @@ index f79bfc2..f240359 100644
 From 5e80648c172d424b37753f0535c6e2d353e074df Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:19:43 +0800
-Subject: [PATCH 604/609] Android: the Local tab gets Stats, Settings and
+Subject: [PATCH 604/610] Android: the Local tab gets Stats, Settings and
  Account like Home
 
 With the Search tab on, the tabs have no bar across the top, so Home puts
@@ -267537,7 +267537,7 @@ index 7057102..dd43b8e 100644
 From 1445e31580e458755f53d1410c921e517538311c Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 605/609] Android Local tab: chips stay at the top, search and
+Subject: [PATCH 605/610] Android Local tab: chips stay at the top, search and
  layout move into the header
 
 With the Search tab on nothing else is across the top, so the chips (and
@@ -267714,7 +267714,7 @@ index dd43b8e..e782829 100644
 From 8bc5e3489c1eea7321d99f89325ee8835f326386 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:24:29 +0800
-Subject: [PATCH 606/609] Widget lyrics: redraw when the next word is due, not
+Subject: [PATCH 606/610] Widget lyrics: redraw when the next word is due, not
  once a second
 
 The widget was redrawn on a fixed second, so a word lit up to a second after
@@ -267828,7 +267828,7 @@ index 305c846..e555cbd 100644
 From dececfb353d3b70d287f8e042a525ac774297b15 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:26:33 +0800
-Subject: [PATCH 607/609] Home: Stats, Settings and Account sit on the Recent
+Subject: [PATCH 607/610] Home: Stats, Settings and Account sit on the Recent
  activity row
 
 With the Search tab on they were at the end of the chips row at the very
@@ -267906,7 +267906,7 @@ index 188dd20..2e7c44b 100644
 From fe1d90be991f7d1d35d33e5a30ae9ee3b92142a9 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:27:39 +0800
-Subject: [PATCH 608/609] Home: icons move to the Recent activity row only when
+Subject: [PATCH 608/610] Home: icons move to the Recent activity row only when
  the chips are hidden
 
 With the chips shown, Stats / Settings / Account stay at the end of the
@@ -267943,7 +267943,7 @@ index 2e7c44b..97265f8 100644
 From 665e3407905b79e776f41e5a4868fdb06fefb0e0 Mon Sep 17 00:00:00 2001
 From: Claude <noreply@anthropic.com>
 Date: Tue, 17 Nov 2026 18:31:07 +0800
-Subject: [PATCH 609/609] Streams: try every visionOS identity, so one being
+Subject: [PATCH 609/610] Streams: try every visionOS identity, so one being
  closed does not cost the client
 
 Only VISIONOS was in the playback chains; VISIONOS_0_1 existed but was used
@@ -268047,6 +268047,112 @@ index 9fa09c8..b7e6b9d 100644
              YouTubeClient.TVHTML5,
              YouTubeClient.WEB_REMIX,
          )
+-- 
+2.43.0
+
+From 45288afae5eedc09d15dec8a24f219f13a9b07ff Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:59:41 +0800
+Subject: [PATCH 610/610] Local tab: count it as a top-level page, so it gets
+ the top bar or loses its height
+
+The top bar (search, Stats, Settings, Account) and its reserved height were
+decided by whether the current route was in the enabled-tabs list. A Local
+tab the list did not hold got neither: no bar, and, with the Search tab on,
+no height taken back - a blank strip above the chips either way. The check
+is now Screens.isTopLevelRoute, which always counts local_files, and the
+list in SearchBarContainer is keyed on the setting so a tab changed while
+the app runs is picked up.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ app/src/main/java/com/dd3boh/outertune/MainActivity.kt   | 2 +-
+ .../main/java/com/dd3boh/outertune/ui/screens/Screens.kt | 9 +++++++++
+ .../dd3boh/outertune/ui/screens/search/SearchScreen.kt   | 9 ++++-----
+ 3 files changed, 14 insertions(+), 6 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 998d580..93a1ef2 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -502,7 +502,7 @@ class MainActivity : ComponentActivity() {
+                     val currentRoute = navBackStackEntry?.destination?.route
+                     val noTopBar = Screens.hasSearchTab(enabledTabs) &&
+                             currentRoute != Screens.Search.route &&
+-                            navigationItems.any { it.route == currentRoute }
++                            Screens.isTopLevelRoute(currentRoute, navigationItems)
+                     val topBarHeight = if (noTopBar) 0.dp else AppBarHeight
+ 
+                     val playerAwareWindowInsets =
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt
+index f991672..cd94bbd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/Screens.kt
+@@ -84,6 +84,15 @@ sealed class Screens(
+ //            Player to 'P',
+         )
+ 
++        /**
++         * Whether [route] is a top-level page: one of the enabled tabs, or the Local tab, which
++         * counts whatever the list says. These are the pages that show the top bar (or, with the
++         * Search tab on, have it removed along with its height); a page missing from the list got
++         * neither the bar nor its space back - an empty strip across the top.
++         */
++        fun isTopLevelRoute(route: String?, enabled: List<Screens>): Boolean =
++            route != null && (route == LocalFiles.route || enabled.any { it.route == route })
++
+         /** Whether the Search tab is switched on in an enabled-tabs string. */
+         fun hasSearchTab(enabledTabs: String) = 'E' in enabledTabs
+ 
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+index e7b8f84..1a0f38e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/search/SearchScreen.kt
+@@ -69,7 +69,6 @@ import androidx.compose.ui.text.TextRange
+ import androidx.compose.ui.text.input.TextFieldValue
+ import androidx.compose.ui.unit.IntOffset
+ import androidx.compose.ui.unit.dp
+-import androidx.compose.ui.util.fastAny
+ import androidx.core.net.toUri
+ import androidx.navigation.NavController
+ import androidx.navigation.compose.currentBackStackEntryAsState
+@@ -129,7 +128,7 @@ fun SearchBarContainer(
+     val updateAvailable by rememberPreference(UpdateAvailableKey, defaultValue = false)
+     val showTopBarLogo by rememberPreference(ShowTopBarLogoKey, defaultValue = false)
+ 
+-    val navigationItems = remember { Screens.getScreens(enabledTabs) }
++    val navigationItems = remember(enabledTabs) { Screens.getScreens(enabledTabs) }
+     val searchBarFocusRequester = remember { FocusRequester() }
+     val snackbarHostState = remember { SnackbarHostState() }
+ 
+@@ -146,7 +145,7 @@ fun SearchBarContainer(
+         searchActive = newActive
+         if (!newActive) {
+             focusManager.clearFocus()
+-            if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
++            if (Screens.isTopLevelRoute(navBackStackEntry?.destination?.route, navigationItems)) {
+                 onQueryChange(TextFieldValue())
+             }
+         }
+@@ -186,7 +185,7 @@ fun SearchBarContainer(
+     }
+ 
+ 
+-    val isTabRoute = navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }
++    val isTabRoute = Screens.isTopLevelRoute(navBackStackEntry?.destination?.route, navigationItems)
+     val isSearchRoute = navBackStackEntry?.destination?.route?.startsWith("search/") == true
+     // The Search tab: the bar lives there, and the other tabs lose the row across the top - its
+     // Stats / Settings / Account move to the end of Home's chips row.
+@@ -233,7 +232,7 @@ fun SearchBarContainer(
+     LaunchedEffect(navBackStackEntry) {
+         if (searchActive) {
+             onSearchActiveChange(false)
+-        } else if (navigationItems.fastAny { it.route == navBackStackEntry?.destination?.route }) {
++        } else if (Screens.isTopLevelRoute(navBackStackEntry?.destination?.route, navigationItems)) {
+             // Back out of a search to a tab: the next search starts from an empty box.
+             onQueryChange(TextFieldValue())
+         }
 -- 
 2.43.0
 
