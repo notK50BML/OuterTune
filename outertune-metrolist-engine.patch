@@ -267470,3 +267470,583 @@ index f79bfc2..f240359 100644
 -- 
 2.56.0.windows.4
 
+From 5e80648c172d424b37753f0535c6e2d353e074df Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:19:43 +0800
+Subject: [PATCH 604/609] Android: the Local tab gets Stats, Settings and
+ Account like Home
+
+With the Search tab on, the tabs have no bar across the top, so Home puts
+Stats / Settings / Account at the end of its chips row. The Local tab had
+neither, leaving no way to reach them from it. It now ends its chips row
+(Songs / Albums / Artists / Playlists, search, view type) with the same
+HomeShortcutIcons. They hide while the tab's own search box is open, and
+with the Search tab off the usual top bar and icon row already cover it.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/ui/screens/library/LocalScreen.kt | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt
+index 7057102..dd43b8e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt
+@@ -75,6 +75,8 @@ import com.dd3boh.outertune.constants.CONTENT_TYPE_ARTIST
+ import com.dd3boh.outertune.constants.CONTENT_TYPE_HEADER
+ import com.dd3boh.outertune.constants.CONTENT_TYPE_PLAYLIST
+ import com.dd3boh.outertune.constants.CONTENT_TYPE_SONG
++import com.dd3boh.outertune.constants.DEFAULT_ENABLED_TABS
++import com.dd3boh.outertune.constants.EnabledTabsKey
+ import com.dd3boh.outertune.constants.FolderSongSortType
+ import com.dd3boh.outertune.constants.GridThumbnailHeight
+ import com.dd3boh.outertune.constants.LibraryViewType
+@@ -98,6 +100,8 @@ import com.dd3boh.outertune.playback.queues.ListQueue
+ import com.dd3boh.outertune.ui.component.ChipsRow
+ import com.dd3boh.outertune.ui.component.MediaPermissionBanner
+ import com.dd3boh.outertune.ui.component.EmptyPlaceholder
++import com.dd3boh.outertune.ui.screens.HomeShortcutIcons
++import com.dd3boh.outertune.ui.screens.Screens
+ import com.dd3boh.outertune.ui.component.LazyColumnScrollbar
+ import com.dd3boh.outertune.ui.component.LazyVerticalGridScrollbar
+ import com.dd3boh.outertune.ui.component.LibraryAlbumGridItem
+@@ -145,6 +149,10 @@ fun LocalScreen(
+     val (playlistSortDescending, onPlaylistSortDescendingChange) = rememberPreference(LocalPlaylistSortDescendingKey, true)
+     val localLibEnable by rememberPreference(LocalLibraryEnableKey, defaultValue = true)
+     val swipeEnabled by rememberPreference(SwipeToQueueKey, true)
++    // With the Search tab on, the tabs have no bar across the top, so Stats / Settings / Account go at
++    // the end of this row, as on Home.
++    val enabledTabs by rememberPreference(EnabledTabsKey, defaultValue = DEFAULT_ENABLED_TABS)
++    val searchTab = Screens.hasSearchTab(enabledTabs)
+ 
+     val songs by viewModel.localSongs.collectAsState()
+     val albums by viewModel.localAlbums.collectAsState()
+@@ -258,6 +266,8 @@ fun LocalScreen(
+                         )
+                     }
+                 }
++
++                if (searchTab && !isSearching) HomeShortcutIcons(navController)
+             }
+         }
+     }
+-- 
+2.43.0
+
+From 1445e31580e458755f53d1410c921e517538311c Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:24:29 +0800
+Subject: [PATCH 605/609] Android Local tab: chips stay at the top, search and
+ layout move into the header
+
+With the Search tab on nothing else is across the top, so the chips (and
+Stats / Settings / Account) are the first thing on the tab. The search and
+list/grid buttons moved from the chips row to the right of each list's
+header, before the "x songs" count, as Playlists lays its own out. The
+search box opens under the chips, with a close button, instead of replacing
+them.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../ui/screens/library/LocalScreen.kt         | 91 ++++++++++---------
+ 1 file changed, 49 insertions(+), 42 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt
+index dd43b8e..e782829 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/library/LocalScreen.kt
+@@ -189,13 +189,33 @@ fun LocalScreen(
+         }
+     }
+ 
++    // Chips (and, with the Search tab on, Stats / Settings / Account) stay at the top. The search box
++    // opens under them; the search and layout buttons sit in each list's header - see headerButtons.
+     val filterContent = @Composable {
+         Column {
+             MediaPermissionBanner(enabled = localLibEnable)
+             Row(
+                 verticalAlignment = Alignment.CenterVertically
+             ) {
+-                if (isSearching) {
++                ChipsRow(
++                    chips = listOf(
++                        LocalFilter.SONGS to stringResource(R.string.songs),
++                        LocalFilter.ALBUMS to stringResource(R.string.albums),
++                        LocalFilter.ARTISTS to stringResource(R.string.artists),
++                        LocalFilter.PLAYLISTS to stringResource(R.string.playlists),
++                    ),
++                    currentValue = filter,
++                    onValueUpdate = { filter = it },
++                    modifier = Modifier.weight(1f)
++                )
++
++                if (searchTab) HomeShortcutIcons(navController)
++            }
++
++            if (isSearching) {
++                Row(
++                    verticalAlignment = Alignment.CenterVertically
++                ) {
+                     TextField(
+                         value = query,
+                         onValueChange = { query = it },
+@@ -219,59 +239,38 @@ fun LocalScreen(
+                             .weight(1f)
+                             .focusRequester(focusRequester)
+                     )
+-                } else {
+-                    ChipsRow(
+-                        chips = listOf(
+-                            LocalFilter.SONGS to stringResource(R.string.songs),
+-                            LocalFilter.ALBUMS to stringResource(R.string.albums),
+-                            LocalFilter.ARTISTS to stringResource(R.string.artists),
+-                            LocalFilter.PLAYLISTS to stringResource(R.string.playlists),
+-                        ),
+-                        currentValue = filter,
+-                        onValueUpdate = { filter = it },
+-                        modifier = Modifier.weight(1f)
+-                    )
+-                }
+ 
+-                IconButton(
+-                    onClick = {
+-                        if (isSearching) {
+-                            isSearching = false
+-                            query = TextFieldValue()
+-                        } else {
+-                            isSearching = true
+-                        }
+-                    },
+-                    modifier = Modifier.padding(end = if (isSearching) 6.dp else 0.dp)
+-                ) {
+-                    Icon(
+-                        imageVector = if (isSearching) Icons.Rounded.Close else Icons.Rounded.Search,
+-                        contentDescription = null
+-                    )
+-                }
+-
+-                if (!isSearching) {
+                     IconButton(
+                         onClick = {
+-                            viewType = viewType.toggle()
++                            isSearching = false
++                            query = TextFieldValue()
+                         },
+                         modifier = Modifier.padding(end = 6.dp)
+                     ) {
+-                        Icon(
+-                            imageVector = when (viewType) {
+-                                LibraryViewType.LIST -> Icons.AutoMirrored.Rounded.List
+-                                LibraryViewType.GRID -> Icons.Rounded.GridView
+-                            },
+-                            contentDescription = null
+-                        )
++                        Icon(imageVector = Icons.Rounded.Close, contentDescription = null)
+                     }
+                 }
+-
+-                if (searchTab && !isSearching) HomeShortcutIcons(navController)
+             }
+         }
+     }
+ 
++    // Search and the list/grid switch, on the right of each header just before the count - where
++    // Playlists keeps its own buttons.
++    val headerButtons = @Composable {
++        IconButton(onClick = { isSearching = true }) {
++            Icon(imageVector = Icons.Rounded.Search, contentDescription = stringResource(R.string.search))
++        }
++        IconButton(onClick = { viewType = viewType.toggle() }) {
++            Icon(
++                imageVector = when (viewType) {
++                    LibraryViewType.LIST -> Icons.AutoMirrored.Rounded.List
++                    LibraryViewType.GRID -> Icons.Rounded.GridView
++                },
++                contentDescription = null
++            )
++        }
++    }
++
+     val songHeaderContent = @Composable {
+         Row(
+             verticalAlignment = Alignment.CenterVertically,
+@@ -297,6 +296,8 @@ fun LocalScreen(
+ 
+             Spacer(Modifier.weight(1f))
+ 
++            headerButtons()
++
+             songs?.let { songs ->
+                 Text(
+                     text = pluralStringResource(R.plurals.n_song, songs.size, songs.size),
+@@ -331,6 +332,8 @@ fun LocalScreen(
+ 
+             Spacer(Modifier.weight(1f))
+ 
++            headerButtons()
++
+             albums?.let { albums ->
+                 Text(
+                     text = pluralStringResource(R.plurals.n_album, albums.size, albums.size),
+@@ -362,6 +365,8 @@ fun LocalScreen(
+ 
+             Spacer(Modifier.weight(1f))
+ 
++            headerButtons()
++
+             artists?.let { artists ->
+                 Text(
+                     text = pluralStringResource(R.plurals.n_artist, artists.size, artists.size),
+@@ -393,6 +398,8 @@ fun LocalScreen(
+ 
+             Spacer(Modifier.weight(1f))
+ 
++            headerButtons()
++
+             playlists?.let { playlists ->
+                 Text(
+                     text = pluralStringResource(R.plurals.n_playlist, playlists.size, playlists.size),
+-- 
+2.43.0
+
+From 8bc5e3489c1eea7321d99f89325ee8835f326386 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:24:29 +0800
+Subject: [PATCH 606/609] Widget lyrics: redraw when the next word is due, not
+ once a second
+
+The widget was redrawn on a fixed second, so a word lit up to a second after
+it was sung and the lyrics stepped slowly. The service now waits until the
+next word (less a 300 ms lead for the launcher) or the next line, and only
+redraws when the lyric frame changed; the seek bar keeps its two-second
+cadence.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/playback/MusicService.kt | 24 +++++++++++-------
+ .../dd3boh/outertune/widget/WidgetLyrics.kt   | 25 ++++++++++++++++---
+ 2 files changed, 37 insertions(+), 12 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+index f240359..500e266 100644
+--- a/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
++++ b/app/src/main/java/com/dd3boh/outertune/playback/MusicService.kt
+@@ -705,20 +705,27 @@ class MusicService : MediaLibraryService(),
+                         artistImageUrl = artistImageUrl,
+                     )
+                 }.onFailure { if (it is CancellationException) throw it }
+-                // The seek bar and lyrics line, while something is playing. Every couple of seconds
+-                // rather than continuously: a widget redraw goes through the launcher, and a bar that
+-                // is a second or two behind is invisible at that size. Ends with the song or the
+-                // pause, since collectLatest cancels this block when either changes.
++                // The seek bar and lyrics line, while something is playing. The seek bar every couple of
++                // seconds: a widget redraw goes through the launcher, and a bar that is a second or two
++                // behind is invisible at that size. The lyrics are redrawn when the next word or line is
++                // due, and only then, so they keep time without redrawing for nothing. Ends with the
++                // song or the pause, since collectLatest cancels this block when either changes.
+                 var ticks = 0
++                var lastFrame: WidgetLyrics.Frame? = null
++                var lastPushAt = android.os.SystemClock.elapsedRealtime()
+                 while (playing) {
+-                    // About once a second while word-timed lyrics are on a widget, so the lit words
+-                    // keep up with the singing; every couple of seconds otherwise.
++                    val lyricsOn = PlayerWidget.wantsLyrics && lyricLines.isNotEmpty()
+                     delay(
+-                        if (PlayerWidget.wantsLyrics && WidgetLyrics.hasWords(lyricLines)) WIDGET_LYRICS_INTERVAL_MS
++                        if (lyricsOn) WidgetLyrics.nextChangeDelay(lyricLines, player.currentPosition)
+                         else WIDGET_PROGRESS_INTERVAL_MS
+                     )
+                     if (lyricLines.isEmpty() && ++ticks % 5 == 0) lyricLines = readLyrics()
+-                    PlayerWidget.setLyrics(WidgetLyrics.frameAt(lyricLines, player.currentPosition))
++                    val frame = WidgetLyrics.frameAt(lyricLines, player.currentPosition)
++                    val now = android.os.SystemClock.elapsedRealtime()
++                    if (frame == lastFrame && now - lastPushAt < WIDGET_PROGRESS_INTERVAL_MS - 100) continue
++                    lastFrame = frame
++                    lastPushAt = now
++                    PlayerWidget.setLyrics(frame)
+                     runCatching { PlayerWidget.updateProgress(this@MusicService, fraction()) }
+                 }
+             }
+@@ -2222,7 +2229,6 @@ class MusicService : MediaLibraryService(),
+ 
+         /** How often the home-screen widget's seek bar moves while playing. */
+         private const val WIDGET_PROGRESS_INTERVAL_MS = 2_000L
+-        private const val WIDGET_LYRICS_INTERVAL_MS = 1_000L
+ 
+         /**
+          * How often to force-reconnect the Discord RPC socket while a song is actively playing,
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+index 305c846..e555cbd 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+@@ -28,10 +28,14 @@ object WidgetLyrics {
+     data class Frame(val previous: String?, val current: String, val sungChars: Int, val next: String?)
+ 
+     /**
+-     * How far ahead the lit words run. The widget is redrawn about once a second, so lighting what
+-     * is sung half a second from now puts each word, on average, on time.
++     * How far ahead the lit words run: about how long a redraw takes to get through the launcher, so
++     * a word lights on time rather than just after it is sung.
+      */
+-    private const val LEAD_MS = 500L
++    private const val LEAD_MS = 300L
++
++    /** The shortest and longest wait between redraws - see [nextChangeDelay]. */
++    private const val MIN_DELAY_MS = 200L
++    private const val MAX_DELAY_MS = 2_000L
+ 
+     /** Timed lines, in order. Empty for unsynced lyrics - there is no "current line" to show then. */
+     fun parse(raw: String?, estimate: Boolean): List<Line> {
+@@ -69,6 +73,21 @@ object WidgetLyrics {
+         return Frame(lines.getOrNull(index - 1)?.text, line.text, sung, lines.getOrNull(index + 1)?.text)
+     }
+ 
++    /**
++     * How long until the widget next needs redrawing for [positionMs]: when the next word is due to
++     * light (less the lead) or the next line starts, whichever is first. Redrawing on a fixed
++     * second instead lit words up to a second late, which read as slow, stepping lyrics.
++     */
++    fun nextChangeDelay(lines: List<Line>, positionMs: Long): Long {
++        val index = lines.indexOfLast { it.start <= positionMs }
++        var next = lines.getOrNull(index + 1)?.start ?: Long.MAX_VALUE
++        if (index >= 0) {
++            lines[index].words.firstOrNull { it.first > positionMs + LEAD_MS }
++                ?.let { next = minOf(next, it.first - LEAD_MS) }
++        }
++        return if (next == Long.MAX_VALUE) MAX_DELAY_MS else (next - positionMs).coerceIn(MIN_DELAY_MS, MAX_DELAY_MS)
++    }
++
+     /** Whether any line carries word timings, so the widget is worth redrawing more often. */
+     fun hasWords(lines: List<Line>) = lines.any { it.words.isNotEmpty() }
+ }
+-- 
+2.43.0
+
+From dececfb353d3b70d287f8e042a525ac774297b15 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:26:33 +0800
+Subject: [PATCH 607/609] Home: Stats, Settings and Account sit on the Recent
+ activity row
+
+With the Search tab on they were at the end of the chips row at the very
+top. They now share a row with the Recent activity title, level with it.
+When that section is not showing (not signed in, nothing recent, or a chip
+selected) they stay at the end of the top row so they are always reachable.
+NavigationTitle takes an optional trailing slot for this.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/ui/component/NavigationTitle.kt   |  3 +++
+ .../java/com/dd3boh/outertune/ui/screens/HomeScreen.kt | 10 ++++++++--
+ 2 files changed, 11 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/component/NavigationTitle.kt b/app/src/main/java/com/dd3boh/outertune/ui/component/NavigationTitle.kt
+index 195c628..7a721b8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/component/NavigationTitle.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/component/NavigationTitle.kt
+@@ -25,6 +25,7 @@ fun NavigationTitle(
+     label: String? = null,
+     thumbnail: (@Composable () -> Unit)? = null,
+     onClick: (() -> Unit)? = null,
++    trailing: (@Composable () -> Unit)? = null,
+ ) {
+     Row(
+         verticalAlignment = Alignment.CenterVertically,
+@@ -60,6 +61,8 @@ fun NavigationTitle(
+             )
+         }
+ 
++        trailing?.invoke()
++
+         if (onClick != null) {
+             Icon(
+                 imageVector = Icons.AutoMirrored.Rounded.ArrowForward,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+index 188dd20..2e7c44b 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+@@ -402,7 +402,10 @@ fun HomeScreen(
+         ) {
+             // With the Search tab on there is no row across the top, so Stats / Settings / Account
+             // sit at the end of this one - shown even with the chips themselves switched off.
+-            if (showHomeChips || searchTab) item {
++            // The icons sit on the Recent activity title's row when that is showing; otherwise here.
++            val iconsInTitle = searchTab && selectedChip == null && isLoggedIn && !recentActivity.isNullOrEmpty()
++            val iconsOnTop = searchTab && !iconsInTitle
++            if (showHomeChips || iconsOnTop) item {
+                 androidx.compose.foundation.layout.Row(
+                     verticalAlignment = Alignment.CenterVertically,
+                     modifier = Modifier.fillMaxWidth(),
+@@ -422,7 +425,7 @@ fun HomeScreen(
+                     } else {
+                         androidx.compose.foundation.layout.Spacer(Modifier.weight(1f))
+                     }
+-                    if (searchTab) HomeShortcutIcons(navController)
++                    if (iconsOnTop) HomeShortcutIcons(navController)
+                 }
+             }
+ 
+@@ -436,6 +439,9 @@ fun HomeScreen(
+                 item {
+                     NavigationTitle(
+                         title = stringResource(R.string.recent_activity),
++                        trailing = if (iconsInTitle) {
++                            { HomeShortcutIcons(navController) }
++                        } else null,
+                         modifier = Modifier.animateItem()
+                     )
+                 }
+-- 
+2.43.0
+
+From fe1d90be991f7d1d35d33e5a30ae9ee3b92142a9 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:27:39 +0800
+Subject: [PATCH 608/609] Home: icons move to the Recent activity row only when
+ the chips are hidden
+
+With the chips shown, Stats / Settings / Account stay at the end of the
+chips row as before. With them hidden there is no row to hold the icons, so
+they go on the Recent activity title's row instead (or the top row when
+that section is not showing).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+index 2e7c44b..97265f8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/HomeScreen.kt
+@@ -402,8 +402,10 @@ fun HomeScreen(
+         ) {
+             // With the Search tab on there is no row across the top, so Stats / Settings / Account
+             // sit at the end of this one - shown even with the chips themselves switched off.
+-            // The icons sit on the Recent activity title's row when that is showing; otherwise here.
+-            val iconsInTitle = searchTab && selectedChip == null && isLoggedIn && !recentActivity.isNullOrEmpty()
++            // With the chips hidden the icons sit on the Recent activity title's row, when that is
++            // showing; with the chips shown, or nothing to put them beside, they stay in this row.
++            val iconsInTitle = searchTab && !showHomeChips && selectedChip == null &&
++                    isLoggedIn && !recentActivity.isNullOrEmpty()
+             val iconsOnTop = searchTab && !iconsInTitle
+             if (showHomeChips || iconsOnTop) item {
+                 androidx.compose.foundation.layout.Row(
+-- 
+2.43.0
+
+From 665e3407905b79e776f41e5a4868fdb06fefb0e0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Tue, 17 Nov 2026 18:31:07 +0800
+Subject: [PATCH 609/609] Streams: try every visionOS identity, so one being
+ closed does not cost the client
+
+Only VISIONOS was in the playback chains; VISIONOS_0_1 existed but was used
+only by the desktop probe. Adds VISIONOS_APP (the Vision Pro app's own user
+agent) and VISIONOS_1_04, as in the other project's YouTubeClient.kt, and a
+VISIONOS_ALL list - VISIONOS, VISIONOS_APP, VISIONOS_1_04, VISIONOS_0_1 -
+that the Android default and explicit chains and the desktop player now ask
+in turn before the ANDROID_VR clients. The two new ones are in ClientProbe.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/desktop/ClientProbe.kt   |  2 ++
+ .../dd3boh/outertune/desktop/DesktopPlayer.kt |  2 +-
+ .../innertube/models/YouTubeClient.kt         | 22 +++++++++++++++++++
+ .../strategy/ContentAwareFallbackStrategy.kt  |  8 +++----
+ 4 files changed, 29 insertions(+), 5 deletions(-)
+
+diff --git a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/ClientProbe.kt b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/ClientProbe.kt
+index 0387f76..5c904df 100644
+--- a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/ClientProbe.kt
++++ b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/ClientProbe.kt
+@@ -48,6 +48,8 @@ object ClientProbe {
+             "ANDROID_VR_NO_AUTH" to YouTubeClient.ANDROID_VR_NO_AUTH,
+             "VISIONOS" to YouTubeClient.VISIONOS,
+             "VISIONOS_0_1" to YouTubeClient.VISIONOS_0_1,
++            "VISIONOS_APP" to YouTubeClient.VISIONOS_APP,
++            "VISIONOS_1_04" to YouTubeClient.VISIONOS_1_04,
+             "ANDROID_VR_1_65_10" to YouTubeClient.ANDROID_VR_1_65_10,
+             "ANDROID_VR_1_43_32" to YouTubeClient.ANDROID_VR_1_43_32,
+         )
+diff --git a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/DesktopPlayer.kt b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/DesktopPlayer.kt
+index 42e609b..26c4d9c 100644
+--- a/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/DesktopPlayer.kt
++++ b/desktop/src/main/kotlin/com/dd3boh/outertune/desktop/DesktopPlayer.kt
+@@ -176,7 +176,7 @@ class DesktopPlayer {
+         internal val CLIENTS = listOf(
+             YouTubeClient.IOS,
+             YouTubeClient.ANDROID_VR_NO_AUTH,
+-            YouTubeClient.VISIONOS,
++        ) + YouTubeClient.VISIONOS_ALL + listOf(
+             YouTubeClient.ANDROID_VR_1_43_32,
+         )
+     }
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+index 85d3da9..7c0c409 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/models/YouTubeClient.kt
+@@ -217,6 +217,28 @@ data class YouTubeClient(
+             useMusicPlayerEndpoint = true,
+         )
+ 
++        /**
++         * [VISIONOS] as the real Vision Pro YouTube app says it (the app's own user agent and OS
++         * build, not Safari's). Same client and id; what differs is what it says of itself, and
++         * YouTube has so far closed visionOS one way of saying it at a time - a version it no longer
++         * takes, a user agent it has learned to distrust - so each variant is a separate shot.
++         * Taken from the other project's YouTubeClient.kt (VISIONOS there).
++         */
++        val VISIONOS_APP = VISIONOS.copy(
++            userAgent = "com.google.ios.youtube/1.02 (RealityDevice17,1; U; visionOS 2_3)",
++            osVersion = "2.3.21O5565d",
++        )
++
++        /** The visionOS app at 1.04, as NewPipeExtractor says it (VISIONOS_1_04 in the other project). */
++        val VISIONOS_1_04 = VISIONOS.copy(
++            clientVersion = "1.04",
++            userAgent = "com.google.visionos.youtube/1.04(RealityDevice17,1; U; CPU visionOS 26_6_0 like Mac OS X; US)",
++            osVersion = "26.6.0.23O770",
++        )
++
++        /** Every visionOS identity, best first - what the stream chains try one after another. */
++        val VISIONOS_ALL = listOf(VISIONOS, VISIONOS_APP, VISIONOS_1_04, VISIONOS_0_1)
++
+         /**
+          * Newer Oculus build of the same client. YouTube treats each ANDROID_VR version
+          * differently, so keeping a second one gives the chain somewhere to go when
+diff --git a/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt b/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt
+index 9fa09c8..b7e6b9d 100644
+--- a/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt
++++ b/innertube/src/main/java/com/zionhuang/innertube/strategy/ContentAwareFallbackStrategy.kt
+@@ -34,8 +34,9 @@ class ContentAwareFallbackStrategy {
+             YouTubeClient.WEB_CREATOR,
+         )
+ 
+-        val defaultClients = listOf(
+-            YouTubeClient.VISIONOS,
++        // Every visionOS identity before the rest: if YouTube closes one, the next is asked, and
++        // visionOS is reported exempt from the proof-of-origin check the ANDROID_VR clients can fail.
++        val defaultClients = YouTubeClient.VISIONOS_ALL + listOf(
+             YouTubeClient.ANDROID_VR_1_65_10,
+             YouTubeClient.ANDROID_VR_1_43_32,
+             YouTubeClient.WEB_REMIX,
+@@ -43,8 +44,7 @@ class ContentAwareFallbackStrategy {
+             YouTubeClient.TVHTML5_SIMPLY_EMBEDDED_PLAYER,
+         )
+ 
+-        val explicitClients = listOf(
+-            YouTubeClient.VISIONOS,
++        val explicitClients = YouTubeClient.VISIONOS_ALL + listOf(
+             YouTubeClient.TVHTML5,
+             YouTubeClient.WEB_REMIX,
+         )
+-- 
+2.43.0
+
