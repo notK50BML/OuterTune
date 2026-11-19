@@ -272619,3 +272619,1373 @@ index bbfe850..58883cf 100644
 -- 
 2.43.0
 
+From 1228f794fb13cd5b836e88a7522cdd03a3eab860 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 19:39:16 +0800
+Subject: [PATCH 1/4] Default music player: MainActivity answers
+ MAIN/MUSIC_PLAYER/APP_MUSIC and audio VIEW; scan folders compared as folders,
+ not as text
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ app/src/main/AndroidManifest.xml              | 26 ++++++++++++++++++
+ .../fragments/LocalMediaSettingsFrag.kt       | 13 +++------
+ .../outertune/utils/scanners/UriFileUtils.kt  | 27 +++++++++++++++++++
+ 3 files changed, 57 insertions(+), 9 deletions(-)
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index 0ba8931..b72f577 100755
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -114,6 +114,32 @@
+                 <data android:mimeType="text/plain" />
+             </intent-filter>
+ 
++            <!--
++              What the system's "default music player" choice looks for. The launcher aliases below
++              carry MAIN + APP_MUSIC, but only one alias is enabled at a time and the pickers on
++              some systems (HyperOS among them) ask for the activity itself, and for something that
++              opens audio files, so MainActivity answers both.
++            -->
++            <intent-filter>
++                <action android:name="android.intent.action.MAIN" />
++                <action android:name="android.intent.action.MUSIC_PLAYER" />
++
++                <category android:name="android.intent.category.DEFAULT" />
++                <category android:name="android.intent.category.APP_MUSIC" />
++            </intent-filter>
++            <intent-filter>
++                <action android:name="android.intent.action.VIEW" />
++
++                <category android:name="android.intent.category.DEFAULT" />
++                <category android:name="android.intent.category.BROWSABLE" />
++
++                <data android:scheme="content" />
++                <data android:scheme="file" />
++                <data android:mimeType="audio/*" />
++                <data android:mimeType="application/ogg" />
++                <data android:mimeType="application/x-ogg" />
++            </intent-filter>
++
+             <meta-data
+                 android:name="android.app.shortcuts"
+                 android:resource="@xml/shortcuts" />
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LocalMediaSettingsFrag.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LocalMediaSettingsFrag.kt
+index 97a2d92..b7f95a1 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LocalMediaSettingsFrag.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/fragments/LocalMediaSettingsFrag.kt
+@@ -100,6 +100,7 @@ import com.dd3boh.outertune.utils.scanners.LocalMediaScanner.Companion.scannerSt
+ import com.dd3boh.outertune.utils.scanners.ScannerAbortException
+ import com.dd3boh.outertune.utils.scanners.absoluteFilePathFromUri
+ import com.dd3boh.outertune.utils.scanners.stringFromUriList
++import com.dd3boh.outertune.utils.scanners.overlapsDownloads
+ import com.dd3boh.outertune.utils.scanners.uriListFromString
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.launch
+@@ -465,8 +466,7 @@ fun ColumnScope.LocalScannerFrag() {
+             },
+             isInputValid = tempScanPaths.toList().all {
+                 // scan path cannot be the download directory or subdir of download directory
+-                !it.toString().contains(uriListFromString(downloadPath).firstOrNull().toString())
+-                        && uriListFromString(dlPathExtra).none { f -> it.toString().contains(f.toString()) }
++                !overlapsDownloads(it, downloadPath, dlPathExtra)
+             } || tempScanPaths.isEmpty(),
+             modifier = Modifier
+                 .verticalScroll(rememberScrollState()),
+@@ -501,10 +501,7 @@ fun ColumnScope.LocalScannerFrag() {
+                     )
+             ) {
+                 tempScanPaths.forEach {
+-                    !it.toString().contains(uriListFromString(downloadPath).firstOrNull().toString())
+-                            && uriListFromString(dlPathExtra).none { f -> it.toString().contains(f.toString()) }
+-                    val valid = !it.toString().contains(uriListFromString(downloadPath).firstOrNull().toString())
+-                            && uriListFromString(dlPathExtra).none { f -> it.toString().contains(f.toString()) }
++                    val valid = !overlapsDownloads(it, downloadPath, dlPathExtra)
+                     Row(
+                         modifier = Modifier
+                             .padding(horizontal = 8.dp)
+@@ -542,9 +539,7 @@ fun ColumnScope.LocalScannerFrag() {
+                     modifier = Modifier.padding(top = 8.dp)
+                 )
+ 
+-                if (tempScanPaths.toList().any {
+-                        it.toString() == uriListFromString(downloadPath).firstOrNull().toString()
+-                    }) {
++                if (tempScanPaths.toList().any { overlapsDownloads(it, downloadPath, dlPathExtra) }) {
+                     InfoLabel(
+                         text = stringResource(R.string.scanner_rejected_dir),
+                         isError = true,
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/scanners/UriFileUtils.kt b/app/src/main/java/com/dd3boh/outertune/utils/scanners/UriFileUtils.kt
+index 57b2cdf..99da1fb 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/scanners/UriFileUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/scanners/UriFileUtils.kt
+@@ -28,6 +28,33 @@ fun uriListFromString(str: String): List<Uri> {
+     return str.split("\n").map { it.toUri() }.filter { it.toString().isNotBlank() }.distinctBy { it.toString() }
+ }
+ 
++/**
++ * Whether [child] is [parent] or a folder inside it, compared as folders rather than as text.
++ *
++ * The scan-folder check used to be `child.toString().contains(parent.toString())`. That reads a
++ * prefix of the characters, so two unrelated folders can overlap ("Music" and "Music Videos"), and
++ * anything that shares a short stored value with a download path - a path saved as just the storage
++ * root, say - made every folder outside the download folder come up red. Tree document ids are
++ * "volume:relative/path"; one folder is inside another when it is the same volume and the path is
++ * the same or continues past a "/".
++ */
++fun uriIsWithin(child: Uri, parent: Uri): Boolean {
++    if (child == parent) return true
++    if (child.authority != parent.authority) return false
++    val a = runCatching { DocumentsContract.getTreeDocumentId(child) }.getOrNull() ?: return false
++    val b = runCatching { DocumentsContract.getTreeDocumentId(parent) }.getOrNull() ?: return false
++    if (a == b) return true
++    val volume = b.substringBefore(':', "")
++    if (a.substringBefore(':', "") != volume) return false
++    val path = b.substringAfter(':', "").trimEnd('/')
++    // A path of nothing is the whole volume, which holds everything on it.
++    return path.isEmpty() || a.substringAfter(':', "").let { it == path || it.startsWith("$path/") }
++}
++
++/** Whether a scan folder may not be used: it is, or is inside, the download folder or an extra one. */
++fun overlapsDownloads(candidate: Uri, downloadPath: String, extraPaths: String): Boolean =
++    (uriListFromString(downloadPath) + uriListFromString(extraPaths)).any { uriIsWithin(candidate, it) }
++
+ fun fileFromUri(context: Context, uri: Uri): File? {
+     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+         if (!DocumentsContract.isTreeUri(uri)) return null
+-- 
+2.43.0
+
+
+From d724de8ed967cfdf9e495e84c0a7086ce41328ea Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 20:46:21 +0800
+Subject: [PATCH 2/4] Links: a link that starts the app is followed, and
+ YouTube Music album/artist and shorts links open
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ app/src/main/AndroidManifest.xml              |  4 +++
+ .../java/com/dd3boh/outertune/MainActivity.kt | 29 +++++++++++++++++++
+ .../com/dd3boh/outertune/MainActivityUtils.kt | 10 +++++++
+ 3 files changed, 43 insertions(+)
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index b72f577..e34a371 100755
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -71,7 +71,11 @@
+                 <!-- video prefix -->
+                 <data android:pathPrefix="/v/" />
+                 <data android:pathPrefix="/embed/" />
++                <data android:pathPrefix="/shorts/" />
++                <data android:pathPrefix="/live/" />
+                 <data android:pathPrefix="/watch" />
++                <!-- YouTube Music albums and artists -->
++                <data android:pathPrefix="/browse/" />
+                 <!-- channel prefix -->
+                 <data android:pathPrefix="/channel/" />
+                 <data android:pathPrefix="/user/" />
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+index 93a1ef2..02237d8 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivity.kt
+@@ -92,6 +92,7 @@ import androidx.compose.runtime.derivedStateOf
+ import androidx.compose.runtime.getValue
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
++import androidx.compose.runtime.saveable.rememberSaveable
+ import androidx.compose.runtime.rememberCoroutineScope
+ import androidx.compose.runtime.setValue
+ import androidx.compose.runtime.staticCompositionLocalOf
+@@ -571,6 +572,34 @@ class MainActivity : ComponentActivity() {
+                         onDispose { removeOnNewIntentListener(listener) }
+                     }
+ 
++                    // The intent that started the app. A link opened while the app was not running
++                    // arrives here and never as a "new intent", so only an app that was already open
++                    // followed the link; a cold start just showed the home screen. Waits for the
++                    // player (a song link plays it), and is remembered as done so turning the phone
++                    // or coming back from the recents does not play it again.
++                    var startLinkDone by rememberSaveable { mutableStateOf(false) }
++                    LaunchedEffect(playerConnection) {
++                        if (startLinkDone) return@LaunchedEffect
++                        val start = intent
++                        val uri = if (start?.action == Intent.ACTION_VIEW || start?.action == Intent.ACTION_SEND) {
++                            start.data ?: start.extras?.getString(Intent.EXTRA_TEXT)?.toUri()
++                        } else null
++                        if (uri == null) {
++                            startLinkDone = true
++                            return@LaunchedEffect
++                        }
++                        if (playerConnection == null) return@LaunchedEffect
++                        startLinkDone = true
++                        youtubeNavigator(
++                            this@MainActivity,
++                            navController,
++                            coroutineScope,
++                            playerConnection,
++                            snackbarHostState,
++                            uri
++                        )
++                    }
++
+                     // Every artist's library name by channel id, for songs shown from YouTube's own
+                     // data - see LocalArtistNames.
+                     val artistNames by remember {
+diff --git a/app/src/main/java/com/dd3boh/outertune/MainActivityUtils.kt b/app/src/main/java/com/dd3boh/outertune/MainActivityUtils.kt
+index 604815d..709d82e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/MainActivityUtils.kt
++++ b/app/src/main/java/com/dd3boh/outertune/MainActivityUtils.kt
+@@ -82,8 +82,18 @@ fun youtubeNavigator(
+             navController.navigate("artist/$artistId")
+         }
+ 
++        // YouTube Music's own links to an album (MPREb_...) or an artist (UC...).
++        "browse" -> uri.pathSegments.getOrNull(1)?.let { id ->
++            when {
++                id.startsWith("MPRE") -> navController.navigate("album/$id")
++                id.startsWith("UC") -> navController.navigate("artist/$id")
++                else -> return false
++            }
++        }
++
+         else -> when {
+             path == "watch" -> uri.getQueryParameter("v")
++            path == "embed" || path == "v" || path == "shorts" || path == "live" -> uri.pathSegments.getOrNull(1)
+             uri.host == "youtu.be" -> path
+             else -> return false
+         }?.let { videoId ->
+-- 
+2.43.0
+
+
+From ced9b87f3edadf7716cb04509e985c145b81866e Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 20:46:21 +0800
+Subject: [PATCH 3/4] Widget: cached cover and seek bar, eased line slide, and
+ spare height on tall widgets goes to the lyrics
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/widget/PlayerWidget.kt   | 59 +++++++++++++++++--
+ .../dd3boh/outertune/widget/WidgetLyrics.kt   |  6 +-
+ app/src/main/res/layout/widget_row_grow.xml   | 11 ++++
+ 3 files changed, 68 insertions(+), 8 deletions(-)
+ create mode 100644 app/src/main/res/layout/widget_row_grow.xml
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+index b396a87..3206246 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/PlayerWidget.kt
+@@ -182,6 +182,9 @@ object PlayerWidget {
+ 
+     /** How far a new lyric line slides, in dp - see [WidgetLyrics.LINE_STEPS]. */
+     private const val SLIDE_DP = 14
++
++    /** Spare height, in dp, from which the lyrics are given it - see [pushTo]. */
++    private const val GROW_FROM_DP = 48
+     private const val BG_LONG_PX = 480
+     private const val ICON_PX = 80
+ 
+@@ -435,6 +438,13 @@ object PlayerWidget {
+             }
+         }
+ 
++        // On a very tall widget the rows would otherwise float in the middle with space above and
++        // below. Whatever height is left over goes to the lyrics instead, so the rest stay at the
++        // top and bottom where they were put, and the lyrics get bigger.
++        val spareDp = heightDp - WidgetMetrics.contentHeight(layout, small, coverDp, heightDp)
++        val growLyrics = WidgetElement.LYRICS in layout && spareDp >= GROW_FROM_DP
++        val lyricsScale = if (growLyrics) (1f + spareDp / 160f).coerceAtMost(1.75f) else 1f
++
+         val views = RemoteViews(context.packageName, R.layout.widget_player).apply {
+             val drawn = art?.let { background(context, it, look.background, widthDp, heightDp) }
+             if (drawn != null) {
+@@ -454,14 +464,15 @@ object PlayerWidget {
+             // as wide as its span, and a gap to the end - every column accounted for, so the
+             // widths come out exactly as placed in the editor.
+             layout.placements.groupBy { it.row }.toSortedMap().values.forEach { rowPlacements ->
+-                val rowViews = RemoteViews(context.packageName, R.layout.widget_row)
++                val grows = growLyrics && rowPlacements.any { it.element == WidgetElement.LYRICS }
++                val rowViews = RemoteViews(context.packageName, if (grows) R.layout.widget_row_grow else R.layout.widget_row)
+                 var col = 0
+                 rowPlacements.sortedBy { it.col }.forEach { placement ->
+                     if (placement.col > col) rowViews.addView(R.id.widget_row_container, cell(context, placement.col - col))
+                     val cellViews = cell(context, placement.span)
+                     cellViews.addView(
+                         R.id.el_cell,
+-                        elementView(context, placement.element, colours, look, widthDp * placement.span / layout.columns, small, coverDp),
++                        elementView(context, placement.element, colours, look, widthDp * placement.span / layout.columns, small, coverDp, lyricsScale),
+                     )
+                     rowViews.addView(R.id.widget_row_container, cellViews)
+                     col = placement.end
+@@ -482,6 +493,7 @@ object PlayerWidget {
+         widthDp: Int,
+         small: Boolean,
+         coverDp: Int,
++        lyricsScale: Float = 1f,
+     ): RemoteViews {
+         // The app's own rounded Material icons, drawn to bitmaps, so the widget's buttons are the
+         // player's buttons rather than look-alikes from a different icon set.
+@@ -586,9 +598,19 @@ object PlayerWidget {
+                 // rises, its total height kept so only its position changes. Padding is what a
+                 // RemoteViews can change on any Android version.
+                 val step = frame?.lineStep ?: -1
+-                val slide = (SLIDE_DP * context.resources.displayMetrics.density).roundToInt()
+-                val down = if (step >= 0) (slide * (1f - (step + 1f) / WidgetLyrics.LINE_STEPS)).roundToInt() else 0
++                val slide = (SLIDE_DP * lyricsScale * context.resources.displayMetrics.density).roundToInt()
++                val left = 1f - (step + 1f) / WidgetLyrics.LINE_STEPS
++                // Eased out: most of the move happens first, which is what a short run of redraws
++                // can show without looking like steps.
++                val down = if (step >= 0) (slide * left * left).roundToInt() else 0
+                 setViewPadding(R.id.el_lyrics_root, 0, down, 0, slide - down)
++                if (lyricsScale > 1f) {
++                    // A pane given extra height: bigger lines, and room for a long one to wrap.
++                    setTextViewTextSize(R.id.el_text, android.util.TypedValue.COMPLEX_UNIT_SP, 16f * lyricsScale)
++                    setTextViewTextSize(R.id.el_prev, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * lyricsScale)
++                    setTextViewTextSize(R.id.el_next, android.util.TypedValue.COMPLEX_UNIT_SP, 12f * lyricsScale)
++                    setInt(R.id.el_text, "setMaxLines", 4)
++                }
+                 setTextViewText(R.id.el_text, current)
+                 setTextColor(R.id.el_text, colours.text)
+                 setTextViewText(R.id.el_prev, frame?.previous.orEmpty())
+@@ -672,7 +694,18 @@ object PlayerWidget {
+     }
+ 
+     /** [source] with its corners rounded by [fraction] of its shorter side; 0.5 is a circle. */
+-    private fun rounded(source: Bitmap, fraction: Float): Bitmap {
++    /**
++     * The cover with rounded corners, drawn once per picture. Every redraw of the widget (a lyric
++     * line sliding is several a second) used to draw it again and hand a fresh bitmap to the
++     * launcher; the same bitmap is cheaper to build and to send.
++     */
++    private val roundedCache = java.util.WeakHashMap<Bitmap, MutableMap<Float, Bitmap>>()
++
++    private fun rounded(source: Bitmap, fraction: Float): Bitmap = synchronized(roundedCache) {
++        roundedCache.getOrPut(source) { HashMap() }.getOrPut(fraction) { drawRounded(source, fraction) }
++    }
++
++    private fun drawRounded(source: Bitmap, fraction: Float): Bitmap {
+         val out = Bitmap.createBitmap(source.width, source.height, Bitmap.Config.ARGB_8888)
+         val radius = minOf(source.width, source.height) * fraction
+         Canvas(out).drawRoundRect(
+@@ -920,7 +953,23 @@ object PlayerWidget {
+      * style, thickness, waves and dot as the player's, not an imitation of them. Drawn still: a
+      * home screen is not the place for something animating all day.
+      */
++    /** The last few seek bars, by everything that decides how one looks - see [seekBar]. */
++    private val seekCache = object : LinkedHashMap<String, Bitmap>(8, 0.75f, true) {
++        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Bitmap>?) = size > 4
++    }
++
++    /**
++     * Redrawn only when the bar would look different: the fraction is rounded to the pixel it lands
++     * on, so the redraws a lyric makes in the same second reuse one picture instead of drawing and
++     * sending a new one each time.
++     */
+     private fun seekBar(context: Context, fraction: Float, look: Look, colours: Colours, widthPx: Int, heightPx: Int): Bitmap {
++        val px = (fraction.coerceIn(0f, 1f) * widthPx).roundToInt()
++        val key = "$px|$widthPx|$heightPx|${look.slider}|${look.weight}|${look.dot}|${colours.accent}|${colours.track}|$lastPlaying"
++        return synchronized(seekCache) { seekCache.getOrPut(key) { drawSeekBar(context, px / widthPx.toFloat(), look, colours, widthPx, heightPx) } }
++    }
++
++    private fun drawSeekBar(context: Context, fraction: Float, look: Look, colours: Colours, widthPx: Int, heightPx: Int): Bitmap {
+         val bitmap = Bitmap.createBitmap(widthPx, heightPx, Bitmap.Config.ARGB_8888)
+         val rtl = context.resources.configuration.layoutDirection == android.view.View.LAYOUT_DIRECTION_RTL
+         CanvasDrawScope().draw(
+diff --git a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+index c934215..c74776e 100644
+--- a/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
++++ b/app/src/main/java/com/dd3boh/outertune/widget/WidgetLyrics.kt
+@@ -48,8 +48,8 @@ object WidgetLyrics {
+     const val STEPS = 8
+ 
+     /** How long a new line takes to slide up into place, and in how many stages (a widget cannot animate, it can only be redrawn). */
+-    const val LINE_MS = 400L
+-    const val LINE_STEPS = 5
++    const val LINE_MS = 420L
++    const val LINE_STEPS = 4
+ 
+     /**
+      * How far ahead the lit words run: about how long a redraw takes to get through the launcher, so
+@@ -58,7 +58,7 @@ object WidgetLyrics {
+     private const val LEAD_MS = 300L
+ 
+     /** The shortest and longest wait between redraws - see [nextChangeDelay]. */
+-    private const val MIN_DELAY_MS = 150L
++    private const val MIN_DELAY_MS = 90L
+     private const val MAX_DELAY_MS = 2_000L
+ 
+     /** Timed lines, in order. Empty for unsynced lyrics - there is no "current line" to show then. */
+diff --git a/app/src/main/res/layout/widget_row_grow.xml b/app/src/main/res/layout/widget_row_grow.xml
+new file mode 100644
+index 0000000..0e7ab96
+--- /dev/null
++++ b/app/src/main/res/layout/widget_row_grow.xml
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- A row that takes up the height the others leave (the lyrics, on a very tall widget), so the
++     rest stay where they were put at the top and bottom. Same id as widget_row. -->
++<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:id="@+id/widget_row_container"
++    android:layout_width="match_parent"
++    android:layout_height="0dp"
++    android:layout_marginVertical="3dp"
++    android:layout_weight="1"
++    android:gravity="center"
++    android:orientation="horizontal" />
+-- 
+2.43.0
+
+
+From cd8a5cfaa72b761724db87156637d5283b5117e7 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 20:46:21 +0800
+Subject: [PATCH 4/4] AutoEQ matching reuses the AutoEQ search dialog instead
+ of a second copy
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../ui/screens/settings/AutoEqMatchDialog.kt  | 188 ------------------
+ .../ui/screens/settings/EqualizerSettings.kt  |  54 ++++-
+ .../screens/settings/EqualizerStudioScreen.kt |   2 +-
+ app/src/main/res/values/strings-ot.xml        |   3 -
+ 4 files changed, 50 insertions(+), 197 deletions(-)
+ delete mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt
+deleted file mode 100644
+index 87e4b5b..0000000
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt
++++ /dev/null
+@@ -1,188 +0,0 @@
+-/*
+- * Copyright (C) 2026 OuterTune Project
+- *
+- * SPDX-License-Identifier: GPL-3.0
+- */
+-
+-package com.dd3boh.outertune.ui.screens.settings
+-
+-import androidx.compose.foundation.clickable
+-import androidx.compose.foundation.layout.Column
+-import androidx.compose.foundation.layout.Row
+-import androidx.compose.foundation.layout.Spacer
+-import androidx.compose.foundation.layout.fillMaxWidth
+-import androidx.compose.foundation.layout.heightIn
+-import androidx.compose.foundation.layout.padding
+-import androidx.compose.foundation.layout.size
+-import androidx.compose.foundation.layout.width
+-import androidx.compose.foundation.layout.height
+-import androidx.compose.foundation.lazy.LazyColumn
+-import androidx.compose.foundation.lazy.items
+-import androidx.compose.foundation.text.KeyboardOptions
+-import androidx.compose.material.icons.Icons
+-import androidx.compose.material.icons.rounded.Search
+-import androidx.compose.material3.CircularProgressIndicator
+-import androidx.compose.material3.Icon
+-import androidx.compose.material3.MaterialTheme
+-import androidx.compose.material3.OutlinedTextField
+-import androidx.compose.material3.Text
+-import androidx.compose.material3.TextButton
+-import androidx.compose.runtime.Composable
+-import androidx.compose.runtime.LaunchedEffect
+-import androidx.compose.runtime.getValue
+-import androidx.compose.runtime.mutableStateOf
+-import androidx.compose.runtime.remember
+-import androidx.compose.runtime.rememberCoroutineScope
+-import androidx.compose.runtime.setValue
+-import androidx.compose.ui.Alignment
+-import androidx.compose.ui.Modifier
+-import androidx.compose.ui.platform.LocalContext
+-import androidx.compose.ui.res.stringResource
+-import androidx.compose.ui.text.input.ImeAction
+-import androidx.compose.ui.text.style.TextOverflow
+-import androidx.compose.ui.unit.dp
+-import com.dd3boh.outertune.R
+-import com.dd3boh.outertune.audio.AutoEqMatch
+-import com.dd3boh.outertune.models.EqualizerSettings
+-import com.dd3boh.outertune.ui.dialog.DefaultDialog
+-import com.dd3boh.outertune.utils.AutoEqRepository
+-import kotlinx.coroutines.Dispatchers
+-import kotlinx.coroutines.delay
+-import kotlinx.coroutines.launch
+-import kotlinx.coroutines.withContext
+-
+-/**
+- * "Make these headphones sound like those": pick the headphones in use, then the ones to imitate,
+- * and the difference between their AutoEQ corrections is fitted to a curve (see [AutoEqMatch]).
+- * [onApply] gets that curve, with the fit's leftover error in dB so it can be shown.
+- */
+-@Composable
+-fun AutoEqMatchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: () -> Unit) {
+-    val context = LocalContext.current
+-    val detected = remember { connectedHeadphoneName(context) }
+-    var step by remember { mutableStateOf(0) }
+-    var source by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
+-    var query by remember { mutableStateOf(detected.orEmpty()) }
+-    var results by remember { mutableStateOf<List<AutoEqRepository.Result>>(emptyList()) }
+-    var searching by remember { mutableStateOf(false) }
+-    var working by remember { mutableStateOf(false) }
+-    var error by remember { mutableStateOf<String?>(null) }
+-    val scope = rememberCoroutineScope()
+-    val rateLimited = stringResource(R.string.eq_settings_autoeq_rate_limited)
+-    val unreachable = stringResource(R.string.eq_settings_autoeq_unreachable)
+-    val failed = stringResource(R.string.eq_match_failed)
+-
+-    LaunchedEffect(query) {
+-        val q = query.trim()
+-        if (q.isEmpty()) { results = emptyList(); searching = false; error = null; return@LaunchedEffect }
+-        delay(400)
+-        searching = true
+-        error = null
+-        val outcome = runCatching { AutoEqRepository.search(q) }.getOrNull()
+-        searching = false
+-        when (outcome) {
+-            is AutoEqRepository.SearchOutcome.Found -> results = outcome.results
+-            AutoEqRepository.SearchOutcome.RateLimited -> { results = emptyList(); error = rateLimited }
+-            else -> { results = emptyList(); error = unreachable }
+-        }
+-    }
+-
+-    fun picked(result: AutoEqRepository.Result) {
+-        if (step == 0) {
+-            source = result
+-            step = 1
+-            query = ""
+-            results = emptyList()
+-            return
+-        }
+-        val from = source ?: return
+-        scope.launch {
+-            working = true
+-            error = null
+-            val a = AutoEqRepository.fetchCurve(from)
+-            val b = AutoEqRepository.fetchCurve(result)
+-            if (a == null || b == null) {
+-                working = false
+-                error = failed
+-                return@launch
+-            }
+-            val fitted = withContext(Dispatchers.Default) { AutoEqMatch.match(a.bands, b.bands) }
+-            working = false
+-            onApply(EqualizerSettings.DEFAULT.copy(enabled = true, bands = fitted.bands))
+-            onDismiss()
+-        }
+-    }
+-
+-    DefaultDialog(
+-        onDismiss = onDismiss,
+-        icon = { Icon(Icons.Rounded.Search, null) },
+-        title = { Text(stringResource(R.string.eq_match_title)) },
+-        buttons = {
+-            if (step == 1 && !working) {
+-                TextButton(onClick = { step = 0; source = null; query = detected.orEmpty() }) {
+-                    Text(stringResource(R.string.eq_match_back))
+-                }
+-            }
+-            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
+-        }
+-    ) {
+-        Text(
+-            text = if (step == 0) stringResource(R.string.eq_match_step_from)
+-            else stringResource(R.string.eq_match_step_to, source?.name.orEmpty()),
+-            style = MaterialTheme.typography.bodyMedium,
+-        )
+-        Spacer(Modifier.height(8.dp))
+-        OutlinedTextField(
+-            value = query,
+-            onValueChange = { query = it },
+-            modifier = Modifier.fillMaxWidth(),
+-            label = { Text(stringResource(R.string.eq_settings_autoeq_search_hint)) },
+-            singleLine = true,
+-            enabled = !working,
+-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+-        )
+-        if (step == 0 && detected != null) {
+-            Text(
+-                text = stringResource(R.string.eq_settings_autoeq_detected, detected),
+-                style = MaterialTheme.typography.labelSmall,
+-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+-                modifier = Modifier.padding(top = 4.dp),
+-            )
+-        }
+-        Spacer(Modifier.height(8.dp))
+-        when {
+-            working || searching -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
+-                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+-                Spacer(Modifier.width(12.dp))
+-                Text(stringResource(if (working) R.string.eq_match_working else R.string.eq_settings_autoeq_searching))
+-            }
+-            error != null -> Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
+-            query.isNotBlank() && results.isEmpty() -> Text(stringResource(R.string.eq_settings_autoeq_no_results))
+-        }
+-        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
+-            items(results, key = { "${it.category}/${it.name}" }) { result ->
+-                Column(
+-                    modifier = Modifier
+-                        .fillMaxWidth()
+-                        .clickable(enabled = !working) { picked(result) }
+-                        .padding(vertical = 10.dp)
+-                ) {
+-                    Text(result.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+-                    Text(
+-                        result.category,
+-                        style = MaterialTheme.typography.labelSmall,
+-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+-                    )
+-                }
+-            }
+-        }
+-        if (step == 1) {
+-            Text(
+-                text = stringResource(R.string.eq_match_note),
+-                style = MaterialTheme.typography.labelSmall,
+-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+-                modifier = Modifier.padding(top = 8.dp),
+-            )
+-        }
+-    }
+-}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index 61dcca9..da43be7 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -69,6 +69,7 @@ import androidx.compose.ui.unit.dp
+ import androidx.navigation.NavController
+ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
++import com.dd3boh.outertune.audio.AutoEqMatch
+ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
+ import com.dd3boh.outertune.constants.EqUseDialsKey
+ import com.dd3boh.outertune.constants.EqValueColorGradientKey
+@@ -102,8 +103,10 @@ import com.dd3boh.outertune.ui.utils.backToMain
+ import com.dd3boh.outertune.utils.AutoEqRepository
+ import com.dd3boh.outertune.utils.rememberEnumPreference
+ import com.dd3boh.outertune.utils.rememberPreference
++import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.delay
+ import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
+ 
+ /**
+  * Settings *about* the equaliser: on/off, headroom, how the panel looks, profiles and AutoEQ.
+@@ -313,7 +316,8 @@ fun EqualizerSettingsScreen(
+     }
+ 
+     if (showMatchDialog) {
+-        AutoEqMatchDialog(
++        AutoEqSearchDialog(
++            matchMode = true,
+             onApply = { curve -> update(curve.copy(balance = settings.balance, compressor = settings.compressor)) },
+             onDismiss = { showMatchDialog = false },
+         )
+@@ -370,6 +374,14 @@ internal fun connectedHeadphoneName(context: Context): String? {
+     }.getOrNull()
+ }
+ 
++/** The curve that makes [from] sound like [to]: both corrections fetched, then fitted. Null if either is missing. */
++private suspend fun matchedCurve(from: AutoEqRepository.Result, to: AutoEqRepository.Result): EqualizerSettings? {
++    val a = AutoEqRepository.fetchCurve(from) ?: return null
++    val b = AutoEqRepository.fetchCurve(to) ?: return null
++    val fitted = withContext(Dispatchers.Default) { AutoEqMatch.match(a.bands, b.bands) }
++    return EqualizerSettings.DEFAULT.copy(enabled = true, bands = fitted.bands)
++}
++
+ /**
+  * Searches oratory1990's AutoEQ measurements (see [AutoEqRepository] for why that source
+  * specifically, and its own doc for the format being parsed) live against GitHub, and applies the
+@@ -377,7 +389,15 @@ internal fun connectedHeadphoneName(context: Context): String? {
+  * settings - once fetched and parsed.
+  */
+ @Composable
+-private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: () -> Unit) {
++internal fun AutoEqSearchDialog(
++    onApply: (EqualizerSettings) -> Unit,
++    onDismiss: () -> Unit,
++    /**
++     * Pick two headphones instead of one - the ones in use, then the ones to sound like - and apply
++     * the difference of their corrections (see [AutoEqMatch]) rather than one headphone's curve.
++     */
++    matchMode: Boolean = false,
++) {
+     val context = LocalContext.current
+     // Starts from whatever headphones are connected right now, so the usual case is open the
+     // dialog, check the match, tap it. Editable like any other search.
+@@ -386,6 +406,7 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss:
+     var results by remember { mutableStateOf<List<AutoEqRepository.Result>>(emptyList()) }
+     var isSearching by remember { mutableStateOf(false) }
+     var isApplying by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
++    var matchFrom by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
+     var error by remember { mutableStateOf<String?>(null) }
+     val coroutineScope = rememberCoroutineScope()
+     val rateLimitedMessage = stringResource(R.string.eq_settings_autoeq_rate_limited)
+@@ -432,13 +453,21 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss:
+     DefaultDialog(
+         onDismiss = onDismiss,
+         icon = { Icon(Icons.Rounded.Search, null) },
+-        title = { Text(stringResource(R.string.eq_settings_autoeq_title)) },
++        title = { Text(stringResource(if (matchMode) R.string.eq_match_title else R.string.eq_settings_autoeq_title)) },
+         buttons = {
+             TextButton(onClick = onDismiss) {
+                 Text(text = stringResource(android.R.string.cancel))
+             }
+         }
+     ) {
++        if (matchMode) {
++            Text(
++                text = matchFrom?.let { stringResource(R.string.eq_match_step_to, it.name) }
++                    ?: stringResource(R.string.eq_match_step_from),
++                style = MaterialTheme.typography.bodyMedium,
++                modifier = Modifier.padding(bottom = 8.dp),
++            )
++        }
+         OutlinedTextField(
+             value = query,
+             onValueChange = { query = it },
+@@ -447,7 +476,7 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss:
+             singleLine = true,
+             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+         )
+-        if (detectedHeadphones != null) {
++        if (detectedHeadphones != null && matchFrom == null) {
+             Text(
+                 text = stringResource(R.string.eq_settings_autoeq_detected, detectedHeadphones),
+                 style = MaterialTheme.typography.labelSmall,
+@@ -488,10 +517,17 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss:
+                     modifier = Modifier
+                         .fillMaxWidth()
+                         .clickable(enabled = isApplying == null) {
++                            val from = matchFrom
++                            if (matchMode && from == null) {
++                                // The first of the two: on to choosing the second.
++                                matchFrom = result
++                                query = ""
++                                return@clickable
++                            }
+                             coroutineScope.launch {
+                                 isApplying = result
+                                 error = null
+-                                val curve = AutoEqRepository.fetchCurve(result)
++                                val curve = if (from != null) matchedCurve(from, result) else AutoEqRepository.fetchCurve(result)
+                                 isApplying = null
+                                 if (curve != null) {
+                                     onApply(curve)
+@@ -517,5 +553,13 @@ private fun AutoEqSearchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss:
+                 }
+             }
+         }
++        if (matchMode && matchFrom != null) {
++            Text(
++                text = stringResource(R.string.eq_match_note),
++                style = MaterialTheme.typography.labelSmall,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++                modifier = Modifier.padding(top = 8.dp),
++            )
++        }
+     }
+ }
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+index 198f0bf..c539ea4 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+@@ -399,7 +399,7 @@ fun EqualizerStudioScreen(
+     }
+ 
+     if (matching) {
+-        AutoEqMatchDialog(onApply = { loadCurve(it) }, onDismiss = { matching = false })
++        AutoEqSearchDialog(matchMode = true, onApply = { loadCurve(it) }, onDismiss = { matching = false })
+     }
+ 
+     if (naming) {
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index 920c0f2..ecb8dfb 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -168,9 +168,6 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="eq_match_description">Make the headphones you use sound like a different pair</string>
+     <string name="eq_match_step_from">1 of 2 - the headphones you are using</string>
+     <string name="eq_match_step_to">2 of 2 - the headphones to sound like (from %1$s)</string>
+-    <string name="eq_match_working">Fitting the curve…</string>
+-    <string name="eq_match_back">Back</string>
+-    <string name="eq_match_failed">Could not load one of the measurements</string>
+     <string name="eq_match_note">Matches frequency response only, from AutoEQ measurements. Distortion, isolation and soundstage stay the same.</string>
+     <string name="player_background_simple_reactive">Simple reactive</string>
+     <string name="simple_reactive_colours">Colours</string>
+-- 
+2.43.0
+
+From 536864aff7e04d97ae13e39260b49dd1ce6a31e4 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 20:58:51 +0800
+Subject: [PATCH] AutoEQ: search the full database by source, add Databases
+ dialog; add open-links settings entry
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../outertune/constants/PreferenceKeys.kt     |   3 +
+ .../ui/screens/settings/EqualizerSettings.kt  | 108 +++++++-
+ .../ui/screens/settings/PlayerSettings.kt     |  30 +++
+ .../outertune/utils/AutoEqRepository.kt       | 231 +++++++-----------
+ app/src/main/res/values/strings-ot.xml        |  10 +-
+ 5 files changed, 226 insertions(+), 156 deletions(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+index ea761d2..cba6474 100644
+--- a/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
++++ b/app/src/main/java/com/dd3boh/outertune/constants/PreferenceKeys.kt
+@@ -724,3 +724,6 @@ val PlaySyncCloudKey = booleanPreferencesKey("playSyncCloud")
+ val StatPeriodKey = stringPreferencesKey("statPeriod")
+ val StatMetricKey = stringPreferencesKey("statMetric")
+ val StatSongLimitKey = intPreferencesKey("statSongLimit")
++
++/** Sources (`|`-separated) the AutoEQ headphone search looks in. */
++val AutoEqSourcesKey = stringPreferencesKey("autoEqSources")
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index da43be7..a2a12ce 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -37,6 +37,8 @@ import androidx.compose.material.icons.Icons
+ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+ import androidx.compose.material.icons.rounded.Add
+ import androidx.compose.material.icons.rounded.Delete
++import androidx.compose.material.icons.rounded.Download
++import androidx.compose.material3.Checkbox
+ import androidx.compose.material.icons.rounded.Equalizer
+ import androidx.compose.material.icons.rounded.Palette
+ import androidx.compose.material.icons.rounded.Save
+@@ -71,6 +73,7 @@ import com.dd3boh.outertune.LocalPlayerConnection
+ import com.dd3boh.outertune.R
+ import com.dd3boh.outertune.audio.AutoEqMatch
+ import com.dd3boh.outertune.constants.DEFAULT_PLAYER_BACKGROUND
++import com.dd3boh.outertune.constants.AutoEqSourcesKey
+ import com.dd3boh.outertune.constants.EqUseDialsKey
+ import com.dd3boh.outertune.constants.EqValueColorGradientKey
+ import com.dd3boh.outertune.constants.EqAutoSaveProfilesKey
+@@ -134,6 +137,7 @@ fun EqualizerSettingsScreen(
+     val eqColor = MaterialTheme.colorScheme.onSurface
+     val eqColorVariant = MaterialTheme.colorScheme.onSurfaceVariant
+ 
++    var showDatabasesDialog by remember { mutableStateOf(false) }
+     var useDials by rememberPreference(EqUseDialsKey, defaultValue = true)
+     var useValueGradient by rememberPreference(EqValueColorGradientKey, defaultValue = true)
+ 
+@@ -303,8 +307,17 @@ fun EqualizerSettingsScreen(
+             icon = { Icon(Icons.Rounded.Search, null) },
+             onClick = { showMatchDialog = true }
+         )
++
++        PreferenceEntry(
++            title = { Text(stringResource(R.string.eq_databases_title)) },
++            description = stringResource(R.string.eq_databases_description),
++            icon = { Icon(Icons.Rounded.Download, null) },
++            onClick = { showDatabasesDialog = true }
++        )
+     }
+ 
++    if (showDatabasesDialog) AutoEqDatabasesDialog(onDismiss = { showDatabasesDialog = false })
++
+     if (showSaveAsDialog) {
+         TextFieldDialog(
+             title = { Text(stringResource(R.string.eq_settings_save_as_profile)) },
+@@ -409,13 +422,14 @@ internal fun AutoEqSearchDialog(
+     var matchFrom by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
+     var error by remember { mutableStateOf<String?>(null) }
+     val coroutineScope = rememberCoroutineScope()
+-    val rateLimitedMessage = stringResource(R.string.eq_settings_autoeq_rate_limited)
++    LaunchedEffect(Unit) { AutoEqRepository.attach(context) }
++    val sourcesPref by rememberPreference(AutoEqSourcesKey, defaultValue = AutoEqRepository.DEFAULT_SOURCE)
++    val enabledSources = remember(sourcesPref) { sourcesPref.split('|').filter { it.isNotBlank() }.toSet() }
+     val unreachableMessage = stringResource(R.string.eq_settings_autoeq_unreachable)
+ 
+-    // Debounced: the first search of a session hits GitHub's API three times, once per category,
+-    // so this waits for a pause in typing. Later searches are served from the cached listings -
+-    // see AutoEqRepository, and the rate limit that made caching necessary.
+-    LaunchedEffect(query) {
++    // Debounced. The first search of a session may have to fetch the index (under a megabyte, then
++    // kept for a week); after that, searching is local - see AutoEqRepository.
++    LaunchedEffect(query, enabledSources) {
+         val q = query.trim()
+         if (q.isEmpty()) {
+             results = emptyList()
+@@ -426,7 +440,7 @@ internal fun AutoEqSearchDialog(
+         delay(400)
+         isSearching = true
+         error = null
+-        val outcome = runCatching { AutoEqRepository.search(q) }
++        val outcome = runCatching { AutoEqRepository.search(q, enabledSources) }
+         isSearching = false
+         outcome
+             .onSuccess {
+@@ -436,11 +450,7 @@ internal fun AutoEqSearchDialog(
+                         error = null
+                     }
+                     // Told apart from an empty result on purpose: "no headphones match" sends
+-                    // somebody off to check their spelling, and neither of these is their fault.
+-                    AutoEqRepository.SearchOutcome.RateLimited -> {
+-                        results = emptyList()
+-                        error = rateLimitedMessage
+-                    }
++                    // somebody off to check their spelling, and this is not their fault.
+                     AutoEqRepository.SearchOutcome.Unreachable -> {
+                         results = emptyList()
+                         error = unreachableMessage
+@@ -511,7 +521,7 @@ internal fun AutoEqSearchDialog(
+                 .fillMaxWidth()
+                 .heightIn(max = 320.dp)
+         ) {
+-            items(results, key = { "${it.category}/${it.name}" }) { result ->
++            items(results, key = { it.path }) { result ->
+                 Row(
+                     verticalAlignment = Alignment.CenterVertically,
+                     modifier = Modifier
+@@ -563,3 +573,77 @@ internal fun AutoEqSearchDialog(
+         }
+     }
+ }
++
++/**
++ * Which of AutoEQ's measurement sources the headphone search looks in. The list comes from the
++ * database's own index, so a source that gets added upstream shows up here without an app update.
++ */
++@Composable
++internal fun AutoEqDatabasesDialog(onDismiss: () -> Unit) {
++    val context = LocalContext.current
++    var sourcesPref by rememberPreference(AutoEqSourcesKey, defaultValue = AutoEqRepository.DEFAULT_SOURCE)
++    val enabled = sourcesPref.split('|').filter { it.isNotBlank() }.toSet()
++    var available by remember { mutableStateOf<List<Pair<String, Int>>?>(null) }
++    var failed by remember { mutableStateOf(false) }
++    var reload by remember { mutableStateOf(0) }
++
++    LaunchedEffect(reload) {
++        AutoEqRepository.attach(context)
++        available = null
++        failed = false
++        val list = AutoEqRepository.sources()
++        available = list
++        failed = list == null
++    }
++
++    DefaultDialog(
++        onDismiss = onDismiss,
++        icon = { Icon(Icons.Rounded.Download, null) },
++        title = { Text(stringResource(R.string.eq_databases_title)) },
++        buttons = {
++            TextButton(onClick = { AutoEqRepository.refresh(); reload++ }) {
++                Text(stringResource(R.string.eq_databases_refresh))
++            }
++            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.ok)) }
++        }
++    ) {
++        Text(
++            text = stringResource(R.string.eq_databases_note),
++            style = MaterialTheme.typography.bodySmall,
++            modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
++        )
++        when {
++            failed -> Text(
++                text = stringResource(R.string.eq_settings_autoeq_unreachable),
++                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
++            )
++            available == null -> Text(
++                text = stringResource(R.string.eq_settings_autoeq_searching),
++                modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
++            )
++            else -> LazyColumn {
++                items(available.orEmpty(), key = { it.first }) { (source, count) ->
++                    Row(
++                        verticalAlignment = Alignment.CenterVertically,
++                        modifier = Modifier
++                            .fillMaxWidth()
++                            .clickable {
++                                val next = if (source in enabled) enabled - source else enabled + source
++                                sourcesPref = next.joinToString("|")
++                            }
++                            .padding(horizontal = 16.dp, vertical = 4.dp)
++                    ) {
++                        Checkbox(checked = source in enabled, onCheckedChange = null)
++                        Column(Modifier.padding(start = 12.dp)) {
++                            Text(source)
++                            Text(
++                                stringResource(R.string.eq_databases_count, count),
++                                style = MaterialTheme.typography.bodySmall
++                            )
++                        }
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt
+index ce397d4..28defbc 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/PlayerSettings.kt
+@@ -36,6 +36,7 @@ import com.dd3boh.outertune.ui.screens.settings.fragments.QueueFrag
+ import com.dd3boh.outertune.ui.screens.settings.fragments.PlayerControlsFrag
+ import com.dd3boh.outertune.ui.screens.settings.fragments.PlaybackFrag
+ import com.dd3boh.outertune.ui.component.SettingsGroup
++import androidx.compose.material.icons.rounded.Link
+ import com.dd3boh.outertune.constants.AudioDecoderKey
+ import com.dd3boh.outertune.constants.DEFAULT_AUDIO_DECODER
+ import com.dd3boh.outertune.constants.ENABLE_FFMETADATAEX
+@@ -67,6 +68,8 @@ fun PlayerSettings(
+         defaultValue = DEFAULT_AUDIO_DECODER
+     )
+ 
++    val context = androidx.compose.ui.platform.LocalContext.current
++
+     ColumnWithContentPadding(
+         modifier = Modifier.fillMaxHeight(),
+         columnModifier = Modifier
+@@ -87,6 +90,15 @@ fun PlayerSettings(
+             PlaybackFrag()
+         }
+ 
++        SettingsGroup(title = stringResource(R.string.open_links_group)) {
++            PreferenceEntry(
++                title = { Text(stringResource(R.string.open_links_title)) },
++                description = stringResource(R.string.open_links_description),
++                icon = { Icon(Icons.Rounded.Link, null) },
++                onClick = { openLinkDefaults(context) }
++            )
++        }
++
+         SettingsGroup(title = stringResource(R.string.grp_controls)) {
+             PlayerControlsFrag()
+         }
+@@ -159,3 +171,21 @@ private fun PlayerSettingsPreview() {
+         )
+     }
+ }
++
++/**
++ * Android 12+ does not let an app make itself the default for web links; only the user can, in the
++ * system's "Open by default" page. This goes straight to that page for this app (falling back to
++ * the app's info page), where "Add link" / "Open supported links" can be switched on.
++ */
++private fun openLinkDefaults(context: android.content.Context) {
++    val pkg = android.net.Uri.parse("package:${context.packageName}")
++    val intents = buildList {
++        if (android.os.Build.VERSION.SDK_INT >= 31) {
++            add(android.content.Intent(android.provider.Settings.ACTION_APP_OPEN_BY_DEFAULT_SETTINGS, pkg))
++        }
++        add(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, pkg))
++    }
++    for (intent in intents) {
++        if (runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }.isSuccess) return
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt b/app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt
+index e29b53e..ff65e6d 100644
+--- a/app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt
++++ b/app/src/main/java/com/dd3boh/outertune/utils/AutoEqRepository.kt
+@@ -8,190 +8,135 @@
+ 
+ package com.dd3boh.outertune.utils
+ 
++import android.content.Context
+ import android.util.Log
+ import com.dd3boh.outertune.models.EqualizerSettings
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import okhttp3.OkHttpClient
+ import okhttp3.Request
+-import org.json.JSONArray
++import java.io.File
++import java.net.URLDecoder
+ import java.net.URLEncoder
+ 
+ /**
+  * Searches and fetches headphone correction curves from AutoEQ's public results database
+- * (https://github.com/jaakkopasanen/AutoEq, MIT licensed), scoped to oratory1990's measurements -
+- * the single most consistently referenced source in that database, and one whose directory layout
+- * (one folder per headphone, under over-ear/in-ear/earbud) is simple enough to query directly
+- * against GitHub's own API rather than needing a bundled or self-hosted index.
++ * (https://github.com/jaakkopasanen/AutoEq, MIT licensed).
+  *
+- * AutoEQ's full database spans ~20 other measurement sources and 8000+ entries total; mirroring
+- * all of it would mean either bundling a multi-hundred-megabyte dataset in the APK or standing up
+- * infrastructure to serve it. Querying GitHub's directory listing live instead means no bundled
+- * data to go stale, no APK size cost, and results that are always exactly what's in the repo right
+- * now - at the cost of only covering one (well-regarded) measurement source rather than all of them,
+- * and being unusable offline.
++ * The database has about 8,800 profiles from some 25 measurement sources. Its own `results/INDEX.md`
++ * lists every one of them, one line each, in a single file of under a megabyte - so that file is the
++ * database as far as this app is concerned: fetched once, kept in the cache folder, searched
++ * locally. Nothing is bundled (no APK cost), a search makes no request, and the sources to search
++ * are the user's choice. A profile's curve is a ~1.5 kB text file fetched when it is picked, and
++ * kept too, so a headphone that was used once works offline.
+  *
+- * Two things about doing it over GitHub's API that the first version did not account for.
+- *
+- * **It is rate limited, hard.** Unauthenticated callers get 60 requests an hour per address, and
+- * every search spent three of them - one per category - so about twenty searches exhausted the
+- * budget for the hour. The listings are then cached for [LISTING_TTL_MS]: the folder names change
+- * when somebody adds a headphone to the database, which is not something that needs checking every
+- * time a letter is typed. A session now costs three requests rather than three per search.
+- *
+- * **And being rate limited looked exactly like finding nothing.** `if (!response.isSuccessful)
+- * return emptyList()` turned a 403 into an empty result, so the screen said no headphones matched
+- * when the truth was that it had not been allowed to look. Failures are distinguished from
+- * absences now - see [SearchOutcome] - because "nothing found" sends someone off to check their
+- * spelling and "try again in a while" does not.
++ * It used to list each folder through GitHub's API instead, which is limited to 60 requests an hour
++ * and only reached one source. The index is a plain file on raw.githubusercontent.com, which has no
++ * such limit.
+  */
+ object AutoEqRepository {
+     private const val TAG = "AutoEqRepository"
+-    private const val OWNER = "jaakkopasanen"
+-    private const val REPO = "AutoEq"
+-    private val CATEGORIES = listOf("over-ear", "in-ear", "earbud")
++    private const val BASE = "https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/results"
+ 
+-    /**
+-     * How long a category listing is trusted.
+-     *
+-     * An hour. These are folder names in a public repository - they change when somebody adds a
+-     * headphone to it - and the budget being spent is sixty requests an hour, so the cache window
+-     * and the limit window may as well be the same size.
+-     */
+-    private const val LISTING_TTL_MS = 60L * 60 * 1000
++    /** The source searched until the user chooses others: the one most often quoted. */
++    const val DEFAULT_SOURCE = "oratory1990"
+ 
+-    data class Result(val name: String, val category: String)
++    /** How long a kept index is trusted before it is fetched again, if the network allows. */
++    private const val INDEX_TTL_MS = 7L * 24 * 60 * 60 * 1000
+ 
+     /**
+-     * What a search found, or why it could not look.
+-     *
+-     * The distinction is the point: an empty [Found] means the database has no headphone of that
+-     * name, while [RateLimited] and [Unreachable] mean the question was never asked. Collapsing
+-     * the three into an empty list - which is what this did - tells someone to check their
+-     * spelling when the real answer is to wait an hour or turn their connection on.
++     * One profile. [path] is its folder under `results/` ("crinacle/711 in-ear/Name"), [source] who
++     * measured it, and [category] what is shown under its name.
+      */
++    data class Result(val name: String, val category: String, val path: String, val source: String)
++
++    /** What a search found, or why it could not look. An empty [Found] is a real "none". */
+     sealed interface SearchOutcome {
+         data class Found(val results: List<Result>) : SearchOutcome
+-        data object RateLimited : SearchOutcome
+         data object Unreachable : SearchOutcome
+     }
+ 
+     private val httpClient = OkHttpClient()
++    private var cacheDir: File? = null
++    private var entries: List<Result>? = null
++    private val lock = Any()
+ 
+-    /**
+-     * Category listings, by category.
+-     *
+-     * Held for [LISTING_TTL_MS] because they are a list of folder names in a public repository:
+-     * they change when a headphone is added to it, and nothing is lost by being an hour behind.
+-     * Without this every keystroke-debounced search spent three of the sixty requests an hour an
+-     * unauthenticated caller gets.
+-     */
+-    private val listings = HashMap<String, CachedListing>()
+-    private val listingsLock = Any()
+-
+-    private data class CachedListing(val names: List<String>, val fetchedAt: Long)
+-
+-    /** Case-insensitive substring match against oratory1990's headphone folder names. */
+-    suspend fun search(query: String): SearchOutcome = withContext(Dispatchers.IO) {
+-        if (query.isBlank()) return@withContext SearchOutcome.Found(emptyList())
+-
+-        val matches = mutableListOf<Result>()
+-        var rateLimited = false
+-        var failed = 0
+-        for (category in CATEGORIES) {
+-            when (val listing = namesFor(category)) {
+-                is ListingOutcome.Names ->
+-                    listing.names
+-                        .filter { it.contains(query, ignoreCase = true) }
+-                        .forEach { matches += Result(it, category) }
+-
+-                ListingOutcome.RateLimited -> rateLimited = true
+-                ListingOutcome.Failed -> failed++
+-            }
+-        }
++    /** Says where to keep files. Safe to call again. */
++    fun attach(context: Context) {
++        if (cacheDir == null) cacheDir = File(context.cacheDir, "autoeq").also { it.mkdirs() }
++    }
+ 
+-        // A partial answer is still an answer: if two categories listed and one did not, the
+-        // headphone the user is looking for may well be in the two that did. Only when nothing at
+-        // all came back is the failure worth reporting instead of the results.
+-        when {
+-            matches.isNotEmpty() -> SearchOutcome.Found(matches.sortedBy { it.name })
+-            rateLimited -> SearchOutcome.RateLimited
+-            failed == CATEGORIES.size -> SearchOutcome.Unreachable
+-            else -> SearchOutcome.Found(emptyList())
+-        }
++    /** Every source in the index with how many profiles it has, largest first. Null if there is no index. */
++    suspend fun sources(): List<Pair<String, Int>>? = withContext(Dispatchers.IO) {
++        index()?.groupingBy { it.source }?.eachCount()?.toList()?.sortedByDescending { it.second }
+     }
+ 
+-    private sealed interface ListingOutcome {
+-        data class Names(val names: List<String>) : ListingOutcome
+-        data object RateLimited : ListingOutcome
+-        data object Failed : ListingOutcome
++    /** Drops the kept index so the next search fetches it again. */
++    fun refresh() {
++        synchronized(lock) { entries = null }
++        File(cacheDir ?: return, INDEX_FILE).delete()
+     }
+ 
+-    private fun namesFor(category: String): ListingOutcome {
+-        val now = System.currentTimeMillis()
+-        synchronized(listingsLock) {
+-            listings[category]?.let { cached ->
+-                if (now - cached.fetchedAt < LISTING_TTL_MS) return ListingOutcome.Names(cached.names)
+-            }
+-        }
+-        val fetched = listNames(category)
+-        if (fetched is ListingOutcome.Names) {
+-            synchronized(listingsLock) { listings[category] = CachedListing(fetched.names, now) }
+-        }
+-        return fetched
++    /** Case-insensitive substring match against the names in [sources] (all of them if null). */
++    suspend fun search(query: String, sources: Set<String>? = null): SearchOutcome = withContext(Dispatchers.IO) {
++        if (query.isBlank()) return@withContext SearchOutcome.Found(emptyList())
++        val all = index() ?: return@withContext SearchOutcome.Unreachable
++        SearchOutcome.Found(
++            all.filter { (sources == null || it.source in sources) && it.name.contains(query, ignoreCase = true) }
++                .sortedWith(compareBy({ it.name.lowercase() }, { it.source }))
++                .take(MAX_RESULTS)
++        )
+     }
+ 
+-    private fun listNames(category: String): ListingOutcome {
+-        val url = "https://api.github.com/repos/$OWNER/$REPO/contents/results/oratory1990/$category"
+-        val request = Request.Builder()
+-            .url(url)
+-            .header("Accept", "application/vnd.github+json")
+-            .build()
+-        return runCatching {
+-            httpClient.newCall(request).execute().use { response ->
+-                if (!response.isSuccessful) {
+-                    // 403 with the budget exhausted is the rate limit; GitHub also uses 429. The
+-                    // remaining-count header is what separates a refusal to serve from a genuine
+-                    // forbidden, since both arrive as 403.
+-                    val exhausted = response.header("X-RateLimit-Remaining")?.toIntOrNull() == 0
+-                    return@use if (response.code == 429 || (response.code == 403 && exhausted)) {
+-                        Log.w(TAG, "AutoEQ listing rate limited for $category")
+-                        ListingOutcome.RateLimited
+-                    } else {
+-                        Log.w(TAG, "AutoEQ listing failed for $category: HTTP ${response.code}")
+-                        ListingOutcome.Failed
+-                    }
+-                }
+-                val body = response.body?.string() ?: return@use ListingOutcome.Failed
+-                val array = JSONArray(body)
+-                ListingOutcome.Names(
+-                    (0 until array.length()).mapNotNull { i ->
+-                        val obj = array.optJSONObject(i) ?: return@mapNotNull null
+-                        if (obj.optString("type") != "dir") return@mapNotNull null
+-                        obj.optString("name").takeIf { it.isNotBlank() }
+-                    }
+-                )
+-            }
+-        }.getOrElse { failure ->
+-            // A dropped connection, a DNS failure, a captive portal. Not an absence either.
+-            Log.w(TAG, "Failed to list AutoEQ category $category", failure)
+-            ListingOutcome.Failed
++    private const val INDEX_FILE = "index.md"
++    private const val MAX_RESULTS = 80
++
++    private fun index(): List<Result>? {
++        synchronized(lock) { entries?.let { return it } }
++        val file = cacheDir?.let { File(it, INDEX_FILE) }
++        val fresh = file != null && file.exists() && System.currentTimeMillis() - file.lastModified() < INDEX_TTL_MS
++        var text = if (fresh) runCatching { file!!.readText() }.getOrNull() else null
++        if (text == null) {
++            text = download("$BASE/INDEX.md")?.also { runCatching { file?.writeText(it) } }
++            // Offline, or the request failed: a stale index is still a good index.
++            if (text == null && file?.exists() == true) text = runCatching { file.readText() }.getOrNull()
+         }
++        val parsed = text?.let(::parseIndex)?.takeIf { it.isNotEmpty() } ?: return null
++        synchronized(lock) { entries = parsed }
++        return parsed
+     }
+ 
++    /** `- [Name](./source/rig%20form/Name) by source on rig`, one per line. */
++    internal fun parseIndex(text: String): List<Result> = text.lineSequence().mapNotNull { line ->
++        if (!line.startsWith("- [")) return@mapNotNull null
++        val open = line.indexOf("](./")
++        val close = line.lastIndexOf(") by ")
++        if (open < 0 || close < open) return@mapNotNull null
++        val name = line.substring(3, open)
++        val path = runCatching { URLDecoder.decode(line.substring(open + 4, close).replace("+", "%2B"), "UTF-8") }
++            .getOrNull() ?: return@mapNotNull null
++        val parts = path.split('/')
++        if (parts.size < 3) return@mapNotNull null
++        Result(name, "${parts[0]} · ${parts[1]}", path, parts[0])
++    }.toList()
++
++    private fun download(url: String): String? = runCatching {
++        httpClient.newCall(Request.Builder().url(url).build()).execute().use { response ->
++            if (response.isSuccessful) response.body?.string() else null
++        }
++    }.onFailure { Log.w(TAG, "Failed to fetch $url", it) }.getOrNull()
+ 
+     /** Fetches and parses [result]'s ParametricEQ.txt into a curve, or null on any failure. */
+     suspend fun fetchCurve(result: Result): EqualizerSettings? = withContext(Dispatchers.IO) {
+-        val encodedName = URLEncoder.encode(result.name, "UTF-8").replace("+", "%20")
+-        val url = "https://raw.githubusercontent.com/$OWNER/$REPO/master/results/oratory1990/" +
+-            "${result.category}/$encodedName/$encodedName%20ParametricEQ.txt"
+-        runCatching {
+-            val request = Request.Builder().url(url).build()
+-            httpClient.newCall(request).execute().use { response ->
+-                if (!response.isSuccessful) return@runCatching null
+-                response.body?.string()?.let(::parseParametricEq)
++        val kept = cacheDir?.let { File(it, "curve-${result.path.hashCode()}-${result.path.length}.txt") }
++        val text = kept?.takeIf { it.exists() }?.let { runCatching { it.readText() }.getOrNull() }
++            ?: run {
++                fun enc(part: String) = URLEncoder.encode(part, "UTF-8").replace("+", "%20")
++                val folder = result.path.split('/').joinToString("/") { enc(it) }
++                download("$BASE/$folder/${enc(result.path.substringAfterLast('/'))}%20ParametricEQ.txt")
++                    ?.also { runCatching { kept?.writeText(it) } }
+             }
+-        }.onFailure { Log.w(TAG, "Failed to fetch AutoEQ curve for ${result.name}", it) }.getOrNull()
++        text?.let(::parseParametricEq)
+     }
+ 
+     private val FILTER_LINE = Regex(
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index ecb8dfb..37e6249 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -164,7 +164,15 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="player_background_default">Follow theme</string>
+     <string name="player_background_gradient">Gradient</string>
+     <string name="player_background_liquid">Liquid</string>
+-    <string name="eq_match_title">Match another headphone</string>
++    <string name="open_links_group">Links</string>
++    <string name="open_links_title">Open supported links with OuterTune</string>
++    <string name="open_links_description">Opens Android\'s \"Open by default\" page for this app, where you can switch on YouTube and YouTube Music links</string>
++    <string name="eq_databases_title">Databases</string>
++    <string name="eq_databases_description">Choose which AutoEQ measurement sources the headphone search covers</string>
++    <string name="eq_databases_note">AutoEQ has about 8,800 profiles from around 25 sources. Only a small list (under 1 MB) is downloaded, once a week; each curve is fetched when you pick it, and kept for offline use. Both can be cleared with the app cache.</string>
++    <string name="eq_databases_refresh">Refresh list</string>
++    <string name="eq_databases_count">%d profiles</string>
++    <string name="eq_match_title">Sound curve migration</string>
+     <string name="eq_match_description">Make the headphones you use sound like a different pair</string>
+     <string name="eq_match_step_from">1 of 2 - the headphones you are using</string>
+     <string name="eq_match_step_to">2 of 2 - the headphones to sound like (from %1$s)</string>
+-- 
+2.43.0
+
