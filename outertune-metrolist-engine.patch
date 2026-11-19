@@ -271978,3 +271978,617 @@ index cd8c958..4064b7d 100644
 -- 
 2.43.0
 
+From 74e445a8e832b1ccfe0072c35b60a2445dedd921 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 15:41:01 +0800
+Subject: [PATCH 1/2] Discord presence: clear before closing and start each
+ session from an empty card (from Metrolist)
+
+Closing the app or rebuilding the connection now clears the activity first, bounded to
+800ms, so the card does not linger on the profile. A fresh READY sends an empty presence
+before the first real one.
+
+Add AutoEqMatch, the fitting core of the device-to-device AutoEQ (no UI yet).
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../com/dd3boh/outertune/audio/AutoEqMatch.kt | 153 ++++++++++++++++++
+ .../com/my/kizzy/gateway/DiscordWebSocket.kt  |  14 ++
+ .../main/java/com/my/kizzy/rpc/KizzyRPC.kt    |  19 ++-
+ 3 files changed, 185 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/audio/AutoEqMatch.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/audio/AutoEqMatch.kt b/app/src/main/java/com/dd3boh/outertune/audio/AutoEqMatch.kt
+new file mode 100644
+index 0000000..5f69406
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/audio/AutoEqMatch.kt
+@@ -0,0 +1,153 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.audio
++
++import com.dd3boh.outertune.models.EqualizerSettings
++import kotlin.math.abs
++import kotlin.math.exp
++import kotlin.math.ln
++import kotlin.math.sqrt
++
++/**
++ * Makes one pair of headphones sound like another.
++ *
++ * AutoEQ publishes, for each headphone, the filters that bring it to a common target: its
++ * correction C(f) = target - measured(f). Playing through headphones A and wanting the sound of B
++ * means adding what B has and A lacks, measured(B) - measured(A), which is C(A) - C(B). The two
++ * corrections are summed and subtracted as responses, in dB, over a log axis, and that difference
++ * is then fitted with a handful of peaking filters, since the equaliser has twelve bands.
++ *
++ * Limits worth knowing: it is the measured *frequency response* only, which is most of what makes
++ * two headphones sound different but not their distortion, imaging or isolation; the corrections
++ * are only meaningful up to around 10kHz, so the fit gives the top octave little weight; and
++ * boosts the curve asks for are made safe by the equaliser's own headroom and limiter, which
++ * measure the finished cascade, so this does not have to.
++ *
++ * No Android in here.
++ */
++object AutoEqMatch {
++
++    /** What the fit was able to do. [rmsErrorDb] is what is left over, weighted as the fit was. */
++    data class Result(val bands: List<EqualizerSettings.EqBand>, val rmsErrorDb: Float)
++
++    private const val SAMPLE_RATE = 48_000
++    private const val POINTS = 192
++    private const val LOW_HZ = 20f
++    private const val HIGH_HZ = 16_000f
++    private const val STOP_DB = 0.35f
++
++    private val grid = FloatArray(POINTS) { i ->
++        exp(ln(LOW_HZ) + (ln(HIGH_HZ) - ln(LOW_HZ)) * i / (POINTS - 1f))
++    }
++
++    /** Full weight to 8kHz, then falling to a third by 16kHz: the measurements stop being reliable up there. */
++    private val weight = FloatArray(POINTS) { i ->
++        val hz = grid[i]
++        if (hz <= 8_000f) 1f else 1f - 0.67f * ((ln(hz) - ln(8_000f)) / (ln(HIGH_HZ) - ln(8_000f)))
++    }
++
++    /** The response of [bands] on the fitting grid, in dB. */
++    internal fun responseDb(bands: List<EqualizerSettings.EqBand>): FloatArray {
++        val cascade = Array(bands.size) { BiquadCoefficients.forBand(bands[it], SAMPLE_RATE) }
++        return FloatArray(POINTS) { BiquadCoefficients.cascadeDb(cascade, grid[it], SAMPLE_RATE) }
++    }
++
++    private fun bandDb(band: EqualizerSettings.EqBand): FloatArray {
++        val c = arrayOf(BiquadCoefficients.forBand(band, SAMPLE_RATE))
++        return FloatArray(POINTS) { BiquadCoefficients.cascadeDb(c, grid[it], SAMPLE_RATE) }
++    }
++
++    /**
++     * The filters that make [from] sound like [to]. Both are AutoEQ corrections (the bands as
++     * [com.dd3boh.outertune.utils.AutoEqRepository] parses them).
++     */
++    fun match(
++        from: List<EqualizerSettings.EqBand>,
++        to: List<EqualizerSettings.EqBand>,
++        maxBands: Int = 10,
++    ): Result {
++        val a = responseDb(from)
++        val b = responseDb(to)
++        val target = FloatArray(POINTS) { a[it] - b[it] }
++        return fit(target, maxBands.coerceIn(1, EqualizerSettings.DEFAULT_BANDS.size))
++    }
++
++    /** Peaking filters fitted to [target] (dB on the grid): placed greedily, then each nudged. */
++    internal fun fit(target: FloatArray, maxBands: Int): Result {
++        val bands = ArrayList<EqualizerSettings.EqBand>()
++        val responses = ArrayList<FloatArray>()
++        val total = FloatArray(POINTS)
++
++        fun error(sum: FloatArray): Double {
++            var e = 0.0
++            for (i in 0 until POINTS) {
++                val d = (target[i] - sum[i]).toDouble()
++                e += weight[i] * d * d
++            }
++            return e
++        }
++
++        fun clamp(band: EqualizerSettings.EqBand) = band.copy(
++            freqHz = band.freqHz.coerceIn(LOW_HZ, HIGH_HZ),
++            gainDb = band.gainDb.coerceIn(EqualizerSettings.MIN_GAIN_DB, EqualizerSettings.MAX_GAIN_DB),
++            q = band.q.coerceIn(0.3f, 6f),
++        )
++
++        repeat(maxBands) {
++            // the worst place that is left, looked at over three points so a single spike is not chased
++            var worst = -1
++            var worstAbs = STOP_DB
++            for (i in 1 until POINTS - 1) {
++                val r = (target[i - 1] - total[i - 1] + target[i] - total[i] + target[i + 1] - total[i + 1]) / 3f
++                val w = abs(r) * weight[i]
++                if (w > worstAbs) { worstAbs = w; worst = i }
++            }
++            if (worst < 0) return@repeat
++            val residual = target[worst] - total[worst]
++            val band = clamp(
++                EqualizerSettings.EqBand(freqHz = grid[worst], gainDb = residual * 0.9f, q = 1.2f)
++            )
++            val response = bandDb(band)
++            bands += band
++            responses += response
++            for (i in 0 until POINTS) total[i] += response[i]
++
++            // Each band's frequency, gain and Q nudged in turn, keeping a change only if the whole
++            // fit gets better. A few sweeps are enough for the shapes headphones have.
++            repeat(3) {
++                for (k in bands.indices) {
++                    var best = bands[k]
++                    var bestResponse = responses[k]
++                    val without = FloatArray(POINTS) { total[it] - responses[k][it] }
++                    var bestError = error(total)
++                    val candidates = listOf(
++                        best.copy(freqHz = best.freqHz * 1.12f), best.copy(freqHz = best.freqHz / 1.12f),
++                        best.copy(gainDb = best.gainDb + 0.5f), best.copy(gainDb = best.gainDb - 0.5f),
++                        best.copy(q = best.q * 1.25f), best.copy(q = best.q / 1.25f),
++                    )
++                    for (candidate in candidates) {
++                        val c = clamp(candidate)
++                        val r = bandDb(c)
++                        val sum = FloatArray(POINTS) { without[it] + r[it] }
++                        val e = error(sum)
++                        if (e < bestError) { bestError = e; best = c; bestResponse = r }
++                    }
++                    if (bestResponse !== responses[k]) {
++                        bands[k] = best
++                        responses[k] = bestResponse
++                        for (i in 0 until POINTS) total[i] = without[i] + bestResponse[i]
++                    }
++                }
++            }
++        }
++
++        var weightSum = 0.0
++        for (w in weight) weightSum += w
++        val rms = sqrt(error(total) / weightSum).toFloat()
++        return Result(bands.sortedBy { it.freqHz }, rms)
++    }
++}
+diff --git a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+index 0fbfcfd..d3a83d7 100644
+--- a/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
++++ b/kizzy/src/main/java/com/my/kizzy/gateway/DiscordWebSocket.kt
+@@ -164,6 +164,7 @@ open class DiscordWebSocket(
+                 Logger.getLogger("Kizzy").log(INFO, "Gateway: resume_gateway_url updated to $resumeGatewayUrl")
+                 Logger.getLogger("Kizzy").log(INFO, "Gateway: session_id updated to $sessionId")
+                 connected = true
++                needsClearFirst = true
+                 lastStatus = "Connected"
+                 return
+             }
+@@ -281,6 +282,15 @@ open class DiscordWebSocket(
+             Logger.getLogger("Kizzy").log(Level.SEVERE, "Gateway: Connection to gateway closed")
+         }
+     }
++    /**
++     * Set on a fresh READY (not a resume): the next presence is preceded by an empty one. Discord
++     * can keep showing an earlier session's card for a while after that session was cut off, and a
++     * new activity published over it can leave the two mixed; clearing first starts from nothing.
++     * (From Metrolist.)
++     */
++    @Volatile
++    private var needsClearFirst = false
++
+     suspend fun sendActivity(presence: Presence) {
+         // Bounded. This used to loop forever waiting for the socket to identify, so a connection
+         // that never succeeded left the caller suspended for the life of the process with nothing
+@@ -292,6 +302,10 @@ open class DiscordWebSocket(
+             }
+             return
+         }
++        if (needsClearFirst) {
++            needsClearFirst = false
++            send(op = PRESENCE_UPDATE, d = Presence(activities = emptyList()))
++        }
+         Logger.getLogger("Kizzy").log(INFO, "Gateway: Sending $PRESENCE_UPDATE")
+         send(
+             op = PRESENCE_UPDATE,
+diff --git a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
+index 995871d..1776e46 100644
+--- a/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
++++ b/kizzy/src/main/java/com/my/kizzy/rpc/KizzyRPC.kt
+@@ -25,6 +25,7 @@ import io.ktor.client.request.header
+ import io.ktor.client.statement.bodyAsText
+ import kotlinx.coroutines.async
+ import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.runBlocking
+ import kotlinx.coroutines.withTimeoutOrNull
+ import org.json.JSONObject
+ 
+@@ -35,7 +36,21 @@ open class KizzyRPC(token: String) {
+     private val kizzyRepository = KizzyRepository(token)
+     private val discordWebSocket = DiscordWebSocket(token)
+ 
+-    fun closeRPC() {
++    /**
++     * Closes the connection. By default the presence is cleared first, bounded to a moment: a
++     * connection dropped with an activity still set leaves the card on the profile until Discord
++     * times the session out, which is what "still shows after I closed the app" was. (From Metrolist.)
++     */
++    fun closeRPC(clearPresence: Boolean = true) {
++        if (clearPresence && isRpcRunning()) {
++            runCatching {
++                runBlocking {
++                    withTimeoutOrNull(CLEAR_BEFORE_CLOSE_MS) {
++                        discordWebSocket.sendActivity(Presence(activities = emptyList()))
++                    }
++                }
++            }
++        }
+         discordWebSocket.close()
+     }
+ 
+@@ -179,6 +194,8 @@ open class KizzyRPC(token: String) {
+     }
+ 
+     companion object {
++        private const val CLEAR_BEFORE_CLOSE_MS = 800L
++
+         /** How long a new song's card waits for its pictures before going out without them. */
+         private const val QUICK_IMAGE_WAIT_MS = 1_500L
+ 
+-- 
+2.43.0
+
+
+From 26123a4eb463919897d6e6e56a95e62c9171b8e1 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 15:41:30 +0800
+Subject: [PATCH 2/2] AutoEQ: match one headphone to another (EQ Studio and
+ Settings > Equaliser)
+
+Pick the headphones in use and the pair to imitate; the difference of their AutoEQ
+corrections is fitted to up to ten peaking bands. Boost safety is the equaliser's own
+measured pre-gain and limiter.
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../ui/screens/settings/AutoEqMatchDialog.kt  | 188 ++++++++++++++++++
+ .../ui/screens/settings/EqualizerSettings.kt  |  17 +-
+ .../screens/settings/EqualizerStudioScreen.kt |   9 +
+ app/src/main/res/values/strings-ot.xml        |   8 +
+ 4 files changed, 221 insertions(+), 1 deletion(-)
+ create mode 100644 app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt
+new file mode 100644
+index 0000000..87e4b5b
+--- /dev/null
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/AutoEqMatchDialog.kt
+@@ -0,0 +1,188 @@
++/*
++ * Copyright (C) 2026 OuterTune Project
++ *
++ * SPDX-License-Identifier: GPL-3.0
++ */
++
++package com.dd3boh.outertune.ui.screens.settings
++
++import androidx.compose.foundation.clickable
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.Spacer
++import androidx.compose.foundation.layout.fillMaxWidth
++import androidx.compose.foundation.layout.heightIn
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.layout.width
++import androidx.compose.foundation.layout.height
++import androidx.compose.foundation.lazy.LazyColumn
++import androidx.compose.foundation.lazy.items
++import androidx.compose.foundation.text.KeyboardOptions
++import androidx.compose.material.icons.Icons
++import androidx.compose.material.icons.rounded.Search
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.Icon
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedTextField
++import androidx.compose.material3.Text
++import androidx.compose.material3.TextButton
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.rememberCoroutineScope
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.input.ImeAction
++import androidx.compose.ui.text.style.TextOverflow
++import androidx.compose.ui.unit.dp
++import com.dd3boh.outertune.R
++import com.dd3boh.outertune.audio.AutoEqMatch
++import com.dd3boh.outertune.models.EqualizerSettings
++import com.dd3boh.outertune.ui.dialog.DefaultDialog
++import com.dd3boh.outertune.utils.AutoEqRepository
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.delay
++import kotlinx.coroutines.launch
++import kotlinx.coroutines.withContext
++
++/**
++ * "Make these headphones sound like those": pick the headphones in use, then the ones to imitate,
++ * and the difference between their AutoEQ corrections is fitted to a curve (see [AutoEqMatch]).
++ * [onApply] gets that curve, with the fit's leftover error in dB so it can be shown.
++ */
++@Composable
++fun AutoEqMatchDialog(onApply: (EqualizerSettings) -> Unit, onDismiss: () -> Unit) {
++    val context = LocalContext.current
++    val detected = remember { connectedHeadphoneName(context) }
++    var step by remember { mutableStateOf(0) }
++    var source by remember { mutableStateOf<AutoEqRepository.Result?>(null) }
++    var query by remember { mutableStateOf(detected.orEmpty()) }
++    var results by remember { mutableStateOf<List<AutoEqRepository.Result>>(emptyList()) }
++    var searching by remember { mutableStateOf(false) }
++    var working by remember { mutableStateOf(false) }
++    var error by remember { mutableStateOf<String?>(null) }
++    val scope = rememberCoroutineScope()
++    val rateLimited = stringResource(R.string.eq_settings_autoeq_rate_limited)
++    val unreachable = stringResource(R.string.eq_settings_autoeq_unreachable)
++    val failed = stringResource(R.string.eq_match_failed)
++
++    LaunchedEffect(query) {
++        val q = query.trim()
++        if (q.isEmpty()) { results = emptyList(); searching = false; error = null; return@LaunchedEffect }
++        delay(400)
++        searching = true
++        error = null
++        val outcome = runCatching { AutoEqRepository.search(q) }.getOrNull()
++        searching = false
++        when (outcome) {
++            is AutoEqRepository.SearchOutcome.Found -> results = outcome.results
++            AutoEqRepository.SearchOutcome.RateLimited -> { results = emptyList(); error = rateLimited }
++            else -> { results = emptyList(); error = unreachable }
++        }
++    }
++
++    fun picked(result: AutoEqRepository.Result) {
++        if (step == 0) {
++            source = result
++            step = 1
++            query = ""
++            results = emptyList()
++            return
++        }
++        val from = source ?: return
++        scope.launch {
++            working = true
++            error = null
++            val a = AutoEqRepository.fetchCurve(from)
++            val b = AutoEqRepository.fetchCurve(result)
++            if (a == null || b == null) {
++                working = false
++                error = failed
++                return@launch
++            }
++            val fitted = withContext(Dispatchers.Default) { AutoEqMatch.match(a.bands, b.bands) }
++            working = false
++            onApply(EqualizerSettings.DEFAULT.copy(enabled = true, bands = fitted.bands))
++            onDismiss()
++        }
++    }
++
++    DefaultDialog(
++        onDismiss = onDismiss,
++        icon = { Icon(Icons.Rounded.Search, null) },
++        title = { Text(stringResource(R.string.eq_match_title)) },
++        buttons = {
++            if (step == 1 && !working) {
++                TextButton(onClick = { step = 0; source = null; query = detected.orEmpty() }) {
++                    Text(stringResource(R.string.eq_match_back))
++                }
++            }
++            TextButton(onClick = onDismiss) { Text(stringResource(android.R.string.cancel)) }
++        }
++    ) {
++        Text(
++            text = if (step == 0) stringResource(R.string.eq_match_step_from)
++            else stringResource(R.string.eq_match_step_to, source?.name.orEmpty()),
++            style = MaterialTheme.typography.bodyMedium,
++        )
++        Spacer(Modifier.height(8.dp))
++        OutlinedTextField(
++            value = query,
++            onValueChange = { query = it },
++            modifier = Modifier.fillMaxWidth(),
++            label = { Text(stringResource(R.string.eq_settings_autoeq_search_hint)) },
++            singleLine = true,
++            enabled = !working,
++            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
++        )
++        if (step == 0 && detected != null) {
++            Text(
++                text = stringResource(R.string.eq_settings_autoeq_detected, detected),
++                style = MaterialTheme.typography.labelSmall,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++                modifier = Modifier.padding(top = 4.dp),
++            )
++        }
++        Spacer(Modifier.height(8.dp))
++        when {
++            working || searching -> Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(vertical = 8.dp)) {
++                CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
++                Spacer(Modifier.width(12.dp))
++                Text(stringResource(if (working) R.string.eq_match_working else R.string.eq_settings_autoeq_searching))
++            }
++            error != null -> Text(error.orEmpty(), color = MaterialTheme.colorScheme.error)
++            query.isNotBlank() && results.isEmpty() -> Text(stringResource(R.string.eq_settings_autoeq_no_results))
++        }
++        LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 300.dp)) {
++            items(results, key = { "${it.category}/${it.name}" }) { result ->
++                Column(
++                    modifier = Modifier
++                        .fillMaxWidth()
++                        .clickable(enabled = !working) { picked(result) }
++                        .padding(vertical = 10.dp)
++                ) {
++                    Text(result.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
++                    Text(
++                        result.category,
++                        style = MaterialTheme.typography.labelSmall,
++                        color = MaterialTheme.colorScheme.onSurfaceVariant,
++                    )
++                }
++            }
++        }
++        if (step == 1) {
++            Text(
++                text = stringResource(R.string.eq_match_note),
++                style = MaterialTheme.typography.labelSmall,
++                color = MaterialTheme.colorScheme.onSurfaceVariant,
++                modifier = Modifier.padding(top = 8.dp),
++            )
++        }
++    }
++}
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index 7140097..61dcca9 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -175,6 +175,7 @@ fun EqualizerSettingsScreen(
+ 
+     var showSaveAsDialog by remember { mutableStateOf(false) }
+     var showAutoEqDialog by remember { mutableStateOf(false) }
++    var showMatchDialog by remember { mutableStateOf(false) }
+     val (headroom, onHeadroomChange) = rememberEnumPreference(EqHeadroomKey, defaultValue = EqHeadroom.AUTO)
+     val (cutMakeup, onCutMakeupChange) = rememberPreference(EqCutMakeupKey, defaultValue = true)
+     var showPanelSettings by rememberPreference(EqShowPanelSettingsKey, defaultValue = false)
+@@ -292,6 +293,13 @@ fun EqualizerSettingsScreen(
+             icon = { Icon(Icons.Rounded.Search, null) },
+             onClick = { showAutoEqDialog = true }
+         )
++
++        PreferenceEntry(
++            title = { Text(stringResource(R.string.eq_match_title)) },
++            description = stringResource(R.string.eq_match_description),
++            icon = { Icon(Icons.Rounded.Search, null) },
++            onClick = { showMatchDialog = true }
++        )
+     }
+ 
+     if (showSaveAsDialog) {
+@@ -304,6 +312,13 @@ fun EqualizerSettingsScreen(
+         )
+     }
+ 
++    if (showMatchDialog) {
++        AutoEqMatchDialog(
++            onApply = { curve -> update(curve.copy(balance = settings.balance, compressor = settings.compressor)) },
++            onDismiss = { showMatchDialog = false },
++        )
++    }
++
+     if (showAutoEqDialog) {
+         AutoEqSearchDialog(
+             onApply = { curve -> update(curve.copy(balance = settings.balance, compressor = settings.compressor)) },
+@@ -336,7 +351,7 @@ fun EqualizerSettingsScreen(
+  * ever report the phone's own model, never the headphones on the end of the cable - and so is a
+  * name that is just the phone's model for the same reason.
+  */
+-private fun connectedHeadphoneName(context: Context): String? {
++internal fun connectedHeadphoneName(context: Context): String? {
+     val audioManager = context.getSystemService(AudioManager::class.java) ?: return null
+     val headphoneTypes = setOf(
+         AudioDeviceInfo.TYPE_BLUETOOTH_A2DP,
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+index fa40dcb..198f0bf 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerStudioScreen.kt
+@@ -137,6 +137,7 @@ fun EqualizerStudioScreen(
+     val song by remember(songId) { database.song(songId) }.collectAsState(initial = null)
+     var picking by rememberSaveable { mutableStateOf(false) }
+     var naming by rememberSaveable { mutableStateOf(false) }
++    var matching by rememberSaveable { mutableStateOf(false) }
+ 
+     // ---- the private player ----------------------------------------------------------------
+     val processor = remember { EqualizerAudioProcessor() }
+@@ -370,6 +371,10 @@ fun EqualizerStudioScreen(
+             )
+         }
+ 
++        OutlinedButton(onClick = { matching = true }, modifier = Modifier.fillMaxWidth()) {
++            Text(stringResource(R.string.eq_match_title))
++        }
++
+         // ---- keeping it ---------------------------------------------------------------------
+         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
+             OutlinedButton(onClick = { naming = true }, modifier = Modifier.weight(1f)) {
+@@ -393,6 +398,10 @@ fun EqualizerStudioScreen(
+         )
+     }
+ 
++    if (matching) {
++        AutoEqMatchDialog(onApply = { loadCurve(it) }, onDismiss = { matching = false })
++    }
++
+     if (naming) {
+         TextFieldDialog(
+             title = { Text(stringResource(R.string.eq_settings_save_as_profile)) },
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index b2ab9d7..bbba72a 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -164,6 +164,14 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="player_background_default">Follow theme</string>
+     <string name="player_background_gradient">Gradient</string>
+     <string name="player_background_liquid">Liquid</string>
++    <string name="eq_match_title">Match another headphone</string>
++    <string name="eq_match_description">Make the headphones you use sound like a different pair</string>
++    <string name="eq_match_step_from">1 of 2 - the headphones you are using</string>
++    <string name="eq_match_step_to">2 of 2 - the headphones to sound like (from %1$s)</string>
++    <string name="eq_match_working">Fitting the curve…</string>
++    <string name="eq_match_back">Back</string>
++    <string name="eq_match_failed">Could not load one of the measurements</string>
++    <string name="eq_match_note">Matches frequency response only, from AutoEQ measurements. Distortion, isolation and soundstage stay the same.</string>
+     <string name="player_background_simple_reactive">Simple reactive</string>
+     <string name="simple_reactive_colours">Colours</string>
+     <string name="simple_reactive_colours_main">Cover's main colours</string>
+-- 
+2.43.0
+
+From 9dfc2bfdbf1e29313f9ea536f06794d1b51cb9e0 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 17:12:59 +0800
+Subject: [PATCH] Fix the Simple reactive colours string: escape the apostrophe
+ (aapt refused the resource)
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ app/src/main/res/values/strings-ot.xml | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/app/src/main/res/values/strings-ot.xml b/app/src/main/res/values/strings-ot.xml
+index bbba72a..920c0f2 100644
+--- a/app/src/main/res/values/strings-ot.xml
++++ b/app/src/main/res/values/strings-ot.xml
+@@ -174,7 +174,7 @@ while also allowing users to translate our app as well. New, specific strings to
+     <string name="eq_match_note">Matches frequency response only, from AutoEQ measurements. Distortion, isolation and soundstage stay the same.</string>
+     <string name="player_background_simple_reactive">Simple reactive</string>
+     <string name="simple_reactive_colours">Colours</string>
+-    <string name="simple_reactive_colours_main">Cover's main colours</string>
++    <string name="simple_reactive_colours_main">Cover\'s main colours</string>
+     <string name="simple_reactive_colours_cover">The cover itself</string>
+     <string name="player_background_style">Player background style</string>
+     <string name="player_background_frosted">Frosted glass</string>
+-- 
+2.43.0
+
