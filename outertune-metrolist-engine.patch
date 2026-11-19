@@ -273989,3 +273989,30 @@ index ecb8dfb..37e6249 100644
 -- 
 2.43.0
 
+From fb9e099ea590c38ba344dd324f4ca96ec8227fe8 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Thu, 19 Nov 2026 21:36:03 +0800
+Subject: [PATCH] Fix crash opening AutoEQ Databases: bound the list height
+
+Co-Authored-By: Claude Sonnet 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_013jYn4VRuj8hDnUMoGaHYVa
+---
+ .../dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt   | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+index a2a12ce..a107833 100644
+--- a/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
++++ b/app/src/main/java/com/dd3boh/outertune/ui/screens/settings/EqualizerSettings.kt
+@@ -621,7 +621,7 @@ internal fun AutoEqDatabasesDialog(onDismiss: () -> Unit) {
+                 text = stringResource(R.string.eq_settings_autoeq_searching),
+                 modifier = Modifier.padding(horizontal = 24.dp, vertical = 8.dp)
+             )
+-            else -> LazyColumn {
++            else -> LazyColumn(modifier = Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                 items(available.orEmpty(), key = { it.first }) { (source, count) ->
+                     Row(
+                         verticalAlignment = Alignment.CenterVertically,
+-- 
+2.43.0
+
